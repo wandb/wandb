@@ -11,8 +11,9 @@ with open('HISTORY.rst') as history_file:
 
 requirements = [
     'Click>=6.0',
-    'jsonapi_requests>=0.2.0'
-    # TODO: put package requirements here
+    'gql>=0.1.0',
+    'requests>=2.0.0',
+    'six>=1.10.0'
 ]
 
 test_requirements = [
@@ -26,7 +27,7 @@ setup(
     long_description=readme + '\n\n' + history,
     author="Chris Van Pelt",
     author_email='vanpelt@gmail.co',
-    url='https://github.com/vanpelt/wandb',
+    url='https://github.com/wandb/client',
     packages=[
         'wandb',
     ],

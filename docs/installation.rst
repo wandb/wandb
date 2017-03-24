@@ -32,13 +32,13 @@ You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/vanpelt/wandb
+    $ git clone git://github.com/wandb/client
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl  -OL https://github.com/vanpelt/wandb/tarball/master
+    $ curl  -OL https://github.com/wandb/client/tarball/master
 
 Once you have a copy of the source, you can install it with:
 

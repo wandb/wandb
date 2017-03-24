@@ -1,69 +1,111 @@
-# -*- coding: utf-8 -*-
-
-import os
-import glob
-import tarfile
+from gql import Client, gql
+from gql.transport.requests import RequestsHTTPTransport
 import requests
+import os
 
-class Packager(object):
-    """Packager manages tar, gzip, and resumable uploads
+def IDENTITY(monitor):
+    return monitor
 
-    Attributes:
-        name: The name of the model
-        max_attempts: The maximum number of times to retry the upload
-    """
+class Progress(object):
+    def __init__(self, file, callback=None):
+        self.file = file
+        self.callback = callback or IDENTITY
+        self.bytes_read = 0
+        self.len = os.fstat(file.fileno()).st_size
 
-    def __init__(self, name, max_attempts=10):
-        self.path = "/tmp/%s.tar.gz" % name
-        self.max_attempts = max_attempts
+    def read(self, size=-1):
+        bites = self.file.read(size)
+        self.bytes_read += len(bites)
+        self.callback(len(bites))
+        return bites
+
+BASE_URL= "http://localhost:5000" if os.getenv('DEBUG') else "https://api.wandb.ai" 
+class Api(object):
+    """W&B Api wrapper"""
+    def __init__(self):
+        self.retries = 3
+        self.client = Client(
+            retries=self.retries,
+            transport=RequestsHTTPTransport(
+                use_json=True,
+                url='%s/graphql' % BASE_URL
+            )
+        )
+
+    def list_models(self):
+        """Lists models in W&B"""
+        query = gql('''
+        query Models {
+            models(first: 10, entity: "models") {
+                edges {
+                    node {
+                        ndbId
+                        description
+                    }
+                }
+            }
+        }
+        ''')
+        return self.client.execute(query)
+
+    def upload_url(self, model, kind="weightsUrl"):
+        query = gql('''
+        query Model($id: String!)  {
+            model(id: $id) {
+                weightsUrl(upload: true)
+                modelUrl(upload: true)
+            }
+        }
+        ''')
+        urls = self.client.execute(query, variable_values={'id':model})
+        return urls['model'][kind]
+
+    def download_url(self, model, kind="weightsUrl"):
+        query = gql('''
+        query Model($id: String!)  {
+            model(id: $id) {
+                weightsUrl
+                modelUrl
+            }
+        }
+        ''')
+        urls = self.client.execute(query, variable_values={'id':model})
+        return urls['model'][kind]
+
+    def download_file(self, url):
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        return (int(response.headers.get('content-length')), response)
+
+    def upload_file(self, url, file, callback):
+        """Creates a model in W&B"""
         self.attempts = 0
-
-    def content_length(self):
-        os.path.getsize(self.path)
-    
-    def package(self, source_dir):
-        tar = tarfile.open(self.path, "w:gz")
-        for file_name in glob.glob(os.path.join(source_dir, "*")):
-            print("  Adding %s..." % file_name)
-            tar.add(file_name, os.path.basename(file_name))
-        tar.close()
-
-    @property
-    def upload_url(self):
-        if(self._upload_url is None):
-            api
-
-
-    def status_request(self):
-        return requests.put(
-            url=self.upload_url,
-            headers={'Content-Length': 0, 'Content-Range': 'bytes */%i' % self.content_length()}
-        )
-
-    def upload_request(self, extra_headers={}):
-        headers = {'Content-Type': 'application/gzip'}
-        return requests.put(
-            url=self.upload_url,
-            data=open(self.path),
-            headers=headers.update(extra_headers)
-        )
-    
-    def upload(self):
         extra_headers = {}
-        while(self.attempts < self.max_attempts):
+        while(self.attempts < self.retries):
             try:
-                res = this.upload_request(extra_headers)
-                res.raise_for_status()
+                progress = Progress(file, callback=callback)
+                response = requests.put(url, data=progress, headers=extra_headers)
                 break
             except requests.exceptions.RequestException as e:
-                status = self.status_request
+                total = progress.len
+                status = self.status_request(total)
                 if(status.status_code == 308):
                     self.attempts += 1
-                    range = int(status.headers['Range'].split("-")[-1])
+                    completed = int(status.headers['Range'].split("-")[-1])
                     extra_headers = {
-                        'Content-Range': 'bytes %i-%i/%i' % (range,this.content_length(), this.content_length()),
-                        'Content-Length': this.content_length() - range
+                        'Content-Range': 'bytes {completed}-{total}/{total}'.format(
+                            completed=completed, 
+                            total=total
+                        ),
+                        'Content-Length': total - completed
                     }
                 else:
                     break
-        return res
+        return response
+
+    def status_request(self, length):
+        return requests.put(
+            url=self.upload_url,
+            headers={'Content-Length': 0, 'Content-Range': 'bytes */%i' % length}
+        )
+        
