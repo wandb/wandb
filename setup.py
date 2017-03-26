@@ -17,7 +17,7 @@ requirements = [
 ]
 
 test_requirements = [
-    # TODO: put package test requirements here
+    'sphinxcontrib-napoleon>=0.6.1'
 ]
 
 setup(
