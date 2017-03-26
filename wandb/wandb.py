@@ -95,6 +95,7 @@ class Api(object):
                 for option in self.config_parser.options(section):
                     config[option] = self.config_parser.get(section, option)
         except configparser.InterpolationSyntaxError:
+            print("WARNING: Unable to parse config file")
             pass
         return config if key is None else config[key]
 

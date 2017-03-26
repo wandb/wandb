@@ -11,6 +11,7 @@ Contents:
    usage
    contributing
    authorshistory
+   wandb.api
 
 Indices and tables
 ==================

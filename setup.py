@@ -13,11 +13,11 @@ requirements = [
     'Click>=6.0',
     'gql>=0.1.0',
     'requests>=2.0.0',
-    'six>=1.10.0',
-    'sphinxcontrib-napoleon>=0.6.1'
+    'six>=1.10.0'
 ]
 
 test_requirements = [
+    'mock>=2.0.0'
 ]
 
 setup(
