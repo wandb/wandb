@@ -37,8 +37,7 @@ setup(
     entry_points={
         'console_scripts': [
             'wandb=wandb.cli:cli'
-        ],
-        'tox': ['pyenv = tox_pyenv']
+        ]
     },
     include_package_data=True,
     install_requires=requirements,
