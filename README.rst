@@ -21,24 +21,19 @@ Weights and Biases
         :target: https://coveralls.io/github/wandb/client?branch=master
 
 
-
-
 A CLI and library for interacting with the Weights and Biases API.
 
 * Free software: MIT license
-* Documentation: https://wandb.readthedocs.io.
+* Documentation: https://wandb.readthedocs.io
 
 
 Features
 --------
 
-* TODO
+This library provides a CLI and python library for the [Weights & Biases](https://wanbd.ai) machine learning model management platform.  It makes it dead simple to upload or download revisions via the command line or your code.
 
-Credits
----------
+Examples
+--------
 
-This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
-
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+TBD
 
