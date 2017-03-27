@@ -2,15 +2,14 @@
 Weights and Biases
 ===============================
 
+.. image:: https://circleci.com/gh/wandb/client.svg?style=svg
+        :target: https://circleci.com/gh/wandb/client
 
 .. image:: https://img.shields.io/pypi/v/wandb.svg
         :target: https://pypi.python.org/pypi/wandb
 
-.. image:: https://circleci.com/gh/wandb/client.svg?style=svg
-    :target: https://circleci.com/gh/wandb/client
-
-.. image:: https://readthedocs.org/projects/wandb/badge/?version=latest
-        :target: https://wandb.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/wb-client/badge/?version=latest
+        :target: https://wb-client.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
 .. image:: https://pyup.io/repos/github/wandb/client/shield.svg
@@ -24,16 +23,31 @@ Weights and Biases
 A CLI and library for interacting with the Weights and Biases API.
 
 * Free software: MIT license
-* Documentation: https://wandb.readthedocs.io
+* Documentation: https://wb-client.readthedocs.io
 
 
 Features
 --------
 
-This library provides a CLI and python library for the [Weights & Biases](https://wanbd.ai) machine learning model management platform.  It makes it dead simple to upload or download revisions via the command line or your code.
+This library provides a CLI and python library for the `Weights & Biases<https://wanbd.ai>` machine learning model management platform.  It makes it dead simple to upload or download revisions via the command line or your code.
+
 
 Examples
 --------
 
-TBD
+CLI Usage:
 
+.. code:: shell
+     
+        cd myproject
+        wandb init
+        wandb upload
+        wandb download
+
+Client Usage:
+
+.. code:: python
+
+        import wandb
+        client = wandb.Api()
+        client.upload_file("my_model", open("some_file", "rb"))
