@@ -82,11 +82,11 @@ class Api(object):
             used, defaults to "default"
 
         Returns:
-                {
-                    "entity": "models",
-                    "base_url": "https://api.wandb.ai",
-                    "model": None
-                }
+            {
+                "entity": "models",
+                "base_url": "https://api.wandb.ai",
+                "model": None
+            }
         """
         config = self.default_config.copy()
         section = section or config['section']
