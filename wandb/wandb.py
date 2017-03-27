@@ -130,13 +130,13 @@ class Api(object):
             'entity': entity or self.config('entity')})['models'])
 
     @normalize_exceptions
-    def create_revision(self, model, description=None, entity=None, kind="patch"):
+    def create_revision(self, model, description=None, entity=None, part="patch"):
         """Create a new revision
         
         Args:
             model (str): The model to revise
             description (str, optional): A description of this revision
-            kind (str, optional): One of patch (default), minor or major specifying
+            part (str, optional): One of patch (default), minor or major specifying
             what part of the semantic version to bump
             entity (str, optional): The entity to scope this model to.  Defaults to 
             public models
@@ -152,8 +152,8 @@ class Api(object):
             }
         """
         mutation = gql('''
-        mutation CreateRevision($id: String!, $entity: String!, $description: String, $kind: String)  {
-            createRevision(id: $id, entity: $entity, description: $description, which: $kind) {
+        mutation CreateRevision($id: String!, $entity: String!, $description: String, $part: String)  {
+            createRevision(id: $id, entity: $entity, description: $description, which: $part) {
                 revision {
                     description
                     version
@@ -165,7 +165,7 @@ class Api(object):
         ''')
         response = self.client.execute(mutation, variable_values={
             'id':model, 'entity': entity or self.config('entity'),
-            'description':description, 'kind':kind})
+            'description':description, 'part':part})
         return response['createRevision']['revision']
 
     @normalize_exceptions
