@@ -85,7 +85,7 @@ class Api(object):
                 {
                     "entity": "models",
                     "base_url": "https://api.wandb.ai",
-                    "model": None,
+                    "model": None
                 }
         """
         config = self.default_config.copy()

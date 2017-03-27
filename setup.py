@@ -17,7 +17,8 @@ requirements = [
 ]
 
 test_requirements = [
-    'mock>=2.0.0'
+    'mock>=2.0.0',
+    'tox-pyenv>=1.0.3'
 ]
 
 setup(
@@ -36,7 +37,8 @@ setup(
     entry_points={
         'console_scripts': [
             'wandb=wandb.cli:cli'
-        ]
+        ],
+        'tox': ['pyenv = tox_pyenv']
     },
     include_package_data=True,
     install_requires=requirements,
