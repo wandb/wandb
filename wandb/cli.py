@@ -7,8 +7,11 @@ from functools import wraps
 
 def loggedIn(host):
     """Check if our host is in .netrc"""
-    conf = netrc.netrc()
-    return conf.hosts[host]
+    try:
+        conf = netrc.netrc()
+        return conf.hosts[host]
+    except:
+        return None
 
 def login(host, entity, key):
     """Add our host and key to .netrc"""
