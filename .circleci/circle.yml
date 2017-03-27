@@ -1,0 +1,15 @@
+machine:
+  environment:
+    TOX_PY27: '2.7.11'
+    TOX_PY35: '3.5.2'
+    TOX_PY36: '3.6.0'
+    TOX_PY34: '3.4.4'
+
+dependencies:
+  override:
+    - pip install --upgrade --editable tox-pyenv
+    - pyenv local $TOX_PY34 $TOX_PY35 $TOX_PY36 $TOX_PY27
+
+test:
+  override:
+    - tox -v --recreate
