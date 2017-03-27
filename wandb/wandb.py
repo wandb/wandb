@@ -3,6 +3,7 @@ from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
 import os, requests
 from six.moves import configparser
+from functools import wraps
 
 def IDENTITY(monitor):
     """A default callback for the Progress helper"""
@@ -29,14 +30,15 @@ class Error(Exception):
 
 def normalize_exceptions(func):
     """Function decorator for catching common errors and re-raising as wandb.Error"""
-    def inner(*args, **kwargs):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except requests.HTTPError as err:
             raise Error(err)
         except RetryError as err:
             raise Error(err.last_exception)
-    return inner
+    return wrapper
 
 class Api(object):
     """W&B Api wrapper"""
@@ -82,11 +84,13 @@ class Api(object):
             used, defaults to "default"
 
         Returns:
-            {
-                "entity": "models",
-                "base_url": "https://api.wandb.ai",
-                "model": None
-            }
+            A dict with the current config
+
+                {
+                    "entity": "models",
+                    "base_url": "https://api.wandb.ai",
+                    "model": None
+                }
         """
         config = self.default_config.copy()
         section = section or config['section']

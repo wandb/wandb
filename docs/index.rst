@@ -10,8 +10,8 @@ Contents:
    installation
    usage
    contributing
-   authorshistory
-   source
+   authors
+   history
 
 Indices and tables
 ==================

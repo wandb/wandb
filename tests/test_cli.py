@@ -1,7 +1,7 @@
 import pytest, os, traceback
 from wandb import cli, Api
 from click.testing import CliRunner
-from .mocks import *
+from .api_mocks import *
 
 @pytest.fixture
 def runner():

@@ -12,6 +12,15 @@ wandb.cli module
     :undoc-members:
     :show-inheritance:
 
+wandb.wandb module
+------------------
+
+.. automodule:: wandb.wandb
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 Module contents
 ---------------
 

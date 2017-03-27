@@ -8,7 +8,7 @@ test_wandb
 Tests for the `wandb.Api` module.
 """
 import pytest, gql, os, requests
-from .mocks import *
+from .api_mocks import *
 
 from contextlib import contextmanager
 
