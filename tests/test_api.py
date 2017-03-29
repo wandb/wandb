@@ -13,7 +13,7 @@ from .api_mocks import *
 from contextlib import contextmanager
 
 import wandb
-api = wandb.Api()
+api = wandb.Api(load_config=False)
 
 def test_models_success(request_mocker, query_models):
     query_models(request_mocker)
@@ -25,15 +25,15 @@ def test_models_failure(request_mocker, query_models):
     with pytest.raises(wandb.Error):
         api.list_models()
 
-def test_model_download_url(request_mocker, query_model):
+def test_model_download_urls(request_mocker, query_model):
     query_model(request_mocker)
-    res = api.download_url("test")
-    assert res == "https://weights.url"
+    res = api.download_urls("test")
+    assert res == {'weights': 'https://weights.url', 'model': 'https://model.url'}
 
-def test_model_upload_url(request_mocker, query_model):
+def test_model_upload_urls(request_mocker, query_model):
     query_model(request_mocker)
-    res = api.upload_url("test")
-    assert res == "https://weights.url"
+    res = api.upload_urls("test")
+    assert res == {'h5': ['weights', 'https://weights.url'], 'json': ['model', 'https://model.url']}
 
 def test_download_success(request_mocker, download_url):
     download_url(request_mocker)
@@ -81,12 +81,14 @@ def test_config(mocker):
         'base_url': 'https://api.wandb.ai',
         'entity': 'test_entity',
         'model': 'test_model',
-        'section': 'default'
+        'section': 'default',
+        'tag': 'default'
     }
 
 def test_default_config():
-    assert wandb.Api({'base_url': 'http://localhost'}).config() == {
+    assert wandb.Api({'base_url': 'http://localhost'}, load_config=False).config() == {
         'base_url': 'http://localhost', 
         'entity': 'models', 
-        'section': 'default'
+        'section': 'default',
+        'tag': 'default'
     }

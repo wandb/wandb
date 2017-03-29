@@ -29,7 +29,7 @@ A CLI and library for interacting with the Weights and Biases API.
 Features
 --------
 
-This library provides a CLI and python library for the `Weights & Biases<https://wanbd.ai>` machine learning model management platform.  It makes it dead simple to upload or download revisions via the command line or your code.
+This library provides a CLI and python library for the `Weights & Biases<https://wanbd.ai>_` machine learning model management platform.  It makes it dead simple to upload or download revisions via the command line or your code.
 
 
 Examples

@@ -35,20 +35,24 @@ def normalize_exceptions(func):
         try:
             return func(*args, **kwargs)
         except requests.HTTPError as err:
-            raise Error(err)
+            raise Error(err.response)
         except RetryError as err:
-            raise Error(err.last_exception)
+            if "response" in dir(err.last_exception):
+                message = err.last_exception.response.json().get('errors', [{'message': 'unclear'}])[0]['message']
+            else:
+                message = err.last_exception
+            raise Error(message)
     return wrapper
 
 class Api(object):
     """W&B Api wrapper"""
-    def __init__(self, default_config=None):
+    def __init__(self, default_config=None, load_config=True):
         """Initialize a new Api Client
 
         Note:
             Configuration parameters are automatically overriden by looking for
             a `.wandb` file in the current working directory or it's parent
-            directories.  If none can be found, we look in the current users home
+            directory.  If none can be found, we look in the current users home
             directory.
 
         Args:
@@ -59,14 +63,18 @@ class Api(object):
         self.default_config = {
             'section': "default",
             'entity': "models",
+            'tag': "default",
             'base_url': "https://api.wandb.ai"
         }
         self.default_config.update(default_config or {})
         self.retries = 3
         self.config_parser = configparser.ConfigParser()
-        self.config_file = self.config_parser.read([
-            ".wandb", "../.wandb", "../../.wandb", os.path.expanduser('~/.wandb')
-        ])
+        if load_config:
+            self.config_file = self.config_parser.read([
+                os.path.expanduser('~/.wandb'), os.getcwd() + "/../.wandb", os.getcwd() + "/.wandb"
+            ])
+        else:
+            self.config_file = []
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
@@ -119,7 +127,7 @@ class Api(object):
             models(first: 10, entity: $entity) {
                 edges {
                     node {
-                        name: ndbId
+                        name
                         description
                     }
                 }
@@ -130,7 +138,7 @@ class Api(object):
             'entity': entity or self.config('entity')})['models'])
 
     @normalize_exceptions
-    def create_revision(self, model, description=None, entity=None, part="patch"):
+    def create_revision(self, model, description=None, tag=None, entity=None, part="patch"):
         """Create a new revision
         
         Args:
@@ -152,8 +160,8 @@ class Api(object):
             }
         """
         mutation = gql('''
-        mutation CreateRevision($id: String!, $entity: String!, $description: String, $part: String)  {
-            createRevision(id: $id, entity: $entity, description: $description, which: $part) {
+        mutation CreateRevision($name: String!, $entity: String!, $tag: String!, $description: String, $part: String)  {
+            createTagRevision(name: $name, entityName: $entity, description: $description, which: $part) {
                 revision {
                     description
                     version
@@ -164,60 +172,90 @@ class Api(object):
         }
         ''')
         response = self.client.execute(mutation, variable_values={
-            'id':model, 'entity': entity or self.config('entity'),
+            'name':model, 'tag': tag or self.config('tag'), 'entity': entity or self.config('entity'),
             'description':description, 'part':part})
         return response['createRevision']['revision']
 
     @normalize_exceptions
-    def upload_url(self, model, entity=None, kind="weightsUrl"):
-        """Generate a temporary resumable upload url for a given file type
+    def upload_urls(self, model, tag=None, entity=None, description=None):
+        """Generate temporary resumable upload urls
         
         Args:
             model (str): The model to download
-            kind (str, optional): One of weightsUrl (default) or modelUrl
+            tag (str, optional): The tag to upload to
             entity (str, optional): The entity to scope this model to.  Defaults to 
-            public models
-        """
-        query = gql('''
-        query Model($id: String!, $entity: String!)  {
-            model(id: $id, entity: $entity) {
-                currentRevision {
-                    weightsUrl(upload: true)
-                    modelUrl(upload: true)
-                }
-            }
-        }
-        ''')
-        urls = self.client.execute(query, variable_values={
-            'id':model, 'entity': entity or self.config('entity')})
-        return urls['model']['currentRevision'][kind]
-
-    @normalize_exceptions
-    def download_url(self, model, entity=None, kind="weightsUrl"):
-        """Generate a download url for a given file type
-        
-        Args:
-            model (str): The model to download
-            kind (str, optional): One of weightsUrl (default) or modelUrl
-            entity (str, optional): The entity to scope this model to.  Defaults to 
-            public models
+            wandb models
 
         Returns:
-            A url to download that may require authentication.
+            A dict of extensions and urls, also indicates if this revision already has uploaded files
+
+                {
+                    'h5': ["weights", "https://weights.url"], 
+                    'json': ["model", "https://model.json"],
+                    'exists': { 'updatedAt' :'2013-04-26T22:22:23.832Z' }
+                }
         """
         query = gql('''
-        query Model($id: String!, $entity: String!)  {
-            model(id: $id, entity: $entity) {
-                currentRevision {
-                    weightsUrl
-                    modelUrl
+        query Model($name: String!, $entity: String!, $tag: String!, $description: String) {
+            model(name: $name, entityName: $entity) {
+                tag(name: $tag, desc: $description) {
+                    weights: ext
+                    model: ext(kind: "model")
+                    currentRevision {
+                        weights: weightsUrl(upload: true)
+                        model: modelUrl(upload: true)
+                        exists: weightsFile {
+                            updatedAt
+                        }
+                    }
                 }
             }
         }
         ''')
-        urls = self.client.execute(query, variable_values={
-            'id':model, 'entity': entity or self.config('entity')})
-        return urls['model']['currentRevision'][kind]
+        query_result = self.client.execute(query, variable_values={
+            'name':model, 'tag': tag or self.config('tag'), 'entity': entity or self.config('entity')})
+        tag = query_result['model']['tag']
+        result = {}
+        result[tag['weights']] = ['weights', tag['currentRevision']['weights']]
+        result[tag['model']] = ['model', tag['currentRevision']['model']]
+
+        return result
+
+    @normalize_exceptions
+    def download_urls(self, model, tag=None, entity=None):
+        """Generate download urls
+        
+        Args:
+            model (str): The model to download
+            tag (str, optional): The tag to upload to
+            entity (str, optional): The entity to scope this model to.  Defaults to 
+            wandb models
+
+        Returns:
+            A dict of extensions and urls
+
+                {
+                    'weights': "https://weights.url", 
+                    'model': "https://model.json"
+                }
+        """
+        query = gql('''
+        query Model($name: String!, $entity: String!, $tag: String!)  {
+            model(name: $name, entityName: $entity) {
+                tag(name: $tag) {
+                    weights: ext
+                    model: ext(kind: "model")
+                    currentRevision {
+                        weights: weightsUrl
+                        model: modelUrl
+                    }
+                }
+            }
+        }
+        ''')
+        query_result = self.client.execute(query, variable_values={
+            'name':model, 'tag': tag or self.config('tag'), 'entity': entity or self.config('entity')})
+        return query_result['model']['tag']['currentRevision']
     
     @normalize_exceptions
     def download_file(self, url):
@@ -267,7 +305,6 @@ class Api(object):
                         ),
                         'Content-Length': str(total - completed)
                     }
-                    print("Ran code %s" % extra_headers)
                 else:
                     raise e
         return response

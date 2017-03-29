@@ -5,10 +5,15 @@ def _model(name='test'):
     return {
         'name': name,
         'description': 'Test model',
-        'currentRevision': {
-            'weightsUrl': 'https://weights.url',
-            'modelUrl': 'https://model.url'
+        'tag': {
+            'weights': 'h5',
+            'model': 'json',
+            'currentRevision': {
+                'weights': 'https://weights.url',
+                'model': 'https://model.url'
+            }
         }
+        
     }
 
 def _revision(version='0.0.1'):
@@ -60,11 +65,14 @@ def mutate_revision():
 def upload_url():
     def wrapper(mocker, status_code=200, headers={}):
         mocker.register_uri('PUT', 'https://weights.url', status_code=status_code, headers=headers)
+        mocker.register_uri('PUT', 'https://model.url', status_code=status_code, headers=headers)
     return wrapper
 
 @pytest.fixture
 def download_url():
-    def wrapper(mocker, status_code=200, error=None, size=10000000):
+    def wrapper(mocker, status_code=200, error=None, size=5000):
         mocker.register_uri('GET', 'https://weights.url', 
+            content=os.urandom(size), status_code=status_code)
+        mocker.register_uri('GET', 'https://model.url', 
             content=os.urandom(size), status_code=status_code)
     return wrapper
