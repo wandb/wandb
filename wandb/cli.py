@@ -68,9 +68,9 @@ def models(entity):
         ))
 
 @cli.command(context_settings=CONTEXT)
-@click.option("--model", "-p", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
+@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @click.option("--tag", "-t", envvar='WANDB_TAG', help="An optional tag to work with.")
-@click.option("--description", "-d", help="A description to associate with this upload.")
+@click.option("--description", "-d", "-m", help="A description to associate with this upload.")
 @click.argument("files", type=click.File('rb'), nargs=-1)
 @click.pass_context
 @display_error
@@ -120,9 +120,9 @@ def config():
     ))
 
 @cli.command(context_settings=CONTEXT)     
-@click.option("--model", "-m", prompt=True, envvar='WANDB_MODEL', help="The model to bump the version on.")
+@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model to bump the version on.")
 @click.option("--tag", "-t", prompt=True, envvar='WANDB_TAG', help="The tag to bump the version on.")  
-@click.option("--description", help="A description of this revision")  
+@click.option("--description", "-d", "-m", help="A description of this revision")  
 @click.option('--patch', 'part', flag_value='patch', default=True, help="Which version segment to increment")
 @click.option('--minor', 'part', flag_value='minor')
 @click.option('--major', 'part', flag_value='minor')
@@ -151,9 +151,9 @@ def init(ctx):
     click.echo(click.style("This directory is configured, run `wandb upload` to upload your first model!", fg="green"))
 
 @cli.command(context_settings=CONTEXT)
-@click.option("--model", "-m", prompt=True, envvar='WANDB_MODEL', help="The model you want to download.")
+@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you want to download.")
 @click.option("--tag", "-t", default="default", envvar='WANDB_TAG', help="The model you want to download.")
-@click.option("--kind", default="all", type=click.Choice(['all', 'model', 'weights']))
+@click.option("--kind", "-k", default="all", type=click.Choice(['all', 'model', 'weights']))
 @display_error
 def download(model, tag, kind):
     click.echo("Downloading model: {model}".format(
