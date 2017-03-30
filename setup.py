@@ -36,7 +36,9 @@ setup(
                  'wandb'},
     entry_points={
         'console_scripts': [
-            'wandb=wandb.cli:cli'
+            'wandb=wandb.cli:cli',
+            'wb=wandb.cli:cli',
+            'weights=wandb.cli:cli'
         ]
     },
     include_package_data=True,
