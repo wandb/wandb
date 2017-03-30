@@ -1,6 +1,7 @@
 import threading
 import functools
 
+#This seems fucked
 def timeout(duration=5, default=None):
     def decorator(func):
         class InterruptableThread(threading.Thread):

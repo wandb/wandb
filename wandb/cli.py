@@ -41,7 +41,7 @@ def display_error(func):
     return wrapper
 
 def editor():
-    MARKER = '# Enter a description of this revision, markdown is allowed\n'
+    MARKER = '# Enter a description of this revision, markdown is allowed!\n'
     message = click.edit('\n\n' + MARKER)
     if message is not None:
         return message.split(MARKER, 1)[0].rstrip('\n')
@@ -59,8 +59,11 @@ def cli():
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
 def models(entity):
-    click.echo(click.style('Latest models for entity "%s"' % entity, fg="yellow", bold=True))
-    for model in api.list_models():
+    click.echo(click.style('Latest models for entity "%s"' % entity, bold=True))
+    models = api.list_models(entity=entity)
+    if len(models) == 0:
+        raise ClickException("No models found for %s, add models at: https://app.wandb.ai/models/new" % entity)
+    for model in models:
         click.echo("".join(
             (click.style(model['name'], fg="blue", bold=True), 
             " - ", 
@@ -119,29 +122,18 @@ def config():
         separators=(',', ': ')
     ))
 
-@cli.command(context_settings=CONTEXT)     
-@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model to bump the version on.")
-@click.option("--tag", "-t", prompt=True, envvar='WANDB_TAG', help="The tag to bump the version on.")  
-@click.option("--description", "-d", "-m", help="A description of this revision")  
-@click.option('--patch', 'part', flag_value='patch', default=True, help="Which version segment to increment")
-@click.option('--minor', 'part', flag_value='minor')
-@click.option('--major', 'part', flag_value='minor')
-@display_error
-def bump(model, tag, description, part):
-    rev = api.create_revision(model, description=description, part=part)
-    click.echo("Bumped version to: %s" % rev['version'])
-
-@cli.command(context_settings=CONTEXT)
+@cli.command(context_settings=CONTEXT, help="Configure a directory for use with Weights & Biases")
 @click.pass_context
 @display_error
 def init(ctx):
+    if(os.path.isfile(".wandb")):
+        click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
     click.echo(click.style("Let's setup this directory for W&B!", fg="green", bold=True))
-    entity = click.prompt("What is your username?")
+    entity = click.prompt("What entity should we scope to?", default="models")
     host = api.config()['base_url']
     if loggedIn(host) is None:
         key = click.prompt("{warning} Enter an api key from https://app.wandb.ai/profile to enable uploads".format(
-            warning=click.style("Not authenticated!", fg="red"))
-        )
+            warning=click.style("Not authenticated!", fg="red")), default="")
         if key:
             login(host, entity, key)
     ctx.invoke(models, entity=entity)

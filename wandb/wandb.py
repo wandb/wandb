@@ -1,9 +1,10 @@
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
-import os, requests
+import os, requests, ast
 from six.moves import configparser
 from functools import wraps
+import logging
 
 def IDENTITY(monitor):
     """A default callback for the Progress helper"""
@@ -37,10 +38,17 @@ def normalize_exceptions(func):
         except requests.HTTPError as err:
             raise Error(err.response)
         except RetryError as err:
-            if "response" in dir(err.last_exception):
-                message = err.last_exception.response.json().get('errors', [{'message': 'unclear'}])[0]['message']
+            if "response" in dir(err.last_exception) and err.last_exception.response is not None:
+                message = err.last_exception.response.json().get('errors', [{'message': 'Whoa, you found a bug!'}])[0]['message']
             else:
                 message = err.last_exception
+            raise Error(message)
+        except Exception as err:
+            try:
+                message = ast.literal_eval(err.args[0]).get("message", "Whoa, you found a bug!")
+            except SyntaxError as e:
+                logging.error(err)
+                message = "you found a bug!"
             raise Error(message)
     return wrapper
 
@@ -124,7 +132,7 @@ class Api(object):
         """
         query = gql('''
         query Models($entity: String!) {
-            models(first: 10, entity: $entity) {
+            models(first: 10, entityName: $entity) {
                 edges {
                     node {
                         name
