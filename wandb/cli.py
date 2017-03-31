@@ -72,6 +72,20 @@ def models(entity):
 
 @cli.command(context_settings=CONTEXT)
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
+@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@display_error
+def tags(model, entity):
+    click.echo(click.style('Latest tags for model "%s"' % model, bold=True))
+    tags = api.list_tags(model, entity=entity)
+    for tag in tags:
+        click.echo("".join(
+            (click.style(tag['name'], fg="blue", bold=True), 
+            " - ", 
+            (tag['description'] or "").split("\n")[0])
+        ))
+
+@cli.command(context_settings=CONTEXT)
+@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @click.option("--tag", "-t", envvar='WANDB_TAG', help="An optional tag to work with.")
 @click.option("--description", "-d", "-m", help="A description to associate with this upload.")
 @click.argument("files", type=click.File('rb'), nargs=-1)

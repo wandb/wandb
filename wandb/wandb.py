@@ -146,6 +146,36 @@ class Api(object):
             'entity': entity or self.config('entity')})['models'])
 
     @normalize_exceptions
+    def list_tags(self, model, entity=None):
+        """Lists tags in W&B scoped by model.
+        
+        Args:
+            model (str): The model to scope the tags to
+            entity (str, optional): The entity to scope this model to.  Defaults to 
+            public models
+
+        Returns:
+                [{"name","description"}]
+        """
+        query = gql('''
+        query Tags($model: String!, $entity: String!) {
+            model(name: $model, entityName: $entity) {
+                tags(first: 10) {
+                    edges {
+                        node {
+                            name
+                            description
+                        }
+                    }
+                }
+            }
+        }
+        ''')
+        return self._flatten_edges(self.client.execute(query, variable_values={
+            'entity': entity or self.config('entity'), 
+            'model': model or self.config('model')})['model']['tags'])
+
+    @normalize_exceptions
     def create_revision(self, model, description=None, tag=None, entity=None, part="patch"):
         """Create a new revision
         
@@ -221,7 +251,10 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':model, 'tag': tag or self.config('tag'), 'entity': entity or self.config('entity')})
+            'name':model, 'tag': tag or self.config('tag'), 
+            'entity': entity or self.config('entity'),
+            'description': description
+        })
         tag = query_result['model']['tag']
         result = {}
         result[tag['weights']] = ['weights', tag['currentRevision']['weights']]
