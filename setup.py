@@ -13,7 +13,6 @@ requirements = [
     'Click>=6.0',
     'gql>=0.1.0',
     'requests>=2.0.0',
-    'prompt-toolkit>=1.0.14',
     'inquirer>=2.1.11',
     'six>=1.10.0'
 ]

@@ -5,6 +5,7 @@ import os, requests, ast
 from six.moves import configparser
 from functools import wraps
 import logging
+from wandb import __version__
 
 def IDENTITY(monitor):
     """A default callback for the Progress helper"""
@@ -86,6 +87,7 @@ class Api(object):
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
+                headers={'User-Agent': 'W&B Client %s' % __version__},
                 use_json=True,
                 url='%s/graphql' % self.config('base_url')
             )

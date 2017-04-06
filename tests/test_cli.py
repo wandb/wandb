@@ -1,13 +1,18 @@
 import pytest, os, traceback
 from wandb import cli, Api
-from click.testing import CliRunner
+from click.testing import CliRunner, EchoingStdin, make_input_stream
 from .api_mocks import *
 import netrc, signal, time
-import six, time
+import six, time, inquirer
+from readchar import key
+
+def event_factory(*args):
+    return Iterable(*args)
 
 @pytest.fixture
 def runner(monkeypatch):
     monkeypatch.setattr(cli, 'api', Api(load_config=False))
+    monkeypatch.setattr(inquirer, 'prompt', lambda x: {'model': 'test_model', 'files': ['weights.h5']})
     return CliRunner()
 
 @pytest.fixture
@@ -25,7 +30,7 @@ def local_netrc(monkeypatch):
 def test_help(runner):
     result = runner.invoke(cli.cli)
     assert result.exit_code == 0
-    assert 'Console script for wandb' in result.output
+    assert 'Console script for Weights & Biases' in result.output
     help_result = runner.invoke(cli.cli, ['--help'])
     assert help_result.exit_code == 0
     assert '--help  Show this message and exit.' in help_result.output
@@ -46,9 +51,12 @@ def test_upload(runner, request_mocker, query_model, upload_url):
     query_model(request_mocker)
     upload_url(request_mocker)
     with runner.isolated_filesystem():
-        with open('fake.h5', 'wb') as f:
+        with open('weights.h5', 'wb') as f:
             f.write(os.urandom(5000))
-        result = runner.invoke(cli.push, ['fake.h5', '--model', 'test', '-d', 'My description'])
+        result = runner.invoke(cli.push, ['default', 'weights.h5', '--model', 'test', '-m', 'My description'])
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         assert "Uploading model: test" in result.output
 
@@ -57,16 +65,17 @@ def test_upload_auto(runner, request_mocker, mocker, query_model, upload_url):
     upload_url(request_mocker)
     edit_mock = mocker.patch("click.edit")
     with runner.isolated_filesystem():
-        with open('fake.h5', 'wb') as f:
+        with open('weights.h5', 'wb') as f:
             f.write(os.urandom(5000))
         with open('fake.json', 'wb') as f:
             f.write(os.urandom(100))
         result = runner.invoke(cli.push, ['--model', 'test', '-m', 'Testing'])
-        #print(result.output)
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "Uploading model file: fake.json" in result.output
-        assert "Uploading weights file: fake.h5" in result.output
-        #TODO: test without specifying method
+        assert "Uploading file: weights.h5" in result.output
+        #TODO: test without specifying message
         #assert edit_mock.called
 
 def test_download(runner, request_mocker, query_model, download_url):
@@ -74,11 +83,13 @@ def test_download(runner, request_mocker, query_model, download_url):
     download_url(request_mocker)
     with runner.isolated_filesystem():
         result = runner.invoke(cli.pull, ['--model', 'test'])
+        
         print(result.output)
+        print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         assert "Downloading model: test" in result.output
-        assert os.path.isfile("weights.url")
+        assert os.path.isfile("weights.h5")
         assert "Downloading model" in result.output
         assert "Downloading weights" in result.output
 
@@ -98,7 +109,7 @@ def test_models_error(runner, request_mocker, query_models):
 def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_models):
     query_models(request_mocker)
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.init, input="vanpelt\n12345\ntest_model")
+        result = runner.invoke(cli.init, input="12345\nvanpelt")
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
@@ -112,7 +123,7 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
             f.write("previous config")
-        result = runner.invoke(cli.init, input="vanpelt\n12345\ntest_model")
+        result = runner.invoke(cli.init, input="12345\nvanpelt\n")
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
@@ -129,7 +140,7 @@ def test_existing_login(runner, local_netrc, request_mocker, query_models):
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
             f.write("machine api.wandb.ai\n\ttest\t12345")
-        result = runner.invoke(cli.init, input="vanpelt\ntest_model")
+        result = runner.invoke(cli.init, input="vanpelt\n")
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))

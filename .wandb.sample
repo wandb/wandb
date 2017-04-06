@@ -1,2 +1,6 @@
 [default]
-base_url: http://localhost:5000
+base_url = http://gql.dev
+entity = models
+model = dev
+files = foo.bar
+

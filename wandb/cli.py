@@ -6,8 +6,6 @@ import random, time, os, re, netrc, logging, json, glob, io
 from functools import wraps
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
-from prompt_toolkit import prompt
-from prompt_toolkit.contrib.completers import WordCompleter
 import inquirer
 
 logging.basicConfig(filename='/tmp/wandb.log', level=logging.INFO)
@@ -77,7 +75,7 @@ def models(entity):
     return models
 
 @cli.command(context_settings=CONTEXT, help="List buckets in a model")
-@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
+@click.argument("model", envvar='WANDB_MODEL')
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
 def buckets(model, entity):
@@ -91,9 +89,10 @@ def buckets(model, entity):
         ))
 
 @cli.command(context_settings=CONTEXT, help="List staged files & remote files")
+@click.argument("bucket", envvar='WANDB_BUCKET')
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @display_error
-def status(model):
+def status(bucket, model):
     parser = api.config_parser
     parser.read(".wandb")
     if parser.has_option("default", "files"):
@@ -181,6 +180,7 @@ def push(ctx, bucket, model, description, files):
         length = os.fstat(file.fileno()).st_size
         with click.progressbar(length=length, label='Uploading file: %s' % (file.name),
             fill_char=click.style('&', fg='green')) as bar:
+            print(urls)
             api.upload_file( urls[file.name]['url'], file, lambda bites: bar.update(bites) )
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -237,15 +237,16 @@ def init(ctx):
 
     if len(result) == 0:
         model = click.prompt("Enter a name for your first model.")
-        description = prompt("Enter a description, markdown is allowed.  Hit esc + enter to continue\n", multiline=True)
+        description = editor()
         api.create_model(model, entity=entity, description=description)
     else:
         model_names = [model["name"] for model in result]
-        completer = WordCompleter(model_names, ignore_case=True)
-        model = prompt("Which model should we use? (We'll create a new one if needed) ", completer=completer)
+        question = inquirer.List('model', message="Which model should we use?", choices=model_names + ["Create New"])
+        model = inquirer.prompt([question])['model']
         #TODO: check with the server if the model exists
-        if model not in model_names:
-            description = prompt("Enter a description, markdown is allowed.  Hit esc + enter to continue\n", multiline=True)
+        if model == "Create New":
+            model = click.prompt("Enter a name for your new model.")
+            description = editor()
             api.create_model(model, entity=entity, description=description)
 
     with open(".wandb", "w") as file:
