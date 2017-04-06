@@ -40,7 +40,7 @@ setup(
         'console_scripts': [
             'wandb=wandb.cli:cli',
             'wb=wandb.cli:cli',
-            'weights=wandb.cli:cli'
+            'wanbd=wandb.cli:cli'
         ]
     },
     include_package_data=True,

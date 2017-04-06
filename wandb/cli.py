@@ -85,15 +85,15 @@ def buckets(model, entity):
     buckets = api.list_buckets(model, entity=entity)
     for bucket in buckets:
         click.echo("".join(
-            (click.style(tag['name'], fg="blue", bold=True), 
+            (click.style(bucket['name'], fg="blue", bold=True), 
             " - ", 
             (bucket['description'] or "").split("\n")[0])
         ))
 
-@cli.command(context_settings=CONTEXT, help="List staged files")
+@cli.command(context_settings=CONTEXT, help="List staged files & remote files")
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @display_error
-def files(model):
+def status(model):
     parser = api.config_parser
     parser.read(".wandb")
     if parser.has_option("default", "files"):
@@ -101,8 +101,11 @@ def files(model):
     else:
         existing = []
     click.echo(click.style('Staged files for "%s": ' % model, bold=True) + ", ".join(existing))
+    remote = api.download_urls(model)
+    click.echo(click.style('Remote files: ', bold=True) + ", ".join([name for name in remote]))
 
-@cli.command(context_settings=CONTEXT, help="Stage files")
+
+@cli.command(context_settings=CONTEXT, help="Add staged files")
 @click.argument("files", type=click.File('rb'), nargs=-1)
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @display_error
