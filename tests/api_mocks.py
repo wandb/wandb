@@ -1,29 +1,36 @@
 import pytest, os
 from six import binary_type
 
+def _files():
+    return {
+        'edges': [
+            {'node': {
+                'name': 'weights.h5',
+                'url': 'https://weights.url'
+            }},
+            {'node': {
+                'name': 'model.json',
+                'url': 'https://model.url'
+            }},
+        ]
+    }
+
 def _model(name='test'):
     return {
         'name': name,
         'description': 'Test model',
-        'tag': {
-            'weights': 'h5',
-            'model': 'json',
-            'currentRevision': {
-                'weights': 'https://weights.url',
-                'model': 'https://model.url'
-            }
+        'bucket': {
+            'framework': 'keras',
+            'files': _files()
         }
-        
     }
 
-def _revision(version='0.0.1'):
+def _buckets(name='test'):
     return {
-        'version': version,
-        'description': 'Test revision',
-        'currentRevision': {
-            'weightsUrl': 'https://weights.url',
-            'modelUrl': 'https://model.url'
-        }
+        'name': name,
+        'description': "Description of the tag",
+        'framework': 'keras',
+        'files': _files()
     }
 
 def _success_or_failure(payload=None):
@@ -58,8 +65,8 @@ def query_models():
     return _query('models', [_model("test_1"), _model("test_2"), _model("test_3")])
 
 @pytest.fixture
-def mutate_revision():
-    return _mutate('createRevision', {'revision': _revision()})
+def query_buckets():
+    return _query('buckets', [_bucket("default"), _bucket("test_1")])
 
 @pytest.fixture
 def upload_url():

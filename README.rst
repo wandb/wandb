@@ -41,8 +41,8 @@ CLI Usage:
      
         cd myproject
         wandb init
-        wandb upload
-        wandb download
+        wandb push
+        wandb pull
 
 Client Usage:
 
@@ -50,4 +50,4 @@ Client Usage:
 
         import wandb
         client = wandb.Api()
-        client.upload_file("my_model", open("some_file", "rb"))
+        client.push("my_model", files=[open("some_file", "rb")])

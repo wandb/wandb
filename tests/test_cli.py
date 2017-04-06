@@ -48,7 +48,7 @@ def test_upload(runner, request_mocker, query_model, upload_url):
     with runner.isolated_filesystem():
         with open('fake.h5', 'wb') as f:
             f.write(os.urandom(5000))
-        result = runner.invoke(cli.upload, ['fake.h5', '--model', 'test', '-d', 'My description'])
+        result = runner.invoke(cli.push, ['fake.h5', '--model', 'test', '-d', 'My description'])
         assert result.exit_code == 0
         assert "Uploading model: test" in result.output
 
@@ -61,7 +61,7 @@ def test_upload_auto(runner, request_mocker, mocker, query_model, upload_url):
             f.write(os.urandom(5000))
         with open('fake.json', 'wb') as f:
             f.write(os.urandom(100))
-        result = runner.invoke(cli.upload, ['--model', 'test', '-m', 'Testing'])
+        result = runner.invoke(cli.push, ['--model', 'test', '-m', 'Testing'])
         #print(result.output)
         assert result.exit_code == 0
         assert "Uploading model file: fake.json" in result.output
@@ -73,7 +73,7 @@ def test_download(runner, request_mocker, query_model, download_url):
     query_model(request_mocker)
     download_url(request_mocker)
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.download, ['--model', 'test'])
+        result = runner.invoke(cli.pull, ['--model', 'test'])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
@@ -123,7 +123,7 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert "12345" in generatedNetrc
         assert "previous config" in generatedNetrc
 
-@pytest.mark.skip("This fails in CI looping forever asking for a model name...")
+#@pytest.mark.skip("This fails in CI looping forever asking for a model name...")
 def test_existing_login(runner, local_netrc, request_mocker, query_models):
     query_models(request_mocker)
     with runner.isolated_filesystem():

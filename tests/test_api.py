@@ -7,10 +7,8 @@ test_wandb
 
 Tests for the `wandb.Api` module.
 """
-import pytest, gql, os, requests
+import pytest, os
 from .api_mocks import *
-
-from contextlib import contextmanager
 
 import wandb
 api = wandb.Api(load_config=False)
@@ -28,12 +26,18 @@ def test_models_failure(request_mocker, query_models):
 def test_model_download_urls(request_mocker, query_model):
     query_model(request_mocker)
     res = api.download_urls("test")
-    assert res == {'weights': 'https://weights.url', 'model': 'https://model.url'}
+    assert res == {
+        'weights.h5': {'name': 'weights.h5', 'url': 'https://weights.url'}, 
+        'model.json': {'name': 'model.json', 'url': 'https://model.url'}
+    }
 
 def test_model_upload_urls(request_mocker, query_model):
     query_model(request_mocker)
-    res = api.upload_urls("test")
-    assert res == {'h5': ['weights', 'https://weights.url'], 'json': ['model', 'https://model.url']}
+    res = api.upload_urls("test", files=["weights.h5", "model.json"])
+    assert res == {
+        'weights.h5': {'name': 'weights.h5', 'url': 'https://weights.url'}, 
+        'model.json': {'name': 'model.json', 'url': 'https://model.url'}
+    }
 
 def test_download_success(request_mocker, download_url):
     download_url(request_mocker)
@@ -62,16 +66,6 @@ def test_upload_failure_resumable(request_mocker, upload_url):
     res = api.upload_file("https://weights.url", open(os.path.join(os.path.dirname(__file__), "fixtures/test.h5")))
     assert res.status_code == 200
 
-def test_create_revision(request_mocker, mutate_revision):
-    mutate_revision(request_mocker)
-    rev = api.create_revision("test", description="My new revision")
-    assert rev["version"] == "0.0.1"
-
-def test_create_revision_no_description(request_mocker, mutate_revision):
-    mutate_revision(request_mocker)
-    rev = api.create_revision("test")
-    assert rev["version"] == "0.0.1"
-
 def test_config(mocker):
     parser = mocker.patch.object(api, "config_parser")
     parser.sections.return_value = ["default"]
@@ -82,7 +76,7 @@ def test_config(mocker):
         'entity': 'test_entity',
         'model': 'test_model',
         'section': 'default',
-        'tag': 'default'
+        'bucket': 'default'
     }
 
 def test_default_config():
@@ -90,5 +84,5 @@ def test_default_config():
         'base_url': 'http://localhost', 
         'entity': 'models', 
         'section': 'default',
-        'tag': 'default'
+        'bucket': 'default'
     }

@@ -71,7 +71,7 @@ class Api(object):
         self.default_config = {
             'section': "default",
             'entity': "models",
-            'tag': "default",
+            'bucket': "default",
             'base_url': "https://api.wandb.ai"
         }
         self.default_config.update(default_config or {})
@@ -146,8 +146,8 @@ class Api(object):
             'entity': entity or self.config('entity')})['models'])
 
     @normalize_exceptions
-    def list_tags(self, model, entity=None):
-        """Lists tags in W&B scoped by model.
+    def list_buckets(self, model, entity=None):
+        """Lists buckets in W&B scoped by model.
         
         Args:
             model (str): The model to scope the tags to
@@ -158,9 +158,9 @@ class Api(object):
                 [{"name","description"}]
         """
         query = gql('''
-        query Tags($model: String!, $entity: String!) {
+        query Buckets($model: String!, $entity: String!) {
             model(name: $model, entityName: $entity) {
-                tags(first: 10) {
+                buckets(first: 10) {
                     edges {
                         node {
                             name
@@ -173,77 +173,61 @@ class Api(object):
         ''')
         return self._flatten_edges(self.client.execute(query, variable_values={
             'entity': entity or self.config('entity'), 
-            'model': model or self.config('model')})['model']['tags'])
+            'model': model or self.config('model')})['model']['buckets'])
 
     @normalize_exceptions
-    def create_revision(self, model, description=None, tag=None, entity=None, part="patch"):
-        """Create a new revision
+    def create_model(self, model, description=None, entity=None):
+        """Create a new model
         
         Args:
-            model (str): The model to revise
-            description (str, optional): A description of this revision
-            part (str, optional): One of patch (default), minor or major specifying
-            what part of the semantic version to bump
-            entity (str, optional): The entity to scope this model to.  Defaults to 
-            public models
-
-        Returns:
-            A revision dict with the upload urls
-
-            {
-                description
-                version
-                weightsUrl
-                modelUrl
-            }
+            model (str): The model to create
+            description (str, optional): A description of this model
+            entity (str, optional): The entity to scope this model to.
         """
         mutation = gql('''
-        mutation CreateRevision($name: String!, $entity: String!, $tag: String!, $description: String, $part: String)  {
-            createTagRevision(name: $name, entityName: $entity, description: $description, which: $part) {
-                revision {
+        mutation UpsertModel($name: String!, $entity: String!, $description: String)  {
+            upsertModel(input: { name: $name, entityName: $entity, description: $description }) {
+                model {
+                    name
                     description
-                    version
-                    weightsUrl(upload: true)
-                    modelUrl(upload: true)
                 }
             }
         }
         ''')
         response = self.client.execute(mutation, variable_values={
-            'name':model, 'tag': tag or self.config('tag'), 'entity': entity or self.config('entity'),
-            'description':description, 'part':part})
-        return response['createRevision']['revision']
+            'name':model, 'entity': entity or self.config('entity'),
+            'description':description})
+        return response['upsertModel']['model']
 
     @normalize_exceptions
-    def upload_urls(self, model, tag=None, entity=None, description=None):
+    def upload_urls(self, model, files, bucket=None, entity=None, description=None):
         """Generate temporary resumable upload urls
         
         Args:
             model (str): The model to download
-            tag (str, optional): The tag to upload to
+            bucket (str, optional): The bucket to upload to
             entity (str, optional): The entity to scope this model to.  Defaults to 
             wandb models
 
         Returns:
-            A dict of extensions and urls, also indicates if this revision already has uploaded files
+            A dict of filenames and urls, also indicates if this revision already has uploaded files
 
                 {
-                    'h5': ["weights", "https://weights.url"], 
-                    'json': ["model", "https://model.json"],
-                    'exists': { 'updatedAt' :'2013-04-26T22:22:23.832Z' }
+                    'weights.h5': { "url": "https://weights.url" }, 
+                    'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z' }
                 }
         """
         query = gql('''
-        query Model($name: String!, $entity: String!, $tag: String!, $description: String) {
+        query Model($name: String!, $files: [String]!, $entity: String!, $bucket: String!, $description: String) {
             model(name: $name, entityName: $entity) {
-                tag(name: $tag, desc: $description) {
-                    weights: ext
-                    model: ext(kind: "model")
-                    currentRevision {
-                        weights: weightsUrl(upload: true)
-                        model: modelUrl(upload: true)
-                        exists: weightsFile {
-                            updatedAt
+                bucket(name: $bucket, desc: $description) {
+                    files(names: $files) {
+                        edges {
+                            node {
+                                name
+                                url(upload: true)
+                                updatedAt
+                            }
                         }
                     }
                 }
@@ -251,24 +235,23 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':model, 'tag': tag or self.config('tag'), 
+            'name':model, 'bucket': bucket or self.config('bucket'), 
             'entity': entity or self.config('entity'),
-            'description': description
+            'description': description,
+            'files': files
         })
-        tag = query_result['model']['tag']
-        result = {}
-        result[tag['weights']] = ['weights', tag['currentRevision']['weights']]
-        result[tag['model']] = ['model', tag['currentRevision']['model']]
+        bucket = query_result['model']['bucket']
+        result = {file['name']: file for file in self._flatten_edges(bucket['files'])}
 
         return result
 
     @normalize_exceptions
-    def download_urls(self, model, tag=None, entity=None):
+    def download_urls(self, model, bucket=None, entity=None):
         """Generate download urls
         
         Args:
             model (str): The model to download
-            tag (str, optional): The tag to upload to
+            bucket (str, optional): The bucket to upload to
             entity (str, optional): The entity to scope this model to.  Defaults to 
             wandb models
 
@@ -276,27 +259,31 @@ class Api(object):
             A dict of extensions and urls
 
                 {
-                    'weights': "https://weights.url", 
-                    'model': "https://model.json"
+                    'weights.h5': { "url": "https://weights.url", "updatedAt": '2013-04-26T22:22:23.832Z' }, 
+                    'model.json': { "url": "https://model.url", "updatedAt": '2013-04-26T22:22:23.832Z' }
                 }
         """
         query = gql('''
-        query Model($name: String!, $entity: String!, $tag: String!)  {
+        query Model($name: String!, $entity: String!, $bucket: String!)  {
             model(name: $name, entityName: $entity) {
-                tag(name: $tag) {
-                    weights: ext
-                    model: ext(kind: "model")
-                    currentRevision {
-                        weights: weightsUrl
-                        model: modelUrl
+                bucket(name: $bucket) {
+                    files {
+                        edges {
+                            node {
+                                name
+                                url
+                                updatedAt
+                            }
+                        }
                     }
                 }
             }
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':model, 'tag': tag or self.config('tag'), 'entity': entity or self.config('entity')})
-        return query_result['model']['tag']['currentRevision']
+            'name':model, 'bucket': bucket or self.config('bucket'), 'entity': entity or self.config('entity')})
+        files = self._flatten_edges(query_result['model']['bucket']['files'])
+        return {file['name']: file for file in files}
     
     @normalize_exceptions
     def download_file(self, url):
