@@ -142,13 +142,13 @@ def rm(files, model):
 @cli.command(context_settings=CONTEXT, help="Push files to Weights & Biases")
 @click.argument("bucket", envvar='WANDB_BUCKET')
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
-@click.option("--description", "-d", "-m", help="A description to associate with this upload.")
+@click.option("--description", "-m", help="A description to associate with this upload.")
 @click.argument("files", type=click.File('rb'), nargs=-1)
 @click.pass_context
 @display_error
 def push(ctx, bucket, model, description, files):
-    click.echo("Uploading model: {model}".format(
-        model=click.style(model, bold=True)))
+    click.echo("Uploading model: {model}/{bucket}".format(
+        model=click.style(model, bold=True), bucket=bucket))
     if description is None:
         description = editor()
     
@@ -183,11 +183,11 @@ def push(ctx, bucket, model, description, files):
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you want to download.")
 @click.option("--bucket", "-b", default="default", envvar='WANDB_BUCKET', help="The bucket you want to download from.")
-@click.option("--kind", "-k", default="all", type=click.Choice(['all', 'model', 'weights', 'misc']))
+@click.option("--kind", "-k", default="all", type=click.Choice(['all', 'model', 'weights', 'other']))
 @display_error
 def pull(model, bucket, kind):
-    click.echo("Downloading model: {model}".format(
-        model=click.style(model, bold=True)
+    click.echo("Downloading model: {model}/{bucket}".format(
+        model=click.style(model, bold=True), bucket=bucket
     ))
 
     urls = api.download_urls(model, bucket=bucket)
