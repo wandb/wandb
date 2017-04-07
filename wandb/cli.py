@@ -159,6 +159,10 @@ def push(ctx, bucket, model, description, files):
     #TODO: do we support the case of a bucket with the same name as a file?
     if os.path.exists(bucket):
         raise BadParameter("Bucket is required if files are specified.")
+    parts = bucket.split("/")
+    if len(parts) == 2:
+        model = parts[0]
+        bucket = parts[1]
 
     click.echo("Uploading model: {model}/{bucket}".format(
         model=click.style(model, bold=True), bucket=bucket))
@@ -195,11 +199,16 @@ def push(ctx, bucket, model, description, files):
             api.upload_file( urls[file.name]['url'], file, lambda bites: bar.update(bites) )
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
+@click.argument("bucket", envvar='WANDB_BUCKET')
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you want to download.")
-@click.option("--bucket", "-b", default="default", envvar='WANDB_BUCKET', help="The bucket you want to download from.")
 @click.option("--kind", "-k", default="all", type=click.Choice(['all', 'model', 'weights', 'other']))
 @display_error
 def pull(model, bucket, kind):
+    parts = bucket.split("/")
+    if len(parts) == 2:
+        model = parts[0]
+        bucket = parts[1]
+        
     click.echo("Downloading model: {model}/{bucket}".format(
         model=click.style(model, bold=True), bucket=bucket
     ))

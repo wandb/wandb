@@ -342,6 +342,26 @@ class Api(object):
                     raise e
         return response
 
+    @normalize_exceptions
+    def push(self, model, files, bucket=None, entity=None, description=None):
+        """Uploads multiple files to W&B
+        
+        Args:
+            model (str): The model to download
+            bucket (str, optional): The bucket to upload to
+            entity (str, optional): The entity to scope this model to.  Defaults to 
+            wandb models
+
+        Returns:
+            The requests library response object
+        """
+        urls = self.upload_urls(model, files, bucket, entity, description)
+        responses = []
+        for fileName in urls:
+            with open(fileName, "rb") as file:
+                responses.append(self.upload_file(urls[fileName]['url'], file))
+        return responses
+
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""
         return requests.put(

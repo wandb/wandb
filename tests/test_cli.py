@@ -49,7 +49,7 @@ def test_push(runner, request_mocker, query_model, upload_url):
     with runner.isolated_filesystem():
         with open('weights.h5', 'wb') as f:
             f.write(os.urandom(5000))
-        result = runner.invoke(cli.push, ['default', 'weights.h5', '--model', 'test', '-m', 'My description'])
+        result = runner.invoke(cli.push, ['test/default', 'weights.h5', '-m', 'My description'])
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
@@ -95,10 +95,22 @@ def test_pull(runner, request_mocker, query_model, download_url):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "Downloading model: test" in result.output
+        assert "Downloading model: test/default" in result.output
         assert os.path.isfile("weights.h5")
         assert "Downloading model" in result.output
         assert "Downloading weights" in result.output
+
+def test_pull_custom_bucket(runner, request_mocker, query_model, download_url):
+    query_model(request_mocker)
+    download_url(request_mocker)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.pull, ['test/test'])
+        
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Downloading model: test/test" in result.output
 
 def test_models(runner, request_mocker, query_models):
     query_models(request_mocker)
