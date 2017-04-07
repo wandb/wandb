@@ -2,7 +2,7 @@
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.ai'
-__version__ = '0.3.1'
+__version__ = '0.3.2'
 
 from .api import Api, Error
 
