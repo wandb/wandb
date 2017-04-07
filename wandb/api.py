@@ -28,7 +28,10 @@ class Progress(object):
 
 class Error(Exception):
     """An error communicating with W&B"""
-    pass
+    #For python 2 support
+    def encode(self, encoding):
+        return self.message
+
 
 def normalize_exceptions(func):
     """Function decorator for catching common errors and re-raising as wandb.Error"""
