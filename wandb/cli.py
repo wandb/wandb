@@ -76,6 +76,7 @@ def models(entity):
 
 @cli.command(context_settings=CONTEXT, help="List buckets in a model")
 @click.argument("model", envvar='WANDB_MODEL')
+@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
 def buckets(model, entity):
@@ -93,6 +94,10 @@ def buckets(model, entity):
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @display_error
 def status(bucket, model):
+    parts = bucket.split("/")
+    if len(parts) == 2:
+        model = parts[0]
+        bucket = parts[1]
     parser = api.config_parser
     parser.read(".wandb")
     if parser.has_option("default", "files"):
@@ -101,7 +106,7 @@ def status(bucket, model):
         existing = []
     click.echo(click.style('Staged files for "%s": ' % model, bold=True) + ", ".join(existing))
     remote = api.download_urls(model)
-    click.echo(click.style('Remote files: ', bold=True) + ", ".join([name for name in remote]))
+    click.echo(click.style('Remote files for "%s/%s": ' % (model, bucket), bold=True) + ", ".join([name for name in remote]))
 
 
 @cli.command(context_settings=CONTEXT, help="Add staged files")
@@ -111,6 +116,8 @@ def status(bucket, model):
 def add(files, model):
     parser = api.config_parser
     parser.read(".wandb")
+    if not parser.has_section("default"):
+        raise ClickException("Directory not configured, run `wandb init` before adding files.")
     if parser.has_option("default", "files"):
         existing = parser.get("default", "files").split(",")
     else:
@@ -149,6 +156,10 @@ def rm(files, model):
 @click.pass_context
 @display_error
 def push(ctx, bucket, model, description, files):
+    #TODO: do we support the case of a bucket with the same name as a file?
+    if os.path.exists(bucket):
+        raise BadParameter("Bucket is required if files are specified.")
+
     click.echo("Uploading model: {model}/{bucket}".format(
         model=click.style(model, bold=True), bucket=bucket))
     if description is None:

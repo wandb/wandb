@@ -1,13 +1,9 @@
 import pytest, os, traceback
 from wandb import cli, Api
-from click.testing import CliRunner, EchoingStdin, make_input_stream
+from click.testing import CliRunner
 from .api_mocks import *
 import netrc, signal, time
 import six, time, inquirer
-from readchar import key
-
-def event_factory(*args):
-    return Iterable(*args)
 
 @pytest.fixture
 def runner(monkeypatch):
@@ -47,7 +43,7 @@ entity: cli_test
         result = runner.invoke(cli.config)
         assert "cli_test" in result.output
 
-def test_upload(runner, request_mocker, query_model, upload_url):
+def test_push(runner, request_mocker, query_model, upload_url):
     query_model(request_mocker)
     upload_url(request_mocker)
     with runner.isolated_filesystem():
@@ -60,7 +56,18 @@ def test_upload(runner, request_mocker, query_model, upload_url):
         assert result.exit_code == 0
         assert "Uploading model: test" in result.output
 
-def test_upload_auto(runner, request_mocker, mocker, query_model, upload_url):
+def test_push_no_bucket(runner):
+    with runner.isolated_filesystem():
+        with open('weights.h5', 'wb') as f:
+            f.write(os.urandom(5000))
+        result = runner.invoke(cli.push, ['weights.h5', '-M', 'test', '-m', 'Something great'])
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 2
+        assert "Bucket is required if files are specified." in result.output
+
+def test_push_auto(runner, request_mocker, mocker, query_model, upload_url):
     query_model(request_mocker)
     upload_url(request_mocker)
     edit_mock = mocker.patch("click.edit")
@@ -78,7 +85,7 @@ def test_upload_auto(runner, request_mocker, mocker, query_model, upload_url):
         #TODO: test without specifying message
         #assert edit_mock.called
 
-def test_download(runner, request_mocker, query_model, download_url):
+def test_pull(runner, request_mocker, query_model, download_url):
     query_model(request_mocker)
     download_url(request_mocker)
     with runner.isolated_filesystem():
@@ -98,6 +105,47 @@ def test_models(runner, request_mocker, query_models):
     result = runner.invoke(cli.models)
     assert result.exit_code == 0
     assert "test_2 - Test model" in result.output
+
+def test_status(runner, request_mocker, query_model):
+    query_model(request_mocker)
+    result = runner.invoke(cli.status)
+    assert result.exit_code == 0
+    assert "/default" in result.output
+
+def test_status_model_and_bucket(runner, request_mocker, query_model):
+    query_model(request_mocker)
+    result = runner.invoke(cli.status, ["test/awesome"])
+    assert result.exit_code == 0
+    assert "test/awesome" in result.output
+
+def test_add(runner):
+    with runner.isolated_filesystem():
+        with open("test.h5", "w") as f:
+            f.write("fake data")
+        with open(".wandb", "w") as f:
+            f.write("[default]\nfiles: test.json")
+        result = runner.invoke(cli.add, ["test.h5"])
+        assert result.exit_code == 0
+        assert "test.h5" in result.output
+        assert "test.json" in result.output
+
+def test_add_no_config(runner):
+    with runner.isolated_filesystem():
+        with open("test.h5", "w") as f:
+            f.write("fake data")
+        result = runner.invoke(cli.add, ["test.h5"])
+        print(result.output)
+        assert result.exit_code == 1
+        assert "Directory not configured" in result.output
+
+def test_rm(runner):
+    with runner.isolated_filesystem():
+        with open(".wandb", "w") as f:
+            f.write("[default]\nfiles: test.h5,test.json")
+        result = runner.invoke(cli.rm, ["test.h5"])
+        assert result.exit_code == 0
+        assert "test.json" in result.output
+        assert "test.h5" not in result.output
 
 def test_models_error(runner, request_mocker, query_models):
     query_models(request_mocker, status_code=400)
@@ -134,7 +182,6 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert "12345" in generatedNetrc
         assert "previous config" in generatedNetrc
 
-#@pytest.mark.skip("This fails in CI looping forever asking for a model name...")
 def test_existing_login(runner, local_netrc, request_mocker, query_models):
     query_models(request_mocker)
     with runner.isolated_filesystem():
