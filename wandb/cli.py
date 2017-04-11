@@ -152,10 +152,11 @@ def rm(files, model):
 @click.argument("bucket", envvar='WANDB_BUCKET')
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @click.option("--description", "-m", help="A description to associate with this upload.")
+@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @click.argument("files", type=click.File('rb'), nargs=-1)
 @click.pass_context
 @display_error
-def push(ctx, bucket, model, description, files):
+def push(ctx, bucket, model, description, entity, files):
     #TODO: do we support the case of a bucket with the same name as a file?
     if os.path.exists(bucket):
         raise BadParameter("Bucket is required if files are specified.")
@@ -189,7 +190,7 @@ def push(ctx, bucket, model, description, files):
         raise BadParameter("A maximum of 5 files can be in a single bucket.", param_hint="FILES")
 
     #TODO: Deal with files in a sub directory
-    urls = api.upload_urls(model, files=[f.name for f in files], bucket=bucket, description=description)
+    urls = api.upload_urls(model, files=[f.name for f in files], bucket=bucket, description=description, entity=entity)
 
     for file in files:
         length = os.fstat(file.fileno()).st_size
@@ -202,8 +203,9 @@ def push(ctx, bucket, model, description, files):
 @click.argument("bucket", envvar='WANDB_BUCKET')
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you want to download.")
 @click.option("--kind", "-k", default="all", type=click.Choice(['all', 'model', 'weights', 'other']))
+@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def pull(model, bucket, kind):
+def pull(model, bucket, kind, entity):
     parts = bucket.split("/")
     if len(parts) == 2:
         model = parts[0]
@@ -213,7 +215,7 @@ def pull(model, bucket, kind):
         model=click.style(model, bold=True), bucket=bucket
     ))
 
-    urls = api.download_urls(model, bucket=bucket)
+    urls = api.download_urls(model, bucket=bucket, entity=entity)
     for name in urls:
         length, response = api.download_file(urls[name]['url'])
         with click.progressbar(length=length, label='Downloading %s' % name,
