@@ -5,5 +5,6 @@ __email__ = 'vanpelt@wandb.ai'
 __version__ = '0.3.2'
 
 from .api import Api, Error
+from .sync import Sync
 
 __all__ = ["Api", "Error"]

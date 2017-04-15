@@ -6,11 +6,13 @@ def _files():
         'edges': [
             {'node': {
                 'name': 'weights.h5',
-                'url': 'https://weights.url'
+                'url': 'https://weights.url',
+                'md5': 'fakemd5'
             }},
             {'node': {
                 'name': 'model.json',
-                'url': 'https://model.url'
+                'url': 'https://model.url',
+                'md5': 'mZFLkyvTelC5g8XnyQrpOw=='
             }},
         ]
     }

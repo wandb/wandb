@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-import click
-from wandb import Api, Error
+import click, sys
+from wandb import Api, Error, Sync
 import random, time, os, re, netrc, logging, json, glob, io
 from functools import wraps
 from click.utils import LazyFile
@@ -46,15 +46,43 @@ def editor():
     message = click.edit('\n\n' + MARKER)
     if message is not None:
         return message.split(MARKER, 1)[0].rstrip('\n')
-
+        
 api = Api()
 #TODO: Is this the best way to do this?
 CONTEXT=dict(default_map=api.config())
 
-@click.group()
-def cli():
-    """Console script for Weights & Biases"""
-    pass
+class BucketGroup(click.Group):
+    def get_command(self, ctx, cmd_name):
+        rv = click.Group.get_command(self, ctx, cmd_name)
+        if rv is not None:
+            return rv
+
+        model, bucket = api.parse_slug(cmd_name)
+
+        sync = Sync(api, model=model, bucket=bucket)
+        if sync.source_proc:
+            files = sys.argv[2:]
+            sync.watch(files)
+            return click.Command("sync", context_settings={'allow_extra_args': True})
+        elif bucket:
+            #TODO: detect if model/bucket exists
+            return ctx.invoke(pull, model=model, bucket=bucket)
+
+@click.command(cls=BucketGroup)
+@click.pass_context
+def cli(ctx):
+    """Weights & Biases
+
+If no command is specified and input is piped, the source command and it's 
+output will be saved to the bucket and the files uploaded when modified.
+
+   ./train.sh arg1 arg2 | wandb imagenet/v2 model.json weights.h5
+
+If no command is specifed and no input is piped the command will pull the latest files:
+
+   wandb imagenet/v2 && ./train.sh arg1 arg2
+    """
+    pass        
 
 @cli.command(context_settings=CONTEXT, help="List models")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
@@ -94,10 +122,7 @@ def buckets(model, entity):
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @display_error
 def status(bucket, model):
-    parts = bucket.split("/")
-    if len(parts) == 2:
-        model = parts[0]
-        bucket = parts[1]
+    model, bucket = api.parse_slug(bucket, model=model)
     parser = api.config_parser
     parser.read(".wandb")
     if parser.has_option("default", "files"):
@@ -160,10 +185,7 @@ def push(ctx, bucket, model, description, entity, files):
     #TODO: do we support the case of a bucket with the same name as a file?
     if os.path.exists(bucket):
         raise BadParameter("Bucket is required if files are specified.")
-    parts = bucket.split("/")
-    if len(parts) == 2:
-        model = parts[0]
-        bucket = parts[1]
+    model, bucket = api.parse_slug(bucket, model=model)
 
     click.echo("Uploading model: {model}/{bucket}".format(
         model=click.style(model, bold=True), bucket=bucket))
@@ -196,7 +218,6 @@ def push(ctx, bucket, model, description, entity, files):
         length = os.fstat(file.fileno()).st_size
         with click.progressbar(length=length, label='Uploading file: %s' % (file.name),
             fill_char=click.style('&', fg='green')) as bar:
-            print(urls)
             api.upload_file( urls[file.name]['url'], file, lambda bites: bar.update(bites) )
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -206,24 +227,24 @@ def push(ctx, bucket, model, description, entity, files):
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
 def pull(model, bucket, kind, entity):
-    parts = bucket.split("/")
-    if len(parts) == 2:
-        model = parts[0]
-        bucket = parts[1]
-        
-    click.echo("Downloading model: {model}/{bucket}".format(
+    model, bucket = api.parse_slug(bucket, model=model)
+
+    click.echo("Downloading: {model}/{bucket}".format(
         model=click.style(model, bold=True), bucket=bucket
     ))
 
     urls = api.download_urls(model, bucket=bucket, entity=entity)
     for name in urls:
-        length, response = api.download_file(urls[name]['url'])
-        with click.progressbar(length=length, label='Downloading %s' % name,
-                            fill_char=click.style('&', fg='green')) as bar:
-            with open(name, "wb") as f:
-                for data in response.iter_content(chunk_size=4096):
-                    f.write(data)
-                    bar.update(len(data))
+        if api.file_current(name, urls[name]['md5']):
+            click.echo("File %s is up to date" % name)
+        else:
+            length, response = api.download_file(urls[name]['url'])
+            with click.progressbar(length=length, label='File %s' % name,
+                                fill_char=click.style('&', fg='green')) as bar:
+                with open(name, "wb") as f:
+                    for data in response.iter_content(chunk_size=4096):
+                        f.write(data)
+                        bar.update(len(data))
 
 @cli.command(help="Show this directories configuration")
 def config():

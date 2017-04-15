@@ -4,8 +4,9 @@ from gql.transport.requests import RequestsHTTPTransport
 import os, requests, ast
 from six.moves import configparser
 from functools import wraps
-import logging
+import logging, hashlib, os
 from wandb import __version__
+from base64 import b64encode
 
 def IDENTITY(monitor):
     """A default callback for the Progress helper"""
@@ -32,7 +33,6 @@ class Error(Exception):
     def encode(self, encoding):
         return self.message
 
-
 def normalize_exceptions(func):
     """Function decorator for catching common errors and re-raising as wandb.Error"""
     @wraps(func)
@@ -46,13 +46,6 @@ def normalize_exceptions(func):
                 message = err.last_exception.response.json().get('errors', [{'message': 'Whoa, you found a bug!'}])[0]['message']
             else:
                 message = err.last_exception
-            raise Error(message)
-        except Exception as err:
-            try:
-                message = ast.literal_eval(err.args[0]).get("message", "Whoa, you found a bug!")
-            except SyntaxError as e:
-                logging.error(err)
-                message = "you found a bug!"
             raise Error(message)
     return wrapper
 
@@ -123,6 +116,18 @@ class Api(object):
             print("WARNING: Unable to parse config file")
             pass
         return config if key is None else config[key]
+
+    def parse_slug(self, slug, model=None, bucket=None):
+        if "/" in slug:
+            parts = slug.split("/")
+            model = parts[0]
+            bucket = parts[1]
+        else:
+            model = model or self.config().get("model")
+            if model is None:
+                raise Error("No default model configured.")
+            bucket = bucket or slug
+        return (model, bucket)
 
     @normalize_exceptions
     def list_models(self, entity=None):
@@ -243,7 +248,7 @@ class Api(object):
             'name':model, 'bucket': bucket or self.config('bucket'), 
             'entity': entity or self.config('entity'),
             'description': description,
-            'files': files
+            'files': [file for file in files]
         })
         bucket = query_result['model']['bucket']
         result = {file['name']: file for file in self._flatten_edges(bucket['files'])}
@@ -277,6 +282,7 @@ class Api(object):
                             node {
                                 name
                                 url
+                                md5
                                 updatedAt
                             }
                         }
@@ -307,7 +313,7 @@ class Api(object):
     @normalize_exceptions
     def upload_file(self, url, file, callback=None):
         """Uploads a file to W&B with failure resumption
-        
+
         Args:
             url (str): The url to download
             file (str): The path to the file you want to upload
@@ -319,6 +325,8 @@ class Api(object):
         """
         attempts = 0
         extra_headers = {}
+        if os.stat(file.name).st_size == 0:
+            raise Error("%s is an empty file" % file.name)
         while attempts < self.retries:
             try:
                 progress = Progress(file, callback=callback)
@@ -342,9 +350,19 @@ class Api(object):
                     raise e
         return response
 
+    def md5(self, fname):
+        hash_md5 = hashlib.md5()
+        with open(fname, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return b64encode(hash_md5.digest())
+
+    def file_current(self, fname, md5):
+        return os.path.isfile(fname) and self.md5(fname) == md5
+
     @normalize_exceptions
-    def push(self, model, files, bucket=None, entity=None, description=None):
-        """Uploads multiple files to W&B
+    def pull(self, model, bucket=None, entity=None, description=None):
+        """Download files from W&B
         
         Args:
             model (str): The model to download
@@ -355,11 +373,41 @@ class Api(object):
         Returns:
             The requests library response object
         """
+        model, bucket = self.parse_slug(model, bucket=bucket)
+        urls = self.download_urls(model, bucket, entity)
+        responses = []
+        for fileName in urls:
+            if self.file_current(fileName, urls[fileName]['md5']):
+                continue
+            with open(fileName, "wb") as file:
+                size, res = self.download_file(urls[fileName]['url'])
+                responses.append(res)
+                for data in res.iter_content():
+                    file.write(data)
+        return responses
+
+    @normalize_exceptions
+    def push(self, model, files, bucket=None, entity=None, description=None):
+        """Uploads multiple files to W&B
+        
+        Args:
+            model (str): The model to download
+            files (list or dict): The filenames to upload
+            bucket (str, optional): The bucket to upload to
+            entity (str, optional): The entity to scope this model to.  Defaults to 
+            wandb models
+
+        Returns:
+            The requests library response object
+        """
+        model, bucket = self.parse_slug(model, bucket=bucket)
+        print("WHOA %s/%s" % (model, bucket))
         urls = self.upload_urls(model, files, bucket, entity, description)
         responses = []
         for fileName in urls:
-            with open(fileName, "rb") as file:
-                responses.append(self.upload_file(urls[fileName]['url'], file))
+            file = files[fileName] if type(files) == dict else open(fileName, "rb")
+            responses.append(self.upload_file(urls[fileName]['url'], file))
+            file.close()
         return responses
 
     def _status_request(self, url, length):

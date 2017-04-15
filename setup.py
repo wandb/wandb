@@ -14,7 +14,8 @@ requirements = [
     'gql>=0.1.0',
     'requests>=2.0.0',
     'inquirer>=2.1.11',
-    'six>=1.10.0'
+    'six>=1.10.0',
+    'psutil>=5.2.2'
 ]
 
 test_requirements = [

@@ -26,7 +26,7 @@ def local_netrc(monkeypatch):
 def test_help(runner):
     result = runner.invoke(cli.cli)
     assert result.exit_code == 0
-    assert 'Console script for Weights & Biases' in result.output
+    assert 'Weights & Biases' in result.output
     help_result = runner.invoke(cli.cli, ['--help'])
     assert help_result.exit_code == 0
     assert '--help  Show this message and exit.' in help_result.output
@@ -95,10 +95,10 @@ def test_pull(runner, request_mocker, query_model, download_url):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "Downloading model: test/default" in result.output
+        assert "Downloading: test/default" in result.output
         assert os.path.isfile("weights.h5")
-        assert "Downloading model" in result.output
-        assert "Downloading weights" in result.output
+        assert "File model.json" in result.output
+        assert "File weights.h5" in result.output
 
 def test_pull_custom_bucket(runner, request_mocker, query_model, download_url):
     query_model(request_mocker)
@@ -110,7 +110,7 @@ def test_pull_custom_bucket(runner, request_mocker, query_model, download_url):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "Downloading model: test/test" in result.output
+        assert "Downloading: test/test" in result.output
 
 def test_models(runner, request_mocker, query_models):
     query_models(request_mocker)
@@ -194,6 +194,7 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert "12345" in generatedNetrc
         assert "previous config" in generatedNetrc
 
+@pytest.mark.skip("This hangs in CI likely because of no netrc...")
 def test_existing_login(runner, local_netrc, request_mocker, query_models):
     query_models(request_mocker)
     with runner.isolated_filesystem():
