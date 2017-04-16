@@ -58,9 +58,9 @@ class BucketGroup(click.Group):
         if rv is not None:
             return rv
 
-        model, bucket = api.parse_slug(cmd_name)
+        project, bucket = api.parse_slug(cmd_name)
 
-        sync = Sync(api, model=model, bucket=bucket)
+        sync = Sync(api, project=project, bucket=bucket)
         if sync.source_proc:
             files = sys.argv[2:]
             sync.watch(files)
@@ -80,32 +80,32 @@ output will be saved to the bucket and the files uploaded when modified.
     """
     pass        
 
-@cli.command(context_settings=CONTEXT, help="List models")
+@cli.command(context_settings=CONTEXT, help="List projects")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def models(entity):
-    models = api.list_models(entity=entity)
-    if len(models) == 0:
-        message = "No models found for %s" % entity
+def projects(entity):
+    projects = api.list_projects(entity=entity)
+    if len(projects) == 0:
+        message = "No projects found for %s" % entity
     else:
-        message = 'Latest models for "%s"' % entity
+        message = 'Latest projects for "%s"' % entity
     click.echo(click.style(message, bold=True))
-    for model in models:
+    for project in projects:
         click.echo("".join(
-            (click.style(model['name'], fg="blue", bold=True), 
+            (click.style(project['name'], fg="blue", bold=True), 
             " - ", 
-            str(model['description']).split("\n")[0])
+            str(project['description']).split("\n")[0])
         ))
-    return models
+    return projects
 
-@cli.command(context_settings=CONTEXT, help="List buckets in a model")
-@click.argument("model", envvar='WANDB_MODEL')
-@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
+@cli.command(context_settings=CONTEXT, help="List buckets in a project")
+@click.argument("project", envvar='WANDB_PROJECT')
+@click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def buckets(model, entity):
-    click.echo(click.style('Latest buckets for model "%s"' % model, bold=True))
-    buckets = api.list_buckets(model, entity=entity)
+def buckets(project, entity):
+    click.echo(click.style('Latest buckets for project "%s"' % project, bold=True))
+    buckets = api.list_buckets(project, entity=entity)
     for bucket in buckets:
         click.echo("".join(
             (click.style(bucket['name'], fg="blue", bold=True), 
@@ -115,17 +115,17 @@ def buckets(model, entity):
 
 @cli.command(context_settings=CONTEXT, help="List staged & remote files")
 @click.argument("bucket", envvar='WANDB_BUCKET')
-@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
+@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @display_error
-def status(bucket, model):
-    model, bucket = api.parse_slug(bucket, model=model)
+def status(bucket, project):
+    project, bucket = api.parse_slug(bucket, project=project)
     parser = api.config_parser
     parser.read(".wandb")
     if parser.has_option("default", "files"):
         existing = Set(parser.get("default", "files").split(","))
     else:
         existing = Set()
-    remote = api.download_urls(model)
+    remote = api.download_urls(project)
     not_synced = Set()
     remote_names = Set([name for name in remote])
     for file in existing:
@@ -137,7 +137,7 @@ def status(bucket, model):
     #TODO: remove items that exists and have the md5
     only_remote = remote_names.difference(existing)
     up_to_date = existing.difference(only_remote).difference(not_synced)
-    click.echo(click.style('File status for "%s/%s" ' % (model, bucket), bold=True))
+    click.echo(click.style('File status for "%s/%s" ' % (project, bucket), bold=True))
     if len(not_synced) > 0:
         click.echo(click.style('Push needed: ', bold=True) + click.style(", ".join(not_synced), fg="red"))
     if len(only_remote) > 0:
@@ -150,9 +150,9 @@ def status(bucket, model):
 
 @cli.command(context_settings=CONTEXT, help="Add staged files")
 @click.argument("files", type=click.File('rb'), nargs=-1)
-@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
+@click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @display_error
-def add(files, model):
+def add(files, project):
     parser = api.config_parser
     parser.read(".wandb")
     if not parser.has_section("default"):
@@ -165,13 +165,13 @@ def add(files, model):
     parser.set("default", "files", ",".join(stagedFiles))
     with open('.wandb', 'w') as configfile:
         parser.write(configfile)
-    click.echo(click.style('Staged files for "%s": ' % model, bold=True) + ", ".join(stagedFiles))
+    click.echo(click.style('Staged files for "%s": ' % project, bold=True) + ", ".join(stagedFiles))
 
 @cli.command(context_settings=CONTEXT, help="Remove staged files")
 @click.argument("files", nargs=-1)
-@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
+@click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @display_error
-def rm(files, model):
+def rm(files, project):
     parser = api.config_parser
     parser.read(".wandb")
     if parser.has_option("default", "files"):
@@ -185,24 +185,24 @@ def rm(files, model):
     parser.set("default", "files", ",".join(existing))
     with open('.wandb', 'w') as configfile:
         parser.write(configfile)
-    click.echo(click.style('Staged files for "%s": ' % model, bold=True) + ", ".join(existing))
+    click.echo(click.style('Staged files for "%s": ' % project, bold=True) + ", ".join(existing))
     
 @cli.command(context_settings=CONTEXT, help="Push files to Weights & Biases")
 @click.argument("bucket", envvar='WANDB_BUCKET')
-@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
+@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @click.option("--description", "-m", help="A description to associate with this upload.")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @click.argument("files", type=click.File('rb'), nargs=-1)
 @click.pass_context
 @display_error
-def push(ctx, bucket, model, description, entity, files):
+def push(ctx, bucket, project, description, entity, files):
     #TODO: do we support the case of a bucket with the same name as a file?
     if os.path.exists(bucket):
         raise BadParameter("Bucket is required if files are specified.")
-    model, bucket = api.parse_slug(bucket, model=model)
+    project, bucket = api.parse_slug(bucket, project=project)
 
-    click.echo("Uploading model: {model}/{bucket}".format(
-        model=click.style(model, bold=True), bucket=bucket))
+    click.echo("Uploading project: {project}/{bucket}".format(
+        project=click.style(project, bold=True), bucket=bucket))
     if description is None:
         description = editor()
     
@@ -226,7 +226,7 @@ def push(ctx, bucket, model, description, entity, files):
         raise BadParameter("A maximum of 5 files can be in a single bucket.", param_hint="FILES")
 
     #TODO: Deal with files in a sub directory
-    urls = api.upload_urls(model, files=[f.name for f in files], bucket=bucket, description=description, entity=entity)
+    urls = api.upload_urls(project, files=[f.name for f in files], bucket=bucket, description=description, entity=entity)
 
     for file in files:
         length = os.fstat(file.fileno()).st_size
@@ -236,18 +236,18 @@ def push(ctx, bucket, model, description, entity, files):
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("bucket", envvar='WANDB_BUCKET')
-@click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you want to download.")
+@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you want to download.")
 @click.option("--kind", "-k", default="all", type=click.Choice(['all', 'model', 'weights', 'other']))
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def pull(model, bucket, kind, entity):
-    model, bucket = api.parse_slug(bucket, model=model)
+def pull(project, bucket, kind, entity):
+    project, bucket = api.parse_slug(bucket, project=project)
 
-    click.echo("Downloading: {model}/{bucket}".format(
-        model=click.style(model, bold=True), bucket=bucket
+    click.echo("Downloading: {project}/{bucket}".format(
+        project=click.style(project, bold=True), bucket=bucket
     ))
 
-    urls = api.download_urls(model, bucket=bucket, entity=entity)
+    urls = api.download_urls(project, bucket=bucket, entity=entity)
     for name in urls:
         if api.file_current(name, urls[name]['md5']):
             click.echo("File %s is up to date" % name)
@@ -291,30 +291,30 @@ def init(ctx):
         click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
     click.echo(click.style("Let's setup this directory for W&B!", fg="green", bold=True))
     
-    if logged_in(host) is None:
+    if logged_in(api.config('base_url')) is None:
         ctx.invoke(login)
 
     entity = click.prompt("What entity should we scope to?", default="models")
     #TODO: handle the case of a missing entity
-    result = ctx.invoke(models, entity=entity)
+    result = ctx.invoke(projects, entity=entity)
 
     if len(result) == 0:
-        model = click.prompt("Enter a name for your first model.")
+        project = click.prompt("Enter a name for your first project.")
         description = editor()
-        api.create_model(model, entity=entity, description=description)
+        api.create_project(project, entity=entity, description=description)
     else:
-        model_names = [model["name"] for model in result]
-        question = inquirer.List('model', message="Which model should we use?", choices=model_names + ["Create New"])
-        model = inquirer.prompt([question])['model']
-        #TODO: check with the server if the model exists
-        if model == "Create New":
-            model = click.prompt("Enter a name for your new model.")
+        project_names = [project["name"] for project in result]
+        question = inquirer.List('project', message="Which project should we use?", choices=project_names + ["Create New"])
+        project = inquirer.prompt([question])['project']
+        #TODO: check with the server if the project exists
+        if project == "Create New":
+            project = click.prompt("Enter a name for your new project.")
             description = editor()
-            api.create_model(model, entity=entity, description=description)
+            api.create_project(project, entity=entity, description=description)
 
     with open(".wandb", "w") as file:
-        file.write("[default]\nentity: {entity}\nmodel: {model}".format(entity=entity, model=model))
-    click.echo(click.style("This directory is configured, run `wandb push` to sync your first model!", fg="green"))
+        file.write("[default]\nentity: {entity}\nproject: {project}".format(entity=entity, project=project))
+    click.echo(click.style("This directory is configured, run `wandb push` to sync your first project!", fg="green"))
 
 if __name__ == "__main__":
     cli()

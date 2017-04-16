@@ -17,7 +17,7 @@ def _files():
         ]
     }
 
-def _model(name='test'):
+def _project(name='test'):
     return {
         'name': name,
         'description': 'Test model',
@@ -59,12 +59,12 @@ def _mutate(key, json):
     return _success_or_failure(payload=payload)
 
 @pytest.fixture
-def query_model():
-    return _query('model', _model())
+def query_project():
+    return _query('project', _project())
 
 @pytest.fixture
-def query_models():
-    return _query('models', [_model("test_1"), _model("test_2"), _model("test_3")])
+def query_projects():
+    return _query('projects', [_project("test_1"), _project("test_2"), _project("test_3")])
 
 @pytest.fixture
 def query_buckets():

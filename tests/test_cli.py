@@ -7,8 +7,8 @@ import six, time, inquirer
 
 @pytest.fixture
 def runner(monkeypatch):
-    monkeypatch.setattr(cli, 'api', Api(load_config=False))
-    monkeypatch.setattr(inquirer, 'prompt', lambda x: {'model': 'test_model', 'files': ['weights.h5']})
+    monkeypatch.setattr(cli, 'api', Api(default_config={'project': 'test'}, load_config=False))
+    monkeypatch.setattr(inquirer, 'prompt', lambda x: {'project': 'test_model', 'files': ['weights.h5']})
     return CliRunner()
 
 @pytest.fixture
@@ -31,20 +31,20 @@ def test_help(runner):
     assert help_result.exit_code == 0
     assert '--help  Show this message and exit.' in help_result.output
 
-def test_config(runner, request_mocker, query_models, monkeypatch):
-    query_models(request_mocker)
+def test_config(runner, request_mocker, query_project, monkeypatch):
+    query_project(request_mocker)
     with runner.isolated_filesystem():
         with open('.wandb', 'w') as f:
             f.write("""[default]
-model: cli_test
+project: cli_test
 entity: cli_test
             """)
         monkeypatch.setattr(cli, 'api', Api())
         result = runner.invoke(cli.config)
         assert "cli_test" in result.output
 
-def test_push(runner, request_mocker, query_model, upload_url):
-    query_model(request_mocker)
+def test_push(runner, request_mocker, query_project, upload_url):
+    query_project(request_mocker)
     upload_url(request_mocker)
     with runner.isolated_filesystem():
         with open('weights.h5', 'wb') as f:
@@ -54,21 +54,21 @@ def test_push(runner, request_mocker, query_model, upload_url):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "Uploading model: test" in result.output
+        assert "Uploading project: test" in result.output
 
 def test_push_no_bucket(runner):
     with runner.isolated_filesystem():
         with open('weights.h5', 'wb') as f:
             f.write(os.urandom(5000))
-        result = runner.invoke(cli.push, ['weights.h5', '-M', 'test', '-m', 'Something great'])
+        result = runner.invoke(cli.push, ['weights.h5', '-p', 'test', '-m', 'Something great'])
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 2
         assert "Bucket is required if files are specified." in result.output
 
-def test_push_auto(runner, request_mocker, mocker, query_model, upload_url):
-    query_model(request_mocker)
+def test_push_auto(runner, request_mocker, mocker, query_project, upload_url):
+    query_project(request_mocker)
     upload_url(request_mocker)
     edit_mock = mocker.patch("click.edit")
     with runner.isolated_filesystem():
@@ -76,7 +76,7 @@ def test_push_auto(runner, request_mocker, mocker, query_model, upload_url):
             f.write(os.urandom(5000))
         with open('fake.json', 'wb') as f:
             f.write(os.urandom(100))
-        result = runner.invoke(cli.push, ['--model', 'test', '-m', 'Testing'])
+        result = runner.invoke(cli.push, ['--project', 'test', '-m', 'Testing'])
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
@@ -85,11 +85,11 @@ def test_push_auto(runner, request_mocker, mocker, query_model, upload_url):
         #TODO: test without specifying message
         #assert edit_mock.called
 
-def test_pull(runner, request_mocker, query_model, download_url):
-    query_model(request_mocker)
+def test_pull(runner, request_mocker, query_project, download_url):
+    query_project(request_mocker)
     download_url(request_mocker)
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.pull, ['--model', 'test'])
+        result = runner.invoke(cli.pull, ['--project', 'test'])
         
         print(result.output)
         print(result.exception)
@@ -100,8 +100,8 @@ def test_pull(runner, request_mocker, query_model, download_url):
         assert "File model.json" in result.output
         assert "File weights.h5" in result.output
 
-def test_pull_custom_bucket(runner, request_mocker, query_model, download_url):
-    query_model(request_mocker)
+def test_pull_custom_bucket(runner, request_mocker, query_project, download_url):
+    query_project(request_mocker)
     download_url(request_mocker)
     with runner.isolated_filesystem():
         result = runner.invoke(cli.pull, ['test/test'])
@@ -112,20 +112,20 @@ def test_pull_custom_bucket(runner, request_mocker, query_model, download_url):
         assert result.exit_code == 0
         assert "Downloading: test/test" in result.output
 
-def test_models(runner, request_mocker, query_models):
-    query_models(request_mocker)
-    result = runner.invoke(cli.models)
+def test_projects(runner, request_mocker, query_projects):
+    query_projects(request_mocker)
+    result = runner.invoke(cli.projects)
     assert result.exit_code == 0
     assert "test_2 - Test model" in result.output
 
-def test_status(runner, request_mocker, query_model):
-    query_model(request_mocker)
-    result = runner.invoke(cli.status)
+def test_status(runner, request_mocker, query_project):
+    query_project(request_mocker)
+    result = runner.invoke(cli.status, ["-p", "foo"])
     assert result.exit_code == 0
     assert "/default" in result.output
 
-def test_status_model_and_bucket(runner, request_mocker, query_model):
-    query_model(request_mocker)
+def test_status_project_and_bucket(runner, request_mocker, query_project):
+    query_project(request_mocker)
     result = runner.invoke(cli.status, ["test/awesome"])
     assert result.exit_code == 0
     assert "test/awesome" in result.output
@@ -136,7 +136,7 @@ def test_add(runner):
             f.write("fake data")
         with open(".wandb", "w") as f:
             f.write("[default]\nfiles: test.json")
-        result = runner.invoke(cli.add, ["test.h5"])
+        result = runner.invoke(cli.add, ["test.h5", "-p", "test"])
         assert result.exit_code == 0
         assert "test.h5" in result.output
         assert "test.json" in result.output
@@ -145,7 +145,7 @@ def test_add_no_config(runner):
     with runner.isolated_filesystem():
         with open("test.h5", "w") as f:
             f.write("fake data")
-        result = runner.invoke(cli.add, ["test.h5"])
+        result = runner.invoke(cli.add, ["test.h5", "-p", "test"])
         print(result.output)
         assert result.exit_code == 1
         assert "Directory not configured" in result.output
@@ -154,20 +154,22 @@ def test_rm(runner):
     with runner.isolated_filesystem():
         with open(".wandb", "w") as f:
             f.write("[default]\nfiles: test.h5,test.json")
-        result = runner.invoke(cli.rm, ["test.h5"])
+        result = runner.invoke(cli.rm, ["test.h5", "-p", "test"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         assert "test.json" in result.output
         assert "test.h5" not in result.output
 
-def test_models_error(runner, request_mocker, query_models):
-    query_models(request_mocker, status_code=400)
-    result = runner.invoke(cli.models)
+def test_projects_error(runner, request_mocker, query_projects):
+    query_projects(request_mocker, status_code=400)
+    result = runner.invoke(cli.projects)
     assert result.exit_code == 1
     print(result.output)
     assert "Error" in result.output
 
-def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_models):
-    query_models(request_mocker)
+def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_projects):
+    query_projects(request_mocker)
     with runner.isolated_filesystem():
         result = runner.invoke(cli.init, input="12345\nvanpelt")
         assert result.exit_code == 0
@@ -178,8 +180,8 @@ def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert "12345" in generatedNetrc
         assert "test_model" in generatedWandb
 
-def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_models):
-    query_models(request_mocker)
+def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_projects):
+    query_projects(request_mocker)
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
             f.write("previous config")
@@ -194,9 +196,8 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert "12345" in generatedNetrc
         assert "previous config" in generatedNetrc
 
-@pytest.mark.skip("This hangs in CI likely because of no netrc...")
-def test_existing_login(runner, local_netrc, request_mocker, query_models):
-    query_models(request_mocker)
+def test_existing_login(runner, local_netrc, request_mocker, query_projects):
+    query_projects(request_mocker)
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
             f.write("machine api.wandb.ai\n\ttest\t12345")

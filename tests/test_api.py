@@ -15,26 +15,26 @@ import wandb
 import StringIO
 api = wandb.Api(load_config=False)
 
-def test_models_success(request_mocker, query_models):
-    query_models(request_mocker)
-    res = api.list_models()
+def test_projects_success(request_mocker, query_projects):
+    query_projects(request_mocker)
+    res = api.list_projects()
     assert len(res) == 3
 
-def test_models_failure(request_mocker, query_models):
-    query_models(request_mocker, status_code=400, error="Bummer")
+def test_projects_failure(request_mocker, query_projects):
+    query_projects(request_mocker, status_code=400, error="Bummer")
     with pytest.raises(wandb.Error):
-        api.list_models()
+        api.list_projects()
 
-def test_model_download_urls(request_mocker, query_model):
-    query_model(request_mocker)
+def test_project_download_urls(request_mocker, query_project):
+    query_project(request_mocker)
     res = api.download_urls("test")
     assert res == {
         'weights.h5': {'name': 'weights.h5', 'md5': 'fakemd5', 'url': 'https://weights.url'}, 
         'model.json': {'name': 'model.json', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==', 'url': 'https://model.url'}
     }
 
-def test_model_upload_urls(request_mocker, query_model):
-    query_model(request_mocker)
+def test_project_upload_urls(request_mocker, query_project):
+    query_project(request_mocker)
     res = api.upload_urls("test", files=["weights.h5", "model.json"])
     assert res == {
         'weights.h5': {'name': 'weights.h5', 'url': 'https://weights.url', 'md5': 'fakemd5'}, 
@@ -52,21 +52,21 @@ def test_download_failure(request_mocker, download_url):
         api.download_file("https://weights.url")
 
 def test_parse_slug():
-    model, bucket = api.parse_slug("foo/bar")
-    assert model == "foo"
+    project, bucket = api.parse_slug("foo/bar")
+    assert project == "foo"
     assert bucket == "bar"
-    model, bucket = api.parse_slug("foo", model="bar")
-    assert model == "bar"
+    project, bucket = api.parse_slug("foo", project="bar")
+    assert project == "bar"
     assert bucket == "foo"
 
-def test_pull_success(request_mocker, download_url, query_model):
-    query_model(request_mocker)
+def test_pull_success(request_mocker, download_url, query_project):
+    query_project(request_mocker)
     download_url(request_mocker)
     res = api.pull("test/test")
     assert res[0].status_code == 200
 
-def test_pull_existing_file(request_mocker, mocker, download_url, query_model):
-    query_model(request_mocker)
+def test_pull_existing_file(request_mocker, mocker, download_url, query_project):
+    query_project(request_mocker)
     download_url(request_mocker)
     with CliRunner().isolated_filesystem():
         with open("model.json", "wb") as f:
@@ -75,14 +75,14 @@ def test_pull_existing_file(request_mocker, mocker, download_url, query_model):
         api.pull("test/test")
         mocked.assert_called_once_with("https://weights.url")
 
-def test_push_success(request_mocker, upload_url, query_model):
-    query_model(request_mocker)
+def test_push_success(request_mocker, upload_url, query_project):
+    query_project(request_mocker)
     upload_url(request_mocker)
     res = api.push("test/test", "weights.json")
     assert res[0].status_code == 200
 
-def test_push_no_model(request_mocker, upload_url, query_model):
-    query_model(request_mocker)
+def test_push_no_project(request_mocker, upload_url, query_project):
+    query_project(request_mocker)
     upload_url(request_mocker)
     with pytest.raises(wandb.Error):
         res = api.push("test", "weights.json")
@@ -107,12 +107,12 @@ def test_upload_failure_resumable(request_mocker, upload_url):
 def test_config(mocker):
     parser = mocker.patch.object(api, "config_parser")
     parser.sections.return_value = ["default"]
-    parser.options.return_value = ["model", "entity"]
+    parser.options.return_value = ["project", "entity"]
     parser.get.side_effect = ["test_model", "test_entity"]
     assert api.config() == {
         'base_url': 'https://api.wandb.ai',
         'entity': 'test_entity',
-        'model': 'test_model',
+        'project': 'test_model',
         'section': 'default',
         'bucket': 'default'
     }

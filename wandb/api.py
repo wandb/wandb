@@ -103,7 +103,7 @@ class Api(object):
                 {
                     "entity": "models",
                     "base_url": "https://api.wandb.ai",
-                    "model": None
+                    "project": None
                 }
         """
         config = self.default_config.copy()
@@ -117,24 +117,24 @@ class Api(object):
             pass
         return config if key is None else config[key]
 
-    def parse_slug(self, slug, model=None, bucket=None):
+    def parse_slug(self, slug, project=None, bucket=None):
         if "/" in slug:
             parts = slug.split("/")
-            model = parts[0]
+            project = parts[0]
             bucket = parts[1]
         else:
-            model = model or self.config().get("model")
-            if model is None:
-                raise Error("No default model configured.")
+            project = project or self.config().get("project")
+            if project is None:
+                raise Error("No default project configured.")
             bucket = bucket or slug
-        return (model, bucket)
+        return (project, bucket)
 
     @normalize_exceptions
-    def list_models(self, entity=None):
-        """Lists models in W&B scoped by entity.
+    def list_projects(self, entity=None):
+        """Lists projects in W&B scoped by entity.
         
         Args:
-            entity (str, optional): The entity to scope this model to.  Defaults to 
+            entity (str, optional): The entity to scope this project to.  Defaults to 
             public models
 
         Returns:
@@ -153,15 +153,15 @@ class Api(object):
         }
         ''')
         return self._flatten_edges(self.client.execute(query, variable_values={
-            'entity': entity or self.config('entity')})['models'])
+            'entity': entity or self.config('entity')})['projects'])
 
     @normalize_exceptions
-    def list_buckets(self, model, entity=None):
-        """Lists buckets in W&B scoped by model.
+    def list_buckets(self, project, entity=None):
+        """Lists buckets in W&B scoped by project.
         
         Args:
-            model (str): The model to scope the tags to
-            entity (str, optional): The entity to scope this model to.  Defaults to 
+            project (str): The project to scope the tags to
+            entity (str, optional): The entity to scope this project to.  Defaults to 
             public models
 
         Returns:
@@ -183,16 +183,16 @@ class Api(object):
         ''')
         return self._flatten_edges(self.client.execute(query, variable_values={
             'entity': entity or self.config('entity'), 
-            'model': model or self.config('model')})['model']['buckets'])
+            'project': project or self.config('project')})['project']['buckets'])
 
     @normalize_exceptions
-    def create_model(self, model, description=None, entity=None):
-        """Create a new model
+    def create_project(self, project, description=None, entity=None):
+        """Create a new project
         
         Args:
-            model (str): The model to create
-            description (str, optional): A description of this model
-            entity (str, optional): The entity to scope this model to.
+            project (str): The project to create
+            description (str, optional): A description of this project
+            entity (str, optional): The entity to scope this project to.
         """
         mutation = gql('''
         mutation UpsertModel($name: String!, $entity: String!, $description: String)  {
@@ -205,18 +205,18 @@ class Api(object):
         }
         ''')
         response = self.client.execute(mutation, variable_values={
-            'name':model, 'entity': entity or self.config('entity'),
+            'name':project, 'entity': entity or self.config('entity'),
             'description':description})
         return response['upsertModel']['model']
 
     @normalize_exceptions
-    def upload_urls(self, model, files, bucket=None, entity=None, description=None):
+    def upload_urls(self, project, files, bucket=None, entity=None, description=None):
         """Generate temporary resumable upload urls
         
         Args:
-            model (str): The model to download
+            project (str): The project to download
             bucket (str, optional): The bucket to upload to
-            entity (str, optional): The entity to scope this model to.  Defaults to 
+            entity (str, optional): The entity to scope this project to.  Defaults to 
             wandb models
 
         Returns:
@@ -245,24 +245,24 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':model, 'bucket': bucket or self.config('bucket'), 
+            'name':project, 'bucket': bucket or self.config('bucket'), 
             'entity': entity or self.config('entity'),
             'description': description,
             'files': [file for file in files]
         })
-        bucket = query_result['model']['bucket']
+        bucket = query_result['project']['bucket']
         result = {file['name']: file for file in self._flatten_edges(bucket['files'])}
 
         return result
 
     @normalize_exceptions
-    def download_urls(self, model, bucket=None, entity=None):
+    def download_urls(self, project, bucket=None, entity=None):
         """Generate download urls
         
         Args:
-            model (str): The model to download
+            project (str): The project to download
             bucket (str, optional): The bucket to upload to
-            entity (str, optional): The entity to scope this model to.  Defaults to 
+            entity (str, optional): The entity to scope this project to.  Defaults to 
             wandb models
 
         Returns:
@@ -292,8 +292,8 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':model, 'bucket': bucket or self.config('bucket'), 'entity': entity or self.config('entity')})
-        files = self._flatten_edges(query_result['model']['bucket']['files'])
+            'name':project, 'bucket': bucket or self.config('bucket'), 'entity': entity or self.config('entity')})
+        files = self._flatten_edges(query_result['project']['bucket']['files'])
         return {file['name']: file for file in files}
     
     @normalize_exceptions
@@ -363,20 +363,20 @@ class Api(object):
         return os.path.isfile(fname) and self._md5(fname) == md5
 
     @normalize_exceptions
-    def pull(self, model, bucket=None, entity=None, description=None):
+    def pull(self, project, bucket=None, entity=None, description=None):
         """Download files from W&B
         
         Args:
-            model (str): The model to download
+            project (str): The project to download
             bucket (str, optional): The bucket to upload to
-            entity (str, optional): The entity to scope this model to.  Defaults to 
+            entity (str, optional): The entity to scope this project to.  Defaults to 
             wandb models
 
         Returns:
             The requests library response object
         """
-        model, bucket = self.parse_slug(model, bucket=bucket)
-        urls = self.download_urls(model, bucket, entity)
+        project, bucket = self.parse_slug(project, bucket=bucket)
+        urls = self.download_urls(project, bucket, entity)
         responses = []
         for fileName in urls:
             if self.file_current(fileName, urls[fileName]['md5']):
@@ -389,22 +389,21 @@ class Api(object):
         return responses
 
     @normalize_exceptions
-    def push(self, model, files, bucket=None, entity=None, description=None):
+    def push(self, project, files, bucket=None, entity=None, description=None):
         """Uploads multiple files to W&B
         
         Args:
-            model (str): The model to download
+            project (str): The project to download
             files (list or dict): The filenames to upload
             bucket (str, optional): The bucket to upload to
-            entity (str, optional): The entity to scope this model to.  Defaults to 
-            wandb models
+            entity (str, optional): The entity to scope this project to.  Defaults to 
+            wandb projects
 
         Returns:
             The requests library response object
         """
-        model, bucket = self.parse_slug(model, bucket=bucket)
-        print("WHOA %s/%s" % (model, bucket))
-        urls = self.upload_urls(model, files, bucket, entity, description)
+        project, bucket = self.parse_slug(project, bucket=bucket)
+        urls = self.upload_urls(project, files, bucket, entity, description)
         responses = []
         for fileName in urls:
             file = files[fileName] if type(files) == dict else open(fileName, "rb")
