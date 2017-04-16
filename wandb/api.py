@@ -153,7 +153,7 @@ class Api(object):
         }
         ''')
         return self._flatten_edges(self.client.execute(query, variable_values={
-            'entity': entity or self.config('entity')})['projects'])
+            'entity': entity or self.config('entity')})['models'])
 
     @normalize_exceptions
     def list_buckets(self, project, entity=None):
@@ -183,7 +183,7 @@ class Api(object):
         ''')
         return self._flatten_edges(self.client.execute(query, variable_values={
             'entity': entity or self.config('entity'), 
-            'project': project or self.config('project')})['project']['buckets'])
+            'model': project or self.config('project')})['model']['buckets'])
 
     @normalize_exceptions
     def create_project(self, project, description=None, entity=None):
@@ -250,7 +250,7 @@ class Api(object):
             'description': description,
             'files': [file for file in files]
         })
-        bucket = query_result['project']['bucket']
+        bucket = query_result['model']['bucket']
         result = {file['name']: file for file in self._flatten_edges(bucket['files'])}
 
         return result
@@ -293,7 +293,7 @@ class Api(object):
         ''')
         query_result = self.client.execute(query, variable_values={
             'name':project, 'bucket': bucket or self.config('bucket'), 'entity': entity or self.config('entity')})
-        files = self._flatten_edges(query_result['project']['bucket']['files'])
+        files = self._flatten_edges(query_result['model']['bucket']['files'])
         return {file['name']: file for file in files}
     
     @normalize_exceptions
