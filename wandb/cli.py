@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import click, sys
+from sets import Set
 from wandb import Api, Error, Sync
 import random, time, os, re, netrc, logging, json, glob, io
 from functools import wraps
@@ -13,7 +14,7 @@ logging.basicConfig(filename='/tmp/wandb.log', level=logging.INFO)
 def normalize(host):
     return host.split("/")[-1].split(":")[0]
 
-def loggedIn(host):
+def logged_in(host):
     """Check if our host is in .netrc"""
     try:
         conf = netrc.netrc()
@@ -21,9 +22,9 @@ def loggedIn(host):
     except:
         return None
 
-def login(host, entity, key):
+def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
-    print("Appending to netrc %s" %os.path.expanduser('~/.netrc')) 
+    print("Appending to netrc %s" % os.path.expanduser('~/.netrc')) 
     with open(os.path.expanduser('~/.netrc'), 'a') as f:
         f.write("""machine {host}
     login {entity}
@@ -64,9 +65,8 @@ class BucketGroup(click.Group):
             files = sys.argv[2:]
             sync.watch(files)
             return click.Command("sync", context_settings={'allow_extra_args': True})
-        elif bucket:
-            #TODO: detect if model/bucket exists
-            return ctx.invoke(pull, model=model, bucket=bucket)
+        else:
+            return None
 
 @click.command(cls=BucketGroup)
 @click.pass_context
@@ -77,10 +77,6 @@ If no command is specified and input is piped, the source command and it's
 output will be saved to the bucket and the files uploaded when modified.
 
    ./train.sh arg1 arg2 | wandb imagenet/v2 model.json weights.h5
-
-If no command is specifed and no input is piped the command will pull the latest files:
-
-   wandb imagenet/v2 && ./train.sh arg1 arg2
     """
     pass        
 
@@ -117,7 +113,7 @@ def buckets(model, entity):
             (bucket['description'] or "").split("\n")[0])
         ))
 
-@cli.command(context_settings=CONTEXT, help="List staged files & remote files")
+@cli.command(context_settings=CONTEXT, help="List staged & remote files")
 @click.argument("bucket", envvar='WANDB_BUCKET')
 @click.option("--model", "-M", prompt=True, envvar='WANDB_MODEL', help="The model you wish to upload to.")
 @display_error
@@ -126,12 +122,30 @@ def status(bucket, model):
     parser = api.config_parser
     parser.read(".wandb")
     if parser.has_option("default", "files"):
-        existing = parser.get("default", "files").split(",")
+        existing = Set(parser.get("default", "files").split(","))
     else:
-        existing = []
-    click.echo(click.style('Staged files for "%s": ' % model, bold=True) + ", ".join(existing))
+        existing = Set()
     remote = api.download_urls(model)
-    click.echo(click.style('Remote files for "%s/%s": ' % (model, bucket), bold=True) + ", ".join([name for name in remote]))
+    not_synced = Set()
+    remote_names = Set([name for name in remote])
+    for file in existing:
+        meta = remote.get(file)
+        if meta and not api.file_current(file, meta['md5']):
+            not_synced.add(file)
+        elif not meta:
+            not_synced.add(file)
+    #TODO: remove items that exists and have the md5
+    only_remote = remote_names.difference(existing)
+    up_to_date = existing.difference(only_remote).difference(not_synced)
+    click.echo(click.style('File status for "%s/%s" ' % (model, bucket), bold=True))
+    if len(not_synced) > 0:
+        click.echo(click.style('Push needed: ', bold=True) + click.style(", ".join(not_synced), fg="red"))
+    if len(only_remote) > 0:
+        click.echo(click.style('Pull needed: ', bold=True) + click.style(", ".join(only_remote), fg="red"))
+    if len(up_to_date) > 0:
+        click.echo(click.style('Up to date: ', bold=True) + click.style(", ".join(up_to_date), fg="green"))
+    if len(existing) == 0:
+        click.echo(click.style("No files configured, add files with `wandb add filename`", fg="red"))
 
 
 @cli.command(context_settings=CONTEXT, help="Add staged files")
@@ -251,13 +265,23 @@ def config():
     click.echo(click.style("Current Configuration", bold=True))
     config = api.config()
     click.echo("From file: %s" % api.config_file)
-    click.echo("Logged in? %s" % bool(loggedIn(config['base_url'])))
+    click.echo("Logged in? %s" % bool(logged_in(config['base_url'])))
     click.echo(json.dumps(
         config,
         sort_keys=True,
         indent=2,
         separators=(',', ': ')
     ))
+
+@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@display_error
+def login():
+    key = click.prompt("{warning} Enter an api key from https://app.wandb.ai/profile to enable uploads".format(
+            warning=click.style("Not authenticated!", fg="red")), default="")
+    #TODO: get the default entity from the API
+    host = api.config()['base_url']
+    if key:
+        write_netrc(host, "user", key)
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
 @click.pass_context
@@ -266,13 +290,9 @@ def init(ctx):
     if(os.path.isfile(".wandb")):
         click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
     click.echo(click.style("Let's setup this directory for W&B!", fg="green", bold=True))
-    host = api.config()['base_url']
-    if loggedIn(host) is None:
-        key = click.prompt("{warning} Enter an api key from https://app.wandb.ai/profile to enable uploads".format(
-            warning=click.style("Not authenticated!", fg="red")), default="")
-        #TODO: get the default entity from the API
-        if key:
-            login(host, "user", key)
+    
+    if logged_in(host) is None:
+        ctx.invoke(login)
 
     entity = click.prompt("What entity should we scope to?", default="models")
     #TODO: handle the case of a missing entity
