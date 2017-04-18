@@ -69,7 +69,7 @@ def test_pull_existing_file(request_mocker, mocker, download_url, query_project)
     query_project(request_mocker)
     download_url(request_mocker)
     with CliRunner().isolated_filesystem():
-        with open("model.json", "wb") as f:
+        with open("model.json", "w") as f:
             f.write("{}")
         mocked = mocker.patch.object(api, "download_file", return_value=(100, mocker.MagicMock()))
         api.pull("test/test")
