@@ -12,7 +12,7 @@ from .api_mocks import *
 from click.testing import CliRunner
 
 import wandb
-import StringIO
+from six import StringIO
 api = wandb.Api(load_config=False)
 
 def test_projects_success(request_mocker, query_projects):
