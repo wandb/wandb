@@ -250,6 +250,7 @@ class Api(object):
             'description': description,
             'files': [file for file in files]
         })
+        print query_result
         bucket = query_result['model']['bucket']
         result = {file['name']: file for file in self._flatten_edges(bucket['files'])}
 

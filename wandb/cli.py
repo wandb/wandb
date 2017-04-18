@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import click, sys
-from sets import Set
 from wandb import Api, Error, Sync
 import random, time, os, re, netrc, logging, json, glob, io
 from functools import wraps
@@ -122,12 +121,12 @@ def status(bucket, project):
     parser = api.config_parser
     parser.read(".wandb")
     if parser.has_option("default", "files"):
-        existing = Set(parser.get("default", "files").split(","))
+        existing = set(parser.get("default", "files").split(","))
     else:
-        existing = Set()
+        existing = set()
     remote = api.download_urls(project)
-    not_synced = Set()
-    remote_names = Set([name for name in remote])
+    not_synced = set()
+    remote_names = set([name for name in remote])
     for file in existing:
         meta = remote.get(file)
         if meta and not api.file_current(file, meta['md5']):

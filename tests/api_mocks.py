@@ -60,11 +60,11 @@ def _mutate(key, json):
 
 @pytest.fixture
 def query_project():
-    return _query('project', _project())
+    return _query('model', _project())
 
 @pytest.fixture
 def query_projects():
-    return _query('projects', [_project("test_1"), _project("test_2"), _project("test_3")])
+    return _query('models', [_project("test_1"), _project("test_2"), _project("test_3")])
 
 @pytest.fixture
 def query_buckets():

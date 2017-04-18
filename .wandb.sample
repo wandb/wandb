@@ -1,6 +1,5 @@
 [default]
-base_url = http://gql.dev
-entity = models
-model = dev
-files = foo.bar
+entity = vanpelt
+project = cvp-rad
+files = circle.yml,model.json
 

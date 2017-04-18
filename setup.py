@@ -15,7 +15,8 @@ requirements = [
     'requests>=2.0.0',
     'inquirer>=2.1.11',
     'six>=1.10.0',
-    'psutil>=5.2.2'
+    'psutil>=5.2.2',
+    'watchdog>=0.8.3'
 ]
 
 test_requirements = [
