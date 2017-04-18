@@ -19,7 +19,6 @@ class Sync(object):
         if len(files) > 0:
             self._handler._patterns = [os.path.abspath(file) for file in files]
         #TODO: upsert command line
-        print("WATCHING FILES: %s" % self._handler._patterns)
         self._observer.start()
         print("Watching changes for {model}/{bucket}".format(
             model=self._model,
@@ -32,7 +31,6 @@ class Sync(object):
                 line = sys.stdin.readline()
                 while line:
                     output.write(line)
-                    print(line)
                     #TODO: push log every few minutes...
                     line = sys.stdin.readline()
                 #Wait for changes
