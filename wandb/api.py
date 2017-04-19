@@ -43,9 +43,17 @@ def normalize_exceptions(func):
             raise Error(err.response)
         except RetryError as err:
             if "response" in dir(err.last_exception) and err.last_exception.response is not None:
-                message = err.last_exception.response.json().get('errors', [{'message': 'Whoa, you found a bug!'}])[0]['message']
+                message = err.last_exception.response.json().get('errors', [{'message': 'Whoa, you found a bug.'}])[0]['message']
             else:
                 message = err.last_exception
+            raise Error(message)
+        except Exception as err:
+            try:
+                # gql raises server errors with dict's as strings...
+                message = ast.literal_eval(err.args[0]).get("message", "Server Error")
+            except SyntaxError as e:
+                logging.error(err)
+                message = "Whoa, you found a bug."
             raise Error(message)
     return wrapper
 

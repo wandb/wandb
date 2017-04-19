@@ -4,10 +4,10 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 
 class Sync(object):
-    def __init__(self, api, model, bucket="default"):
+    def __init__(self, api, project, bucket="default"):
         self._proc = psutil.Process(os.getpid())
         self._api = api
-        self._model = model
+        self._project = project
         self._bucket = bucket
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.add
@@ -20,8 +20,8 @@ class Sync(object):
             self._handler._patterns = [os.path.abspath(file) for file in files]
         #TODO: upsert command line
         self._observer.start()
-        print("Watching changes for {model}/{bucket}".format(
-            model=self._model,
+        print("Watching changes for {project}/{bucket}".format(
+            project=self._project,
             bucket=self._bucket
         ))
         output = NamedTemporaryFile()
@@ -37,7 +37,7 @@ class Sync(object):
                 time.sleep(0.1)
                 output.flush()
                 print("Pushing log")
-                self._api.push(self._model, {"training.log": open(output.name, "rb")}, bucket=self._bucket)
+                self._api.push(self._project, {"training.log": open(output.name, "rb")}, bucket=self._bucket)
             else:
                 time.sleep(0.1)
             output.close()
@@ -52,7 +52,7 @@ class Sync(object):
     def push(self, event):
         fileName = event.src_path.split("/")[-1]
         print("Pushing {file}".format(file=fileName))
-        self._api.push(self._model, [fileName], bucket=self._bucket)
+        self._api.push(self._project, [fileName], bucket=self._bucket)
 
     @property
     def source_proc(self):

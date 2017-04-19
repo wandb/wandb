@@ -57,7 +57,10 @@ class BucketGroup(click.Group):
         if rv is not None:
             return rv
 
-        project, bucket = api.parse_slug(cmd_name)
+        try:
+            project, bucket = api.parse_slug(cmd_name)
+        except Error:
+            return None
 
         sync = Sync(api, project=project, bucket=bucket)
         if sync.source_proc:

@@ -150,6 +150,12 @@ def test_add_no_config(runner):
         assert result.exit_code == 1
         assert "Directory not configured" in result.output
 
+def test_no_project_bad_command(runner):
+    result = runner.invoke(cli.cli, ["fsd"])
+    print(result.output)
+    assert "No such command" in result.output
+    assert result.exit_code == 2
+
 def test_rm(runner):
     with runner.isolated_filesystem():
         with open(".wandb", "w") as f:
