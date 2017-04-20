@@ -1,4 +1,4 @@
-import psutil, os, sys, time
+import psutil, os, stat, sys, time
 from tempfile import NamedTemporaryFile
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
@@ -56,8 +56,13 @@ class Sync(object):
 
     @property
     def source_proc(self):
-        source = self._proc.parent().children()[0]
-        return None if source == self._proc else source
+        mode = os.fstat(0).st_mode
+        if not stat.S_ISFIFO(mode):
+            # stdin is not a pipe
+            return None
+        else:
+            source = self._proc.parent().children()[0]
+            return None if source == self._proc else source
 
     def echo(self):
         print(sys.stdin.read())
