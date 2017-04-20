@@ -62,7 +62,8 @@ def test_parse_slug():
 def test_pull_success(request_mocker, download_url, query_project):
     query_project(request_mocker)
     download_url(request_mocker)
-    res = api.pull("test/test")
+    with CliRunner().isolated_filesystem():
+        res = api.pull("test/test")
     assert res[0].status_code == 200
 
 def test_pull_existing_file(request_mocker, mocker, download_url, query_project):
@@ -78,7 +79,12 @@ def test_pull_existing_file(request_mocker, mocker, download_url, query_project)
 def test_push_success(request_mocker, upload_url, query_project):
     query_project(request_mocker)
     upload_url(request_mocker)
-    res = api.push("test/test", "weights.json")
+    with CliRunner().isolated_filesystem():
+        with open("weights.h5", "w") as f:
+            f.write("weight")
+        with open("model.json", "w") as f:
+            f.write("model")
+        res = api.push("test/test", ["weights.h5", "model.json"])
     assert res[0].status_code == 200
 
 def test_push_no_project(request_mocker, upload_url, query_project):
