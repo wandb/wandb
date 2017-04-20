@@ -13,7 +13,6 @@ def test_watches_for_all_changes(mocker):
         with open("some_file.txt", "w") as f:
             f.write("My great changes")
         t.join()
-        time.sleep(0.5)
         assert api.push.called
 
 def test_watches_for_specific_change(mocker):
@@ -25,5 +24,4 @@ def test_watches_for_specific_change(mocker):
         with open("file.txt", "a") as f:
             f.write("great")
         t.join()
-        time.sleep(0.5)
         assert api.push.called
