@@ -10,22 +10,5 @@ dependencies:
 
 test:
   override:
-    - >
-      if (( "$CIRCLE_NODE_TOTAL" >= 4 )); then
-          case $CIRCLE_NODE_INDEX in
-              0) TOXENV=py27;;
-              1) TOXENV=py34;;
-              2) TOXENV=py35;;
-              3) TOXENV=py36;;
-          esac
-      elif (( "$CIRCLE_NODE_TOTAL" >= 2 )); then
-          case $CIRCLE_NODE_INDEX in
-              0) TOXENV=py27,py34;;
-              1) TOXENV=py35,py36;;
-          esac
-      else
-          TOXENV=py27,py34,py35,py36
-      fi
-      export TOXENV
-      tox -v --recreate
+    - bash circle_tox.sh
       parallel: true
