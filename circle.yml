@@ -11,4 +11,4 @@ dependencies:
 test:
   override:
     - bash circle_tox.sh
-      parallel: true
+        parallel: true
