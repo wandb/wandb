@@ -5,9 +5,27 @@ machine:
 dependencies:
   override:
     - pip -V
-    - pip install -U 'pip<8.0' 'virtualenv<14.0' ipdb tox tox-pyenv detox
+    - pip install -U 'pip<8.0' 'virtualenv<14.0' ipdb tox tox-pyenv
     - pyenv local 2.7.11 3.4.4 3.5.2 3.6.0
 
 test:
   override:
-    - detox -v --recreate
+    - >
+      if (( "$CIRCLE_NODE_TOTAL" >= 4 )); then
+          case $CIRCLE_NODE_INDEX in
+              0) TOXENV=py27;;
+              1) TOXENV=py34;;
+              2) TOXENV=py35;;
+              3) TOXENV=py36;;
+          esac
+      elif (( "$CIRCLE_NODE_TOTAL" >= 2 )); then
+          case $CIRCLE_NODE_INDEX in
+              0) TOXENV=py27,py34;;
+              1) TOXENV=py35,py36;;
+          esac
+      else
+          TOXENV=py27,py34,py35,py36
+      fi
+      export TOXENV
+      tox -v --recreate
+      parallel: true
