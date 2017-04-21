@@ -363,7 +363,7 @@ class Api(object):
         with open(fname, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
-        return b64encode(hash_md5.digest())
+        return b64encode(hash_md5.digest()).decode('ascii')
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
