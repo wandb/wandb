@@ -39,7 +39,7 @@ class Sync(object):
                 print("Pushing log")
                 self._api.push(self._project, {"training.log": open(output.name, "rb")}, bucket=self._bucket)
             else:
-                time.sleep(0.1)
+                time.sleep(1.0)
             output.close()
             self._observer.stop()
         except KeyboardInterrupt:
