@@ -1,18 +1,14 @@
 # Weights and Biases
 
-[![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client)
-
-[![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb)
-
-[![coveralls](https://coveralls.io/repos/github/wandb/client/badge.svg?branch=master)](https://coveralls.io/github/wandb/client?branch=master)
+[![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client)[![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb)[![coveralls](https://coveralls.io/repos/github/wandb/client/badge.svg?branch=master)](https://coveralls.io/github/wandb/client?branch=master)
 
 A CLI and library for interacting with the Weights and Biases API.
 
-https://www.gitbook.com/book/wandb/client
+[https://www.gitbook.com/book/wandb/client](https://www.gitbook.com/book/wandb/client)
 
 ## Features
 
-This library provides a CLI and python library for the [Weights & Biases](https://wanbd.ai) machine learning model management platform.  It makes it dead simple to upload or download revisions via the command line or your code.
+This library provides a CLI and python library for the [Weights & Biases](https://wanbd.ai) machine learning model management platform.  It simplifies uploading or downloading files via the command line or directly in your training code.
 
 ## Examples
 
@@ -33,3 +29,6 @@ import wandb
 client = wandb.Api()
 client.push("my_model", files=[open("some_file", "rb")])
 ```
+
+
+
