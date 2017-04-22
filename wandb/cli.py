@@ -296,7 +296,7 @@ def init(ctx):
     if logged_in(api.config('base_url')) is None:
         ctx.invoke(login)
 
-    entity = click.prompt("What entity should we scope to?", default="models")
+    entity = click.prompt("What username or org should we use?", default="models")
     #TODO: handle the case of a missing entity
     result = ctx.invoke(projects, entity=entity)
 
