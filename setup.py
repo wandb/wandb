@@ -3,11 +3,8 @@
 
 from setuptools import setup
 
-with open('README.rst') as readme_file:
+with open('README.md') as readme_file:
     readme = readme_file.read()
-
-with open('HISTORY.rst') as history_file:
-    history = history_file.read()
 
 requirements = [
     'Click>=6.0',
@@ -28,7 +25,7 @@ setup(
     name='wandb',
     version='0.4.2',
     description="A CLI and library for interacting with the Weights and Biases API.",
-    long_description=readme + '\n\n' + history,
+    long_description=readme,
     author="Chris Van Pelt",
     author_email='vanpelt@gmail.co',
     url='https://github.com/wandb/client',
