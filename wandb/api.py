@@ -142,8 +142,7 @@ class Api(object):
         """Lists projects in W&B scoped by entity.
         
         Args:
-            entity (str, optional): The entity to scope this project to.  Defaults to 
-            public models
+            entity (str, optional): The entity to scope this project to.  Defaults to public models
 
         Returns:
                 [{"name","description"}]
@@ -169,8 +168,7 @@ class Api(object):
         
         Args:
             project (str): The project to scope the tags to
-            entity (str, optional): The entity to scope this project to.  Defaults to 
-            public models
+            entity (str, optional): The entity to scope this project to.  Defaults to public models
 
         Returns:
                 [{"name","description"}]
@@ -224,8 +222,7 @@ class Api(object):
         Args:
             project (str): The project to download
             bucket (str, optional): The bucket to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to 
-            wandb models
+            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
             A dict of filenames and urls, also indicates if this revision already has uploaded files
@@ -270,8 +267,7 @@ class Api(object):
         Args:
             project (str): The project to download
             bucket (str, optional): The bucket to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to 
-            wandb models
+            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
             A dict of extensions and urls
@@ -377,8 +373,7 @@ class Api(object):
         Args:
             project (str): The project to download
             bucket (str, optional): The bucket to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to 
-            wandb models
+            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
             The requests library response object
@@ -404,8 +399,7 @@ class Api(object):
             project (str): The project to download
             files (list or dict): The filenames to upload
             bucket (str, optional): The bucket to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to 
-            wandb projects
+            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
             The requests library response object

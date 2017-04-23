@@ -15,6 +15,8 @@
 
 import sys
 import os
+from recommonmark.parser import CommonMarkParser
+from recommonmark.transform import AutoStructify
 
 # If extensions (or modules to document with autodoc) are in another
 # directory, add these directories to sys.path here. If the directory is
@@ -46,8 +48,12 @@ extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode', 'sphinx.ext.coverage'
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
+source_parsers = {
+    '.md': CommonMarkParser,
+}
+
 # The suffix of source filenames.
-source_suffix = '.rst'
+source_suffix = ['.rst', '.md']
 
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
@@ -56,8 +62,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Weights and Biases'
-copyright = u"2017, Chris Van Pelt"
+project = u'Weights & Biases'
+copyright = u"2017, Weights & Biases"
 
 # The version info for the project you're documenting, acts as replacement
 # for |version| and |release|, also used in various other places throughout
@@ -117,7 +123,13 @@ html_theme = 'alabaster'
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
 # documentation.
-#html_theme_options = {}
+html_theme_options = {
+    'font_family': 'Lora, goudy old style, Georgia, serif',
+    'head_font_family': 'Lora, Gramond, serif',
+    'font_size': '1em',
+    'link': '#4183c4',
+    'link_hover': '#1e70bf'
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
 #html_theme_path = []
@@ -132,7 +144,7 @@ html_theme = 'alabaster'
 
 # The name of an image file (relative to this directory) to place at the
 # top of the sidebar.
-#html_logo = None
+html_logo = "logo.svg"
 
 # The name of an image file (within the static path) to use as favicon
 # of the docs.  This file should be a Windows icon file (.ico) being
@@ -160,7 +172,6 @@ html_sidebars = {
         'navigation.html',
         'relations.html',
         'searchbox.html',
-        'donate.html',
     ]
 }
 
@@ -219,7 +230,7 @@ latex_elements = {
 latex_documents = [
     ('index', 'wandb.tex',
      u'Weights and Biases Documentation',
-     u'Chris Van Pelt', 'manual'),
+     u'Weights and Biases', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at
@@ -250,7 +261,7 @@ latex_documents = [
 man_pages = [
     ('index', 'wandb',
      u'Weights and Biases Documentation',
-     [u'Chris Van Pelt'], 1)
+     [u'Weights & Biases'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -265,7 +276,7 @@ man_pages = [
 texinfo_documents = [
     ('index', 'wandb',
      u'Weights and Biases Documentation',
-     u'Chris Van Pelt',
+     u'Weights and Biases',
      'wandb',
      'One line description of project.',
      'Miscellaneous'),
@@ -282,3 +293,10 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
+
+def setup(app):
+    app.add_config_value('recommonmark_config', {
+            'enable_auto_doc_ref': True,
+            'enable_eval_rst': True,
+            }, True)
+    app.add_transform(AutoStructify)

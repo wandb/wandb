@@ -16,3 +16,4 @@ tox-pyenv==1.0.3
 pytest-cov==2.4.0
 coveralls==1.1
 pexpect==4.2.1
+recommonmark==0.4.0
