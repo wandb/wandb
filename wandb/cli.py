@@ -27,7 +27,7 @@ def logged_in(host, retry=True):
             click.secho("Unable to read ~/.netrc: "+e.message, fg="red")
             return None
     except IOError as e:
-        click.secho("Unable to read ~/.netrc: "+e.message, fg="red")
+        click.secho("Unable to read ~/.netrc", fg="red")
         return None
 
 def write_netrc(host, entity, key):
