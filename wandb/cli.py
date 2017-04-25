@@ -26,6 +26,9 @@ def logged_in(host, retry=True):
         else:
             click.secho("Unable to read ~/.netrc: "+e.message, fg="red")
             return None
+    except IOError, e:
+        click.secho("Unable to read ~/.netrc: "+e.message, fg="red")
+        return None
 
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
@@ -298,7 +301,7 @@ def login():
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
 @click.pass_context
-#@display_error
+@display_error
 def init(ctx):
     if(os.path.isfile(".wandb")):
         click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
