@@ -1,5 +1,5 @@
-import pytest, os, traceback
-from wandb import cli, Api
+import pytest, os, traceback, click
+from wandb import cli, Api, __version__
 from click.testing import CliRunner
 from .api_mocks import *
 import netrc, signal, time
@@ -8,12 +8,17 @@ import six, time, inquirer
 @pytest.fixture
 def runner(monkeypatch):
     monkeypatch.setattr(cli, 'api', Api(default_config={'project': 'test'}, load_config=False))
+    monkeypatch.setattr(click, 'launch', lambda x: 1)
     monkeypatch.setattr(inquirer, 'prompt', lambda x: {'project': 'test_model', 'files': ['weights.h5']})
     return CliRunner()
 
 @pytest.fixture
 def empty_netrc(monkeypatch):
-    monkeypatch.setattr(netrc, "netrc", lambda x: {'hosts': []})
+    class FakeNet(object):
+        @property
+        def hosts(self):
+            return {'api.wandb.ai': None}
+    monkeypatch.setattr(netrc, "netrc", lambda *args: FakeNet())
 
 @pytest.fixture
 def local_netrc(monkeypatch):
@@ -29,7 +34,12 @@ def test_help(runner):
     assert 'Weights & Biases' in result.output
     help_result = runner.invoke(cli.cli, ['--help'])
     assert help_result.exit_code == 0
-    assert '--help  Show this message and exit.' in help_result.output
+    assert 'Show this message and exit.' in help_result.output
+
+def test_version(runner):
+    result = runner.invoke(cli.cli, ["--version"])
+    assert result.exit_code == 0
+    assert __version__ in result.output
 
 def test_config(runner, request_mocker, query_project, monkeypatch):
     query_project(request_mocker)
@@ -112,6 +122,16 @@ def test_pull_custom_bucket(runner, request_mocker, query_project, download_url)
         assert result.exit_code == 0
         assert "Downloading: test/test" in result.output
 
+def test_pull_empty_bucket(runner, request_mocker, query_empty_project, download_url):
+    query_empty_project(request_mocker)
+    result = runner.invoke(cli.pull, ['test/test'])
+    
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 1
+    assert "Bucket is empty" in result.output
+
 def test_projects(runner, request_mocker, query_projects):
     query_projects(request_mocker)
     result = runner.invoke(cli.projects)
@@ -174,10 +194,14 @@ def test_projects_error(runner, request_mocker, query_projects):
     print(result.output)
     assert "Error" in result.output
 
-def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_projects):
+def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer):
+    query_viewer(request_mocker)
     query_projects(request_mocker)
     with runner.isolated_filesystem():
         result = runner.invoke(cli.init, input="12345\nvanpelt")
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
@@ -186,13 +210,15 @@ def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert "12345" in generatedNetrc
         assert "test_model" in generatedWandb
 
-def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_projects):
+def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer):
+    query_viewer(request_mocker)
     query_projects(request_mocker)
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
             f.write("previous config")
         result = runner.invoke(cli.init, input="12345\nvanpelt\n")
         print(result.output)
+        print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open("netrc", "r") as f:
@@ -202,7 +228,8 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert "12345" in generatedNetrc
         assert "previous config" in generatedNetrc
 
-def test_existing_login(runner, local_netrc, request_mocker, query_projects):
+def test_existing_login(runner, local_netrc, request_mocker, query_projects, query_viewer):
+    query_viewer(request_mocker)
     query_projects(request_mocker)
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:

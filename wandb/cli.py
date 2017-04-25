@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import click, sys
-from wandb import Api, Error, Sync
-import random, time, os, re, netrc, logging, json, glob, io
+from wandb import Api, Error, Sync, __version__
+import random, time, os, re, netrc, logging, json, glob, io, stat
 from functools import wraps
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
@@ -13,13 +13,19 @@ logging.basicConfig(filename='/tmp/wandb.log', level=logging.INFO)
 def normalize(host):
     return host.split("/")[-1].split(":")[0]
 
-def logged_in(host):
+def logged_in(host, retry=True):
     """Check if our host is in .netrc"""
     try:
         conf = netrc.netrc()
         return conf.hosts[normalize(host)]
-    except:
-        return None
+    except netrc.NetrcParseError, e:
+        #chmod 0600 which is a common mistake, we could do this in `write_netrc`...
+        os.chmod(os.path.expanduser('~/.netrc'), stat.S_IRUSR | stat.S_IWUSR)
+        if retry:
+            return logged_in(host, retry=False)
+        else:
+            click.secho("Unable to read ~/.netrc: "+e.message, fg="red")
+            return None
 
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
@@ -61,7 +67,7 @@ class BucketGroup(click.Group):
             project, bucket = api.parse_slug(cmd_name)
         except Error:
             return None
-
+        print ctx
         sync = Sync(api, project=project, bucket=bucket)
         if sync.source_proc:
             files = sys.argv[2:]
@@ -71,6 +77,7 @@ class BucketGroup(click.Group):
             return None
 
 @click.command(cls=BucketGroup)
+@click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx):
     """Weights & Biases
@@ -245,11 +252,13 @@ def push(ctx, bucket, project, description, entity, files):
 def pull(project, bucket, kind, entity):
     project, bucket = api.parse_slug(bucket, project=project)
 
+    urls = api.download_urls(project, bucket=bucket, entity=entity)
+    if len(urls) == 0:
+        raise ClickException("Bucket is empty")
     click.echo("Downloading: {project}/{bucket}".format(
         project=click.style(project, bold=True), bucket=bucket
     ))
 
-    urls = api.download_urls(project, bucket=bucket, entity=entity)
     for name in urls:
         if api.file_current(name, urls[name]['md5']):
             click.echo("File %s is up to date" % name)
@@ -278,7 +287,10 @@ def config():
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @display_error
 def login():
-    key = click.prompt("{warning} Enter an api key from https://app.wandb.ai/profile to enable uploads".format(
+    code = click.launch("https://app.wandb.ai/profile")
+    if code != 0:
+        click.echo("You can find your API keys here: https://app.wandb.ai/profile")
+    key = click.prompt("{warning} Paste an API key from your profile".format(
             warning=click.style("Not authenticated!", fg="red")), default="")
     #TODO: get the default entity from the API
     host = api.config()['base_url']
@@ -287,7 +299,7 @@ def login():
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
 @click.pass_context
-@display_error
+#@display_error
 def init(ctx):
     if(os.path.isfile(".wandb")):
         click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
@@ -296,12 +308,12 @@ def init(ctx):
     if logged_in(api.config('base_url')) is None:
         ctx.invoke(login)
 
-    entity = click.prompt("What username or org should we use?", default="models")
+    entity = click.prompt("What username or org should we use?", default=api.viewer().get('entity', 'models'))
     #TODO: handle the case of a missing entity
     result = ctx.invoke(projects, entity=entity)
 
     if len(result) == 0:
-        project = click.prompt("Enter a name for your first project.")
+        project = click.prompt("Enter a name for your first project")
         description = editor()
         api.create_project(project, entity=entity, description=description)
     else:
@@ -310,7 +322,7 @@ def init(ctx):
         project = inquirer.prompt([question])['project']
         #TODO: check with the server if the project exists
         if project == "Create New":
-            project = click.prompt("Enter a name for your new project.")
+            project = click.prompt("Enter a name for your new project")
             description = editor()
             api.create_project(project, entity=entity, description=description)
 
