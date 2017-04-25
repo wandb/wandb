@@ -67,7 +67,6 @@ class BucketGroup(click.Group):
             project, bucket = api.parse_slug(cmd_name)
         except Error:
             return None
-        print ctx
         sync = Sync(api, project=project, bucket=bucket)
         if sync.source_proc:
             files = sys.argv[2:]
