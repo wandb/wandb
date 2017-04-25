@@ -18,7 +18,7 @@ def logged_in(host, retry=True):
     try:
         conf = netrc.netrc()
         return conf.hosts[normalize(host)]
-    except netrc.NetrcParseError, e:
+    except netrc.NetrcParseError as e:
         #chmod 0600 which is a common mistake, we could do this in `write_netrc`...
         os.chmod(os.path.expanduser('~/.netrc'), stat.S_IRUSR | stat.S_IWUSR)
         if retry:
@@ -26,7 +26,7 @@ def logged_in(host, retry=True):
         else:
             click.secho("Unable to read ~/.netrc: "+e.message, fg="red")
             return None
-    except IOError, e:
+    except IOError as e:
         click.secho("Unable to read ~/.netrc: "+e.message, fg="red")
         return None
 
