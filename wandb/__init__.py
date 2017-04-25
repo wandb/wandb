@@ -2,7 +2,7 @@
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.ai'
-__version__ = '0.4.4'
+__version__ = '0.4.5'
 
 from .api import Api, Error
 from .sync import Sync
