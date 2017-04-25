@@ -17,13 +17,14 @@ def _files():
         ]
     }
 
-def _project(name='test'):
+def _project(name='test', empty=False):
+    files = {'edges':[]} if empty else _files()
     return {
         'name': name,
         'description': 'Test model',
         'bucket': {
             'framework': 'keras',
-            'files': _files()
+            'files': files
         }
     }
 
@@ -63,12 +64,20 @@ def query_project():
     return _query('model', _project())
 
 @pytest.fixture
+def query_empty_project():
+    return _query('model', _project(empty=True))
+
+@pytest.fixture
 def query_projects():
     return _query('models', [_project("test_1"), _project("test_2"), _project("test_3")])
 
 @pytest.fixture
 def query_buckets():
     return _query('buckets', [_bucket("default"), _bucket("test_1")])
+
+@pytest.fixture
+def query_viewer():
+    return _success_or_failure(payload={'viewer': {'entity': 'foo'}})
 
 @pytest.fixture
 def upload_url():

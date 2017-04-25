@@ -138,6 +138,18 @@ class Api(object):
         return (project, bucket)
 
     @normalize_exceptions
+    def viewer(self):
+        query = gql('''
+        query Viewer{
+            viewer {
+                id
+                entity
+            }
+        }
+        ''')
+        return self.client.execute(query).get('viewer', {})
+
+    @normalize_exceptions
     def list_projects(self, entity=None):
         """Lists projects in W&B scoped by entity.
         
