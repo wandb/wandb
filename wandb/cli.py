@@ -61,6 +61,7 @@ api = Api()
 CONTEXT=dict(default_map=api.config())
 
 class BucketGroup(click.Group):
+    @display_error
     def get_command(self, ctx, cmd_name):
         rv = click.Group.get_command(self, ctx, cmd_name)
         if rv is not None:
@@ -136,7 +137,7 @@ def status(bucket, project):
         existing = set(parser.get("default", "files").split(","))
     else:
         existing = set()
-    remote = api.download_urls(project)
+    remote = api.download_urls(project, bucket)
     not_synced = set()
     remote_names = set([name for name in remote])
     for file in existing:
@@ -289,12 +290,12 @@ def config():
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @display_error
 def login():
-    code = click.launch("https://app.wandb.ai/profile")
+    #TODO: xdg-open dumps a bunch of output on Ubuntu if theirs no browser
+    code = 1 #click.launch("https://app.wandb.ai/profile")
     if code != 0:
         click.echo("You can find your API keys here: https://app.wandb.ai/profile")
     key = click.prompt("{warning} Paste an API key from your profile".format(
             warning=click.style("Not authenticated!", fg="red")), default="")
-    #TODO: get the default entity from the API
     host = api.config()['base_url']
     if key:
         write_netrc(host, "user", key)

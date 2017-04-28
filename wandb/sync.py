@@ -20,16 +20,18 @@ class Sync(object):
             self._handler._patterns = [os.path.abspath(file) for file in files]
         #TODO: upsert command line
         self._observer.start()
-        print("Watching changes for {project}/{bucket}".format(
+        slug = "{project}/{bucket}".format(
             project=self._project,
             bucket=self._bucket
-        ))
-        output = NamedTemporaryFile()
+        )
+        print("Watching changes for %s" % slug)
+        output = NamedTemporaryFile("w")
         try:
             if self.source_proc:
-                output.write(" ".join(self.source_proc.cmdline()))
+                output.write(" ".join(self.source_proc.cmdline())+"\n\n")
                 line = sys.stdin.readline()
                 while line:
+                    sys.stdout.write(line)
                     output.write(line)
                     #TODO: push log every few minutes...
                     line = sys.stdin.readline()
@@ -37,7 +39,7 @@ class Sync(object):
                 time.sleep(0.1)
                 output.flush()
                 print("Pushing log")
-                self._api.push(self._project, {"training.log": open(output.name, "rb")}, bucket=self._bucket)
+                self._api.push(slug, {"training.log": open(output.name, "r")})
             else:
                 time.sleep(1.0)
             output.close()

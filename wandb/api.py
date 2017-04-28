@@ -37,23 +37,25 @@ def normalize_exceptions(func):
     """Function decorator for catching common errors and re-raising as wandb.Error"""
     @wraps(func)
     def wrapper(*args, **kwargs):
+        message = "Whoa, you found a bug."
         try:
             return func(*args, **kwargs)
         except requests.HTTPError as err:
             raise Error(err.response)
         except RetryError as err:
             if "response" in dir(err.last_exception) and err.last_exception.response is not None:
-                message = err.last_exception.response.json().get('errors', [{'message': 'Whoa, you found a bug.'}])[0]['message']
+                message = err.last_exception.response.json().get('errors', [{'message': message}])[0]['message']
             else:
                 message = err.last_exception
             raise Error(message)
         except Exception as err:
-            try:
-                # gql raises server errors with dict's as strings...
-                message = ast.literal_eval(err.args[0]).get("message", "Server Error")
-            except SyntaxError as e:
-                logging.error(err)
-                message = "Whoa, you found a bug."
+            # gql raises server errors with dict's as strings...
+            payload = err.args[0]
+            if payload.startswith("{"):
+                message = ast.literal_eval(str(payload))["message"]
+            else:
+                message = payload
+
             raise Error(message)
     return wrapper
 
