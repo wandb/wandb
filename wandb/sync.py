@@ -48,10 +48,13 @@ class Sync(object):
             self._observer.stop()
         self._observer.join()
 
+    #TODO: limit / throttle the number of adds / pushes
     def add(self, event):
         self.push(event)
 
     def push(self, event):
+        if os.stat(event.src_path).st_size == 0:
+            return None
         fileName = event.src_path.split("/")[-1]
         print("Pushing {file}".format(file=fileName))
         self._api.push(self._project, [fileName], bucket=self._bucket)

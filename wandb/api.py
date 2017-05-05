@@ -51,10 +51,10 @@ def normalize_exceptions(func):
         except Exception as err:
             # gql raises server errors with dict's as strings...
             payload = err.args[0]
-            if payload.startswith("{"):
+            if str(payload).startswith("{"):
                 message = ast.literal_eval(str(payload))["message"]
             else:
-                message = payload
+                message = str(err)
 
             raise Error(message)
     return wrapper
