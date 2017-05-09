@@ -4,7 +4,9 @@ __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.ai'
 __version__ = '0.4.6'
 
+import types, sys
 from .api import Api, Error
 from .sync import Sync
+from .config import Config
 
-__all__ = ["Api", "Error"]
+__all__ = ["Api", "Error", "Config"]

@@ -22,7 +22,7 @@ $ wandb push my-new-bucket somefile.pb
 To pull down a public model or sync your local directory with the cloud you can run:
 
 ```console
-$ wandb pull zoo/inception
+$ wandb pull zoo/inception_v4
 ```
 
 Or you can pull directly in a python script:

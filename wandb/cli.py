@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import click, sys
-from wandb import Api, Error, Sync, __version__
+from wandb import Api, Error, Sync, Config, __version__
 import random, time, os, re, netrc, logging, json, glob, io, stat
 from functools import wraps
 from click.utils import LazyFile
@@ -50,11 +50,10 @@ def display_error(func):
             
     return wrapper
 
-def editor():
-    MARKER = '# Enter a description of this revision, markdown is allowed!\n'
-    message = click.edit('\n\n' + MARKER)
+def editor(marker='# Enter a description, markdown is allowed!\n'):
+    message = click.edit('\n\n' + marker)
     if message is not None:
-        return message.split(MARKER, 1)[0].rstrip('\n')
+        return message.split(marker, 1)[0].rstrip('\n')
         
 api = Api()
 #TODO: Is this the best way to do this?
@@ -90,7 +89,7 @@ output will be saved to the bucket and the files uploaded when modified.
 
    ./train.sh arg1 arg2 | wandb imagenet/v2 model.json weights.h5
     """
-    pass        
+    pass
 
 @cli.command(context_settings=CONTEXT, help="List projects")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
@@ -127,12 +126,23 @@ def buckets(project, entity):
 
 @cli.command(context_settings=CONTEXT, help="List staged & remote files")
 @click.argument("bucket", envvar='WANDB_BUCKET')
+@click.option("--config/--no-config", help="Show the current configuration", default=False)
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @display_error
-def status(bucket, project):
+def status(bucket, config, project):
+    if config:
+        click.echo(click.style("Current Configuration", bold=True) + " (%s)" % api.config_file)
+        config = api.config()
+        click.echo(json.dumps(
+            config,
+            sort_keys=True,
+            indent=2,
+            separators=(',', ': ')
+        ))
+        click.echo(click.style("Logged in?", bold=True) + " %s\n" % bool(logged_in(config['base_url'])))
     project, bucket = api.parse_slug(bucket, project=project)
     parser = api.config_parser
-    parser.read(".wandb")
+    parser.read(".wandb/config")
     if parser.has_option("default", "files"):
         existing = set(parser.get("default", "files").split(","))
     else:
@@ -149,7 +159,7 @@ def status(bucket, project):
     #TODO: remove items that exists and have the md5
     only_remote = remote_names.difference(existing)
     up_to_date = existing.difference(only_remote).difference(not_synced)
-    click.echo(click.style('File status for "%s/%s" ' % (project, bucket), bold=True))
+    click.echo('File status for '+ click.style('"%s/%s" ' % (project, bucket), bold=True))
     if len(not_synced) > 0:
         click.echo(click.style('Push needed: ', bold=True) + click.style(", ".join(not_synced), fg="red"))
     if len(only_remote) > 0:
@@ -166,7 +176,7 @@ def status(bucket, project):
 @display_error
 def add(files, project):
     parser = api.config_parser
-    parser.read(".wandb")
+    parser.read(".wandb/config")
     if not parser.has_section("default"):
         raise ClickException("Directory not configured, run `wandb init` before adding files.")
     if parser.has_option("default", "files"):
@@ -175,7 +185,7 @@ def add(files, project):
         existing = []
     stagedFiles = set(existing + [file.name for file in files])
     parser.set("default", "files", ",".join(stagedFiles))
-    with open('.wandb', 'w') as configfile:
+    with open('.wandb/config', 'w') as configfile:
         parser.write(configfile)
     click.echo(click.style('Staged files for "%s": ' % project, bold=True) + ", ".join(stagedFiles))
 
@@ -185,7 +195,7 @@ def add(files, project):
 @display_error
 def rm(files, project):
     parser = api.config_parser
-    parser.read(".wandb")
+    parser.read(".wandb/config")
     if parser.has_option("default", "files"):
         existing = parser.get("default", "files").split(",")
     else:
@@ -195,7 +205,7 @@ def rm(files, project):
             raise ClickException("%s is not staged" % file)
         existing.remove(file)
     parser.set("default", "files", ",".join(existing))
-    with open('.wandb', 'w') as configfile:
+    with open('.wandb/config', 'w') as configfile:
         parser.write(configfile)
     click.echo(click.style('Staged files for "%s": ' % project, bold=True) + ", ".join(existing))
     
@@ -274,19 +284,6 @@ def pull(project, bucket, kind, entity):
                         f.write(data)
                         bar.update(len(data))
 
-@cli.command(help="Show this directories configuration")
-def config():
-    click.echo(click.style("Current Configuration", bold=True))
-    config = api.config()
-    click.echo("From file: %s" % api.config_file)
-    click.echo("Logged in? %s" % bool(logged_in(config['base_url'])))
-    click.echo(json.dumps(
-        config,
-        sort_keys=True,
-        indent=2,
-        separators=(',', ': ')
-    ))
-
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @display_error
 def login():
@@ -304,7 +301,7 @@ def login():
 @click.pass_context
 @display_error
 def init(ctx):
-    if(os.path.isfile(".wandb")):
+    if(os.path.exists(".wandb")):
         click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
     click.echo(click.style("Let's setup this directory for W&B!", fg="green", bold=True))
     
@@ -329,9 +326,159 @@ def init(ctx):
             description = editor()
             api.create_project(project, entity=entity, description=description)
 
-    with open(".wandb", "w") as file:
+    ctx.invoke(config_init, False)
+
+    with open(".wandb/config", "w") as file:
         file.write("[default]\nentity: {entity}\nproject: {project}".format(entity=entity, project=project))
-    click.echo(click.style("This directory is configured, run `wandb push` to sync your first project!", fg="green"))
+
+    click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+ 
+        """
+* Run `{push}` to add your first file.
+* Pipe your training script output to push changed files and your logs: `{sync}`.
+* `{config}` let's you import existing configuration and manage it with wandb.
+* Pull popular models into your project with: `{pull}`.
+    """.format(
+        push=click.style("wandb push weights.h5", bold=True),
+        sync=click.style("my_training.py | wandb", bold=True),
+        config=click.style("wandb config import", bold=True),
+        pull=click.style("wandb pull zoo/inception_v4", bold=True)
+    ))
+
+@cli.group()
+@click.pass_context
+@display_error
+def config(ctx):
+    """Manage this projects configuration.
+
+Examples: 
+
+    wandb config set param=2 --description="Some tunning parameter"
+    wandb config del param                                          
+    wandb config show
+    """
+    pass
+
+@config.command("init", help="Initialize a directory with wandb configuration")
+@display_error
+def config_init(prompt=True):
+    config_path = os.getcwd()+"/.wandb"
+    config = Config()
+    if os.path.isdir(config_path):
+        if prompt:
+            click.confirm(click.style("This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
+    else:
+        #TODO: Temp to deal with migration
+        tmp_path = config_path.replace(".wandb", ".wandb.tmp")
+        if os.path.isfile(config_path):
+            os.rename(config_path, tmp_path)
+        os.mkdir(config_path)
+        if os.path.isfile(tmp_path):
+            os.rename(tmp_path, tmp_path.replace(".wandb.tmp", ".wandb/config"))
+    config.batch_size_desc = "Number of training examples in a mini-batch"
+    config.batch_size = 32
+    config.persist()
+    if prompt:
+        click.echo("""Configuration initialized, use `wandb config set` to set parameters.  Then in your training script:
+
+import wandb
+conf = wandb.Config()
+conf.batch_size
+""")
+
+@config.command(help="Show the current config")
+@click.option("--format", "-f", help="The format to dump the config as", default="python", type=click.Choice(['python', 'yaml', 'json']))
+@display_error
+def show(format, changed=[], diff=False):
+    if len(changed) == 0 and diff:
+        click.secho("No parameters were changed", fg="red")
+    elif diff:
+        click.echo("%i parameters changed: " % len(changed))
+    config = Config()
+    if format == "yaml":
+        click.echo("%s" % config)
+    elif format == "json":
+        click.echo(json.dumps(config.dict()))
+    elif format == "python":
+        res = ""
+        for key in set(config.keys + changed):
+            if config.desc(key):
+                res += "# %s\n" % config.desc(key)
+            style = None
+            if key in changed:
+                style = "green" if config.get(key) else "red"
+            res += click.style("%s=%r\n" % (key, config.get(key)), bold=True if style is None else False, fg=style)
+        click.echo(res)
+
+@config.command("import", help="Import configuration parameters")
+@click.option("--format", "-f", help="The format to parse the imported params", default="python", type=click.Choice(["python"]))
+@click.pass_context
+@display_error
+def import_config(ctx, format):
+    data = editor("# Paste python comments and variable definitions above")
+    desc = None
+    config = Config()
+    imported = []
+    if data:
+        for line in data.split("\n"):
+            if line.strip().startswith("#"):
+                desc = line.strip(" #")
+            elif "=" in line:
+                try:
+                    key, value = [str(part.strip()) for part in line.split("=")]
+                    if len(value) == 0:
+                        continue
+                    config[key] = value
+                    imported.append(key)
+                    if desc:
+                        config[key+"_desc"] = desc
+                    desc = None
+                except ValueError:
+                    logging.error("Invalid line: %s" % line)
+            else:
+                logging.warn("Skipping line %s", line)
+        config.persist()
+    ctx.invoke(show, changed=imported, diff=True)
+
+@config.command("set", help="Set config variables with key=value pairs")
+@click.argument("key_values", nargs=-1)
+@click.option("--description", "-d", help="A description for the config value if specifying one pair")
+@click.pass_context
+@display_error
+def config_set(ctx, key_values, description=None):
+    config = Config()
+    if len(key_values) == 0:
+        raise ClickException("Must specify at least 1 key value pair i.e. `wandb config set epochs=11`")
+    if len(key_values) > 1 and description:
+        raise ClickException("Description can only be specified with 1 key value pair.")
+    changed = []
+    for pair in key_values:
+        try:
+            key, value = pair.split("=")
+        except ValueError:
+            key = pair
+            value = None
+        if value:
+            changed.append(key)
+            config[str(key)] = value
+        if description:
+            config[str(key)+"_desc"] = description
+    config.persist()
+    ctx.invoke(show, changed=changed, diff=True)
+
+@config.command("del", help="Delete config variables")
+@click.argument("keys", nargs=-1)
+@click.pass_context
+@display_error
+def delete(ctx, keys):
+    config = Config()
+    if len(keys) == 0:
+        raise ClickException("Must specify at least 1 key i.e. `wandb config rm epochs`")
+    changed = []
+    for key in keys:
+        del config[str(key)]
+        changed.append(key)
+    config.persist()
+    ctx.invoke(show, changed=changed, diff=True)
 
 if __name__ == "__main__":
     cli()

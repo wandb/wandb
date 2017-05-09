@@ -3,7 +3,7 @@ from wandb import cli, Api, __version__
 from click.testing import CliRunner
 from .api_mocks import *
 import netrc, signal, time
-import six, time, inquirer
+import six, time, inquirer, yaml
 
 @pytest.fixture
 def runner(monkeypatch):
@@ -41,8 +41,7 @@ def test_version(runner):
     assert result.exit_code == 0
     assert __version__ in result.output
 
-def test_config(runner, request_mocker, query_project, monkeypatch):
-    query_project(request_mocker)
+def test_config(runner, monkeypatch):
     with runner.isolated_filesystem():
         with open('.wandb', 'w') as f:
             f.write("""[default]
@@ -50,8 +49,33 @@ project: cli_test
 entity: cli_test
             """)
         monkeypatch.setattr(cli, 'api', Api())
-        result = runner.invoke(cli.config)
-        assert "cli_test" in result.output
+        result = runner.invoke(cli.config, ["init"])
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert "wandb config set" in result.output
+        assert os.path.exists("config.yaml")
+        assert os.path.exists(".wandb/config")
+        assert "cli_test" in open(".wandb/config").read()
+
+def test_config_set(runner):
+    with runner.isolated_filesystem():
+        runner.invoke(cli.config, ["init"])
+        result = runner.invoke(cli.config, ["set", "foo=bar"])
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert "foo='bar'" in result.output
+
+def test_config_del(runner):
+    with runner.isolated_filesystem():
+        with open("config.yaml", "w") as f:
+            f.write(yaml.dump({'val': {'value': 'awesome', 'desc': 'cool'}, 'bad': {'value':'shit'}}))
+        result = runner.invoke(cli.config, ["del", "bad"])
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert "1 parameters changed" in result.output
 
 def test_push(runner, request_mocker, query_project, upload_url):
     query_project(request_mocker)
@@ -141,12 +165,18 @@ def test_projects(runner, request_mocker, query_projects):
 def test_status(runner, request_mocker, query_project):
     query_project(request_mocker)
     result = runner.invoke(cli.status, ["-p", "foo"])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "/default" in result.output
 
 def test_status_project_and_bucket(runner, request_mocker, query_project):
     query_project(request_mocker)
     result = runner.invoke(cli.status, ["test/awesome"])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "test/awesome" in result.output
 
@@ -154,7 +184,8 @@ def test_add(runner):
     with runner.isolated_filesystem():
         with open("test.h5", "w") as f:
             f.write("fake data")
-        with open(".wandb", "w") as f:
+        os.mkdir(".wandb")
+        with open(".wandb/config", "w") as f:
             f.write("[default]\nfiles: test.json")
         result = runner.invoke(cli.add, ["test.h5", "-p", "test"])
         assert result.exit_code == 0
@@ -178,7 +209,8 @@ def test_no_project_bad_command(runner):
 
 def test_rm(runner):
     with runner.isolated_filesystem():
-        with open(".wandb", "w") as f:
+        os.mkdir(".wandb")
+        with open(".wandb/config", "w") as f:
             f.write("[default]\nfiles: test.h5,test.json")
         result = runner.invoke(cli.rm, ["test.h5", "-p", "test"])
         print(result.output)
@@ -205,7 +237,7 @@ def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
-        with open(".wandb", "r") as f:
+        with open(".wandb/config", "r") as f:
             generatedWandb = f.read()
         assert "12345" in generatedNetrc
         assert "test_model" in generatedWandb
@@ -223,7 +255,7 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
-        with open(".wandb", "r") as f:
+        with open(".wandb/config", "r") as f:
             generatedWandb = f.read()
         assert "12345" in generatedNetrc
         assert "previous config" in generatedNetrc
@@ -239,7 +271,7 @@ def test_existing_login(runner, local_netrc, request_mocker, query_projects, que
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open(".wandb", "r") as f:
+        with open(".wandb/config", "r") as f:
             generatedWandb = f.read()
         assert "test_model" in generatedWandb
         assert "This directory is configured" in result.output

@@ -66,7 +66,7 @@ class Api(object):
 
         Note:
             Configuration parameters are automatically overriden by looking for
-            a `.wandb` file in the current working directory or it's parent
+            a `.wandb/config` file in the current working directory or it's parent
             directory.  If none can be found, we look in the current users home
             directory.
 
@@ -85,11 +85,12 @@ class Api(object):
         self.retries = 3
         self.config_parser = configparser.ConfigParser()
         if load_config:
-            self.config_file = self.config_parser.read([
-                os.path.expanduser('~/.wandb'), os.getcwd() + "/../.wandb", os.getcwd() + "/.wandb"
+            files = self.config_parser.read([
+                os.path.expanduser('~/.wandb/config'), os.getcwd() + "/../.wandb/config", os.getcwd() + "/.wandb/config"
             ])
+            self.config_file = files[0] if len(files) > 0 else "Not found"
         else:
-            self.config_file = []
+            self.config_file = "Not found"
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
@@ -100,7 +101,7 @@ class Api(object):
         )
 
     def config(self, key=None, section=None):
-        """The configuration overriden from the .wandb file.
+        """The configuration overriden from the .wandb/config file.
 
         Args:
             key (str, optional): If provided only this config param is returned
@@ -154,7 +155,7 @@ class Api(object):
     @normalize_exceptions
     def list_projects(self, entity=None):
         """Lists projects in W&B scoped by entity.
-        
+
         Args:
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
