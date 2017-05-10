@@ -9,14 +9,16 @@ If you want to work with private buckets or push data to the cloud you must firs
 ```console
 $ pip install wandb
 $ cd my_training_dir
+# Initialize a project directory
 $ wandb init
-$ ./my_training_script.py arg1 arg2 | wandb my_bucket model.json weights.h5
+# Push the training log and file changes to W&B
+$ ./my_training.py arg1 | wandb my_bucket model.json weights.h5
 ```
 
 To manually push files to the cloud run:
 
 ```console
-$ wandb push my-new-bucket somefile.pb
+$ wandb push my-new-bucket somefile.proto
 ```
 
 To pull down a public model or sync your local directory with the cloud you can run:
@@ -25,10 +27,11 @@ To pull down a public model or sync your local directory with the cloud you can 
 $ wandb pull zoo/inception_v4
 ```
 
-Or you can pull directly in a python script:
+You can access configuration and push or pull via the API directly in your python scripts:
 
 ```python
 import wandb
+conf = wandb.Config()
 client = wandb.Api()
 client.pull("zoo/inception")
 ```

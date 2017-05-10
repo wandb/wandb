@@ -60,21 +60,20 @@ def normalize_exceptions(func):
     return wrapper
 
 class Api(object):
-    """W&B Api wrapper"""
+    """W&B Api wrapper
+
+    Note:
+        Configuration parameters are automatically overriden by looking for
+        a `.wandb/config` file in the current working directory or it's parent
+        directory.  If none can be found, we look in the current users home
+        directory.
+
+    Args:
+        default_config(:obj:`dict`, optional): If you aren't using config files
+        or you wish to override the section to use in the config file.  Override
+        the configuration variables here.
+    """
     def __init__(self, default_config=None, load_config=True):
-        """Initialize a new Api Client
-
-        Note:
-            Configuration parameters are automatically overriden by looking for
-            a `.wandb/config` file in the current working directory or it's parent
-            directory.  If none can be found, we look in the current users home
-            directory.
-
-        Args:
-            default_config(:obj:`dict`, optional): If you aren't using config files
-            or you wish to override the section to use in the config file.  Override
-            the configuration variables here.
-        """
         self.default_config = {
             'section': "default",
             'entity': "models",

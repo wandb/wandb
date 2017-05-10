@@ -11,22 +11,22 @@ def boolify(s):
     raise ValueError("Not a boolean")
 
 class Config(dict):
+    """Creates a W&B config object.
+
+    The object is an enhanced `dict`.  You can access keys via instance methods or
+    as you would a regular `dict`.  The object first looks for a `config.yaml` file
+    in the current directory.  It then looks for environment variables pre-pended
+    with "WANDB_".  Lastly it overrides any key found in command line arguments.
+
+    Using the config objects enables W&B to track all configuration parameters used
+    in your training runs.
+
+    Args:
+        config(:obj:`dict`, optional): Key value pairs from your existing code that
+        you would like to track.  You can also pass in objects that respond to `__dict__`
+        such as from argparse.
+    """
     def __init__(self, config={}):
-        """Creates a W&B config object.
-
-        The object is an enhanced `dict`.  You can access keys via instance methods or
-        as you would a regular `dict`.  The object first looks for a `config.yaml` file
-        in the current directory.  It then looks for environment variables pre-pended
-        with "WANDB_".  Lastly it overrides any key found in command line arguments.
-
-        Using the config objects enables W&B to track all configuration parameters used
-        in your training runs.
-
-        Args:
-            config(:obj:`dict`, optional): Key value pairs from your existing code that
-            you would like to track.  You can also pass in objects that respond to `__dict__`
-            such as from argparse.
-        """
         if not isinstance(config, dict):
             try:
                 config = vars(config)
