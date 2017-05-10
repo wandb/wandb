@@ -53,7 +53,7 @@ class Sync(object):
         self.push(event)
 
     def push(self, event):
-        if os.stat(event.src_path).st_size == 0:
+        if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
         fileName = event.src_path.split("/")[-1]
         print("Pushing {file}".format(file=fileName))
