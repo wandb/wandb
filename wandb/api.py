@@ -210,7 +210,7 @@ class Api(object):
     @normalize_exceptions
     def create_project(self, project, description=None, entity=None):
         """Create a new project
-        
+
         Args:
             project (str): The project to create
             description (str, optional): A description of this project
@@ -242,8 +242,8 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.
         """
         mutation = gql('''
-        mutation UpsertBucket($id: String!, $entity: String!, $description: String, $config: String)  {
-            upsertBucket(input: { name: $name, entityName: $entity, description: $description, config: $config }) {
+        mutation UpsertBucket($id: String!, $entity: String!, $description: String, $config: JSONString)  {
+            upsertBucket(input: { id: $id, entityName: $entity, description: $description, config: $config }) {
                 bucket {
                     name
                     description
@@ -253,7 +253,7 @@ class Api(object):
         }
         ''')
         if config:
-            config = json.dumps(config).replace('"', '\\"')
+            config = json.dumps(config)
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.config('entity'),
             'description': description, 'config': config})
