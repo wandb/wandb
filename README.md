@@ -6,11 +6,14 @@ A CLI and library for interacting with the Weights and Biases API.  Sign up for 
 
 ## Features
 
-This library provides a CLI and python library for the [Weights & Biases](https://wanbd.ai) machine learning model management platform.  It simplifies uploading or downloading files via the command line or directly in your training code.
+* Keep a history of your weights and models from every training run
+* Store all configuration parameters used in a training run
+* Search and visualize training runs in a project
+* Sync canonical models in your preferred format
 
 ## Usage
 
-CLI:
+### CLI:
 
 ```shell
 cd myproject
@@ -26,7 +29,7 @@ wandb pull zoo/inception-v4
 wandb config set epochs=30
 ```
 
-Client:
+### Client:
 
 ```python
 import wandb
