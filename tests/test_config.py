@@ -5,8 +5,7 @@ import wandb, yaml, sys, os, argparse
 
 @pytest.fixture
 def config():
-    with CliRunner().isolated_filesystem():
-        return wandb.Config()
+    return wandb.Config()
 
 def init():
     os.mkdir(os.getcwd()+"/.wandb")
@@ -39,6 +38,13 @@ def test_persist_initial():
         config.foo = "bar"
         config.persist()
         assert dict(wandb.Config())['foo'] == 'bar'
+
+def test_invalid_yaml():
+    with CliRunner().isolated_filesystem():
+        with open("config.yaml", "w") as f:
+            f.write("{{a1932 }")
+        with pytest.raises(wandb.Error):
+            wandb.Config()
 
 def test_persist_existing():
     with CliRunner().isolated_filesystem():

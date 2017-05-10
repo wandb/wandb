@@ -1,4 +1,5 @@
 import yaml, os, sys, logging
+from .api import Error
 
 def boolify(s):
     if s.lower() == 'none':
@@ -80,7 +81,10 @@ class Config(dict):
     def load_defaults(self):
         """Load defaults from YAML"""
         if os.path.exists(self.defaults_path):
-            defaults = yaml.load(open(self.defaults_path))
+            try:
+                defaults = yaml.load(open(self.defaults_path))
+            except yaml.parser.ParserError:
+                raise Error("Invalid YAML in config.yaml")
             if defaults:
                 for key in defaults:
                     if key == "wandb_version":
@@ -140,6 +144,7 @@ class Config(dict):
 
     __setattr__ = __setitem__
 
+    @property
     def __dict__(self):
         defaults = {}
         for key in self.keys:
@@ -155,4 +160,4 @@ class Config(dict):
         return rep
 
     def __str__(self):
-        return "wandb_version: 1\n\n"+yaml.dump(self.__dict__(), default_flow_style=False)
+        return "wandb_version: 1\n\n"+yaml.dump(self.__dict__, default_flow_style=False)

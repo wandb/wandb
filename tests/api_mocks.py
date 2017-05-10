@@ -23,28 +23,33 @@ def _project(name='test', empty=False):
         'name': name,
         'description': 'Test model',
         'bucket': {
+            'id': 'test1234',
             'framework': 'keras',
             'files': files
         }
     }
 
-def _buckets(name='test'):
+def _bucket(name='test'):
     return {
         'name': name,
-        'description': "Description of the tag",
+        'description': "Description of the bucket",
         'framework': 'keras',
+        'id': 'a1b2c3d4e5',
         'files': _files()
     }
 
-def _success_or_failure(payload=None):
+def _success_or_failure(payload=None, body_match="query"):
     def wrapper(mocker, status_code=200, error=None):
         if error:
             body = {'error': error}
         else:
             body = {'data': payload}
 
-        mocker.register_uri('POST', 'https://api.wandb.ai/graphql', 
-            json=body, status_code=status_code)
+        def match_body(request):
+            return body_match in (request.text or '')
+
+        return mocker.register_uri('POST', 'https://api.wandb.ai/graphql', 
+            json=body, status_code=status_code, additional_matcher=match_body)
     return wrapper
 
 def _query(key, json):
@@ -57,7 +62,11 @@ def _query(key, json):
 def _mutate(key, json):
     payload = {}
     payload[key]=json
-    return _success_or_failure(payload=payload)
+    return _success_or_failure(payload=payload, body_match="mutation")
+
+@pytest.fixture
+def update_bucket():
+    return _mutate('upsertBucket', {'bucket': _bucket("default")})
 
 @pytest.fixture
 def query_project():

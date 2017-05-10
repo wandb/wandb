@@ -7,7 +7,7 @@ test_wandb
 
 Tests for the `wandb.Api` module.
 """
-import pytest, os
+import pytest, os, yaml
 from .api_mocks import *
 from click.testing import CliRunner
 
@@ -37,6 +37,7 @@ def test_project_upload_urls(request_mocker, query_project):
     query_project(request_mocker)
     res = api.upload_urls("test", files=["weights.h5", "model.json"])
     assert res == {
+        'bucket_id': 'test1234',
         'weights.h5': {'name': 'weights.h5', 'url': 'https://weights.url', 'md5': 'fakemd5'}, 
         'model.json': {'name': 'model.json', 'url': 'https://model.url', 'md5': 'mZFLkyvTelC5g8XnyQrpOw=='}
     }
@@ -76,15 +77,20 @@ def test_pull_existing_file(request_mocker, mocker, download_url, query_project)
         api.pull("test/test")
         mocked.assert_called_once_with("https://weights.url")
 
-def test_push_success(request_mocker, upload_url, query_project):
+def test_push_success(request_mocker, upload_url, query_project, update_bucket):
     query_project(request_mocker)
     upload_url(request_mocker)
+    update_mock = update_bucket(request_mocker)
     with CliRunner().isolated_filesystem():
+        res = os.mkdir(".wandb")
+        with open(".wandb/latest.yaml", "w") as f:
+            f.write(yaml.dump({'wandb_version': 1, 'test': {'value': 'success', 'desc': 'My life'}}))
         with open("weights.h5", "w") as f:
             f.write("weight")
         with open("model.json", "w") as f:
             f.write("model")
         res = api.push("test/test", ["weights.h5", "model.json"])
+    assert update_mock.called
     assert res[0].status_code == 200
 
 def test_push_no_project(request_mocker, upload_url, query_project):

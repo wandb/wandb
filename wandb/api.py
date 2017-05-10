@@ -4,7 +4,7 @@ from gql.transport.requests import RequestsHTTPTransport
 import os, requests, ast
 from six.moves import configparser
 from functools import wraps
-import logging, hashlib, os
+import logging, hashlib, os, json, yaml
 from wandb import __version__
 from base64 import b64encode
 
@@ -186,7 +186,7 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
         Returns:
-                [{"name","description"}]
+                [{"id",name","description"}]
         """
         query = gql('''
         query Buckets($model: String!, $entity: String!) {
@@ -194,6 +194,7 @@ class Api(object):
                 buckets(first: 10) {
                     edges {
                         node {
+                            id
                             name
                             description
                         }
@@ -231,6 +232,35 @@ class Api(object):
         return response['upsertModel']['model']
 
     @normalize_exceptions
+    def update_bucket(self, id, config=None, description=None, entity=None):
+        """Update a bucket
+
+        Args:
+            id (str): The bucket to update
+            config (dict, optional): The latest config params
+            description (str, optional): A description of this project
+            entity (str, optional): The entity to scope this project to.
+        """
+        mutation = gql('''
+        mutation UpsertBucket($id: String!, $entity: String!, $description: String, $config: String)  {
+            upsertBucket(input: { name: $name, entityName: $entity, description: $description, config: $config }) {
+                bucket {
+                    name
+                    description
+                    config
+                }
+            }
+        }
+        ''')
+        if config:
+            config = json.dumps(config).replace('"', '\\"')
+        response = self.client.execute(mutation, variable_values={
+            'id': id, 'entity': entity or self.config('entity'),
+            'description': description, 'config': config})
+        print response['upsertBucket']
+        return response['upsertBucket']['bucket']
+
+    @normalize_exceptions
     def upload_urls(self, project, files, bucket=None, entity=None, description=None):
         """Generate temporary resumable upload urls
         
@@ -240,17 +270,20 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
-            A dict of filenames and urls, also indicates if this revision already has uploaded files
+            A dict of filenames and urls, also indicates if this revision already has uploaded files.
+            Includes bucket_id for updating config, description, etc. while uploading.
 
                 {
                     'weights.h5': { "url": "https://weights.url" }, 
-                    'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z' }
+                    'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
+                    'bucket_id': 'abcdefg12345'
                 }
         """
         query = gql('''
         query Model($name: String!, $files: [String]!, $entity: String!, $bucket: String!, $description: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $bucket, desc: $description) {
+                    id
                     files(names: $files) {
                         edges {
                             node {
@@ -272,7 +305,7 @@ class Api(object):
         })
         bucket = query_result['model']['bucket']
         result = {file['name']: file for file in self._flatten_edges(bucket['files'])}
-
+        result['bucket_id'] = bucket['id']
         return result
 
     @normalize_exceptions
@@ -288,8 +321,8 @@ class Api(object):
             A dict of extensions and urls
 
                 {
-                    'weights.h5': { "url": "https://weights.url", "updatedAt": '2013-04-26T22:22:23.832Z' }, 
-                    'model.json': { "url": "https://model.url", "updatedAt": '2013-04-26T22:22:23.832Z' }
+                    'weights.h5': { "url": "https://weights.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' }, 
+                    'model.json': { "url": "https://model.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' }
                 }
         """
         query = gql('''
@@ -369,6 +402,12 @@ class Api(object):
                     raise e
         return response
 
+    @property
+    def latest_config(self):
+        "The latest config parameters trained on"
+        if os.path.exists(".wandb/latest.yaml"):
+            return yaml.load(open('.wandb/latest.yaml'))
+
     def _md5(self, fname):
         hash_md5 = hashlib.md5()
         with open(fname, "rb") as f:
@@ -420,12 +459,18 @@ class Api(object):
             The requests library response object
         """
         project, bucket = self.parse_slug(project, bucket=bucket)
-        urls = self.upload_urls(project, files, bucket, entity, description)
+        result = self.upload_urls(project, files, bucket, entity, description)
         responses = []
-        for fileName in urls:
-            file = files[fileName] if type(files) == dict else open(fileName, "rb")
-            responses.append(self.upload_file(urls[fileName]['url'], file))
-            file.close()
+        for key in result:
+            if key == "bucket_id":
+                continue
+            else:
+                file_name = key
+            open_file = files[file_name] if isinstance(files, dict) else open(file_name, "rb")
+            responses.append(self.upload_file(result[file_name]['url'], open_file))
+            open_file.close()
+        if self.latest_config:
+            self.update_bucket(result["bucket_id"], description=description, entity=entity, config=self.latest_config)
         return responses
 
     def _status_request(self, url, length):

@@ -77,10 +77,14 @@ def test_config_del(runner):
         print(traceback.print_tb(result.exc_info[2]))
         assert "1 parameters changed" in result.output
 
-def test_push(runner, request_mocker, query_project, upload_url):
+def test_push(runner, request_mocker, query_project, upload_url, update_bucket):
     query_project(request_mocker)
     upload_url(request_mocker)
+    update_mock = update_bucket(request_mocker)
     with runner.isolated_filesystem():
+        os.mkdir(".wandb")
+        with open(".wandb/latest.yaml", "w") as f:
+            f.write(yaml.dump({'wandb_version': 1, 'test': {'value': 'success', 'desc': 'My life'}}))
         with open('weights.h5', 'wb') as f:
             f.write(os.urandom(5000))
         result = runner.invoke(cli.push, ['test/default', 'weights.h5', '-m', 'My description'])
@@ -89,6 +93,7 @@ def test_push(runner, request_mocker, query_project, upload_url):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         assert "Uploading project: test" in result.output
+        assert update_mock.called
 
 def test_push_no_bucket(runner):
     with runner.isolated_filesystem():

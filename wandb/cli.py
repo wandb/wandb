@@ -249,6 +249,8 @@ def push(ctx, bucket, project, description, entity, files):
 
     #TODO: Deal with files in a sub directory
     urls = api.upload_urls(project, files=[f.name for f in files], bucket=bucket, description=description, entity=entity)
+    if api.latest_config:
+        api.update_bucket(urls["bucket_id"], description=description, entity=entity, config=api.latest_config)
 
     for file in files:
         length = os.fstat(file.fileno()).st_size
