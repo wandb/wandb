@@ -2,7 +2,7 @@
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.ai'
-__version__ = '0.4.6'
+__version__ = '0.4.7'
 
 import types, sys
 from .api import Api, Error
