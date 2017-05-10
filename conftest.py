@@ -1,5 +1,8 @@
 import pytest
 import requests_mock
+import os
+
+os.environ["DEBUG"] = "true"
 
 #@pytest.fixture(autouse=True)
 #def no_requests(monkeypatch):

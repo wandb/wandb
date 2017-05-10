@@ -55,15 +55,17 @@ def normalize_exceptions(func):
                 message = ast.literal_eval(str(payload))["message"]
             else:
                 message = str(err)
-
-            raise Error(message)
+            if os.getenv("DEBUG"):
+                raise err
+            else:
+                raise Error(message)
     return wrapper
 
 class Api(object):
     """W&B Api wrapper
 
     Note:
-        Configuration parameters are automatically overriden by looking for
+        Configuration parameters are automatically overridden by looking for
         a `.wandb/config` file in the current working directory or it's parent
         directory.  If none can be found, we look in the current users home
         directory.
@@ -85,7 +87,8 @@ class Api(object):
         self.config_parser = configparser.ConfigParser()
         if load_config:
             files = self.config_parser.read([
-                os.path.expanduser('~/.wandb/config'), os.getcwd() + "/../.wandb/config", os.getcwd() + "/.wandb/config"
+                os.path.expanduser('~/.wandb/config'), os.getcwd() + "/../.wandb/config",
+                os.getcwd() + "/.wandb/config"
             ])
             self.config_file = files[0] if len(files) > 0 else "Not found"
         else:
@@ -100,7 +103,7 @@ class Api(object):
         )
 
     def config(self, key=None, section=None):
-        """The configuration overriden from the .wandb/config file.
+        """The configuration overridden from the .wandb/config file.
 
         Args:
             key (str, optional): If provided only this config param is returned
@@ -124,7 +127,6 @@ class Api(object):
                     config[option] = self.config_parser.get(section, option)
         except configparser.InterpolationSyntaxError:
             print("WARNING: Unable to parse config file")
-            pass
         return config if key is None else config[key]
 
     def parse_slug(self, slug, project=None, bucket=None):
@@ -179,7 +181,7 @@ class Api(object):
     @normalize_exceptions
     def list_buckets(self, project, entity=None):
         """Lists buckets in W&B scoped by project.
-        
+
         Args:
             project (str): The project to scope the tags to
             entity (str, optional): The entity to scope this project to.  Defaults to public models
@@ -203,7 +205,7 @@ class Api(object):
         }
         ''')
         return self._flatten_edges(self.client.execute(query, variable_values={
-            'entity': entity or self.config('entity'), 
+            'entity': entity or self.config('entity'),
             'model': project or self.config('project')})['model']['buckets'])
 
     @normalize_exceptions
@@ -260,8 +262,8 @@ class Api(object):
 
     @normalize_exceptions
     def upload_urls(self, project, files, bucket=None, entity=None, description=None):
-        """Generate temporary resumable upload urls
-        
+        """Generate temporary resumeable upload urls
+
         Args:
             project (str): The project to download
             bucket (str, optional): The bucket to upload to
@@ -296,7 +298,7 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'bucket': bucket or self.config('bucket'), 
+            'name':project, 'bucket': bucket or self.config('bucket'),
             'entity': entity or self.config('entity'),
             'description': description,
             'files': [file for file in files]
@@ -342,7 +344,8 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'bucket': bucket or self.config('bucket'), 'entity': entity or self.config('entity')})
+            'name':project, 'bucket': bucket or self.config('bucket'),
+            'entity': entity or self.config('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
         return {file['name']: file for file in files}
     
@@ -354,7 +357,7 @@ class Api(object):
             url (str): The url to download
 
         Returns:
-            A tupil of the content length and the streaming response
+            A tuple of the content length and the streaming response
         """
         response = requests.get(url, stream=True)
         response.raise_for_status()
@@ -386,12 +389,12 @@ class Api(object):
             except requests.exceptions.RequestException as e:
                 total = progress.len
                 status = self._status_request(url, total)
-                if(status.status_code == 308):
+                if status.status_code == 308:
                     attempts += 1
                     completed = int(status.headers['Range'].split("-")[-1])
                     extra_headers = {
                         'Content-Range': 'bytes {completed}-{total}/{total}'.format(
-                            completed=completed, 
+                            completed=completed,
                             total=total
                         ),
                         'Content-Length': str(total - completed)
@@ -419,9 +422,9 @@ class Api(object):
         return os.path.isfile(fname) and self._md5(fname) == md5
 
     @normalize_exceptions
-    def pull(self, project, bucket=None, entity=None, description=None):
+    def pull(self, project, bucket=None, entity=None):
         """Download files from W&B
-        
+
         Args:
             project (str): The project to download
             bucket (str, optional): The bucket to upload to
@@ -446,7 +449,7 @@ class Api(object):
     @normalize_exceptions
     def push(self, project, files, bucket=None, entity=None, description=None):
         """Uploads multiple files to W&B
-        
+
         Args:
             project (str): The project to download
             files (list or dict): The filenames to upload
@@ -468,7 +471,8 @@ class Api(object):
             responses.append(self.upload_file(result[file_name]['url'], open_file))
             open_file.close()
         if self.latest_config:
-            self.update_bucket(result["bucket_id"], description=description, entity=entity, config=self.latest_config)
+            self.update_bucket(result["bucket_id"], description=description,
+                entity=entity, config=self.latest_config)
         return responses
 
     def _status_request(self, url, length):

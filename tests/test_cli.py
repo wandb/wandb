@@ -58,6 +58,28 @@ entity: cli_test
         assert os.path.exists(".wandb/config")
         assert "cli_test" in open(".wandb/config").read()
 
+def test_config_show(runner, monkeypatch):
+    with runner.isolated_filesystem():
+        with open("config.yaml", "w") as f:
+            f.write(yaml.dump({'val': {'value': 'awesome', 'desc': 'cool'}, 'bad': {'value':'shit'}}))
+        result_py = runner.invoke(cli.config, ["show"])
+        result_yml = runner.invoke(cli.config, ["show", "--format", "yaml"])
+        result_json = runner.invoke(cli.config, ["show", "--format", "json"])
+        print(result_py.output)
+        print(result_py.exception)
+        print(traceback.print_tb(result_py.exc_info[2]))
+        assert "awesome" in result_py.output
+        assert "awesome" in result_yml.output
+        assert "awesome" in result_json.output
+
+def test_config_show_empty(runner, monkeypatch):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.config, ["show"])
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert "No configuration" in result.output
+
 def test_config_set(runner):
     with runner.isolated_filesystem():
         runner.invoke(cli.config, ["init"])

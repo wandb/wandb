@@ -39,7 +39,7 @@ client = wandb.Api()
 if conf.turbo:
     print("TURBO MODE!!!")
 
-client.push("my_model", files=[open("some_file", "rb")])
+client.push("my_model", files=["model.h5")])
 ```
 
 Detailed usage can be found in our [documentation](http://wb-client.readthedocs.io/en/latest/usage.html).

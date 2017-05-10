@@ -388,7 +388,7 @@ conf.batch_size
 """)
 
 @config.command(help="Show the current config")
-@click.option("--format", "-f", help="The format to dump the config as", default="python", type=click.Choice(['python', 'yaml', 'json']))
+@click.option("--format", help="The format to dump the config as", default="python", type=click.Choice(['python', 'yaml', 'json']))
 @display_error
 def show(format, changed=[], diff=False):
     if len(changed) == 0 and diff:
@@ -396,10 +396,12 @@ def show(format, changed=[], diff=False):
     elif diff:
         click.echo("%i parameters changed: " % len(changed))
     config = Config()
+    if len(vars(config)) == 0:
+        click.secho("No configuration found in this directory, run `wandb config init`", fg="red")
     if format == "yaml":
         click.echo("%s" % config)
     elif format == "json":
-        click.echo(json.dumps(config.dict()))
+        click.echo(json.dumps(vars(config)))
     elif format == "python":
         res = ""
         for key in set(config.keys + changed):
