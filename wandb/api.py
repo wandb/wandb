@@ -257,7 +257,6 @@ class Api(object):
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.config('entity'),
             'description': description, 'config': config})
-        print response['upsertBucket']
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -311,7 +310,7 @@ class Api(object):
     @normalize_exceptions
     def download_urls(self, project, bucket=None, entity=None):
         """Generate download urls
-        
+
         Args:
             project (str): The project to download
             bucket (str, optional): The bucket to upload to
@@ -479,7 +478,7 @@ class Api(object):
             url=url,
             headers={'Content-Length': '0', 'Content-Range': 'bytes */%i' % length}
         )
-    
+
     def _flatten_edges(self, response):
         """Return an array from the nested graphql relay structure"""
         return [node['node'] for node in response['edges']]
