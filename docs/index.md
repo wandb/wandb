@@ -9,9 +9,7 @@ If you want to work with private buckets or push data to the cloud you must firs
 ```console
 $ pip install wandb
 $ cd my_training_dir
-# Initialize a project directory
 $ wandb init
-# Push the training log and file changes to W&B
 $ ./my_training.py arg1 | wandb my_bucket model.json weights.h5
 ```
 
