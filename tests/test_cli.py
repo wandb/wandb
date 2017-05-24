@@ -1,9 +1,10 @@
 import pytest, os, traceback, click
-from wandb import cli, Api, __version__
+from wandb import cli, Api, GitRepo, __version__
 from click.testing import CliRunner
 from .api_mocks import *
 import netrc, signal, time
 import six, time, inquirer, yaml
+import git
 
 @pytest.fixture
 def runner(monkeypatch):
@@ -27,6 +28,13 @@ def local_netrc(monkeypatch):
     def expand(path):
         return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
     monkeypatch.setattr(os.path, "expanduser", expand)
+
+def git_repo():
+    r = git.Repo.init(".")
+    open("README", "wb").close()
+    r.index.add(["README"])
+    r.index.commit("Initial commit")
+    return GitRepo(lazy=False)
 
 def test_help(runner):
     result = runner.invoke(cli.cli)
@@ -127,6 +135,33 @@ def test_push_no_bucket(runner):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 2
         assert "Bucket is required if files are specified." in result.output
+
+def test_push_dirty_git(runner):
+    with runner.isolated_filesystem():
+        repo = git_repo()
+        open("foo.txt", "wb").close()
+        repo.repo.index.add(["foo.txt"])
+        result = runner.invoke(cli.push, ["test", "foo.txt", "-p", "test", "-m", "Dirty"])
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 1
+        assert "You have un-committed changes." in result.output
+
+def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url, update_bucket):
+    query_project(request_mocker)
+    upload_url(request_mocker)
+    update_mock = update_bucket(request_mocker)
+    with runner.isolated_filesystem():
+        repo = git_repo()
+        with open('weights.h5', 'wb') as f:
+            f.write("bar")
+        repo.repo.index.add(["weights.h5"])
+        result = runner.invoke(cli.push, ["test", "weights.h5", "-f", "-p", "test", "-m", "Dirty"])
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
 
 def test_push_auto(runner, request_mocker, mocker, query_project, upload_url):
     query_project(request_mocker)

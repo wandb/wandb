@@ -5,7 +5,7 @@ import os, requests, ast
 from six.moves import configparser
 from functools import wraps
 import logging, hashlib, os, json, yaml
-from wandb import __version__
+from wandb import __version__, GitRepo
 from base64 import b64encode
 
 def IDENTITY(monitor):
@@ -55,7 +55,7 @@ def normalize_exceptions(func):
                 message = ast.literal_eval(str(payload))["message"]
             else:
                 message = str(err)
-            if os.getenv("DEBUG"):
+            if os.getenv("DEBUG") == "true":
                 raise err
             else:
                 raise Error(message)
@@ -80,6 +80,7 @@ class Api(object):
             'section': "default",
             'entity': "models",
             'bucket': "default",
+            'git_remote': "origin",
             'base_url': "https://api.wandb.ai"
         }
         self.default_config.update(default_config or {})
@@ -93,6 +94,7 @@ class Api(object):
             self.config_file = files[0] if len(files) > 0 else "Not found"
         else:
             self.config_file = "Not found"
+        self.git = GitRepo(remote=self.config("git_remote"))
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
@@ -218,8 +220,8 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.
         """
         mutation = gql('''
-        mutation UpsertModel($name: String!, $entity: String!, $description: String)  {
-            upsertModel(input: { name: $name, entityName: $entity, description: $description }) {
+        mutation UpsertModel($name: String!, $entity: String!, $description: String, $repo: String)  {
+            upsertModel(input: { name: $name, entityName: $entity, description: $description, repo: $repo }) {
                 model {
                     name
                     description
@@ -227,13 +229,14 @@ class Api(object):
             }
         }
         ''')
+
         response = self.client.execute(mutation, variable_values={
-            'name':project, 'entity': entity or self.config('entity'),
-            'description':description})
+            'name': project, 'entity': entity or self.config('entity'),
+            'description': description, 'repo': self.git.remote_url})
         return response['upsertModel']['model']
 
     @normalize_exceptions
-    def update_bucket(self, id, config=None, description=None, entity=None):
+    def update_bucket(self, id, config=None, description=None, entity=None, commit=None):
         """Update a bucket
 
         Args:
@@ -241,10 +244,11 @@ class Api(object):
             config (dict, optional): The latest config params
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
+            commit (str, optional): The Git SHA to associate the bucket with 
         """
         mutation = gql('''
-        mutation UpsertBucket($id: String!, $entity: String!, $description: String, $config: JSONString)  {
-            upsertBucket(input: { id: $id, entityName: $entity, description: $description, config: $config }) {
+        mutation UpsertBucket($id: String!, $entity: String!, $description: String, $commit: String, $config: JSONString)  {
+            upsertBucket(input: { id: $id, entityName: $entity, description: $description, config: $config, commit: $commit }) {
                 bucket {
                     name
                     description
@@ -257,7 +261,7 @@ class Api(object):
             config = json.dumps(config)
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.config('entity'),
-            'description': description, 'config': config})
+            'description': description, 'config': config, 'commit': commit})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -447,7 +451,7 @@ class Api(object):
         return responses
 
     @normalize_exceptions
-    def push(self, project, files, bucket=None, entity=None, description=None):
+    def push(self, project, files, bucket=None, entity=None, description=None, force=True):
         """Uploads multiple files to W&B
 
         Args:
@@ -455,11 +459,14 @@ class Api(object):
             files (list or dict): The filenames to upload
             bucket (str, optional): The bucket to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
+            description (str, optional): The description of the changes
+            force (bool, optional): Whether to prevent push if git has uncommitted changes
 
         Returns:
             The requests library response object
         """
         project, bucket = self.parse_slug(project, bucket=bucket)
+        self.tag_and_push(bucket, description, force)
         result = self.upload_urls(project, files, bucket, entity, description)
         responses = []
         for key in result:
@@ -472,8 +479,17 @@ class Api(object):
             open_file.close()
         if self.latest_config:
             self.update_bucket(result["bucket_id"], description=description,
-                entity=entity, config=self.latest_config)
+                entity=entity, config=self.latest_config, commit=self.git.last_commit)
         return responses
+
+    def tag_and_push(self, name, description, force=True):
+        if self.git.enabled:
+            if not force and self.git.dirty:
+                raise Error("You have un-committed changes.")
+            self.git.tag(name, description)
+            result = self.git.push(name)
+            if(result is None or len(result) is None):
+                print("Unable to push git tag.")
 
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""

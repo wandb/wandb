@@ -4,6 +4,8 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 
 class Sync(object):
+    """Watches for files to change and automatically pushes them
+    """
     def __init__(self, api, project, bucket="default"):
         self._proc = psutil.Process(os.getpid())
         self._api = api
@@ -39,7 +41,7 @@ class Sync(object):
                 time.sleep(0.1)
                 output.flush()
                 print("Pushing log")
-                self._api.push(slug, {"training.log": open(output.name, "r")})
+                self._api.push(slug, {"training.log": open(output.name, "rb")})
             else:
                 time.sleep(1.0)
             output.close()

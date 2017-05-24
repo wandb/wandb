@@ -5,6 +5,7 @@ __email__ = 'vanpelt@wandb.ai'
 __version__ = '0.4.8'
 
 import types, sys
+from .git_repo import GitRepo
 from .api import Api, Error
 from .sync import Sync
 from .config import Config

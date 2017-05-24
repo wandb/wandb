@@ -214,10 +214,11 @@ def rm(files, project):
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @click.option("--description", "-m", help="A description to associate with this upload.")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--force/--no-force", "-f", default=False, help="Whether to force git tag creation.")
 @click.argument("files", type=click.File('rb'), nargs=-1)
 @click.pass_context
 @display_error
-def push(ctx, bucket, project, description, entity, files):
+def push(ctx, bucket, project, description, entity, force, files):
     #TODO: do we support the case of a bucket with the same name as a file?
     if os.path.exists(bucket):
         raise BadParameter("Bucket is required if files are specified.")
@@ -249,6 +250,7 @@ def push(ctx, bucket, project, description, entity, files):
 
     #TODO: Deal with files in a sub directory
     urls = api.upload_urls(project, files=[f.name for f in files], bucket=bucket, description=description, entity=entity)
+    api.tag_and_push(bucket, description, force)
     if api.latest_config:
         api.update_bucket(urls["bucket_id"], description=description, entity=entity, config=api.latest_config)
 
