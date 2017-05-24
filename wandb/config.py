@@ -29,10 +29,13 @@ class Config(dict):
     def __init__(self, config={}):
         if not isinstance(config, dict):
             try:
-                config = vars(config)
                 # for tensorflow flags
-                if config.get("__flags"):
-                    config = config["__flags"]
+                if "__flags" in dir(config):
+                    if not config.__parsed:
+                        config._parse_flags()
+                    config = config.__flags
+                else:
+                    config = vars(config)
             except TypeError:
                 raise TypeError("config must be a dict or have a __dict__ attribute.")
         dict.__init__(self, {})
