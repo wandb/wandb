@@ -97,6 +97,9 @@ def test_str_yaml(config):
     config.foo_desc = "Fantastic"
     assert str(config) == """wandb_version: 1
 
+batch_size:
+  desc: Number of training examples in a mini-batch
+  value: 32
 foo:
   desc: Fantastic
   value: bar
