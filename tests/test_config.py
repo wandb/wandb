@@ -92,11 +92,11 @@ def test_arg_overrides(config):
     config.load_overrides()
     assert config.foo == 1.0
 
-@pytest.skip("Taking a shit on circle ci...")
 def test_str_yaml():
     config = wandb.Config()
     config.foo = "bar"
     config.foo_desc = "Fantastic"
+    pytest.skip("Taking a shit on circle ci...")
     assert str(config) == """wandb_version: 1
 
 batch_size:
