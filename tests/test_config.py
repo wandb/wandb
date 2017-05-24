@@ -92,7 +92,7 @@ def test_arg_overrides(config):
     config.load_overrides()
     assert config.foo == 1.0
 
-#@pytest.skip("Taking a shit on circle ci")
+@pytest.skip("Taking a shit on circle ci...")
 def test_str_yaml():
     config = wandb.Config()
     config.foo = "bar"
