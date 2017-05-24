@@ -25,7 +25,7 @@ def test_remote_url(git_repo):
 
 def test_create_tag(git_repo):
     tag = git_repo.tag("foo", "My great tag")
-    assert tag and tag.name == 'wandb/foo'
+    assert tag is not None and tag.name == 'wandb/foo'
 
 def test_no_repo():
     assert not GitRepo(root="/tmp").enabled
