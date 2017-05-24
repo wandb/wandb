@@ -51,7 +51,11 @@ class GitRepo(object):
         return self.remote.url
 
     def tag(self, name, message):
-        return self.repo.create_tag("wandb/"+name, message=message, force=True)
+        try:
+            return self.repo.create_tag("wandb/"+name, message=message, force=True)
+        except GitCommandError:
+            print("Failed to tag repository.")
+            return None
 
     def push(self, name):
         if self.remote:
