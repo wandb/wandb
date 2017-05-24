@@ -155,7 +155,7 @@ def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url,
     with runner.isolated_filesystem():
         repo = git_repo()
         with open('weights.h5', 'wb') as f:
-            f.write("bar")
+            f.write(os.urandom(100))
         repo.repo.index.add(["weights.h5"])
         result = runner.invoke(cli.push, ["test", "weights.h5", "-f", "-p", "test", "-m", "Dirty"])
         print(result.output)
