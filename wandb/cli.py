@@ -94,19 +94,20 @@ output will be saved to the bucket and the files uploaded when modified.
 @cli.command(context_settings=CONTEXT, help="List projects")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def projects(entity):
+def projects(entity, display=True):
     projects = api.list_projects(entity=entity)
     if len(projects) == 0:
         message = "No projects found for %s" % entity
     else:
         message = 'Latest projects for "%s"' % entity
-    click.echo(click.style(message, bold=True))
-    for project in projects:
-        click.echo("".join(
-            (click.style(project['name'], fg="blue", bold=True), 
-            " - ", 
-            str(project['description']).split("\n")[0])
-        ))
+    if display:
+        click.echo(click.style(message, bold=True))
+        for project in projects:
+            click.echo("".join(
+                (click.style(project['name'], fg="blue", bold=True),
+                " - ",
+                str(project['description']).split("\n")[0])
+            ))
     return projects
 
 @cli.command(context_settings=CONTEXT, help="List buckets in a project")
@@ -248,9 +249,9 @@ def push(ctx, bucket, project, description, entity, force, files):
     if len(files) > 5:
         raise BadParameter("A maximum of 5 files can be in a single bucket.", param_hint="FILES")
 
+    api.tag_and_push(bucket, description, force)
     #TODO: Deal with files in a sub directory
     urls = api.upload_urls(project, files=[f.name for f in files], bucket=bucket, description=description, entity=entity)
-    api.tag_and_push(bucket, description, force)
     if api.latest_config:
         api.update_bucket(urls["bucket_id"], description=description, entity=entity, config=api.latest_config)
 
@@ -314,7 +315,7 @@ def init(ctx):
 
     entity = click.prompt("What username or org should we use?", default=api.viewer().get('entity', 'models'))
     #TODO: handle the case of a missing entity
-    result = ctx.invoke(projects, entity=entity)
+    result = ctx.invoke(projects, entity=entity, display=False)
 
     if len(result) == 0:
         project = click.prompt("Enter a name for your first project")
@@ -338,14 +339,16 @@ def init(ctx):
     click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+ 
         """
 * Run `{push}` to add your first file.
-* Pipe your training script output to push changed files and your logs: `{sync}`.
-* `{config}` let's you import existing configuration and manage it with wandb.
+* Pipe your training output to push changed files and logs: `{sync}`.
+* Track config params by adding `{flags}` to your training script.
+* `{config}` to add or change configuration parameters.
 * Pull popular models into your project with: `{pull}`.
     """.format(
         push=click.style("wandb push weights.h5", bold=True),
-        sync=click.style("my_training.py | wandb", bold=True),
-        config=click.style("wandb config import", bold=True),
-        pull=click.style("wandb pull zoo/inception_v4", bold=True)
+        flags=click.style("import wandb; conf = wandb.Config(FLAGS)", bold=True),
+        sync=click.style("my_training.py | wandb bucket_name", bold=True),
+        config=click.style("wandb config set batch_size=10", bold=True),
+        pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
 
 @cli.group()

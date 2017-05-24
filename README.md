@@ -8,6 +8,7 @@ A CLI and library for interacting with the Weights and Biases API.  Sign up for 
 
 * Keep a history of your weights and models from every training run
 * Store all configuration parameters used in a training run
+* Associate version control with your training runs
 * Search and visualize training runs in a project
 * Sync canonical models in your preferred format
 

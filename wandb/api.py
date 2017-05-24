@@ -261,7 +261,7 @@ class Api(object):
             config = json.dumps(config)
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.config('entity'),
-            'description': description, 'config': config, 'commit': commit})
+            'description': description, 'config': config, 'commit': commit or self.git.last_commit})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -411,7 +411,9 @@ class Api(object):
     def latest_config(self):
         "The latest config parameters trained on"
         if os.path.exists(".wandb/latest.yaml"):
-            return yaml.load(open('.wandb/latest.yaml'))
+            config = yaml.load(open('.wandb/latest.yaml'))
+            del config['wandb_version']
+            return config
 
     def _md5(self, fname):
         hash_md5 = hashlib.md5()
@@ -479,13 +481,14 @@ class Api(object):
             open_file.close()
         if self.latest_config:
             self.update_bucket(result["bucket_id"], description=description,
-                entity=entity, config=self.latest_config, commit=self.git.last_commit)
+                entity=entity, config=self.latest_config)
         return responses
 
     def tag_and_push(self, name, description, force=True):
         if self.git.enabled:
+            print("Tagging your git repo...")
             if not force and self.git.dirty:
-                raise Error("You have un-committed changes.")
+                raise Error("You have un-committed changes. Use the force flag or commit your changes.")
             self.git.tag(name, description)
             result = self.git.push(name)
             if(result is None or len(result) is None):
