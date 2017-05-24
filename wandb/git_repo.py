@@ -53,7 +53,7 @@ class GitRepo(object):
     def tag(self, name, message):
         try:
             return self.repo.create_tag("wandb/"+name, message=message, force=True)
-        except GitCommandError:
+        except exc.GitCommandError:
             print("Failed to tag repository.")
             return None
 
