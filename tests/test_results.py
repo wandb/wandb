@@ -26,5 +26,5 @@ def test_push_success(request_mocker, upload_url, query_project):
     mock = request_mocker.register_uri('PUT', 'https://results.csv', status_code=200)
     with CliRunner().isolated_filesystem():
         with Results("test/test") as res:
-            res.write(input="Test", output=False, truth=True, score=0.89)
+            res.write(input="Test", output=False, truth=True, loss=0.89)
     assert mock.called

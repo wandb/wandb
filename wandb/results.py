@@ -26,9 +26,9 @@ class Results(object):
         self.api = Api()
         self.project = project or self.api.config("project")
         self.bucket = bucket or os.getenv("WANDB_BUCKET")
-        self.tempfile = tempfile.NamedTemporaryFile()
+        self.tempfile = tempfile.NamedTemporaryFile(mode='w')
         self.csv = csv.writer(self.tempfile)
-        self.csv.writerow(["input","output","score","truth"])
+        self.csv.writerow(["input","output","probability","truth","loss"])
         self.rows = 0
 
     def __enter__(self):
@@ -45,19 +45,20 @@ class Results(object):
 
     def encode_data(self, data, format="image/png"):
         """Creates a data uri from raw data"""
-        return "data:image/{format};{img}".format(
+        return "data:{format};base64,{img}".format(
             format=format,
-            img=base64.b64encode(data)
+            img=base64.b64encode(data).decode("UTF-8")
         )
 
     def write(self, **kwargs):
         self.rows += 1
         self.csv.writerow(
-            [kwargs["input"], kwargs["output"], kwargs["score"], kwargs["truth"]])
+            [kwargs["input"], kwargs["output"], kwargs.get("probability"), 
+                kwargs["truth"], kwargs["loss"]])
 
     def close(self):
         self.tempfile.flush()
-        self.api.push(self.project, {'results.csv': self.tempfile}, 
+        self.api.push(self.project, {'results.csv': open(self.tempfile.name, "rb")}, 
             bucket=self.bucket)
         self.tempfile.close()
 
