@@ -6,11 +6,12 @@ from watchdog.events import PatternMatchingEventHandler
 class Sync(object):
     """Watches for files to change and automatically pushes them
     """
-    def __init__(self, api, project, bucket="default"):
+    def __init__(self, api, project, bucket="default", description=None):
         self._proc = psutil.Process(os.getpid())
         self._api = api
         self._project = project
         self._bucket = bucket
+        self._description = description
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.add
         self._handler.on_modified = self.push
@@ -59,7 +60,7 @@ class Sync(object):
             return None
         fileName = event.src_path.split("/")[-1]
         print("Pushing {file}".format(file=fileName))
-        self._api.push(self._project, [fileName], bucket=self._bucket)
+        self._api.push(self._project, [fileName], bucket=self._bucket, description=self._description)
 
     @property
     def source_proc(self):

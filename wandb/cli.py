@@ -70,7 +70,13 @@ class BucketGroup(click.Group):
             project, bucket = api.parse_slug(cmd_name)
         except Error:
             return None
-        sync = Sync(api, project=project, bucket=bucket)
+        #TODO: This is hacky as hell
+        description = None
+        if '-m' in sys.argv:
+            description = sys.argv[sys.argv.index('-m') + 1]
+        elif '--description' in sys.argv:
+            description = sys.argv[sys.argv.index('--description') + 1]
+        sync = Sync(api, project=project, bucket=bucket, description=description)
         if sync.source_proc:
             files = sys.argv[2:]
             sync.watch(files)

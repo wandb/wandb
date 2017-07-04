@@ -17,8 +17,8 @@ def _files():
         ]
     }
 
-def _project(name='test', empty=False):
-    files = {'edges':[]} if empty else _files()
+def project(name='test', empty=False, files=None):
+    files = {'edges':[]} if empty else (files or _files())
     return {
         'name': name,
         'description': 'Test model',
@@ -38,7 +38,7 @@ def _bucket(name='test'):
         'files': _files()
     }
 
-def _success_or_failure(payload=None, body_match="query"):
+def success_or_failure(payload=None, body_match="query"):
     def wrapper(mocker, status_code=200, error=None):
         if error:
             body = {'error': error}
@@ -57,12 +57,12 @@ def _query(key, json):
     if type(json) == list:
         json = {'edges': [{'node': item} for item in json]}
     payload[key] = json
-    return _success_or_failure(payload=payload)
+    return success_or_failure(payload=payload)
 
 def _mutate(key, json):
     payload = {}
     payload[key]=json
-    return _success_or_failure(payload=payload, body_match="mutation")
+    return success_or_failure(payload=payload, body_match="mutation")
 
 @pytest.fixture
 def update_bucket():
@@ -70,15 +70,15 @@ def update_bucket():
 
 @pytest.fixture
 def query_project():
-    return _query('model', _project())
+    return _query('model', project())
 
 @pytest.fixture
 def query_empty_project():
-    return _query('model', _project(empty=True))
+    return _query('model', project(empty=True))
 
 @pytest.fixture
 def query_projects():
-    return _query('models', [_project("test_1"), _project("test_2"), _project("test_3")])
+    return _query('models', [project("test_1"), project("test_2"), project("test_3")])
 
 @pytest.fixture
 def query_buckets():
@@ -86,7 +86,7 @@ def query_buckets():
 
 @pytest.fixture
 def query_viewer():
-    return _success_or_failure(payload={'viewer': {'entity': 'foo'}})
+    return success_or_failure(payload={'viewer': {'entity': 'foo'}})
 
 @pytest.fixture
 def upload_url():

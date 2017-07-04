@@ -86,6 +86,7 @@ class Api(object):
         self.default_config.update(default_config or {})
         self.retries = 3
         self.config_parser = configparser.ConfigParser()
+        self.tagged = False
         if load_config:
             files = self.config_parser.read([
                 os.path.expanduser('~/.wandb/config'), os.getcwd() + "/../.wandb/config",
@@ -270,6 +271,7 @@ class Api(object):
 
         Args:
             project (str): The project to download
+            files (list or dict): The filenames to upload
             bucket (str, optional): The bucket to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
@@ -457,7 +459,7 @@ class Api(object):
         """Uploads multiple files to W&B
 
         Args:
-            project (str): The project to download
+            project (str): The project to upload to
             files (list or dict): The filenames to upload
             bucket (str, optional): The bucket to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
@@ -485,12 +487,14 @@ class Api(object):
         return responses
 
     def tag_and_push(self, name, description, force=True):
-        if self.git.enabled:
+        if self.git.enabled and not self.tagged:
+            #TODO: this is getting called twice...
             print("Tagging your git repo...")
             if not force and self.git.dirty:
                 raise Error("You have un-committed changes. Use the force flag or commit your changes.")
             self.git.tag(name, description)
             result = self.git.push(name)
+            self.tagged = True
             if(result is None or len(result) is None):
                 print("Unable to push git tag.")
 

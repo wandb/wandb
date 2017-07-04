@@ -59,4 +59,7 @@ class GitRepo(object):
 
     def push(self, name):
         if self.remote:
-            return self.remote.push("wandb/"+name, force=True)
+            try:
+                return self.remote.push("wandb/"+name, force=True)
+            except exc.GitCommandError:
+                return None
