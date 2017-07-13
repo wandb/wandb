@@ -133,7 +133,7 @@ class Api(object):
         return config if key is None else config[key]
 
     def parse_slug(self, slug, project=None, bucket=None):
-        if "/" in slug:
+        if slug and "/" in slug:
             parts = slug.split("/")
             project = parts[0]
             bucket = parts[1]
@@ -141,6 +141,9 @@ class Api(object):
             project = project or self.config().get("project")
             if project is None:
                 raise Error("No default project configured.")
+            if bucket is None:
+                print(os.getcwd(), self.git.branch)
+                bucket = self.git.branch
             bucket = bucket or slug
         return (project, bucket)
 

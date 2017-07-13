@@ -11,6 +11,7 @@ import pytest, os, yaml
 from .api_mocks import *
 from click.testing import CliRunner
 import git
+from .utils import git_repo
 
 import wandb
 from six import StringIO
@@ -60,6 +61,14 @@ def test_parse_slug():
     project, bucket = api.parse_slug("foo", project="bar")
     assert project == "bar"
     assert bucket == "foo"
+
+def test_branch_slug():
+    with CliRunner().isolated_filesystem():
+        api = wandb.Api(load_config=False)
+        r = git.Repo.init(".")
+        project, bucket = api.parse_slug(None, project="git")
+    assert project == "git"
+    assert bucket == "master"
 
 def test_pull_success(request_mocker, download_url, query_project):
     query_project(request_mocker)

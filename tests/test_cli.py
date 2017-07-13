@@ -225,13 +225,14 @@ def test_projects(runner, request_mocker, query_projects):
     assert "test_2 - Test model" in result.output
 
 def test_status(runner, request_mocker, query_project):
-    query_project(request_mocker)
-    result = runner.invoke(cli.status, ["-p", "foo"])
-    print(result.output)
-    print(result.exception)
-    print(traceback.print_tb(result.exc_info[2]))
-    assert result.exit_code == 0
-    assert "/default" in result.output
+    with runner.isolated_filesystem():
+        query_project(request_mocker)
+        result = runner.invoke(cli.status, ["-p", "foo"])
+        print(result.output)
+        print(result.exception)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "/default" in result.output
 
 def test_status_project_and_bucket(runner, request_mocker, query_project):
     query_project(request_mocker)

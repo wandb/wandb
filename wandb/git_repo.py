@@ -36,6 +36,12 @@ class GitRepo(object):
         return self.repo.head.commit.hexsha
 
     @property
+    def branch(self):
+        if not self.repo:
+            return None
+        return self.repo.head.ref.name
+
+    @property
     def remote(self):
         if not self.repo:
             return None
