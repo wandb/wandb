@@ -11,4 +11,17 @@ from .sync import Sync
 from .config import Config
 from .results import Results
 
+def push(*args, **kwargs):
+    Api().push(*args, **kwargs)
+
+def pull(*args, **kwargs):
+    Api().pull(*args, **kwargs)
+
+def sync(name=None, **kwargs):
+    api = Api()
+    project, bucket = api.parse_slug(name)
+    #TODO: wandb describe
+    sync = Sync(api, project=project, bucket=bucket, description=kwargs.get('description'))
+    sync.watch(files=kwargs.get("files", []))
+
 __all__ = ["Api", "Error", "Config", "Results"]

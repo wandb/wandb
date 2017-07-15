@@ -7,6 +7,7 @@ from functools import wraps
 import logging, hashlib, os, json, yaml
 from wandb import __version__, GitRepo
 from base64 import b64encode
+import binascii
 
 def IDENTITY(monitor):
     """A default callback for the Progress helper"""
@@ -141,10 +142,12 @@ class Api(object):
             project = project or self.config().get("project")
             if project is None:
                 raise Error("No default project configured.")
+            bucket = bucket or slug or os.environ.get("WANDB_BUCKET")
             if bucket is None:
-                print(os.getcwd(), self.git.branch)
-                bucket = self.git.branch
-            bucket = bucket or slug
+                if self.git.branch not in ("master", "develop"):
+                    bucket = self.git.branch
+                if bucket is None:
+                    bucket = binascii.hexlify(os.urandom(3)).decode("utf8")
         return (project, bucket)
 
     @normalize_exceptions
@@ -495,6 +498,9 @@ class Api(object):
             print("Tagging your git repo...")
             if not force and self.git.dirty:
                 raise Error("You have un-committed changes. Use the force flag or commit your changes.")
+            elif self.git.dirty:
+                self.git.repo.git.execute(['git', 'diff'], output_stream=open('.wandb/diff.patch', 'wb'))
+                #self.git.repo.git.execute(['git', 'apply', '.wandb/diff.patch'])
             self.git.tag(name, description)
             result = self.git.push(name)
             self.tagged = True

@@ -50,8 +50,8 @@ def display_error(func):
             
     return wrapper
 
-def editor(marker='# Enter a description, markdown is allowed!\n'):
-    message = click.edit('\n\n' + marker)
+def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
+    message = click.edit(content + '\n\n' + marker)
     if message is not None:
         return message.split(marker, 1)[0].rstrip('\n')
         
@@ -176,6 +176,16 @@ def status(bucket, config, project):
     if len(existing) == 0:
         click.echo(click.style("No files configured, add files with `wandb add filename`", fg="red"))
 
+@cli.command(context_settings=CONTEXT, help="Store notes for a future training run")
+@display_error
+def describe():
+    path = '.wandb/description.md'
+    existing = (os.path.exists(path) and open(path).read()) or ''
+    description = editor(existing)
+    if description:
+        with open(path, 'w') as file:
+            file.write(description)
+    click.echo("Notes stored for next training run\nCalling wandb.sync() in your training script will persist them.")
 
 @cli.command(context_settings=CONTEXT, help="Add staged files")
 @click.argument("files", type=click.File('rb'), nargs=-1)
@@ -306,6 +316,8 @@ def login():
             warning=click.style("Not authenticated!", fg="red")), default="")
     host = api.config()['base_url']
     if key:
+        #TODO: get the username here...
+        #username = api.viewer().get('entity', 'models')
         write_netrc(host, "user", key)
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
