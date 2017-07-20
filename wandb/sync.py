@@ -90,8 +90,7 @@ class Sync(object):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
         fileName = event.src_path.split("/")[-1]
-        print("Pushing {file}".format(file=fileName))
-        self._api.push(self._project, [fileName], bucket=self._bucket, description=self._description)
+        self._api.push(self._project, [fileName], bucket=self._bucket, description=self._description, progress=sys.stdout.terminal)
 
     @property
     def source_proc(self):

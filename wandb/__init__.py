@@ -19,6 +19,8 @@ def pull(*args, **kwargs):
 
 def sync(name=None, **kwargs):
     api = Api()
+    if api.api_key is None:
+        raise Error("No API key found, run `wandb login` or set WANDB_API_KEY")
     project, bucket = api.parse_slug(name)
     #TODO: wandb describe
     sync = Sync(api, project=project, bucket=bucket, description=kwargs.get('description'))

@@ -81,6 +81,12 @@ class Config(dict):
                 pass
         return str(ob)
 
+    def load_json(self, json):
+        """Loads existing config from JSON"""
+        for key in json:
+            self[key] = json[key].get('value')
+            self._descriptions[key] = json[key].get('desc')
+
     def load_defaults(self):
         """Load defaults from YAML"""
         if os.path.exists(self.defaults_path):
