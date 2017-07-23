@@ -166,6 +166,8 @@ def status(bucket, config, project):
 @display_error
 def describe():
     path = '.wandb/description.md'
+    if not os.path.exists(".wandb/"):
+        raise ClickException("Directory not configured, run `wandb init` before calling describe.")
     existing = (os.path.exists(path) and open(path).read()) or ''
     description = editor(existing)
     if description:

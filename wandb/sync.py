@@ -27,6 +27,7 @@ class Sync(object):
         self._api = api
         self._project = project
         self._bucket = bucket
+        self._entity = api.viewer().get('entity', 'models') # TODO: from netrc or otherwise
         self._dpath = ".wandb/description.md"
         self._description = description or os.path.exists(self._dpath) and open(self._dpath).read()
         self._handler = PatternMatchingEventHandler()
@@ -74,7 +75,7 @@ class Sync(object):
         os.path.exists(self._dpath) and os.remove(self._dpath)
         print("View this run here: https://app.wandb.ai/{entity}/{project}/buckets/{bucket}".format(
             project=self._project,
-            entity=self._api.viewer().get('entity', 'models'),
+            entity=self._entity,
             bucket=self._bucket
         ))
         self.log.close()

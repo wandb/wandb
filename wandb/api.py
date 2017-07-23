@@ -104,16 +104,19 @@ class Api(object):
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': 'W&B Client %s' % __version__},
                 use_json=True,
-                auth=("api", self.api_key)
+                auth=("api", self.api_key),
                 url='%s/graphql' % self.config('base_url')
             )
         )
 
     @property
     def api_key(self):
-        auth = requests.utils.get_netrc_auth(self.config()['base_url']) or ()
-        key = os.environ.get("WANDB_API_KEY")
-        return key or auth[-1]
+        auth = requests.utils.get_netrc_auth(self.config()['base_url'])
+        if auth:
+            key = auth[-1]
+        else:
+            key = os.environ.get("WANDB_API_KEY")
+        return key
 
     def config(self, key=None, section=None):
         """The configuration overridden from the .wandb/config file.
@@ -521,7 +524,11 @@ class Api(object):
                 continue
             else:
                 file_name = key
-            open_file = files[file_name] if isinstance(files, dict) else open(file_name, "rb")
+            try:
+                open_file = files[file_name] if isinstance(files, dict) else open(file_name, "rb")
+            except IOError:
+                print("%s does not exist" % file_name)
+                continue
             if progress:
                 length = os.fstat(open_file.fileno()).st_size
                 with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
@@ -542,7 +549,7 @@ class Api(object):
             print("Tagging your git repo...")
             if not force and self.git.dirty:
                 raise Error("You have un-committed changes. Use the force flag or commit your changes.")
-            elif self.git.dirty:
+            elif self.git.dirty and os.path.exists(".wandb/"):
                 self.git.repo.git.execute(['git', 'diff'], output_stream=open('.wandb/diff.patch', 'wb'))
                 #self.git.repo.git.execute(['git', 'apply', '.wandb/diff.patch'])
             self.git.tag(name, description)
