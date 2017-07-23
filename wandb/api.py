@@ -172,7 +172,10 @@ class Api(object):
             }
         }
         ''')
-        return self.client.execute(query).get('viewer', {})
+        try:
+            return self.client.execute(query).get('viewer', {}) or {}
+        except:
+            {}
 
     @normalize_exceptions
     def list_projects(self, entity=None):
