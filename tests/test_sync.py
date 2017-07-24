@@ -8,34 +8,29 @@ def test_watches_for_all_changes(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
         sync = wandb.Sync(api, "test")
-        t = Thread(target=sync.watch)
-        t.start()
-        time.sleep(.2)
-        with open("some_file.txt", "w") as f:
+        sync.watch()
+        with open("some_file.h5", "w") as f:
             f.write("My great changes")
-        t.join()
+        #Fuck if I know why this makes shit work...
+        time.sleep(1)
         assert api.push.called
 
 def test_watches_for_specific_change(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
         sync = wandb.Sync(api, "test")
-        t = Thread(target=sync.watch, args=(["file.txt"],))
-        t.start()
-        time.sleep(.2)
-        with open("file.txt", "a") as f:
-            f.write("great")
-        t.join()
+        sync.watch(["rad.txt"])
+        with open("rad.txt", "a") as f:
+            f.write("something great")
+        time.sleep(1)
         assert api.push.called
 
 def test_watches_for_glob_change(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
         sync = wandb.Sync(api, "test")
-        t = Thread(target=sync.watch, args=(["*.txt"],))
-        t.start()
-        time.sleep(.2)
+        sync.watch(["*.txt"])
         with open("file.txt", "a") as f:
             f.write("great")
-        t.join()
+        time.sleep(1)
         assert api.push.called

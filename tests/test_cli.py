@@ -5,12 +5,14 @@ from .api_mocks import *
 import netrc, signal, time
 import six, time, inquirer, yaml
 import git
+import webbrowser
 
 @pytest.fixture
 def runner(monkeypatch):
     monkeypatch.setattr(cli, 'api', Api(default_config={'project': 'test'}, load_config=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
     monkeypatch.setattr(inquirer, 'prompt', lambda x: {'project': 'test_model', 'files': ['weights.h5']})
+    monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
     return CliRunner()
 
 @pytest.fixture
@@ -122,7 +124,7 @@ def test_push(runner, request_mocker, query_project, upload_url, update_bucket):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "Uploading project: test" in result.output
+        assert "Updating project: test/default" in result.output
         assert update_mock.called
 
 def test_push_no_bucket(runner):
@@ -267,6 +269,8 @@ def test_add_no_config(runner):
 def test_no_project_bad_command(runner):
     result = runner.invoke(cli.cli, ["fsd"])
     print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
     assert "No such command" in result.output
     assert result.exit_code == 2
 
@@ -293,6 +297,7 @@ def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_
     query_viewer(request_mocker)
     query_projects(request_mocker)
     with runner.isolated_filesystem():
+
         result = runner.invoke(cli.init, input="12345\nvanpelt")
         print(result.output)
         print(result.exception)

@@ -68,7 +68,7 @@ def test_branch_slug():
         r = git.Repo.init(".")
         project, bucket = api.parse_slug(None, project="git")
     assert project == "git"
-    assert bucket == "master"
+    assert len(bucket) == 6
 
 def test_pull_success(request_mocker, download_url, query_project):
     query_project(request_mocker)

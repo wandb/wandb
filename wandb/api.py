@@ -7,6 +7,9 @@ from functools import wraps
 import logging, hashlib, os, json, yaml
 from wandb import __version__, GitRepo
 from base64 import b64encode
+import binascii
+import click
+import requests
 
 def IDENTITY(monitor):
     """A default callback for the Progress helper"""
@@ -101,9 +104,19 @@ class Api(object):
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': 'W&B Client %s' % __version__},
                 use_json=True,
+                auth=("api", self.api_key),
                 url='%s/graphql' % self.config('base_url')
             )
         )
+
+    @property
+    def api_key(self):
+        auth = requests.utils.get_netrc_auth(self.config()['base_url'])
+        if auth:
+            key = auth[-1]
+        else:
+            key = os.environ.get("WANDB_API_KEY")
+        return key
 
     def config(self, key=None, section=None):
         """The configuration overridden from the .wandb/config file.
@@ -141,10 +154,12 @@ class Api(object):
             project = project or self.config().get("project")
             if project is None:
                 raise Error("No default project configured.")
+            bucket = bucket or slug or os.environ.get("WANDB_BUCKET")
             if bucket is None:
-                print(os.getcwd(), self.git.branch)
-                bucket = self.git.branch
-            bucket = bucket or slug
+                if self.git.branch not in ("master", "develop"):
+                    bucket = self.git.branch
+                if bucket is None:
+                    bucket = binascii.hexlify(os.urandom(3)).decode("utf8")
         return (project, bucket)
 
     @normalize_exceptions
@@ -213,6 +228,34 @@ class Api(object):
         return self._flatten_edges(self.client.execute(query, variable_values={
             'entity': entity or self.config('entity'),
             'model': project or self.config('project')})['model']['buckets'])
+
+    @normalize_exceptions
+    def bucket_config(self, project, bucket=None, entity=None):
+        """Get the config for a bucket
+
+        Args:
+            project (str): The project to download, (can include bucket)
+            bucket (str, optional): The bucket to download
+            entity (str, optional): The entity to scope this project to.
+        """
+        query = gql('''
+        query Model($name: String!, $entity: String!, $bucket: String!) {
+            model(name: $name, entityName: $entity) {
+                bucket(name: $bucket) {
+                    config
+                    commit
+                }
+            }
+        }
+        ''')
+
+        response = self.client.execute(query, variable_values={
+            'name': project, 'bucket': bucket, 'entity': entity
+        })
+        bucket = response['model']['bucket']
+        commit = bucket['commit']
+        config = json.loads(bucket['config'] or '{}')
+        return (commit, config)
 
     @normalize_exceptions
     def create_project(self, project, description=None, entity=None):
@@ -458,7 +501,7 @@ class Api(object):
         return responses
 
     @normalize_exceptions
-    def push(self, project, files, bucket=None, entity=None, description=None, force=True):
+    def push(self, project, files, bucket=None, entity=None, description=None, force=True, progress=False):
         """Uploads multiple files to W&B
 
         Args:
@@ -481,8 +524,18 @@ class Api(object):
                 continue
             else:
                 file_name = key
-            open_file = files[file_name] if isinstance(files, dict) else open(file_name, "rb")
-            responses.append(self.upload_file(result[file_name]['url'], open_file))
+            try:
+                open_file = files[file_name] if isinstance(files, dict) else open(file_name, "rb")
+            except IOError:
+                print("%s does not exist" % file_name)
+                continue
+            if progress:
+                length = os.fstat(open_file.fileno()).st_size
+                with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
+                    fill_char=click.style('&', fg='green')) as bar:
+                    self.upload_file( result[file_name]['url'], open_file, lambda bites: bar.update(bites) )
+            else:
+                responses.append(self.upload_file(result[file_name]['url'], open_file))
             open_file.close()
         if self.latest_config:
             self.update_bucket(result["bucket_id"], description=description,
@@ -491,13 +544,16 @@ class Api(object):
 
     def tag_and_push(self, name, description, force=True):
         if self.git.enabled and not self.tagged:
+            self.tagged = True
             #TODO: this is getting called twice...
             print("Tagging your git repo...")
             if not force and self.git.dirty:
                 raise Error("You have un-committed changes. Use the force flag or commit your changes.")
+            elif self.git.dirty and os.path.exists(".wandb/"):
+                self.git.repo.git.execute(['git', 'diff'], output_stream=open('.wandb/diff.patch', 'wb'))
+                #self.git.repo.git.execute(['git', 'apply', '.wandb/diff.patch'])
             self.git.tag(name, description)
             result = self.git.push(name)
-            self.tagged = True
             if(result is None or len(result) is None):
                 print("Unable to push git tag.")
 

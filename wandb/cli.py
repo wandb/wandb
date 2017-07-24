@@ -10,34 +10,20 @@ import inquirer
 
 logging.basicConfig(filename='/tmp/wandb.log', level=logging.INFO)
 
-def normalize(host):
-    return host.split("/")[-1].split(":")[0]
-
-def logged_in(host, retry=True):
-    """Check if our host is in .netrc"""
+def write_netrc(host, entity, key):
+    """Add our host and key to .netrc"""
     try:
-        conf = netrc.netrc()
-        return conf.hosts[normalize(host)]
-    except netrc.NetrcParseError as e:
-        #chmod 0600 which is a common mistake, we could do this in `write_netrc`...
+        normalized_host = host.split("/")[-1].split(":")[0]
+        print("Appending to netrc %s" % os.path.expanduser('~/.netrc')) 
+        with open(os.path.expanduser('~/.netrc'), 'a') as f:
+            f.write("""machine {host}
+        login {entity}
+        password {key}
+    """.format(host=normalized_host, entity=entity, key=key))
         os.chmod(os.path.expanduser('~/.netrc'), stat.S_IRUSR | stat.S_IWUSR)
-        if retry:
-            return logged_in(host, retry=False)
-        else:
-            click.secho("Unable to read ~/.netrc: "+e.message, fg="red")
-            return None
     except IOError as e:
         click.secho("Unable to read ~/.netrc", fg="red")
         return None
-
-def write_netrc(host, entity, key):
-    """Add our host and key to .netrc"""
-    print("Appending to netrc %s" % os.path.expanduser('~/.netrc')) 
-    with open(os.path.expanduser('~/.netrc'), 'a') as f:
-        f.write("""machine {host}
-    login {entity}
-    password {key}
-""".format(host=normalize(host), entity=entity, key=key))
 
 def display_error(func):
     """Function decorator for catching common errors and re-raising as wandb.Error"""
@@ -50,8 +36,8 @@ def display_error(func):
             
     return wrapper
 
-def editor(marker='# Enter a description, markdown is allowed!\n'):
-    message = click.edit('\n\n' + marker)
+def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
+    message = click.edit(content + '\n\n' + marker)
     if message is not None:
         return message.split(marker, 1)[0].rstrip('\n')
         
@@ -146,7 +132,7 @@ def status(bucket, config, project):
             indent=2,
             separators=(',', ': ')
         ))
-        click.echo(click.style("Logged in?", bold=True) + " %s\n" % bool(logged_in(config['base_url'])))
+        click.echo(click.style("Logged in?", bold=True) + " %s\n" % bool(api.api_key))
     project, bucket = api.parse_slug(bucket, project=project)
     parser = api.config_parser
     parser.read(".wandb/config")
@@ -176,6 +162,44 @@ def status(bucket, config, project):
     if len(existing) == 0:
         click.echo(click.style("No files configured, add files with `wandb add filename`", fg="red"))
 
+@cli.command(context_settings=CONTEXT, help="Store notes for a future training run")
+@display_error
+def describe():
+    path = '.wandb/description.md'
+    if not os.path.exists(".wandb/"):
+        raise ClickException("Directory not configured, run `wandb init` before calling describe.")
+    existing = (os.path.exists(path) and open(path).read()) or ''
+    description = editor(existing)
+    if description:
+        with open(path, 'w') as file:
+            file.write(description)
+    click.echo("Notes stored for next training run\nCalling wandb.sync() in your training script will persist them.")
+
+@cli.command(context_settings=CONTEXT, help="Restore code and config state for bucket")
+@click.argument("bucket", envvar='WANDB_BUCKET')
+@click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
+@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
+@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@display_error
+def restore(bucket, branch, project, entity):
+    project, bucket = api.parse_slug(bucket, project=project)
+    commit, json_config = api.bucket_config(project, bucket=bucket, entity=entity)
+    if commit:
+        branch_name = "wandb/%s" % bucket
+        if branch and branch_name not in api.git.repo.branches:
+            api.git.repo.git.checkout(commit, b=branch_name)
+            click.echo("Created branch %s" % click.style(branch_name, bold=True))
+        elif branch:
+            click.secho("Using existing branch, run `git branch -D %s` from master for a clean checkout" % branch_name, fg="red")
+            api.git.repo.git.checkout(branch_name)
+        else:
+            click.secho("Checking out %s in detached mode" % commit)
+            api.git.repo.git.checkout(commit)
+
+    config = Config()
+    config.load_json(json_config)
+    config.persist()
+    click.echo("Restored config variables")
 
 @cli.command(context_settings=CONTEXT, help="Add staged files")
 @click.argument("files", type=click.File('rb'), nargs=-1)
@@ -231,7 +255,7 @@ def push(ctx, bucket, project, description, entity, force, files):
         raise BadParameter("Bucket is required if files are specified.")
     project, bucket = api.parse_slug(bucket, project=project)
 
-    click.echo("Uploading project: {project}/{bucket}".format(
+    click.echo("Updating project: {project}/{bucket}".format(
         project=click.style(project, bold=True), bucket=bucket))
     if description is None:
         description = editor()
@@ -254,18 +278,9 @@ def push(ctx, bucket, project, description, entity, force, files):
 
     if len(files) > 5:
         raise BadParameter("A maximum of 5 files can be in a single bucket.", param_hint="FILES")
-
-    api.tag_and_push(bucket, description, force)
     #TODO: Deal with files in a sub directory
-    urls = api.upload_urls(project, files=[f.name for f in files], bucket=bucket, description=description, entity=entity)
-    if api.latest_config:
-        api.update_bucket(urls["bucket_id"], description=description, entity=entity, config=api.latest_config)
-
-    for file in files:
-        length = os.fstat(file.fileno()).st_size
-        with click.progressbar(length=length, label='Uploading file: %s' % (file.name),
-            fill_char=click.style('&', fg='green')) as bar:
-            api.upload_file( urls[file.name]['url'], file, lambda bites: bar.update(bites) )
+    api.push(project, files=[f.name for f in files], bucket=bucket, 
+        description=description, entity=entity, force=force, progress=sys.stdout)
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("bucket", envvar='WANDB_BUCKET')
@@ -298,14 +313,22 @@ def pull(project, bucket, kind, entity):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @display_error
 def login():
-    #TODO: xdg-open dumps a bunch of output on Ubuntu if theirs no browser
-    code = 1 #click.launch("https://app.wandb.ai/profile")
-    if code != 0:
-        click.echo("You can find your API keys here: https://app.wandb.ai/profile")
+    # Import in here for performance reasons
+    import webbrowser
+    #TODO: use Oauth and a local webserver: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
+    url = "https://app.wandb.ai/profile"
+    #TODO: google cloud SDK check_browser.py
+    launched = webbrowser.open_new_tab(url)
+    if launched:
+        click.echo('Opening [{0}] in a new tab in your default browser.'.format(url))
+    else:
+        click.echo("You can find your API keys here: {0}".format(url))
     key = click.prompt("{warning} Paste an API key from your profile".format(
             warning=click.style("Not authenticated!", fg="red")), default="")
     host = api.config()['base_url']
     if key:
+        #TODO: get the username here...
+        #username = api.viewer().get('entity', 'models')
         write_netrc(host, "user", key)
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
@@ -316,7 +339,7 @@ def init(ctx):
         click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
     click.echo(click.style("Let's setup this directory for W&B!", fg="green", bold=True))
     
-    if logged_in(api.config('base_url')) is None:
+    if api.api_key is None:
         ctx.invoke(login)
 
     entity = click.prompt("What username or org should we use?", default=api.viewer().get('entity', 'models'))
