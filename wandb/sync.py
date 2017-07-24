@@ -23,12 +23,11 @@ class Sync(object):
     """Watches for files to change and automatically pushes them
     """
     def __init__(self, api, project, bucket="default", description=None):
-        entity = api.viewer() and api.viewer().get('entity', 'models') # TODO: from netrc or otherwise
         self._proc = psutil.Process(os.getpid())
         self._api = api
         self._project = project
         self._bucket = bucket
-        self._entity = entity
+        self._entity = api.viewer().get('entity', 'models') # TODO: from netrc or otherwise
         self._dpath = ".wandb/description.md"
         self._description = description or os.path.exists(self._dpath) and open(self._dpath).read()
         self._handler = PatternMatchingEventHandler()
@@ -36,11 +35,13 @@ class Sync(object):
         self._handler.on_modified = self.push
         self.log = NamedTemporaryFile("w")
         self._observer = Observer()
-        self._observer.schedule(self._handler, os.path.abspath("."), recursive=False)
+        self._observer.schedule(self._handler, os.getcwd(), recursive=False)
 
     def watch(self, files=[]):
         if len(files) > 0:
-            self._handler._patterns = files
+            self._handler._patterns = ["*"+file for file in files]
+        else:
+            self._handler._patterns = ["*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*"]
         #TODO: upsert command line
         self._observer.start()
         print("Watching changes for %s/%s" % (self._project, self._bucket))
