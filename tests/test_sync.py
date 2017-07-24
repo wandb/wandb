@@ -12,8 +12,9 @@ def test_watches_for_all_changes(mocker):
         t.start()
         with open("some_file.h5", "w") as f:
             f.write("My great changes")
+        #Fuck if I know why this makes shit work...
+        time.sleep(1)
         t.join()
-        time.sleep(.2)
         assert api.push.called
 
 def test_watches_for_specific_change(mocker):
@@ -24,8 +25,8 @@ def test_watches_for_specific_change(mocker):
         t.start()
         with open("rad.txt", "a") as f:
             f.write("something great")
+        time.sleep(1)
         t.join()
-        time.sleep(.2)
         assert api.push.called
 
 def test_watches_for_glob_change(mocker):
@@ -34,9 +35,8 @@ def test_watches_for_glob_change(mocker):
         sync = wandb.Sync(api, "test")
         t = Thread(target=sync.watch, args=(["*.txt"],))
         t.start()
-        time.sleep(.2)
         with open("file.txt", "a") as f:
             f.write("great")
+        time.sleep(1)
         t.join()
-        time.sleep(.2)
         assert api.push.called

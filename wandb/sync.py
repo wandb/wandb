@@ -40,9 +40,9 @@ class Sync(object):
 
     def watch(self, files=[]):
         if len(files) > 0:
-            self._handler._patterns = [os.path.abspath(file) for file in files]
+            self._handler._patterns = ["*"+file for file in files]
         else:
-            self._handler._patterns = [os.path.abspath(file) for file in ["*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*"]]
+            self._handler._patterns = ["*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*"]
         #TODO: upsert command line
         self._observer.start()
         print("Watching changes for %s/%s" % (self._project, self._bucket))
@@ -82,9 +82,12 @@ class Sync(object):
             bucket=self._bucket
         ))
         self.log.close()
-        #TODO: maybe move to push?
-        self._observer.stop()
-        self._observer.join()
+        try:
+            self._observer.stop()
+            self._observer.join()
+        #TODO: TypeError: PyCObject_AsVoidPtr called with null pointer
+        except TypeError:
+            pass
 
     #TODO: limit / throttle the number of adds / pushes
     def add(self, event):
