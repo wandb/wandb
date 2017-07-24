@@ -23,11 +23,12 @@ class Sync(object):
     """Watches for files to change and automatically pushes them
     """
     def __init__(self, api, project, bucket="default", description=None):
+        entity = api.viewer() and api.viewer().get('entity', 'models') # TODO: from netrc or otherwise
         self._proc = psutil.Process(os.getpid())
         self._api = api
         self._project = project
         self._bucket = bucket
-        self._entity = api.viewer().get('entity', 'models') # TODO: from netrc or otherwise
+        self._entity = entity
         self._dpath = ".wandb/description.md"
         self._description = description or os.path.exists(self._dpath) and open(self._dpath).read()
         self._handler = PatternMatchingEventHandler()
