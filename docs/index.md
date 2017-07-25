@@ -19,10 +19,10 @@ To manually push files to the cloud run:
 $ wandb push my-new-bucket somefile.proto
 ```
 
-To pull down a public model or sync your local directory with the cloud you can run:
+To pull down a model or sync your local directory with the cloud you can run:
 
 ```console
-$ wandb pull zoo/inception_v4
+$ wandb pull project/inception_v4
 ```
 
 You can access configuration and push or pull via the API directly in your python scripts:
@@ -30,8 +30,8 @@ You can access configuration and push or pull via the API directly in your pytho
 ```python
 import wandb
 conf = wandb.Config()
-client = wandb.Api()
-client.pull("zoo/inception")
+wandb.sync(files=["*.h5"])
+wandb.pull("transfer/learning")
 ```
 
 ## Documentation

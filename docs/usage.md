@@ -8,10 +8,16 @@ Initialize the current directory with a project
 $ wandb init
 ```
 
-Manually login to Weights & Biases
+Describe the next run using Markdown
 
 ```console
-$ wandb login
+$ wandb describe
+```
+
+Checkout the commit associated with the bucket and restore the config variables
+
+```console
+$ wandb restore
 ```
 
 Pull the current project from the cloud
@@ -24,6 +30,12 @@ Push the current project to the cloud
 
 ```console
 $ wandb push some-bucket model.json weights.h5
+```
+
+Manually login to Weights & Biases
+
+```console
+$ wandb login
 ```
 
 Sync the stdout of the training process and the current project to the cloud
@@ -113,7 +125,7 @@ Setup the configuration and optionally a client.  As long as you've run `wandb i
 ```python
 import wandb
 conf = wandb.Config()
-client = wandb.Api()
+wandb.sync(files=["*.h5"])
 ```
 
 Set or use configuration parameters.  This enables W&B to keep track of all configuration parameters for a given training run.
@@ -137,11 +149,11 @@ The next time you push a bucket, the configuration parameters will be synced to 
 Pull the bucket specified from the cloud.  The default project will be overridden if a "/" is in the bucket name.
 
 ```python
-client.pull("zoo/vgg-16")
+wandb.pull("cool/stuff")
 ```
 
 Push the current project to the cloud.  File paths are relative to the current working directory.
 
 ```python
-client.push("some-bucket", files=["model.json", "weights.h5"])
+wandb.push("some-bucket", files=["model.json", "weights.h5"])
 ```

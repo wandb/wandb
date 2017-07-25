@@ -22,8 +22,6 @@ cd myproject
 wandb init
 # Push files to W&B
 wandb push bucket model.json weights.h5
-# Pull files from canonical models
-wandb pull zoo/inception-v4
 # Sync training logs and push files when they change
 ./my_training.py | wandb bucket model.json weights.h5
 # Manage configuration
@@ -35,12 +33,10 @@ wandb config set epochs=30
 ```python
 import wandb
 conf = wandb.Config()
-client = wandb.Api()
+wandb.sync(files=["weights.h5", "model.json"])
 
 if conf.turbo:
     print("TURBO MODE!!!")
-
-client.push("my_bucket", files=["weights.h5", "model.json"])
 ```
 
 Detailed usage can be found in our [documentation](http://wb-client.readthedocs.io/en/latest/usage.html).
