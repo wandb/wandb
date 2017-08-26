@@ -1,5 +1,6 @@
 import pytest, os
 from six import binary_type
+from wandb.streaming_log import StreamingLog
 
 def _files():
     return {
@@ -102,4 +103,10 @@ def download_url():
             content=os.urandom(size), status_code=status_code)
         mocker.register_uri('GET', 'https://model.url', 
             content=os.urandom(size), status_code=status_code)
+    return wrapper
+
+@pytest.fixture
+def upload_logs():
+    def wrapper(mocker, run, status_code=200, error=None):
+        return mocker.register_uri("POST", StreamingLog.endpoint % run, status_code=status_code)
     return wrapper

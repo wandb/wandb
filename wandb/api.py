@@ -102,12 +102,16 @@ class Api(object):
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': 'W&B Client %s' % __version__},
+                headers={'User-Agent': self.user_agent},
                 use_json=True,
                 auth=("api", self.api_key),
                 url='%s/graphql' % self.config('base_url')
             )
         )
+
+    @property
+    def user_agent(self):
+        return 'W&B Client %s' % __version__
 
     @property
     def api_key(self):
@@ -118,6 +122,7 @@ class Api(object):
             key = os.environ.get("WANDB_API_KEY")
         return key
 
+    #TODO: Memoize?  Blowup if no entity?
     def config(self, key=None, section=None):
         """The configuration overridden from the .wandb/config file.
 
@@ -143,6 +148,9 @@ class Api(object):
                     config[option] = self.config_parser.get(section, option)
         except configparser.InterpolationSyntaxError:
             print("WARNING: Unable to parse config file")
+        config["project"] = config.get("project", os.environ.get("WANDB_PROJECT"))
+        config["entity"] = config.get("entity", os.environ.get("WANDB_ENTITY"))
+        config["base_url"] = config.get("base_url", os.environ.get("WANDB_BASE_URL"))
         return config if key is None else config[key]
 
     def parse_slug(self, slug, project=None, bucket=None):
