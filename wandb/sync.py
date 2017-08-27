@@ -2,16 +2,20 @@ import psutil, os, stat, sys, time
 from tempfile import NamedTemporaryFile
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
+from .streaming_log import StreamingLog
+from shortuuid import ShortUUID
 import atexit
+from threading import Thread
 
-class Logger(object):
+class Echo(object):
     def __init__(self, log):
         self.terminal = sys.stdout
         self.log = log
 
     def write(self, message):
         self.terminal.write(message)
-        self.log.write(message)  
+        t = Thread(target=self.log.write, args=(message,))
+        t.start()
 
     def flush(self):
         #this flush method is needed for python 3 compatibility.
@@ -22,8 +26,10 @@ class Logger(object):
 class Sync(object):
     """Watches for files to change and automatically pushes them
     """
-    def __init__(self, api, project, bucket="default", description=None):
+    def __init__(self, api, project, bucket="default", tags=[], description=None):
         entity = api.viewer() and api.viewer().get('entity', 'models') # TODO: from netrc or otherwise
+        #1.6 million 6 character combinations
+        runGen = ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
         self._proc = psutil.Process(os.getpid())
         self._api = api
         self._project = project
@@ -31,12 +37,13 @@ class Sync(object):
         self._entity = entity
         self._dpath = ".wandb/description.md"
         self._description = description or os.path.exists(self._dpath) and open(self._dpath).read()
+        self._run = runGen.random(6)
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.add
         self._handler.on_modified = self.push
-        self.log = NamedTemporaryFile("w")
+        self.log = StreamingLog(self._run)
         self._observer = Observer()
-        self._observer.schedule(self._handler, os.getcwd(), recursive=False)
+        self._observer.schedule(self._handler, os.getcwd(), recursive=True)
 
     def watch(self, files=[]):
         if len(files) > 0:
@@ -60,7 +67,8 @@ class Sync(object):
             else:
                 self.log.write(" ".join(psutil.Process(os.getpid()).cmdline())+"\n\n")
                 # let's hijack stdout
-                sys.stdout = Logger(self.log)
+                sys.stdout = Echo(self.log)
+                #TODO: stderr
                 atexit.register(self.stop)
         except KeyboardInterrupt:
             self.stop()
@@ -68,31 +76,35 @@ class Sync(object):
     def stop(self):
         #Wait for changes
         time.sleep(0.1)
-        self.log.flush()
+        self.log.tempfile.flush()
         print("Pushing log")
         slug = "{project}/{bucket}".format(
             project=self._project,
             bucket=self._bucket
         )
-        self._api.push(slug, {"training.log": open(self.log.name, "rb")})
+        self._api.push(slug, {"training.log": open(self.log.tempfile.name, "rb")})
         os.path.exists(self._dpath) and os.remove(self._dpath)
-        print("View this run here: https://app.wandb.ai/{entity}/{project}/buckets/{bucket}".format(
+        print("View this run here: https://app.wandb.ai/{entity}/{project}/runs/{run}".format(
             project=self._project,
             entity=self._entity,
-            bucket=self._bucket
+            run=self._run
         ))
         self.log.close()
         try:
             self._observer.stop()
             self._observer.join()
-        #TODO: TypeError: PyCObject_AsVoidPtr called with null pointer
+        #TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
         except TypeError:
+            pass
+        #TODO: py3 SystemError: <built-in function stop> returned a result with an error set
+        except SystemError:
             pass
 
     #TODO: limit / throttle the number of adds / pushes
     def add(self, event):
         self.push(event)
 
+    #TODO: is this blocking the main thread?
     def push(self, event):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None

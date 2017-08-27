@@ -3,7 +3,6 @@ import tempfile
 import time
 import sys
 from requests import Session
-from requests.exceptions import RequestException
 from wandb import Api
 import threading
 import traceback
@@ -24,13 +23,13 @@ class LineBuffer(io.FileIO):
     or atleast every STALE_SECONDS after the last line was written.
     """
     def __init__(self, path, push = lambda *args: None):
+        super(LineBuffer, self).__init__(path, "w")
         self.buf = bytearray()
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.line_number = 0
         self.lines = []
         self.posted = time.time()
         self.push = push
-        super(LineBuffer, self).__init__(path, "w")
 
     @property
     def stale(self):
@@ -45,24 +44,34 @@ class LineBuffer(io.FileIO):
         """This assumes flush is called once per line (\n, \r, or \r\n),
         io.TextIOWrapper ensures this is true"""
         super(LineBuffer, self).flush()
+        if len(self.buf) == 0:
+            return False
         with self.lock:
             self.line_number += 1
             lines = len(self.lines) + 1
             if(self.buf[-1] == CARRIAGE_RETURN and lines > 1
-                and self.lines[-1].endswith("\r")):
+               and self.lines[-1].endswith("\r")):
                 self.line_number -= 1
                 self.lines.pop()
             self.lines.append(self.buf.decode("utf-8"))
-            if (lines >= MAX_LINES and not self.rate_limit) or self.stale:
-                if self.push(self.lines, self.line_number):
-                    self.posted = time.time()
-                    del self.lines[:]
             del self.buf[:]
+            if (lines >= MAX_LINES and not self.rate_limit) or self.stale:
+                to_push = self.lines[:]
+                del self.lines[:]
+                #Release the lock to allow multiple concurrent pushes
+                self.lock.release()
+                if self.push(to_push, self.line_number):
+                    self.lock.acquire()
+                    self.posted = time.time()
+                else:
+                    self.lock.acquire()
+                    self.line_number -= 1
+                    self.lines = to_push + self.lines
 
-    def write(self, b):
+    def write(self, chars):
+        super(LineBuffer, self).write(chars)
         with self.lock:
-            self.buf.extend(b)
-        super(LineBuffer, self).write(b)
+            self.buf.extend(chars)
 
 class StreamingLog(io.TextIOWrapper):
     """Manages the WandB client and tempfile for log storage"""
@@ -83,7 +92,8 @@ class StreamingLog(io.TextIOWrapper):
             'User-Agent': StreamingLog.api.user_agent,
         })
         self.tempfile = tempfile.NamedTemporaryFile(mode='wb')
-        self.pushed = time.time()
+        self.pushed_at = time.time()
+        self.pushing = 0
         self.line_buffer = LineBuffer(self.tempfile.name, push=self.push)
         #Schedule heartbeat TODO: unix only
         signal.signal(signal.SIGALRM, self.heartbeat)
@@ -92,18 +102,23 @@ class StreamingLog(io.TextIOWrapper):
                                            newline='')
     
     def heartbeat(self, *args):
-        if time.time() - self.pushed > HEARTBEAT_INTERVAL:
+        if time.time() - self.pushed_at > HEARTBEAT_INTERVAL:
             self.client.post(StreamingLog.endpoint % self.run)
 
     def push(self, lines, start):
         try:
+            self.pushing += 1
             res = self.client.post(StreamingLog.endpoint % self.run, 
                 json={'start': start, 'lines': lines})
             res.raise_for_status()
-            self.pushed = time.time()
+            self.pushing -= 1
+            self.pushed_at = time.time()
             return res
         except Exception as err:
+            if self.pushing > 3:
+                raise err
             if os.getenv("DEBUG"):
                 sys.stderr.write('Unable to post to WandB: %s' % err)
                 traceback.print_exc()
+            self.pushing -= 1
             return False

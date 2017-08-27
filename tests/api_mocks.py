@@ -107,6 +107,9 @@ def download_url():
 
 @pytest.fixture
 def upload_logs():
-    def wrapper(mocker, run, status_code=200, error=None):
-        return mocker.register_uri("POST", StreamingLog.endpoint % run, status_code=status_code)
+    def wrapper(mocker, run, status_code=200, body_match='', error=None):
+        def match_body(request):
+            return body_match in (request.text or '')
+        return mocker.register_uri("POST", StreamingLog.endpoint % run, 
+               status_code=status_code, additional_matcher=match_body)
     return wrapper

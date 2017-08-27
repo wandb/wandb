@@ -169,5 +169,6 @@ def test_default_config():
         'entity': 'models', 
         'section': 'default',
         'bucket': 'default',
-        'git_remote': 'origin'
+        'git_remote': 'origin',
+        'project': None,
     }

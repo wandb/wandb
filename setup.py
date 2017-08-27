@@ -14,7 +14,8 @@ requirements = [
     'six>=1.10.0',
     'psutil>=5.2.2',
     'watchdog>=0.8.3',
-    'GitPython>=2.1.3'
+    'GitPython>=2.1.3',
+    'shortuuid>=0.5.0'
 ]
 
 test_requirements = [
