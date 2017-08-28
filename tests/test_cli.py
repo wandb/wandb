@@ -9,7 +9,7 @@ import webbrowser
 
 @pytest.fixture
 def runner(monkeypatch):
-    monkeypatch.setattr(cli, 'api', Api(default_config={'project': 'test'}, load_config=False))
+    monkeypatch.setattr(cli, 'api', Api(default_config={'project': 'test', 'git_tag': True}, load_config=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
     monkeypatch.setattr(inquirer, 'prompt', lambda x: {'project': 'test_model', 'files': ['weights.h5']})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
@@ -109,10 +109,10 @@ def test_config_del(runner):
         print(traceback.print_tb(result.exc_info[2]))
         assert "1 parameters changed" in result.output
 
-def test_push(runner, request_mocker, query_project, upload_url, update_bucket):
+def test_push(runner, request_mocker, query_project, upload_url, upsert_bucket):
     query_project(request_mocker)
     upload_url(request_mocker)
-    update_mock = update_bucket(request_mocker)
+    update_mock = upsert_bucket(request_mocker)
     with runner.isolated_filesystem():
         os.mkdir(".wandb")
         with open(".wandb/latest.yaml", "w") as f:
@@ -150,10 +150,10 @@ def test_push_dirty_git(runner):
         assert result.exit_code == 1
         assert "You have un-committed changes." in result.output
 
-def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url, update_bucket):
+def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url, upsert_bucket):
     query_project(request_mocker)
     upload_url(request_mocker)
-    update_mock = update_bucket(request_mocker)
+    update_mock = upsert_bucket(request_mocker)
     with runner.isolated_filesystem():
         repo = git_repo()
         with open('weights.h5', 'wb') as f:

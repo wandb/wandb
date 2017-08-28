@@ -6,6 +6,9 @@ from .streaming_log import StreamingLog
 from shortuuid import ShortUUID
 import atexit
 from threading import Thread
+from .config import Config
+import logging
+logger = logging.getLogger(__name__)
 
 class Echo(object):
     def __init__(self, log):
@@ -18,41 +21,42 @@ class Echo(object):
         t.start()
 
     def flush(self):
-        #this flush method is needed for python 3 compatibility.
-        #this handles the flush command by doing nothing.
-        #you might want to specify some extra behavior here.
-        pass  
+        self.terminal.flush()
 
 class Sync(object):
     """Watches for files to change and automatically pushes them
     """
-    def __init__(self, api, project, bucket="default", tags=[], description=None):
-        entity = api.viewer() and api.viewer().get('entity', 'models') # TODO: from netrc or otherwise
+    def __init__(self, api, run=None, project=None, tags=[], config={}, description=None):
         #1.6 million 6 character combinations
         runGen = ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-        self._proc = psutil.Process(os.getpid())
-        self._api = api
-        self._project = project
-        self._bucket = bucket
-        self._entity = entity
+        self.run = run or runGen.random(6)
+        self._project = project or api.config("project")
+        self._entity = api.config("entity")
+        logger.debug("Initialized sync for %s/%s", self._project, self.run)
         self._dpath = ".wandb/description.md"
         self._description = description or os.path.exists(self._dpath) and open(self._dpath).read()
-        self._run = runGen.random(6)
+        self._config = Config(config)
+        self._proc = psutil.Process(os.getpid())
+        self._api = api
+        self._tags = tags
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.add
         self._handler.on_modified = self.push
-        self.log = StreamingLog(self._run)
+        self.log = StreamingLog(self.run)
         self._observer = Observer()
         self._observer.schedule(self._handler, os.getcwd(), recursive=True)
 
     def watch(self, files=[]):
+        #TODO: Catch errors, potentially retry
+        self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity, 
+            config=self._config, description=self._description)
         if len(files) > 0:
             self._handler._patterns = ["*"+file for file in files]
         else:
             self._handler._patterns = ["*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*"]
         #TODO: upsert command line
         self._observer.start()
-        print("Watching changes for %s/%s" % (self._project, self._bucket))
+        print("Watching changes for run %s/%s" % (self._project, self.run))
         try:
             # Piped mode
             if self.source_proc:
@@ -68,6 +72,7 @@ class Sync(object):
                 self.log.write(" ".join(psutil.Process(os.getpid()).cmdline())+"\n\n")
                 # let's hijack stdout
                 sys.stdout = Echo(self.log)
+                logger.debug("Swapped stdout")
                 #TODO: stderr
                 atexit.register(self.stop)
         except KeyboardInterrupt:
@@ -78,16 +83,16 @@ class Sync(object):
         time.sleep(0.1)
         self.log.tempfile.flush()
         print("Pushing log")
-        slug = "{project}/{bucket}".format(
+        slug = "{project}/{run}".format(
             project=self._project,
-            bucket=self._bucket
+            run=self.run
         )
         self._api.push(slug, {"training.log": open(self.log.tempfile.name, "rb")})
         os.path.exists(self._dpath) and os.remove(self._dpath)
         print("View this run here: https://app.wandb.ai/{entity}/{project}/runs/{run}".format(
             project=self._project,
             entity=self._entity,
-            run=self._run
+            run=self.run
         ))
         self.log.close()
         try:
@@ -109,7 +114,7 @@ class Sync(object):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
         fileName = event.src_path.split("/")[-1]
-        self._api.push(self._project, [fileName], bucket=self._bucket, description=self._description, progress=sys.stdout.terminal)
+        self._api.push(self._project, [fileName], bucket=self.run, description=self._description, progress=sys.stdout.terminal)
 
     @property
     def source_proc(self):

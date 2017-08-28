@@ -1,6 +1,7 @@
 import pytest, os
 from six import binary_type
 from wandb.streaming_log import StreamingLog
+import logging
 
 def _files():
     return {
@@ -66,7 +67,7 @@ def _mutate(key, json):
     return success_or_failure(payload=payload, body_match="mutation")
 
 @pytest.fixture
-def update_bucket():
+def upsert_bucket():
     return _mutate('upsertBucket', {'bucket': _bucket("default")})
 
 @pytest.fixture

@@ -87,10 +87,10 @@ def test_pull_existing_file(request_mocker, mocker, download_url, query_project)
         api.pull("test/test")
         mocked.assert_called_once_with("https://weights.url")
 
-def test_push_success(request_mocker, upload_url, query_project, update_bucket):
+def test_push_success(request_mocker, upload_url, query_project, upsert_bucket):
     query_project(request_mocker)
     upload_url(request_mocker)
-    update_mock = update_bucket(request_mocker)
+    update_mock = upsert_bucket(request_mocker)
     with CliRunner().isolated_filesystem():
         #TODO: need this for my mock to work
         api = wandb.Api(load_config=False)
@@ -105,10 +105,10 @@ def test_push_success(request_mocker, upload_url, query_project, update_bucket):
     assert update_mock.called
     assert res[0].status_code == 200
 
-def test_push_git_success(request_mocker, mocker, upload_url, query_project, update_bucket):
+def test_push_git_success(request_mocker, mocker, upload_url, query_project, upsert_bucket):
     query_project(request_mocker)
     upload_url(request_mocker)
-    update_mock = update_bucket(request_mocker)
+    update_mock = upsert_bucket(request_mocker)
     with CliRunner().isolated_filesystem():
         res = os.mkdir(".wandb")
         with open(".wandb/latest.yaml", "w") as f:
@@ -120,6 +120,7 @@ def test_push_git_success(request_mocker, mocker, upload_url, query_project, upd
         r = git.Repo.init(".")
         r.index.add(["model.json"])
         r.index.commit("initial commit")
+        api = wandb.Api(load_config=False, default_config={'git_tag': True})
         mock = mocker.patch.object(api.git, "push")
         res = api.push("test/test", ["weights.h5", "model.json"])
     assert update_mock.called
@@ -170,5 +171,6 @@ def test_default_config():
         'section': 'default',
         'bucket': 'default',
         'git_remote': 'origin',
+        'git_tag': False,
         'project': None,
     }

@@ -62,7 +62,7 @@ class BucketGroup(click.Group):
             description = sys.argv[sys.argv.index('-m') + 1]
         elif '--description' in sys.argv:
             description = sys.argv[sys.argv.index('--description') + 1]
-        sync = Sync(api, project=project, bucket=bucket, description=description)
+        sync = Sync(api, project=project, run=bucket, description=description)
         if sync.source_proc:
             files = sys.argv[2:]
             sync.watch(files)

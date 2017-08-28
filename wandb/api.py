@@ -84,9 +84,11 @@ class Api(object):
             'entity': "models",
             'bucket': "default",
             'git_remote': "origin",
+            'git_tag': False,
             'base_url': "https://api.wandb.ai"
         }
         self.default_config.update(default_config or {})
+        self._config = None
         self.retries = 3
         self.config_parser = configparser.ConfigParser()
         self.tagged = False
@@ -122,7 +124,6 @@ class Api(object):
             key = os.environ.get("WANDB_API_KEY")
         return key
 
-    #TODO: Memoize?  Blowup if no entity?
     def config(self, key=None, section=None):
         """The configuration overridden from the .wandb/config file.
 
@@ -140,18 +141,19 @@ class Api(object):
                     "project": None
                 }
         """
-        config = self.default_config.copy()
-        section = section or config['section']
-        try:
-            if section in self.config_parser.sections():
-                for option in self.config_parser.options(section):
-                    config[option] = self.config_parser.get(section, option)
-        except configparser.InterpolationSyntaxError:
-            print("WARNING: Unable to parse config file")
-        config["project"] = config.get("project", os.environ.get("WANDB_PROJECT"))
-        config["entity"] = config.get("entity", os.environ.get("WANDB_ENTITY"))
-        config["base_url"] = config.get("base_url", os.environ.get("WANDB_BASE_URL"))
-        return config if key is None else config[key]
+        if not self._config:
+            self._config = self.default_config.copy()
+            section = section or self._config['section']
+            try:
+                if section in self.config_parser.sections():
+                    for option in self.config_parser.options(section):
+                        self._config[option] = self.config_parser.get(section, option)
+            except configparser.InterpolationSyntaxError:
+                print("WARNING: Unable to parse config file")
+            self._config["project"] = self._config.get("project", os.environ.get("WANDB_PROJECT"))
+            self._config["entity"] = self._config.get("entity", os.environ.get("WANDB_ENTITY"))
+            self._config["base_url"] = self._config.get("base_url", os.environ.get("WANDB_BASE_URL"))
+        return self._config if key is None else self._config[key]
 
     def parse_slug(self, slug, project=None, bucket=None):
         if slug and "/" in slug:
@@ -289,21 +291,23 @@ class Api(object):
             'name': project, 'entity': entity or self.config('entity'),
             'description': description, 'repo': self.git.remote_url})
         return response['upsertModel']['model']
-
+    
     @normalize_exceptions
-    def update_bucket(self, id, config=None, description=None, entity=None, commit=None):
+    def upsert_bucket(self, id=None, name=None, project=None, config=None, description=None, entity=None, commit=None):
         """Update a bucket
 
         Args:
-            id (str): The bucket to update
+            id (str, optional): The existing bucket to update
+            name (str, optional): The name of the bucket to create
+            project (str, optional): The name of the project 
             config (dict, optional): The latest config params
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
             commit (str, optional): The Git SHA to associate the bucket with 
         """
         mutation = gql('''
-        mutation UpsertBucket($id: String!, $entity: String!, $description: String, $commit: String, $config: JSONString)  {
-            upsertBucket(input: { id: $id, entityName: $entity, description: $description, config: $config, commit: $commit }) {
+        mutation UpsertBucket($id: String, $name: String, $project: String, $entity: String!, $description: String, $commit: String, $config: JSONString)  {
+            upsertBucket(input: { id: $id, name: $name, modelName: $project, entityName: $entity, description: $description, config: $config, commit: $commit }) {
                 bucket {
                     name
                     description
@@ -314,8 +318,10 @@ class Api(object):
         ''')
         if config:
             config = json.dumps(config)
+        if not description:
+            description = None
         response = self.client.execute(mutation, variable_values={
-            'id': id, 'entity': entity or self.config('entity'),
+            'id': id, 'entity': entity or self.config('entity'), 'name': name, 'project': project, 
             'description': description, 'config': config, 'commit': commit or self.git.last_commit})
         return response['upsertBucket']['bucket']
 
@@ -524,7 +530,9 @@ class Api(object):
             The requests library response object
         """
         project, bucket = self.parse_slug(project, bucket=bucket)
-        self.tag_and_push(bucket, description, force)
+        #Only tag if enabled
+        if self.config("git_tag"):
+            self.tag_and_push(bucket, description, force)
         result = self.upload_urls(project, files, bucket, entity, description)
         responses = []
         for key in result:
@@ -546,7 +554,7 @@ class Api(object):
                 responses.append(self.upload_file(result[file_name]['url'], open_file))
             open_file.close()
         if self.latest_config:
-            self.update_bucket(result["bucket_id"], description=description,
+            self.upsert_bucket(id=result["bucket_id"], description=description,
                 entity=entity, config=self.latest_config)
         return responses
 

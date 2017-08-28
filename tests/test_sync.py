@@ -1,7 +1,7 @@
 import pytest, os
 from click.testing import CliRunner
 from threading import Thread
-from .api_mocks import upload_logs
+from .api_mocks import upload_logs, upsert_bucket
 from freezegun import freeze_time
 
 import wandb, time
@@ -15,6 +15,7 @@ def test_watches_for_all_changes(mocker):
             f.write("My great changes")
         #Fuck if I know why this makes shit work...
         time.sleep(1)
+        assert api.upsert_bucket.called
         assert api.push.called
 
 def test_watches_for_specific_change(mocker):
@@ -37,17 +38,19 @@ def test_watches_for_glob_change(mocker):
         time.sleep(1)
         assert api.push.called
 
-def test_syncs_log(mocker, upload_logs, request_mocker):
+def test_syncs_log(mocker, upload_logs, upsert_bucket, request_mocker):
     with CliRunner().isolated_filesystem():
-        api = mocker.MagicMock()
+        api = wandb.Api()
+        run_mock = upsert_bucket(request_mocker)
         with freeze_time("1981-12-09 12:00:01"):
-            sync = wandb.Sync(api, "test")
+            sync = wandb.Sync(api)
+        log_mock = upload_logs(request_mocker, sync.run)
         sync.watch()
-        mock = upload_logs(request_mocker, sync._run, body_match="4th and final")
+        assert run_mock.called
         print("My logger")
         print("1")
         print("2")
         print("3")
         print("4th and final")
         time.sleep(1)
-        assert mock.called
+        assert log_mock.called

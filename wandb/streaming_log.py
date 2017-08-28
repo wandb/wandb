@@ -9,6 +9,9 @@ import traceback
 import logging
 import signal
 import os
+import logging
+import six
+logger = logging.getLogger(__name__)
 
 CARRIAGE_RETURN = 13
 STALE_SECONDS = 2
@@ -30,11 +33,13 @@ class LineBuffer(io.FileIO):
         self.lines = []
         self.posted = time.time()
         self.push = push
+        self.posting = False
 
     @property
     def stale(self):
-        return (len(self.lines) > 0 and 
-               (time.time() - self.posted) >= STALE_SECONDS)
+        return (not self.posting and
+                len(self.lines) > 0 and
+                (time.time() - self.posted) >= STALE_SECONDS)
 
     @property
     def rate_limit(self):
@@ -50,23 +55,28 @@ class LineBuffer(io.FileIO):
             self.line_number += 1
             lines = len(self.lines) + 1
             if(self.buf[-1] == CARRIAGE_RETURN and lines > 1
-               and self.lines[-1].endswith("\r")):
+               and self.lines[-1][1].endswith("\r")):
                 self.line_number -= 1
                 self.lines.pop()
-            self.lines.append(self.buf.decode("utf-8"))
+            self.lines.append([self.line_number, self.buf.decode("utf-8")])
             del self.buf[:]
             if (lines >= MAX_LINES and not self.rate_limit) or self.stale:
+                logger.debug("Pushing %i lines (stale? %s)", lines, self.stale)
                 to_push = self.lines[:]
-                del self.lines[:]
+                if to_push[-1][1].endswith("\r"):
+                    del self.lines[:-1]
+                else:
+                    del self.lines[:]
+                self.posting = True
                 #Release the lock to allow multiple concurrent pushes
                 self.lock.release()
-                if self.push(to_push, self.line_number):
+                if self.push(to_push):
                     self.lock.acquire()
                     self.posted = time.time()
                 else:
                     self.lock.acquire()
-                    self.line_number -= 1
                     self.lines = to_push + self.lines
+                self.posting = False
 
     def write(self, chars):
         super(LineBuffer, self).write(chars)
@@ -103,22 +113,27 @@ class StreamingLog(io.TextIOWrapper):
     
     def heartbeat(self, *args):
         if time.time() - self.pushed_at > HEARTBEAT_INTERVAL:
+            logger.debug("Heartbeat sent at %s", time.time())
             self.client.post(StreamingLog.endpoint % self.run)
 
-    def push(self, lines, start):
+    def write(self, chars):
+        if six.PY2:
+            chars = unicode(chars)
+        super(StreamingLog, self).write(chars)
+
+    def push(self, lines):
         try:
             self.pushing += 1
             res = self.client.post(StreamingLog.endpoint % self.run, 
-                json={'start': start, 'lines': lines})
+                json={'lines': lines})
             res.raise_for_status()
             self.pushing -= 1
             self.pushed_at = time.time()
             return res
         except Exception as err:
+            #TODO: Is this the right thing to do?
             if self.pushing > 3:
                 raise err
-            if os.getenv("DEBUG"):
-                sys.stderr.write('Unable to post to WandB: %s' % err)
-                traceback.print_exc()
+            logger.error('Unable to post to WandB: %s', err)
             self.pushing -= 1
             return False
