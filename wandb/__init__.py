@@ -30,5 +30,6 @@ def sync(globs=[], **kwargs):
     #TODO: wandb describe
     sync = Sync(api, **kwargs)
     sync.watch(files=globs)
+    return sync.config
 
 __all__ = ["Api", "Error", "Config", "Results"]

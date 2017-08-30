@@ -17,11 +17,38 @@ class Echo(object):
 
     def write(self, message):
         self.terminal.write(message)
-        t = Thread(target=self.log.write, args=(message,))
-        t.start()
+        #TODO: ThreadPool
+        self.thread = Thread(target=self.log.write, args=(message,))
+        self.thread.start()
 
     def flush(self):
         self.terminal.flush()
+
+    def close(self, failed=False):
+        self.thread.join()
+        if failed:
+            #TODO: unfortunate line_buffer access
+            self.log.push([[self.log.line_buffer.line_number + 1, "ERROR: %s" % failed, "error"]])
+            sys.stderr.write("ERROR: %s" % failed)
+            failed = True
+        self.log.heartbeat(complete=True, failed=failed)
+
+class ExitHooks(object):
+    def __init__(self):
+        self.exit_code = None
+        self.exception = None
+
+    def hook(self):
+        self._orig_exit = sys.exit
+        sys.exit = self.exit
+        sys.excepthook = self.exc_handler
+
+    def exit(self, code=0):
+        self.exit_code = code
+        self._orig_exit(code)
+
+    def exc_handler(self, exc_type, exc, *args):
+        self.exception = exc
 
 class Sync(object):
     """Watches for files to change and automatically pushes them
@@ -35,28 +62,35 @@ class Sync(object):
         logger.debug("Initialized sync for %s/%s", self._project, self.run)
         self._dpath = ".wandb/description.md"
         self._description = description or os.path.exists(self._dpath) and open(self._dpath).read()
-        self._config = Config(config)
+        self.config = Config(config)
         self._proc = psutil.Process(os.getpid())
         self._api = api
         self._tags = tags
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.add
         self._handler.on_modified = self.push
+        self.url = "{base}/{entity}/{project}/runs/{run}".format(
+            project=self._project,
+            entity=self._entity,
+            run=self.run,
+            base=api.config("base_url")
+        )
         self.log = StreamingLog(self.run)
+        self._hooks = ExitHooks()
+        self._hooks.hook()
         self._observer = Observer()
         self._observer.schedule(self._handler, os.getcwd(), recursive=True)
 
     def watch(self, files=[]):
         #TODO: Catch errors, potentially retry
         self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity, 
-            config=self._config, description=self._description)
+            config=self.config, description=self._description)
         if len(files) > 0:
             self._handler._patterns = ["*"+file for file in files]
         else:
             self._handler._patterns = ["*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*"]
-        #TODO: upsert command line
         self._observer.start()
-        print("Watching changes for run %s/%s" % (self._project, self.run))
+        print("Syncing %s" % self.url)
         try:
             # Piped mode
             if self.source_proc:
@@ -89,11 +123,8 @@ class Sync(object):
         )
         self._api.push(slug, {"training.log": open(self.log.tempfile.name, "rb")})
         os.path.exists(self._dpath) and os.remove(self._dpath)
-        print("View this run here: https://app.wandb.ai/{entity}/{project}/runs/{run}".format(
-            project=self._project,
-            entity=self._entity,
-            run=self.run
-        ))
+        print("Synced %s" % self.url)
+        sys.stdout.close(failed=self._hooks.exception)
         self.log.close()
         try:
             self._observer.stop()

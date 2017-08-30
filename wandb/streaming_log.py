@@ -13,7 +13,6 @@ import logging
 import six
 logger = logging.getLogger(__name__)
 
-CARRIAGE_RETURN = 13
 STALE_SECONDS = 2
 RATE_LIMIT = 1
 MAX_LINES = 5
@@ -54,8 +53,7 @@ class LineBuffer(io.FileIO):
         with self.lock:
             self.line_number += 1
             lines = len(self.lines) + 1
-            if(self.buf[-1] == CARRIAGE_RETURN and lines > 1
-               and self.lines[-1][1].endswith("\r")):
+            if(lines > 1 and self.lines[-1][1].endswith("\r")):
                 self.line_number -= 1
                 self.lines.pop()
             self.lines.append([self.line_number, self.buf.decode("utf-8")])
@@ -105,16 +103,18 @@ class StreamingLog(io.TextIOWrapper):
         self.pushed_at = time.time()
         self.pushing = 0
         self.line_buffer = LineBuffer(self.tempfile.name, push=self.push)
-        #Schedule heartbeat TODO: unix only
+        #Schedule heartbeat TODO: unix only, use threads
         signal.signal(signal.SIGALRM, self.heartbeat)
         signal.setitimer(signal.ITIMER_REAL, HEARTBEAT_INTERVAL / 2)
         super(StreamingLog, self).__init__(self.line_buffer, line_buffering=True, 
                                            newline='')
     
-    def heartbeat(self, *args):
-        if time.time() - self.pushed_at > HEARTBEAT_INTERVAL:
+    def heartbeat(self, *args, **kwargs):
+        complete = kwargs.get("complete")
+        failed = kwargs.get("failed")
+        if complete or time.time() - self.pushed_at > HEARTBEAT_INTERVAL:
             logger.debug("Heartbeat sent at %s", time.time())
-            self.client.post(StreamingLog.endpoint % self.run)
+            self.client.post(StreamingLog.endpoint % self.run, json={'complete': complete, 'failed': failed})
 
     def write(self, chars):
         if six.PY2:
