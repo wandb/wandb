@@ -4,7 +4,7 @@ __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.14'
 
-import types, sys, logging
+import types, sys, logging, os
 from .git_repo import GitRepo
 from .api import Api, Error
 from .sync import Sync
@@ -12,10 +12,11 @@ from .config import Config
 from .results import Results
 
 #TODO: check directory?
-logging.basicConfig(
-    filemode="w",
-    filename='.wandb/debug.log',
-    level=logging.DEBUG)
+if os.path.exists(".wandb/"):
+    logging.basicConfig(
+        filemode="w",
+        filename='.wandb/debug.log',
+        level=logging.DEBUG)
 
 def push(*args, **kwargs):
     Api().push(*args, **kwargs)
