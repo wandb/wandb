@@ -32,8 +32,7 @@ wandb config set epochs=30
 
 ```python
 import wandb
-conf = wandb.Config()
-wandb.sync(files=["weights.h5", "model.json"])
+conf = wandb.sync(["weights.h5", "model.json"], config={'existing': 'config'})
 
 if conf.turbo:
     print("TURBO MODE!!!")
