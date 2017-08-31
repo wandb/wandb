@@ -1,5 +1,4 @@
 [default]
 entity = vanpelt
 project = cvp-rad
-files = circle.yml,model.json
 
