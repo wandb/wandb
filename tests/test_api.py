@@ -151,6 +151,7 @@ def test_upload_failure_resumable(request_mocker, upload_url):
     assert res.status_code == 200
 
 def test_config(mocker):
+    api._config = None
     parser = mocker.patch.object(api, "config_parser")
     parser.sections.return_value = ["default"]
     parser.options.return_value = ["project", "entity"]
@@ -161,7 +162,8 @@ def test_config(mocker):
         'project': 'test_model',
         'section': 'default',
         'bucket': 'default',
-        'git_remote': 'origin'
+        'git_remote': 'origin',
+        'git_tag': False
     }
 
 def test_default_config():

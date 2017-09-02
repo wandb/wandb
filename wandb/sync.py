@@ -84,7 +84,7 @@ class Sync(object):
     def watch(self, files=[]):
         #TODO: Catch errors, potentially retry
         self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity, 
-            config=self.config, description=self._description)
+            config=self.config.__dict__, description=self._description)
         if len(files) > 0:
             self._handler._patterns = ["*"+file for file in files]
         else:
@@ -145,7 +145,12 @@ class Sync(object):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
         fileName = event.src_path.split("/")[-1]
-        self._api.push(self._project, [fileName], bucket=self.run, description=self._description, progress=sys.stdout.terminal)
+        if logger.parent.handlers[0]:
+            debugLog = logger.parent.handlers[0].stream
+        else:
+            debugLog = None
+        self._api.push(self._project, [fileName], bucket=self.run, 
+                       description=self._description, progress=debugLog)
 
     @property
     def source_proc(self):
