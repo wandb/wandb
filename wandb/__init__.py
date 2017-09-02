@@ -2,7 +2,7 @@
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.4.14'
+__version__ = '0.4.15'
 
 import types, sys, logging, os
 from .git_repo import GitRepo
