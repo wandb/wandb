@@ -1,4 +1,4 @@
-import psutil, os, stat, sys, time
+import psutil, os, stat, sys, time, traceback
 from tempfile import NamedTemporaryFile
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
@@ -73,7 +73,7 @@ class Sync(object):
             project=self._project,
             entity=self._entity,
             run=self.run,
-            base=api.config("base_url")
+            base="https://app.wandb.ai"
         )
         self.log = StreamingLog(self.run)
         self._hooks = ExitHooks()
@@ -82,16 +82,15 @@ class Sync(object):
         self._observer.schedule(self._handler, os.getcwd(), recursive=True)
 
     def watch(self, files=[]):
-        #TODO: Catch errors, potentially retry
-        self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity, 
-            config=self.config.__dict__, description=self._description)
-        if len(files) > 0:
-            self._handler._patterns = ["*"+file for file in files]
-        else:
-            self._handler._patterns = ["*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*"]
-        self._observer.start()
-        print("Syncing %s" % self.url)
         try:
+            self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity, 
+                config=self.config.__dict__, description=self._description)
+            if len(files) > 0:
+                self._handler._patterns = ["*"+file for file in files]
+            else:
+                self._handler._patterns = ["*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*"]
+            self._observer.start()
+            print("Syncing %s" % self.url)
             # Piped mode
             if self.source_proc:
                 self.log.write(" ".join(self.source_proc.cmdline())+"\n\n")
@@ -111,6 +110,11 @@ class Sync(object):
                 atexit.register(self.stop)
         except KeyboardInterrupt:
             self.stop()
+        except Exception:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            print("!!! Fatal W&B Error: %s" % exc_value)
+            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            logger.error('\n'.join(lines))
 
     def stop(self):
         #Wait for changes

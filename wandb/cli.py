@@ -7,8 +7,9 @@ from functools import wraps
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
 import inquirer
+import sys, traceback
 
-logging.basicConfig(filename='/tmp/wandb.log', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
@@ -32,6 +33,9 @@ def display_error(func):
         try:
             return func(*args, **kwargs)
         except Error as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            logger.error('\n'.join(lines))
             raise ClickException(e)
             
     return wrapper
