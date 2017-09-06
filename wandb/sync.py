@@ -79,16 +79,17 @@ class Sync(object):
         self._hooks = ExitHooks()
         self._hooks.hook()
         self._observer = Observer()
-        self._observer.schedule(self._handler, os.getcwd(), recursive=True)
+        self._watch_dir = os.getcwd()
+        self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
-    def watch(self, files=[]):
+    def watch(self, files):
         try:
             self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity, 
                 config=self.config.__dict__, description=self._description)
-            if len(files) > 0:
-                self._handler._patterns = ["*"+file for file in files]
-            else:
-                self._handler._patterns = ["*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*"]
+            self._handler._patterns = [
+                    os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
+            # Ignore hidden files/folders
+            self._handler._ignore_patterns = ['*/.*']
             self._observer.start()
             print("Syncing %s" % self.url)
             # Piped mode
@@ -148,7 +149,7 @@ class Sync(object):
     def push(self, event):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
-        fileName = event.src_path.split("/")[-1]
+        fileName = os.path.relpath(event.src_path, self._watch_dir)
         if logger.parent.handlers[0]:
             debugLog = logger.parent.handlers[0].stream
         else:

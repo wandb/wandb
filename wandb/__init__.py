@@ -24,7 +24,7 @@ def push(*args, **kwargs):
 def pull(*args, **kwargs):
     Api().pull(*args, **kwargs)
 
-def sync(globs=[], **kwargs):
+def sync(globs=['*'], **kwargs):
     api = Api()
     if api.api_key is None:
         raise Error("No API key found, run `wandb login` or set WANDB_API_KEY")
