@@ -127,8 +127,13 @@ class Sync(object):
             logger.error('\n'.join(lines))
 
     def stop(self):
-        #Wait for changes
-        time.sleep(0.1)
+        # This is a a heuristic delay to catch files that were written just before
+        # the end of the script. This is unverified, but theoretically the file
+        # change notification process used by watchdog (maybe inotify?) is
+        # asynchronous. It's possible we could miss files if 10s isn't long enough.
+        # TODO: Guarantee that all files will be saved.
+        print("Script ended, waiting for final file modifications.")
+        time.sleep(10.0)
         self.log.tempfile.flush()
         print("Pushing log")
         slug = "{project}/{run}".format(
