@@ -8,6 +8,7 @@ import atexit
 from threading import Thread
 from .config import Config
 import logging
+from wandb import __stage_dir__
 logger = logging.getLogger(__name__)
 
 class Echo(object):
@@ -53,7 +54,7 @@ class ExitHooks(object):
 class Sync(object):
     """Watches for files to change and automatically pushes them
     """
-    def __init__(self, api, run=None, project=None, tags=[], config={}, description=None):
+    def __init__(self, api, run=None, project=None, tags=[], datasets=[], config={}, description=None):
         #1.6 million 6 character combinations
         runGen = ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
         self.run = run or runGen.random(6)
@@ -84,12 +85,18 @@ class Sync(object):
 
     def watch(self, files):
         try:
+            #TODO: better failure handling
             self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity, 
                 config=self.config.__dict__, description=self._description)
             self._handler._patterns = [
-                    os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
+                os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
             # Ignore hidden files/folders
             self._handler._ignore_patterns = ['*/.*']
+            if os.path.exists(__stage_dir__+"diff.patch"):
+                self._api.push("{project}/{run}".format(
+                    project=self._project,
+                    run=self.run
+                ), {"diff.patch": open(__stage_dir__+"diff.patch", "rb")})
             self._observer.start()
             print("Syncing %s" % self.url)
             # Piped mode

@@ -14,7 +14,7 @@ class Config(dict):
     """Creates a W&B config object.
 
     The object is an enhanced `dict`.  You can access keys via instance methods or
-    as you would a regular `dict`.  The object first looks for a `config.yaml` file
+    as you would a regular `dict`.  The object first looks for a `config-defaults.yaml` file
     in the current directory.  It then looks for environment variables pre-pended
     with "WANDB_".  Lastly it overrides any key found in command line arguments.
 
@@ -58,7 +58,7 @@ class Config(dict):
     @property
     def defaults_path(self):
         """Where to find the default configuration"""
-        return os.getcwd() + "/config.yaml"
+        return os.getcwd() + "/config-defaults.yaml"
 
     @property
     def keys(self):
@@ -93,7 +93,7 @@ class Config(dict):
             try:
                 defaults = yaml.load(open(self.defaults_path))
             except yaml.parser.ParserError:
-                raise Error("Invalid YAML in config.yaml")
+                raise Error("Invalid YAML in config-defaults.yaml")
             if defaults:
                 for key in defaults:
                     if key == "wandb_version":

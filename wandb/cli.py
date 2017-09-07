@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import click, sys
-from wandb import Api, Error, Sync, Config, __version__
+from wandb import Api, Error, Sync, Config, __version__, __stage_dir__
 import random, time, os, re, netrc, logging, json, glob, io, stat
 from functools import wraps
 from click.utils import LazyFile
@@ -169,9 +169,7 @@ def status(bucket, config, project):
 @cli.command(context_settings=CONTEXT, help="Store notes for a future training run")
 @display_error
 def describe():
-    path = '.wandb/description.md'
-    if not os.path.exists(".wandb/"):
-        raise ClickException("Directory not configured, run `wandb init` before calling describe.")
+    path = __stage_dir__+'description.md'
     existing = (os.path.exists(path) and open(path).read()) or ''
     description = editor(existing)
     if description:
@@ -369,17 +367,18 @@ def init(ctx):
     with open(".wandb/config", "w") as file:
         file.write("[default]\nentity: {entity}\nproject: {project}".format(entity=entity, project=project))
 
+    with open(".wandb/.gitignore", "w") as file:
+        file.write("diff.patch\ndescription.md\nlatest.yaml\ndebug.log")
+
     click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+ 
         """
-* Run `{push}` to add your first file.
-* Pipe your training output to push changed files and logs: `{sync}`.
-* Track config params by adding `{flags}` to your training script.
-* `{config}` to add or change configuration parameters.
+* Track runs by calling sync in your training script `{flags}`.
+* Run `{push}` to manually add a file.
+* `{config}` to add or change configuration defaults.
 * Pull popular models into your project with: `{pull}`.
     """.format(
         push=click.style("wandb push weights.h5", bold=True),
-        flags=click.style("import wandb; conf = wandb.Config(FLAGS)", bold=True),
-        sync=click.style("my_training.py | wandb bucket_name", bold=True),
+        flags=click.style("import wandb; conf = wandb.sync(config=tf.__FLAGS__)", bold=True),
         config=click.style("wandb config set batch_size=10", bold=True),
         pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
@@ -407,21 +406,15 @@ def config_init(prompt=True):
         if prompt:
             click.confirm(click.style("This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
     else:
-        #TODO: Temp to deal with migration
-        tmp_path = config_path.replace(".wandb", ".wandb.tmp")
-        if os.path.isfile(config_path):
-            os.rename(config_path, tmp_path)
         os.mkdir(config_path)
-        if os.path.isfile(tmp_path):
-            os.rename(tmp_path, tmp_path.replace(".wandb.tmp", ".wandb/config"))
-    config.batch_size_desc = "Number of training examples in a mini-batch"
-    config.batch_size = 32
+    config.epochs_desc = "Number epochs to train over"
+    config.epochs = 32
     config.persist()
     if prompt:
         click.echo("""Configuration initialized, use `wandb config set` to set parameters.  Then in your training script:
 
 import wandb
-conf = wandb.Config()
+conf = wandb.sync()
 conf.batch_size
 """)
 

@@ -27,6 +27,8 @@ class GitRepo(object):
 
     @property
     def dirty(self):
+        if not self.repo:
+            return False
         return self.repo.is_dirty()
 
     @property

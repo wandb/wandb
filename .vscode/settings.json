@@ -1,6 +1,8 @@
 // Place your settings in this file to overwrite default and user settings.
 {
     "files.exclude":{
-        "**/*.pyc": true
-    }
+        "**/*.pyc": true,
+        "docs/_build": true,
+        "build": true
+    },
 }

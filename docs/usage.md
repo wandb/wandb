@@ -77,7 +77,7 @@ we store defaults in a YAML file at the root of your project.  The configuration
 automatically looks for overrides in the environment (if `WANDB_` is prepended to the name) as
 well as in command line flags.
 
-Initialize a directory for configuration.  This creates a file named `config.yaml` in the current directory.
+Initialize a directory for configuration.  This creates a file named `config-defaults.yaml` in the current directory.
 
 ```console
 $ wandb config init

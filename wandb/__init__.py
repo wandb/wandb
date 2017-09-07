@@ -5,18 +5,22 @@ __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.17'
 
 import types, sys, logging, os
+
+__stage_dir__ = ".wandb/"
+if not os.path.exists(__stage_dir__):
+    __stage_dir__ = "/tmp/.wandb/"
+    os.mkdir(__stage_dir__)
+
 from .git_repo import GitRepo
 from .api import Api, Error
 from .sync import Sync
 from .config import Config
 from .results import Results
 
-#TODO: check directory?
-if os.path.exists(".wandb/"):
-    logging.basicConfig(
-        filemode="w",
-        filename='.wandb/debug.log',
-        level=logging.DEBUG)
+logging.basicConfig(
+    filemode="w",
+    filename=__stage_dir__+'debug.log',
+    level=logging.DEBUG)
 
 def push(*args, **kwargs):
     Api().push(*args, **kwargs)
