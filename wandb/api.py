@@ -5,7 +5,7 @@ import os, requests, ast
 from six.moves import configparser
 from functools import wraps
 import logging, hashlib, os, json, yaml
-from wandb import __version__, GitRepo
+from wandb import __version__, __stage_dir__, GitRepo
 from base64 import b64encode
 import binascii
 import click
@@ -101,6 +101,10 @@ class Api(object):
         else:
             self.config_file = "Not found"
         self.git = GitRepo(remote=self.config("git_remote"))
+        self._commit = self.git.last_commit
+                #TODO: put this elsewhere
+        if self.git.dirty:
+            self.git.repo.git.execute(['git', 'diff'], output_stream=open(__stage_dir__+'diff.patch', 'wb'))
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
@@ -322,7 +326,7 @@ class Api(object):
             description = None
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.config('entity'), 'name': name, 'project': project, 
-            'description': description, 'config': config, 'commit': commit or self.git.last_commit})
+            'description': description, 'config': config, 'commit': commit or self._commit})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -472,8 +476,8 @@ class Api(object):
     @property
     def latest_config(self):
         "The latest config parameters trained on"
-        if os.path.exists(".wandb/latest.yaml"):
-            config = yaml.load(open('.wandb/latest.yaml'))
+        if os.path.exists(__stage_dir__+'latest.yaml'):
+            config = yaml.load(open(__stage_dir__+'latest.yaml'))
             del config['wandb_version']
             return config
 

@@ -58,7 +58,7 @@ class Config(dict):
     @property
     def defaults_path(self):
         """Where to find the default configuration"""
-        return os.getcwd() + "/config.yaml"
+        return os.getcwd() + "/config-defaults.yaml"
 
     @property
     def keys(self):
