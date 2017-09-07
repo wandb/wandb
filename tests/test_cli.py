@@ -54,15 +54,12 @@ def test_version(runner):
 
 def test_config(runner, monkeypatch):
     with runner.isolated_filesystem():
-        monkeypatch.setattr(cli, 'api', Api())
         result = runner.invoke(cli.config, ["init"])
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert "wandb config set" in result.output
         assert os.path.exists("config-defaults.yaml")
-        assert os.path.exists(".wandb/config")
-        assert "cli_test" in open(".wandb/config").read()
 
 def test_config_show(runner, monkeypatch):
     with runner.isolated_filesystem():
@@ -105,11 +102,13 @@ def test_config_del(runner):
         print(traceback.print_tb(result.exc_info[2]))
         assert "1 parameters changed" in result.output
 
-def test_push(runner, request_mocker, query_project, upload_url, upsert_bucket):
+def test_push(runner, request_mocker, query_project, upload_url, upsert_bucket, monkeypatch):
     query_project(request_mocker)
     upload_url(request_mocker)
     update_mock = upsert_bucket(request_mocker)
     with runner.isolated_filesystem():
+        #So GitRepo is in this cwd
+        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
         os.mkdir(".wandb")
         with open(".wandb/latest.yaml", "w") as f:
             f.write(yaml.dump({'wandb_version': 1, 'test': {'value': 'success', 'desc': 'My life'}}))
@@ -161,11 +160,13 @@ def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url,
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
 
-def test_push_auto(runner, request_mocker, mocker, query_project, upload_url):
+def test_push_auto(runner, request_mocker, mocker, query_project, upload_url, monkeypatch):
     query_project(request_mocker)
     upload_url(request_mocker)
     edit_mock = mocker.patch("click.edit")
     with runner.isolated_filesystem():
+        #So GitRepo is in this cwd
+        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
         with open('weights.h5', 'wb') as f:
             f.write(os.urandom(5000))
         with open('fake.json', 'wb') as f:
@@ -281,6 +282,24 @@ def test_rm(runner):
         assert result.exit_code == 0
         assert "test.json" in result.output
         assert "test.h5" not in result.output
+
+def test_restore(runner, request_mocker, query_bucket, monkeypatch):
+    mock = query_bucket(request_mocker)
+    with runner.isolated_filesystem():
+        os.mkdir(".wandb")
+        repo = git_repo()
+        with open("patch.txt", "w") as f:
+            f.write("test")
+        repo.repo.index.add(["patch.txt"])
+        repo.repo.commit()
+        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
+        result = runner.invoke(cli.restore, ["test/abcdef"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Created branch wandb/abcdef" in result.output
+        assert "Applied patch" in result.output
+        assert "Restored config variables" in result.output
 
 def test_projects_error(runner, request_mocker, query_projects):
     query_projects(request_mocker, status_code=400)

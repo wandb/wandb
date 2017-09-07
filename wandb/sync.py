@@ -8,7 +8,7 @@ import atexit
 from threading import Thread
 from .config import Config
 import logging
-from wandb import __stage_dir__
+from wandb import __stage_dir__, Error
 logger = logging.getLogger(__name__)
 
 class Echo(object):
@@ -118,7 +118,7 @@ class Sync(object):
                 atexit.register(self.stop)
         except KeyboardInterrupt:
             self.stop()
-        except Exception:
+        except Error:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             print("!!! Fatal W&B Error: %s" % exc_value)
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)

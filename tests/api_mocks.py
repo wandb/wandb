@@ -40,6 +40,23 @@ def _bucket(name='test'):
         'files': _files()
     }
 
+def _bucket_config():
+    return {
+        'patch': '''
+diff --git a/patch.txt b/patch.txt
+index 30d74d2..9a2c773 100644
+--- a/patch.txt
++++ b/patch.txt
+@@ -1 +1 @@
+-test
+\ No newline at end of file
++testing
+\ No newline at end of file
+        ''',
+        'commit': 'HEAD',
+        'config': '{"foo":{"value":"bar"}}'
+    }
+
 def success_or_failure(payload=None, body_match="query"):
     def wrapper(mocker, status_code=200, error=None):
         if error:
@@ -85,6 +102,10 @@ def query_projects():
 @pytest.fixture
 def query_buckets():
     return _query('buckets', [_bucket("default"), _bucket("test_1")])
+
+@pytest.fixture
+def query_bucket():
+    return _query('model', {'bucket': _bucket_config()})
 
 @pytest.fixture
 def query_viewer():

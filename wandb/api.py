@@ -102,7 +102,6 @@ class Api(object):
             self.config_file = "Not found"
         self.git = GitRepo(remote=self.config("git_remote"))
         self._commit = self.git.last_commit
-                #TODO: put this elsewhere
         if self.git.dirty:
             self.git.repo.git.execute(['git', 'diff'], output_stream=open(__stage_dir__+'diff.patch', 'wb'))
         self.client = Client(
@@ -258,6 +257,7 @@ class Api(object):
                 bucket(name: $bucket) {
                     config
                     commit
+                    patch
                 }
             }
         }
@@ -268,8 +268,9 @@ class Api(object):
         })
         bucket = response['model']['bucket']
         commit = bucket['commit']
+        patch = bucket['patch']
         config = json.loads(bucket['config'] or '{}')
-        return (commit, config)
+        return (commit, config, patch)
 
     @normalize_exceptions
     def create_project(self, project, description=None, entity=None):
@@ -571,7 +572,6 @@ class Api(object):
                 raise Error("You have un-committed changes. Use the force flag or commit your changes.")
             elif self.git.dirty and os.path.exists(".wandb/"):
                 self.git.repo.git.execute(['git', 'diff'], output_stream=open('.wandb/diff.patch', 'wb'))
-                #self.git.repo.git.execute(['git', 'apply', '.wandb/diff.patch'])
             self.git.tag(name, description)
             result = self.git.push(name)
             if(result is None or len(result) is None):

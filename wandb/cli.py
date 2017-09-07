@@ -185,7 +185,7 @@ def describe():
 @display_error
 def restore(bucket, branch, project, entity):
     project, bucket = api.parse_slug(bucket, project=project)
-    commit, json_config = api.bucket_config(project, bucket=bucket, entity=entity)
+    commit, json_config, patch = api.bucket_config(project, bucket=bucket, entity=entity)
     if commit:
         branch_name = "wandb/%s" % bucket
         if branch and branch_name not in api.git.repo.branches:
@@ -197,6 +197,12 @@ def restore(bucket, branch, project, entity):
         else:
             click.secho("Checking out %s in detached mode" % commit)
             api.git.repo.git.checkout(commit)
+    
+    if patch:
+        with open(__stage_dir__+"diff.patch", "w") as f:
+            f.write(patch)
+        api.git.repo.git.execute(['git', 'apply', __stage_dir__+'diff.patch'])
+        click.echo("Applied patch")
 
     config = Config()
     config.load_json(json_config)
@@ -278,8 +284,8 @@ def push(ctx, bucket, project, description, entity, force, files):
                 choices=[c for c in candidates])])
             files = [LazyFile(choice, 'rb') for choice in choices['files']]
 
-    if len(files) > 5:
-        raise BadParameter("A maximum of 5 files can be in a single bucket.", param_hint="FILES")
+    if len(files) > 10:
+        raise BadParameter("A maximum of 10 files can be in a single bucket.", param_hint="FILES")
     #TODO: Deal with files in a sub directory
     api.push(project, files=[f.name for f in files], bucket=bucket, 
         description=description, entity=entity, force=force, progress=sys.stdout)
