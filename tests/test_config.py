@@ -41,7 +41,7 @@ def test_persist_initial():
 
 def test_invalid_yaml():
     with CliRunner().isolated_filesystem():
-        with open("config.yaml", "w") as f:
+        with open("config-defaults.yaml", "w") as f:
             f.write("{{a1932 }")
         with pytest.raises(wandb.Error):
             wandb.Config()

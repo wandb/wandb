@@ -6,6 +6,7 @@ import netrc, signal, time
 import six, time, inquirer, yaml
 import git
 import webbrowser
+import wandb
 
 @pytest.fixture
 def runner(monkeypatch):
@@ -53,11 +54,6 @@ def test_version(runner):
 
 def test_config(runner, monkeypatch):
     with runner.isolated_filesystem():
-        with open('.wandb', 'w') as f:
-            f.write("""[default]
-project: cli_test
-entity: cli_test
-            """)
         monkeypatch.setattr(cli, 'api', Api())
         result = runner.invoke(cli.config, ["init"])
         print(result.output)
@@ -70,7 +66,7 @@ entity: cli_test
 
 def test_config_show(runner, monkeypatch):
     with runner.isolated_filesystem():
-        with open("config.yaml", "w") as f:
+        with open("config-defaults.yaml", "w") as f:
             f.write(yaml.dump({'val': {'value': 'awesome', 'desc': 'cool'}, 'bad': {'value':'shit'}}))
         result_py = runner.invoke(cli.config, ["show"])
         result_yml = runner.invoke(cli.config, ["show", "--format", "yaml"])
@@ -101,7 +97,7 @@ def test_config_set(runner):
 
 def test_config_del(runner):
     with runner.isolated_filesystem():
-        with open("config.yaml", "w") as f:
+        with open("config-defaults.yaml", "w") as f:
             f.write(yaml.dump({'val': {'value': 'awesome', 'desc': 'cool'}, 'bad': {'value':'shit'}}))
         result = runner.invoke(cli.config, ["del", "bad"])
         print(result.output)
