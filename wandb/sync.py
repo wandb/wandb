@@ -29,8 +29,8 @@ class Echo(object):
         self.thread.join()
         if failed:
             #TODO: unfortunate line_buffer access
-            self.log.push([[self.log.line_buffer.line_number + 1, "ERROR: %s" % failed, "error"]])
-            sys.stderr.write("ERROR: %s" % failed)
+            self.log.push([[self.log.line_buffer.line_number + 1, "ERROR: %s\n" % failed, "error"]])
+            sys.stderr.write("ERROR: %s\n" % failed)
             failed = True
         self.log.heartbeat(complete=True, failed=failed)
 
@@ -41,15 +41,17 @@ class ExitHooks(object):
 
     def hook(self):
         self._orig_exit = sys.exit
+        self._orig_excepthook = sys.excepthook
         sys.exit = self.exit
-        sys.excepthook = self.exc_handler
+        sys.excepthook = self.excepthook
 
     def exit(self, code=0):
         self.exit_code = code
         self._orig_exit(code)
 
-    def exc_handler(self, exc_type, exc, *args):
+    def excepthook(self, exc_type, exc, *args):
         self.exception = exc
+        self._orig_excepthook(exc_type, exc, *args)
 
 class Sync(object):
     """Watches for files to change and automatically pushes them
@@ -125,8 +127,13 @@ class Sync(object):
             logger.error('\n'.join(lines))
 
     def stop(self):
-        #Wait for changes
-        time.sleep(0.1)
+        # This is a a heuristic delay to catch files that were written just before
+        # the end of the script. This is unverified, but theoretically the file
+        # change notification process used by watchdog (maybe inotify?) is
+        # asynchronous. It's possible we could miss files if 10s isn't long enough.
+        # TODO: Guarantee that all files will be saved.
+        print("Script ended, waiting for final file modifications.")
+        time.sleep(10.0)
         self.log.tempfile.flush()
         print("Pushing log")
         slug = "{project}/{run}".format(
