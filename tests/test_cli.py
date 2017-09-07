@@ -64,7 +64,7 @@ entity: cli_test
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert "wandb config set" in result.output
-        assert os.path.exists("config.yaml")
+        assert os.path.exists("config-defaults.yaml")
         assert os.path.exists(".wandb/config")
         assert "cli_test" in open(".wandb/config").read()
 

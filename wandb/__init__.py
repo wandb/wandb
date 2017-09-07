@@ -5,18 +5,17 @@ __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.17'
 
 import types, sys, logging, os
+
+__stage_dir__ = ".wandb/"
+if not os.path.exists(__stage_dir__):
+    __stage_dir__ = "/tmp/.wandb/"
+    os.mkdir(__stage_dir__)
+
 from .git_repo import GitRepo
 from .api import Api, Error
 from .sync import Sync
 from .config import Config
 from .results import Results
-
-
-if os.path.exists(".wandb/"):
-    __stage_dir__ = ".wandb/"
-else:
-    __stage_dir__ = "/tmp/.wandb/"
-    os.mkdir(__stage_dir__)
 
 logging.basicConfig(
     filemode="w",
