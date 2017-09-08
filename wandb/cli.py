@@ -331,8 +331,11 @@ def login():
         click.echo('Opening [{0}] in a new tab in your default browser.'.format(url))
     else:
         click.echo("You can find your API keys here: {0}".format(url))
+
     key = click.prompt("{warning} Paste an API key from your profile".format(
-            warning=click.style("Not authenticated!", fg="red")), default="")
+            warning=click.style("Not authenticated!", fg="red")),
+            value_proc=lambda x: x.strip())
+    
     host = api.config()['base_url']
     if key:
         #TODO: get the username here...
@@ -346,9 +349,11 @@ def init(ctx):
     if(os.path.exists(".wandb")):
         click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
     click.echo(click.style("Let's setup this directory for W&B!", fg="green", bold=True))
+    global api
     
     if api.api_key is None:
         ctx.invoke(login)
+        api = Api()
 
     entity = click.prompt("What username or org should we use?", default=api.viewer().get('entity', 'models'))
     #TODO: handle the case of a missing entity

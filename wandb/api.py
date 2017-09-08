@@ -185,7 +185,7 @@ class Api(object):
             }
         }
         ''')
-        return self.client.execute(query).get('viewer', {})
+        return self.client.execute(query).get('viewer') or {}
 
     @normalize_exceptions
     def list_projects(self, entity=None):

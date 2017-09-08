@@ -5,6 +5,9 @@ __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.18'
 
 import types, sys, logging, os
+from six import PY2
+if PY2:
+    FileExistsError = OSError
 
 __stage_dir__ = ".wandb/"
 if not os.path.exists(__stage_dir__):
