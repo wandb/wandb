@@ -7,9 +7,14 @@ from shortuuid import ShortUUID
 import atexit
 from threading import Thread
 from .config import Config
-import logging, socket
+import logging, socket, click
 from wandb import __stage_dir__, Error
 logger = logging.getLogger(__name__)
+
+def editor(content='', marker='# Before we start this run, enter a brief description.\n'):
+    message = click.edit(content + '\n\n' + marker)
+    if message is not None:
+        return message.split(marker, 1)[0].rstrip('\n')
 
 class Echo(object):
     def __init__(self, log):
@@ -64,7 +69,13 @@ class Sync(object):
         self._entity = api.config("entity")
         logger.debug("Initialized sync for %s/%s", self._project, self.run)
         self._dpath = ".wandb/description.md"
-        self._description = description or os.path.exists(self._dpath) and open(self._dpath).read()
+        self._description = description or (os.path.exists(self._dpath) and open(self._dpath).read()) or os.getenv('WANDB_DESCRIPTION')
+        try:
+            self.tty = sys.stdin.isatty() and os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno())
+        except OSError:
+            self.tty = False
+        if not self._description and self.tty:
+            self._description = editor()
         self.config = Config(config)
         self._proc = psutil.Process(os.getpid())
         self._api = api
@@ -104,7 +115,7 @@ class Sync(object):
                 ), {"diff.patch": open(__stage_dir__+"diff.patch", "rb")})
             self._observer.start()
             print("Syncing %s" % self.url)
-            # Piped mode
+            # Piped mode TODO: remove this gimic
             if self.source_proc:
                 self.log.write(" ".join(self.source_proc.cmdline())+"\n\n")
                 line = sys.stdin.readline()
