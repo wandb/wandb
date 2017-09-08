@@ -1,4 +1,4 @@
-import numpy as np
+import operator
 import os
 
 from wandb import history
@@ -46,18 +46,18 @@ class WandBKerasCallback(object):
             mode = 'auto'
 
         if mode == 'min':
-            self.monitor_op = np.less
-            self.best = np.Inf
+            self.monitor_op = operator.lt
+            self.best = float('inf')
         elif mode == 'max':
-            self.monitor_op = np.greater
-            self.best = -np.Inf
+            self.monitor_op = operator.gt
+            self.best = float('-inf')
         else:
             if 'acc' in self.monitor or self.monitor.startswith('fmeasure'):
-                self.monitor_op = np.greater
-                self.best = -np.Inf
+                self.monitor_op = operator.gt
+                self.best = float('-inf')
             else:
-                self.monitor_op = np.less
-                self.best = np.Inf
+                self.monitor_op = operator.lt
+                self.best = float('inf')
 
     def set_params(self, params):
         self.params = params
