@@ -298,7 +298,7 @@ class Api(object):
         return response['upsertModel']['model']
     
     @normalize_exceptions
-    def upsert_bucket(self, id=None, name=None, project=None, config=None, description=None, entity=None, commit=None):
+    def upsert_bucket(self, id=None, name=None, project=None, host=None, config=None, description=None, entity=None, commit=None):
         """Update a bucket
 
         Args:
@@ -311,8 +311,8 @@ class Api(object):
             commit (str, optional): The Git SHA to associate the bucket with 
         """
         mutation = gql('''
-        mutation UpsertBucket($id: String, $name: String, $project: String, $entity: String!, $description: String, $commit: String, $config: JSONString)  {
-            upsertBucket(input: { id: $id, name: $name, modelName: $project, entityName: $entity, description: $description, config: $config, commit: $commit }) {
+        mutation UpsertBucket($id: String, $name: String, $project: String, $entity: String!, $description: String, $commit: String, $config: JSONString, $host: String)  {
+            upsertBucket(input: { id: $id, name: $name, modelName: $project, entityName: $entity, description: $description, config: $config, commit: $commit, host: $host }) {
                 bucket {
                     name
                     description
@@ -327,7 +327,7 @@ class Api(object):
             description = None
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.config('entity'), 'name': name, 'project': project, 
-            'description': description, 'config': config, 'commit': commit or self._commit})
+            'description': description, 'config': config, 'commit': commit or self._commit, 'host': host})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions

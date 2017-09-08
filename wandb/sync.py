@@ -7,7 +7,7 @@ from shortuuid import ShortUUID
 import atexit
 from threading import Thread
 from .config import Config
-import logging
+import logging, socket
 from wandb import __stage_dir__, Error
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ class Sync(object):
         try:
             #TODO: better failure handling
             self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity, 
-                config=self.config.__dict__, description=self._description)
+                config=self.config.__dict__, description=self._description, host=socket.gethostname())
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
             # temporary until we switch to sending all files within a dedicated run

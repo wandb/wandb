@@ -374,7 +374,7 @@ def init(ctx):
         file.write("[default]\nentity: {entity}\nproject: {project}".format(entity=entity, project=project))
 
     with open(".wandb/.gitignore", "w") as file:
-        file.write("diff.patch\ndescription.md\nlatest.yaml\ndebug.log")
+        file.write("*\n!config")
 
     click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+ 
         """
