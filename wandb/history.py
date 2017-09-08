@@ -14,7 +14,6 @@ class History(object):
     def __init__(self, field_names, out_dir='.'):
         self.out_file = open(os.path.join(out_dir, HISTORY_FNAME), 'w')
         self.out_csv = csv.DictWriter(self.out_file, fieldnames=field_names)
-        print('FIELD_NAMES', field_names)
         self.out_csv.writeheader()
         self.out_file.flush()
     
