@@ -1,5 +1,9 @@
 import json
-import numpy as np
+#TODO: get rid of this
+try:
+    import numpy as np
+except ModuleNotFoundError:
+    pass
 
 class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
