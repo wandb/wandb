@@ -92,6 +92,9 @@ class Sync(object):
                 config=self.config.__dict__, description=self._description)
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
+            # temporary until we switch to sending all files within a dedicated run
+            # directory.
+            self._handler._patterns += ['*wandb-summary.json', '*wandb-history.csv']
             # Ignore hidden files/folders
             self._handler._ignore_patterns = ['*/.*']
             if os.path.exists(__stage_dir__+"diff.patch"):
