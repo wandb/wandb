@@ -25,11 +25,8 @@ class WandBKerasCallback(object):
     
         Args:
             out_dir: Directory to save history/summary files in.
-            summary_strategy: A dict of <metric_name>:<'min'|'max'|'latest'>
-                pairs. Defaults to 'latest' for metric names that aren't
-                provided. If strategy is 'min' for we keep the minimum
-                value seen for that key. If 'max' we keep maximum, if
-                'latest' we keep the most recent.
+            See keras.ModelCheckpoint for other definitions of other
+                arguments.
         """
         self.validation_data = None
         self.out_dir = out_dir
