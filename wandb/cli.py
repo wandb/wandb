@@ -15,7 +15,7 @@ def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
-        print("Appending to netrc %s" % os.path.expanduser('~/.netrc')) 
+        print("Appending to netrc %s" % os.path.expanduser('~/.netrc'))
         with open(os.path.expanduser('~/.netrc'), 'a') as f:
             f.write("""machine {host}
         login {entity}
@@ -37,14 +37,14 @@ def display_error(func):
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.error('\n'.join(lines))
             raise ClickException(e)
-            
+
     return wrapper
 
 def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
     message = click.edit(content + '\n\n' + marker)
     if message is not None:
         return message.split(marker, 1)[0].rstrip('\n')
-        
+
 api = Api()
 #TODO: Is this the best way to do this?
 CONTEXT=dict(default_map=api.config())
@@ -80,7 +80,7 @@ class BucketGroup(click.Group):
 def cli(ctx):
     """Weights & Biases
 
-If no command is specified and input is piped, the source command and it's 
+If no command is specified and input is piped, the source command and it's
 output will be saved to the bucket and the files uploaded when modified.
 
    ./train.sh arg1 arg2 | wandb imagenet/v2 model.json weights.h5
@@ -116,8 +116,8 @@ def buckets(project, entity):
     buckets = api.list_buckets(project, entity=entity)
     for bucket in buckets:
         click.echo("".join(
-            (click.style(bucket['name'], fg="blue", bold=True), 
-            " - ", 
+            (click.style(bucket['name'], fg="blue", bold=True),
+            " - ",
             (bucket['description'] or "").split("\n")[0])
         ))
 
@@ -197,7 +197,7 @@ def restore(bucket, branch, project, entity):
         else:
             click.secho("Checking out %s in detached mode" % commit)
             api.git.repo.git.checkout(commit)
-    
+
     if patch:
         with open(__stage_dir__+"diff.patch", "w") as f:
             f.write(patch)
@@ -247,9 +247,9 @@ def rm(files, project):
     with open('.wandb/config', 'w') as configfile:
         parser.write(configfile)
     click.echo(click.style('Staged files for "%s": ' % project, bold=True) + ", ".join(existing))
-    
+
 @cli.command(context_settings=CONTEXT, help="Push files to Weights & Biases")
-@click.argument("bucket", envvar='WANDB_BUCKET')
+@click.argument("run", envvar='WANDB_RUN')
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @click.option("--description", "-m", help="A description to associate with this upload.")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
@@ -257,17 +257,15 @@ def rm(files, project):
 @click.argument("files", type=click.File('rb'), nargs=-1)
 @click.pass_context
 @display_error
-def push(ctx, bucket, project, description, entity, force, files):
+def push(ctx, run, project, description, entity, force, files):
     #TODO: do we support the case of a bucket with the same name as a file?
-    if os.path.exists(bucket):
-        raise BadParameter("Bucket is required if files are specified.")
-    project, bucket = api.parse_slug(bucket, project=project)
+    if os.path.exists(run):
+        raise BadParameter("Run id is required if files are specified.")
+    project, run = api.parse_slug(run, project=project)
 
-    click.echo("Updating project: {project}/{bucket}".format(
-        project=click.style(project, bold=True), bucket=bucket))
-    if description is None:
-        description = editor()
-    
+    click.echo("Updating run: {project}/{run}".format(
+        project=click.style(project, bold=True), run=run))
+
     candidates = []
     if len(files) == 0:
         if api.config().get("files"):
@@ -276,34 +274,34 @@ def push(ctx, bucket, project, description, entity, force, files):
         else:
             patterns = ("*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*")
             for pattern in patterns:
-                candidates.extend(glob.glob(pattern))          
+                candidates.extend(glob.glob(pattern))
             if len(candidates) == 0:
                 raise BadParameter("Couldn't auto-detect files, specify manually or use `wandb.add`", param_hint="FILES")
 
-            choices = inquirer.prompt([inquirer.Checkbox('files', message="Which files do you want to push? (left and right arrows to select)", 
+            choices = inquirer.prompt([inquirer.Checkbox('files', message="Which files do you want to push? (left and right arrows to select)",
                 choices=[c for c in candidates])])
             files = [LazyFile(choice, 'rb') for choice in choices['files']]
 
     if len(files) > 10:
         raise BadParameter("A maximum of 10 files can be in a single bucket.", param_hint="FILES")
     #TODO: Deal with files in a sub directory
-    api.push(project, files=[f.name for f in files], bucket=bucket, 
+    api.push(project, files=[f.name for f in files], bucket=run,
         description=description, entity=entity, force=force, progress=sys.stdout)
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
-@click.argument("bucket", envvar='WANDB_BUCKET')
+@click.argument("run", envvar='WANDB_RUN')
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you want to download.")
 @click.option("--kind", "-k", default="all", type=click.Choice(['all', 'model', 'weights', 'other']))
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def pull(project, bucket, kind, entity):
-    project, bucket = api.parse_slug(bucket, project=project)
+def pull(project, run, kind, entity):
+    project, run = api.parse_slug(run, project=project)
 
-    urls = api.download_urls(project, bucket=bucket, entity=entity)
+    urls = api.download_urls(project, bucket=run, entity=entity)
     if len(urls) == 0:
-        raise ClickException("Bucket is empty")
-    click.echo("Downloading: {project}/{bucket}".format(
-        project=click.style(project, bold=True), bucket=bucket
+        raise ClickException("Run has no files")
+    click.echo("Downloading: {project}/{run}".format(
+        project=click.style(project, bold=True), run=run
     ))
 
     for name in urls:
@@ -335,7 +333,7 @@ def login():
     key = click.prompt("{warning} Paste an API key from your profile".format(
             warning=click.style("Not authenticated!", fg="red")),
             value_proc=lambda x: x.strip())
-    
+
     host = api.config()['base_url']
     if key:
         #TODO: get the username here...
@@ -350,7 +348,7 @@ def init(ctx):
         click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
     click.echo(click.style("Let's setup this directory for W&B!", fg="green", bold=True))
     global api
-    
+
     if api.api_key is None:
         ctx.invoke(login)
         api = Api()
@@ -362,7 +360,7 @@ def init(ctx):
     if len(result) == 0:
         project = click.prompt("Enter a name for your first project")
         description = editor()
-        api.create_project(project, entity=entity, description=description)
+        api.upsert_project(project, entity=entity, description=description)
     else:
         project_names = [project["name"] for project in result]
         question = inquirer.List('project', message="Which project should we use?", choices=project_names + ["Create New"])
@@ -371,7 +369,11 @@ def init(ctx):
         if project == "Create New":
             project = click.prompt("Enter a name for your new project")
             description = editor()
-            api.create_project(project, entity=entity, description=description)
+            api.upsert_project(project, entity=entity, description=description)
+        else:
+            ids = [res['id'] for res in result if res['name'] == project]
+            if len(ids) > 0:
+                api.upsert_project(project, id=ids[0], entity=entity)
 
     ctx.invoke(config_init, False)
 
@@ -381,15 +383,15 @@ def init(ctx):
     with open(".wandb/.gitignore", "w") as file:
         file.write("*\n!config")
 
-    click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+ 
+    click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+
         """
 * Track runs by calling sync in your training script `{flags}`.
 * Run `{push}` to manually add a file.
 * `{config}` to add or change configuration defaults.
 * Pull popular models into your project with: `{pull}`.
     """.format(
-        push=click.style("wandb push weights.h5", bold=True),
-        flags=click.style("import wandb; conf = wandb.sync(config=tf.__FLAGS__)", bold=True),
+        push=click.style("wandb push run_id weights.h5", bold=True),
+        flags=click.style("import wandb; run = wandb.sync(config=tf.__FLAGS__)", bold=True),
         config=click.style("wandb config set batch_size=10", bold=True),
         pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
@@ -400,10 +402,10 @@ def init(ctx):
 def config(ctx):
     """Manage this projects configuration.
 
-Examples: 
+Examples:
 
     wandb config set param=2 --description="Some tunning parameter"
-    wandb config del param                                          
+    wandb config del param
     wandb config show
     """
     pass

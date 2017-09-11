@@ -119,7 +119,7 @@ def test_push(runner, request_mocker, query_project, upload_url, upsert_bucket, 
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "Updating project: test/default" in result.output
+        assert "Updating run: test/default" in result.output
         assert update_mock.called
 
 def test_push_no_bucket(runner):
@@ -131,7 +131,7 @@ def test_push_no_bucket(runner):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 2
-        assert "Bucket is required if files are specified." in result.output
+        assert "Run id is required if files are specified." in result.output
 
 def test_push_dirty_git(runner):
     with runner.isolated_filesystem():
@@ -171,7 +171,7 @@ def test_push_auto(runner, request_mocker, mocker, query_project, upload_url, mo
             f.write(os.urandom(5000))
         with open('fake.json', 'wb') as f:
             f.write(os.urandom(100))
-        result = runner.invoke(cli.push, ['--project', 'test', '-m', 'Testing'])
+        result = runner.invoke(cli.push, ['test', '--project', 'test', '-m', 'Testing'])
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
@@ -184,13 +184,13 @@ def test_pull(runner, request_mocker, query_project, download_url):
     query_project(request_mocker)
     download_url(request_mocker)
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.pull, ['--project', 'test'])
-        
+        result = runner.invoke(cli.pull, ['test', '--project', 'test'])
+
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "Downloading: test/default" in result.output
+        assert "Downloading: test/test" in result.output
         assert os.path.isfile("weights.h5")
         assert "File model.json" in result.output
         assert "File weights.h5" in result.output
@@ -200,7 +200,7 @@ def test_pull_custom_bucket(runner, request_mocker, query_project, download_url)
     download_url(request_mocker)
     with runner.isolated_filesystem():
         result = runner.invoke(cli.pull, ['test/test'])
-        
+
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
@@ -210,12 +210,12 @@ def test_pull_custom_bucket(runner, request_mocker, query_project, download_url)
 def test_pull_empty_bucket(runner, request_mocker, query_empty_project, download_url):
     query_empty_project(request_mocker)
     result = runner.invoke(cli.pull, ['test/test'])
-    
+
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 1
-    assert "Bucket is empty" in result.output
+    assert "Run has no files" in result.output
 
 def test_projects(runner, request_mocker, query_projects):
     query_projects(request_mocker)

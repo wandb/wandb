@@ -6,10 +6,14 @@ from freezegun import freeze_time
 
 import wandb, time
 
+def mock_stop(*args):
+    pass
+
 def test_watches_for_all_changes(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
         sync = wandb.Sync(api, "test")
+        sync.stop = mock_stop
         sync.watch(['*'])
         with open("some_file.h5", "w") as f:
             f.write("My great changes")
@@ -22,6 +26,7 @@ def test_watches_for_specific_change(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
         sync = wandb.Sync(api, "test")
+        sync.stop = mock_stop
         sync.watch(["rad.txt"])
         with open("rad.txt", "a") as f:
             f.write("something great")
@@ -32,6 +37,7 @@ def test_watches_for_subdir_change(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
         sync = wandb.Sync(api, "test")
+        sync.stop = mock_stop
         sync.watch(["./subdir/*.txt"])
         os.mkdir('subdir')
         with open("subdir/rad.txt", "a") as f:
@@ -43,6 +49,7 @@ def test_ignores_hidden_folders(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
         sync = wandb.Sync(api, "test")
+        sync.stop = mock_stop
         sync.watch(["*"])
         os.mkdir('.subdir')
         with open(".subdir/rad.txt", "a") as f:
@@ -54,6 +61,7 @@ def test_watches_for_glob_change(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
         sync = wandb.Sync(api, "test")
+        sync.stop = mock_stop
         sync.watch(["*.txt"])
         with open("file.txt", "a") as f:
             f.write("great")
@@ -67,6 +75,7 @@ def test_syncs_log(mocker, upload_logs, upsert_bucket, request_mocker):
         with freeze_time("1981-12-09 12:00:01"):
             sync = wandb.Sync(api)
         log_mock = upload_logs(request_mocker, sync.run)
+        sync.stop = mock_stop
         sync.watch('*')
         assert run_mock.called
         print("My logger")

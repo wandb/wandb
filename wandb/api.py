@@ -195,13 +195,14 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
         Returns:
-                [{"name","description"}]
+                [{"id","name","description"}]
         """
         query = gql('''
         query Models($entity: String!) {
             models(first: 10, entityName: $entity) {
                 edges {
                     node {
+                        id
                         name
                         description
                     }
@@ -273,7 +274,7 @@ class Api(object):
         return (commit, config, patch)
 
     @normalize_exceptions
-    def create_project(self, project, description=None, entity=None):
+    def upsert_project(self, project, id=None, description=None, entity=None):
         """Create a new project
 
         Args:
@@ -282,8 +283,8 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.
         """
         mutation = gql('''
-        mutation UpsertModel($name: String!, $entity: String!, $description: String, $repo: String)  {
-            upsertModel(input: { name: $name, entityName: $entity, description: $description, repo: $repo }) {
+        mutation UpsertModel($name: String!, $id: String, $entity: String!, $description: String, $repo: String)  {
+            upsertModel(input: { id: $id, name: $name, entityName: $entity, description: $description, repo: $repo }) {
                 model {
                     name
                     description
@@ -294,9 +295,9 @@ class Api(object):
 
         response = self.client.execute(mutation, variable_values={
             'name': project, 'entity': entity or self.config('entity'),
-            'description': description, 'repo': self.git.remote_url})
+            'description': description, 'repo': self.git.remote_url, 'id': id})
         return response['upsertModel']['model']
-    
+
     @normalize_exceptions
     def upsert_bucket(self, id=None, name=None, project=None, host=None, config=None, description=None, entity=None, commit=None):
         """Update a bucket
@@ -304,15 +305,33 @@ class Api(object):
         Args:
             id (str, optional): The existing bucket to update
             name (str, optional): The name of the bucket to create
-            project (str, optional): The name of the project 
+            project (str, optional): The name of the project
             config (dict, optional): The latest config params
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
-            commit (str, optional): The Git SHA to associate the bucket with 
+            commit (str, optional): The Git SHA to associate the bucket with
         """
         mutation = gql('''
-        mutation UpsertBucket($id: String, $name: String, $project: String, $entity: String!, $description: String, $commit: String, $config: JSONString, $host: String)  {
-            upsertBucket(input: { id: $id, name: $name, modelName: $project, entityName: $entity, description: $description, config: $config, commit: $commit, host: $host }) {
+        mutation UpsertBucket(
+            $id: String, $name: String,
+            $project: String,
+            $entity: String!,
+            $description: String,
+            $commit: String,
+            $config: JSONString,
+            $host: String,
+            $debug: Boolean
+        ) {
+            upsertBucket(input: {
+                id: $id, name: $name,
+                modelName: $project,
+                entityName: $entity,
+                description: $description,
+                config: $config,
+                commit: $commit,
+                host: $host,
+                debug: $debug
+            }) {
                 bucket {
                     name
                     description
@@ -326,8 +345,9 @@ class Api(object):
         if not description:
             description = None
         response = self.client.execute(mutation, variable_values={
-            'id': id, 'entity': entity or self.config('entity'), 'name': name, 'project': project, 
-            'description': description, 'config': config, 'commit': commit or self._commit, 'host': host})
+            'id': id, 'entity': entity or self.config('entity'), 'name': name, 'project': project,
+            'description': description, 'config': config, 'commit': commit or self._commit,
+            'host': host, 'debug': os.getenv('DEBUG')})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -345,7 +365,7 @@ class Api(object):
             Includes bucket_id for updating config, description, etc. while uploading.
 
                 {
-                    'weights.h5': { "url": "https://weights.url" }, 
+                    'weights.h5': { "url": "https://weights.url" },
                     'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
                     'bucket_id': 'abcdefg12345'
                 }
@@ -392,7 +412,7 @@ class Api(object):
             A dict of extensions and urls
 
                 {
-                    'weights.h5': { "url": "https://weights.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' }, 
+                    'weights.h5': { "url": "https://weights.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
                     'model.json': { "url": "https://model.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' }
                 }
         """
@@ -419,7 +439,7 @@ class Api(object):
             'entity': entity or self.config('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
         return {file['name']: file for file in files}
-    
+
     @normalize_exceptions
     def download_file(self, url):
         """Initiate a streaming download
@@ -587,4 +607,3 @@ class Api(object):
     def _flatten_edges(self, response):
         """Return an array from the nested graphql relay structure"""
         return [node['node'] for node in response['edges']]
-        

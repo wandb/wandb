@@ -11,7 +11,7 @@ import logging, socket, click
 from wandb import __stage_dir__, Error
 logger = logging.getLogger(__name__)
 
-def editor(content='', marker='# Before we start this run, enter a brief description.\n'):
+def editor(content='', marker='# Before we start this run, enter a brief description. (to skip, direct stdin to dev/null: `python train.py < /dev/null`)\n'):
     message = click.edit(content + '\n\n' + marker)
     if message is not None:
         return message.split(marker, 1)[0].rstrip('\n')
@@ -20,6 +20,7 @@ class Echo(object):
     def __init__(self, log):
         self.terminal = sys.stdout
         self.log = log
+        self.thread = None
 
     def write(self, message):
         self.terminal.write(message)
@@ -31,7 +32,8 @@ class Echo(object):
         self.terminal.flush()
 
     def close(self, failed=False):
-        self.thread.join()
+        if self.thread:
+            self.thread.join()
         if failed:
             #TODO: unfortunate line_buffer access
             self.log.push([[self.log.line_buffer.line_number + 1, "ERROR: %s\n" % failed, "error"]])
@@ -74,7 +76,7 @@ class Sync(object):
             self.tty = sys.stdin.isatty() and os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno())
         except OSError:
             self.tty = False
-        if not self._description and self.tty:
+        if not os.getenv('DEBUG') and not self._description and self.tty:
             self._description = editor()
         self.config = Config(config)
         self._proc = psutil.Process(os.getpid())
@@ -99,7 +101,7 @@ class Sync(object):
     def watch(self, files):
         try:
             #TODO: better failure handling
-            self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity, 
+            self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity,
                 config=self.config.__dict__, description=self._description, host=socket.gethostname())
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
@@ -128,7 +130,8 @@ class Sync(object):
             else:
                 self.log.write(" ".join(psutil.Process(os.getpid()).cmdline())+"\n\n")
                 # let's hijack stdout
-                sys.stdout = Echo(self.log)
+                self._echo = Echo(self.log)
+                sys.stdout = self._echo
                 logger.debug("Swapped stdout")
                 #TODO: stderr
                 atexit.register(self.stop)
@@ -157,7 +160,7 @@ class Sync(object):
         self._api.push(slug, {"training.log": open(self.log.tempfile.name, "rb")})
         os.path.exists(self._dpath) and os.remove(self._dpath)
         print("Synced %s" % self.url)
-        sys.stdout.close(failed=self._hooks.exception)
+        self._echo.close(failed=self._hooks.exception)
         self.log.close()
         try:
             self._observer.stop()
@@ -182,7 +185,8 @@ class Sync(object):
             debugLog = logger.parent.handlers[0].stream
         else:
             debugLog = None
-        self._api.push(self._project, [fileName], bucket=self.run, 
+        print("Pushing %s" % fileName)
+        self._api.push(self._project, [fileName], bucket=self.run,
                        description=self._description, progress=debugLog)
 
     @property
