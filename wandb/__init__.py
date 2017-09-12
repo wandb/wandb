@@ -9,7 +9,11 @@ from six import PY2
 if PY2:
     FileExistsError = OSError
 
-__stage_dir__ = ".wandb/"
+# We use the hidden version if it already exists, otherwise non-hidden.
+if os.path.exists('.wandb'):
+    __stage_dir__ = '.wandb/'
+else:
+    __stage_dir__ = "wandb/"
 if not os.path.exists(__stage_dir__):
     try:
         os.mkdir(__stage_dir__)

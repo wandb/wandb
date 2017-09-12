@@ -69,7 +69,7 @@ class Api(object):
 
     Note:
         Settings are automatically overridden by looking for
-        a `.wandb/settings` file in the current working directory or it's parent
+        a `wandb/settings` file in the current working directory or it's parent
         directory.  If none can be found, we look in the current users home
         directory.
 
@@ -94,8 +94,8 @@ class Api(object):
         self.tagged = False
         if load_settings:
             files = self._settings_parser.read([
-                os.path.expanduser('~/.wandb/config'), os.getcwd() + "/../.wandb/config",
-                os.getcwd() + "/.wandb/config"
+                os.path.expanduser('~/.wandb/settings'),
+                os.path.join(os.getcwd(), __stage_dir__, 'settings')
             ])
             self.settings_file = files[0] if len(files) > 0 else "Not found"
         else:
@@ -128,7 +128,7 @@ class Api(object):
         return key
 
     def settings(self, key=None, section=None):
-        """The settings overridden from the .wandb/settings file.
+        """The settings overridden from the wandb/settings file.
 
         Args:
             key (str, optional): If provided only this setting is returned
@@ -590,8 +590,8 @@ class Api(object):
             print("Tagging your git repo...")
             if not force and self.git.dirty:
                 raise Error("You have un-committed changes. Use the force flag or commit your changes.")
-            elif self.git.dirty and os.path.exists(".wandb/"):
-                self.git.repo.git.execute(['git', 'diff'], output_stream=open('.wandb/diff.patch', 'wb'))
+            elif self.git.dirty and os.path.exists(__stage_dir__):
+                self.git.repo.git.execute(['git', 'diff'], output_stream=open(os.path.join(__stage_dir__, 'diff.patch'), 'wb'))
             self.git.tag(name, description)
             result = self.git.push(name)
             if(result is None or len(result) is None):

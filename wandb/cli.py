@@ -142,7 +142,7 @@ def status(bucket, settings, project):
         click.echo(click.style("Logged in?", bold=True) + " %s\n" % bool(api.api_key))
     project, bucket = api.parse_slug(bucket, project=project)
     parser = api._settings_parser
-    parser.read(".wandb/config")
+    parser.read(os.path.join(__stage_dir__, 'settings'))
     if parser.has_option("default", "files"):
         existing = set(parser.get("default", "files").split(","))
     else:
@@ -218,7 +218,7 @@ def restore(bucket, branch, project, entity):
 @display_error
 def add(files, project):
     parser = api._settings_parser
-    parser.read(".wandb/config")
+    parser.read(os.path.join(__stage_dir__, 'settings'))
     if not parser.has_section("default"):
         raise ClickException("Directory not configured, run `wandb init` before adding files.")
     if parser.has_option("default", "files"):
@@ -227,7 +227,7 @@ def add(files, project):
         existing = []
     stagedFiles = set(existing + [file.name for file in files])
     parser.set("default", "files", ",".join(stagedFiles))
-    with open('.wandb/config', 'w') as configfile:
+    with open(os.path.join(__stage_dir__, 'settings'), 'w') as configfile:
         parser.write(configfile)
     click.echo(click.style('Staged files for "%s": ' % project, bold=True) + ", ".join(stagedFiles))
 
@@ -237,7 +237,7 @@ def add(files, project):
 @display_error
 def rm(files, project):
     parser = api._settings_parser
-    parser.read(".wandb/config")
+    parser.read(os.path.join(__stage_dir__, 'settings'))
     if parser.has_option("default", "files"):
         existing = parser.get("default", "files").split(",")
     else:
@@ -247,7 +247,7 @@ def rm(files, project):
             raise ClickException("%s is not staged" % file)
         existing.remove(file)
     parser.set("default", "files", ",".join(existing))
-    with open('.wandb/config', 'w') as configfile:
+    with open(os.path.join(__stage_dir__, 'settings'), 'w') as configfile:
         parser.write(configfile)
     click.echo(click.style('Staged files for "%s": ' % project, bold=True) + ", ".join(existing))
 
@@ -347,8 +347,10 @@ def login():
 @click.pass_context
 @display_error
 def init(ctx):
-    if(os.path.exists(".wandb")):
-        click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
+    # TODO: This is commented out because we always automatically create this dir in __init__.py
+    # however this isn't ideal, we'll litter the filesystem with wandb directories.
+    #if(os.path.exists(__stage_dir__)):
+    #    click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
     click.echo(click.style("Let's setup this directory for W&B!", fg="green", bold=True))
     global api
 
@@ -380,10 +382,10 @@ def init(ctx):
 
     ctx.invoke(config_init, False)
 
-    with open(".wandb/config", "w") as file:
+    with open(os.path.join(__stage_dir__, 'settings'), "w") as file:
         file.write("[default]\nentity: {entity}\nproject: {project}".format(entity=entity, project=project))
 
-    with open(".wandb/.gitignore", "w") as file:
+    with open(os.path.join(__stage_dir__, '.gitignore'), "w") as file:
         file.write("*\n!config")
 
     click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+
@@ -416,7 +418,7 @@ Examples:
 @config.command("init", help="Initialize a directory with wandb configuration")
 @display_error
 def config_init(prompt=True):
-    config_path = os.getcwd()+"/.wandb"
+    config_path = os.path.join(os.getcwd(), __stage_dir__)
     config = Config()
     if os.path.isdir(config_path):
         if prompt:

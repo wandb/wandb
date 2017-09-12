@@ -249,7 +249,7 @@ def test_add(runner):
         with open("test.h5", "w") as f:
             f.write("fake data")
         os.mkdir(".wandb")
-        with open(".wandb/config", "w") as f:
+        with open(".wandb/settings", "w") as f:
             f.write("[default]\nfiles: test.json")
         result = runner.invoke(cli.add, ["test.h5", "-p", "test"])
         assert result.exit_code == 0
@@ -276,7 +276,7 @@ def test_no_project_bad_command(runner):
 def test_rm(runner):
     with runner.isolated_filesystem():
         os.mkdir(".wandb")
-        with open(".wandb/config", "w") as f:
+        with open(".wandb/settings", "w") as f:
             f.write("[default]\nfiles: test.h5,test.json")
         result = runner.invoke(cli.rm, ["test.h5", "-p", "test"])
         print(result.output)
@@ -322,7 +322,7 @@ def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
-        with open(".wandb/config", "r") as f:
+        with open(".wandb/settings", "r") as f:
             generatedWandb = f.read()
         assert "12345" in generatedNetrc
         assert "test_model" in generatedWandb
@@ -340,7 +340,7 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
-        with open(".wandb/config", "r") as f:
+        with open(".wandb/settings", "r") as f:
             generatedWandb = f.read()
         assert "12345" in generatedNetrc
         assert "previous config" in generatedNetrc
@@ -356,7 +356,7 @@ def test_existing_login(runner, local_netrc, request_mocker, query_projects, que
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open(".wandb/config", "r") as f:
+        with open(".wandb/settings", "r") as f:
             generatedWandb = f.read()
         assert "test_model" in generatedWandb
         assert "This directory is configured" in result.output

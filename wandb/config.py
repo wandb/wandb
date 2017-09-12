@@ -1,5 +1,6 @@
 import yaml, os, sys, logging
 from .api import Error
+from wandb import __stage_dir__
 
 def boolify(s):
     if s.lower() == 'none':
@@ -53,7 +54,7 @@ class Config(dict):
     @property
     def config_dir(self):
         """The config directory holding the latest configuration"""
-        return os.getcwd() + "/.wandb"
+        return os.path.join(os.getcwd(), __stage_dir__)
 
     @property
     def defaults_path(self):
@@ -129,7 +130,7 @@ class Config(dict):
                 defaults_file.write(str(self))
             return True
         except IOError:
-            logging.warn("Unable to persist config, no .wandb directory exists.  Run `wandb config init` in this directory.")
+            logging.warn("Unable to persist config, no wandb directory exists.  Run `wandb config init` in this directory.")
             return False
 
     def __getitem__(self, name):
