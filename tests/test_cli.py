@@ -10,7 +10,7 @@ import wandb
 
 @pytest.fixture
 def runner(monkeypatch):
-    monkeypatch.setattr(cli, 'api', Api(default_config={'project': 'test', 'git_tag': True}, load_config=False))
+    monkeypatch.setattr(cli, 'api', Api(default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
     monkeypatch.setattr(inquirer, 'prompt', lambda x: {'project': 'test_model', 'files': ['weights.h5']})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)

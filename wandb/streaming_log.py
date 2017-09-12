@@ -84,11 +84,11 @@ class LineBuffer(io.FileIO):
 class StreamingLog(io.TextIOWrapper):
     """Manages the WandB client and tempfile for log storage"""
     api = Api()
-    config = api.config()
+    settings = api.settings()
     endpoint = "{base}/{entity}/{project}/%s/logs".format(
-        base=config['base_url'],
-        entity=config.get("entity"),
-        project=config.get("project")
+        base=settings['base_url'],
+        entity=settings.get("entity"),
+        project=settings.get("project")
     )
 
     def __init__(self, run, level=logging.INFO):

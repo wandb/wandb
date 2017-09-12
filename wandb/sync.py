@@ -67,8 +67,8 @@ class Sync(object):
         #1.6 million 6 character combinations
         runGen = ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
         self.run = run or runGen.random(6)
-        self._project = project or api.config("project")
-        self._entity = api.config("entity")
+        self._project = project or api.settings("project")
+        self._entity = api.settings("entity")
         logger.debug("Initialized sync for %s/%s", self._project, self.run)
         self._dpath = ".wandb/description.md"
         self._description = description or (os.path.exists(self._dpath) and open(self._dpath).read()) or os.getenv('WANDB_DESCRIPTION')

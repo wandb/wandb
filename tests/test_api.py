@@ -15,7 +15,7 @@ from .utils import git_repo
 
 import wandb
 from six import StringIO
-api = wandb.Api(load_config=False)
+api = wandb.Api(load_settings=False)
 
 def test_projects_success(request_mocker, query_projects):
     query_projects(request_mocker)
@@ -64,7 +64,7 @@ def test_parse_slug():
 
 def test_branch_slug():
     with CliRunner().isolated_filesystem():
-        api = wandb.Api(load_config=False)
+        api = wandb.Api(load_settings=False)
         r = git.Repo.init(".")
         project, bucket = api.parse_slug(None, project="git")
     assert project == "git"
@@ -93,7 +93,7 @@ def test_push_success(request_mocker, upload_url, query_project, upsert_bucket):
     update_mock = upsert_bucket(request_mocker)
     with CliRunner().isolated_filesystem():
         #TODO: need this for my mock to work
-        api = wandb.Api(load_config=False)
+        api = wandb.Api(load_settings=False)
         res = os.mkdir(".wandb")
         with open(".wandb/latest.yaml", "w") as f:
             f.write(yaml.dump({'wandb_version': 1, 'test': {'value': 'success', 'desc': 'My life'}}))
@@ -120,7 +120,7 @@ def test_push_git_success(request_mocker, mocker, upload_url, query_project, ups
         r = git.Repo.init(".")
         r.index.add(["model.json"])
         r.index.commit("initial commit")
-        api = wandb.Api(load_config=False, default_config={'git_tag': True})
+        api = wandb.Api(load_settings=False, default_settings={'git_tag': True})
         mock = mocker.patch.object(api.git, "push")
         res = api.push("test/test", ["weights.h5", "model.json"])
     assert update_mock.called
@@ -150,13 +150,13 @@ def test_upload_failure_resumable(request_mocker, upload_url):
     res = api.upload_file("https://weights.url", open(os.path.join(os.path.dirname(__file__), "fixtures/test.h5")))
     assert res.status_code == 200
 
-def test_config(mocker):
-    api._config = None
-    parser = mocker.patch.object(api, "config_parser")
+def test_settings(mocker):
+    api._settings = None
+    parser = mocker.patch.object(api, "_settings_parser")
     parser.sections.return_value = ["default"]
     parser.options.return_value = ["project", "entity"]
     parser.get.side_effect = ["test_model", "test_entity"]
-    assert api.config() == {
+    assert api.settings() == {
         'base_url': 'https://api.wandb.ai',
         'entity': 'test_entity',
         'project': 'test_model',
@@ -166,8 +166,8 @@ def test_config(mocker):
         'git_tag': False
     }
 
-def test_default_config():
-    assert wandb.Api({'base_url': 'http://localhost'}, load_config=False).config() == {
+def test_default_settings():
+    assert wandb.Api({'base_url': 'http://localhost'}, load_settings=False).settings() == {
         'base_url': 'http://localhost', 
         'entity': 'models', 
         'section': 'default',

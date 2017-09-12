@@ -68,18 +68,18 @@ class Api(object):
     """W&B Api wrapper
 
     Note:
-        Configuration parameters are automatically overridden by looking for
-        a `.wandb/config` file in the current working directory or it's parent
+        Settings are automatically overridden by looking for
+        a `.wandb/settings` file in the current working directory or it's parent
         directory.  If none can be found, we look in the current users home
         directory.
 
     Args:
-        default_config(:obj:`dict`, optional): If you aren't using config files
-        or you wish to override the section to use in the config file.  Override
-        the configuration variables here.
+        default_settings(:obj:`dict`, optional): If you aren't using a settings
+        file or you wish to override the section to use in the settings file
+        Override the settings here.
     """
-    def __init__(self, default_config=None, load_config=True):
-        self.default_config = {
+    def __init__(self, default_settings=None, load_settings=True):
+        self.default_settings = {
             'section': "default",
             'entity': "models",
             'bucket': "default",
@@ -87,20 +87,20 @@ class Api(object):
             'git_tag': False,
             'base_url': "https://api.wandb.ai"
         }
-        self.default_config.update(default_config or {})
-        self._config = None
+        self.default_settings.update(default_settings or {})
+        self._settings = None
         self.retries = 3
-        self.config_parser = configparser.ConfigParser()
+        self._settings_parser = configparser.ConfigParser()
         self.tagged = False
-        if load_config:
-            files = self.config_parser.read([
+        if load_settings:
+            files = self._settings_parser.read([
                 os.path.expanduser('~/.wandb/config'), os.getcwd() + "/../.wandb/config",
                 os.getcwd() + "/.wandb/config"
             ])
-            self.config_file = files[0] if len(files) > 0 else "Not found"
+            self.settings_file = files[0] if len(files) > 0 else "Not found"
         else:
-            self.config_file = "Not found"
-        self.git = GitRepo(remote=self.config("git_remote"))
+            self.settings_file = "Not found"
+        self.git = GitRepo(remote=self.settings("git_remote"))
         self._commit = self.git.last_commit
         if self.git.dirty:
             self.git.repo.git.execute(['git', 'diff'], output_stream=open(__stage_dir__+'diff.patch', 'wb'))
@@ -110,7 +110,7 @@ class Api(object):
                 headers={'User-Agent': self.user_agent},
                 use_json=True,
                 auth=("api", self.api_key),
-                url='%s/graphql' % self.config('base_url')
+                url='%s/graphql' % self.settings('base_url')
             )
         )
 
@@ -120,23 +120,23 @@ class Api(object):
 
     @property
     def api_key(self):
-        auth = requests.utils.get_netrc_auth(self.config()['base_url'])
+        auth = requests.utils.get_netrc_auth(self.settings()['base_url'])
         if auth:
             key = auth[-1]
         else:
             key = os.environ.get("WANDB_API_KEY")
         return key
 
-    def config(self, key=None, section=None):
-        """The configuration overridden from the .wandb/config file.
+    def settings(self, key=None, section=None):
+        """The settings overridden from the .wandb/settings file.
 
         Args:
-            key (str, optional): If provided only this config param is returned
-            section (str, optional): If provided this section of the config file is
+            key (str, optional): If provided only this setting is returned
+            section (str, optional): If provided this section of the setting file is
             used, defaults to "default"
 
         Returns:
-            A dict with the current config
+            A dict with the current settings
 
                 {
                     "entity": "models",
@@ -144,19 +144,19 @@ class Api(object):
                     "project": None
                 }
         """
-        if not self._config:
-            self._config = self.default_config.copy()
-            section = section or self._config['section']
+        if not self._settings:
+            self._settings = self.default_settings.copy()
+            section = section or self._settings['section']
             try:
-                if section in self.config_parser.sections():
-                    for option in self.config_parser.options(section):
-                        self._config[option] = self.config_parser.get(section, option)
+                if section in self._settings_parser.sections():
+                    for option in self._settings_parser.options(section):
+                        self._settings[option] = self._settings_parser.get(section, option)
             except configparser.InterpolationSyntaxError:
-                print("WARNING: Unable to parse config file")
-            self._config["project"] = self._config.get("project", os.environ.get("WANDB_PROJECT"))
-            self._config["entity"] = self._config.get("entity", os.environ.get("WANDB_ENTITY"))
-            self._config["base_url"] = self._config.get("base_url", os.environ.get("WANDB_BASE_URL"))
-        return self._config if key is None else self._config[key]
+                print("WARNING: Unable to parse settings file")
+            self._settings["project"] = self._settings.get("project", os.environ.get("WANDB_PROJECT"))
+            self._settings["entity"] = self._settings.get("entity", os.environ.get("WANDB_ENTITY"))
+            self._settings["base_url"] = self._settings.get("base_url", os.environ.get("WANDB_BASE_URL"))
+        return self._settings if key is None else self._settings[key]
 
     def parse_slug(self, slug, project=None, bucket=None):
         if slug and "/" in slug:
@@ -164,7 +164,7 @@ class Api(object):
             project = parts[0]
             bucket = parts[1]
         else:
-            project = project or self.config().get("project")
+            project = project or self.settings().get("project")
             if project is None:
                 raise Error("No default project configured.")
             bucket = bucket or slug or os.environ.get("WANDB_BUCKET")
@@ -211,7 +211,7 @@ class Api(object):
         }
         ''')
         return self._flatten_edges(self.client.execute(query, variable_values={
-            'entity': entity or self.config('entity')})['models'])
+            'entity': entity or self.settings('entity')})['models'])
 
     @normalize_exceptions
     def list_buckets(self, project, entity=None):
@@ -240,8 +240,8 @@ class Api(object):
         }
         ''')
         return self._flatten_edges(self.client.execute(query, variable_values={
-            'entity': entity or self.config('entity'),
-            'model': project or self.config('project')})['model']['buckets'])
+            'entity': entity or self.settings('entity'),
+            'model': project or self.settings('project')})['model']['buckets'])
 
     @normalize_exceptions
     def bucket_config(self, project, bucket=None, entity=None):
@@ -294,7 +294,7 @@ class Api(object):
         ''')
 
         response = self.client.execute(mutation, variable_values={
-            'name': project, 'entity': entity or self.config('entity'),
+            'name': project, 'entity': entity or self.settings('entity'),
             'description': description, 'repo': self.git.remote_url, 'id': id})
         return response['upsertModel']['model']
 
@@ -345,7 +345,7 @@ class Api(object):
         if not description:
             description = None
         response = self.client.execute(mutation, variable_values={
-            'id': id, 'entity': entity or self.config('entity'), 'name': name, 'project': project,
+            'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit or self._commit,
             'host': host, 'debug': os.getenv('DEBUG')})
         return response['upsertBucket']['bucket']
@@ -389,8 +389,8 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'bucket': bucket or self.config('bucket'),
-            'entity': entity or self.config('entity'),
+            'name':project, 'bucket': bucket or self.settings('bucket'),
+            'entity': entity or self.settings('entity'),
             'description': description,
             'files': [file for file in files]
         })
@@ -435,8 +435,8 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'bucket': bucket or self.config('bucket'),
-            'entity': entity or self.config('entity')})
+            'name':project, 'bucket': bucket or self.settings('bucket'),
+            'entity': entity or self.settings('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
         return {file['name']: file for file in files}
 
@@ -556,7 +556,7 @@ class Api(object):
         """
         project, bucket = self.parse_slug(project, bucket=bucket)
         #Only tag if enabled
-        if self.config("git_tag"):
+        if self.settings("git_tag"):
             self.tag_and_push(bucket, description, force)
         result = self.upload_urls(project, files, bucket, entity, description)
         responses = []

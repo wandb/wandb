@@ -46,8 +46,11 @@ def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
         return message.split(marker, 1)[0].rstrip('\n')
 
 api = Api()
-#TODO: Is this the best way to do this?
-CONTEXT=dict(default_map=api.config())
+
+# Some commands take project/entity etc. as arguments. We provide default
+# values for those arguments from the current project configuration, as
+# returned by api.settings()
+CONTEXT=dict(default_map=api.settings())
 
 class BucketGroup(click.Group):
     @display_error
@@ -123,22 +126,22 @@ def buckets(project, entity):
 
 @cli.command(context_settings=CONTEXT, help="List staged & remote files")
 @click.argument("bucket", envvar='WANDB_BUCKET')
-@click.option("--config/--no-config", help="Show the current configuration", default=False)
+@click.option("--settings/--no-settings", help="Show the current settings", default=False)
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @display_error
-def status(bucket, config, project):
-    if config:
-        click.echo(click.style("Current Configuration", bold=True) + " (%s)" % api.config_file)
-        config = api.config()
+def status(bucket, settings, project):
+    if settings:
+        click.echo(click.style("Current Settings", bold=True) + " (%s)" % api.settings_file)
+        settings = api.settings()
         click.echo(json.dumps(
-            config,
+            settings,
             sort_keys=True,
             indent=2,
             separators=(',', ': ')
         ))
         click.echo(click.style("Logged in?", bold=True) + " %s\n" % bool(api.api_key))
     project, bucket = api.parse_slug(bucket, project=project)
-    parser = api.config_parser
+    parser = api._settings_parser
     parser.read(".wandb/config")
     if parser.has_option("default", "files"):
         existing = set(parser.get("default", "files").split(","))
@@ -214,7 +217,7 @@ def restore(bucket, branch, project, entity):
 @click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @display_error
 def add(files, project):
-    parser = api.config_parser
+    parser = api._settings_parser
     parser.read(".wandb/config")
     if not parser.has_section("default"):
         raise ClickException("Directory not configured, run `wandb init` before adding files.")
@@ -233,7 +236,7 @@ def add(files, project):
 @click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @display_error
 def rm(files, project):
-    parser = api.config_parser
+    parser = api._settings_parser
     parser.read(".wandb/config")
     if parser.has_option("default", "files"):
         existing = parser.get("default", "files").split(",")
@@ -268,8 +271,8 @@ def push(ctx, run, project, description, entity, force, files):
 
     candidates = []
     if len(files) == 0:
-        if api.config().get("files"):
-            fileNames = api.config()['files'].split(",")
+        if api.settings().get("files"):
+            fileNames = api.settings()['files'].split(",")
             files = [LazyFile(fileName, 'rb') for fileName in fileNames]
         else:
             patterns = ("*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*")
@@ -334,7 +337,7 @@ def login():
             warning=click.style("Not authenticated!", fg="red")),
             value_proc=lambda x: x.strip())
 
-    host = api.config()['base_url']
+    host = api.settings()['base_url']
     if key:
         #TODO: get the username here...
         #username = api.viewer().get('entity', 'models')
@@ -527,6 +530,11 @@ def delete(ctx, keys):
         changed.append(key)
     config.persist()
     ctx.invoke(show, changed=changed, diff=True)
+
+@config.command("run", help="Launch a job")
+@display_error
+def run(ctx):
+    print('hello')
 
 if __name__ == "__main__":
     cli()

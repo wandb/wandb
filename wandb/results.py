@@ -24,7 +24,7 @@ class Results(object):
     """
     def __init__(self, project=None, bucket=None):
         self.api = Api()
-        self.project = project or self.api.config("project")
+        self.project = project or self.api.settings("project")
         self.bucket = bucket or os.getenv("WANDB_BUCKET")
         self.tempfile = tempfile.NamedTemporaryFile(mode='w')
         self.csv = csv.writer(self.tempfile)
