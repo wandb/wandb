@@ -11,7 +11,6 @@ if PY2:
 
 __stage_dir__ = ".wandb/"
 if not os.path.exists(__stage_dir__):
-    __stage_dir__ = "/tmp/.wandb/"
     try:
         os.mkdir(__stage_dir__)
     except FileExistsError:
