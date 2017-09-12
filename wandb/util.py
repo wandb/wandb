@@ -2,7 +2,7 @@ import json
 #TODO: get rid of this
 try:
     import numpy as np
-except ModuleNotFoundError:
+except ImportError:
     pass
 
 class WandBJSONEncoder(json.JSONEncoder):

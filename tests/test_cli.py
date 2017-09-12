@@ -145,11 +145,13 @@ def test_push_dirty_git(runner):
         assert result.exit_code == 1
         assert "You have un-committed changes." in result.output
 
-def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url, upsert_bucket):
+def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url, upsert_bucket, monkeypatch):
     query_project(request_mocker)
     upload_url(request_mocker)
     update_mock = upsert_bucket(request_mocker)
     with runner.isolated_filesystem():
+        #So GitRepo is in this cwd
+        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
         repo = git_repo()
         with open('weights.h5', 'wb') as f:
             f.write(os.urandom(100))
