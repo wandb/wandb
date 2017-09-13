@@ -5,9 +5,6 @@ __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.19'
 
 import types, sys, logging, os
-from six import PY2
-if PY2:
-    FileExistsError = OSError
 
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists('.wandb'):
@@ -42,7 +39,7 @@ def sync(globs=['*'], **kwargs):
     #TODO: wandb describe
     sync = Sync(api, **kwargs)
     sync.watch(files=globs)
-    return sync.config
+    return sync.run
 
 __all__ = ["Api", "Error", "Config", "Results", "History", "Summary",
         "WandBKerasCallback"]

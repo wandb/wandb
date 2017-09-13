@@ -358,13 +358,12 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
-            A dict of filenames and urls, also indicates if this revision already has uploaded files.
-            Includes bucket_id for updating config, description, etc. while uploading.
-
+            (bucket_id, file_info)
+            bucket_id: id of bucket we uploaded to
+            file_info: A dict of filenames and urls, also indicates if this revision already has uploaded files.
                 {
                     'weights.h5': { "url": "https://weights.url" },
                     'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
-                    'bucket_id': 'abcdefg12345'
                 }
         """
         query = gql('''
@@ -391,10 +390,10 @@ class Api(object):
             'description': description,
             'files': [file for file in files]
         })
+
         run = query_result['model']['bucket']
         result = {file['name']: file for file in self._flatten_edges(run['files'])}
-        result['bucket_id'] = run['id']
-        return result
+        return run['id'], result
 
     @normalize_exceptions
     def download_urls(self, project, run=None, entity=None):
@@ -555,13 +554,9 @@ class Api(object):
         #Only tag if enabled
         if self.settings("git_tag"):
             self.tag_and_push(run, description, force)
-        result = self.upload_urls(project, files, run, entity, description)
+        run_id, result = self.upload_urls(project, files, run, entity, description)
         responses = []
-        for key in result:
-            if key == "bucket_id":
-                continue
-            else:
-                file_name = key
+        for file_name, file_info in result.items():
             try:
                 open_file = files[file_name] if isinstance(files, dict) else open(file_name, "rb")
             except IOError:
@@ -571,12 +566,12 @@ class Api(object):
                 length = os.fstat(open_file.fileno()).st_size
                 with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
                     fill_char=click.style('&', fg='green')) as bar:
-                    self.upload_file( result[file_name]['url'], open_file, lambda bites: bar.update(bites) )
+                    self.upload_file(file_info['url'], open_file, lambda bites: bar.update(bites))
             else:
-                responses.append(self.upload_file(result[file_name]['url'], open_file))
+                responses.append(self.upload_file(file_info['url'], open_file))
             open_file.close()
         if self.latest_config:
-            self.upsert_run(id=result["bucket_id"], description=description,
+            self.upsert_run(id=run_id, description=description,
                 entity=entity, config=self.latest_config)
         return responses
 

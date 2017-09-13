@@ -1,4 +1,9 @@
-import psutil, os, stat, sys, time, traceback
+import psutil
+import os
+import stat
+import sys
+import time
+import traceback
 from tempfile import NamedTemporaryFile
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
@@ -7,14 +12,20 @@ from shortuuid import ShortUUID
 import atexit
 from threading import Thread
 from .config import Config
-import logging, socket, click
+import logging
+import socket
+import click
 from wandb import __stage_dir__, Error
+from wandb import util
+from .run import Run
 logger = logging.getLogger(__name__)
+
 
 def editor(content='', marker='# Before we start this run, enter a brief description. (to skip, direct stdin to dev/null: `python train.py < /dev/null`)\n'):
     message = click.edit(content + '\n\n' + marker)
     if message is not None:
         return message.split(marker, 1)[0].rstrip('\n')
+
 
 class Echo(object):
     def __init__(self, log):
@@ -35,11 +46,13 @@ class Echo(object):
         if self.thread:
             self.thread.join()
         if failed:
-            #TODO: unfortunate line_buffer access
-            self.log.push([[self.log.line_buffer.line_number + 1, "ERROR: %s\n" % failed, "error"]])
+            # TODO: unfortunate line_buffer access
+            self.log.push([[self.log.line_buffer.line_number +
+                            1, "ERROR: %s\n" % failed, "error"]])
             sys.stderr.write("ERROR: %s\n" % failed)
             failed = True
         self.log.heartbeat(complete=True, failed=failed)
+
 
 class ExitHooks(object):
     def __init__(self):
@@ -60,25 +73,29 @@ class ExitHooks(object):
         self.exception = exc
         self._orig_excepthook(exc_type, exc, *args)
 
+
 class Sync(object):
     """Watches for files to change and automatically pushes them
     """
-    def __init__(self, api, run=None, project=None, tags=[], datasets=[], config={}, description=None):
-        #1.6 million 6 character combinations
-        runGen = ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-        self.run = run or runGen.random(6)
+
+    def __init__(self, api, run=None, project=None, tags=[], datasets=[], config={}, description=None, dir=None):
+        # 1.6 million 6 character combinations
+        runGen = ShortUUID(alphabet=list(
+            "0123456789abcdefghijklmnopqrstuvwxyz"))
+        self.run_id = run or runGen.random(6)
         self._project = project or api.settings("project")
         self._entity = api.settings("entity")
-        logger.debug("Initialized sync for %s/%s", self._project, self.run)
-        self._dpath = ".wandb/description.md"
-        self._description = description or (os.path.exists(self._dpath) and open(self._dpath).read()) or os.getenv('WANDB_DESCRIPTION')
+        logger.debug("Initialized sync for %s/%s", self._project, self.run_id)
+        self._dpath = os.path.join(__stage_dir__, 'description.md')
+        self._description = description or (os.path.exists(self._dpath) and open(
+            self._dpath).read()) or os.getenv('WANDB_DESCRIPTION')
         try:
             self.tty = sys.stdin.isatty() and os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno())
         except OSError:
             self.tty = False
         if not os.getenv('DEBUG') and not self._description and self.tty:
             self._description = editor()
-        self.config = Config(config)
+        self._config = Config(config)
         self._proc = psutil.Process(os.getpid())
         self._api = api
         self._tags = tags
@@ -88,47 +105,52 @@ class Sync(object):
         self.url = "{base}/{entity}/{project}/runs/{run}".format(
             project=self._project,
             entity=self._entity,
-            run=self.run,
+            run=self.run_id,
             base="https://app.wandb.ai"
         )
-        self.log = StreamingLog(self.run)
+        self.log = StreamingLog(self.run_id)
         self._hooks = ExitHooks()
         self._hooks.hook()
         self._observer = Observer()
-        self._watch_dir = os.getcwd()
+        if dir is None:
+            self._watch_dir = os.path.join(__stage_dir__, 'run-%s' % self.run_id)
+            util.mkdir_exists_ok(self._watch_dir)
+        else:
+            self._watch_dir = os.path.abspath(dir)
+
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
+
+        self.run = Run(self._watch_dir, self._config)
 
     def watch(self, files):
         try:
-            #TODO: better failure handling
-            self._api.upsert_run(name=self.run, project=self._project, entity=self._entity,
-                config=self.config.__dict__, description=self._description, host=socket.gethostname())
+            # TODO: better failure handling
+            self._api.upsert_run(name=self.run_id, project=self._project, entity=self._entity,
+                                 config=self._config.__dict__, description=self._description, host=socket.gethostname())
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
-            # temporary until we switch to sending all files within a dedicated run
-            # directory.
-            self._handler._patterns += ['*wandb-summary.json', '*wandb-history.csv']
             # Ignore hidden files/folders
             self._handler._ignore_patterns = ['*/.*']
-            if os.path.exists(__stage_dir__+"diff.patch"):
+            if os.path.exists(__stage_dir__ + "diff.patch"):
                 self._api.push("{project}/{run}".format(
                     project=self._project,
-                    run=self.run
-                ), {"diff.patch": open(__stage_dir__+"diff.patch", "rb")})
+                    run=self.run_id
+                ), {"diff.patch": open(__stage_dir__ + "diff.patch", "rb")})
             self._observer.start()
             print("Syncing %s" % self.url)
             # TODO: put the sub process run logic here?
             if self.source_proc:
-                self.log.write(" ".join(self.source_proc.cmdline())+"\n\n")
+                self.log.write(" ".join(self.source_proc.cmdline()) + "\n\n")
                 line = sys.stdin.readline()
                 while line:
                     sys.stdout.write(line)
                     self.log.write(line)
-                    #TODO: push log every few minutes...
+                    # TODO: push log every few minutes...
                     line = sys.stdin.readline()
                 self.stop()
             else:
-                self.log.write(" ".join(psutil.Process(os.getpid()).cmdline())+"\n\n")
+                self.log.write(" ".join(psutil.Process(
+                    os.getpid()).cmdline()) + "\n\n")
                 # let's hijack stdout
                 self._echo = Echo(self.log)
                 sys.stdout = self._echo
@@ -140,7 +162,8 @@ class Sync(object):
         except Error:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             print("!!! Fatal W&B Error: %s" % exc_value)
-            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            lines = traceback.format_exception(
+                exc_type, exc_value, exc_traceback)
             logger.error('\n'.join(lines))
 
     def stop(self):
@@ -155,9 +178,10 @@ class Sync(object):
         print("Pushing log")
         slug = "{project}/{run}".format(
             project=self._project,
-            run=self.run
+            run=self.run_id
         )
-        self._api.push(slug, {"training.log": open(self.log.tempfile.name, "rb")})
+        self._api.push(
+            slug, {"training.log": open(self.log.tempfile.name, "rb")})
         os.path.exists(self._dpath) and os.remove(self._dpath)
         print("Synced %s" % self.url)
         self._echo.close(failed=self._hooks.exception)
@@ -165,29 +189,30 @@ class Sync(object):
         try:
             self._observer.stop()
             self._observer.join()
-        #TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
+        # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
         except TypeError:
             pass
-        #TODO: py3 SystemError: <built-in function stop> returned a result with an error set
+        # TODO: py3 SystemError: <built-in function stop> returned a result with an error set
         except SystemError:
             pass
 
-    #TODO: limit / throttle the number of adds / pushes
+    # TODO: limit / throttle the number of adds / pushes
     def add(self, event):
         self.push(event)
 
-    #TODO: is this blocking the main thread?
+    # TODO: is this blocking the main thread?
     def push(self, event):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
-        fileName = os.path.relpath(event.src_path, self._watch_dir)
+        file_name = os.path.relpath(event.src_path, self._watch_dir)
         if logger.parent.handlers[0]:
             debugLog = logger.parent.handlers[0].stream
         else:
             debugLog = None
-        print("Pushing %s" % fileName)
-        self._api.push(self._project, [fileName], run=self.run,
-                       description=self._description, progress=debugLog)
+        print("Pushing %s" % file_name)
+        with open(event.src_path, 'rb') as f:
+            self._api.push(self._project, {file_name: f}, run=self.run_id,
+                        description=self._description, progress=debugLog)
 
     @property
     def source_proc(self):

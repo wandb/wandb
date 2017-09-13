@@ -1,4 +1,7 @@
+import errno
 import json
+import os
+
 #TODO: get rid of this
 try:
     import numpy as np
@@ -26,3 +29,12 @@ def make_json_if_not_number(v):
     if isinstance(v, (float, int)):
         return v
     return json_dumps_safer(v)
+
+def mkdir_exists_ok(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
