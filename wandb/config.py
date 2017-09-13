@@ -32,9 +32,8 @@ class Config(dict):
             try:
                 # for tensorflow flags
                 if "__flags" in dir(config):
-                    if not config.__parsed:
-                        config._parse_flags()
-                    config = config.__flags
+                    config._parse_flags()
+                    config = config.__dict__['__flags']
                 else:
                     config = vars(config)
             except TypeError:
