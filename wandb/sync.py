@@ -211,7 +211,7 @@ class Sync(object):
             debugLog = None
         print("Pushing %s" % file_name)
         with open(event.src_path, 'rb') as f:
-            self._api.push(self._project, {file_name: f}, bucket=self.run_id,
+            self._api.push(self._project, {file_name: f}, run=self.run_id,
                         description=self._description, progress=debugLog)
 
     @property
