@@ -2,7 +2,7 @@
 
 import click, sys
 from wandb import Api, Error, Sync, Config, __version__, __stage_dir__
-import random, time, os, re, netrc, logging, json, glob, io, stat
+import random, time, os, re, netrc, logging, json, glob, io, stat, subprocess
 from functools import wraps
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
@@ -315,7 +315,7 @@ def init(ctx):
     ctx.invoke(config_init, False)
 
     with open(os.path.join(__stage_dir__, 'settings'), "w") as file:
-        file.write("[default]\nentity: {entity}\nproject: {project}".format(entity=entity, project=project))
+        file.write("[default]\nentity: {entity}\nproject: {project}\n".format(entity=entity, project=project))
 
     with open(os.path.join(__stage_dir__, '.gitignore'), "w") as file:
         file.write("*\n!config")
@@ -333,10 +333,16 @@ def init(ctx):
         pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
 
-@cli.command("run", help="Launch a job")
+@cli.command(context_settings=CONTEXT, help="Launch a job")
+@click.pass_context
+@click.argument('program')
+@click.argument('args', nargs=-1)
 @display_error
-def run(ctx):
-    print('hello')
+def run(ctx, program, args):
+    popen = subprocess.Popen([program] + list(args))
+    ret = popen.wait()
+    if ret != 0:
+        click.echo('wandb: job (%s) failed with return code: %s' % (program, ret))
 
 @cli.group()
 @click.pass_context
