@@ -82,7 +82,7 @@ class Api(object):
         self.default_settings = {
             'section': "default",
             'entity': "models",
-            'bucket': "default",
+            'run': "latest",
             'git_remote': "origin",
             'git_tag': False,
             'base_url': "https://api.wandb.ai"
@@ -158,22 +158,19 @@ class Api(object):
             self._settings["base_url"] = self._settings.get("base_url", os.environ.get("WANDB_BASE_URL"))
         return self._settings if key is None else self._settings[key]
 
-    def parse_slug(self, slug, project=None, bucket=None):
+    def parse_slug(self, slug, project=None, run=None):
         if slug and "/" in slug:
             parts = slug.split("/")
             project = parts[0]
-            bucket = parts[1]
+            run = parts[1]
         else:
             project = project or self.settings().get("project")
             if project is None:
                 raise Error("No default project configured.")
-            bucket = bucket or slug or os.environ.get("WANDB_BUCKET")
-            if bucket is None:
-                if self.git.branch not in ("master", "develop"):
-                    bucket = self.git.branch
-                if bucket is None:
-                    bucket = binascii.hexlify(os.urandom(3)).decode("utf8")
-        return (project, bucket)
+            run = run or slug or os.environ.get("WANDB_RUN")
+            if run is None:
+                run = "latest"
+        return (project, run)
 
     @normalize_exceptions
     def viewer(self):
@@ -214,11 +211,11 @@ class Api(object):
             'entity': entity or self.settings('entity')})['models'])
 
     @normalize_exceptions
-    def list_buckets(self, project, entity=None):
-        """Lists buckets in W&B scoped by project.
+    def list_runs(self, project, entity=None):
+        """Lists runs in W&B scoped by project.
 
         Args:
-            project (str): The project to scope the tags to
+            project (str): The project to scope the runs to
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
         Returns:
@@ -244,18 +241,18 @@ class Api(object):
             'model': project or self.settings('project')})['model']['buckets'])
 
     @normalize_exceptions
-    def bucket_config(self, project, bucket=None, entity=None):
-        """Get the config for a bucket
+    def run_config(self, project, run=None, entity=None):
+        """Get the config for a run
 
         Args:
             project (str): The project to download, (can include bucket)
-            bucket (str, optional): The bucket to download
+            run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
         """
         query = gql('''
-        query Model($name: String!, $entity: String!, $bucket: String!) {
+        query Model($name: String!, $entity: String!, $run: String!) {
             model(name: $name, entityName: $entity) {
-                bucket(name: $bucket) {
+                bucket(name: $run) {
                     config
                     commit
                     patch
@@ -265,12 +262,12 @@ class Api(object):
         ''')
 
         response = self.client.execute(query, variable_values={
-            'name': project, 'bucket': bucket, 'entity': entity
+            'name': project, 'bucket': run, 'entity': entity
         })
-        bucket = response['model']['bucket']
-        commit = bucket['commit']
-        patch = bucket['patch']
-        config = json.loads(bucket['config'] or '{}')
+        run = response['model']['bucket']
+        commit = run['commit']
+        patch = run['patch']
+        config = json.loads(run['config'] or '{}')
         return (commit, config, patch)
 
     @normalize_exceptions
@@ -299,17 +296,17 @@ class Api(object):
         return response['upsertModel']['model']
 
     @normalize_exceptions
-    def upsert_bucket(self, id=None, name=None, project=None, host=None, config=None, description=None, entity=None, commit=None):
-        """Update a bucket
+    def upsert_run(self, id=None, name=None, project=None, host=None, config=None, description=None, entity=None, commit=None):
+        """Update a run
 
         Args:
-            id (str, optional): The existing bucket to update
-            name (str, optional): The name of the bucket to create
+            id (str, optional): The existing run to update
+            name (str, optional): The name of the run to create
             project (str, optional): The name of the project
             config (dict, optional): The latest config params
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
-            commit (str, optional): The Git SHA to associate the bucket with
+            commit (str, optional): The Git SHA to associate the run with
         """
         mutation = gql('''
         mutation UpsertBucket(
@@ -351,13 +348,13 @@ class Api(object):
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
-    def upload_urls(self, project, files, bucket=None, entity=None, description=None):
+    def upload_urls(self, project, files, run=None, entity=None, description=None):
         """Generate temporary resumeable upload urls
 
         Args:
             project (str): The project to download
             files (list or dict): The filenames to upload
-            bucket (str, optional): The bucket to upload to
+            run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
@@ -371,9 +368,9 @@ class Api(object):
                 }
         """
         query = gql('''
-        query Model($name: String!, $files: [String]!, $entity: String!, $bucket: String!, $description: String) {
+        query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
-                bucket(name: $bucket, desc: $description) {
+                bucket(name: $run, desc: $description) {
                     id
                     files(names: $files) {
                         edges {
@@ -389,23 +386,23 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'bucket': bucket or self.settings('bucket'),
+            'name':project, 'run': run or self.settings('run'),
             'entity': entity or self.settings('entity'),
             'description': description,
             'files': [file for file in files]
         })
-        bucket = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(bucket['files'])}
-        result['bucket_id'] = bucket['id']
+        run = query_result['model']['bucket']
+        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result['bucket_id'] = run['id']
         return result
 
     @normalize_exceptions
-    def download_urls(self, project, bucket=None, entity=None):
+    def download_urls(self, project, run=None, entity=None):
         """Generate download urls
 
         Args:
             project (str): The project to download
-            bucket (str, optional): The bucket to upload to
+            run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
@@ -417,9 +414,9 @@ class Api(object):
                 }
         """
         query = gql('''
-        query Model($name: String!, $entity: String!, $bucket: String!)  {
+        query Model($name: String!, $entity: String!, $run: String!)  {
             model(name: $name, entityName: $entity) {
-                bucket(name: $bucket) {
+                bucket(name: $run) {
                     files {
                         edges {
                             node {
@@ -435,7 +432,7 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'bucket': bucket or self.settings('bucket'),
+            'name':project, 'run': run or self.settings('run'),
             'entity': entity or self.settings('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
         return {file['name']: file for file in files}
@@ -515,19 +512,19 @@ class Api(object):
         return os.path.isfile(fname) and self._md5(fname) == md5
 
     @normalize_exceptions
-    def pull(self, project, bucket=None, entity=None):
+    def pull(self, project, run=None, entity=None):
         """Download files from W&B
 
         Args:
             project (str): The project to download
-            bucket (str, optional): The bucket to upload to
+            run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
             The requests library response object
         """
-        project, bucket = self.parse_slug(project, bucket=bucket)
-        urls = self.download_urls(project, bucket, entity)
+        project, run = self.parse_slug(project, run=run)
+        urls = self.download_urls(project, run, entity)
         responses = []
         for fileName in urls:
             if self.file_current(fileName, urls[fileName]['md5']):
@@ -540,13 +537,13 @@ class Api(object):
         return responses
 
     @normalize_exceptions
-    def push(self, project, files, bucket=None, entity=None, description=None, force=True, progress=False):
+    def push(self, project, files, run=None, entity=None, description=None, force=True, progress=False):
         """Uploads multiple files to W&B
 
         Args:
             project (str): The project to upload to
             files (list or dict): The filenames to upload
-            bucket (str, optional): The bucket to upload to
+            run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
             description (str, optional): The description of the changes
             force (bool, optional): Whether to prevent push if git has uncommitted changes
@@ -554,11 +551,11 @@ class Api(object):
         Returns:
             The requests library response object
         """
-        project, bucket = self.parse_slug(project, bucket=bucket)
+        project, run = self.parse_slug(project, run=run)
         #Only tag if enabled
         if self.settings("git_tag"):
-            self.tag_and_push(bucket, description, force)
-        result = self.upload_urls(project, files, bucket, entity, description)
+            self.tag_and_push(run, description, force)
+        result = self.upload_urls(project, files, run, entity, description)
         responses = []
         for key in result:
             if key == "bucket_id":
@@ -579,7 +576,7 @@ class Api(object):
                 responses.append(self.upload_file(result[file_name]['url'], open_file))
             open_file.close()
         if self.latest_config:
-            self.upsert_bucket(id=result["bucket_id"], description=description,
+            self.upsert_run(id=result["bucket_id"], description=description,
                 entity=entity, config=self.latest_config)
         return responses
 

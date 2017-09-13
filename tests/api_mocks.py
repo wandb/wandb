@@ -67,7 +67,7 @@ def success_or_failure(payload=None, body_match="query"):
         def match_body(request):
             return body_match in (request.text or '')
 
-        return mocker.register_uri('POST', 'https://api.wandb.ai/graphql', 
+        return mocker.register_uri('POST', 'https://api.wandb.ai/graphql',
             json=body, status_code=status_code, additional_matcher=match_body)
     return wrapper
 
@@ -84,7 +84,7 @@ def _mutate(key, json):
     return success_or_failure(payload=payload, body_match="mutation")
 
 @pytest.fixture
-def upsert_bucket():
+def upsert_run():
     return _mutate('upsertBucket', {'bucket': _bucket("default")})
 
 @pytest.fixture
@@ -100,11 +100,11 @@ def query_projects():
     return _query('models', [project("test_1"), project("test_2"), project("test_3")])
 
 @pytest.fixture
-def query_buckets():
+def query_runs():
     return _query('buckets', [_bucket("default"), _bucket("test_1")])
 
 @pytest.fixture
-def query_bucket():
+def query_run():
     return _query('model', {'bucket': _bucket_config()})
 
 @pytest.fixture
@@ -121,9 +121,9 @@ def upload_url():
 @pytest.fixture
 def download_url():
     def wrapper(mocker, status_code=200, error=None, size=5000):
-        mocker.register_uri('GET', 'https://weights.url', 
+        mocker.register_uri('GET', 'https://weights.url',
             content=os.urandom(size), status_code=status_code)
-        mocker.register_uri('GET', 'https://model.url', 
+        mocker.register_uri('GET', 'https://model.url',
             content=os.urandom(size), status_code=status_code)
     return wrapper
 
@@ -132,6 +132,6 @@ def upload_logs():
     def wrapper(mocker, run, status_code=200, body_match='', error=None):
         def match_body(request):
             return body_match in (request.text or '')
-        return mocker.register_uri("POST", StreamingLog.endpoint % run, 
+        return mocker.register_uri("POST", StreamingLog.endpoint % run,
                status_code=status_code, additional_matcher=match_body)
     return wrapper

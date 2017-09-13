@@ -101,7 +101,7 @@ class Sync(object):
     def watch(self, files):
         try:
             #TODO: better failure handling
-            self._api.upsert_bucket(name=self.run, project=self._project, entity=self._entity,
+            self._api.upsert_run(name=self.run, project=self._project, entity=self._entity,
                 config=self.config.__dict__, description=self._description, host=socket.gethostname())
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
@@ -117,7 +117,7 @@ class Sync(object):
                 ), {"diff.patch": open(__stage_dir__+"diff.patch", "rb")})
             self._observer.start()
             print("Syncing %s" % self.url)
-            # Piped mode TODO: remove this gimic
+            # TODO: put the sub process run logic here?
             if self.source_proc:
                 self.log.write(" ".join(self.source_proc.cmdline())+"\n\n")
                 line = sys.stdin.readline()
@@ -186,7 +186,7 @@ class Sync(object):
         else:
             debugLog = None
         print("Pushing %s" % fileName)
-        self._api.push(self._project, [fileName], bucket=self.run,
+        self._api.push(self._project, [fileName], run=self.run,
                        description=self._description, progress=debugLog)
 
     @property

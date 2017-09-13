@@ -14,22 +14,22 @@ Describe the next run using Markdown
 $ wandb describe
 ```
 
-Checkout the commit associated with the bucket and restore the config variables
+Checkout the commit associated with the run and restore the config variables
 
 ```console
-$ wandb restore
+$ wandb restore run-id
 ```
 
-Pull the current project from the cloud
+Pull the latest run from the cloud
 
 ```console
-$ wandb pull some-bucket
+$ wandb pull latest
 ```
 
-Push the current project to the cloud
+Push extra files to a run
 
 ```console
-$ wandb push some-bucket model.json weights.h5
+$ wandb push run-id model.json weights.h5
 ```
 
 Manually login to Weights & Biases
@@ -38,28 +38,16 @@ Manually login to Weights & Biases
 $ wandb login
 ```
 
-Sync the stdout of the training process and the current project to the cloud
-
-```console
-$ ./train.sh arg1 arg2 | wandb some-bucket model.json weights.h5
-```
-
-Add files to be tracked in this directory to avoid needing to specify them in the above commands.
-
-```console
-$ wandb add model.json weights.h5
-```
-
 Get the status of the files in the current project
 
 ```console
 $ wandb status
 ```
 
-List the buckets in your project
+List the runs in your project
 
 ```console
-$ wandb buckets
+$ wandb runs
 ```
 
 List the projects in your account
@@ -70,7 +58,7 @@ $ wandb projects
 
 ### Config commands
 
-W&B configuration makes tracking exactly what configuration parameters were used in a 
+W&B configuration makes tracking exactly what configuration parameters were used in a
 given training automatic.  You can benefit from W&B configuration tracking by changing a single line
 of your training script.  If you decide to read configuration from our configuration object
 we store defaults in a YAML file at the root of your project.  The configuration object
@@ -144,9 +132,9 @@ conf = wandb.Config(args)
 conf = wandb.Config(FLAGS)
 ```
 
-The next time you push a bucket, the configuration parameters will be synced to W&B.
+The next time you push a run, the configuration parameters will be synced to W&B.
 
-Pull the bucket specified from the cloud.  The default project will be overridden if a "/" is in the bucket name.
+Pull the run specified from the cloud.  The default project will be overridden if a "/" is in the run name.
 
 ```python
 wandb.pull("cool/stuff")
@@ -155,5 +143,5 @@ wandb.pull("cool/stuff")
 Push the current project to the cloud.  File paths are relative to the current working directory.
 
 ```python
-wandb.push("some-bucket", files=["model.json", "weights.h5"])
+wandb.push("some-run", files=["model.json", "weights.h5"])
 ```

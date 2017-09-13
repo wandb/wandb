@@ -14,11 +14,6 @@ if os.path.exists('.wandb'):
     __stage_dir__ = '.wandb/'
 else:
     __stage_dir__ = "wandb/"
-if not os.path.exists(__stage_dir__):
-    try:
-        os.mkdir(__stage_dir__)
-    except FileExistsError:
-        pass
 
 from .git_repo import GitRepo
 from .api import Api, Error
