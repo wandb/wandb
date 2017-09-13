@@ -25,4 +25,4 @@ def make_json_if_not_number(v):
     """If v is not a basic type convert it to json."""
     if isinstance(v, (float, int)):
         return v
-    return util.json_dumps_safer(v)
+    return json_dumps_safer(v)
