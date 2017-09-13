@@ -4,25 +4,25 @@ This package provides an interactive CLI and python client for [wandb.ai](https:
 
 ## Quickstart
 
-If you want to work with private buckets or push data to the cloud you must first [signup](https://app.wandb.ai/login)
+If you want to work with private runs or push data to the cloud you must first [signup](https://app.wandb.ai/login)
 
 ```console
 $ pip install wandb
 $ cd my_training_dir
 $ wandb init
-$ ./my_training.py arg1 | wandb my_bucket model.json weights.h5
+$ wandb my_script.py arg1
 ```
 
 To manually push files to the cloud run:
 
 ```console
-$ wandb push my-new-bucket somefile.proto
+$ wandb push latest somefile.proto
 ```
 
 To pull down a model or sync your local directory with the cloud you can run:
 
 ```console
-$ wandb pull project/inception_v4
+$ wandb pull inception_v4/latest
 ```
 
 You can access configuration and push or pull via the API directly in your python scripts:
@@ -44,7 +44,7 @@ wandb.pull("transfer/learning")
    usage
    wandb
 ```
-   
+
 ## Reference
 
 ```eval_rst

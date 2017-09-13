@@ -102,10 +102,10 @@ def test_config_del(runner):
         print(traceback.print_tb(result.exc_info[2]))
         assert "1 parameters changed" in result.output
 
-def test_push(runner, request_mocker, query_project, upload_url, upsert_bucket, monkeypatch):
+def test_push(runner, request_mocker, query_project, upload_url, upsert_run, monkeypatch):
     query_project(request_mocker)
     upload_url(request_mocker)
-    update_mock = upsert_bucket(request_mocker)
+    update_mock = upsert_run(request_mocker)
     with runner.isolated_filesystem():
         #So GitRepo is in this cwd
         monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
@@ -122,7 +122,7 @@ def test_push(runner, request_mocker, query_project, upload_url, upsert_bucket, 
         assert "Updating run: test/default" in result.output
         assert update_mock.called
 
-def test_push_no_bucket(runner):
+def test_push_no_run(runner):
     with runner.isolated_filesystem():
         with open('weights.h5', 'wb') as f:
             f.write(os.urandom(5000))
@@ -145,10 +145,10 @@ def test_push_dirty_git(runner):
         assert result.exit_code == 1
         assert "You have un-committed changes." in result.output
 
-def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url, upsert_bucket, monkeypatch):
+def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url, upsert_run, monkeypatch):
     query_project(request_mocker)
     upload_url(request_mocker)
-    update_mock = upsert_bucket(request_mocker)
+    update_mock = upsert_run(request_mocker)
     with runner.isolated_filesystem():
         #So GitRepo is in this cwd
         monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
@@ -197,7 +197,7 @@ def test_pull(runner, request_mocker, query_project, download_url):
         assert "File model.json" in result.output
         assert "File weights.h5" in result.output
 
-def test_pull_custom_bucket(runner, request_mocker, query_project, download_url):
+def test_pull_custom_run(runner, request_mocker, query_project, download_url):
     query_project(request_mocker)
     download_url(request_mocker)
     with runner.isolated_filesystem():
@@ -209,7 +209,7 @@ def test_pull_custom_bucket(runner, request_mocker, query_project, download_url)
         assert result.exit_code == 0
         assert "Downloading: test/test" in result.output
 
-def test_pull_empty_bucket(runner, request_mocker, query_empty_project, download_url):
+def test_pull_empty_run(runner, request_mocker, query_empty_project, download_url):
     query_empty_project(request_mocker)
     result = runner.invoke(cli.pull, ['test/test'])
 
@@ -233,9 +233,9 @@ def test_status(runner, request_mocker, query_project):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "/default" in result.output
+        assert "/latest" in result.output
 
-def test_status_project_and_bucket(runner, request_mocker, query_project):
+def test_status_project_and_run(runner, request_mocker, query_project):
     query_project(request_mocker)
     result = runner.invoke(cli.status, ["test/awesome"])
     print(result.output)
@@ -244,26 +244,6 @@ def test_status_project_and_bucket(runner, request_mocker, query_project):
     assert result.exit_code == 0
     assert "test/awesome" in result.output
 
-def test_add(runner):
-    with runner.isolated_filesystem():
-        with open("test.h5", "w") as f:
-            f.write("fake data")
-        os.mkdir(".wandb")
-        with open(".wandb/settings", "w") as f:
-            f.write("[default]\nfiles: test.json")
-        result = runner.invoke(cli.add, ["test.h5", "-p", "test"])
-        assert result.exit_code == 0
-        assert "test.h5" in result.output
-        assert "test.json" in result.output
-
-def test_add_no_config(runner):
-    with runner.isolated_filesystem():
-        with open("test.h5", "w") as f:
-            f.write("fake data")
-        result = runner.invoke(cli.add, ["test.h5", "-p", "test"])
-        print(result.output)
-        assert result.exit_code == 1
-        assert "Directory not configured" in result.output
 
 def test_no_project_bad_command(runner):
     result = runner.invoke(cli.cli, ["fsd"])
@@ -273,20 +253,9 @@ def test_no_project_bad_command(runner):
     assert "No such command" in result.output
     assert result.exit_code == 2
 
-def test_rm(runner):
-    with runner.isolated_filesystem():
-        os.mkdir(".wandb")
-        with open(".wandb/settings", "w") as f:
-            f.write("[default]\nfiles: test.h5,test.json")
-        result = runner.invoke(cli.rm, ["test.h5", "-p", "test"])
-        print(result.output)
-        print(traceback.print_tb(result.exc_info[2]))
-        assert result.exit_code == 0
-        assert "test.json" in result.output
-        assert "test.h5" not in result.output
 
-def test_restore(runner, request_mocker, query_bucket, monkeypatch):
-    mock = query_bucket(request_mocker)
+def test_restore(runner, request_mocker, query_run, monkeypatch):
+    mock = query_run(request_mocker)
     with runner.isolated_filesystem():
         os.mkdir(".wandb")
         repo = git_repo()

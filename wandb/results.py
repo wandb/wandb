@@ -5,8 +5,8 @@ import csv
 import tempfile
 import os
 
-def results(project=None, bucket=None):
-    r = Results(project, bucket)
+def results(project=None, run=None):
+    r = Results(project, run)
     try:
         yield r
     finally:
@@ -15,17 +15,17 @@ def results(project=None, bucket=None):
 class Results(object):
     """Generates results to be compared in WandB
 
-    with Results("project/bucket") as r:
+    with Results("project/run") as r:
         for truth, img_data in test_data:
             label, score = model.predict(img_data)
             img = array_to_img(img_data)
-            r.write(input=r.encode_image(img), output=label, 
+            r.write(input=r.encode_image(img), output=label,
                 truth=truth, score=score)
     """
-    def __init__(self, project=None, bucket=None):
+    def __init__(self, project=None, run=None):
         self.api = Api()
         self.project = project or self.api.settings("project")
-        self.bucket = bucket or os.getenv("WANDB_BUCKET")
+        self.run = run or os.getenv("WANDB_RUN")
         self.tempfile = tempfile.NamedTemporaryFile(mode='w')
         self.csv = csv.writer(self.tempfile)
         self.csv.writerow(["input","output","probability","truth","loss"])
@@ -53,14 +53,14 @@ class Results(object):
     def write(self, **kwargs):
         self.rows += 1
         self.csv.writerow(
-            [kwargs["input"], kwargs["output"], kwargs.get("probability"), 
+            [kwargs["input"], kwargs["output"], kwargs.get("probability"),
                 kwargs["truth"], kwargs["loss"]])
 
     def close(self):
         self.tempfile.flush()
-        self.api.push(self.project, {'results.csv': open(self.tempfile.name, "rb")}, 
-            bucket=self.bucket)
+        self.api.push(self.project, {'results.csv': open(self.tempfile.name, "rb")},
+            run=self.run)
         self.tempfile.close()
 
-        
+
 

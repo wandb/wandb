@@ -31,7 +31,7 @@ def test_project_download_urls(request_mocker, query_project):
     query_project(request_mocker)
     res = api.download_urls("test")
     assert res == {
-        'weights.h5': {'name': 'weights.h5', 'md5': 'fakemd5', 'url': 'https://weights.url'}, 
+        'weights.h5': {'name': 'weights.h5', 'md5': 'fakemd5', 'url': 'https://weights.url'},
         'model.json': {'name': 'model.json', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==', 'url': 'https://model.url'}
     }
 
@@ -40,7 +40,7 @@ def test_project_upload_urls(request_mocker, query_project):
     res = api.upload_urls("test", files=["weights.h5", "model.json"])
     assert res == {
         'bucket_id': 'test1234',
-        'weights.h5': {'name': 'weights.h5', 'url': 'https://weights.url', 'md5': 'fakemd5'}, 
+        'weights.h5': {'name': 'weights.h5', 'url': 'https://weights.url', 'md5': 'fakemd5'},
         'model.json': {'name': 'model.json', 'url': 'https://model.url', 'md5': 'mZFLkyvTelC5g8XnyQrpOw=='}
     }
 
@@ -55,20 +55,13 @@ def test_download_failure(request_mocker, download_url):
         api.download_file("https://weights.url")
 
 def test_parse_slug():
-    project, bucket = api.parse_slug("foo/bar")
+    project, run = api.parse_slug("foo/bar")
     assert project == "foo"
-    assert bucket == "bar"
-    project, bucket = api.parse_slug("foo", project="bar")
+    assert run == "bar"
+    project, run = api.parse_slug("foo", project="bar")
     assert project == "bar"
-    assert bucket == "foo"
+    assert run == "foo"
 
-def test_branch_slug():
-    with CliRunner().isolated_filesystem():
-        api = wandb.Api(load_settings=False)
-        r = git.Repo.init(".")
-        project, bucket = api.parse_slug(None, project="git")
-    assert project == "git"
-    assert len(bucket) == 6
 
 def test_pull_success(request_mocker, download_url, query_project):
     query_project(request_mocker)
@@ -87,10 +80,10 @@ def test_pull_existing_file(request_mocker, mocker, download_url, query_project)
         api.pull("test/test")
         mocked.assert_called_once_with("https://weights.url")
 
-def test_push_success(request_mocker, upload_url, query_project, upsert_bucket):
+def test_push_success(request_mocker, upload_url, query_project, upsert_run):
     query_project(request_mocker)
     upload_url(request_mocker)
-    update_mock = upsert_bucket(request_mocker)
+    update_mock = upsert_run(request_mocker)
     with CliRunner().isolated_filesystem():
         #TODO: need this for my mock to work
         api = wandb.Api(load_settings=False)
@@ -105,10 +98,10 @@ def test_push_success(request_mocker, upload_url, query_project, upsert_bucket):
     assert update_mock.called
     assert res[0].status_code == 200
 
-def test_push_git_success(request_mocker, mocker, upload_url, query_project, upsert_bucket):
+def test_push_git_success(request_mocker, mocker, upload_url, query_project, upsert_run):
     query_project(request_mocker)
     upload_url(request_mocker)
-    update_mock = upsert_bucket(request_mocker)
+    update_mock = upsert_run(request_mocker)
     with CliRunner().isolated_filesystem():
         res = os.mkdir(".wandb")
         with open(".wandb/latest.yaml", "w") as f:
@@ -161,17 +154,17 @@ def test_settings(mocker):
         'entity': 'test_entity',
         'project': 'test_model',
         'section': 'default',
-        'bucket': 'default',
+        'run': 'latest',
         'git_remote': 'origin',
         'git_tag': False
     }
 
 def test_default_settings():
     assert wandb.Api({'base_url': 'http://localhost'}, load_settings=False).settings() == {
-        'base_url': 'http://localhost', 
-        'entity': 'models', 
+        'base_url': 'http://localhost',
+        'entity': 'models',
         'section': 'default',
-        'bucket': 'default',
+        'run': 'latest',
         'git_remote': 'origin',
         'git_tag': False,
         'project': None,

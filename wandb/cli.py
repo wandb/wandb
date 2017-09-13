@@ -52,41 +52,25 @@ api = Api()
 # returned by api.settings()
 CONTEXT=dict(default_map=api.settings())
 
-class BucketGroup(click.Group):
+class RunGroup(click.Group):
     @display_error
     def get_command(self, ctx, cmd_name):
+        #TODO: check if cmd_name is a file in the current dir and not require `run`?
         rv = click.Group.get_command(self, ctx, cmd_name)
         if rv is not None:
             return rv
 
-        try:
-            project, bucket = api.parse_slug(cmd_name)
-        except Error:
-            return None
-        #TODO: This is hacky as hell
-        description = None
-        if '-m' in sys.argv:
-            description = sys.argv[sys.argv.index('-m') + 1]
-        elif '--description' in sys.argv:
-            description = sys.argv[sys.argv.index('--description') + 1]
-        sync = Sync(api, project=project, run=bucket, description=description)
-        if sync.source_proc:
-            files = sys.argv[2:]
-            sync.watch(files)
-            return click.Command("sync", context_settings={'allow_extra_args': True})
-        else:
-            return None
+        return None
 
-@click.command(cls=BucketGroup)
+@click.command(cls=RunGroup)
 @click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx):
     """Weights & Biases
 
-If no command is specified and input is piped, the source command and it's
-output will be saved to the bucket and the files uploaded when modified.
+If the first argument is a file in the current directory run it.
 
-   ./train.sh arg1 arg2 | wandb imagenet/v2 model.json weights.h5
+   wandb train.py --arg=1
     """
     pass
 
@@ -109,27 +93,26 @@ def projects(entity, display=True):
             ))
     return projects
 
-@cli.command(context_settings=CONTEXT, help="List buckets in a project")
-@click.argument("project", envvar='WANDB_PROJECT')
-@click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to upload to.")
+@cli.command(context_settings=CONTEXT, help="List runs in a project")
+@click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to list runs from.")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def buckets(project, entity):
-    click.echo(click.style('Latest buckets for project "%s"' % project, bold=True))
-    buckets = api.list_buckets(project, entity=entity)
-    for bucket in buckets:
+def runs(project, entity):
+    click.echo(click.style('Latest runs for project "%s"' % project, bold=True))
+    runs = api.list_runs(project, entity=entity)
+    for run in runs:
         click.echo("".join(
-            (click.style(bucket['name'], fg="blue", bold=True),
+            (click.style(run['name'], fg="blue", bold=True),
             " - ",
-            (bucket['description'] or "").split("\n")[0])
+            (run['description'] or "").split("\n")[0])
         ))
 
-@cli.command(context_settings=CONTEXT, help="List staged & remote files")
-@click.argument("bucket", envvar='WANDB_BUCKET')
+@cli.command(context_settings=CONTEXT, help="List local & remote file status")
+@click.argument("run", envvar='WANDB_RUN')
 @click.option("--settings/--no-settings", help="Show the current settings", default=False)
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @display_error
-def status(bucket, settings, project):
+def status(run, settings, project):
     if settings:
         click.echo(click.style("Current Settings", bold=True) + " (%s)" % api.settings_file)
         settings = api.settings()
@@ -140,14 +123,9 @@ def status(bucket, settings, project):
             separators=(',', ': ')
         ))
         click.echo(click.style("Logged in?", bold=True) + " %s\n" % bool(api.api_key))
-    project, bucket = api.parse_slug(bucket, project=project)
-    parser = api._settings_parser
-    parser.read(os.path.join(__stage_dir__, 'settings'))
-    if parser.has_option("default", "files"):
-        existing = set(parser.get("default", "files").split(","))
-    else:
-        existing = set()
-    remote = api.download_urls(project, bucket)
+    project, run = api.parse_slug(run, project=project)
+    existing = set() #TODO: populate this set with the current files in the run dir
+    remote = api.download_urls(project, run)
     not_synced = set()
     remote_names = set([name for name in remote])
     for file in existing:
@@ -159,15 +137,13 @@ def status(bucket, settings, project):
     #TODO: remove items that exists and have the md5
     only_remote = remote_names.difference(existing)
     up_to_date = existing.difference(only_remote).difference(not_synced)
-    click.echo('File status for '+ click.style('"%s/%s" ' % (project, bucket), bold=True))
+    click.echo('File status for '+ click.style('"%s/%s" ' % (project, run), bold=True))
     if len(not_synced) > 0:
         click.echo(click.style('Push needed: ', bold=True) + click.style(", ".join(not_synced), fg="red"))
     if len(only_remote) > 0:
         click.echo(click.style('Pull needed: ', bold=True) + click.style(", ".join(only_remote), fg="red"))
     if len(up_to_date) > 0:
         click.echo(click.style('Up to date: ', bold=True) + click.style(", ".join(up_to_date), fg="green"))
-    if len(existing) == 0:
-        click.echo(click.style("No files configured, add files with `wandb add filename`", fg="red"))
 
 @cli.command(context_settings=CONTEXT, help="Store notes for a future training run")
 @display_error
@@ -180,17 +156,17 @@ def describe():
             file.write(description)
     click.echo("Notes stored for next training run\nCalling wandb.sync() in your training script will persist them.")
 
-@cli.command(context_settings=CONTEXT, help="Restore code and config state for bucket")
-@click.argument("bucket", envvar='WANDB_BUCKET')
+@cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
+@click.argument("run", envvar='WANDB_RUN')
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def restore(bucket, branch, project, entity):
-    project, bucket = api.parse_slug(bucket, project=project)
-    commit, json_config, patch = api.bucket_config(project, bucket=bucket, entity=entity)
+def restore(run, branch, project, entity):
+    project, run = api.parse_slug(run, project=project)
+    commit, json_config, patch = api.run_config(project, run=run, entity=entity)
     if commit:
-        branch_name = "wandb/%s" % bucket
+        branch_name = "wandb/%s" % run
         if branch and branch_name not in api.git.repo.branches:
             api.git.repo.git.checkout(commit, b=branch_name)
             click.echo("Created branch %s" % click.style(branch_name, bold=True))
@@ -212,45 +188,6 @@ def restore(bucket, branch, project, entity):
     config.persist()
     click.echo("Restored config variables")
 
-@cli.command(context_settings=CONTEXT, help="Add staged files")
-@click.argument("files", type=click.File('rb'), nargs=-1)
-@click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to upload to.")
-@display_error
-def add(files, project):
-    parser = api._settings_parser
-    parser.read(os.path.join(__stage_dir__, 'settings'))
-    if not parser.has_section("default"):
-        raise ClickException("Directory not configured, run `wandb init` before adding files.")
-    if parser.has_option("default", "files"):
-        existing = parser.get("default", "files").split(",")
-    else:
-        existing = []
-    stagedFiles = set(existing + [file.name for file in files])
-    parser.set("default", "files", ",".join(stagedFiles))
-    with open(os.path.join(__stage_dir__, 'settings'), 'w') as configfile:
-        parser.write(configfile)
-    click.echo(click.style('Staged files for "%s": ' % project, bold=True) + ", ".join(stagedFiles))
-
-@cli.command(context_settings=CONTEXT, help="Remove staged files")
-@click.argument("files", nargs=-1)
-@click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to upload to.")
-@display_error
-def rm(files, project):
-    parser = api._settings_parser
-    parser.read(os.path.join(__stage_dir__, 'settings'))
-    if parser.has_option("default", "files"):
-        existing = parser.get("default", "files").split(",")
-    else:
-        existing = []
-    for file in files:
-        if file not in existing:
-            raise ClickException("%s is not staged" % file)
-        existing.remove(file)
-    parser.set("default", "files", ",".join(existing))
-    with open(os.path.join(__stage_dir__, 'settings'), 'w') as configfile:
-        parser.write(configfile)
-    click.echo(click.style('Staged files for "%s": ' % project, bold=True) + ", ".join(existing))
-
 @cli.command(context_settings=CONTEXT, help="Push files to Weights & Biases")
 @click.argument("run", envvar='WANDB_RUN')
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
@@ -261,7 +198,7 @@ def rm(files, project):
 @click.pass_context
 @display_error
 def push(ctx, run, project, description, entity, force, files):
-    #TODO: do we support the case of a bucket with the same name as a file?
+    #TODO: do we support the case of a run with the same name as a file?
     if os.path.exists(run):
         raise BadParameter("Run id is required if files are specified.")
     project, run = api.parse_slug(run, project=project)
@@ -271,24 +208,19 @@ def push(ctx, run, project, description, entity, force, files):
 
     candidates = []
     if len(files) == 0:
-        if api.settings().get("files"):
-            fileNames = api.settings()['files'].split(",")
-            files = [LazyFile(fileName, 'rb') for fileName in fileNames]
-        else:
-            patterns = ("*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*")
-            for pattern in patterns:
-                candidates.extend(glob.glob(pattern))
-            if len(candidates) == 0:
-                raise BadParameter("Couldn't auto-detect files, specify manually or use `wandb.add`", param_hint="FILES")
+        #TODO: do we want to do this?
+        patterns = ("*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*")
+        for pattern in patterns:
+            candidates.extend(glob.glob(pattern))
+        if len(candidates) == 0:
+            raise BadParameter("Couldn't auto-detect files, specify manually or use `wandb.add`", param_hint="FILES")
 
-            choices = inquirer.prompt([inquirer.Checkbox('files', message="Which files do you want to push? (left and right arrows to select)",
-                choices=[c for c in candidates])])
-            files = [LazyFile(choice, 'rb') for choice in choices['files']]
+        choices = inquirer.prompt([inquirer.Checkbox('files', message="Which files do you want to push? (left and right arrows to select)",
+            choices=[c for c in candidates])])
+        files = [LazyFile(choice, 'rb') for choice in choices['files']]
 
-    if len(files) > 10:
-        raise BadParameter("A maximum of 10 files can be in a single bucket.", param_hint="FILES")
     #TODO: Deal with files in a sub directory
-    api.push(project, files=[f.name for f in files], bucket=run,
+    api.push(project, files=[f.name for f in files], run=run,
         description=description, entity=entity, force=force, progress=sys.stdout)
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -300,7 +232,7 @@ def push(ctx, run, project, description, entity, force, files):
 def pull(project, run, kind, entity):
     project, run = api.parse_slug(run, project=project)
 
-    urls = api.download_urls(project, bucket=run, entity=entity)
+    urls = api.download_urls(project, run=run, entity=entity)
     if len(urls) == 0:
         raise ClickException("Run has no files")
     click.echo("Downloading: {project}/{run}".format(
@@ -400,6 +332,11 @@ def init(ctx):
         config=click.style("wandb config set batch_size=10", bold=True),
         pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
+
+@cli.command("run", help="Launch a job")
+@display_error
+def run(ctx):
+    print('hello')
 
 @cli.group()
 @click.pass_context
@@ -532,11 +469,6 @@ def delete(ctx, keys):
         changed.append(key)
     config.persist()
     ctx.invoke(show, changed=changed, diff=True)
-
-@config.command("run", help="Launch a job")
-@display_error
-def run(ctx):
-    print('hello')
 
 if __name__ == "__main__":
     cli()
