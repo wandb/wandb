@@ -7,15 +7,16 @@ import traceback
 from tempfile import NamedTemporaryFile
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
-from .streaming_log import StreamingLog
 from shortuuid import ShortUUID
 import atexit
-from threading import Thread
 from .config import Config
 import logging
+import threading
+import queue
 import socket
 import click
 from wandb import __stage_dir__, Error
+from wandb import streaming_log
 from wandb import util
 from .run import Run
 logger = logging.getLogger(__name__)
@@ -27,31 +28,45 @@ def editor(content='', marker='# Before we start this run, enter a brief descrip
         return message.split(marker, 1)[0].rstrip('\n')
 
 
-class Echo(object):
-    def __init__(self, log):
-        self.terminal = sys.stdout
-        self.log = log
-        self.thread = None
+class OutStreamTee(object):
+    """Tees a writable filelike object.
+
+    writes/flushes to the passed in stream will go to the stream
+    and a second stream.
+    """
+
+    def __init__(self, stream, second_stream):
+        """Constructor.
+
+        Args:
+            stream: stream to tee.
+            second_stream: stream to duplicate writes to.
+        """
+        self._orig_stream = stream
+        self._second_stream = second_stream
+        self._queue = queue.Queue()
+        self._thread = threading.Thread(target=self._thread_body)
+        self._thread.daemon = True
+        self._thread.start()
+
+    def _thread_body(self):
+        while True:
+            item = self._queue.get()
+            if item is None:
+                break
+            self._second_stream.write(item)
 
     def write(self, message):
-        self.terminal.write(message)
-        #TODO: ThreadPool
-        self.thread = Thread(target=self.log.write, args=(message,))
-        self.thread.start()
+        #print('writing to orig: ', self._orig_stream)
+        self._orig_stream.write(message)
+        # print('queueing')
+        self._queue.put(message)
 
     def flush(self):
-        self.terminal.flush()
+        self._orig_stream.flush()
 
-    def close(self, failed=False):
-        if self.thread:
-            self.thread.join()
-        if failed:
-            # TODO: unfortunate line_buffer access
-            self.log.push([[self.log.line_buffer.line_number +
-                            1, "ERROR: %s\n" % failed, "error"]])
-            sys.stderr.write("ERROR: %s\n" % failed)
-            failed = True
-        self.log.heartbeat(complete=True, failed=failed)
+    def close(self):
+        self._queue.put(None)
 
 
 class ExitHooks(object):
@@ -108,12 +123,12 @@ class Sync(object):
             run=self.run_id,
             base="https://app.wandb.ai"
         )
-        self.log = StreamingLog(self.run_id)
         self._hooks = ExitHooks()
         self._hooks.hook()
         self._observer = Observer()
         if dir is None:
-            self._watch_dir = os.path.join(__stage_dir__, 'run-%s' % self.run_id)
+            self._watch_dir = os.path.join(
+                __stage_dir__, 'run-%s' % self.run_id)
             util.mkdir_exists_ok(self._watch_dir)
         else:
             self._watch_dir = os.path.abspath(dir)
@@ -121,6 +136,7 @@ class Sync(object):
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
         self.run = Run(self._watch_dir, self._config)
+        self._api.set_current_run(self.run_id)
 
     def watch(self, files):
         try:
@@ -137,26 +153,24 @@ class Sync(object):
                     run=self.run_id
                 ), {"diff.patch": open(__stage_dir__ + "diff.patch", "rb")})
             self._observer.start()
+
             print("Syncing %s" % self.url)
-            # TODO: put the sub process run logic here?
-            if self.source_proc:
-                self.log.write(" ".join(self.source_proc.cmdline()) + "\n\n")
-                line = sys.stdin.readline()
-                while line:
-                    sys.stdout.write(line)
-                    self.log.write(line)
-                    # TODO: push log every few minutes...
-                    line = sys.stdin.readline()
-                self.stop()
-            else:
-                self.log.write(" ".join(psutil.Process(
-                    os.getpid()).cmdline()) + "\n\n")
-                # let's hijack stdout
-                self._echo = Echo(self.log)
-                sys.stdout = self._echo
-                logger.debug("Swapped stdout")
-                #TODO: stderr
-                atexit.register(self.stop)
+
+            # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
+            self._stdout_stream = streaming_log.TextOutputStream(
+                self._api.get_file_stream_api(), 'output.log', prepend_timestamp=True)
+            sys.stdout = OutStreamTee(sys.stdout, self._stdout_stream)
+            self._stderr_stream = streaming_log.TextOutputStream(
+                self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
+                prepend_timestamp=True)
+            sys.stderr = OutStreamTee(sys.stderr, self._stderr_stream)
+
+            self._stdout_stream.write(" ".join(psutil.Process(
+                os.getpid()).cmdline()) + "\n\n")
+
+            logger.debug("Swapped stdout/stderr")
+
+            atexit.register(self.stop)
         except KeyboardInterrupt:
             self.stop()
         except Error:
@@ -174,18 +188,19 @@ class Sync(object):
         # TODO: Guarantee that all files will be saved.
         print("Script ended, waiting for final file modifications.")
         time.sleep(10.0)
-        self.log.tempfile.flush()
+        # self.log.tempfile.flush()
         print("Pushing log")
         slug = "{project}/{run}".format(
             project=self._project,
             run=self.run_id
         )
-        self._api.push(
-            slug, {"training.log": open(self.log.tempfile.name, "rb")})
+        # self._api.push(
+        #    slug, {"training.log": open(self.log.tempfile.name, "rb")})
         os.path.exists(self._dpath) and os.remove(self._dpath)
         print("Synced %s" % self.url)
-        self._echo.close(failed=self._hooks.exception)
-        self.log.close()
+        self._stdout_stream.close()
+        self._stderr_stream.close()
+        self._api.get_file_stream_api().finish(False)
         try:
             self._observer.stop()
             self._observer.join()
@@ -212,7 +227,7 @@ class Sync(object):
         print("Pushing %s" % file_name)
         with open(event.src_path, 'rb') as f:
             self._api.push(self._project, {file_name: f}, run=self.run_id,
-                        description=self._description, progress=debugLog)
+                           description=self._description, progress=debugLog)
 
     @property
     def source_proc(self):
