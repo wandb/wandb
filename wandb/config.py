@@ -1,6 +1,10 @@
-import yaml, os, sys, logging
+import yaml
+import os
+import sys
+import logging
 from .api import Error
 from wandb import __stage_dir__
+
 
 def boolify(s):
     if s.lower() == 'none':
@@ -10,6 +14,7 @@ def boolify(s):
     if s.lower() == 'false':
         return False
     raise ValueError("Not a boolean")
+
 
 class Config(dict):
     """Creates a W&B config object.
@@ -27,6 +32,7 @@ class Config(dict):
         you would like to track.  You can also pass in objects that respond to `__dict__`
         such as from argparse.
     """
+
     def __init__(self, config={}):
         if not isinstance(config, dict):
             try:
@@ -38,7 +44,8 @@ class Config(dict):
                 else:
                     config = vars(config)
             except TypeError:
-                raise TypeError("config must be a dict or have a __dict__ attribute.")
+                raise TypeError(
+                    "config must be a dict or have a __dict__ attribute.")
         dict.__init__(self, {})
         self._descriptions = {}
         # we only persist when _external is True
@@ -72,7 +79,7 @@ class Config(dict):
 
     def convert(self, ob):
         """Type casting for Boolean, None, Int and Float"""
-        #TODO: deeper type casting
+        # TODO: deeper type casting
         if isinstance(ob, dict) or isinstance(ob, list):
             return ob
         for fn in (boolify, int, float):
@@ -102,7 +109,8 @@ class Config(dict):
                     self[key] = defaults[key].get('value')
                     self._descriptions[key] = defaults[key].get('desc')
         else:
-            logging.info("Couldn't load default config, run `wandb config init` in this directory")
+            logging.info(
+                "Couldn't load default config, run `wandb config init` in this directory")
 
     def load_overrides(self):
         """Load overrides from command line arguments"""
@@ -130,20 +138,21 @@ class Config(dict):
                 defaults_file.write(str(self))
             return True
         except IOError:
-            logging.warn("Unable to persist config, no wandb directory exists.  Run `wandb config init` in this directory.")
+            logging.warn(
+                "Unable to persist config, no wandb directory exists.  Run `wandb config init` in this directory.")
             return False
 
     def __getitem__(self, name):
         return super(Config, self).__getitem__(name)
 
     def __setitem__(self, key, value):
-        #TODO: this feels gross
+        # TODO: this feels gross
         if key.endswith("_desc"):
             parts = key.split("_")
             parts.pop()
             self._descriptions["_".join(parts)] = str(value)
         else:
-            #TODO: maybe don't convert, but otherwise python3 dumps unicode
+            # TODO: maybe don't convert, but otherwise python3 dumps unicode
             super(Config, self).__setitem__(key, self.convert(value))
             if not key.startswith("_") and self._external:
                 self.persist(overrides=True)
@@ -158,7 +167,8 @@ class Config(dict):
     def __dict__(self):
         defaults = {}
         for key in self.keys:
-            defaults[key] = {'value':self[key], 'desc':self._descriptions.get(key)}
+            defaults[key] = {'value': self[key],
+                             'desc': self._descriptions.get(key)}
         return defaults
 
     def __repr__(self):
@@ -170,4 +180,7 @@ class Config(dict):
         return rep
 
     def __str__(self):
-        return "wandb_version: 1\n\n"+yaml.dump(self.__dict__, default_flow_style=False)
+        s = "wandb_version: 1\n\n"
+        if self.__dict__:
+            s += yaml.dump(self.__dict__, default_flow_style=False)
+        return s
