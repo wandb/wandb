@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import click, sys
+import copy
 from wandb import Api, Error, Sync, Config, __version__, __stage_dir__
 import random, time, os, re, netrc, logging, json, glob, io, stat, subprocess
 from functools import wraps
@@ -8,6 +9,7 @@ from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
 import inquirer
 import sys, traceback
+from wandb import util
 
 logger = logging.getLogger(__name__)
 
@@ -337,12 +339,35 @@ def init(ctx):
 @click.pass_context
 @click.argument('program')
 @click.argument('args', nargs=-1)
+@click.option('--run_dir', default='.',
+        help='Files in this directory will be saved to wandb. (default: \'.\'')
+@click.option('--glob', default='*', multiple=True,
+        help='New files in <run_dir> that match will be saved to wandb. (default: \'*\')')
 @display_error
-def run(ctx, program, args):
-    popen = subprocess.Popen([program] + list(args))
-    ret = popen.wait()
-    if ret != 0:
-        click.echo('wandb: job (%s) failed with return code: %s' % (program, ret))
+def run(ctx, program, args, run_dir, glob):
+    sync = Sync(api, dir=run_dir)
+
+    # This saves our stdout, which will be the popened process's stdout as well.
+    sync.watch(files=glob)
+    env = copy.copy(os.environ)
+    env['WANDB_CLI_LAUNCED'] = '1'
+    env['WANDB_RUN_ID'] = sync.run_id
+    env['WANDB_RUN_DIR'] = sync.run.dir
+    proc = util.SafeSubprocess([program] +list(args))
+    proc.run()
+    while True:
+        time.sleep(1)
+        exitcode, stdout, stderr = proc.poll()
+        for so in stdout:
+            for token in so.split('\n'):
+                if not token.endswith('\r'):
+                    token += '\n'
+                sys.stdout.write(token)
+        for se in stderr:
+            sys.stderr.write(se)
+        if exitcode is not None:
+            print('wandb: job (%s) Process exited with code: %s' % (program, exitcode))
+            break
 
 @cli.group()
 @click.pass_context

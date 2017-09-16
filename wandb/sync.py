@@ -157,10 +157,10 @@ class Sync(object):
             print("Syncing %s" % self.url)
 
             # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
-            self._stdout_stream = streaming_log.TextOutputStream(
+            self._stdout_stream = streaming_log.TextStreamPusher(
                 self._api.get_file_stream_api(), 'output.log', prepend_timestamp=True)
             sys.stdout = OutStreamTee(sys.stdout, self._stdout_stream)
-            self._stderr_stream = streaming_log.TextOutputStream(
+            self._stderr_stream = streaming_log.TextStreamPusher(
                 self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
                 prepend_timestamp=True)
             sys.stderr = OutStreamTee(sys.stderr, self._stderr_stream)

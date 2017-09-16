@@ -6,6 +6,7 @@ from six.moves import configparser
 from functools import wraps
 import logging, hashlib, os, json, yaml
 from wandb import __version__, __stage_dir__, GitRepo
+from wandb import util
 from base64 import b64encode
 import binascii
 import click
@@ -646,7 +647,7 @@ class FileStreamApi(object):
     Chunk = collections.namedtuple('Chunk', ('filename', 'id', 'data'))
     Finish = collections.namedtuple('Finish', ('failed'))
 
-    HTTP_TIMEOUT = 3
+    HTTP_TIMEOUT = 10
     RATE_LIMIT_SECONDS = 1
     HEARTBEAT_INTERVAL_SECONDS = 15
 
@@ -697,7 +698,8 @@ class FileStreamApi(object):
             if cur_time - posted_anything_time > self.HEARTBEAT_INTERVAL_SECONDS:
                 logger.debug("Sending heartbeat at %s", cur_time)
                 posted_anything_time = cur_time
-                self._client.post(self._endpoint, json={'complete': False, 'failed': False})
+                util.request_with_retry(self._client.post,
+                        self._endpoint, json={'complete': False, 'failed': False})
 
         # drain queue and post
         remaining_chunks = []
@@ -709,9 +711,8 @@ class FileStreamApi(object):
         self._send(remaining_chunks)
 
         # post the final close message. (item is self.Finish instance now)
-        self._client.post(self._endpoint, json={'complete': True, 'failed': item.failed})
-        print('LOG THREAD COMPLETE')
-        
+        util.request_with_retry(self._client.post,
+                self._endpoint, json={'complete': True, 'failed': item.failed})
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
@@ -721,17 +722,10 @@ class FileStreamApi(object):
             file_chunks = list(file_chunks)  # groupby returns iterator
             files[filename] = {
                 'offset': file_chunks[0].id,
-                'content': ''.join([c.data for c in file_chunks])
+                'content': [c.data for c in file_chunks]
             }
 
-        try:
-            res = self._client.post(self._endpoint, json={'files': files})
-            res.raise_for_status()
-            return res
-        except Exception as err:
-            # TODO: be smarter
-            logger.error('Unable to post to WandB: %s', err)
-            return False
+        util.request_with_retry(self._client.post, self._endpoint, json={'files': files})
 
     def push(self, filename, chunk_id, chunk):
         """Push a chunk of a file to the streaming endpoint.
