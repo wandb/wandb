@@ -12,7 +12,7 @@ import atexit
 from .config import Config
 import logging
 import threading
-import queue
+from six.moves import queue
 import socket
 import click
 from wandb import __stage_dir__, Error

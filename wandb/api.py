@@ -136,7 +136,7 @@ class Api(object):
     def set_current_run(self, run_id):
         self._current_run = run_id
 
-    @property    
+    @property
     def current_run(self):
         return self._current_run
 
@@ -652,7 +652,7 @@ class FileStreamApi(object):
     HEARTBEAT_INTERVAL_SECONDS = 15
 
     def __init__(self, api_key, user_agent, base_url, entity, project, run_id):
-        self._endpoint = "{base}/{entity}/{project}/{run}/logs".format(
+        self._endpoint = "{base}/{entity}/{project}/{run}/file_stream".format(
             base=base_url,
             entity=entity,
             project=project,
@@ -736,7 +736,7 @@ class FileStreamApi(object):
             chunk: File data.
         """
         self._queue.put(self.Chunk(filename, chunk_id, chunk))
-    
+
     def finish(self, failed):
         """Cleans up.
 

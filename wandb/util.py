@@ -2,7 +2,7 @@ import errno
 import json
 import logging
 import os
-import queue
+from six.moves import queue
 import requests
 import subprocess
 import threading
