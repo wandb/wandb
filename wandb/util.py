@@ -54,8 +54,9 @@ def mkdir_exists_ok(path):
 
 
 class SafeSubprocess(object):
-    def __init__(self, args):
+    def __init__(self, args, env=None):
         self._args = args
+        self._env = env
         self._stdout = queue.Queue()
         self._stderr = queue.Queue()
         self._popen = None
@@ -64,7 +65,7 @@ class SafeSubprocess(object):
 
     def run(self):
         self._popen = subprocess.Popen(
-            self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self._env)
         self._stdout_thread = self._spawn_reader_thread(
             self._popen.stdout, self._stdout)
         self._stderr_thread = self._spawn_reader_thread(
@@ -73,7 +74,7 @@ class SafeSubprocess(object):
     def _spawn_reader_thread(self, filelike, out_queue):
         def _reader_thread(filelike, out_queue):
             while True:
-                out = filelike.read().decode('utf-8')
+                out = filelike.read(64).decode('utf-8')
                 if not out:
                     break
                 out_queue.put(out)

@@ -335,7 +335,10 @@ def init(ctx):
         pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
 
-@cli.command(context_settings=CONTEXT, help="Launch a job")
+RUN_CONTEXT = copy.copy(CONTEXT)
+RUN_CONTEXT['allow_extra_args'] = True
+RUN_CONTEXT['ignore_unknown_options'] = True
+@cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @click.argument('program')
 @click.argument('args', nargs=-1)
@@ -350,19 +353,16 @@ def run(ctx, program, args, run_dir, glob):
     # This saves our stdout, which will be the popened process's stdout as well.
     sync.watch(files=glob)
     env = copy.copy(os.environ)
-    env['WANDB_CLI_LAUNCED'] = '1'
+    env['WANDB_CLI_LAUNCHED'] = '1'
     env['WANDB_RUN_ID'] = sync.run_id
     env['WANDB_RUN_DIR'] = sync.run.dir
-    proc = util.SafeSubprocess([program] +list(args))
+    proc = util.SafeSubprocess([program] + list(args), env=env)
     proc.run()
     while True:
         time.sleep(1)
         exitcode, stdout, stderr = proc.poll()
         for so in stdout:
-            for token in so.split('\n'):
-                if not token.endswith('\r'):
-                    token += '\n'
-                sys.stdout.write(token)
+            sys.stdout.write(so)
         for se in stderr:
             sys.stderr.write(se)
         if exitcode is not None:

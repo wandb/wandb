@@ -135,7 +135,7 @@ class Sync(object):
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
-        self.run = Run(self._watch_dir, self._config)
+        self.run = Run(self.run_id, self._watch_dir, self._config)
         self._api.set_current_run(self.run_id)
 
     def watch(self, files):

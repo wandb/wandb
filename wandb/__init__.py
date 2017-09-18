@@ -23,6 +23,10 @@ from .results import Results
 from .summary import Summary
 from .history import History
 from .keras import WandBKerasCallback
+from .run import Run
+
+# The current run (a Run object)
+run = None
 
 logging.basicConfig(
     filemode="w",
@@ -39,7 +43,9 @@ def pull(*args, **kwargs):
 
 
 def sync(globs=['*'], **kwargs):
+    global run
     if os.getenv('WANDB_CLI_LAUNCHED'):
+        run = Run(os.getenv('WANDB_RUN_ID'), os.getenv('WANDB_RUN_DIR'), {})
         return
     api = Api()
     if api.api_key is None:
@@ -47,7 +53,8 @@ def sync(globs=['*'], **kwargs):
     # TODO: wandb describe
     sync = Sync(api, **kwargs)
     sync.watch(files=globs)
-    return sync.run
+    run = sync.run
+    return run
 
 
 __all__ = ["Api", "Error", "Config", "Results", "History", "Summary",
