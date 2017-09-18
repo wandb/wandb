@@ -712,6 +712,7 @@ class FileStreamApi(object):
     HTTP_TIMEOUT = 10
     RATE_LIMIT_SECONDS = 1
     HEARTBEAT_INTERVAL_SECONDS = 15
+    MAX_ITEMS_PER_PUSH = 10000
 
     def __init__(self, api_key, user_agent, base_url, entity, project, run_id):
         self._endpoint = "{base}/{entity}/{project}/{run}/file_stream".format(
@@ -733,23 +734,47 @@ class FileStreamApi(object):
         self._thread.daemon = True
         self._thread.start()
 
+    def add_file_policy(self, filename, file_policy):
+        self._file_policies[filename] = file_policy
+
+    def _read_queue(self):
+        # called from the push thread (_thread_body), this does an initial read
+        # that'll block for up to RATE_LIMIT_SECONDS. Then it tries to read
+        # as much out of the queue as it can. We do this because the http post
+        # to the server happens within _thread_body, and can take longer than
+        # our rate limit. So next time we get a chance to read the queue we want
+        # read all the stuff that queue'd up since last time.
+        #
+        # If we have more than MAX_ITEMS_PER_PUSH in the queue then the push thread
+        # will get behind and data will buffer up in the queue.
+
+        try:
+            item = self._queue.get(True, self.RATE_LIMIT_SECONDS)
+        except queue.Empty:
+            return []
+        items = [item]
+        for i in range(self.MAX_ITEMS_PER_PUSH):
+            try:
+                item = self._queue.get_nowait() 
+            except queue.Empty:
+                return items
+            items.append(item)
+        return items
+
     def _thread_body(self):
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []
-        while True:
-            try:
-                # TODO: debounce a little
-                item = self._queue.get(True, 1)
-            except queue.Empty:
-                item = None
-            if item:
+        finished = None
+        while finished is None:
+            items = self._read_queue()
+            for item in items:
                 if isinstance(item, self.Finish):
-                    break
+                    finished = item
                 else:
                     # item is Chunk
                     ready_chunks.append(item)
-
+                
             cur_time = time.time()
 
             if ready_chunks and cur_time - posted_data_time > self.RATE_LIMIT_SECONDS:
@@ -764,18 +789,9 @@ class FileStreamApi(object):
                 util.request_with_retry(self._client.post,
                                         self._endpoint, json={'complete': False, 'failed': False})
 
-        # drain queue and post
-        remaining_chunks = []
-        while True:
-            try:
-                remaining_chunks.append(self._queue.get_nowait())
-            except queue.Empty:
-                break
-        self._send(remaining_chunks)
-
         # post the final close message. (item is self.Finish instance now)
         util.request_with_retry(self._client.post,
-                                self._endpoint, json={'complete': True, 'failed': item.failed})
+                                self._endpoint, json={'complete': True, 'failed': finished.failed})
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
@@ -804,6 +820,8 @@ class FileStreamApi(object):
 
     def finish(self, failed):
         """Cleans up.
+
+        Anything pushed after finish will be dropped.
 
         Args:
             failed: Set True to to display run failure in UI.
