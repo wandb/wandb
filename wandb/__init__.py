@@ -4,7 +4,10 @@ __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.19'
 
-import types, sys, logging, os
+import types
+import sys
+import logging
+import os
 
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists('.wandb'):
@@ -23,23 +26,29 @@ from .keras import WandBKerasCallback
 
 logging.basicConfig(
     filemode="w",
-    filename=__stage_dir__+'debug.log',
+    filename=__stage_dir__ + 'debug.log',
     level=logging.DEBUG)
+
 
 def push(*args, **kwargs):
     Api().push(*args, **kwargs)
 
+
 def pull(*args, **kwargs):
     Api().pull(*args, **kwargs)
 
+
 def sync(globs=['*'], **kwargs):
+    if os.getenv('WANDB_CLI_LAUNCHED'):
+        return
     api = Api()
     if api.api_key is None:
         raise Error("No API key found, run `wandb login` or set WANDB_API_KEY")
-    #TODO: wandb describe
+    # TODO: wandb describe
     sync = Sync(api, **kwargs)
     sync.watch(files=globs)
     return sync.run
 
+
 __all__ = ["Api", "Error", "Config", "Results", "History", "Summary",
-        "WandBKerasCallback"]
+           "WandBKerasCallback"]
