@@ -15,6 +15,7 @@ import logging
 import six
 logger = logging.getLogger(__name__)
 
+
 class LineBuffer(object):
     """Streaming string parser that extracts lines."""
 
@@ -46,7 +47,8 @@ class LineBuffer(object):
 
 class TextStreamPusher(object):
     """Pushes a stream of text, line by line, to wandb."""
-    def __init__(self, fsapi, filename, line_prepend='', prepend_timestamp=False, dedupe_cr_rate_limit=0.1):
+
+    def __init__(self, fsapi, filename, line_prepend='', prepend_timestamp=False):
         """Conctructor.
 
         Args:
@@ -55,9 +57,6 @@ class TextStreamPusher(object):
             line_prepend: string to prepend to every line for this stream.
             prepend_timestamp: If true a timestamp will be prepended to each line
                 (after line_prepend).
-            dedupe_cr_rate_limit: If a line ending in any carriage return is
-                received within this time delta from our last push, we ignore
-                the line. Set to 0 to disable.
         """
         self._fsapi = fsapi
         self._filename = filename
@@ -65,10 +64,7 @@ class TextStreamPusher(object):
             line_prepend += ' '
         self._line_prepend = line_prepend
         self._prepend_timestamp = prepend_timestamp
-        self._dedupe_cr_rate_limit = dedupe_cr_rate_limit
         self._line_buffer = LineBuffer()
-        self._last_push = time.time()
-        self._line_num = 0
 
     def write(self, message, cur_time=None):
         """Write some text to the pusher.
@@ -81,19 +77,12 @@ class TextStreamPusher(object):
             cur_time = time.time()
         lines = self._line_buffer.add_string(message)
         for line in lines:
-            if line.endswith('\n') or (
-                    line.endswith('\r') and cur_time - self._last_push > self._dedupe_cr_rate_limit):
-                # add extras to line
-                timestamp = ''
-                if self._prepend_timestamp:
-                    timestamp = datetime.datetime.utcfromtimestamp(cur_time).isoformat() + ' '
-                line = '%s%s%s' % (self._line_prepend, timestamp, line)
-
-                self._fsapi.push(self._filename, self._line_num, line)
-                self._last_push = cur_time
-
-                if line.endswith('\n'):
-                    self._line_num += 1
+            timestamp = ''
+            if self._prepend_timestamp:
+                timestamp = datetime.datetime.utcfromtimestamp(
+                    cur_time).isoformat() + ' '
+            line = '%s%s%s' % (self._line_prepend, timestamp, line)
+            self._fsapi.push(self._filename, line)
 
     def close(self):
         """Close the file."""

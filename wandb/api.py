@@ -20,7 +20,7 @@ import collections
 import itertools
 import logging
 import requests
-import queue
+from six.moves import queue
 import threading
 import time
 
@@ -667,6 +667,37 @@ class Api(object):
         """Return an array from the nested graphql relay structure"""
         return [node['node'] for node in response['edges']]
 
+Chunk = collections.namedtuple('Chunk', ('filename', 'data'))
+
+class DefaultFilePolicy(object):
+    def __init__(self):
+        self._chunk_id = 0
+
+    def process_chunks(self, chunks):
+        chunk_id = self._chunk_id
+        self._chunk_id += len(chunks)
+        return {
+            'offset': chunk_id,
+            'content': [c.data for c in chunks]
+        }
+
+class CRDedupeFilePolicy(object):
+    def __init__(self):
+        self._chunk_id = 0
+
+    def process_chunks(self, chunks):
+        content = []
+        for line in [c.data for c in chunks]:
+            if content and content[-1].endswith('\r'):
+                content[-1] = line
+            else:
+                content.append(line)
+        chunk_id = self._chunk_id
+        self._chunk_id += len(content)
+        return {
+            'offset': chunk_id,
+            'content': content
+        }
 
 class FileStreamApi(object):
     """Pushes chunks of files to our streaming endpoint.
@@ -676,7 +707,6 @@ class FileStreamApi(object):
 
     TODO: Differentiate between binary/text encoding.
     """
-    Chunk = collections.namedtuple('Chunk', ('filename', 'id', 'data'))
     Finish = collections.namedtuple('Finish', ('failed'))
 
     HTTP_TIMEOUT = 10
@@ -695,6 +725,7 @@ class FileStreamApi(object):
         self._client.headers.update({
             'User-Agent': user_agent,
         })
+        self._file_policies = {}
         self._queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
@@ -752,15 +783,16 @@ class FileStreamApi(object):
         files = {}
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
-            files[filename] = {
-                'offset': file_chunks[0].id,
-                'content': [c.data for c in file_chunks]
-            }
+            policy = self._file_policies.get(filename)
+            if policy is None:
+                policy = CRDedupeFilePolicy()
+                self._file_policies[filename] = policy
+            files[filename] = policy.process_chunks(file_chunks)
 
         util.request_with_retry(
             self._client.post, self._endpoint, json={'files': files})
 
-    def push(self, filename, chunk_id, chunk):
+    def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.
 
         Args:
@@ -768,7 +800,7 @@ class FileStreamApi(object):
             chunk_id: TODO: change to 'offset'
             chunk: File data.
         """
-        self._queue.put(self.Chunk(filename, chunk_id, chunk))
+        self._queue.put(Chunk(filename, data))
 
     def finish(self, failed):
         """Cleans up.
