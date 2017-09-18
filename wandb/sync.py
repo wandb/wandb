@@ -203,7 +203,7 @@ class Sync(object):
         print("Synced %s" % self.url)
         self._stdout_stream.close()
         self._stderr_stream.close()
-        self._api.get_file_stream_api().finish(False)
+        self._api.get_file_stream_api().finish(self._hooks.exception)
         try:
             self._observer.stop()
             self._observer.join()

@@ -791,7 +791,7 @@ class FileStreamApi(object):
 
         # post the final close message. (item is self.Finish instance now)
         util.request_with_retry(self._client.post,
-                                self._endpoint, json={'complete': True, 'failed': finished.failed})
+                                self._endpoint, json={'complete': True, 'failed': bool(finished.failed)})
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
