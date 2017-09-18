@@ -24,8 +24,9 @@ logger = logging.getLogger(__name__)
 
 def editor(content='', marker='# Before we start this run, enter a brief description. (to skip, direct stdin to dev/null: `python train.py < /dev/null`)\n'):
     message = click.edit(content + '\n\n' + marker)
-    if message is not None:
-        return message.split(marker, 1)[0].rstrip('\n')
+    if message is None:
+        return None
+    return message.split(marker, 1)[0].rstrip('\n')
 
 
 class OutStreamTee(object):
@@ -110,6 +111,9 @@ class Sync(object):
             self.tty = False
         if not os.getenv('DEBUG') and not self._description and self.tty:
             self._description = editor()
+            if self._description is None:
+                sys.stderr.write('No description provided, aborting run.\n')
+                sys.exit(1)
         self._config = Config(config)
         self._proc = psutil.Process(os.getpid())
         self._api = api
