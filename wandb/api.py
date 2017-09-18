@@ -1,10 +1,16 @@
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
-import os, requests, ast
+import os
+import requests
+import ast
 from six.moves import configparser
 from functools import wraps
-import logging, hashlib, os, json, yaml
+import logging
+import hashlib
+import os
+import json
+import yaml
 from wandb import __version__, __stage_dir__, GitRepo
 from wandb import util
 from base64 import b64encode
@@ -20,12 +26,15 @@ import time
 
 logger = logging.getLogger(__name__)
 
+
 def IDENTITY(monitor):
     """A default callback for the Progress helper"""
     return monitor
 
+
 class Progress(object):
     """A helper class for displaying progress"""
+
     def __init__(self, file, callback=None):
         self.file = file
         self.callback = callback or IDENTITY
@@ -39,19 +48,24 @@ class Progress(object):
         self.callback(len(bites))
         return bites
 
+
 class Error(Exception):
     """Base W&B Error"""
-    #For python 2 support
+    # For python 2 support
+
     def encode(self, encoding):
         return self.message
+
 
 class CommError(Error):
     """Error communicating with W&B"""
     pass
 
+
 class UsageError(Error):
     """API Usage Error"""
     pass
+
 
 def normalize_exceptions(func):
     """Function decorator for catching common errors and re-raising as wandb.Error"""
@@ -64,7 +78,8 @@ def normalize_exceptions(func):
             raise CommError(err.response)
         except RetryError as err:
             if "response" in dir(err.last_exception) and err.last_exception.response is not None:
-                message = err.last_exception.response.json().get('errors', [{'message': message}])[0]['message']
+                message = err.last_exception.response.json().get(
+                    'errors', [{'message': message}])[0]['message']
             else:
                 message = err.last_exception
             raise CommError(message)
@@ -81,6 +96,7 @@ def normalize_exceptions(func):
                 raise CommError(message)
     return wrapper
 
+
 class Api(object):
     """W&B Api wrapper
 
@@ -95,6 +111,7 @@ class Api(object):
         file or you wish to override the section to use in the settings file
         Override the settings here.
     """
+
     def __init__(self, default_settings=None, load_settings=True):
         self.default_settings = {
             'section': "default",
@@ -120,7 +137,8 @@ class Api(object):
         self.git = GitRepo(remote=self.settings("git_remote"))
         self._commit = self.git.last_commit
         if self.git.dirty:
-            self.git.repo.git.execute(['git', 'diff'], output_stream=open(__stage_dir__+'diff.patch', 'wb'))
+            self.git.repo.git.execute(['git', 'diff'], output_stream=open(
+                __stage_dir__ + 'diff.patch', 'wb'))
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
@@ -176,12 +194,16 @@ class Api(object):
             try:
                 if section in self._settings_parser.sections():
                     for option in self._settings_parser.options(section):
-                        self._settings[option] = self._settings_parser.get(section, option)
+                        self._settings[option] = self._settings_parser.get(
+                            section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")
-            self._settings["project"] = self._settings.get("project", os.environ.get("WANDB_PROJECT"))
-            self._settings["entity"] = self._settings.get("entity", os.environ.get("WANDB_ENTITY"))
-            self._settings["base_url"] = self._settings.get("base_url", os.environ.get("WANDB_BASE_URL"))
+            self._settings["project"] = self._settings.get(
+                "project", os.environ.get("WANDB_PROJECT"))
+            self._settings["entity"] = self._settings.get(
+                "entity", os.environ.get("WANDB_ENTITY"))
+            self._settings["base_url"] = self._settings.get(
+                "base_url", os.environ.get("WANDB_BASE_URL"))
         return self._settings if key is None else self._settings[key]
 
     def parse_slug(self, slug, project=None, run=None):
@@ -411,14 +433,15 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'run': run or self.settings('run'),
+            'name': project, 'run': run or self.settings('run'),
             'entity': entity or self.settings('entity'),
             'description': description,
             'files': [file for file in files]
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -457,7 +480,7 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'run': run or self.settings('run'),
+            'name': project, 'run': run or self.settings('run'),
             'entity': entity or self.settings('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
         return {file['name']: file for file in files}
@@ -496,7 +519,8 @@ class Api(object):
         while attempts < self.retries:
             try:
                 progress = Progress(file, callback=callback)
-                response = requests.put(url, data=progress, headers=extra_headers)
+                response = requests.put(
+                    url, data=progress, headers=extra_headers)
                 response.raise_for_status()
                 break
             except requests.exceptions.RequestException as e:
@@ -519,8 +543,8 @@ class Api(object):
     @property
     def latest_config(self):
         "The latest config parameters trained on"
-        if os.path.exists(__stage_dir__+'latest.yaml'):
-            config = yaml.load(open(__stage_dir__+'latest.yaml'))
+        if os.path.exists(__stage_dir__ + 'latest.yaml'):
+            config = yaml.load(open(__stage_dir__ + 'latest.yaml'))
             del config['wandb_version']
             return config
 
@@ -577,35 +601,39 @@ class Api(object):
             The requests library response object
         """
         project, run = self.parse_slug(project, run=run)
-        #Only tag if enabled
+        # Only tag if enabled
         if self.settings("git_tag"):
             self.tag_and_push(run, description, force)
-        run_id, result = self.upload_urls(project, files, run, entity, description)
+        run_id, result = self.upload_urls(
+            project, files, run, entity, description)
         responses = []
         for file_name, file_info in result.items():
             try:
-                open_file = files[file_name] if isinstance(files, dict) else open(file_name, "rb")
+                open_file = files[file_name] if isinstance(
+                    files, dict) else open(file_name, "rb")
             except IOError:
                 print("%s does not exist" % file_name)
                 continue
             if progress:
                 length = os.fstat(open_file.fileno()).st_size
                 with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
-                    fill_char=click.style('&', fg='green')) as bar:
-                    self.upload_file(file_info['url'], open_file, lambda bites: bar.update(bites))
+                                       fill_char=click.style('&', fg='green')) as bar:
+                    self.upload_file(
+                        file_info['url'], open_file, lambda bites: bar.update(bites))
             else:
                 responses.append(self.upload_file(file_info['url'], open_file))
             open_file.close()
         if self.latest_config:
             self.upsert_run(id=run_id, description=description,
-                entity=entity, config=self.latest_config)
+                            entity=entity, config=self.latest_config)
         return responses
 
     def get_file_stream_api(self):
         if not self._file_stream_api:
             settings = self.settings()
             if self._current_run is None:
-                raise UsageError('Must have a current run to use file stream API.')
+                raise UsageError(
+                    'Must have a current run to use file stream API.')
             self._file_stream_api = FileStreamApi(
                 self.api_key, self.user_agent, settings['base_url'],
                 settings['entity'], settings['project'], self._current_run)
@@ -614,12 +642,14 @@ class Api(object):
     def tag_and_push(self, name, description, force=True):
         if self.git.enabled and not self.tagged:
             self.tagged = True
-            #TODO: this is getting called twice...
+            # TODO: this is getting called twice...
             print("Tagging your git repo...")
             if not force and self.git.dirty:
-                raise CommError("You have un-committed changes. Use the force flag or commit your changes.")
+                raise CommError(
+                    "You have un-committed changes. Use the force flag or commit your changes.")
             elif self.git.dirty and os.path.exists(__stage_dir__):
-                self.git.repo.git.execute(['git', 'diff'], output_stream=open(os.path.join(__stage_dir__, 'diff.patch'), 'wb'))
+                self.git.repo.git.execute(['git', 'diff'], output_stream=open(
+                    os.path.join(__stage_dir__, 'diff.patch'), 'wb'))
             self.git.tag(name, description)
             result = self.git.push(name)
             if(result is None or len(result) is None):
@@ -629,12 +659,14 @@ class Api(object):
         """Ask google how much we've uploaded"""
         return requests.put(
             url=url,
-            headers={'Content-Length': '0', 'Content-Range': 'bytes */%i' % length}
+            headers={'Content-Length': '0',
+                     'Content-Range': 'bytes */%i' % length}
         )
 
     def _flatten_edges(self, response):
         """Return an array from the nested graphql relay structure"""
         return [node['node'] for node in response['edges']]
+
 
 class FileStreamApi(object):
     """Pushes chunks of files to our streaming endpoint.
@@ -699,7 +731,7 @@ class FileStreamApi(object):
                 logger.debug("Sending heartbeat at %s", cur_time)
                 posted_anything_time = cur_time
                 util.request_with_retry(self._client.post,
-                        self._endpoint, json={'complete': False, 'failed': False})
+                                        self._endpoint, json={'complete': False, 'failed': False})
 
         # drain queue and post
         remaining_chunks = []
@@ -712,20 +744,21 @@ class FileStreamApi(object):
 
         # post the final close message. (item is self.Finish instance now)
         util.request_with_retry(self._client.post,
-                self._endpoint, json={'complete': True, 'failed': item.failed})
+                                self._endpoint, json={'complete': True, 'failed': item.failed})
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
         files = {}
-        for filename, file_chunks in itertools.groupby(chunks, lambda c:c.filename):
+        for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
             files[filename] = {
                 'offset': file_chunks[0].id,
                 'content': [c.data for c in file_chunks]
             }
 
-        util.request_with_retry(self._client.post, self._endpoint, json={'files': files})
+        util.request_with_retry(
+            self._client.post, self._endpoint, json={'files': files})
 
     def push(self, filename, chunk_id, chunk):
         """Push a chunk of a file to the streaming endpoint.
