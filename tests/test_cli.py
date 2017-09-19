@@ -133,11 +133,14 @@ def test_push_no_run(runner):
         assert result.exit_code == 2
         assert "Run id is required if files are specified." in result.output
 
-def test_push_dirty_git(runner):
+def test_push_dirty_git(runner, monkeypatch):
     with runner.isolated_filesystem():
+        os.mkdir('.wandb')
         repo = git_repo()
         open("foo.txt", "wb").close()
         repo.repo.index.add(["foo.txt"])
+        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
+        cli.api._settings['git_tag'] = True
         result = runner.invoke(cli.push, ["test", "foo.txt", "-p", "test", "-m", "Dirty"])
         print(result.output)
         print(result.exception)
