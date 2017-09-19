@@ -3,17 +3,15 @@ from click.testing import CliRunner
 
 import wandb, yaml, sys, os, argparse
 
-@pytest.fixture
-def config():
-    return wandb.Config()
-
 def init():
-    os.mkdir(os.getcwd()+"/wandb")
+    os.mkdir(os.getcwd() + "/wandb")
     return wandb.Config()
 
-def test_empty_config(config):
-    config.foo = 'bar'
-    assert dict(config)['foo'] == 'bar'
+def test_empty_config():
+    with CliRunner().isolated_filesystem():
+        config = init()
+        config.foo = 'bar'
+        assert dict(config)['foo'] == 'bar'
 
 def test_init_with_argparse():
     #TODO: this makes other tests dirty.
@@ -55,7 +53,7 @@ def test_persist_existing():
         config.persist()
         assert dict(wandb.Config())['foo'] == 'baz'
 
-def test_persist_overrides(config):
+def test_persist_overrides():
     with CliRunner().isolated_filesystem():
         config = init()
         config.foo = "bar"
@@ -77,27 +75,34 @@ def test_converts_env():
         assert conf.int == 1
         del os.environ['WANDB_INT']
 
-def test_allows_getiter(config):
-    config.foo = "bar"
-    assert config['foo'] == "bar"
+def test_allows_getiter():
+    with CliRunner().isolated_filesystem():
+        config = init()
+        config.foo = "bar"
+        assert config['foo'] == "bar"
 
-def test_repr_with_desc(config):
-    config.foo = "bar"
-    config.foo_desc = "Fantastic"
-    assert 'Fantastic' in "%r" % config
+def test_repr_with_desc():
+    with CliRunner().isolated_filesystem():
+        config = init()
+        config.foo = "bar"
+        config.foo_desc = "Fantastic"
+        assert 'Fantastic' in "%r" % config
 
-def test_arg_overrides(config):
-    sys.argv = ["cool.py", "--foo=1.0"]
-    config.foo = "overriden"
-    config.load_overrides()
-    assert config.foo == 1.0
+def test_arg_overrides():
+    with CliRunner().isolated_filesystem():
+        config = init()
+        sys.argv = ["cool.py", "--foo=1.0"]
+        config.foo = "overriden"
+        config.load_overrides()
+        assert config.foo == 1.0
 
 def test_str_yaml():
-    config = wandb.Config()
-    config.foo = "bar"
-    config.foo_desc = "Fantastic"
-    pytest.skip("Taking a shit on circle ci...")
-    assert str(config) == """wandb_version: 1
+    with CliRunner().isolated_filesystem():
+        config = wandb.Config()
+        config.foo = "bar"
+        config.foo_desc = "Fantastic"
+        pytest.skip("Taking a shit on circle ci...")
+        assert str(config) == """wandb_version: 1
 
 batch_size:
   desc: Number of training examples in a mini-batch
