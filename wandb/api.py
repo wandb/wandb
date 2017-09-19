@@ -697,6 +697,8 @@ class CRDedupeFilePolicy(object):
                 content.append(line)
         chunk_id = self._chunk_id
         self._chunk_id += len(content)
+        if content and content[-1].endswith('\r'):
+            self._chunk_id -= 1
         return {
             'offset': chunk_id,
             'content': content
