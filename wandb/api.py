@@ -127,32 +127,35 @@ class Api(object):
         self._settings_parser = configparser.ConfigParser()
         self.tagged = False
         if load_settings:
-            files = self._settings_parser.read([
-                os.path.expanduser('~/.wandb/settings'),
-                os.path.join(os.getcwd(), __stage_dir__, 'settings')
-            ])
-            self.settings_file = files[0] if len(files) > 0 else "Not found"
+            potential_settings_paths = [
+                os.path.expanduser('~/.wandb/settings')
+            ]
+            if __stage_dir__ is not None:
+                potential_settings_paths.append(
+                    os.path.join(os.getcwd(), __stage_dir__, 'settings'))
+            files=self._settings_parser.read(potential_settings_paths)
+            self.settings_file=files[0] if len(files) > 0 else "Not found"
         else:
-            self.settings_file = "Not found"
-        self.git = GitRepo(remote=self.settings("git_remote"))
-        self._commit = self.git.last_commit
+            self.settings_file="Not found"
+        self.git=GitRepo(remote = self.settings("git_remote"))
+        self._commit=self.git.last_commit
         if self.git.dirty:
-            self.git.repo.git.execute(['git', 'diff'], output_stream=open(
+            self.git.repo.git.execute(['git', 'diff'], output_stream = open(
                 __stage_dir__ + 'diff.patch', 'wb'))
-        self.client = Client(
-            retries=self.retries,
-            transport=RequestsHTTPTransport(
+        self.client=Client(
+            retries = self.retries,
+            transport = RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent},
                 use_json=True,
                 auth=("api", self.api_key),
                 url='%s/graphql' % self.settings('base_url')
             )
         )
-        self._current_run = None
-        self._file_stream_api = None
+        self._current_run=None
+        self._file_stream_api=None
 
     def set_current_run(self, run_id):
-        self._current_run = run_id
+        self._current_run=run_id
 
     @property
     def current_run(self):
@@ -164,14 +167,14 @@ class Api(object):
 
     @property
     def api_key(self):
-        auth = requests.utils.get_netrc_auth(self.settings()['base_url'])
+        auth=requests.utils.get_netrc_auth(self.settings()['base_url'])
         if auth:
-            key = auth[-1]
+            key=auth[-1]
         else:
-            key = os.environ.get("WANDB_API_KEY")
+            key=os.environ.get("WANDB_API_KEY")
         return key
 
-    def settings(self, key=None, section=None):
+    def settings(self, key = None, section = None):
         """The settings overridden from the wandb/settings file.
 
         Args:
@@ -189,16 +192,16 @@ class Api(object):
                 }
         """
         if not self._settings:
-            self._settings = self.default_settings.copy()
-            section = section or self._settings['section']
+            self._settings=self.default_settings.copy()
+            section=section or self._settings['section']
             try:
                 if section in self._settings_parser.sections():
                     for option in self._settings_parser.options(section):
-                        self._settings[option] = self._settings_parser.get(
+                        self._settings[option]=self._settings_parser.get(
                             section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")
-            self._settings["project"] = self._settings.get(
+            self._settings["project"]=self._settings.get(
                 "project", os.environ.get("WANDB_PROJECT"))
             self._settings["entity"] = self._settings.get(
                 "entity", os.environ.get("WANDB_ENTITY"))

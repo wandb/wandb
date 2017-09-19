@@ -12,8 +12,10 @@ import os
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists('.wandb'):
     __stage_dir__ = '.wandb/'
-else:
+elif os.path.exists('wandb'):
     __stage_dir__ = "wandb/"
+else:
+    __stage_dir__ = None
 
 from .git_repo import GitRepo
 from .api import Api, Error
@@ -28,9 +30,13 @@ from .run import Run
 # The current run (a Run object)
 run = None
 
+if __stage_dir__ is not None:
+    log_fname = __stage_dir__ + 'debug.log'
+else:
+    log_fname = './wandb-debug.log'
 logging.basicConfig(
     filemode="w",
-    filename=__stage_dir__ + 'debug.log',
+    filename=log_fname,
     level=logging.DEBUG)
 
 
