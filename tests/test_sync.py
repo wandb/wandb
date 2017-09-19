@@ -8,6 +8,8 @@ from freezegun import freeze_time
 import wandb
 import time
 
+WATCHDOG_DELAY = 0.1
+
 
 def mock_stop(*args):
     pass
@@ -22,7 +24,7 @@ def test_watches_for_all_changes(mocker):
         with open("some_file.h5", "w") as f:
             f.write("My great changes")
         # Fuck if I know why this makes shit work...
-        time.sleep(1)
+        time.sleep(WATCHDOG_DELAY)
         assert api.upsert_run.called
         assert api.push.called
 
@@ -35,7 +37,7 @@ def test_watches_for_specific_change(mocker):
         sync.watch(["rad.txt"])
         with open("rad.txt", "a") as f:
             f.write("something great")
-        time.sleep(1)
+        time.sleep(WATCHDOG_DELAY)
         assert api.push.called
 
 
@@ -48,7 +50,7 @@ def test_watches_for_subdir_change(mocker):
         os.mkdir('subdir')
         with open("subdir/rad.txt", "a") as f:
             f.write("something great")
-        time.sleep(1)
+        time.sleep(WATCHDOG_DELAY)
         assert api.push.called
 
 
@@ -61,7 +63,7 @@ def test_ignores_hidden_folders(mocker):
         os.mkdir('.subdir')
         with open(".subdir/rad.txt", "a") as f:
             f.write("something great")
-        time.sleep(1)
+        time.sleep(WATCHDOG_DELAY)
         assert not api.push.called
 
 
@@ -73,7 +75,7 @@ def test_watches_for_glob_change(mocker):
         sync.watch(["*.txt"])
         with open("file.txt", "a") as f:
             f.write("great")
-        time.sleep(1)
+        time.sleep(WATCHDOG_DELAY)
         assert api.push.called
 
 # def test_syncs_log(mocker, upload_logs, upsert_run, request_mocker):
