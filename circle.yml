@@ -10,5 +10,6 @@ dependencies:
 
 test:
   override:
+    - mkdir .wandb
     - bash circle_tox.sh:
         parallel: true
