@@ -8,7 +8,7 @@ def config():
     return wandb.Config()
 
 def init():
-    os.mkdir(os.getcwd()+"/.wandb")
+    os.mkdir(os.getcwd()+"/wandb")
     return wandb.Config()
 
 def test_empty_config(config):
@@ -25,7 +25,7 @@ def test_init_with_argparse():
         config = wandb.Config(p.parse_args())
         sys.argv = []
         assert config.foo == "bar"
-        assert open(".wandb/latest.yaml").read() == """wandb_version: 1
+        assert open("wandb/latest.yaml").read() == """wandb_version: 1
 
 foo:
   desc: null
@@ -59,7 +59,7 @@ def test_persist_overrides(config):
     with CliRunner().isolated_filesystem():
         config = init()
         config.foo = "bar"
-        assert(yaml.load(open(".wandb/latest.yaml"))) == {'wandb_version': 1, 'foo': {'desc': None, 'value': 'bar'}}
+        assert(yaml.load(open("wandb/latest.yaml"))) == {'wandb_version': 1, 'foo': {'desc': None, 'value': 'bar'}}
     
 def test_env_override():
     with CliRunner().isolated_filesystem():
