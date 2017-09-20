@@ -94,7 +94,6 @@ def sync(extra_config=None):
             raise Error(
                 "No API key found, run `wandb login` or set WANDB_API_KEY")
         api.set_current_run_id(run.id)
-        pdb.set_trace()
         if extra_config is not None:
             run.config.update(extra_config)
         sync = Sync(api, run.id, config=run.config)

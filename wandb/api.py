@@ -544,14 +544,6 @@ class Api(object):
                     raise e
         return response
 
-    @property
-    def latest_config(self):
-        "The latest config parameters trained on"
-        if os.path.exists(__stage_dir__ + 'latest.yaml'):
-            config = yaml.load(open(__stage_dir__ + 'latest.yaml'))
-            del config['wandb_version']
-            return config
-
     def _md5(self, fname):
         hash_md5 = hashlib.md5()
         with open(fname, "rb") as f:
@@ -627,9 +619,6 @@ class Api(object):
             else:
                 responses.append(self.upload_file(file_info['url'], open_file))
             open_file.close()
-        if self.latest_config:
-            self.upsert_run(id=run_id, description=description,
-                            entity=entity, config=self.latest_config)
         return responses
 
     def get_file_stream_api(self):
