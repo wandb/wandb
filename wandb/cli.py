@@ -324,7 +324,7 @@ def init(ctx):
         file.write("[default]\nentity: {entity}\nproject: {project}\n".format(entity=entity, project=project))
 
     with open(os.path.join(__stage_dir__, '.gitignore'), "w") as file:
-        file.write("*\n!config")
+        file.write("*\n!settings")
 
     click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+
         """
