@@ -136,14 +136,10 @@ class FileEventHandlerOverwrite(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
-        if logger.parent.handlers[0]:
-            debugLog = logger.parent.handlers[0].stream
-        else:
-            debugLog = None
         print("Pushing %s" % self.file_path)
         with open(self.file_path, 'rb') as f:
             self._api.push(self._project, {self.save_name: f}, run=self._run_id,
-                           progress=debugLog)
+                           progress=False)
 
 
 class FileEventHandlerTextStream(FileEventHandler):
@@ -351,7 +347,6 @@ class Sync(object):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
-        print('FILE_CREATED', event, save_name)
         self._get_handler(event.src_path, save_name).on_created()
 
     # TODO: is this blocking the main thread?
