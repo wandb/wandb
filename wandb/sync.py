@@ -112,8 +112,9 @@ class FileTailer(object):
 
 
 class FileEventHandler(object):
-    def __init__(self, filename, api):
-        self.filename = filename
+    def __init__(self, file_path, save_name, api):
+        self.file_path = file_path
+        self.save_name = save_name
         self._api = api
 
     def on_created(self):
@@ -124,9 +125,9 @@ class FileEventHandler(object):
 
 
 class FileEventHandlerOverwrite(FileEventHandler):
-    def __init__(self, filename, api, project, run_id, *args, **kwargs):
+    def __init__(self, file_path, save_name, api, project, run_id, *args, **kwargs):
         super(FileEventHandlerOverwrite, self).__init__(
-            filename, api, *args, **kwargs)
+            file_path, save_name, api, *args, **kwargs)
         self._project = project
         self._run_id = run_id
         self._tailer = None
@@ -139,9 +140,9 @@ class FileEventHandlerOverwrite(FileEventHandler):
             debugLog = logger.parent.handlers[0].stream
         else:
             debugLog = None
-        print("Pushing %s" % self.filename)
-        with open(self.filename, 'rb') as f:
-            self._api.push(self._project, {self.filename: f}, run=self._run_id,
+        print("Pushing %s" % self.file_path)
+        with open(self.file_path, 'rb') as f:
+            self._api.push(self._project, {self.save_name: f}, run=self._run_id,
                            progress=debugLog)
 
 
@@ -153,7 +154,7 @@ class FileEventHandlerTextStream(FileEventHandler):
     def on_created(self):
         if self._tailer:
             logger.error(
-                'Streaming file created twice in same run: %s', self.filename)
+                'Streaming file created twice in same run: %s', self.file_path)
             return
         self._setup()
 
@@ -164,12 +165,12 @@ class FileEventHandlerTextStream(FileEventHandler):
 
     def _setup(self):
         fsapi = self._api.get_file_stream_api()
-        pusher = streaming_log.TextStreamPusher(fsapi, self.filename)
+        pusher = streaming_log.TextStreamPusher(fsapi, self.save_name)
 
         def on_read(data):
             pusher.write(data)
 
-        self._tailer = FileTailer(self.filename, on_read)
+        self._tailer = FileTailer(self.file_path, on_read)
 
 
 class FileEventHandlerBinaryStream(FileEventHandler):
@@ -180,7 +181,7 @@ class FileEventHandlerBinaryStream(FileEventHandler):
     def on_created(self):
         if self._tailer:
             logger.error(
-                'Streaming file created twice in same run: %s', self.filename)
+                'Streaming file created twice in same run: %s', self.file_path)
             return
         self._setup()
 
@@ -193,24 +194,21 @@ class FileEventHandlerBinaryStream(FileEventHandler):
         fsapi = self._api.get_file_stream_api()
 
         def on_read(data):
-            fsapi.push(self.filename, data)
+            fsapi.push(self.save_name, data)
 
-        self._tailer = streaming_log.FileTailer(
-            self.filename, on_read, binary=True)
+        self._tailer = FileTailer(self.file_path, on_read, binary=True)
 
 
 class Sync(object):
     """Watches for files to change and automatically pushes them
     """
 
-    def __init__(self, api, run=None, project=None, tags=[], datasets=[], config={}, description=None, dir=None):
+    def __init__(self, api, run_id, config=None, project=None, tags=[], datasets=[], description=None, dir=None):
         # 1.6 million 6 character combinations
-        runGen = ShortUUID(alphabet=list(
-            "0123456789abcdefghijklmnopqrstuvwxyz"))
-        self.run_id = run or runGen.random(6)
+        self._run_id = run_id
         self._project = project or api.settings("project")
         self._entity = api.settings("entity")
-        logger.debug("Initialized sync for %s/%s", self._project, self.run_id)
+        logger.debug("Initialized sync for %s/%s", self._project, self._run_id)
         self._dpath = os.path.join(__stage_dir__, 'description.md')
         self._description = description or (os.path.exists(self._dpath) and open(
             self._dpath).read()) or os.getenv('WANDB_DESCRIPTION')
@@ -235,7 +233,7 @@ class Sync(object):
         self.url = "{base}/{entity}/{project}/runs/{run}".format(
             project=self._project,
             entity=self._entity,
-            run=self.run_id,
+            run=self._run_id,
             base=base_url
         )
         self._hooks = ExitHooks()
@@ -243,25 +241,23 @@ class Sync(object):
         self._observer = Observer()
         if dir is None:
             self._watch_dir = os.path.join(
-                __stage_dir__, 'run-%s' % self.run_id)
+                __stage_dir__, 'run-%s' % self._run_id)
             util.mkdir_exists_ok(self._watch_dir)
         else:
             self._watch_dir = os.path.abspath(dir)
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
-        self._config = Config()
-        self.run = Run(self.run_id, self._watch_dir, self._config)
-        self._api.set_current_run(self.run_id)
+        if config is None:
+            config = Config()
+        self._config = config
 
         self._event_handlers = {}
-        self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
-            'wandb-history.jsonl', self._api)
 
     def watch(self, files):
         try:
             # TODO: better failure handling
-            self._api.upsert_run(name=self.run_id, project=self._project, entity=self._entity,
+            self._api.upsert_run(name=self._run_id, project=self._project, entity=self._entity,
                                  config=self._config.__dict__, description=self._description, host=socket.gethostname())
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
@@ -270,7 +266,7 @@ class Sync(object):
             if os.path.exists(__stage_dir__ + "diff.patch"):
                 self._api.push("{project}/{run}".format(
                     project=self._project,
-                    run=self.run_id
+                    run=self._run_id
                 ), {"diff.patch": open(__stage_dir__ + "diff.patch", "rb")})
             self._observer.start()
 
@@ -314,7 +310,7 @@ class Sync(object):
         print("Pushing log")
         slug = "{project}/{run}".format(
             project=self._project,
-            run=self.run_id
+            run=self._run_id
         )
         # self._api.push(
         #    slug, {"training.log": open(self.log.tempfile.name, "rb")})
@@ -333,34 +329,37 @@ class Sync(object):
         except SystemError:
             pass
 
-    def _get_handler(self, file_name):
-        if file_name not in self._event_handlers:
-            if 'tfevents' in file_name:
+    def _get_handler(self, file_path, save_name):
+        if save_name not in self._event_handlers:
+            if save_name == 'wandb-history.jsonl':
+                self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
+                    file_path, 'wandb-history.jsonl', self._api)
+            elif 'tfevents' in save_name:
                 # TODO: This is hard-coded, but we want to give users control
                 # over streaming files (or detect them).
-                self._api.get_file_stream_api().set_file_policy(file_name,
+                self._api.get_file_stream_api().set_file_policy(save_name,
                                                                 BinaryFilePolicy())
-                self._event_handlers[file_name] = FileEventHandlerBinaryStream(
-                    file_name, self._api)
+                self._event_handlers[save_name] = FileEventHandlerBinaryStream(
+                    file_path, save_name, self._api)
             else:
-                self._event_handlers[file_name] = FileEventHandlerOverwrite(
-                    file_name, self._api, self._project, self.run_id)
-        return self._event_handlers[file_name]
+                self._event_handlers[save_name] = FileEventHandlerOverwrite(
+                    file_path, save_name, self._api, self._project, self._run_id)
+        return self._event_handlers[save_name]
 
     # TODO: limit / throttle the number of adds / pushes
     def on_file_created(self, event):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
-        file_name = os.path.relpath(event.src_path, self._watch_dir)
-        print('FILE_CREATED', event, file_name)
-        self._get_handler(file_name).on_created()
+        save_name = os.path.relpath(event.src_path, self._watch_dir)
+        print('FILE_CREATED', event, save_name)
+        self._get_handler(event.src_path, save_name).on_created()
 
     # TODO: is this blocking the main thread?
     def on_file_modified(self, event):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
-        file_name = os.path.relpath(event.src_path, self._watch_dir)
-        self._get_handler(file_name).on_modified()
+        save_name = os.path.relpath(event.src_path, self._watch_dir)
+        self._get_handler(event.src_path, save_name).on_modified()
 
     @property
     def source_proc(self):

@@ -74,21 +74,22 @@ def pull(*args, **kwargs):
     Api().pull(*args, **kwargs)
 
 
-def sync(globs=['*'], **kwargs):
-    print('wandb Deprecated')
-    return
-    global run
-    if os.getenv('WANDB_CLI_LAUNCHED'):
-        run = Run(os.getenv('WANDB_RUN_ID'), os.getenv('WANDB_RUN_DIR'), {})
-        return
-    api = Api()
-    if api.api_key is None:
-        raise Error("No API key found, run `wandb login` or set WANDB_API_KEY")
-    # TODO: wandb describe
-    sync = Sync(api, **kwargs)
-    sync.watch(files=globs)
-    run = sync.run
-    return run
+def sync(extra_config=None):
+    if MODE == 'run':
+        api = Api()
+        if api.api_key is None:
+            raise Error(
+                "No API key found, run `wandb login` or set WANDB_API_KEY")
+        api.set_current_run_id(run.id)
+        if extra_config is not None:
+            run.config.update(extra_config)
+        sync = Sync(api, run.id, config=run.config)
+        sync.watch(files='*')
+    elif MODE == 'dryrun':
+        print('wandb dryrun mode. Use "wandb run <script>" to save results to wandb.\n'
+              'Run directory: %s' % run.dir)
+    elif MODE == 'cli':
+        raise Error('wandb.sync called from cli mode')
 
 
 __all__ = ["Api", "Error", "Config", "Results", "History", "Summary",

@@ -151,15 +151,15 @@ class Api(object):
                 url='%s/graphql' % self.settings('base_url')
             )
         )
-        self._current_run=None
+        self._current_run_id=None
         self._file_stream_api=None
 
-    def set_current_run(self, run_id):
-        self._current_run=run_id
+    def set_current_run_id(self, run_id):
+        self._current_run_id=run_id
 
     @property
-    def current_run(self):
-        return self._current_run
+    def current_run_id(self):
+        return self._current_run_id
 
     @property
     def user_agent(self):
@@ -634,12 +634,12 @@ class Api(object):
     def get_file_stream_api(self):
         if not self._file_stream_api:
             settings = self.settings()
-            if self._current_run is None:
+            if self._current_run_id is None:
                 raise UsageError(
                     'Must have a current run to use file stream API.')
             self._file_stream_api = FileStreamApi(
                 self.api_key, self.user_agent, settings['base_url'],
-                settings['entity'], settings['project'], self._current_run)
+                settings['entity'], settings['project'], self._current_run_id)
         return self._file_stream_api
 
     def tag_and_push(self, name, description, force=True):
