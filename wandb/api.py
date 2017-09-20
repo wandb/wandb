@@ -382,6 +382,7 @@ class Api(object):
                 debug: $debug
             }) {
                 bucket {
+                    id
                     name
                     description
                     config

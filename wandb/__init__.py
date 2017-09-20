@@ -8,6 +8,7 @@ import types
 import sys
 import logging
 import os
+import traceback
 
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists('.wandb'):
@@ -36,27 +37,18 @@ from .config import Config
 from .results import Results
 from .summary import Summary
 from .history import History
-from .keras import WandBKerasCallback
 from wandb import wandb_run
 
 # Three possible modes:
 #     'cli': running from "wandb" command
 #     'run': we're a script launched by "wandb run"
 #     'dryrun': we're a script not launched by "wandb run"
-MODE = os.environ.get('WANDB_MODE', 'dryrun')
 
-# The current run (a Run object)
-run = None
-
-if MODE == 'run':
-    run = wandb_run.Run(os.getenv('WANDB_RUN_ID'),
-                        os.getenv('WANDB_RUN_DIR'),
-                        Config())
-elif MODE == 'dryrun':
-    if __stage_dir__:
-        run_id = wandb_run.generate_id()
-        run = wandb_run.Run(run_id, wandb_run.run_dir_path(
-            run_id, dry=True), Config())
+# Hmmm....
+if traceback.extract_stack()[0].filename.endswith('bin/wandb'):
+    MODE = 'cli'
+else:
+    MODE = os.environ.get('WANDB_MODE', 'dryrun')
 
 
 # called by cli.py
@@ -67,7 +59,6 @@ def _set_cli_mode():
     global MODE, run
     MODE = 'cli'
     run = None
-
 
 if __stage_dir__ is not None:
     log_fname = __stage_dir__ + 'debug.log'
@@ -87,7 +78,7 @@ def pull(*args, **kwargs):
     Api().pull(*args, **kwargs)
 
 
-def sync(extra_config=None):
+def _do_sync(extra_config=None):
     if MODE == 'run':
         api = Api()
         if api.api_key is None:
@@ -98,12 +89,34 @@ def sync(extra_config=None):
             run.config.update(extra_config)
         sync = Sync(api, run.id, config=run.config)
         sync.watch(files='*')
+        return sync
     elif MODE == 'dryrun':
         print('wandb dryrun mode. Use "wandb run <script>" to save results to wandb.\n'
               'Run directory: %s' % run.dir)
-    elif MODE == 'cli':
-        raise Error('wandb.sync called from cli mode')
 
+
+# The current run (a Run object)
+run = None
+
+_run_id = os.getenv('WANDB_RUN_ID')
+if _run_id is None:
+    _run_id = wandb_run.generate_id()
+_run_dir = os.getenv('WANDB_RUN_DIR')
+if _run_dir is None:
+    _run_dir = wandb_run.run_dir_path(_run_id, dry=MODE == 'dryrun')
+_conf_paths = os.getenv('WANDB_CONF_PATHS', '')
+if _conf_paths:
+    _conf_paths = _conf_paths.split(',')
+
+syncer = None
+def persist_config_callback():
+    if syncer:
+        syncer.update_config(_config)
+_config = Config(config_paths=_conf_paths,
+                 wandb_dir=__stage_dir__, run_dir=_run_dir,
+                 persist_callback=persist_config_callback)
+run = wandb_run.Run(_run_id, _run_dir, _config)
+syncer = _do_sync()
 
 __all__ = ["Api", "Error", "Config", "Results", "History", "Summary",
            "WandBKerasCallback"]

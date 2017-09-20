@@ -8,9 +8,6 @@ from click.exceptions import BadParameter, ClickException
 import inquirer
 import sys, traceback
 
-from wandb import _set_cli_mode
-_set_cli_mode()
-
 from wandb import util
 from wandb import Api, Error, Config, __version__, __stage_dir__
 from wandb import wandb_run

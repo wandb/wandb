@@ -255,8 +255,9 @@ class Sync(object):
     def watch(self, files):
         try:
             # TODO: better failure handling
-            self._api.upsert_run(name=self._run_id, project=self._project, entity=self._entity,
-                                 config=self._config.__dict__, description=self._description, host=socket.gethostname())
+            upsert_result = self._api.upsert_run(name=self._run_id, project=self._project, entity=self._entity,
+                                                 config=self._config.as_dict(), description=self._description, host=socket.gethostname())
+            self._run_storage_id = upsert_result['id']
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
             # Ignore hidden files/folders
@@ -295,6 +296,11 @@ class Sync(object):
             lines = traceback.format_exception(
                 exc_type, exc_value, exc_traceback)
             logger.error('\n'.join(lines))
+
+    def update_config(self, config):
+        self._config = config
+        self._api.upsert_run(id=self._run_storage_id,
+                             config=self._config.as_dict())
 
     def stop(self):
         # This is a a heuristic delay to catch files that were written just before

@@ -5,6 +5,8 @@ import logging
 from .api import Error
 from wandb import get_stage_dir
 
+logger = logging.getLogger(__name__)
+
 
 def boolify(s):
     if s.lower() == 'none':
@@ -16,150 +18,117 @@ def boolify(s):
     raise ValueError("Not a boolean")
 
 
-class Config(dict):
-    """Creates a W&B config object.
+class Config(object):
+    """Creates a W&B config object."""
 
-    The object is an enhanced `dict`.  You can access keys via instance methods or
-    as you would a regular `dict`.  The object first looks for a `config-defaults.yaml` file
-    in the current directory.  It then looks for environment variables pre-pended
-    with "WANDB_".  Lastly it overrides any key found in command line arguments.
+    def __init__(self, config_paths=[], wandb_dir=None, run_dir=None, persist_callback=None):
+        self._wandb_dir = wandb_dir
+        self._run_dir = run_dir
 
-    Using the config objects enables W&B to track all configuration parameters used
-    in your training runs.
+        # TODO: Replace this with an event system.
+        self._persist_callback = persist_callback
 
-    Args:
-        config(:obj:`dict`, optional): Key value pairs from your existing code that
-        you would like to track.  You can also pass in objects that respond to `__dict__`
-        such as from argparse.
-    """
-
-    def __init__(self, config={}):
-        if not isinstance(config, dict):
-            try:
-                # for tensorflow flags
-                if "__flags" in dir(config):
-                    config._parse_flags()
-                    config = config.__dict__['__flags']
-                else:
-                    config = vars(config)
-            except TypeError:
-                raise TypeError(
-                    "config must be a dict or have a __dict__ attribute.")
-        dict.__init__(self, {})
+        self._items = {}
         self._descriptions = {}
-        # we only persist when _external is True
-        self._external = False
-        self.load_defaults()
-        self.load_env()
-        self.load_overrides()
-        for key in config:
-            self[key] = config[key]
-        self._external = True
-        self.persist(overrides=True)
 
-    @property
-    def config_dir(self):
-        """The config directory holding the latest configuration"""
-        return os.path.join(os.getcwd(), get_stage_dir())
+        self._load_defaults()
+        for conf_path in config_paths:
+            self._load_file(conf_path)
+        self._persist()
 
-    @property
-    def defaults_path(self):
-        """Where to find the default configuration"""
-        return os.getcwd() + "/config-defaults.yaml"
+    def _load_defaults(self):
+        if not self._wandb_dir:
+            logger.debug('wandb dir not provided, skipping defaults')
+            return
+        defaults_path = os.path.join(self._wandb_dir, 'config-defaults.yaml')
+        if not os.path.exists(defaults_path):
+            logger.debug('no defaults not found in %s' % defaults_path)
+            return
+        self._load_file(defaults_path)
 
-    @property
+    def _load_file(self, path):
+        subkey = None
+        if '::' in path:
+            conf_path, subkey = path.split('::', 1)
+        else:
+            conf_path = path
+        try:
+            conf_file = open(conf_path)
+        except (OSError, IOError):
+            raise Error('Couldn\'t read config file: %s' % conf_path)
+        try:
+            loaded = yaml.load(conf_file)
+        except yaml.parser.ParserError:
+            raise Error('Invalid YAML in config-defaults.yaml')
+        if subkey:
+            try:
+                loaded = loaded[subkey]
+            except KeyError:
+                raise Error('Asked for %s but %s not present in %s' % (
+                    path, subkey, conf_path))
+        self._update_from_dict(
+            loaded, error_prefix='In config %s, ' % path)
+
+    def _update_from_dict(self, items, error_prefix=''):
+        if not isinstance(items, dict):
+            raise Error('%sExpected dict but received %s' %
+                        (error_prefix, items))
+        for key, val in items.items():
+            if key == 'wandb_version':
+                continue
+            self._set_key(key, val, error_prefix=error_prefix)
+
+    def _set_key(self, key, val, error_prefix=''):
+        if isinstance(val, dict):
+            if 'value' not in val:
+                raise Error('%svalue of %s is dict, but does not contain "value" key' % (
+                    error_prefix, key))
+            self._items[key] = val['value']
+            if 'desc' in val:
+                self._descriptions[key] = val['desc']
+        else:
+            self._items[key] = val
+
     def keys(self):
         """All keys in the current configuration"""
-        return [key for key in self if not key.startswith("_")]
+        return self._items.keys()
 
     def desc(self, key):
         """The description of a given key"""
         return self._descriptions.get(key)
 
-    def convert(self, ob):
-        """Type casting for Boolean, None, Int and Float"""
-        # TODO: deeper type casting
-        if isinstance(ob, dict) or isinstance(ob, list):
-            return ob
-        for fn in (boolify, int, float):
-            try:
-                return fn(str(ob))
-            except ValueError:
-                pass
-        return str(ob)
-
     def load_json(self, json):
         """Loads existing config from JSON"""
         for key in json:
-            self[key] = json[key].get('value')
+            self._items[key] = json[key].get('value')
             self._descriptions[key] = json[key].get('desc')
 
-    def load_defaults(self):
-        """Load defaults from YAML"""
-        if os.path.exists(self.defaults_path):
-            try:
-                defaults = yaml.load(open(self.defaults_path))
-            except yaml.parser.ParserError:
-                raise Error("Invalid YAML in config-defaults.yaml")
-            if defaults:
-                for key in defaults:
-                    if key == "wandb_version":
-                        continue
-                    self[key] = defaults[key].get('value')
-                    self._descriptions[key] = defaults[key].get('desc')
-        else:
-            logging.info(
-                "Couldn't load default config, run `wandb config init` in this directory")
-
-    def load_overrides(self):
-        """Load overrides from command line arguments"""
-        for arg in sys.argv:
-            key_value = arg.split("=")
-            if len(key_value) == 2:
-                key = key_value[0].replace("--", "")
-                if self.get(key):
-                    self[key] = self.convert(key_value[1])
-
-    def load_env(self):
-        """Load overrides from the environment"""
-        for key in [key for key in os.environ if key.startswith("WANDB_CONFIG_")]:
-            value = os.environ[key]
-            self[key.replace("WANDB_CONFIG_", "").lower()
-                 ] = self.convert(value)
-
-    def persist(self, overrides=False):
+    def _persist(self):
         """Stores the current configuration for pushing to W&B"""
-        if overrides:
-            path = "{dir}/latest.yaml".format(dir=self.config_dir)
-        else:
-            path = self.defaults_path
-        try:
-            with open(path, "w") as defaults_file:
-                defaults_file.write(str(self))
-            return True
-        except IOError:
-            logging.warn(
-                "Unable to persist config, no wandb directory exists.  Run `wandb config init` in this directory.")
-            return False
+        if not self._run_dir or not os.path.isdir(self._run_dir):
+            # In dryrun mode, without wandb run, we don't
+            # save config  on initial load, because the run directory
+            # may not be created yet (because we don't know if we're
+            # being used in a run context, or as an API).
+            # TODO: Defer saving somehow, maybe via an events system
+            return
+        path = os.path.join(self._run_dir, 'config.yaml')
+        with open(path, "w") as conf_file:
+            conf_file.write(str(self))
 
-    def __getitem__(self, name):
-        return super(Config, self).__getitem__(name)
+        # TODO: Replace with events
+        if self._persist_callback:
+            self._persist_callback()
 
-    def __setitem__(self, key, value):
-        # TODO: this feels gross
-        if key.endswith("_desc"):
-            parts = key.split("_")
-            parts.pop()
-            self._descriptions["_".join(parts)] = str(value)
-        else:
-            # TODO: maybe don't convert, but otherwise python3 dumps unicode
-            super(Config, self).__setitem__(key, self.convert(value))
-            if not key.startswith("_") and self._external:
-                self.persist(overrides=True)
-            return value
+    def get(self, *args):
+        return self._items.get(*args)
 
-    def __getattr__(self, name):
-        return self.get(name)
+    def __getitem__(self, key):
+        return self._items[key]
+
+    def __setitem__(self, key, val):
+        self._set_key(key, val)
+        self._persist()
 
     def update(self, params):
         if not isinstance(params, dict):
@@ -174,28 +143,17 @@ class Config(dict):
             except TypeError:
                 raise TypeError(
                     "config must be a dict or have a __dict__ attribute.")
-        super(Config, self).update(params)
+        self._update_from_dict(params)
+        self._persist()
 
-    __setattr__ = __setitem__
-
-    @property
-    def __dict__(self):
+    def as_dict(self):
         defaults = {}
-        for key in self.keys:
-            defaults[key] = {'value': self[key],
+        for key, val in self._items.items():
+            defaults[key] = {'value': val,
                              'desc': self._descriptions.get(key)}
         return defaults
 
-    def __repr__(self):
-        rep = "\n".join([str({
-            'key': key,
-            'desc': self._descriptions.get(key),
-            'value': self[key]
-        }) for key in self.keys])
-        return rep
-
     def __str__(self):
         s = "wandb_version: 1\n\n"
-        if self.__dict__:
-            s += yaml.dump(self.__dict__, default_flow_style=False)
+        s += yaml.dump(self.as_dict(), default_flow_style=False)
         return s
