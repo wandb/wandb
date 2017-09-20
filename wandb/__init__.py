@@ -2,7 +2,7 @@
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.4.19'
+__version__ = '0.4.20'
 
 import types
 import sys
