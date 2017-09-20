@@ -25,20 +25,36 @@ from .results import Results
 from .summary import Summary
 from .history import History
 from .keras import WandBKerasCallback
-from .run import Run
+from wandb import wandb_run
+
+# Three possible modes:
+#     'cli': running from "wandb" command
+#     'run': we're a script launched by "wandb run"
+#     'dryrun': we're a script not launched by "wandb run"
+MODE = os.environ.get('WANDB_MODE', 'dryrun')
 
 # The current run (a Run object)
 run = None
-if os.getenv('WANDB_CLI_LAUNCHED'):
-    run = Run(os.getenv('WANDB_RUN_ID'),
-              os.getenv('WANDB_RUN_DIR'),
-              Config())
-else:
-    try:
-        os.mkdir(os.path.join(os.getcwd(), 'wandb-tmp'))
-    except OSError:
-        pass
-    run = Run('tmp', 'wandb-tmp', Config())
+
+if MODE == 'run':
+    run = wandb_run.Run(os.getenv('WANDB_RUN_ID'),
+                        os.getenv('WANDB_RUN_DIR'),
+                        Config())
+elif MODE == 'dryrun':
+    run_id = wandb_run.generate_id()
+    run = wandb_run.Run(run_id, wandb_run.run_dir_path(
+        run_id, dry=True), Config())
+
+
+# called by cli.py
+# Even when running the wandb cli, __init__.py is imported before main() runs, so we set
+# cli mode afterward. This means there's a period of time before this call when MODE will
+# be dryrun
+def _set_cli_mode():
+    global MODE, run
+    MODE = 'cli'
+    run = None
+
 
 if __stage_dir__ is not None:
     log_fname = __stage_dir__ + 'debug.log'

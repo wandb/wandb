@@ -54,9 +54,10 @@ def mkdir_exists_ok(path):
 
 
 class SafeSubprocess(object):
-    def __init__(self, args, env=None):
+    def __init__(self, args, env=None, read_output=False):
         self._args = args
         self._env = env
+        self._read_output = read_output
         self._stdout = queue.Queue()
         self._stderr = queue.Queue()
         self._popen = None
@@ -64,12 +65,15 @@ class SafeSubprocess(object):
         self._stderr_thread = None
 
     def run(self):
-        self._popen = subprocess.Popen(
-            self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self._env)
-        self._stdout_thread = self._spawn_reader_thread(
-            self._popen.stdout, self._stdout)
-        self._stderr_thread = self._spawn_reader_thread(
-            self._popen.stderr, self._stderr)
+        if self._read_output:
+            self._popen = subprocess.Popen(
+                self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self._env)
+            self._stdout_thread = self._spawn_reader_thread(
+                self._popen.stdout, self._stdout)
+            self._stderr_thread = self._spawn_reader_thread(
+                self._popen.stderr, self._stderr)
+        else:
+            self._popen = subprocess.Popen(self._args, env=self._env)
 
     def _spawn_reader_thread(self, filelike, out_queue):
         def _reader_thread(filelike, out_queue):
@@ -104,8 +108,10 @@ class SafeSubprocess(object):
         return self._read_all(self._stderr)
 
     def poll(self):
-        exit_code = self._popen.poll()
-        return self._popen.poll(), self._read_stdout(), self._read_stderr()
+        if self._read_output:
+            return self._popen.poll(), self._read_stdout(), self._read_stderr()
+        else:
+            return self._popen.poll()
 
 
 def request_with_retry(func, *args, **kwargs):

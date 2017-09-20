@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
-
 import click, sys
 import copy
-from wandb import Api, Error, Sync, Config, __version__, __stage_dir__
 import random, time, os, re, netrc, logging, json, glob, io, stat, subprocess
 from functools import wraps
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
 import inquirer
 import sys, traceback
+
+from wandb import _set_cli_mode
+_set_cli_mode()
+
 from wandb import util
+from wandb import Api, Error, Config, __version__, __stage_dir__
+from wandb import wandb_run
 
 logger = logging.getLogger(__name__)
 
@@ -342,29 +346,28 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.pass_context
 @click.argument('program')
 @click.argument('args', nargs=-1)
-@click.option('--run_dir', default='.',
-        help='Files in this directory will be saved to wandb. (default: \'.\'')
+@click.option('--id', default=None,
+        help='Run id to use, default is to generate.')
+@click.option('--dir', default=None,
+        help='Files in this directory will be saved to wandb, defaults to wandb/run-<run_id>')
 @click.option('--glob', default='*', multiple=True,
         help='New files in <run_dir> that match will be saved to wandb. (default: \'*\')')
 @display_error
-def run(ctx, program, args, run_dir, glob):
-    sync = Sync(api, dir=run_dir)
-
-    # This saves our stdout, which will be the popened process's stdout as well.
-    sync.watch(files=glob)
+def run(ctx, program, args, id, dir, glob):
     env = copy.copy(os.environ)
-    env['WANDB_CLI_LAUNCHED'] = '1'
-    env['WANDB_RUN_ID'] = sync.run_id
-    env['WANDB_RUN_DIR'] = sync.run.dir
-    proc = util.SafeSubprocess([program] + list(args), env=env)
+    env['WANDB_MODE'] = 'run'
+    if id is None:
+        id = wandb_run.generate_id()
+    env['WANDB_RUN_ID'] = id
+    if dir is None:
+        dir = wandb_run.run_dir_path(id, dry=False)
+        util.mkdir_exists_ok(dir)
+    env['WANDB_RUN_DIR'] = dir
+    proc = util.SafeSubprocess([program] + list(args), env=env, read_output=False)
     proc.run()
     while True:
-        time.sleep(1)
-        exitcode, stdout, stderr = proc.poll()
-        for so in stdout:
-            sys.stdout.write(so)
-        for se in stderr:
-            sys.stderr.write(se)
+        time.sleep(0.1)
+        exitcode = proc.poll()
         if exitcode is not None:
             print('wandb: job (%s) Process exited with code: %s' % (program, exitcode))
             break

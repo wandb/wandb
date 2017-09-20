@@ -19,7 +19,7 @@ from wandb import __stage_dir__, Error
 from wandb import streaming_log
 from wandb import util
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
-from .run import Run
+from .wandb_run import Run
 logger = logging.getLogger(__name__)
 
 
