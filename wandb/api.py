@@ -1,22 +1,40 @@
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
-import os, requests, ast
+import os
+import requests
+import ast
 from six.moves import configparser
 from functools import wraps
-import logging, hashlib, os, json, yaml
+import logging
+import hashlib
+import os
+import json
+import yaml
 from wandb import __version__, __stage_dir__, GitRepo
-from base64 import b64encode
+from wandb import util
+import base64
 import binascii
 import click
+import collections
+import itertools
+import logging
 import requests
+from six.moves import queue
+import threading
+import time
+
+logger = logging.getLogger(__name__)
+
 
 def IDENTITY(monitor):
     """A default callback for the Progress helper"""
     return monitor
 
+
 class Progress(object):
     """A helper class for displaying progress"""
+
     def __init__(self, file, callback=None):
         self.file = file
         self.callback = callback or IDENTITY
@@ -30,11 +48,24 @@ class Progress(object):
         self.callback(len(bites))
         return bites
 
+
 class Error(Exception):
-    """An error communicating with W&B"""
-    #For python 2 support
+    """Base W&B Error"""
+    # For python 2 support
+
     def encode(self, encoding):
         return self.message
+
+
+class CommError(Error):
+    """Error communicating with W&B"""
+    pass
+
+
+class UsageError(Error):
+    """API Usage Error"""
+    pass
+
 
 def normalize_exceptions(func):
     """Function decorator for catching common errors and re-raising as wandb.Error"""
@@ -44,13 +75,14 @@ def normalize_exceptions(func):
         try:
             return func(*args, **kwargs)
         except requests.HTTPError as err:
-            raise Error(err.response)
+            raise CommError(err.response)
         except RetryError as err:
             if "response" in dir(err.last_exception) and err.last_exception.response is not None:
-                message = err.last_exception.response.json().get('errors', [{'message': message}])[0]['message']
+                message = err.last_exception.response.json().get(
+                    'errors', [{'message': message}])[0]['message']
             else:
                 message = err.last_exception
-            raise Error(message)
+            raise CommError(message)
         except Exception as err:
             # gql raises server errors with dict's as strings...
             payload = err.args[0]
@@ -61,8 +93,9 @@ def normalize_exceptions(func):
             if os.getenv("DEBUG") == "true":
                 raise err
             else:
-                raise Error(message)
+                raise CommError(message)
     return wrapper
+
 
 class Api(object):
     """W&B Api wrapper
@@ -78,6 +111,7 @@ class Api(object):
         file or you wish to override the section to use in the settings file
         Override the settings here.
     """
+
     def __init__(self, default_settings=None, load_settings=True):
         self.default_settings = {
             'section': "default",
@@ -93,26 +127,39 @@ class Api(object):
         self._settings_parser = configparser.ConfigParser()
         self.tagged = False
         if load_settings:
-            files = self._settings_parser.read([
-                os.path.expanduser('~/.wandb/settings'),
-                os.path.join(os.getcwd(), __stage_dir__, 'settings')
-            ])
-            self.settings_file = files[0] if len(files) > 0 else "Not found"
+            potential_settings_paths = [
+                os.path.expanduser('~/.wandb/settings')
+            ]
+            if __stage_dir__ is not None:
+                potential_settings_paths.append(
+                    os.path.join(os.getcwd(), __stage_dir__, 'settings'))
+            files=self._settings_parser.read(potential_settings_paths)
+            self.settings_file=files[0] if len(files) > 0 else "Not found"
         else:
-            self.settings_file = "Not found"
-        self.git = GitRepo(remote=self.settings("git_remote"))
-        self._commit = self.git.last_commit
+            self.settings_file="Not found"
+        self.git=GitRepo(remote = self.settings("git_remote"))
+        self._commit=self.git.last_commit
         if self.git.dirty:
-            self.git.repo.git.execute(['git', 'diff'], output_stream=open(__stage_dir__+'diff.patch', 'wb'))
-        self.client = Client(
-            retries=self.retries,
-            transport=RequestsHTTPTransport(
+            self.git.repo.git.execute(['git', 'diff'], output_stream = open(
+                __stage_dir__ + 'diff.patch', 'wb'))
+        self.client=Client(
+            retries = self.retries,
+            transport = RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent},
                 use_json=True,
                 auth=("api", self.api_key),
                 url='%s/graphql' % self.settings('base_url')
             )
         )
+        self._current_run_id=None
+        self._file_stream_api=None
+
+    def set_current_run_id(self, run_id):
+        self._current_run_id=run_id
+
+    @property
+    def current_run_id(self):
+        return self._current_run_id
 
     @property
     def user_agent(self):
@@ -120,14 +167,14 @@ class Api(object):
 
     @property
     def api_key(self):
-        auth = requests.utils.get_netrc_auth(self.settings()['base_url'])
+        auth=requests.utils.get_netrc_auth(self.settings()['base_url'])
         if auth:
-            key = auth[-1]
+            key=auth[-1]
         else:
-            key = os.environ.get("WANDB_API_KEY")
+            key=os.environ.get("WANDB_API_KEY")
         return key
 
-    def settings(self, key=None, section=None):
+    def settings(self, key = None, section = None):
         """The settings overridden from the wandb/settings file.
 
         Args:
@@ -145,17 +192,21 @@ class Api(object):
                 }
         """
         if not self._settings:
-            self._settings = self.default_settings.copy()
-            section = section or self._settings['section']
+            self._settings=self.default_settings.copy()
+            section=section or self._settings['section']
             try:
                 if section in self._settings_parser.sections():
                     for option in self._settings_parser.options(section):
-                        self._settings[option] = self._settings_parser.get(section, option)
+                        self._settings[option]=self._settings_parser.get(
+                            section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")
-            self._settings["project"] = self._settings.get("project", os.environ.get("WANDB_PROJECT"))
-            self._settings["entity"] = self._settings.get("entity", os.environ.get("WANDB_ENTITY"))
-            self._settings["base_url"] = self._settings.get("base_url", os.environ.get("WANDB_BASE_URL"))
+            self._settings["project"]=self._settings.get(
+                "project", os.environ.get("WANDB_PROJECT"))
+            self._settings["entity"] = self._settings.get(
+                "entity", os.environ.get("WANDB_ENTITY"))
+            self._settings["base_url"] = self._settings.get(
+                "base_url", os.environ.get("WANDB_BASE_URL"))
         return self._settings if key is None else self._settings[key]
 
     def parse_slug(self, slug, project=None, run=None):
@@ -166,7 +217,7 @@ class Api(object):
         else:
             project = project or self.settings().get("project")
             if project is None:
-                raise Error("No default project configured.")
+                raise CommError("No default project configured.")
             run = run or slug or os.environ.get("WANDB_RUN")
             if run is None:
                 run = "latest"
@@ -295,7 +346,7 @@ class Api(object):
             'description': description, 'repo': self.git.remote_url, 'id': id})
         return response['upsertModel']['model']
 
-    @normalize_exceptions
+    #@normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None, config=None, description=None, entity=None, commit=None):
         """Update a run
 
@@ -337,7 +388,7 @@ class Api(object):
             }
         }
         ''')
-        if config:
+        if config is not None:
             config = json.dumps(config)
         if not description:
             description = None
@@ -385,14 +436,15 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'run': run or self.settings('run'),
+            'name': project, 'run': run or self.settings('run'),
             'entity': entity or self.settings('entity'),
             'description': description,
             'files': [file for file in files]
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -431,7 +483,7 @@ class Api(object):
         }
         ''')
         query_result = self.client.execute(query, variable_values={
-            'name':project, 'run': run or self.settings('run'),
+            'name': project, 'run': run or self.settings('run'),
             'entity': entity or self.settings('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
         return {file['name']: file for file in files}
@@ -466,11 +518,12 @@ class Api(object):
         attempts = 0
         extra_headers = {}
         if os.stat(file.name).st_size == 0:
-            raise Error("%s is an empty file" % file.name)
+            raise CommError("%s is an empty file" % file.name)
         while attempts < self.retries:
             try:
                 progress = Progress(file, callback=callback)
-                response = requests.put(url, data=progress, headers=extra_headers)
+                response = requests.put(
+                    url, data=progress, headers=extra_headers)
                 response.raise_for_status()
                 break
             except requests.exceptions.RequestException as e:
@@ -493,8 +546,8 @@ class Api(object):
     @property
     def latest_config(self):
         "The latest config parameters trained on"
-        if os.path.exists(__stage_dir__+'latest.yaml'):
-            config = yaml.load(open(__stage_dir__+'latest.yaml'))
+        if os.path.exists(__stage_dir__ + 'latest.yaml'):
+            config = yaml.load(open(__stage_dir__ + 'latest.yaml'))
             del config['wandb_version']
             return config
 
@@ -503,7 +556,7 @@ class Api(object):
         with open(fname, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
-        return b64encode(hash_md5.digest()).decode('ascii')
+        return base64.b64encode(hash_md5.digest()).decode('ascii')
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
@@ -551,39 +604,55 @@ class Api(object):
             The requests library response object
         """
         project, run = self.parse_slug(project, run=run)
-        #Only tag if enabled
+        # Only tag if enabled
         if self.settings("git_tag"):
             self.tag_and_push(run, description, force)
-        run_id, result = self.upload_urls(project, files, run, entity, description)
+        run_id, result = self.upload_urls(
+            project, files, run, entity, description)
         responses = []
         for file_name, file_info in result.items():
             try:
-                open_file = files[file_name] if isinstance(files, dict) else open(file_name, "rb")
+                open_file = files[file_name] if isinstance(
+                    files, dict) else open(file_name, "rb")
             except IOError:
                 print("%s does not exist" % file_name)
                 continue
             if progress:
                 length = os.fstat(open_file.fileno()).st_size
                 with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
-                    fill_char=click.style('&', fg='green')) as bar:
-                    self.upload_file(file_info['url'], open_file, lambda bites: bar.update(bites))
+                                       fill_char=click.style('&', fg='green')) as bar:
+                    self.upload_file(
+                        file_info['url'], open_file, lambda bites: bar.update(bites))
             else:
                 responses.append(self.upload_file(file_info['url'], open_file))
             open_file.close()
         if self.latest_config:
             self.upsert_run(id=run_id, description=description,
-                entity=entity, config=self.latest_config)
+                            entity=entity, config=self.latest_config)
         return responses
+
+    def get_file_stream_api(self):
+        if not self._file_stream_api:
+            settings = self.settings()
+            if self._current_run_id is None:
+                raise UsageError(
+                    'Must have a current run to use file stream API.')
+            self._file_stream_api = FileStreamApi(
+                self.api_key, self.user_agent, settings['base_url'],
+                settings['entity'], settings['project'], self._current_run_id)
+        return self._file_stream_api
 
     def tag_and_push(self, name, description, force=True):
         if self.git.enabled and not self.tagged:
             self.tagged = True
-            #TODO: this is getting called twice...
+            # TODO: this is getting called twice...
             print("Tagging your git repo...")
             if not force and self.git.dirty:
-                raise Error("You have un-committed changes. Use the force flag or commit your changes.")
+                raise CommError(
+                    "You have un-committed changes. Use the force flag or commit your changes.")
             elif self.git.dirty and os.path.exists(__stage_dir__):
-                self.git.repo.git.execute(['git', 'diff'], output_stream=open(os.path.join(__stage_dir__, 'diff.patch'), 'wb'))
+                self.git.repo.git.execute(['git', 'diff'], output_stream=open(
+                    os.path.join(__stage_dir__, 'diff.patch'), 'wb'))
             self.git.tag(name, description)
             result = self.git.push(name)
             if(result is None or len(result) is None):
@@ -593,9 +662,188 @@ class Api(object):
         """Ask google how much we've uploaded"""
         return requests.put(
             url=url,
-            headers={'Content-Length': '0', 'Content-Range': 'bytes */%i' % length}
+            headers={'Content-Length': '0',
+                     'Content-Range': 'bytes */%i' % length}
         )
 
     def _flatten_edges(self, response):
         """Return an array from the nested graphql relay structure"""
         return [node['node'] for node in response['edges']]
+
+Chunk = collections.namedtuple('Chunk', ('filename', 'data'))
+
+class DefaultFilePolicy(object):
+    def __init__(self):
+        self._chunk_id = 0
+
+    def process_chunks(self, chunks):
+        chunk_id = self._chunk_id
+        self._chunk_id += len(chunks)
+        return {
+            'offset': chunk_id,
+            'content': [c.data for c in chunks]
+        }
+
+class CRDedupeFilePolicy(object):
+    def __init__(self):
+        self._chunk_id = 0
+
+    def process_chunks(self, chunks):
+        content = []
+        for line in [c.data for c in chunks]:
+            if content and content[-1].endswith('\r'):
+                content[-1] = line
+            else:
+                content.append(line)
+        chunk_id = self._chunk_id
+        self._chunk_id += len(content)
+        if content and content[-1].endswith('\r'):
+            self._chunk_id -= 1
+        return {
+            'offset': chunk_id,
+            'content': content
+        }
+
+class BinaryFilePolicy(object):
+    def __init__(self):
+        self._offset = 0
+
+    def process_chunks(self, chunks):
+        data = b''.join([c.data for c in chunks])
+        enc = base64.b64encode(data).decode('ascii')
+        offset = self._offset
+        self._offset += len(data)
+        return {
+            'offset': self._offset,
+            'content': enc,
+            'encoding': 'base64'
+        }
+
+
+class FileStreamApi(object):
+    """Pushes chunks of files to our streaming endpoint.
+
+    This class is used as a singleton. It has a thread that serializes access to
+    the streaming endpoint and performs rate-limiting and batching.
+
+    TODO: Differentiate between binary/text encoding.
+    """
+    Finish = collections.namedtuple('Finish', ('failed'))
+
+    HTTP_TIMEOUT = 10
+    RATE_LIMIT_SECONDS = 1
+    HEARTBEAT_INTERVAL_SECONDS = 15
+    MAX_ITEMS_PER_PUSH = 10000
+
+    def __init__(self, api_key, user_agent, base_url, entity, project, run_id):
+        self._endpoint = "{base}/{entity}/{project}/{run}/file_stream".format(
+            base=base_url,
+            entity=entity,
+            project=project,
+            run=run_id)
+        self._client = requests.Session()
+        self._client.auth = ('api', api_key)
+        self._client.timeout = self.HTTP_TIMEOUT
+        self._client.headers.update({
+            'User-Agent': user_agent,
+        })
+        self._file_policies = {}
+        self._queue = queue.Queue()
+        self._thread = threading.Thread(target=self._thread_body)
+        # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
+        # cleans this thread up.
+        self._thread.daemon = True
+        self._thread.start()
+
+    def set_file_policy(self, filename, file_policy):
+        self._file_policies[filename] = file_policy
+
+    def _read_queue(self):
+        # called from the push thread (_thread_body), this does an initial read
+        # that'll block for up to RATE_LIMIT_SECONDS. Then it tries to read
+        # as much out of the queue as it can. We do this because the http post
+        # to the server happens within _thread_body, and can take longer than
+        # our rate limit. So next time we get a chance to read the queue we want
+        # read all the stuff that queue'd up since last time.
+        #
+        # If we have more than MAX_ITEMS_PER_PUSH in the queue then the push thread
+        # will get behind and data will buffer up in the queue.
+
+        try:
+            item = self._queue.get(True, self.RATE_LIMIT_SECONDS)
+        except queue.Empty:
+            return []
+        items = [item]
+        for i in range(self.MAX_ITEMS_PER_PUSH):
+            try:
+                item = self._queue.get_nowait() 
+            except queue.Empty:
+                return items
+            items.append(item)
+        return items
+
+    def _thread_body(self):
+        posted_data_time = time.time()
+        posted_anything_time = time.time()
+        ready_chunks = []
+        finished = None
+        while finished is None:
+            items = self._read_queue()
+            for item in items:
+                if isinstance(item, self.Finish):
+                    finished = item
+                else:
+                    # item is Chunk
+                    ready_chunks.append(item)
+                
+            cur_time = time.time()
+
+            if ready_chunks and cur_time - posted_data_time > self.RATE_LIMIT_SECONDS:
+                posted_data_time = cur_time
+                posted_anything_time = cur_time
+                self._send(ready_chunks)
+                ready_chunks = []
+
+            if cur_time - posted_anything_time > self.HEARTBEAT_INTERVAL_SECONDS:
+                logger.debug("Sending heartbeat at %s", cur_time)
+                posted_anything_time = cur_time
+                util.request_with_retry(self._client.post,
+                                        self._endpoint, json={'complete': False, 'failed': False})
+
+        # post the final close message. (item is self.Finish instance now)
+        util.request_with_retry(self._client.post,
+                                self._endpoint, json={'complete': True, 'failed': bool(finished.failed)})
+
+    def _send(self, chunks):
+        # create files dict. dict of <filename: chunks> pairs where chunks is a list of
+        # [chunk_id, chunk_data] tuples (as lists since this will be json).
+        files = {}
+        for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
+            file_chunks = list(file_chunks)  # groupby returns iterator
+            if filename not in self._file_policies:
+                self._file_policies[filename] = DefaultFilePolicy()
+            files[filename] = self._file_policies[filename].process_chunks(file_chunks)
+
+        util.request_with_retry(
+            self._client.post, self._endpoint, json={'files': files})
+
+    def push(self, filename, data):
+        """Push a chunk of a file to the streaming endpoint.
+
+        Args:
+            filename: Name of file that this is a chunk of.
+            chunk_id: TODO: change to 'offset'
+            chunk: File data.
+        """
+        self._queue.put(Chunk(filename, data))
+
+    def finish(self, failed):
+        """Cleans up.
+
+        Anything pushed after finish will be dropped.
+
+        Args:
+            failed: Set True to to display run failure in UI.
+        """
+        self._queue.put(self.Finish(failed))
+        self._thread.join()

@@ -1,13 +1,19 @@
 # -*- coding: utf-8 -*-
-
 import click, sys
-from wandb import Api, Error, Sync, Config, __version__, __stage_dir__
+import copy
 import random, time, os, re, netrc, logging, json, glob, io, stat, subprocess
 from functools import wraps
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
 import inquirer
 import sys, traceback
+
+from wandb import _set_cli_mode
+_set_cli_mode()
+
+from wandb import util
+from wandb import Api, Error, Config, __version__, __stage_dir__
+from wandb import wandb_run
 
 logger = logging.getLogger(__name__)
 
@@ -318,7 +324,7 @@ def init(ctx):
         file.write("[default]\nentity: {entity}\nproject: {project}\n".format(entity=entity, project=project))
 
     with open(os.path.join(__stage_dir__, '.gitignore'), "w") as file:
-        file.write("*\n!config")
+        file.write("*\n!settings")
 
     click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+
         """
@@ -333,16 +339,38 @@ def init(ctx):
         pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
 
-@cli.command(context_settings=CONTEXT, help="Launch a job")
+RUN_CONTEXT = copy.copy(CONTEXT)
+RUN_CONTEXT['allow_extra_args'] = True
+RUN_CONTEXT['ignore_unknown_options'] = True
+@cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @click.argument('program')
 @click.argument('args', nargs=-1)
+@click.option('--id', default=None,
+        help='Run id to use, default is to generate.')
+@click.option('--dir', default=None,
+        help='Files in this directory will be saved to wandb, defaults to wandb/run-<run_id>')
+@click.option('--glob', default='*', multiple=True,
+        help='New files in <run_dir> that match will be saved to wandb. (default: \'*\')')
 @display_error
-def run(ctx, program, args):
-    popen = subprocess.Popen([program] + list(args))
-    ret = popen.wait()
-    if ret != 0:
-        click.echo('wandb: job (%s) failed with return code: %s' % (program, ret))
+def run(ctx, program, args, id, dir, glob):
+    env = copy.copy(os.environ)
+    env['WANDB_MODE'] = 'run'
+    if id is None:
+        id = wandb_run.generate_id()
+    env['WANDB_RUN_ID'] = id
+    if dir is None:
+        dir = wandb_run.run_dir_path(id, dry=False)
+        util.mkdir_exists_ok(dir)
+    env['WANDB_RUN_DIR'] = dir
+    proc = util.SafeSubprocess([program] + list(args), env=env, read_output=False)
+    proc.run()
+    while True:
+        time.sleep(0.1)
+        exitcode = proc.poll()
+        if exitcode is not None:
+            print('wandb: job (%s) Process exited with code: %s' % (program, exitcode))
+            break
 
 @cli.group()
 @click.pass_context

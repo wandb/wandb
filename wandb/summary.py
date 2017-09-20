@@ -10,11 +10,11 @@ class Summary(object):
     """Used to store summary metrics during and after a run."""
 
     def __init__(self, out_dir='.'):
-        self.out_fname = os.path.join(out_dir, SUMMARY_FNAME)
+        self.fname = os.path.join(out_dir, SUMMARY_FNAME)
         self.summary = {}
 
     def _write(self):
-        with open(self.out_fname, 'w') as f:
+        with open(self.fname, 'w') as f:
             s = util.json_dumps_safer(self.summary, indent=4)
             f.write(s)
             f.write('\n')
