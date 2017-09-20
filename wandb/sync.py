@@ -226,6 +226,8 @@ class Sync(object):
         base_url = api.settings('base_url')
         if base_url.endswith('.dev'):
             base_url = 'http://app.dev'
+        elif base_url.endswith('wandb.ai'):
+            base_url = 'https://app.wandb.ai'
         self.url = "{base}/{entity}/{project}/runs/{run}".format(
             project=self._project,
             entity=self._entity,

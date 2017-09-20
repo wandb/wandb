@@ -17,6 +17,18 @@ elif os.path.exists('wandb'):
 else:
     __stage_dir__ = None
 
+
+def get_stage_dir():
+    return __stage_dir__
+
+# Used when initing a new project with "wandb init"
+
+
+def _set_stage_dir(stage_dir):
+    global __stage_dir__
+    __stage_dir__ = stage_dir
+
+
 from .git_repo import GitRepo
 from .api import Api, Error
 from .sync import Sync
@@ -41,9 +53,10 @@ if MODE == 'run':
                         os.getenv('WANDB_RUN_DIR'),
                         Config())
 elif MODE == 'dryrun':
-    run_id = wandb_run.generate_id()
-    run = wandb_run.Run(run_id, wandb_run.run_dir_path(
-        run_id, dry=True), Config())
+    if __stage_dir__:
+        run_id = wandb_run.generate_id()
+        run = wandb_run.Run(run_id, wandb_run.run_dir_path(
+            run_id, dry=True), Config())
 
 
 # called by cli.py
@@ -81,6 +94,7 @@ def sync(extra_config=None):
             raise Error(
                 "No API key found, run `wandb login` or set WANDB_API_KEY")
         api.set_current_run_id(run.id)
+        pdb.set_trace()
         if extra_config is not None:
             run.config.update(extra_config)
         sync = Sync(api, run.id, config=run.config)

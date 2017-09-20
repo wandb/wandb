@@ -3,7 +3,7 @@ import os
 import sys
 import logging
 from .api import Error
-from wandb import __stage_dir__
+from wandb import get_stage_dir
 
 
 def boolify(s):
@@ -60,7 +60,7 @@ class Config(dict):
     @property
     def config_dir(self):
         """The config directory holding the latest configuration"""
-        return os.path.join(os.getcwd(), __stage_dir__)
+        return os.path.join(os.getcwd(), get_stage_dir())
 
     @property
     def defaults_path(self):

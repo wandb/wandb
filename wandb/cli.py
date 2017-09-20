@@ -318,12 +318,15 @@ def init(ctx):
             if len(ids) > 0:
                 api.upsert_project(project, id=ids[0], entity=entity)
 
+    from wandb import _set_stage_dir, get_stage_dir
+    _set_stage_dir('wandb')
+
     ctx.invoke(config_init, False)
 
-    with open(os.path.join(__stage_dir__, 'settings'), "w") as file:
+    with open(os.path.join(get_stage_dir(), 'settings'), "w") as file:
         file.write("[default]\nentity: {entity}\nproject: {project}\n".format(entity=entity, project=project))
 
-    with open(os.path.join(__stage_dir__, '.gitignore'), "w") as file:
+    with open(os.path.join(get_stage_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
 
     click.echo(click.style("This directory is configured!  Try these next:\n", fg="green")+
@@ -389,7 +392,8 @@ Examples:
 @config.command("init", help="Initialize a directory with wandb configuration")
 @display_error
 def config_init(prompt=True):
-    config_path = os.path.join(os.getcwd(), __stage_dir__)
+    from wandb import get_stage_dir
+    config_path = os.path.join(os.getcwd(), get_stage_dir())
     config = Config()
     if os.path.isdir(config_path):
         if prompt:
