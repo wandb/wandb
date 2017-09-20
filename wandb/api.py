@@ -13,7 +13,7 @@ import json
 import yaml
 from wandb import __version__, __stage_dir__, GitRepo
 from wandb import util
-from base64 import b64encode
+import base64
 import binascii
 import click
 import collections
@@ -556,7 +556,7 @@ class Api(object):
         with open(fname, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
-        return b64encode(hash_md5.digest()).decode('ascii')
+        return base64.b64encode(hash_md5.digest()).decode('ascii')
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
@@ -704,6 +704,22 @@ class CRDedupeFilePolicy(object):
             'content': content
         }
 
+class BinaryFilePolicy(object):
+    def __init__(self):
+        self._offset = 0
+
+    def process_chunks(self, chunks):
+        data = b''.join([c.data for c in chunks])
+        enc = base64.b64encode(data).decode('ascii')
+        offset = self._offset
+        self._offset += len(data)
+        return {
+            'offset': self._offset,
+            'content': enc,
+            'encoding': 'base64'
+        }
+
+
 class FileStreamApi(object):
     """Pushes chunks of files to our streaming endpoint.
 
@@ -739,7 +755,7 @@ class FileStreamApi(object):
         self._thread.daemon = True
         self._thread.start()
 
-    def add_file_policy(self, filename, file_policy):
+    def set_file_policy(self, filename, file_policy):
         self._file_policies[filename] = file_policy
 
     def _read_queue(self):
@@ -804,11 +820,9 @@ class FileStreamApi(object):
         files = {}
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
-            policy = self._file_policies.get(filename)
-            if policy is None:
-                policy = CRDedupeFilePolicy()
-                self._file_policies[filename] = policy
-            files[filename] = policy.process_chunks(file_chunks)
+            if filename not in self._file_policies:
+                self._file_policies[filename] = DefaultFilePolicy()
+            files[filename] = self._file_policies[filename].process_chunks(file_chunks)
 
         util.request_with_retry(
             self._client.post, self._endpoint, json={'files': files})

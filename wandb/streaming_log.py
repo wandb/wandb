@@ -5,6 +5,7 @@ import time
 import sys
 from requests import Session
 from wandb import Api
+from six.moves import queue
 import threading
 import traceback
 import logging
@@ -88,3 +89,23 @@ class TextStreamPusher(object):
         """Close the file."""
         # Force a final line to clear whatever might be in the buffer.
         self.write('\n')
+
+
+class FileTailer(object):
+    def __init__(self, path, on_read_fn, binary=False):
+        self._path = path
+        mode = 'r'
+        if binary:
+            mode = 'rb'
+        self._file = open(path, mode)
+        self._on_read_fn = on_read_fn
+        self._thread = threading.Thread(target=self._thread_body)
+        self._thread.start()
+
+    def _thread_body(self):
+        while True:
+            data = self._file.read(1024)
+            if data == '':
+                time.sleep(1)
+            else:
+                self._on_read_fn(data)

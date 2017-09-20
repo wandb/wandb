@@ -29,6 +29,16 @@ from .run import Run
 
 # The current run (a Run object)
 run = None
+if os.getenv('WANDB_CLI_LAUNCHED'):
+    run = Run(os.getenv('WANDB_RUN_ID'),
+              os.getenv('WANDB_RUN_DIR'),
+              Config())
+else:
+    try:
+        os.mkdir(os.path.join(os.getcwd(), 'wandb-tmp'))
+    except OSError:
+        pass
+    run = Run('tmp', 'wandb-tmp', Config())
 
 if __stage_dir__ is not None:
     log_fname = __stage_dir__ + 'debug.log'
@@ -49,6 +59,8 @@ def pull(*args, **kwargs):
 
 
 def sync(globs=['*'], **kwargs):
+    print('wandb Deprecated')
+    return
     global run
     if os.getenv('WANDB_CLI_LAUNCHED'):
         run = Run(os.getenv('WANDB_RUN_ID'), os.getenv('WANDB_RUN_DIR'), {})

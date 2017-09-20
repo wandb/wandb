@@ -123,9 +123,10 @@ class Config(dict):
 
     def load_env(self):
         """Load overrides from the environment"""
-        for key in [key for key in os.environ if key.startswith("WANDB")]:
+        for key in [key for key in os.environ if key.startswith("WANDB_CONFIG_")]:
             value = os.environ[key]
-            self[key.replace("WANDB_", "").lower()] = self.convert(value)
+            self[key.replace("WANDB_CONFIG_", "").lower()
+                 ] = self.convert(value)
 
     def persist(self, overrides=False):
         """Stores the current configuration for pushing to W&B"""
@@ -160,6 +161,21 @@ class Config(dict):
 
     def __getattr__(self, name):
         return self.get(name)
+
+    def update(self, params):
+        if not isinstance(params, dict):
+            try:
+                # for tensorflow flags
+                if "__flags" in dir(params):
+                    if not params.__parsed:
+                        params._parse_flags()
+                    params = params.__flags
+                else:
+                    params = vars(params)
+            except TypeError:
+                raise TypeError(
+                    "config must be a dict or have a __dict__ attribute.")
+        super(Config, self).update(params)
 
     __setattr__ = __setitem__
 

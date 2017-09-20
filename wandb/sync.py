@@ -18,6 +18,7 @@ import click
 from wandb import __stage_dir__, Error
 from wandb import streaming_log
 from wandb import util
+from .api import BinaryFilePolicy, CRDedupeFilePolicy
 from .run import Run
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,114 @@ class ExitHooks(object):
         self._orig_excepthook(exc_type, exc, *args)
 
 
+class FileTailer(object):
+    def __init__(self, path, on_read_fn, binary=False):
+        self._path = path
+        mode = 'r'
+        if binary:
+            mode = 'rb'
+        self._file = open(path, mode)
+        self._on_read_fn = on_read_fn
+        self._thread = threading.Thread(target=self._thread_body)
+        self._thread.start()
+
+    def _thread_body(self):
+        while True:
+            data = self._file.read(1024)
+            if data == '':
+                time.sleep(1)
+            else:
+                self._on_read_fn(data)
+
+
+class FileEventHandler(object):
+    def __init__(self, filename, api):
+        self.filename = filename
+        self._api = api
+
+    def on_created(self):
+        pass
+
+    def on_modified(self):
+        pass
+
+
+class FileEventHandlerOverwrite(FileEventHandler):
+    def __init__(self, filename, api, project, run_id, *args, **kwargs):
+        super(FileEventHandlerOverwrite, self).__init__(
+            filename, api, *args, **kwargs)
+        self._project = project
+        self._run_id = run_id
+        self._tailer = None
+
+    def on_created(self):
+        self.on_modified()
+
+    def on_modified(self):
+        if logger.parent.handlers[0]:
+            debugLog = logger.parent.handlers[0].stream
+        else:
+            debugLog = None
+        print("Pushing %s" % self.filename)
+        with open(self.filename, 'rb') as f:
+            self._api.push(self._project, {self.filename: f}, run=self._run_id,
+                           progress=debugLog)
+
+
+class FileEventHandlerTextStream(FileEventHandler):
+    def __init__(self, *args, **kwargs):
+        super(FileEventHandlerTextStream, self).__init__(*args, **kwargs)
+        self._tailer = None
+
+    def on_created(self):
+        if self._tailer:
+            logger.error(
+                'Streaming file created twice in same run: %s', self.filename)
+            return
+        self._setup()
+
+    def on_modified(self):
+        if self._tailer:
+            return
+        self._setup()
+
+    def _setup(self):
+        fsapi = self._api.get_file_stream_api()
+        pusher = streaming_log.TextStreamPusher(fsapi, self.filename)
+
+        def on_read(data):
+            pusher.write(data)
+
+        self._tailer = FileTailer(self.filename, on_read)
+
+
+class FileEventHandlerBinaryStream(FileEventHandler):
+    def __init__(self, *args, **kwargs):
+        super(FileEventHandlerBinaryStream, self).__init__(*args, **kwargs)
+        self._tailer = None
+
+    def on_created(self):
+        if self._tailer:
+            logger.error(
+                'Streaming file created twice in same run: %s', self.filename)
+            return
+        self._setup()
+
+    def on_modified(self):
+        if self._tailer:
+            return
+        self._setup()
+
+    def _setup(self):
+        fsapi = self._api.get_file_stream_api()
+
+        def on_read(data):
+            fsapi.push(self.filename, data)
+
+        self._tailer = streaming_log.FileTailer(
+            self.filename, on_read, binary=True)
+
+
 class Sync(object):
     """Watches for files to change and automatically pushes them
     """
@@ -114,13 +223,12 @@ class Sync(object):
             if self._description is None:
                 sys.stderr.write('No description provided, aborting run.\n')
                 sys.exit(1)
-        self._config = Config(config)
         self._proc = psutil.Process(os.getpid())
         self._api = api
         self._tags = tags
         self._handler = PatternMatchingEventHandler()
-        self._handler.on_created = self.add
-        self._handler.on_modified = self.push
+        self._handler.on_created = self.on_file_created
+        self._handler.on_modified = self.on_file_modified
         base_url = api.settings('base_url')
         if base_url.endswith('.dev'):
             base_url = 'http://app.dev'
@@ -142,8 +250,13 @@ class Sync(object):
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
+        self._config = Config()
         self.run = Run(self.run_id, self._watch_dir, self._config)
         self._api.set_current_run(self.run_id)
+
+        self._event_handlers = {}
+        self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
+            'wandb-history.jsonl', self._api)
 
     def watch(self, files):
         try:
@@ -163,6 +276,8 @@ class Sync(object):
 
             print("Syncing %s" % self.url)
 
+            self._api.get_file_stream_api().set_file_policy(
+                'output.log', CRDedupeFilePolicy())
             # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
             self._stdout_stream = streaming_log.TextStreamPusher(
                 self._api.get_file_stream_api(), 'output.log', prepend_timestamp=True)
@@ -218,23 +333,34 @@ class Sync(object):
         except SystemError:
             pass
 
-    # TODO: limit / throttle the number of adds / pushes
-    def add(self, event):
-        self.push(event)
+    def _get_handler(self, file_name):
+        if file_name not in self._event_handlers:
+            if 'tfevents' in file_name:
+                # TODO: This is hard-coded, but we want to give users control
+                # over streaming files (or detect them).
+                self._api.get_file_stream_api().set_file_policy(file_name,
+                                                                BinaryFilePolicy())
+                self._event_handlers[file_name] = FileEventHandlerBinaryStream(
+                    file_name, self._api)
+            else:
+                self._event_handlers[file_name] = FileEventHandlerOverwrite(
+                    file_name, self._api, self._project, self.run_id)
+        return self._event_handlers[file_name]
 
-    # TODO: is this blocking the main thread?
-    def push(self, event):
+    # TODO: limit / throttle the number of adds / pushes
+    def on_file_created(self, event):
         if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
             return None
         file_name = os.path.relpath(event.src_path, self._watch_dir)
-        if logger.parent.handlers[0]:
-            debugLog = logger.parent.handlers[0].stream
-        else:
-            debugLog = None
-        print("Pushing %s" % file_name)
-        with open(event.src_path, 'rb') as f:
-            self._api.push(self._project, {file_name: f}, run=self.run_id,
-                           description=self._description, progress=debugLog)
+        print('FILE_CREATED', event, file_name)
+        self._get_handler(file_name).on_created()
+
+    # TODO: is this blocking the main thread?
+    def on_file_modified(self, event):
+        if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
+            return None
+        file_name = os.path.relpath(event.src_path, self._watch_dir)
+        self._get_handler(file_name).on_modified()
 
     @property
     def source_proc(self):
