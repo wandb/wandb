@@ -106,7 +106,7 @@ def _do_sync(dir, extra_config=None):
 # The current run (a Run object)
 run = None
 
-if __stage_dir__:
+if __stage_dir__ and MODE != 'cli':
     _run_id = os.getenv('WANDB_RUN_ID')
     if _run_id is None:
         _run_id = wandb_run.generate_id()
