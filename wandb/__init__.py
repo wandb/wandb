@@ -46,10 +46,11 @@ from wandb import wandb_run
 #     'dryrun': we're a script not launched by "wandb run"
 
 # Hmmm....
-if six.PY2:
-    launched_file = traceback.extract_stack()[0][0]
-else:
-    launched_file = traceback.extract_stack()[0].filename
+stack_frame0 = traceback.extract_stack()[0]
+try:
+    launched_file = stack_frame0.filename
+except AttributeError:
+    launched_file = stack_frame0[0]
 
 if launched_file.endswith('bin/wandb'):
     MODE = 'cli'
