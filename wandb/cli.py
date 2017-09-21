@@ -369,7 +369,11 @@ def run(ctx, program, args, id, dir, glob):
         dir = wandb_run.run_dir_path(id, dry=False)
         util.mkdir_exists_ok(dir)
     env['WANDB_RUN_DIR'] = dir
-    proc = util.SafeSubprocess([program] + list(args), env=env, read_output=False)
+    command = [program] + list(args)
+    runner = util.find_runner(program)
+    if runner:
+        command = runner.split() + command
+    proc = util.SafeSubprocess(command, env=env, read_output=False)
     proc.run()
     while True:
         time.sleep(0.1)

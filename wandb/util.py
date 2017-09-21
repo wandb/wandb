@@ -145,3 +145,25 @@ def request_with_retry(func, *args, **kwargs):
             logger.error(
                 'requests_with_retry encountered unretryable exception: %s', e)
             return e
+
+
+def find_runner(program):
+    """Return a command that will run program.
+
+    Args:
+        program: The string name of the program to try to run.
+    Returns:
+        string, Runner name.
+    """
+    if os.path.isfile(program) and not os.access(program, os.X_OK):
+        # program is a path to a non-executable file
+        try:
+            opened = open(program)
+        except PermissionError:
+            return None
+        first_line = opened.readline().strip()
+        if first_line.startswith('#!'):
+            return first_line[2:]
+        if program.endswith('.py'):
+            return 'python'
+    return None
