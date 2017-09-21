@@ -66,6 +66,7 @@ def _set_cli_mode():
     MODE = 'cli'
     run = None
 
+
 if __stage_dir__ is not None:
     log_fname = __stage_dir__ + 'debug.log'
 else:
@@ -116,12 +117,13 @@ if __stage_dir__:
         _conf_paths = _conf_paths.split(',')
 
     syncer = None
+
     def persist_config_callback():
         if syncer:
             syncer.update_config(_config)
     _config = Config(config_paths=_conf_paths,
-                    wandb_dir=__stage_dir__, run_dir=_run_dir,
-                    persist_callback=persist_config_callback)
+                     wandb_dir=__stage_dir__, run_dir=_run_dir,
+                     persist_callback=persist_config_callback)
     run = wandb_run.Run(_run_id, _run_dir, _config)
     syncer = _do_sync(run.dir)
 

@@ -5,12 +5,14 @@ import csv
 import tempfile
 import os
 
+
 def results(project=None, run=None):
     r = Results(project, run)
     try:
         yield r
     finally:
         r.close()
+
 
 class Results(object):
     """Generates results to be compared in WandB
@@ -22,13 +24,14 @@ class Results(object):
             r.write(input=r.encode_image(img), output=label,
                 truth=truth, score=score)
     """
+
     def __init__(self, project=None, run=None):
         self.api = Api()
         self.project = project or self.api.settings("project")
         self.run = run or os.getenv("WANDB_RUN")
         self.tempfile = tempfile.NamedTemporaryFile(mode='w')
         self.csv = csv.writer(self.tempfile)
-        self.csv.writerow(["input","output","probability","truth","loss"])
+        self.csv.writerow(["input", "output", "probability", "truth", "loss"])
         self.rows = 0
 
     def __enter__(self):
@@ -59,8 +62,5 @@ class Results(object):
     def close(self):
         self.tempfile.flush()
         self.api.push(self.project, {'results.csv': open(self.tempfile.name, "rb")},
-            run=self.run)
+                      run=self.run)
         self.tempfile.close()
-
-
-

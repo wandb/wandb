@@ -6,6 +6,7 @@ from wandb import util
 
 SUMMARY_FNAME = 'wandb-summary.json'
 
+
 class Summary(object):
     """Used to store summary metrics during and after a run."""
 
@@ -32,7 +33,7 @@ class Summary(object):
 
     def get(self, k, default=None):
         return self.summary.get(k, default)
-    
+
     def update(self, key_vals):
-        self.summary.update(key_vals) 
+        self.summary.update(key_vals)
         self._write()

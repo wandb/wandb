@@ -11,6 +11,7 @@ import wandb
 # Or have a separate lib "wandb-keras", then we could use the appropriate Keras
 # pieces
 
+
 class WandBKerasCallback(object):
     """WandB Keras Callback.
 
@@ -19,9 +20,9 @@ class WandBKerasCallback(object):
     """
 
     def __init__(self, monitor='val_loss', verbose=0, mode='auto',
-            save_weights_only=False):
+                 save_weights_only=False):
         """Constructor.
-    
+
         Args:
             See keras.ModelCheckpoint for other definitions of other
                 arguments.
@@ -37,7 +38,7 @@ class WandBKerasCallback(object):
         # From Keras
         if mode not in ['auto', 'min', 'max']:
             print('WandBKerasCallback mode %s is unknown, '
-                          'fallback to auto mode.' % (mode))
+                  'fallback to auto mode.' % (mode))
             mode = 'auto'
 
         if mode == 'min':
@@ -73,16 +74,16 @@ class WandBKerasCallback(object):
         current = logs.get(self.monitor)
         if current is None:
             print('Can save best model only with %s available, '
-                    'skipping.' % (self.monitor))
+                  'skipping.' % (self.monitor))
 
         if self.monitor_op(current, self.best):
             row.pop('epoch')
             wandb.run.summary.update(row)
             if self.verbose > 0:
                 print('Epoch %05d: %s improved from %0.5f to %0.5f,'
-                        ' saving model to %s'
-                        % (epoch, self.monitor, self.best,
-                            current, self.filepath))
+                      ' saving model to %s'
+                      % (epoch, self.monitor, self.best,
+                         current, self.filepath))
             self.best = current
             if self.save_weights_only:
                 self.model.save_weights(self.filepath, overwrite=True)
@@ -94,7 +95,7 @@ class WandBKerasCallback(object):
 
     def on_batch_end(self, batch, logs=None):
         pass
-    
+
     def on_train_begin(self, logs=None):
         pass
 

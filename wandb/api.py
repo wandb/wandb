@@ -133,30 +133,30 @@ class Api(object):
             if __stage_dir__ is not None:
                 potential_settings_paths.append(
                     os.path.join(os.getcwd(), __stage_dir__, 'settings'))
-            files=self._settings_parser.read(potential_settings_paths)
-            self.settings_file=files[0] if len(files) > 0 else "Not found"
+            files = self._settings_parser.read(potential_settings_paths)
+            self.settings_file = files[0] if len(files) > 0 else "Not found"
         else:
-            self.settings_file="Not found"
-        self.git=GitRepo(remote = self.settings("git_remote"))
-        self._commit=self.git.last_commit
+            self.settings_file = "Not found"
+        self.git = GitRepo(remote=self.settings("git_remote"))
+        self._commit = self.git.last_commit
         if __stage_dir__:
             if self.git.dirty:
-                self.git.repo.git.execute(['git', 'diff'], output_stream = open(
+                self.git.repo.git.execute(['git', 'diff'], output_stream=open(
                     __stage_dir__ + 'diff.patch', 'wb'))
-        self.client=Client(
-            retries = self.retries,
-            transport = RequestsHTTPTransport(
+        self.client = Client(
+            retries=self.retries,
+            transport=RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent},
                 use_json=True,
                 auth=("api", self.api_key),
                 url='%s/graphql' % self.settings('base_url')
             )
         )
-        self._current_run_id=None
-        self._file_stream_api=None
+        self._current_run_id = None
+        self._file_stream_api = None
 
     def set_current_run_id(self, run_id):
-        self._current_run_id=run_id
+        self._current_run_id = run_id
 
     @property
     def current_run_id(self):
@@ -168,14 +168,14 @@ class Api(object):
 
     @property
     def api_key(self):
-        auth=requests.utils.get_netrc_auth(self.settings()['base_url'])
+        auth = requests.utils.get_netrc_auth(self.settings()['base_url'])
         if auth:
-            key=auth[-1]
+            key = auth[-1]
         else:
-            key=os.environ.get("WANDB_API_KEY")
+            key = os.environ.get("WANDB_API_KEY")
         return key
 
-    def settings(self, key = None, section = None):
+    def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
 
         Args:
@@ -193,16 +193,16 @@ class Api(object):
                 }
         """
         if not self._settings:
-            self._settings=self.default_settings.copy()
-            section=section or self._settings['section']
+            self._settings = self.default_settings.copy()
+            section = section or self._settings['section']
             try:
                 if section in self._settings_parser.sections():
                     for option in self._settings_parser.options(section):
-                        self._settings[option]=self._settings_parser.get(
+                        self._settings[option] = self._settings_parser.get(
                             section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")
-            self._settings["project"]=self._settings.get(
+            self._settings["project"] = self._settings.get(
                 "project", os.environ.get("WANDB_PROJECT"))
             self._settings["entity"] = self._settings.get(
                 "entity", os.environ.get("WANDB_ENTITY"))
@@ -445,8 +445,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']: file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -661,7 +660,9 @@ class Api(object):
         """Return an array from the nested graphql relay structure"""
         return [node['node'] for node in response['edges']]
 
+
 Chunk = collections.namedtuple('Chunk', ('filename', 'data'))
+
 
 class DefaultFilePolicy(object):
     def __init__(self):
@@ -674,6 +675,7 @@ class DefaultFilePolicy(object):
             'offset': chunk_id,
             'content': [c.data for c in chunks]
         }
+
 
 class CRDedupeFilePolicy(object):
     def __init__(self):
@@ -694,6 +696,7 @@ class CRDedupeFilePolicy(object):
             'offset': chunk_id,
             'content': content
         }
+
 
 class BinaryFilePolicy(object):
     def __init__(self):
@@ -767,7 +770,7 @@ class FileStreamApi(object):
         items = [item]
         for i in range(self.MAX_ITEMS_PER_PUSH):
             try:
-                item = self._queue.get_nowait() 
+                item = self._queue.get_nowait()
             except queue.Empty:
                 return items
             items.append(item)
@@ -787,7 +790,7 @@ class FileStreamApi(object):
                     # item is Chunk
                     ready_chunks.append(item)
             logger.debug('DONE READ_QUEUE: %s %s', len(ready_chunks), finished)
-                
+
             cur_time = time.time()
 
             if ready_chunks and cur_time - posted_data_time > self.RATE_LIMIT_SECONDS:
@@ -814,7 +817,8 @@ class FileStreamApi(object):
             file_chunks = list(file_chunks)  # groupby returns iterator
             if filename not in self._file_policies:
                 self._file_policies[filename] = DefaultFilePolicy()
-            files[filename] = self._file_policies[filename].process_chunks(file_chunks)
+            files[filename] = self._file_policies[filename].process_chunks(
+                file_chunks)
 
         util.request_with_retry(
             self._client.post, self._endpoint, json={'files': files})

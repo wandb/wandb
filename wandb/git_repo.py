@@ -1,6 +1,7 @@
 from git import Repo, exc
 import os
 
+
 class GitRepo(object):
     def __init__(self, root=None, remote="origin", lazy=True):
         self.remote_name = remote
@@ -16,11 +17,12 @@ class GitRepo(object):
                 self._repo = False
             else:
                 try:
-                    self._repo = Repo(self.root or os.getcwd(), search_parent_directories=True)
+                    self._repo = Repo(self.root or os.getcwd(),
+                                      search_parent_directories=True)
                 except exc.InvalidGitRepositoryError:
                     self._repo = False
         return self._repo
-    
+
     @property
     def enabled(self):
         return self.repo
@@ -60,7 +62,7 @@ class GitRepo(object):
 
     def tag(self, name, message):
         try:
-            return self.repo.create_tag("wandb/"+name, message=message, force=True)
+            return self.repo.create_tag("wandb/" + name, message=message, force=True)
         except exc.GitCommandError:
             print("Failed to tag repository.")
             return None
@@ -68,6 +70,6 @@ class GitRepo(object):
     def push(self, name):
         if self.remote:
             try:
-                return self.remote.push("wandb/"+name, force=True)
+                return self.remote.push("wandb/" + name, force=True)
             except exc.GitCommandError:
                 return None

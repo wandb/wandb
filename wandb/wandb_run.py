@@ -43,6 +43,7 @@ class Run(object):
             self._history = history.History(self._dir)
         return self._history
 
+
 def generate_id():
     # ~2.1b run ids (36**6)
     run_gen = shortuuid.ShortUUID(alphabet=list(
