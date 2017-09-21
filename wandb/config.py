@@ -22,14 +22,14 @@ class Config(object):
     """Creates a W&B config object."""
 
     def __init__(self, config_paths=[], wandb_dir=None, run_dir=None, persist_callback=None):
-        self._wandb_dir = wandb_dir
-        self._run_dir = run_dir
+        object.__setattr__(self, '_wandb_dir', wandb_dir)
+        object.__setattr__(self, '_run_dir', run_dir)
 
         # TODO: Replace this with an event system.
-        self._persist_callback = persist_callback
+        object.__setattr__(self, '_persist_callback', persist_callback)
 
-        self._items = {}
-        self._descriptions = {}
+        object.__setattr__(self, '_items', {})
+        object.__setattr__(self, '_descriptions', {})
 
         self._load_defaults()
         for conf_path in config_paths:
@@ -129,6 +129,11 @@ class Config(object):
     def __setitem__(self, key, val):
         self._set_key(key, val)
         self._persist()
+
+    __setattr__ = __setitem__
+
+    def __getattr__(self, key):
+        return self.__getitem__(key)
 
     def update(self, params):
         if not isinstance(params, dict):
