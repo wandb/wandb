@@ -43,6 +43,11 @@ def display_error(func):
 
     return wrapper
 
+def _require_init():
+    if __stage_dir__ is None:
+        print('Directory not initialized. Please run "wandb init" to get started.')
+        sys.exit(1)
+
 def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
     message = click.edit(content + '\n\n' + marker)
     if message is not None:
@@ -360,6 +365,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
         help='New files in <run_dir> that match will be saved to wandb. (default: \'*\')')
 @display_error
 def run(ctx, program, args, id, dir, glob):
+    _require_init()
     env = copy.copy(os.environ)
     env['WANDB_MODE'] = 'run'
     if id is None:
