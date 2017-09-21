@@ -8,6 +8,15 @@ import git
 import webbrowser
 import wandb
 
+try:
+    # python 3.4+
+    from importlib import reload
+except ImportError:
+    # python 3.2, 3.3
+    from imp import reload
+except ImportError:
+    pass
+
 @pytest.fixture
 def runner(monkeypatch):
     monkeypatch.setattr(cli, 'api', Api(default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
@@ -140,6 +149,10 @@ def test_push_no_run(runner):
 def test_push_dirty_git(runner, monkeypatch):
     with runner.isolated_filesystem():
         os.mkdir('wandb')
+
+        # If the test was run from a directory containing .wandb, then __stage_dir__
+        # was '.wandb' when imported by api.py, reload to fix. UGH!
+        reload(wandb)
         repo = git_repo()
         open("foo.txt", "wb").close()
         repo.repo.index.add(["foo.txt"])
@@ -291,6 +304,9 @@ def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_
     query_viewer(request_mocker)
     query_projects(request_mocker)
     with runner.isolated_filesystem():
+        # If the test was run from a directory containing .wandb, then __stage_dir__
+        # was '.wandb' when imported by api.py, reload to fix. UGH!
+        reload(wandb)
         result = runner.invoke(cli.init, input="12345\nvanpelt")
         print(result.output)
         print(result.exception)
