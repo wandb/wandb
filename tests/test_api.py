@@ -109,7 +109,6 @@ def test_push_success(request_mocker, upload_url, query_project, upsert_run):
         with open("model.json", "w") as f:
             f.write("model")
         res = api.push("test/test", ["weights.h5", "model.json"])
-    assert update_mock.called
     assert res[0].status_code == 200
 
 
@@ -133,7 +132,6 @@ def test_push_git_success(request_mocker, mocker, upload_url, query_project, ups
                         default_settings={'git_tag': True})
         mock = mocker.patch.object(api.git, "push")
         res = api.push("test/test", ["weights.h5", "model.json"])
-    assert update_mock.called
     assert res[0].status_code == 200
     mock.assert_called_once_with("test")
 

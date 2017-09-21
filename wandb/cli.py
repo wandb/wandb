@@ -326,8 +326,7 @@ def init(ctx):
     from wandb import get_stage_dir
     wandb_path = os.path.join(os.getcwd(), get_stage_dir())
     if os.path.isdir(wandb_path):
-        if prompt:
-            click.confirm(click.style("This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
+        click.confirm(click.style("This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
     else:
         os.mkdir(wandb_path)
 
