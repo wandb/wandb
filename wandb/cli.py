@@ -318,7 +318,13 @@ def init(ctx):
     from wandb import _set_stage_dir, get_stage_dir
     _set_stage_dir('wandb')
 
-    ctx.invoke(config_init, False)
+    from wandb import get_stage_dir
+    wandb_path = os.path.join(os.getcwd(), get_stage_dir())
+    if os.path.isdir(wandb_path):
+        if prompt:
+            click.confirm(click.style("This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
+    else:
+        os.mkdir(wandb_path)
 
     with open(os.path.join(get_stage_dir(), 'settings'), "w") as file:
         file.write("[default]\nentity: {entity}\nproject: {project}\n".format(entity=entity, project=project))
