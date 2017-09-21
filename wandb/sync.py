@@ -237,12 +237,7 @@ class Sync(object):
         self._hooks = ExitHooks()
         self._hooks.hook()
         self._observer = Observer()
-        if dir is None:
-            self._watch_dir = os.path.join(
-                __stage_dir__, 'run-%s' % self._run_id)
-            util.mkdir_exists_ok(self._watch_dir)
-        else:
-            self._watch_dir = os.path.abspath(dir)
+        self._watch_dir = os.path.abspath(dir)
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 

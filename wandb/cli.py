@@ -389,24 +389,24 @@ Examples:
 @config.command("init", help="Initialize a directory with wandb configuration")
 @display_error
 def config_init(prompt=True):
-    from wandb import get_stage_dir
-    config_path = os.path.join(os.getcwd(), get_stage_dir())
-    config = Config()
-    if os.path.isdir(config_path):
-        if prompt:
-            click.confirm(click.style("This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
-    else:
-        os.mkdir(config_path)
-    config.epochs_desc = "Number epochs to train over"
-    config.epochs = 32
-    config.persist()
-    if prompt:
-        click.echo("""Configuration initialized, use `wandb config set` to set parameters.  Then in your training script:
-
-import wandb
-conf = wandb.sync()
-conf.batch_size
-""")
+    pass
+#    from wandb import get_stage_dir
+#    config_path = os.path.join(os.getcwd(), get_stage_dir())
+#    config = Config()
+#    if os.path.isdir(config_path):
+#        if prompt:
+#            click.confirm(click.style("This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
+#    else:
+#        os.mkdir(config_path)
+#    config.epochs_desc = "Number epochs to train over"
+#    config.epochs = 32
+#    config.persist()
+#    if prompt:
+#        click.echo("""Configuration initialized, use `wandb config set` to set parameters.  Then in your training script:
+#import wandb
+#conf = wandb.sync()
+#conf.batch_size
+#""")
 
 @config.command(help="Show the current config")
 @click.option("--format", help="The format to dump the config as", default="python", type=click.Choice(['python', 'yaml', 'json']))

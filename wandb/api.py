@@ -786,6 +786,7 @@ class FileStreamApi(object):
                 else:
                     # item is Chunk
                     ready_chunks.append(item)
+            logger.debug('DONE READ_QUEUE: %s %s', len(ready_chunks), finished)
                 
             cur_time = time.time()
 
