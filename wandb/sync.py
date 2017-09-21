@@ -105,7 +105,7 @@ class FileTailer(object):
     def _thread_body(self):
         while True:
             data = self._file.read(1024)
-            if data == '':
+            if not data:
                 time.sleep(1)
             else:
                 self._on_read_fn(data)
@@ -237,7 +237,12 @@ class Sync(object):
         self._hooks = ExitHooks()
         self._hooks.hook()
         self._observer = Observer()
-        self._watch_dir = os.path.abspath(dir)
+        if dir is None:
+            self._watch_dir = os.path.join(
+                __stage_dir__, 'run-%s' % self._run_id)
+            util.mkdir_exists_ok(self._watch_dir)
+        else:
+            self._watch_dir = os.path.abspath(dir)
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
