@@ -387,14 +387,14 @@ def init(ctx):
 
     click.echo(click.style("This directory is configured!  Try these next:\n", fg="green") +
                """
-* Track runs by calling sync in your training script `{flags}`.
+* Track runs: `{code}` in your training script, then `{run}`.
 * Run `{push}` to manually add a file.
 * `{config}` to add or change configuration defaults.
 * Pull popular models into your project with: `{pull}`.
     """.format(
         push=click.style("wandb push run_id weights.h5", bold=True),
-        flags=click.style(
-            "import wandb; run = wandb.sync(config=tf.__FLAGS__)", bold=True),
+        code=click.style("import wandb", bold=True),
+        run=click.style("wandb run python <script.py>", bold=True),
         config=click.style("wandb config set batch_size=10", bold=True),
         pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
