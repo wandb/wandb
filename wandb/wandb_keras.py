@@ -1,8 +1,7 @@
 import operator
 import os
 
-from wandb import history
-from wandb import summary
+import wandb
 
 # Fully implemented here so we don't have to pull in keras as a dependency.
 # However, if the user is using this, they necessarily have Keras installed. So we
@@ -19,25 +18,21 @@ class WandBKerasCallback(object):
     keras metrics.
     """
 
-    def __init__(self, out_dir='.', monitor='val_loss', verbose=0, mode='auto',
+    def __init__(self, monitor='val_loss', verbose=0, mode='auto',
             save_weights_only=False):
         """Constructor.
     
         Args:
-            out_dir: Directory to save history/summary files in.
             See keras.ModelCheckpoint for other definitions of other
                 arguments.
         """
         self.validation_data = None
-        self.out_dir = out_dir
-        self.history = None
-        self.summary = None
 
         self.monitor = monitor
         self.verbose = verbose
         self.save_weights_only = save_weights_only
 
-        self.filepath = os.path.join(out_dir, 'model-best.h5')
+        self.filepath = os.path.join(wandb.run.dir, 'model-best.h5')
 
         # From Keras
         if mode not in ['auto', 'min', 'max']:
@@ -70,13 +65,9 @@ class WandBKerasCallback(object):
 
     def on_epoch_end(self, epoch, logs=None):
         # history
-        if self.history is None:
-            self.history = history.History(
-                    ['epoch'] + sorted(logs.keys()),
-                    out_dir=self.out_dir)
         row = {'epoch': epoch}
         row.update(logs)
-        self.history.add(row)
+        wandb.run.history.add(row)
 
         # summary
         current = logs.get(self.monitor)
@@ -86,7 +77,7 @@ class WandBKerasCallback(object):
 
         if self.monitor_op(current, self.best):
             row.pop('epoch')
-            self.summary.update(row)
+            wandb.run.summary.update(row)
             if self.verbose > 0:
                 print('Epoch %05d: %s improved from %0.5f to %0.5f,'
                         ' saving model to %s'
@@ -103,10 +94,9 @@ class WandBKerasCallback(object):
 
     def on_batch_end(self, batch, logs=None):
         pass
-
+    
     def on_train_begin(self, logs=None):
-        self.summary = summary.Summary(self.out_dir)
+        pass
 
     def on_train_end(self, logs=None):
-        if self.history is not None:
-            self.history.close()
+        pass
