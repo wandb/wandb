@@ -19,6 +19,7 @@ from click.exceptions import BadParameter, ClickException
 import inquirer
 import sys
 import traceback
+import textwrap
 
 from wandb import util
 from wandb import Api, Error, Config, __version__, __stage_dir__
@@ -322,7 +323,7 @@ def login():
     host = api.settings()['base_url']
     if key:
         # TODO: get the username here...
-        #username = api.viewer().get('entity', 'models')
+        # username = api.viewer().get('entity', 'models')
         write_netrc(host, "user", key)
 
 
@@ -385,17 +386,30 @@ def init(ctx):
     with open(os.path.join(get_stage_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
 
+    with open('config-defaults.yaml', 'w') as file:
+        file.write(textwrap.dedent("""\
+            wandb_version: 1
+
+            # Example variables below. Uncomment (remove leading '# ') to use them, or just
+            # delete and create your own.
+            
+            # epochs:
+            #   desc: Number of epochs to train over
+            #   value: 100
+            # batch_size:
+            #   desc: Size of each mini-batch
+            #   value: 32
+            """))
+
     click.echo(click.style("This directory is configured!  Try these next:\n", fg="green") +
                """
 * Track runs: `{code}` in your training script, then `{run}`.
 * Run `{push}` to manually add a file.
-* `{config}` to add or change configuration defaults.
 * Pull popular models into your project with: `{pull}`.
     """.format(
         push=click.style("wandb push run_id weights.h5", bold=True),
         code=click.style("import wandb", bold=True),
-        run=click.style("wandb run python <script.py>", bold=True),
-        config=click.style("wandb config set batch_size=10", bold=True),
+        run=click.style("wandb run <training_command>", bold=True),
         pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
 
@@ -413,10 +427,10 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help='Run id to use, default is to generate.')
 @click.option('--dir', default=None,
               help='Files in this directory will be saved to wandb, defaults to wandb/run-<run_id>')
-@click.option('--glob', default='*', multiple=True,
-              help='New files in <run_dir> that match will be saved to wandb. (default: \'*\')')
+@click.option('--configs', default=None,
+              help='Config file paths to load')
 @display_error
-def run(ctx, program, args, id, dir, glob):
+def run(ctx, program, args, id, dir, configs):
     _require_init()
     env = copy.copy(os.environ)
     env['WANDB_MODE'] = 'run'
@@ -427,6 +441,8 @@ def run(ctx, program, args, id, dir, glob):
         dir = wandb_run.run_dir_path(id, dry=False)
         util.mkdir_exists_ok(dir)
     env['WANDB_RUN_DIR'] = dir
+    if configs:
+        env['WANDB_CONFIG_PATHS'] = configs
     command = [program] + list(args)
     runner = util.find_runner(program)
     if runner:
@@ -442,25 +458,24 @@ def run(ctx, program, args, id, dir, glob):
             break
 
 
-@cli.group()
-@click.pass_context
-@display_error
-def config(ctx):
-    """Manage this projects configuration.
+#@cli.group()
+#@click.pass_context
+#@display_error
+# def config(ctx):
+#    """Manage this projects configuration.
+#
+# Examples:
+#
+#    wandb config set param=2 --description="Some tunning parameter"
+#    wandb config del param
+#    wandb config show
+#    """
+#    pass
 
-Examples:
 
-    wandb config set param=2 --description="Some tunning parameter"
-    wandb config del param
-    wandb config show
-    """
-    pass
-
-
-@config.command("init", help="Initialize a directory with wandb configuration")
-@display_error
-def config_init(prompt=True):
-    pass
+#@config.command("init", help="Initialize a directory with wandb configuration")
+#@display_error
+# def config_init(prompt=True):
 #    from wandb import get_stage_dir
 #    config_path = os.path.join(os.getcwd(), get_stage_dir())
 #    config = Config()
@@ -474,117 +489,117 @@ def config_init(prompt=True):
 #    config.persist()
 #    if prompt:
 #        click.echo("""Configuration initialized, use `wandb config set` to set parameters.  Then in your training script:
-#import wandb
-#conf = wandb.sync()
+# import wandb
+# conf = wandb.sync()
 # conf.batch_size
 #""")
 
 
-@config.command(help="Show the current config")
-@click.option("--format", help="The format to dump the config as", default="python", type=click.Choice(['python', 'yaml', 'json']))
-@display_error
-def show(format, changed=[], diff=False):
-    if len(changed) == 0 and diff:
-        click.secho("No parameters were changed", fg="red")
-    elif diff:
-        click.echo("%i parameters changed: " % len(changed))
-    config = Config()
-    if len(vars(config)) == 0:
-        click.secho(
-            "No configuration found in this directory, run `wandb config init`", fg="red")
-    if format == "yaml":
-        click.echo("%s" % config)
-    elif format == "json":
-        click.echo(json.dumps(vars(config)))
-    elif format == "python":
-        res = ""
-        for key in set(config.keys + changed):
-            if config.desc(key):
-                res += "# %s\n" % config.desc(key)
-            style = None
-            if key in changed:
-                style = "green" if config.get(key) else "red"
-            res += click.style("%s=%r\n" % (key, config.get(key)),
-                               bold=True if style is None else False, fg=style)
-        click.echo(res)
+#@config.command(help="Show the current config")
+#@click.option("--format", help="The format to dump the config as", default="python", type=click.Choice(['python', 'yaml', 'json']))
+#@display_error
+# def show(format, changed=[], diff=False):
+#    if len(changed) == 0 and diff:
+#        click.secho("No parameters were changed", fg="red")
+#    elif diff:
+#        click.echo("%i parameters changed: " % len(changed))
+#    config = Config()
+#    if len(vars(config)) == 0:
+#        click.secho(
+#            "No configuration found in this directory, run `wandb config init`", fg="red")
+#    if format == "yaml":
+#        click.echo("%s" % config)
+#    elif format == "json":
+#        click.echo(json.dumps(vars(config)))
+#    elif format == "python":
+#        res = ""
+#        for key in set(config.keys + changed):
+#            if config.desc(key):
+#                res += "# %s\n" % config.desc(key)
+#            style = None
+#            if key in changed:
+#                style = "green" if config.get(key) else "red"
+#            res += click.style("%s=%r\n" % (key, config.get(key)),
+#                               bold=True if style is None else False, fg=style)
+#        click.echo(res)
 
 
-@config.command("import", help="Import configuration parameters")
-@click.option("--format", "-f", help="The format to parse the imported params", default="python", type=click.Choice(["python"]))
-@click.pass_context
-@display_error
-def import_config(ctx, format):
-    data = editor("# Paste python comments and variable definitions above")
-    desc = None
-    config = Config()
-    imported = []
-    if data:
-        for line in data.split("\n"):
-            if line.strip().startswith("#"):
-                desc = line.strip(" #")
-            elif "=" in line:
-                try:
-                    key, value = [str(part.strip())
-                                  for part in line.split("=")]
-                    if len(value) == 0:
-                        continue
-                    config[key] = value
-                    imported.append(key)
-                    if desc:
-                        config[key + "_desc"] = desc
-                    desc = None
-                except ValueError:
-                    logging.error("Invalid line: %s" % line)
-            else:
-                logging.warn("Skipping line %s", line)
-        config.persist()
-    ctx.invoke(show, changed=imported, diff=True)
+#@config.command("import", help="Import configuration parameters")
+#@click.option("--format", "-f", help="The format to parse the imported params", default="python", type=click.Choice(["python"]))
+#@click.pass_context
+#@display_error
+# def import_config(ctx, format):
+#    data = editor("# Paste python comments and variable definitions above")
+#    desc = None
+#    config = Config()
+#    imported = []
+#    if data:
+#        for line in data.split("\n"):
+#            if line.strip().startswith("#"):
+#                desc = line.strip(" #")
+#            elif "=" in line:
+#                try:
+#                    key, value = [str(part.strip())
+#                                  for part in line.split("=")]
+#                    if len(value) == 0:
+#                        continue
+#                    config[key] = value
+#                    imported.append(key)
+#                    if desc:
+#                        config[key + "_desc"] = desc
+#                    desc = None
+#                except ValueError:
+#                    logging.error("Invalid line: %s" % line)
+#            else:
+#                logging.warn("Skipping line %s", line)
+#        config.persist()
+#    ctx.invoke(show, changed=imported, diff=True)
 
 
-@config.command("set", help="Set config variables with key=value pairs")
-@click.argument("key_values", nargs=-1)
-@click.option("--description", "-d", help="A description for the config value if specifying one pair")
-@click.pass_context
-@display_error
-def config_set(ctx, key_values, description=None):
-    config = Config()
-    if len(key_values) == 0:
-        raise ClickException(
-            "Must specify at least 1 key value pair i.e. `wandb config set epochs=11`")
-    if len(key_values) > 1 and description:
-        raise ClickException(
-            "Description can only be specified with 1 key value pair.")
-    changed = []
-    for pair in key_values:
-        try:
-            key, value = pair.split("=")
-        except ValueError:
-            key = pair
-            value = None
-        if value:
-            changed.append(key)
-            config[str(key)] = value
-        if description:
-            config[str(key) + "_desc"] = description
-    config.persist()
-    ctx.invoke(show, changed=changed, diff=True)
+#@config.command("set", help="Set config variables with key=value pairs")
+#@click.argument("key_values", nargs=-1)
+#@click.option("--description", "-d", help="A description for the config value if specifying one pair")
+#@click.pass_context
+#@display_error
+# def config_set(ctx, key_values, description=None):
+#    config = Config()
+#    if len(key_values) == 0:
+#        raise ClickException(
+#            "Must specify at least 1 key value pair i.e. `wandb config set epochs=11`")
+#    if len(key_values) > 1 and description:
+#        raise ClickException(
+#            "Description can only be specified with 1 key value pair.")
+#    changed = []
+#    for pair in key_values:
+#        try:
+#            key, value = pair.split("=")
+#        except ValueError:
+#            key = pair
+#            value = None
+#        if value:
+#            changed.append(key)
+#            config[str(key)] = value
+#        if description:
+#            config[str(key) + "_desc"] = description
+#    config.persist()
+#    ctx.invoke(show, changed=changed, diff=True)
 
 
-@config.command("del", help="Delete config variables")
-@click.argument("keys", nargs=-1)
-@click.pass_context
-@display_error
-def delete(ctx, keys):
-    config = Config()
-    if len(keys) == 0:
-        raise ClickException(
-            "Must specify at least 1 key i.e. `wandb config rm epochs`")
-    changed = []
-    for key in keys:
-        del config[str(key)]
-        changed.append(key)
-    config.persist()
-    ctx.invoke(show, changed=changed, diff=True)
+#@config.command("del", help="Delete config variables")
+#@click.argument("keys", nargs=-1)
+#@click.pass_context
+#@display_error
+# def delete(ctx, keys):
+#    config = Config()
+#    if len(keys) == 0:
+#        raise ClickException(
+#            "Must specify at least 1 key i.e. `wandb config rm epochs`")
+#    changed = []
+#    for key in keys:
+#        del config[str(key)]
+#        changed.append(key)
+#    config.persist()
+#    ctx.invoke(show, changed=changed, diff=True)
 
 
 if __name__ == "__main__":

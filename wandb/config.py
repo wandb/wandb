@@ -40,7 +40,7 @@ class Config(object):
         if not self._wandb_dir:
             logger.debug('wandb dir not provided, skipping defaults')
             return
-        defaults_path = os.path.join(self._wandb_dir, 'config-defaults.yaml')
+        defaults_path = os.path.join('config-defaults.yaml')
         if not os.path.exists(defaults_path):
             logger.debug('no defaults not found in %s' % defaults_path)
             return

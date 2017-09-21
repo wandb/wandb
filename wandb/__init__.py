@@ -113,7 +113,7 @@ if __stage_dir__:
     _run_dir = os.getenv('WANDB_RUN_DIR')
     if _run_dir is None:
         _run_dir = wandb_run.run_dir_path(_run_id, dry=MODE == 'dryrun')
-    _conf_paths = os.getenv('WANDB_CONF_PATHS', '')
+    _conf_paths = os.getenv('WANDB_CONFIG_PATHS', '')
     if _conf_paths:
         _conf_paths = _conf_paths.split(',')
 
