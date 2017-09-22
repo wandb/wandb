@@ -6,7 +6,6 @@ import sys
 from requests import Session
 from wandb import Api
 from six.moves import queue
-import threading
 import traceback
 import logging
 import re

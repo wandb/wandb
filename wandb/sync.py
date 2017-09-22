@@ -17,6 +17,7 @@ import socket
 import click
 import wandb
 from wandb import __stage_dir__, Error
+from wandb import file_pusher
 from wandb import streaming_log
 from wandb import util
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
@@ -124,20 +125,16 @@ class FileEventHandler(object):
 
 
 class FileEventHandlerOverwrite(FileEventHandler):
-    def __init__(self, file_path, save_name, api, project, run_id, *args, **kwargs):
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
         super(FileEventHandlerOverwrite, self).__init__(
             file_path, save_name, api, *args, **kwargs)
-        self._project = project
-        self._run_id = run_id
-        self._tailer = None
+        self._file_pusher = file_pusher
 
     def on_created(self):
         self.on_modified()
 
     def on_modified(self):
-        with open(self.file_path, 'rb') as f:
-            self._api.push(self._project, {self.save_name: f}, run=self._run_id,
-                           progress=False)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
 class FileEventHandlerTextStream(FileEventHandler):
@@ -250,6 +247,12 @@ class Sync(object):
 
         self._event_handlers = {}
 
+        def push_function(save_name, path):
+            with open(path, 'rb') as f:
+                self._api.push(self._project, {save_name: f}, run=self._run_id,
+                               progress=False)
+        self._file_pusher = file_pusher.FilePusher(push_function)
+
     def watch(self, files):
         try:
             # TODO: better failure handling
@@ -308,13 +311,14 @@ class Sync(object):
         # TODO: Guarantee that all files will be saved.
         wandb.termlog()
         wandb.termlog("Script ended, waiting for final file modifications.")
-        time.sleep(10.0)
+        time.sleep(2)
+        self._file_pusher.finish()
         # self.log.tempfile.flush()
-        wandb.termlog("Pushing log")
-        slug = "{project}/{run}".format(
-            project=self._project,
-            run=self._run_id
-        )
+        #wandb.termlog("Pushing log")
+        # slug = "{project}/{run}".format(
+        #    project=self._project,
+        #    run=self._run_id
+        #)
         # self._api.push(
         #    slug, {"training.log": open(self.log.tempfile.name, "rb")})
         os.path.exists(self._dpath) and os.remove(self._dpath)
@@ -346,7 +350,7 @@ class Sync(object):
                     file_path, save_name, self._api)
             else:
                 self._event_handlers[save_name] = FileEventHandlerOverwrite(
-                    file_path, save_name, self._api, self._project, self._run_id)
+                    file_path, save_name, self._api, self._file_pusher)
         return self._event_handlers[save_name]
 
     # TODO: limit / throttle the number of adds / pushes
