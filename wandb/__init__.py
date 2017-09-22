@@ -95,12 +95,12 @@ def _do_sync(dir, extra_config=None):
     global syncer
 
     termlog()
-    api = Api()
-    if api.api_key is None:
-        raise Error(
-            "No API key found, run `wandb login` or set WANDB_API_KEY")
-    api.set_current_run_id(run.id)
     if MODE == 'run':
+        api = Api()
+        if api.api_key is None:
+            raise Error(
+                "No API key found, run `wandb login` or set WANDB_API_KEY")
+        api.set_current_run_id(run.id)
         if extra_config is not None:
             run.config.update(extra_config)
         syncer = Sync(api, run.id, config=run.config, dir=dir)
