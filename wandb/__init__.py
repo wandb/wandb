@@ -4,6 +4,7 @@ __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.22'
 
+import click
 import types
 import six
 import sys
@@ -86,21 +87,37 @@ def pull(*args, **kwargs):
     Api().pull(*args, **kwargs)
 
 
+syncer = None
+orig_stderr = sys.stderr
+
+
 def _do_sync(dir, extra_config=None):
+    global syncer
+
+    termlog()
+    api = Api()
+    if api.api_key is None:
+        raise Error(
+            "No API key found, run `wandb login` or set WANDB_API_KEY")
+    api.set_current_run_id(run.id)
     if MODE == 'run':
-        api = Api()
-        if api.api_key is None:
-            raise Error(
-                "No API key found, run `wandb login` or set WANDB_API_KEY")
-        api.set_current_run_id(run.id)
         if extra_config is not None:
             run.config.update(extra_config)
-        sync = Sync(api, run.id, config=run.config, dir=dir)
-        sync.watch(files='*')
-        return sync
+        syncer = Sync(api, run.id, config=run.config, dir=dir)
+        syncer.watch(files='*')
     elif MODE == 'dryrun':
-        print('wandb dryrun mode. Use "wandb run <script>" to save results to wandb.\n'
-              'Run directory: %s' % run.dir)
+        termlog(
+            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
+    termlog('Run directory: %s' % run.dir)
+    termlog()
+
+
+def termlog(string=''):
+    if string:
+        line = '%s: %s' % (click.style('wandb', fg='blue', bold=True), string)
+    else:
+        line = ''
+    click.echo(line, file=orig_stderr)
 
 
 # The current run (a Run object)
@@ -117,8 +134,6 @@ if __stage_dir__ and MODE != 'cli':
     if _conf_paths:
         _conf_paths = _conf_paths.split(',')
 
-    syncer = None
-
     def persist_config_callback():
         if syncer:
             syncer.update_config(_config)
@@ -126,7 +141,15 @@ if __stage_dir__ and MODE != 'cli':
                      wandb_dir=__stage_dir__, run_dir=_run_dir,
                      persist_callback=persist_config_callback)
     run = wandb_run.Run(_run_id, _run_dir, _config)
-    syncer = _do_sync(run.dir)
+    _do_sync(run.dir)
+if __stage_dir__ is not None:
+    log_fname = __stage_dir__ + 'debug.log'
+else:
+    log_fname = './wandb-debug.log'
+logging.basicConfig(
+    filemode="w",
+    filename=log_fname,
+    level=logging.DEBUG)
 
 __all__ = ["Api", "Error", "Config", "Results", "History", "Summary",
            "WandBKerasCallback"]

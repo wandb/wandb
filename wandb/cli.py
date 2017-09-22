@@ -21,6 +21,7 @@ import sys
 import traceback
 import textwrap
 
+import wandb
 from wandb import util
 from wandb import Api, Error, Config, __version__, __stage_dir__
 from wandb import wandb_run
@@ -453,8 +454,8 @@ def run(ctx, program, args, id, dir, configs):
         time.sleep(0.1)
         exitcode = proc.poll()
         if exitcode is not None:
-            print('wandb: job (%s) Process exited with code: %s' %
-                  (program, exitcode))
+            wandb.termlog('job (%s) Process exited with code: %s' %
+                          (program, exitcode))
             break
 
 

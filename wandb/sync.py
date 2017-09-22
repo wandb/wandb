@@ -15,6 +15,7 @@ import threading
 from six.moves import queue
 import socket
 import click
+import wandb
 from wandb import __stage_dir__, Error
 from wandb import streaming_log
 from wandb import util
@@ -59,9 +60,7 @@ class OutStreamTee(object):
             self._second_stream.write(item)
 
     def write(self, message):
-        #print('writing to orig: ', self._orig_stream)
         self._orig_stream.write(message)
-        # print('queueing')
         self._queue.put(message)
 
     def flush(self):
@@ -136,7 +135,6 @@ class FileEventHandlerOverwrite(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
-        print("Pushing %s" % self.file_path)
         with open(self.file_path, 'rb') as f:
             self._api.push(self._project, {self.save_name: f}, run=self._run_id,
                            progress=False)
@@ -269,7 +267,7 @@ class Sync(object):
                 ), {"diff.patch": open(__stage_dir__ + "diff.patch", "rb")})
             self._observer.start()
 
-            print("Syncing %s" % self.url)
+            wandb.termlog("Syncing %s" % self.url)
 
             self._api.get_file_stream_api().set_file_policy(
                 'output.log', CRDedupeFilePolicy())
@@ -292,7 +290,7 @@ class Sync(object):
             self.stop()
         except Error:
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            print("!!! Fatal W&B Error: %s" % exc_value)
+            wandb.termlog("!!! Fatal W&B Error: %s" % exc_value)
             lines = traceback.format_exception(
                 exc_type, exc_value, exc_traceback)
             logger.error('\n'.join(lines))
@@ -308,10 +306,11 @@ class Sync(object):
         # change notification process used by watchdog (maybe inotify?) is
         # asynchronous. It's possible we could miss files if 10s isn't long enough.
         # TODO: Guarantee that all files will be saved.
-        print("Script ended, waiting for final file modifications.")
+        wandb.termlog()
+        wandb.termlog("Script ended, waiting for final file modifications.")
         time.sleep(10.0)
         # self.log.tempfile.flush()
-        print("Pushing log")
+        wandb.termlog("Pushing log")
         slug = "{project}/{run}".format(
             project=self._project,
             run=self._run_id
@@ -319,7 +318,7 @@ class Sync(object):
         # self._api.push(
         #    slug, {"training.log": open(self.log.tempfile.name, "rb")})
         os.path.exists(self._dpath) and os.remove(self._dpath)
-        print("Synced %s" % self.url)
+        wandb.termlog("Synced %s" % self.url)
         self._stdout_stream.close()
         self._stderr_stream.close()
         self._api.get_file_stream_api().finish(self._hooks.exception)
@@ -373,6 +372,3 @@ class Sync(object):
         else:
             source = self._proc.parent().children()[0]
             return None if source == self._proc else source
-
-    def echo(self):
-        print(sys.stdin.read())
