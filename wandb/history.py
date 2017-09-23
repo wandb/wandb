@@ -14,6 +14,14 @@ class History(object):
         self._file = open(self.fname, 'w')
         self.rows = []
 
+    def keys(self):
+        if self.rows:
+            return self.rows[0].keys()
+        return []
+
+    def column(self, key):
+        return [r[key] for r in self.rows]
+
     def add(self, row):
         self.rows.append(row)
         self._file.write(util.json_dumps_safer(row))

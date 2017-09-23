@@ -18,6 +18,7 @@ import click
 import wandb
 from wandb import __stage_dir__, Error
 from wandb import file_pusher
+from wandb import sparkline
 from wandb import streaming_log
 from wandb import util
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
@@ -323,7 +324,24 @@ class Sync(object):
         # asynchronous. It's possible we could miss files if 10s isn't long enough.
         # TODO: Guarantee that all files will be saved.
         wandb.termlog()
-        wandb.termlog("Script ended, waiting for final file modifications.")
+        wandb.termlog('Script ended.')
+        summary = wandb.run.summary.summary
+        if summary:
+            wandb.termlog('Run summary:')
+            max_len = max([len(k) for k in summary.keys()])
+            format_str = '  {:>%s} {}' % max_len
+            for k, v in summary.items():
+                wandb.termlog(format_str.format(k, v))
+        history_keys = wandb.run.history.keys()
+        if history_keys:
+            wandb.termlog('Run history:')
+            max_len = max([len(k) for k in history_keys])
+            for key in history_keys:
+                vals = util.downsample(wandb.run.history.column(key), 40)
+                line = sparkline.sparkify(vals)
+                format_str = u'  {:>%s} {}' % max_len
+                wandb.termlog(format_str.format(key, line))
+        wandb.termlog('Waiting for final file modifications.')
         time.sleep(2)
         for handler in self._event_handlers.values():
             handler.finish()
@@ -364,7 +382,7 @@ class Sync(object):
             #                                                    BinaryFilePolicy())
             #    self._event_handlers[save_name] = FileEventHandlerBinaryStream(
             #        file_path, save_name, self._api)
-            elif save_name == 'wandb-summary.json':
+            elif save_name == 'wandb-summary.json' or save_name == 'config.yaml':
                 self._event_handlers[save_name] = FileEventHandlerOverwrite(
                     file_path, save_name, self._api, self._file_pusher)
             else:

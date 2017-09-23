@@ -1,3 +1,4 @@
+import copy
 import operator
 import os
 
@@ -76,9 +77,10 @@ class WandBKerasCallback(object):
             print('Can save best model only with %s available, '
                   'skipping.' % (self.monitor))
 
+        copied = copy.copy(row)
         if self.monitor_op(current, self.best):
-            row.pop('epoch')
-            wandb.run.summary.update(row)
+            copied.pop('epoch')
+            wandb.run.summary.update(copied)
             if self.verbose > 0:
                 print('Epoch %05d: %s improved from %0.5f to %0.5f,'
                       ' saving model to %s'
