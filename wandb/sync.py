@@ -123,6 +123,9 @@ class FileEventHandler(object):
     def on_modified(self):
         pass
 
+    def finish(self):
+        pass
+
 
 class FileEventHandlerOverwrite(FileEventHandler):
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
@@ -134,6 +137,16 @@ class FileEventHandlerOverwrite(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
+        self._file_pusher.file_changed(self.save_name, self.file_path)
+
+
+class FileEventHandlerOverwriteDeferred(FileEventHandler):
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        super(FileEventHandlerOverwriteDeferred, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._file_pusher = file_pusher
+
+    def finish(self):
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
@@ -312,6 +325,8 @@ class Sync(object):
         wandb.termlog()
         wandb.termlog("Script ended, waiting for final file modifications.")
         time.sleep(2)
+        for handler in self._event_handlers.values():
+            handler.finish()
         self._file_pusher.finish()
         # self.log.tempfile.flush()
         #wandb.termlog("Pushing log")
@@ -341,15 +356,19 @@ class Sync(object):
             if save_name == 'wandb-history.jsonl':
                 self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
                     file_path, 'wandb-history.jsonl', self._api)
-            elif 'tfevents' in save_name:
-                # TODO: This is hard-coded, but we want to give users control
-                # over streaming files (or detect them).
-                self._api.get_file_stream_api().set_file_policy(save_name,
-                                                                BinaryFilePolicy())
-                self._event_handlers[save_name] = FileEventHandlerBinaryStream(
-                    file_path, save_name, self._api)
-            else:
+            # Don't try to stream tensorboard files for now.
+            # elif 'tfevents' in save_name:
+            #    # TODO: This is hard-coded, but we want to give users control
+            #    # over streaming files (or detect them).
+            #    self._api.get_file_stream_api().set_file_policy(save_name,
+            #                                                    BinaryFilePolicy())
+            #    self._event_handlers[save_name] = FileEventHandlerBinaryStream(
+            #        file_path, save_name, self._api)
+            elif save_name == 'wandb-summary.json':
                 self._event_handlers[save_name] = FileEventHandlerOverwrite(
+                    file_path, save_name, self._api, self._file_pusher)
+            else:
+                self._event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
                     file_path, save_name, self._api, self._file_pusher)
         return self._event_handlers[save_name]
 
