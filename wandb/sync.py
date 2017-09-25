@@ -316,13 +316,14 @@ class Sync(object):
                              config=self._config.as_dict())
 
     def stop(self):
-        # This is a a heuristic delay to catch files that were written just before
-        # the end of the script. This is unverified, but theoretically the file
-        # change notification process used by watchdog (maybe inotify?) is
-        # asynchronous. It's possible we could miss files if 10s isn't long enough.
-        # TODO: Guarantee that all files will be saved.
         wandb.termlog()
         wandb.termlog('Script ended.')
+
+        self._stdout_stream.close()
+        self._stderr_stream.close()
+        self._api.get_file_stream_api().finish(self._hooks.exception)
+
+        # Show run summary/history
         summary = wandb.run.summary.summary
         if summary:
             wandb.termlog('Run summary:')
@@ -339,12 +340,26 @@ class Sync(object):
                 line = sparkline.sparkify(vals)
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
+
         wandb.termlog('Waiting for final file modifications.')
+        # This is a a heuristic delay to catch files that were written just before
+        # the end of the script.
+        # TODO: ensure we catch all saved files.
         time.sleep(2)
+        try:
+            self._observer.stop()
+            self._observer.join()
+        # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
+        except TypeError:
+            pass
+        # TODO: py3 SystemError: <built-in function stop> returned a result with an error set
+        except SystemError:
+            pass
+
         for handler in self._event_handlers.values():
             handler.finish()
-
         self._file_pusher.finish()
+
         wandb.termlog('Syncing files in %s:' %
                       os.path.relpath(self._watch_dir))
         for file_path in self._stats.files():
@@ -368,18 +383,6 @@ class Sync(object):
         os.path.exists(self._dpath) and os.remove(self._dpath)
 
         wandb.termlog('Synced %s' % self.url)
-        self._stdout_stream.close()
-        self._stderr_stream.close()
-        self._api.get_file_stream_api().finish(self._hooks.exception)
-        try:
-            self._observer.stop()
-            self._observer.join()
-        # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
-        except TypeError:
-            pass
-        # TODO: py3 SystemError: <built-in function stop> returned a result with an error set
-        except SystemError:
-            pass
 
     def _get_handler(self, file_path, save_name):
         if save_name not in self._event_handlers:
