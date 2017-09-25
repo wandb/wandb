@@ -396,7 +396,7 @@ class Sync(object):
         # This polls the server, because there a delay between when the file
         # is done uploading, and when the datastore gets updated with new
         # metadata via pubsub.
-        wandb.termlog('Verifying uploaded files')
+        wandb.termlog('Verifying uploaded files... ', newline=False)
         error = False
         error_string = click.style('ERROR', bg='red', fg='white')
         mismatched = None
@@ -417,11 +417,14 @@ class Sync(object):
             time.sleep(delay_base ** 2)
 
         if mismatched:
+            print('')
             error = True
             for local_path, local_md5, remote_md5 in mismatched:
                 wandb.termlog(
                     '%s: %s (%s) did not match uploaded file (%s) md5' % (
                         error_string, local_path, local_md5, remote_md5))
+        else:
+            print('verified!')
 
         if error:
             wandb.termlog('%s: Sync failed %s' % (error_string, self.url))
