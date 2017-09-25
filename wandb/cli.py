@@ -444,7 +444,6 @@ def run(ctx, program, args, id, dir, configs):
     if runner:
         command = runner.split() + command
 
-    print("The command is ", command)
     proc = util.SafeSubprocess(command, env=env, read_output=False)
     proc.run()
     while True:
