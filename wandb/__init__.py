@@ -112,12 +112,12 @@ def _do_sync(dir, extra_config=None):
     termlog()
 
 
-def termlog(string=''):
+def termlog(string='', newline=True):
     if string:
         line = '%s: %s' % (click.style('wandb', fg='blue', bold=True), string)
     else:
         line = ''
-    click.echo(line, file=orig_stderr)
+    click.echo(line, file=orig_stderr, nl=newline)
 
 
 # The current run (a Run object)

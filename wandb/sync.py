@@ -19,6 +19,7 @@ import wandb
 from wandb import __stage_dir__, Error
 from wandb import file_pusher
 from wandb import sparkline
+from wandb import stats
 from wandb import streaming_log
 from wandb import util
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
@@ -246,12 +247,7 @@ class Sync(object):
         self._hooks = ExitHooks()
         self._hooks.hook()
         self._observer = Observer()
-        if dir is None:
-            self._watch_dir = os.path.join(
-                __stage_dir__, 'run-%s' % self._run_id)
-            util.mkdir_exists_ok(self._watch_dir)
-        else:
-            self._watch_dir = os.path.abspath(dir)
+        self._watch_dir = os.path.abspath(dir)
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
@@ -261,10 +257,12 @@ class Sync(object):
 
         self._event_handlers = {}
 
+        self._stats = stats.Stats()
+
         def push_function(save_name, path):
             with open(path, 'rb') as f:
                 self._api.push(self._project, {save_name: f}, run=self._run_id,
-                               progress=False)
+                               progress=lambda _, total: self._stats.update_progress(path, total))
         self._file_pusher = file_pusher.FilePusher(push_function)
 
     def watch(self, files):
@@ -345,17 +343,31 @@ class Sync(object):
         time.sleep(2)
         for handler in self._event_handlers.values():
             handler.finish()
+
         self._file_pusher.finish()
-        # self.log.tempfile.flush()
-        #wandb.termlog("Pushing log")
-        # slug = "{project}/{run}".format(
-        #    project=self._project,
-        #    run=self._run_id
-        #)
-        # self._api.push(
-        #    slug, {"training.log": open(self.log.tempfile.name, "rb")})
+        wandb.termlog('Syncing files in %s:' %
+                      os.path.relpath(self._watch_dir))
+        for file_path in self._stats.files():
+            wandb.termlog('  %s' % os.path.relpath(file_path, self._watch_dir))
+        step = 0
+        spinner_states = ['-', '/', '|', '\\']
+        stop = False
+        while True:
+            if not self._file_pusher.is_alive():
+                stop = True
+            summary = self._stats.summary()
+            line = (' %(completed_files)s of %(total_files)s files,'
+                    ' %(uploaded_bytes).03f of %(total_bytes).03f bytes uploaded\r' % summary)
+            line = spinner_states[step % 4] + line
+            step += 1
+            wandb.termlog(line, newline=False)
+            if stop:
+                break
+            time.sleep(0.25)
+
         os.path.exists(self._dpath) and os.remove(self._dpath)
-        wandb.termlog("Synced %s" % self.url)
+
+        wandb.termlog('Synced %s' % self.url)
         self._stdout_stream.close()
         self._stderr_stream.close()
         self._api.get_file_stream_api().finish(self._hooks.exception)
@@ -396,6 +408,7 @@ class Sync(object):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_created()
+        self._stats.update_file(event.src_path)
 
     # TODO: is this blocking the main thread?
     def on_file_modified(self, event):
@@ -403,6 +416,7 @@ class Sync(object):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_modified()
+        self._stats.update_file(event.src_path)
 
     @property
     def source_proc(self):

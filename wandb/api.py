@@ -27,17 +27,14 @@ import time
 logger = logging.getLogger(__name__)
 
 
-def IDENTITY(monitor):
-    """A default callback for the Progress helper"""
-    return monitor
-
-
 class Progress(object):
     """A helper class for displaying progress"""
 
     def __init__(self, file, callback=None):
         self.file = file
-        self.callback = callback or IDENTITY
+        if callback is None:
+            callback = lambda bites, total: (bites, total)
+        self.callback = callback
         self.bytes_read = 0
         self.len = os.fstat(file.fileno()).st_size
 
@@ -45,7 +42,7 @@ class Progress(object):
         """Read bytes and call the callback"""
         bites = self.file.read(size)
         self.bytes_read += len(bites)
-        self.callback(len(bites))
+        self.callback(len(bites), self.bytes_read)
         return bites
 
 
@@ -592,6 +589,8 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
             description (str, optional): The description of the changes
             force (bool, optional): Whether to prevent push if git has uncommitted changes
+            progress (callable, or stream): If callable, will be called with (chunk_bytes,
+                total_bytes) as argument else if True, renders a progress bar to stream.
 
         Returns:
             The requests library response object
@@ -611,11 +610,14 @@ class Api(object):
                 print("%s does not exist" % file_name)
                 continue
             if progress:
-                length = os.fstat(open_file.fileno()).st_size
-                with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
-                                       fill_char=click.style('&', fg='green')) as bar:
-                    self.upload_file(
-                        file_info['url'], open_file, lambda bites: bar.update(bites))
+                if hasattr(progress, '__call__'):
+                    responses.append(self.upload_file(file_info['url'], open_file, progress))
+                else:
+                    length = os.fstat(open_file.fileno()).st_size
+                    with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
+                                        fill_char=click.style('&', fg='green')) as bar:
+                        responses.append(self.upload_file(
+                            file_info['url'], open_file, lambda bites, _: bar.update(bites)))
             else:
                 responses.append(self.upload_file(file_info['url'], open_file))
             open_file.close()

@@ -22,9 +22,9 @@ class UploadJob(threading.Thread):
 
     def run(self):
         try:
-            wandb.termlog('Uploading file: %s' % self.save_name)
+            #wandb.termlog('Uploading file: %s' % self.save_name)
             self._push_function(self.save_name, self.path)
-            wandb.termlog('Done uploading file: %s' % self.save_name)
+            #wandb.termlog('Done uploading file: %s' % self.save_name)
         finally:
             self._done_queue.put(EventJobDone(self))
 
@@ -100,4 +100,6 @@ class FilePusher(object):
 
     def finish(self):
         self._queue.put(EventFinish())
-        self._thread.join()
+
+    def is_alive(self):
+        return self._thread.is_alive()
