@@ -268,8 +268,8 @@ class Sync(object):
         signal.signal(signal.SIGQUIT, self._debugger)
 
     def _debugger(self, *args):
-        import ipdb
-        ipdb.set_trace()
+        import pdb
+        pdb.set_trace()
 
     def watch(self, files):
         try:
