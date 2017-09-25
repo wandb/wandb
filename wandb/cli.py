@@ -16,7 +16,7 @@ import subprocess
 from functools import wraps
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
-import inquirer
+import whaaaaat
 import sys
 import traceback
 import textwrap
@@ -256,17 +256,7 @@ def push(ctx, run, project, description, entity, force, files):
 
     candidates = []
     if len(files) == 0:
-        # TODO: do we want to do this?
-        patterns = ("*.h5", "*.hdf5", "*.json", "*.meta", "*checkpoint*")
-        for pattern in patterns:
-            candidates.extend(glob.glob(pattern))
-        if len(candidates) == 0:
-            raise BadParameter(
-                "Couldn't auto-detect files, specify manually or use `wandb.add`", param_hint="FILES")
-
-        choices = inquirer.prompt([inquirer.Checkbox('files', message="Which files do you want to push? (left and right arrows to select)",
-                                                     choices=[c for c in candidates])])
-        files = [LazyFile(choice, 'rb') for choice in choices['files']]
+        raise BadParameter("No files specified")
 
     # TODO: Deal with files in a sub directory
     api.push(project, files=[f.name for f in files], run=run,
@@ -355,9 +345,14 @@ def init(ctx):
         api.upsert_project(project, entity=entity, description=description)
     else:
         project_names = [project["name"] for project in result]
-        question = inquirer.List(
-            'project', message="Which project should we use?", choices=project_names + ["Create New"])
-        project = inquirer.prompt([question])['project']
+        question = {
+            'type': 'list',
+            'name': 'project_name',
+            'message': "Which project should we use?", 
+            'choices': project_names + ["Create New"]
+        }
+        project = whaaaaat.prompt([question])['project_name']
+
         # TODO: check with the server if the project exists
         if project == "Create New":
             project = click.prompt("Enter a name for your new project")
@@ -448,6 +443,8 @@ def run(ctx, program, args, id, dir, configs):
     runner = util.find_runner(program)
     if runner:
         command = runner.split() + command
+
+    print("The command is ", command)
     proc = util.SafeSubprocess(command, env=env, read_output=False)
     proc.run()
     while True:
