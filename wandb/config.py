@@ -140,9 +140,9 @@ class Config(object):
             try:
                 # for tensorflow flags
                 if "__flags" in dir(params):
-                    if not params.__parsed:
+                    if not params.__dict__['__parsed']:
                         params._parse_flags()
-                    params = params.__flags
+                    params = params.__dict__['__flags']
                 else:
                     params = vars(params)
             except TypeError:
