@@ -393,6 +393,9 @@ class Sync(object):
         # TODO: We're currently using the list of uploaded files as our source
         #     of truth, but really we should use the files on the filesystem
         #     (ie if we missed a file this wouldn't catch it).
+        # This polls the server, because there a delay between when the file
+        # is done uploading, and when the datastore gets updated with new
+        # metadata via pubsub.
         wandb.termlog('Verifying uploaded files')
         error = False
         error_string = click.style('ERROR', bg='red', fg='white')
