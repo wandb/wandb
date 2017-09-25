@@ -1,4 +1,6 @@
+import base64
 import errno
+import hashlib
 import json
 import logging
 import os
@@ -181,3 +183,10 @@ def downsample(values, target_length):
     for i in range(target_length):
         result.append(values[int(i * ratio)])
     return result
+
+def md5_file(path):
+    hash_md5 = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return base64.b64encode(hash_md5.digest()).decode('ascii')

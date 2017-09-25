@@ -542,17 +542,10 @@ class Api(object):
                     raise e
         return response
 
-    def _md5(self, fname):
-        hash_md5 = hashlib.md5()
-        with open(fname, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        return base64.b64encode(hash_md5.digest()).decode('ascii')
-
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
         """
-        return os.path.isfile(fname) and self._md5(fname) == md5
+        return os.path.isfile(fname) and util.md5_file(fname) == md5
 
     @normalize_exceptions
     def pull(self, project, run=None, entity=None):

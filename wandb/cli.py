@@ -11,6 +11,7 @@ import logging
 import json
 import glob
 import io
+import signal
 import stat
 import subprocess
 from functools import wraps
@@ -448,6 +449,7 @@ def run(ctx, program, args, id, dir, configs):
     runner = util.find_runner(program)
     if runner:
         command = runner.split() + command
+    signal.signal(signal.SIGQUIT, signal.SIG_IGN)
     proc = util.SafeSubprocess(command, env=env, read_output=False)
     proc.run()
     while True:

@@ -1,5 +1,6 @@
 import psutil
 import os
+import signal
 import stat
 import sys
 import time
@@ -264,6 +265,11 @@ class Sync(object):
                 self._api.push(self._project, {save_name: f}, run=self._run_id,
                                progress=lambda _, total: self._stats.update_progress(path, total))
         self._file_pusher = file_pusher.FilePusher(push_function)
+        signal.signal(signal.SIGQUIT, self._debugger)
+
+    def _debugger(self, *args):
+        import ipdb
+        ipdb.set_trace()
 
     def watch(self, files):
         try:
@@ -381,19 +387,25 @@ class Sync(object):
 
         os.path.exists(self._dpath) and os.remove(self._dpath)
 
+        # Check md5s of uploaded files against what's on the file system.
+        # TODO: We're currently using the list of uploaded files as our source
+        #     of truth, but really we should use the files on the filesystem
+        #     (ie if we missed a file this wouldn't catch it).
         download_urls = self._api.download_urls(
             self._project, run=self._run_id)
         error = False
+        error_string = click.style('ERROR', bg='red', fg='white')
         for fname, info in download_urls.items():
             local_path = os.path.join(self._watch_dir, fname)
-            if not self._api.file_current(local_path, info['md5']):
+            local_md5 = util.md5_file(local_path)
+            if local_md5 != info['md5']:
                 error = True
                 wandb.termlog(
-                    '%s: %s did not match uploaded file md5' % (
-                        click.style('ERROR', fg='white', bg='red'), local_path))
+                    '%s: %s (%s) did not match uploaded file (%s) md5' % (
+                        error_string, local_path, local_md5, info['md5']))
 
         if error:
-            wandb.termlog('Sync failed %s' % self.url)
+            wandb.termlog('%s: Sync failed %s' % (error_string, self.url))
         else:
             wandb.termlog('Synced %s' % self.url)
 
