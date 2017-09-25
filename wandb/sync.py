@@ -384,6 +384,8 @@ class Sync(object):
                 break
             time.sleep(0.25)
             #print('FP: ', self._file_pusher._pending, self._file_pusher._jobs)
+        # clear progress line.
+        wandb.termlog(' ' * 79)
 
         os.path.exists(self._dpath) and os.remove(self._dpath)
 
@@ -391,18 +393,32 @@ class Sync(object):
         # TODO: We're currently using the list of uploaded files as our source
         #     of truth, but really we should use the files on the filesystem
         #     (ie if we missed a file this wouldn't catch it).
-        download_urls = self._api.download_urls(
-            self._project, run=self._run_id)
+        wandb.termlog('Verifying uploaded files')
         error = False
         error_string = click.style('ERROR', bg='red', fg='white')
-        for fname, info in download_urls.items():
-            local_path = os.path.join(self._watch_dir, fname)
-            local_md5 = util.md5_file(local_path)
-            if local_md5 != info['md5']:
-                error = True
+        mismatched = None
+        for delay_base in range(4):
+            mismatched = []
+            download_urls = self._api.download_urls(
+                self._project, run=self._run_id)
+            for fname, info in download_urls.items():
+                if fname == 'wandb-history.h5' or 'training.log':
+                    continue
+                local_path = os.path.join(self._watch_dir, fname)
+                local_md5 = util.md5_file(local_path)
+                if local_md5 != info['md5']:
+                    mismatched.append((local_path, local_md5, info['md5']))
+            if not mismatched:
+                break
+            wandb.termlog('  Retrying after %ss' % (delay_base**2))
+            time.sleep(delay_base ** 2)
+
+        if mismatched:
+            error = True
+            for local_path, local_md5, remote_md5 in mismatched:
                 wandb.termlog(
                     '%s: %s (%s) did not match uploaded file (%s) md5' % (
-                        error_string, local_path, local_md5, info['md5']))
+                        error_string, local_path, local_md5, remote_md5))
 
         if error:
             wandb.termlog('%s: Sync failed %s' % (error_string, self.url))
@@ -422,9 +438,14 @@ class Sync(object):
             #                                                    BinaryFilePolicy())
             #    self._event_handlers[save_name] = FileEventHandlerBinaryStream(
             #        file_path, save_name, self._api)
-            elif save_name == 'wandb-summary.json' or save_name == 'config.yaml':
-                self._event_handlers[save_name] = FileEventHandlerOverwrite(
-                    file_path, save_name, self._api, self._file_pusher)
+            # Overwrite handler (non-deferred) has a bug, wherein if the file is truncated
+            # during upload, the request to Google hangs (at least, this is my working
+            # theory). So for now we defer uploading everything til the end of the run.
+            # TODO: send wandb-summary during run. One option is to copy to a temporary
+            # file before uploading.
+            # elif save_name == 'wandb-summary.json' or save_name == 'config.yaml':
+            #    self._event_handlers[save_name] = FileEventHandlerOverwrite(
+            #        file_path, save_name, self._api, self._file_pusher)
             else:
                 self._event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
                     file_path, save_name, self._api, self._file_pusher)
