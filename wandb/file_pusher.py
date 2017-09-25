@@ -77,7 +77,7 @@ class FilePusher(object):
             job.join()
             self._jobs.pop(job.save_name)
             if job.needs_restart:
-                wandb.termlog('File changed while uploading, restarting: %s' % event.job.save_name)
+                #wandb.termlog('File changed while uploading, restarting: %s' % event.job.save_name)
                 self._start_job(event.job.save_name, event.job.path)
             elif self._pending:
                 event = self._pending.pop()
