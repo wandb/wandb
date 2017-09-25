@@ -136,10 +136,6 @@ class Api(object):
             self.settings_file = "Not found"
         self.git = GitRepo(remote=self.settings("git_remote"))
         self._commit = self.git.last_commit
-        if __stage_dir__:
-            if self.git.dirty:
-                self.git.repo.git.execute(['git', 'diff'], output_stream=open(
-                    __stage_dir__ + 'diff.patch', 'wb'))
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
@@ -151,6 +147,11 @@ class Api(object):
         )
         self._current_run_id = None
         self._file_stream_api = None
+
+    def save_patch(self, out_dir):
+        if self.git.dirty:
+            self.git.repo.git.execute(['git', 'diff'], output_stream=open(
+                os.path.join(out_dir, 'diff.patch'), 'wb'))
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id

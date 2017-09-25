@@ -275,12 +275,9 @@ class Sync(object):
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
             # Ignore hidden files/folders
             self._handler._ignore_patterns = ['*/.*']
-            if os.path.exists(__stage_dir__ + "diff.patch"):
-                self._api.push("{project}/{run}".format(
-                    project=self._project,
-                    run=self._run_id
-                ), {"diff.patch": open(__stage_dir__ + "diff.patch", "rb")})
             self._observer.start()
+
+            self._api.save_patch(self._watch_dir)
 
             wandb.termlog("Syncing %s" % self.url)
 
@@ -319,10 +316,6 @@ class Sync(object):
         wandb.termlog()
         wandb.termlog('Script ended.')
 
-        self._stdout_stream.close()
-        self._stderr_stream.close()
-        self._api.get_file_stream_api().finish(self._hooks.exception)
-
         # Show run summary/history
         summary = wandb.run.summary.summary
         if summary:
@@ -356,6 +349,10 @@ class Sync(object):
         except SystemError:
             pass
 
+        self._stdout_stream.close()
+        self._stderr_stream.close()
+        self._api.get_file_stream_api().finish(self._hooks.exception)
+
         for handler in self._event_handlers.values():
             handler.finish()
         self._file_pusher.finish()
@@ -367,6 +364,7 @@ class Sync(object):
         step = 0
         spinner_states = ['-', '/', '|', '\\']
         stop = False
+        self._stats.update_all_files()
         while True:
             if not self._file_pusher.is_alive():
                 stop = True
@@ -379,10 +377,25 @@ class Sync(object):
             if stop:
                 break
             time.sleep(0.25)
+            #print('FP: ', self._file_pusher._pending, self._file_pusher._jobs)
 
         os.path.exists(self._dpath) and os.remove(self._dpath)
 
-        wandb.termlog('Synced %s' % self.url)
+        download_urls = self._api.download_urls(
+            self._project, run=self._run_id)
+        error = False
+        for fname, info in download_urls.items():
+            local_path = os.path.join(self._watch_dir, fname)
+            if not self._api.file_current(local_path, info['md5']):
+                error = True
+                wandb.termlog(
+                    '%s: %s did not match uploaded file md5' % (
+                        click.style('ERROR', fg='white', bg='red'), local_path))
+
+        if error:
+            wandb.termlog('Sync failed %s' % self.url)
+        else:
+            wandb.termlog('Synced %s' % self.url)
 
     def _get_handler(self, file_path, save_name):
         if save_name not in self._event_handlers:
@@ -407,7 +420,7 @@ class Sync(object):
 
     # TODO: limit / throttle the number of adds / pushes
     def on_file_created(self, event):
-        if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
+        if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_created()
@@ -415,7 +428,7 @@ class Sync(object):
 
     # TODO: is this blocking the main thread?
     def on_file_modified(self, event):
-        if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
+        if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_modified()

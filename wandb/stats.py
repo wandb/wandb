@@ -20,6 +20,10 @@ class Stats(object):
             self._files[file_path] = FileStats(file_path)
         self._files[file_path].update_size()
 
+    def update_all_files(self):
+        for file_stats in self._files.values():
+            file_stats.update_size()
+
     def update_progress(self, file_path, uploaded):
         if file_path in self._files:
             self._files[file_path].uploaded = uploaded
