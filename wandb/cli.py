@@ -426,8 +426,10 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help='Files in this directory will be saved to wandb, defaults to wandb/run-<run_id>')
 @click.option('--configs', default=None,
               help='Config file paths to load')
+@click.option('--message', '-m', default=None,
+              help='Message to associate with the run.')
 @display_error
-def run(ctx, program, args, id, dir, configs):
+def run(ctx, program, args, id, dir, configs, message):
     _require_init()
     env = copy.copy(os.environ)
     env['WANDB_MODE'] = 'run'
@@ -437,6 +439,8 @@ def run(ctx, program, args, id, dir, configs):
     if dir is None:
         dir = wandb_run.run_dir_path(id, dry=False)
         util.mkdir_exists_ok(dir)
+    if message:
+        open(os.path.join(dir, 'description.md'), 'w').write('%s\n' % message)
     env['WANDB_RUN_DIR'] = dir
     if configs:
         env['WANDB_CONFIG_PATHS'] = configs
