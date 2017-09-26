@@ -182,26 +182,6 @@ def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url,
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
 
-def test_push_auto(runner, request_mocker, mocker, query_project, upload_url, monkeypatch):
-    query_project(request_mocker)
-    upload_url(request_mocker)
-    edit_mock = mocker.patch("click.edit")
-    with runner.isolated_filesystem():
-        #So GitRepo is in this cwd
-        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
-        with open('weights.h5', 'wb') as f:
-            f.write(os.urandom(5000))
-        with open('fake.json', 'wb') as f:
-            f.write(os.urandom(100))
-        result = runner.invoke(cli.push, ['test', '--project', 'test', '-m', 'Testing'])
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
-        assert result.exit_code == 0
-        assert "Uploading file: weights.h5" in result.output
-        #TODO: test without specifying message
-        #assert edit_mock.called
-
 def test_pull(runner, request_mocker, query_project, download_url):
     query_project(request_mocker)
     download_url(request_mocker)
