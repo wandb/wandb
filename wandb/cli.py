@@ -36,11 +36,13 @@ def write_netrc(host, entity, key):
         normalized_host = host.split("/")[-1].split(":")[0]
         print("Appending to netrc %s" % os.path.expanduser('~/.netrc'))
         with open(os.path.expanduser('~/.netrc'), 'a') as f:
-            f.write("""machine {host}
-        login {entity}
-        password {key}
-    """.format(host=normalized_host, entity=entity, key=key))
-        os.chmod(os.path.expanduser('~/.netrc'), stat.S_IRUSR | stat.S_IWUSR)
+            f.write(textwrap.dedent("""\
+            machine {host}
+              login {entity}
+              password {key}
+            """).format(host=normalized_host, entity=entity, key=key))
+            os.chmod(os.path.expanduser('~/.netrc'),
+                     stat.S_IRUSR | stat.S_IWUSR)
     except IOError as e:
         click.secho("Unable to read ~/.netrc", fg="red")
         return None
@@ -349,7 +351,7 @@ def init(ctx):
         question = {
             'type': 'list',
             'name': 'project_name',
-            'message': "Which project should we use?", 
+            'message': "Which project should we use?",
             'choices': project_names + ["Create New"]
         }
         project = whaaaaat.prompt([question])['project_name']
