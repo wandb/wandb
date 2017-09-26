@@ -50,10 +50,12 @@ from wandb import wandb_run
 stack_frame0 = traceback.extract_stack()[0]
 try:
     launched_file = stack_frame0.filename
-except AttributeError:
+except AttributeError:  # this happens with python 3
     launched_file = stack_frame0[0]
 
-if launched_file.endswith('bin/wandb'):
+# checking if running from a wandb command
+if (launched_file.endswith('wandb') or              # normal case
+    launched_file.endswith('wandb-script.py')):     # if installed with conda
     MODE = 'cli'
 else:
     MODE = os.environ.get('WANDB_MODE', 'dryrun')
