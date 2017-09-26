@@ -405,7 +405,7 @@ class Sync(object):
             download_urls = self._api.download_urls(
                 self._project, run=self._run_id)
             for fname, info in download_urls.items():
-                if fname == 'wandb-history.h5' or 'training.log':
+                if fname == 'wandb-history.h5' or 'output.log':
                     continue
                 local_path = os.path.join(self._watch_dir, fname)
                 local_md5 = util.md5_file(local_path)
