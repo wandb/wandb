@@ -228,11 +228,10 @@ class Sync(object):
             else:
                 self._description = os.getenv('WANDB_DESCRIPTION')
         try:
-            self.tty = sys.stdin.isatty() and os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno())
-        except OSError:
-            self.tty = False
-        except AttributeError:
-            self.tty = False
+            self.tty = (sys.stdin.isatty() and \
+                os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno())) # check if background process
+        except AttributeError: # windows
+            self.tty = sys.stdin.isatty()  # TODO Check for background process in windows
 
         if not os.getenv('DEBUG') and not self._description and self.tty:
             self._description = editor()
