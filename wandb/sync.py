@@ -213,12 +213,20 @@ class Sync(object):
     def __init__(self, api, run_id, config=None, project=None, tags=[], datasets=[], description=None, dir=None):
         # 1.6 million 6 character combinations
         self._run_id = run_id
+        self._watch_dir = os.path.abspath(dir)
         self._project = project or api.settings("project")
         self._entity = api.settings("entity")
         logger.debug("Initialized sync for %s/%s", self._project, self._run_id)
-        self._dpath = os.path.join(__stage_dir__, 'description.md')
-        self._description = description or (os.path.exists(self._dpath) and open(
-            self._dpath).read()) or os.getenv('WANDB_DESCRIPTION')
+
+        # Load description and write it to the run directory.
+        dpath = os.path.join(self._watch_dir, 'description.md')
+        self._description = description
+        if not self._description:
+            if os.path.exists(dpath):
+                with open(dpath) as f:
+                    self._description = f.read()
+            else:
+                self._description = os.getenv('WANDB_DESCRIPTION')
         try:
             self.tty = sys.stdin.isatty() and os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno())
         except OSError:
@@ -228,9 +236,12 @@ class Sync(object):
 
         if not os.getenv('DEBUG') and not self._description and self.tty:
             self._description = editor()
-            if self._description is None:
-                sys.stderr.write('No description provided, aborting run.\n')
-                sys.exit(1)
+        if self._description is None:
+            sys.stderr.write('No description provided, aborting run.\n')
+            sys.exit(1)
+        with open(dpath, 'w') as f:
+            f.write(self._description)
+
         self._proc = psutil.Process(os.getpid())
         self._api = api
         self._tags = tags
@@ -251,15 +262,12 @@ class Sync(object):
         self._hooks = ExitHooks()
         self._hooks.hook()
         self._observer = Observer()
-        self._watch_dir = os.path.abspath(dir)
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
         if config is None:
             config = Config()
         self._config = config
-
-        self._event_handlers = {}
 
         self._stats = stats.Stats()
 
@@ -268,6 +276,11 @@ class Sync(object):
                 self._api.push(self._project, {save_name: f}, run=self._run_id,
                                progress=lambda _, total: self._stats.update_progress(path, total))
         self._file_pusher = file_pusher.FilePusher(push_function)
+
+        self._event_handlers = {}
+        # create a handler for description.md, so that we'll save it at the end
+        # of the run.
+        self._get_handler(dpath, 'description.md')
 
         try:
             signal.signal(signal.SIGQUIT, self._debugger)
@@ -398,8 +411,6 @@ class Sync(object):
         # clear progress line.
         wandb.termlog(' ' * 79)
 
-        os.path.exists(self._dpath) and os.remove(self._dpath)
-
         # Check md5s of uploaded files against what's on the file system.
         # TODO: We're currently using the list of uploaded files as our source
         #     of truth, but really we should use the files on the filesystem
@@ -443,6 +454,7 @@ class Sync(object):
             wandb.termlog('Synced %s' % self.url)
 
     def _get_handler(self, file_path, save_name):
+        self._stats.update_file(file_path)
         if save_name not in self._event_handlers:
             if save_name == 'wandb-history.jsonl':
                 self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
@@ -474,7 +486,6 @@ class Sync(object):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_created()
-        self._stats.update_file(event.src_path)
 
     # TODO: is this blocking the main thread?
     def on_file_modified(self, event):
@@ -482,7 +493,6 @@ class Sync(object):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_modified()
-        self._stats.update_file(event.src_path)
 
     @property
     def source_proc(self):
