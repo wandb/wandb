@@ -11,6 +11,7 @@ import logging
 import json
 import glob
 import io
+import signal
 import stat
 import subprocess
 from functools import wraps
@@ -444,8 +445,16 @@ def run(ctx, program, args, id, dir, configs):
     if runner:
         command = runner.split() + command
 
+    try:
+        signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+    except AttributeError:
+        pass
+    # ignore SIGINT (ctrl-c), the child process will handle, and we'll
+    # exit when the child process does.
+
     proc = util.SafeSubprocess(command, env=env, read_output=False)
     proc.run()
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     while True:
         time.sleep(0.1)
         exitcode = proc.poll()

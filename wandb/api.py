@@ -27,17 +27,14 @@ import time
 logger = logging.getLogger(__name__)
 
 
-def IDENTITY(monitor):
-    """A default callback for the Progress helper"""
-    return monitor
-
-
 class Progress(object):
     """A helper class for displaying progress"""
 
     def __init__(self, file, callback=None):
         self.file = file
-        self.callback = callback or IDENTITY
+        if callback is None:
+            callback = lambda bites, total: (bites, total)
+        self.callback = callback
         self.bytes_read = 0
         self.len = os.fstat(file.fileno()).st_size
 
@@ -45,7 +42,7 @@ class Progress(object):
         """Read bytes and call the callback"""
         bites = self.file.read(size)
         self.bytes_read += len(bites)
-        self.callback(len(bites))
+        self.callback(len(bites), self.bytes_read)
         return bites
 
 
@@ -139,10 +136,6 @@ class Api(object):
             self.settings_file = "Not found"
         self.git = GitRepo(remote=self.settings("git_remote"))
         self._commit = self.git.last_commit
-        if __stage_dir__:
-            if self.git.dirty:
-                self.git.repo.git.execute(['git', 'diff'], output_stream=open(
-                    __stage_dir__ + 'diff.patch', 'wb'))
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
@@ -154,6 +147,11 @@ class Api(object):
         )
         self._current_run_id = None
         self._file_stream_api = None
+
+    def save_patch(self, out_dir):
+        if self.git.dirty:
+            self.git.repo.git.execute(['git', 'diff'], output_stream=open(
+                os.path.join(out_dir, 'diff.patch'), 'wb'))
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
@@ -544,17 +542,10 @@ class Api(object):
                     raise e
         return response
 
-    def _md5(self, fname):
-        hash_md5 = hashlib.md5()
-        with open(fname, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        return base64.b64encode(hash_md5.digest()).decode('ascii')
-
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
         """
-        return os.path.isfile(fname) and self._md5(fname) == md5
+        return os.path.isfile(fname) and util.md5_file(fname) == md5
 
     @normalize_exceptions
     def pull(self, project, run=None, entity=None):
@@ -592,6 +583,8 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
             description (str, optional): The description of the changes
             force (bool, optional): Whether to prevent push if git has uncommitted changes
+            progress (callable, or stream): If callable, will be called with (chunk_bytes,
+                total_bytes) as argument else if True, renders a progress bar to stream.
 
         Returns:
             The requests library response object
@@ -611,11 +604,14 @@ class Api(object):
                 print("%s does not exist" % file_name)
                 continue
             if progress:
-                length = os.fstat(open_file.fileno()).st_size
-                with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
-                                       fill_char=click.style('&', fg='green')) as bar:
-                    self.upload_file(
-                        file_info['url'], open_file, lambda bites: bar.update(bites))
+                if hasattr(progress, '__call__'):
+                    responses.append(self.upload_file(file_info['url'], open_file, progress))
+                else:
+                    length = os.fstat(open_file.fileno()).st_size
+                    with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
+                                        fill_char=click.style('&', fg='green')) as bar:
+                        responses.append(self.upload_file(
+                            file_info['url'], open_file, lambda bites, _: bar.update(bites)))
             else:
                 responses.append(self.upload_file(file_info['url'], open_file))
             open_file.close()
@@ -813,6 +809,8 @@ class FileStreamApi(object):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
         files = {}
+        # Groupby needs group keys to be consecutive, so sort first.
+        chunks.sort(key=lambda c:c.filename)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
             if filename not in self._file_policies:

@@ -1,5 +1,6 @@
 import psutil
 import os
+import signal
 import stat
 import sys
 import time
@@ -18,6 +19,8 @@ import click
 import wandb
 from wandb import __stage_dir__, Error
 from wandb import file_pusher
+from wandb import sparkline
+from wandb import stats
 from wandb import streaming_log
 from wandb import util
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
@@ -248,12 +251,7 @@ class Sync(object):
         self._hooks = ExitHooks()
         self._hooks.hook()
         self._observer = Observer()
-        if dir is None:
-            self._watch_dir = os.path.join(
-                __stage_dir__, 'run-%s' % self._run_id)
-            util.mkdir_exists_ok(self._watch_dir)
-        else:
-            self._watch_dir = os.path.abspath(dir)
+        self._watch_dir = os.path.abspath(dir)
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
@@ -263,11 +261,22 @@ class Sync(object):
 
         self._event_handlers = {}
 
+        self._stats = stats.Stats()
+
         def push_function(save_name, path):
             with open(path, 'rb') as f:
                 self._api.push(self._project, {save_name: f}, run=self._run_id,
-                               progress=False)
+                               progress=lambda _, total: self._stats.update_progress(path, total))
         self._file_pusher = file_pusher.FilePusher(push_function)
+
+        try:
+            signal.signal(signal.SIGQUIT, self._debugger)
+        except AttributeError:
+            pass
+
+    def _debugger(self, *args):
+        import pdb
+        pdb.set_trace()
 
     def watch(self, files):
         try:
@@ -279,12 +288,9 @@ class Sync(object):
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
             # Ignore hidden files/folders
             self._handler._ignore_patterns = ['*/.*']
-            if os.path.exists(__stage_dir__ + "diff.patch"):
-                self._api.push("{project}/{run}".format(
-                    project=self._project,
-                    run=self._run_id
-                ), {"diff.patch": open(__stage_dir__ + "diff.patch", "rb")})
             self._observer.start()
+
+            self._api.save_patch(self._watch_dir)
 
             wandb.termlog("Syncing %s" % self.url)
 
@@ -320,30 +326,36 @@ class Sync(object):
                              config=self._config.as_dict())
 
     def stop(self):
-        # This is a a heuristic delay to catch files that were written just before
-        # the end of the script. This is unverified, but theoretically the file
-        # change notification process used by watchdog (maybe inotify?) is
-        # asynchronous. It's possible we could miss files if 10s isn't long enough.
-        # TODO: Guarantee that all files will be saved.
         wandb.termlog()
-        wandb.termlog("Script ended, waiting for final file modifications.")
+        if isinstance(self._hooks.exception, KeyboardInterrupt):
+            wandb.termlog(
+                'Script ended because of ctrl-c, press ctrl-c again to abort syncing.')
+        else:
+            wandb.termlog('Script ended.')
+
+        # Show run summary/history
+        summary = wandb.run.summary.summary
+        if summary:
+            wandb.termlog('Run summary:')
+            max_len = max([len(k) for k in summary.keys()])
+            format_str = '  {:>%s} {}' % max_len
+            for k, v in summary.items():
+                wandb.termlog(format_str.format(k, v))
+        history_keys = wandb.run.history.keys()
+        if history_keys:
+            wandb.termlog('Run history:')
+            max_len = max([len(k) for k in history_keys])
+            for key in history_keys:
+                vals = util.downsample(wandb.run.history.column(key), 40)
+                line = sparkline.sparkify(vals)
+                format_str = u'  {:>%s} {}' % max_len
+                wandb.termlog(format_str.format(key, line))
+
+        wandb.termlog('Waiting for final file modifications.')
+        # This is a a heuristic delay to catch files that were written just before
+        # the end of the script.
+        # TODO: ensure we catch all saved files.
         time.sleep(2)
-        for handler in self._event_handlers.values():
-            handler.finish()
-        self._file_pusher.finish()
-        # self.log.tempfile.flush()
-        #wandb.termlog("Pushing log")
-        # slug = "{project}/{run}".format(
-        #    project=self._project,
-        #    run=self._run_id
-        #)
-        # self._api.push(
-        #    slug, {"training.log": open(self.log.tempfile.name, "rb")})
-        os.path.exists(self._dpath) and os.remove(self._dpath)
-        wandb.termlog("Synced %s" % self.url)
-        self._stdout_stream.close()
-        self._stderr_stream.close()
-        self._api.get_file_stream_api().finish(self._hooks.exception)
         try:
             self._observer.stop()
             self._observer.join()
@@ -353,6 +365,82 @@ class Sync(object):
         # TODO: py3 SystemError: <built-in function stop> returned a result with an error set
         except SystemError:
             pass
+
+        self._stdout_stream.close()
+        self._stderr_stream.close()
+        self._api.get_file_stream_api().finish(self._hooks.exception)
+
+        for handler in self._event_handlers.values():
+            handler.finish()
+        self._file_pusher.finish()
+
+        wandb.termlog('Syncing files in %s:' %
+                      os.path.relpath(self._watch_dir))
+        for file_path in self._stats.files():
+            wandb.termlog('  %s' % os.path.relpath(file_path, self._watch_dir))
+        step = 0
+        spinner_states = ['-', '/', '|', '\\']
+        stop = False
+        self._stats.update_all_files()
+        while True:
+            if not self._file_pusher.is_alive():
+                stop = True
+            summary = self._stats.summary()
+            line = (' %(completed_files)s of %(total_files)s files,'
+                    ' %(uploaded_bytes).03f of %(total_bytes).03f bytes uploaded\r' % summary)
+            line = spinner_states[step % 4] + line
+            step += 1
+            wandb.termlog(line, newline=False)
+            if stop:
+                break
+            time.sleep(0.25)
+            #print('FP: ', self._file_pusher._pending, self._file_pusher._jobs)
+        # clear progress line.
+        wandb.termlog(' ' * 79)
+
+        os.path.exists(self._dpath) and os.remove(self._dpath)
+
+        # Check md5s of uploaded files against what's on the file system.
+        # TODO: We're currently using the list of uploaded files as our source
+        #     of truth, but really we should use the files on the filesystem
+        #     (ie if we missed a file this wouldn't catch it).
+        # This polls the server, because there a delay between when the file
+        # is done uploading, and when the datastore gets updated with new
+        # metadata via pubsub.
+        wandb.termlog('Verifying uploaded files... ', newline=False)
+        error = False
+        error_string = click.style('ERROR', bg='red', fg='white')
+        mismatched = None
+        for delay_base in range(4):
+            mismatched = []
+            download_urls = self._api.download_urls(
+                self._project, run=self._run_id)
+            for fname, info in download_urls.items():
+                if fname == 'wandb-history.h5' or 'output.log':
+                    continue
+                local_path = os.path.join(self._watch_dir, fname)
+                local_md5 = util.md5_file(local_path)
+                if local_md5 != info['md5']:
+                    mismatched.append((local_path, local_md5, info['md5']))
+            if not mismatched:
+                break
+            wandb.termlog('  Retrying after %ss' % (delay_base**2))
+            time.sleep(delay_base ** 2)
+
+        if mismatched:
+            print('')
+            error = True
+            for local_path, local_md5, remote_md5 in mismatched:
+                wandb.termlog(
+                    '%s: %s (%s) did not match uploaded file (%s) md5' % (
+                        error_string, local_path, local_md5, remote_md5))
+        else:
+            print('verified!')
+
+        if error:
+            wandb.termlog('%s: Sync failed %s' % (error_string, self.url))
+        else:
+            wandb.termlog('Synced %s' % self.url)
 
     def _get_handler(self, file_path, save_name):
         if save_name not in self._event_handlers:
@@ -367,9 +455,14 @@ class Sync(object):
             #                                                    BinaryFilePolicy())
             #    self._event_handlers[save_name] = FileEventHandlerBinaryStream(
             #        file_path, save_name, self._api)
-            elif save_name == 'wandb-summary.json':
-                self._event_handlers[save_name] = FileEventHandlerOverwrite(
-                    file_path, save_name, self._api, self._file_pusher)
+            # Overwrite handler (non-deferred) has a bug, wherein if the file is truncated
+            # during upload, the request to Google hangs (at least, this is my working
+            # theory). So for now we defer uploading everything til the end of the run.
+            # TODO: send wandb-summary during run. One option is to copy to a temporary
+            # file before uploading.
+            # elif save_name == 'wandb-summary.json' or save_name == 'config.yaml':
+            #    self._event_handlers[save_name] = FileEventHandlerOverwrite(
+            #        file_path, save_name, self._api, self._file_pusher)
             else:
                 self._event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
                     file_path, save_name, self._api, self._file_pusher)
@@ -377,17 +470,19 @@ class Sync(object):
 
     # TODO: limit / throttle the number of adds / pushes
     def on_file_created(self, event):
-        if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
+        if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_created()
+        self._stats.update_file(event.src_path)
 
     # TODO: is this blocking the main thread?
     def on_file_modified(self, event):
-        if os.stat(event.src_path).st_size == 0 or os.path.isdir(event.src_path):
+        if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_modified()
+        self._stats.update_file(event.src_path)
 
     @property
     def source_proc(self):
