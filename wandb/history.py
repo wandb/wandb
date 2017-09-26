@@ -1,6 +1,7 @@
 import csv
 import os
 
+import wandb
 from wandb import util
 
 HISTORY_FNAME = 'wandb-history.jsonl'
@@ -23,6 +24,8 @@ class History(object):
         return [r[key] for r in self.rows]
 
     def add(self, row):
+        if not isinstance(row, dict):
+            raise wandb.Error('history.add expects dict')
         self.rows.append(row)
         self._file.write(util.json_dumps_safer(row))
         self._file.write('\n')
