@@ -809,6 +809,8 @@ class FileStreamApi(object):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
         files = {}
+        # Groupby needs group keys to be consecutive, so sort first.
+        chunks.sort(key=lambda c:c.filename)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
             if filename not in self._file_policies:
