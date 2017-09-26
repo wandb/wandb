@@ -3,7 +3,7 @@ from wandb import cli, Api, GitRepo, __version__
 from click.testing import CliRunner
 from .api_mocks import *
 import netrc, signal, time
-import six, time, inquirer, yaml
+import six, time, whaaaaat, yaml
 import git
 import webbrowser
 import wandb
@@ -21,7 +21,7 @@ except ImportError:
 def runner(monkeypatch):
     monkeypatch.setattr(cli, 'api', Api(default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
-    monkeypatch.setattr(inquirer, 'prompt', lambda x: {'project': 'test_model', 'files': ['weights.h5']})
+    monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {'project': 'test_model', 'files': ['weights.h5']})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
     return CliRunner()
 

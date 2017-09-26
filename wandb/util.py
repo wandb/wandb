@@ -69,7 +69,8 @@ class SafeSubprocess(object):
     def run(self):
         if self._read_output:
             self._popen = subprocess.Popen(
-                self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self._env)
+                self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                            env=self._env)
             self._stdout_thread = self._spawn_reader_thread(
                 self._popen.stdout, self._stdout)
             self._stderr_thread = self._spawn_reader_thread(

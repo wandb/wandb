@@ -223,6 +223,9 @@ class Sync(object):
             self.tty = sys.stdin.isatty() and os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno())
         except OSError:
             self.tty = False
+        except AttributeError:
+            self.tty = False
+
         if not os.getenv('DEBUG') and not self._description and self.tty:
             self._description = editor()
             if self._description is None:
