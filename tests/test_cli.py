@@ -21,7 +21,7 @@ except ImportError:
 def runner(monkeypatch):
     monkeypatch.setattr(cli, 'api', Api(default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
-    monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {'project': 'test_model', 'files': ['weights.h5']})
+    monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {'project_name': 'test_model', 'files': ['weights.h5']})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
     return CliRunner()
 
@@ -308,9 +308,9 @@ def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
         result = runner.invoke(cli.init, input="12345\nvanpelt")
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
+        print('Output: ', result.output)
+        print('Exception: ', result.exception)
+        print('Traceback: ', traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
