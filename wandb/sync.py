@@ -342,6 +342,9 @@ class Sync(object):
         if isinstance(self._hooks.exception, KeyboardInterrupt):
             wandb.termlog(
                 'Script ended because of ctrl-c, press ctrl-c again to abort syncing.')
+        elif self._hooks.exception:
+            wandb.termlog(
+                'Script ended because of Exception, press ctrl-c again to abort syncing.')
         else:
             wandb.termlog('Script ended.')
 

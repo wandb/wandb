@@ -2,6 +2,7 @@ import csv
 import json
 import os
 
+import wandb
 from wandb import util
 
 SUMMARY_FNAME = 'wandb-summary.json'
@@ -35,5 +36,7 @@ class Summary(object):
         return self.summary.get(k, default)
 
     def update(self, key_vals):
+        if not isinstance(key_vals, dict):
+            raise wandb.Error('summary.update expects dict')
         self.summary.update(key_vals)
         self._write()
