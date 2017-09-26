@@ -265,7 +265,11 @@ class Sync(object):
                 self._api.push(self._project, {save_name: f}, run=self._run_id,
                                progress=lambda _, total: self._stats.update_progress(path, total))
         self._file_pusher = file_pusher.FilePusher(push_function)
-        signal.signal(signal.SIGQUIT, self._debugger)
+
+        try:
+            signal.signal(signal.SIGQUIT, self._debugger)
+        except AttributeError:
+            pass
 
     def _debugger(self, *args):
         import pdb
@@ -320,7 +324,11 @@ class Sync(object):
 
     def stop(self):
         wandb.termlog()
-        wandb.termlog('Script ended.')
+        if isinstance(self._hooks.exception, KeyboardInterrupt):
+            wandb.termlog(
+                'Script ended because of ctrl-c, press ctrl-c again to abort syncing.')
+        else:
+            wandb.termlog('Script ended.')
 
         # Show run summary/history
         summary = wandb.run.summary.summary
