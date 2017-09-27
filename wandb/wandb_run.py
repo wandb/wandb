@@ -1,3 +1,4 @@
+import datetime
 import os
 import shortuuid
 
@@ -56,4 +57,5 @@ def run_dir_path(run_id, dry=False):
         prefix = 'dryrun'
     else:
         prefix = 'run'
-    return os.path.join(__stage_dir__, '%s-%s' % (prefix, run_id))
+    time_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    return os.path.join(__stage_dir__, '%s-%s-%s' % (prefix, time_str, run_id))
