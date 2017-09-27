@@ -125,25 +125,32 @@ def termlog(string='', newline=True):
 # The current run (a Run object)
 run = None
 
-if __stage_dir__ and MODE != 'cli':
-    _run_id = os.getenv('WANDB_RUN_ID')
-    if _run_id is None:
-        _run_id = wandb_run.generate_id()
-    _run_dir = os.getenv('WANDB_RUN_DIR')
-    if _run_dir is None:
-        _run_dir = wandb_run.run_dir_path(_run_id, dry=MODE == 'dryrun')
-    _conf_paths = os.getenv('WANDB_CONFIG_PATHS', '')
-    if _conf_paths:
-        _conf_paths = _conf_paths.split(',')
+if MODE != 'cli':
+    if __stage_dir__:
+        _run_id = os.getenv('WANDB_RUN_ID')
+        if _run_id is None:
+            _run_id = wandb_run.generate_id()
+        _run_dir = os.getenv('WANDB_RUN_DIR')
+        if _run_dir is None:
+            _run_dir = wandb_run.run_dir_path(_run_id, dry=MODE == 'dryrun')
+        _conf_paths = os.getenv('WANDB_CONFIG_PATHS', '')
+        if _conf_paths:
+            _conf_paths = _conf_paths.split(',')
 
-    def persist_config_callback():
-        if syncer:
-            syncer.update_config(_config)
-    _config = Config(config_paths=_conf_paths,
-                     wandb_dir=__stage_dir__, run_dir=_run_dir,
-                     persist_callback=persist_config_callback)
-    run = wandb_run.Run(_run_id, _run_dir, _config)
-    _do_sync(run.dir)
+        def persist_config_callback():
+            if syncer:
+                syncer.update_config(_config)
+        _config = Config(config_paths=_conf_paths,
+                         wandb_dir=__stage_dir__, run_dir=_run_dir,
+                         persist_callback=persist_config_callback)
+        run = wandb_run.Run(_run_id, _run_dir, _config)
+        _do_sync(run.dir)
+    else:
+        # The WANDB_DEBUG check ensures tests still work.
+        if not os.getenv('WANDB_DEBUG'):
+            print('wandb imported but directory not initialized.\n'
+                  'Please run "wandb init" to get started')
+            sys.exit(1)
 if __stage_dir__ is not None:
     log_fname = __stage_dir__ + 'debug.log'
 else:
