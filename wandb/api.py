@@ -87,7 +87,7 @@ def normalize_exceptions(func):
                 message = ast.literal_eval(str(payload))["message"]
             else:
                 message = str(err)
-            if os.getenv("DEBUG") == "true":
+            if os.getenv("WANDB_DEBUG") == "true":
                 raise err
             else:
                 raise CommError(message)
