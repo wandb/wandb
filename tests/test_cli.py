@@ -116,6 +116,7 @@ def test_config_del(runner):
         print(traceback.print_tb(result.exc_info[2]))
         assert "1 parameters changed" in result.output
 
+@pytest.mark.skip(reason='feature disabled')
 def test_push(runner, request_mocker, query_project, upload_url, upsert_run, monkeypatch):
     query_project(request_mocker)
     upload_url(request_mocker)
@@ -135,6 +136,7 @@ def test_push(runner, request_mocker, query_project, upload_url, upsert_run, mon
         assert result.exit_code == 0
         assert "Updating run: test/default" in result.output
 
+@pytest.mark.skip(reason='feature disabled')
 def test_push_no_run(runner):
     with runner.isolated_filesystem():
         with open('weights.h5', 'wb') as f:
@@ -146,6 +148,7 @@ def test_push_no_run(runner):
         assert result.exit_code == 2
         assert "Run id is required if files are specified." in result.output
 
+@pytest.mark.skip(reason='feature disabled')
 def test_push_dirty_git(runner, monkeypatch):
     with runner.isolated_filesystem():
         os.mkdir('wandb')
@@ -165,6 +168,7 @@ def test_push_dirty_git(runner, monkeypatch):
         assert result.exit_code == 1
         assert "You have un-committed changes." in result.output
 
+@pytest.mark.skip(reason='feature disabled')
 def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url, upsert_run, monkeypatch):
     query_project(request_mocker)
     upload_url(request_mocker)
@@ -182,6 +186,7 @@ def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url,
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
 
+@pytest.mark.skip(reason='feature disabled')
 def test_pull(runner, request_mocker, query_project, download_url):
     query_project(request_mocker)
     download_url(request_mocker)
@@ -197,6 +202,7 @@ def test_pull(runner, request_mocker, query_project, download_url):
         assert "File model.json" in result.output
         assert "File weights.h5" in result.output
 
+@pytest.mark.skip(reason='feature disabled')
 def test_pull_custom_run(runner, request_mocker, query_project, download_url):
     query_project(request_mocker)
     download_url(request_mocker)
@@ -209,6 +215,7 @@ def test_pull_custom_run(runner, request_mocker, query_project, download_url):
         assert result.exit_code == 0
         assert "Downloading: test/test" in result.output
 
+@pytest.mark.skip(reason='feature disabled')
 def test_pull_empty_run(runner, request_mocker, query_empty_project, download_url):
     query_empty_project(request_mocker)
     result = runner.invoke(cli.pull, ['test/test'])
@@ -225,6 +232,7 @@ def test_projects(runner, request_mocker, query_projects):
     assert result.exit_code == 0
     assert "test_2 - Test model" in result.output
 
+@pytest.mark.skip(reason='feature disabled')
 def test_status(runner, request_mocker, query_project):
     with runner.isolated_filesystem():
         query_project(request_mocker)
@@ -235,6 +243,7 @@ def test_status(runner, request_mocker, query_project):
         assert result.exit_code == 0
         assert "/latest" in result.output
 
+@pytest.mark.skip(reason='feature disabled')
 def test_status_project_and_run(runner, request_mocker, query_project):
     query_project(request_mocker)
     result = runner.invoke(cli.status, ["test/awesome"])

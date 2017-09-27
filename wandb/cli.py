@@ -110,12 +110,7 @@ class RunGroup(click.Group):
 @click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx):
-    """Weights & Biases
-
-If the first argument is a file in the current directory run it.
-
-   wandb train.py --arg=1
-    """
+    """Weights & Biases."""
     pass
 
 
@@ -155,7 +150,7 @@ def runs(project, entity):
         ))
 
 
-@cli.command(context_settings=CONTEXT, help="List local & remote file status")
+#@cli.command(context_settings=CONTEXT, help="List local & remote file status")
 @click.argument("run", envvar='WANDB_RUN')
 @click.option("--settings/--no-settings", help="Show the current settings", default=False)
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
@@ -200,7 +195,7 @@ def status(run, settings, project):
                    click.style(", ".join(up_to_date), fg="green"))
 
 
-@cli.command(context_settings=CONTEXT, help="Store notes for a future training run")
+#@cli.command(context_settings=CONTEXT, help="Store notes for a future training run")
 @display_error
 def describe():
     path = __stage_dir__ + 'description.md'
@@ -213,7 +208,7 @@ def describe():
         "Notes stored for next training run\nCalling wandb.sync() in your training script will persist them.")
 
 
-@cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
+#@cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
 @click.argument("run", envvar='WANDB_RUN')
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
@@ -250,7 +245,7 @@ def restore(run, branch, project, entity):
     click.echo("Restored config variables")
 
 
-@cli.command(context_settings=CONTEXT, help="Push files to Weights & Biases")
+#@cli.command(context_settings=CONTEXT, help="Push files to Weights & Biases")
 @click.argument("run", envvar='WANDB_RUN')
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @click.option("--description", "-m", help="A description to associate with this upload.")
@@ -277,7 +272,7 @@ def push(ctx, run, project, description, entity, force, files):
              description=description, entity=entity, force=force, progress=sys.stdout)
 
 
-@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
+#@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("run", envvar='WANDB_RUN')
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you want to download.")
 @click.option("--kind", "-k", default="all", type=click.Choice(['all', 'model', 'weights', 'other']))
