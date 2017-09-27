@@ -55,7 +55,7 @@ except AttributeError:  # this happens with python 3
 
 # checking if running from a wandb command
 if (launched_file.endswith('wandb') or              # normal case
-    launched_file.endswith('wandb-script.py')):     # if installed with conda
+        launched_file.endswith('wandb-script.py')):     # if installed with conda
     MODE = 'cli'
 else:
     MODE = os.environ.get('WANDB_MODE', 'dryrun')
@@ -110,7 +110,7 @@ def _do_sync(dir, extra_config=None):
     elif MODE == 'dryrun':
         termlog(
             'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
-    termlog('Run directory: %s' % run.dir)
+    termlog('Run directory: %s' % os.path.relpath(run.dir))
     termlog()
 
 

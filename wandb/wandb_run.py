@@ -11,7 +11,7 @@ from wandb import util
 class Run(object):
     def __init__(self, run_id, dir, config):
         self.id = run_id
-        self._dir = dir
+        self._dir = os.path.abspath(dir)
         self.config = config
         self._made_dir = False
 
