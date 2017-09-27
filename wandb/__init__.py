@@ -160,5 +160,4 @@ logging.basicConfig(
     filename=log_fname,
     level=logging.DEBUG)
 
-__all__ = ["Api", "Error", "Config", "Results", "History", "Summary",
-           "WandBKerasCallback"]
+__all__ = ["Api", "Error", "Config", "Results", "History", "Summary"]

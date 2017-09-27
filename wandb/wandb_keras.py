@@ -13,7 +13,7 @@ import wandb
 # pieces
 
 
-class WandBKerasCallback(object):
+class WandbKerasCallback(object):
     """WandB Keras Callback.
 
     Automatically saves wandb-history.csv and wandb-summary.csv, both tracking
@@ -38,7 +38,7 @@ class WandBKerasCallback(object):
 
         # From Keras
         if mode not in ['auto', 'min', 'max']:
-            print('WandBKerasCallback mode %s is unknown, '
+            print('WandbKerasCallback mode %s is unknown, '
                   'fallback to auto mode.' % (mode))
             mode = 'auto'
 
