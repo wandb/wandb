@@ -45,10 +45,10 @@ class Run(object):
 
 
 def generate_id():
-    # ~2.1b run ids (36**6)
+    # ~3t run ids (36**8)
     run_gen = shortuuid.ShortUUID(alphabet=list(
         "0123456789abcdefghijklmnopqrstuvwxyz"))
-    return run_gen.random(6)
+    return run_gen.random(8)
 
 
 def run_dir_path(run_id, dry=False):
