@@ -30,6 +30,33 @@ from wandb import wandb_run
 logger = logging.getLogger(__name__)
 
 
+class ClickWandbException(ClickException):
+    def format_message(self):
+        log_file = os.path.relpath(
+            logger.parent.handlers[0].baseFilename, os.getcwd())
+        orig_type = '%s.%s' % (self.orig_type.__module__,
+                               self.orig_type.__name__)
+        return ('An Exception was raised, see %s for full traceback.\n'
+                '%s: %s' % (log_file, orig_type, self.message))
+
+
+def display_error(func):
+    """Function decorator for catching common errors and re-raising as wandb.Error"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Error as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            lines = traceback.format_exception(
+                exc_type, exc_value, exc_traceback)
+            logger.error(''.join(lines))
+            click_exc = ClickWandbException(e)
+            click_exc.orig_type = exc_type
+            raise click_exc
+    return wrapper
+
+
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
     try:
@@ -46,22 +73,6 @@ def write_netrc(host, entity, key):
     except IOError as e:
         click.secho("Unable to read ~/.netrc", fg="red")
         return None
-
-
-def display_error(func):
-    """Function decorator for catching common errors and re-raising as wandb.Error"""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Error as e:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            lines = traceback.format_exception(
-                exc_type, exc_value, exc_traceback)
-            logger.error('\n'.join(lines))
-            raise ClickException(e)
-
-    return wrapper
 
 
 def _require_init():
