@@ -27,6 +27,8 @@ from wandb import util
 from wandb import Api, Error, Config, __version__, __stage_dir__
 from wandb import wandb_run
 
+DOCS_URL = 'http://wb-client.readthedocs.io/'
+
 logger = logging.getLogger(__name__)
 
 
@@ -110,7 +112,10 @@ class RunGroup(click.Group):
 @click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx):
-    """Weights & Biases."""
+    """Weights & Biases.
+
+    Run "wandb docs" for full documentation.
+    """
     pass
 
 
@@ -406,17 +411,36 @@ def init(ctx):
             #   value: 32
             """))
 
-    click.echo(click.style("This directory is configured!  Try these next:\n", fg="green") +
-               """
-* Track runs: `{code}` in your training script, then `{run}`.
-* Run `{push}` to manually add a file.
-* Pull popular models into your project with: `{pull}`.
-    """.format(
-        push=click.style("wandb push run_id weights.h5", bold=True),
+    click.echo(click.style("This directory is configured!  Next, track a run:\n", fg="green") +
+               textwrap.dedent("""\
+        * `{code}` in your training script
+        * then `{run}`.
+        """).format(
         code=click.style("import wandb", bold=True),
         run=click.style("wandb run <training_command>", bold=True),
-        pull=click.style("wandb pull models/inception-v4", bold=True)
+        # saving this here so I can easily put it back when we re-enable
+        # push/pull
+        #"""
+        #* Run `{push}` to manually add a file.
+        #* Pull popular models into your project with: `{pull}`.
+        #"""
+        #push=click.style("wandb push run_id weights.h5", bold=True),
+        #pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
+
+
+@cli.command(context_settings=CONTEXT, help="Open documentation in a browser")
+@click.pass_context
+@display_error
+def docs(ctx):
+    import webbrowser
+    launched = webbrowser.open_new_tab(DOCS_URL)
+    if launched:
+        click.echo(click.style(
+            "Opening %s in your default browser" % DOCS_URL, fg="green"))
+    else:
+        click.echo(click.style(
+            "You can find our documentation here: %s" % DOCS_URL, fg="green"))
 
 
 RUN_CONTEXT = copy.copy(CONTEXT)
