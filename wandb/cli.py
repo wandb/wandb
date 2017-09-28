@@ -59,6 +59,55 @@ def display_error(func):
     return wrapper
 
 
+IS_INIT = False
+
+
+def _require_init():
+    if not IS_INIT and __stage_dir__ is None:
+        print('Directory not initialized. Please run "wandb init" to get started.')
+        sys.exit(1)
+
+
+def require_init(func):
+    """Function decorator for catching common errors and re-raising as wandb.Error"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        _require_init()
+        return func(*args, **kwargs)
+    return wrapper
+
+
+def prompt_for_project(ctx, entity):
+    """Ask the user for a project, creating one if necessary."""
+    result = ctx.invoke(projects, entity=entity, display=False)
+
+    if len(result) == 0:
+        project = click.prompt("Enter a name for your first project")
+        description = editor()
+        api.upsert_project(project, entity=entity, description=description)
+    else:
+        project_names = [project["name"] for project in result]
+        question = {
+            'type': 'list',
+            'name': 'project_name',
+            'message': "Which project should we use?",
+            'choices': project_names + ["Create New"]
+        }
+        project = whaaaaat.prompt([question])['project_name']
+
+        # TODO: check with the server if the project exists
+        if project == "Create New":
+            project = click.prompt("Enter a name for your new project")
+            description = editor()
+            api.upsert_project(project, entity=entity, description=description)
+        else:
+            ids = [res['id'] for res in result if res['name'] == project]
+            if len(ids) > 0:
+                api.upsert_project(project, id=ids[0], entity=entity)
+
+    return project
+
+
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
     try:
@@ -75,12 +124,6 @@ def write_netrc(host, entity, key):
     except IOError as e:
         click.secho("Unable to read ~/.netrc", fg="red")
         return None
-
-
-def _require_init():
-    if __stage_dir__ is None:
-        print('Directory not initialized. Please run "wandb init" to get started.')
-        sys.exit(1)
 
 
 def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
@@ -120,6 +163,7 @@ def cli(ctx):
 
 
 @cli.command(context_settings=CONTEXT, help="List projects")
+@require_init
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
 def projects(entity, display=True):
@@ -140,12 +184,16 @@ def projects(entity, display=True):
 
 
 @cli.command(context_settings=CONTEXT, help="List runs in a project")
-@click.option("--project", "-p", prompt=True, envvar='WANDB_PROJECT', help="The project you wish to list runs from.")
+@click.pass_context
+@click.option("--project", "-p", default=None, envvar='WANDB_PROJECT', help="The project you wish to list runs from.")
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def runs(project, entity):
+@require_init
+def runs(ctx, project, entity):
     click.echo(click.style('Latest runs for project "%s"' %
                            project, bold=True))
+    if project is None:
+        project = prompt_for_project(ctx, project)
     runs = api.list_runs(project, entity=entity)
     for run in runs:
         click.echo("".join(
@@ -342,40 +390,17 @@ def init(ctx):
     #    click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
     click.echo(click.style(
         "Let's setup this directory for W&B!", fg="green", bold=True))
-    global api
+    global api, IS_INIT
 
     if api.api_key is None:
         ctx.invoke(login)
         api = Api()
 
+    IS_INIT = True
+
     entity = click.prompt("What username or org should we use?",
                           default=api.viewer().get('entity', 'models'))
-    # TODO: handle the case of a missing entity
-    result = ctx.invoke(projects, entity=entity, display=False)
-
-    if len(result) == 0:
-        project = click.prompt("Enter a name for your first project")
-        description = editor()
-        api.upsert_project(project, entity=entity, description=description)
-    else:
-        project_names = [project["name"] for project in result]
-        question = {
-            'type': 'list',
-            'name': 'project_name',
-            'message': "Which project should we use?",
-            'choices': project_names + ["Create New"]
-        }
-        project = whaaaaat.prompt([question])['project_name']
-
-        # TODO: check with the server if the project exists
-        if project == "Create New":
-            project = click.prompt("Enter a name for your new project")
-            description = editor()
-            api.upsert_project(project, entity=entity, description=description)
-        else:
-            ids = [res['id'] for res in result if res['name'] == project]
-            if len(ids) > 0:
-                api.upsert_project(project, id=ids[0], entity=entity)
+    project = prompt_for_project(ctx, entity)
 
     from wandb import _set_stage_dir, get_stage_dir
     if get_stage_dir() is None:
@@ -450,6 +475,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
+@require_init
 @click.argument('program')
 @click.argument('args', nargs=-1)
 @click.option('--id', default=None,
@@ -462,7 +488,6 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help='Message to associate with the run.')
 @display_error
 def run(ctx, program, args, id, dir, configs, message):
-    _require_init()
     env = copy.copy(os.environ)
     env['WANDB_MODE'] = 'run'
     if id is None:
