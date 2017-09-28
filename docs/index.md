@@ -2,7 +2,7 @@
 
 ## Intro
 
-[Weights & Biases](http://wandb.com) tracks machine learning jobs in real-time, makes them reproducible, and permanently archives your results (like trained models).
+[Weights & Biases](http://wandb.com) tracks machine learning jobs in real-time, makes them reproducible, and permanently archives your results.
 
 
 ## Quickstart - Existing Project
