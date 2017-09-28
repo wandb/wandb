@@ -1,54 +1,42 @@
-# Weights & Biases's documentation
+# Weights & Biases Documentation
 
-This package provides an interactive CLI and python client for [wandb.ai](https://app.wandb.ai).
+## Intro
 
-## Quickstart
+[Weights & Biases](http://wandb.com) tracks machine learning jobs in real-time, makes them reproducible, and permanently stores jobs outputs (like models).
 
-If you want to work with private runs or push data to the cloud you must first [signup](https://app.wandb.ai/login)
 
+## Quickstart - Existing Project
+
+This explains how to quickly integrate wandb into an existing project.
+
+First, [signup](https://app.wandb.ai/login) for a Weights & Biases account.
+
+<br>
+Next, install the Weights & Biases command line tool "wandb".
 ```console
 $ pip install wandb
-$ cd my_training_dir
+```
+
+<br>
+Initialize Weights & Biases in your project.
+```console
+$ cd <project_directory>
 $ wandb init
-$ wandb my_script.py arg1
 ```
 
-To manually push files to the cloud run:
+Follow the prompts to complete the initialization process.
 
+<br>
+Then, import our Python module into your code. In your training script:
 ```console
-$ wandb push latest somefile.proto
-```
-
-To pull down a model or sync your local directory with the cloud you can run:
-
-```console
-$ wandb pull inception_v4/latest
-```
-
-You can access configuration and push or pull via the API directly in your python scripts:
-
-```python
 import wandb
-conf = wandb.Config()
-wandb.sync(files=["*.h5"])
-wandb.pull("transfer/learning")
 ```
 
-## Documentation
+<br>
+Finally, launch your job
 
-```eval_rst
-.. toctree::
-   :maxdepth: 4
-
-   installation
-   usage
-   wandb
+```console
+wandb run <train.py>
 ```
 
-## Reference
-
-```eval_rst
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-```
+wandb will print a link that you can open to track the status of your job.

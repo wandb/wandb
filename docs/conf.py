@@ -33,6 +33,7 @@ project_root = os.path.dirname(cwd)
 # version is used.
 sys.path.insert(0, project_root)
 
+os.environ['WANDB_DEBUG'] = 'true'
 import wandb
 
 # -- General configuration ---------------------------------------------
@@ -43,7 +44,8 @@ napoleon_google_docstring = True
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode', 'sphinx.ext.coverage', 'sphinx.ext.napoleon']
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode',
+              'sphinx.ext.coverage', 'sphinx.ext.napoleon']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -294,9 +296,10 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
 
+
 def setup(app):
     app.add_config_value('recommonmark_config', {
-            'enable_auto_doc_ref': True,
-            'enable_eval_rst': True,
-            }, True)
+        'enable_auto_doc_ref': True,
+        'enable_eval_rst': True,
+    }, True)
     app.add_transform(AutoStructify)
