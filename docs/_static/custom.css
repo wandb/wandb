@@ -1,50 +1,68 @@
 @import url('https://fonts.googleapis.com/css?family=Lora');
 
 .body a.reference {
-    font-weight: bold
+  font-weight: bold;
 }
 
 div.sphinxsidebarwrapper h1.logo {
-    font-size: 1.35em;
-    margin-top: 15px;
+  font-size: 1.35em;
+  margin-top: 15px;
 }
 
 div.sphinxsidebar h3 {
-    font-size: 1.35em;
+  font-size: 1.35em;
 }
 
 div.sphinxsidebar ul li.toctree-l1 > a {
-    font-size: 1.1em !important;
+  font-size: 1.1em !important;
 }
 
-div.sphinxsidebar form, .body form {
-    position: relative;
-    max-width: 300px;
+div.sphinxsidebar form,
+.body form {
+  position: relative;
+  max-width: 300px;
 }
 
 div.sphinxsidebar form {
-    max-width: 200px;
+  max-width: 200px;
 }
 
 div.sphinxsidebar #searchbox input[type=text] {
-    width: 150px;
+  width: 150px;
 }
 
-div.sphinxsidebar input[type=text], input[name=q], input[value=search] {
-    outline: none;
-    border: 1px dotted #CCC;
-    font-size: 1.5em;
-    padding: 4px 38px 4px 10px;
+div.sphinxsidebar input[type=text],
+input[name=q],
+input[value=search] {
+  outline: none;
+  border: 1px dotted #ccc;
+  font-size: 1.5em;
+  padding: 4px 38px 4px 10px;
 }
 
-div.sphinxsidebar input[type=submit], .body input[type=submit] {
-    position: absolute;
-    padding: 4px;
-    font-size: 1.5em;
-    right: 0;
-    top: 0;
+div.sphinxsidebar input[type=submit],
+.body input[type=submit] {
+  position: absolute;
+  padding: 4px;
+  font-size: 1.5em;
+  right: 0;
+  top: 0;
 }
 
 dl.class dl.method {
-    margin: 50px 0;
+  margin: 50px 0;
+}
+
+div.body h2 {
+  margin: 40px 0 10px 0;
+}
+
+div.body h4 {
+  font-size: 110%;
+  font-weight: bold;
+}
+
+code {
+  background-color: #ecf0f3;
+  padding: 2px 3px;
 }
