@@ -93,7 +93,7 @@ syncer = None
 orig_stderr = sys.stderr
 
 
-def _do_sync(dir, extra_config=None):
+def _do_sync(dir, show_run, extra_config=None):
     global syncer
 
     termlog()
@@ -106,7 +106,7 @@ def _do_sync(dir, extra_config=None):
         if extra_config is not None:
             run.config.update(extra_config)
         syncer = Sync(api, run.id, config=run.config, dir=dir)
-        syncer.watch(files='*')
+        syncer.watch(files='*', show_run=show_run)
     elif MODE == 'dryrun':
         termlog(
             'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
@@ -136,6 +136,7 @@ if MODE != 'cli':
         _conf_paths = os.getenv('WANDB_CONFIG_PATHS', '')
         if _conf_paths:
             _conf_paths = _conf_paths.split(',')
+        _show_run = bool(os.getenv('WANDB_SHOW_RUN'))
 
         def persist_config_callback():
             if syncer:
@@ -144,7 +145,7 @@ if MODE != 'cli':
                          wandb_dir=__stage_dir__, run_dir=_run_dir,
                          persist_callback=persist_config_callback)
         run = wandb_run.Run(_run_id, _run_dir, _config)
-        _do_sync(run.dir)
+        _do_sync(run.dir, _show_run)
     else:
         # The WANDB_DEBUG check ensures tests still work.
         if not os.getenv('WANDB_DEBUG'):

@@ -421,20 +421,22 @@ def init(ctx):
     with open(os.path.join(get_stage_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
 
-    with open('config-defaults.yaml', 'w') as file:
-        file.write(textwrap.dedent("""\
-            wandb_version: 1
+    config_defaults_path = 'config-defaults.yaml'
+    if not os.path.exists(config_defaults_path):
+        with open(config_defaults_path, 'w') as file:
+            file.write(textwrap.dedent("""\
+                wandb_version: 1
 
-            # Example variables below. Uncomment (remove leading '# ') to use them, or just
-            # delete and create your own.
-            
-            # epochs:
-            #   desc: Number of epochs to train over
-            #   value: 100
-            # batch_size:
-            #   desc: Size of each mini-batch
-            #   value: 32
-            """))
+                # Example variables below. Uncomment (remove leading '# ') to use them, or just
+                # delete and create your own.
+                
+                # epochs:
+                #   desc: Number of epochs to train over
+                #   value: 100
+                # batch_size:
+                #   desc: Size of each mini-batch
+                #   value: 32
+                """))
 
     click.echo(click.style("This directory is configured!  Next, track a run:\n", fg="green") +
                textwrap.dedent("""\
@@ -486,8 +488,10 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help='Config file paths to load')
 @click.option('--message', '-m', default=None,
               help='Message to associate with the run.')
+@click.option("--show/--no-show", default=False,
+              help="Open the run page in your default browser")
 @display_error
-def run(ctx, program, args, id, dir, configs, message):
+def run(ctx, program, args, id, dir, configs, message, show):
     env = copy.copy(os.environ)
     env['WANDB_MODE'] = 'run'
     if id is None:
@@ -501,6 +505,8 @@ def run(ctx, program, args, id, dir, configs, message):
     env['WANDB_RUN_DIR'] = dir
     if configs:
         env['WANDB_CONFIG_PATHS'] = configs
+    if show:
+        env['WANDB_SHOW_RUN'] = '1'
     command = [program] + list(args)
     runner = util.find_runner(program)
     if runner:

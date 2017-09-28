@@ -290,7 +290,7 @@ class Sync(object):
         import pdb
         pdb.set_trace()
 
-    def watch(self, files):
+    def watch(self, files, show_run=False):
         try:
             # TODO: better failure handling
             upsert_result = self._api.upsert_run(name=self._run_id, project=self._project, entity=self._entity,
@@ -305,6 +305,9 @@ class Sync(object):
             self._api.save_patch(self._watch_dir)
 
             wandb.termlog("Syncing %s" % self.url)
+            if show_run:
+                import webbrowser
+                webbrowser.open_new_tab(self.url)
 
             self._api.get_file_stream_api().set_file_policy(
                 'output.log', CRDedupeFilePolicy())
