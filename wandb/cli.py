@@ -34,8 +34,7 @@ logger = logging.getLogger(__name__)
 
 class ClickWandbException(ClickException):
     def format_message(self):
-        log_file = os.path.relpath(
-            logger.parent.handlers[0].baseFilename, os.getcwd())
+        log_file = util.get_log_file_path()
         orig_type = '%s.%s' % (self.orig_type.__module__,
                                self.orig_type.__name__)
         return ('An Exception was raised, see %s for full traceback.\n'

@@ -69,8 +69,8 @@ class SafeSubprocess(object):
     def run(self):
         if self._read_output:
             self._popen = subprocess.Popen(
-                self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
-                            env=self._env)
+                self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env=self._env)
             self._stdout_thread = self._spawn_reader_thread(
                 self._popen.stdout, self._stdout)
             self._stderr_thread = self._spawn_reader_thread(
@@ -171,9 +171,10 @@ def find_runner(program):
             return 'python'
     return None
 
+
 def downsample(values, target_length):
     """Downsamples 1d values to target_length, including start and end.
-    
+
     Algorithm just rounds index down.
     """
     assert target_length > 1
@@ -185,9 +186,18 @@ def downsample(values, target_length):
         result.append(values[int(i * ratio)])
     return result
 
+
 def md5_file(path):
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return base64.b64encode(hash_md5.digest()).decode('ascii')
+
+
+def get_log_file_path():
+    parent_handlers = logger.parent.handlers
+    if parent_handlers:
+        return os.path.relpath(parent_handlers[0].baseFilename, os.getcwd())
+    else:
+        return '<unknown>'

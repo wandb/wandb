@@ -345,7 +345,7 @@ class Api(object):
             'description': description, 'repo': self.git.remote_url, 'id': id})
         return response['upsertModel']['model']
 
-    #@normalize_exceptions
+    @normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None, config=None, description=None, entity=None, commit=None):
         """Update a run
 

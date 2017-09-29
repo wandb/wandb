@@ -27,6 +27,8 @@ from .api import BinaryFilePolicy, CRDedupeFilePolicy
 from .wandb_run import Run
 logger = logging.getLogger(__name__)
 
+ERROR_STRING = click.style('ERROR', bg='red', fg='green')
+
 
 def editor(content='', marker='# Before we start this run, enter a brief description. (to skip, direct stdin to dev/null: `python train.py < /dev/null`)\n'):
     message = click.edit(content + '\n\n' + marker)
@@ -330,10 +332,13 @@ class Sync(object):
             self.stop()
         except Error:
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            wandb.termlog("!!! Fatal W&B Error: %s" % exc_value)
+            wandb.termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
+                (ERROR_STRING, util.get_log_file_path())))
+            wandb.termlog("%s: %s" % (ERROR_STRING, exc_value))
             lines = traceback.format_exception(
                 exc_type, exc_value, exc_traceback)
             logger.error('\n'.join(lines))
+            sys.exit(1)
 
     def update_config(self, config):
         self._config = config
@@ -425,7 +430,6 @@ class Sync(object):
         # metadata via pubsub.
         wandb.termlog('Verifying uploaded files... ', newline=False)
         error = False
-        error_string = click.style('ERROR', bg='red', fg='white')
         mismatched = None
         for delay_base in range(4):
             mismatched = []
@@ -449,12 +453,12 @@ class Sync(object):
             for local_path, local_md5, remote_md5 in mismatched:
                 wandb.termlog(
                     '%s: %s (%s) did not match uploaded file (%s) md5' % (
-                        error_string, local_path, local_md5, remote_md5))
+                        ERROR_STRING, local_path, local_md5, remote_md5))
         else:
             print('verified!')
 
         if error:
-            wandb.termlog('%s: Sync failed %s' % (error_string, self.url))
+            wandb.termlog('%s: Sync failed %s' % (ERROR_STRING, self.url))
         else:
             wandb.termlog('Synced %s' % self.url)
 
