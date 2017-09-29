@@ -145,7 +145,11 @@ class FileEventHandlerOverwrite(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
-        self._file_pusher.file_changed(self.save_name, self.file_path)
+        # Tell file_pusher to copy the file, we want to allow the user to modify the
+        # original while this one is uploading (modifying while uploading seems to
+        # cause a hang somewhere in the google upload code, until the server times out)
+        self._file_pusher.file_changed(
+            self.save_name, self.file_path, copy=True)
 
 
 class FileEventHandlerOverwriteDeferred(FileEventHandler):
@@ -304,7 +308,7 @@ class Sync(object):
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
             # Ignore hidden files/folders
-            self._handler._ignore_patterns = ['*/.*']
+            self._handler._ignore_patterns = ['*/.*', '*.tmp']
             self._observer.start()
 
             self._api.save_patch(self._watch_dir)
@@ -484,9 +488,9 @@ class Sync(object):
             # theory). So for now we defer uploading everything til the end of the run.
             # TODO: send wandb-summary during run. One option is to copy to a temporary
             # file before uploading.
-            # elif save_name == 'wandb-summary.json' or save_name == 'config.yaml':
-            #    self._event_handlers[save_name] = FileEventHandlerOverwrite(
-            #        file_path, save_name, self._api, self._file_pusher)
+            elif save_name == 'wandb-summary.json':
+                self._event_handlers[save_name] = FileEventHandlerOverwrite(
+                    file_path, save_name, self._api, self._file_pusher)
             else:
                 self._event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
                     file_path, save_name, self._api, self._file_pusher)

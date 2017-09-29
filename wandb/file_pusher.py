@@ -1,4 +1,6 @@
 import collections
+import os
+import shutil
 import threading
 import time
 from six.moves import queue
@@ -6,25 +8,29 @@ from six.moves import queue
 import wandb
 
 
-EventFileChanged = collections.namedtuple('EventFileChanged', ('path', 'save_name'))
+EventFileChanged = collections.namedtuple('EventFileChanged', ('path', 'save_name', 'copy'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
 
 class UploadJob(threading.Thread):
-    def __init__(self, done_queue, push_function, save_name, path):
+    def __init__(self, done_queue, push_function, save_name, path, copy=False):
         self._done_queue = done_queue
         self._push_function = push_function
         self.save_name = save_name
         self.path = path
+        self.copy = copy
         self.needs_restart = False
         super(UploadJob, self).__init__()
 
     def run(self):
         try:
-            #wandb.termlog('Uploading file: %s' % self.save_name)
+            copied_path = self.path + '.tmp'
+            if self.copy:
+                shutil.copy2(self.path, copied_path)
             self._push_function(self.save_name, self.path)
-            #wandb.termlog('Done uploading file: %s' % self.save_name)
+            if self.copy:
+                os.remove(copied_path)
         finally:
             self._done_queue.put(EventJobDone(self))
 
@@ -78,25 +84,25 @@ class FilePusher(object):
             self._jobs.pop(job.save_name)
             if job.needs_restart:
                 #wandb.termlog('File changed while uploading, restarting: %s' % event.job.save_name)
-                self._start_job(event.job.save_name, event.job.path)
+                self._start_job(event.job.save_name, event.job.path, event.job.copy)
             elif self._pending:
                 event = self._pending.pop()
-                self._start_job(event.save_name, event.path)
+                self._start_job(event.save_name, event.path, event.copy)
         elif isinstance(event, EventFileChanged):
             if event.save_name in self._jobs:
                 self._jobs[event.save_name].restart()
             elif len(self._jobs) == self._max_jobs:
                 self._pending.append(event)
             else:
-                self._start_job(event.save_name, event.path)
+                self._start_job(event.save_name, event.path, event.copy)
 
-    def _start_job(self, save_name, path):
-        job = UploadJob(self._queue, self._push_function, save_name, path)
+    def _start_job(self, save_name, path, copy):
+        job = UploadJob(self._queue, self._push_function, save_name, path, copy)
         job.start()
         self._jobs[save_name] = job
 
-    def file_changed(self, save_name, path):
-        self._queue.put(EventFileChanged(path, save_name))
+    def file_changed(self, save_name, path, copy=False):
+        self._queue.put(EventFileChanged(path, save_name, copy))
 
     def finish(self):
         self._queue.put(EventFinish())
