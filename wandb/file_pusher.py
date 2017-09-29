@@ -25,12 +25,15 @@ class UploadJob(threading.Thread):
 
     def run(self):
         try:
-            copied_path = self.path + '.tmp'
+            #wandb.termlog('Uploading file: %s' % self.save_name)
+            save_path = self.path
             if self.copy:
-                shutil.copy2(self.path, copied_path)
-            self._push_function(self.save_name, self.path)
+                save_path = self.path + '.tmp'
+                shutil.copy2(self.path, save_path)
+            self._push_function(self.save_name, save_path)
             if self.copy:
-                os.remove(copied_path)
+                os.remove(save_path)
+            #wandb.termlog('Done uploading file: %s' % self.save_name)
         finally:
             self._done_queue.put(EventJobDone(self))
 
