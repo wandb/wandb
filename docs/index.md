@@ -9,7 +9,7 @@
 This explains how to quickly integrate wandb into an existing project.
 
 <br>
-Aftering [signing up](https://app.wandb.ai/login), install the Weights & Biases command line tool "wandb":
+After [signing up](https://app.wandb.ai/login), install the Weights & Biases command line tool "wandb":
 ```console
 $ pip install wandb
 ```
