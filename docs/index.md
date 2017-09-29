@@ -41,7 +41,9 @@ Your training jobs can interact with Weights & Biases via the `wandb.run` object
 
 ### Saving run files
 
-While your script is running, `wandb.run.dir` is the path to your Weights & Biases run directory, which by default will be a subdirectory of `./wandb`. Any files you save in this directory during the run will be persisted to Weights & Biases. We recommend that you modify your training script to save generated models and other run artifacts in this directory.
+Each time you run your script, by default we create a unique directory that you can store job outputs in. The path is `./wandb/run-<timestamp>-<runid>` and is available to your job as `wandb.run.dir`.
+
+Any files you save in this directory during the run will be persisted to Weights & Biases. We recommend that you modify your training script to save generated models and other run artifacts in this directory.
 
 #### Aside: Saving all generated files without modifying your script
 
