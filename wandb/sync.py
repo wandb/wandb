@@ -109,9 +109,12 @@ class FileTailer(object):
 
     def _thread_body(self):
         while True:
+            where = self._file.tell()
             data = self._file.read(1024)
             if not data:
                 time.sleep(1)
+                # required for to get python2 working (Issue #50)
+                self._file.seek(where)
             else:
                 self._on_read_fn(data)
 
