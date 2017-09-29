@@ -13,4 +13,4 @@ A CLI and library for interacting with the Weights and Biases API.  Sign up for 
 
 ## Usage
 
-Detailed usage can be found in our [documentation](http://wb-client.readthedocs.io/en/latest/usage.html).
+Detailed usage can be found in our [documentation](http://wb-client.readthedocs.io/).
