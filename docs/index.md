@@ -4,7 +4,6 @@
 
 [Weights & Biases](http://wandb.com) tracks machine learning jobs in real-time, makes them reproducible, and permanently archives your results.
 
-
 ## Quickstart - Existing Project
 
 This explains how to quickly integrate wandb into an existing project.
@@ -40,9 +39,9 @@ wandb run --show <train.py>
 
 Your training jobs can interact with Weights & Biases via the `wandb.run` object. The members of `wandb.run` are described in the following sections.
 
-### wandb.run.dir
+### Saving run files
 
-This is the path to your Weights & Biases run directory, which by default will be a subdirectory of `./wandb`. Any files you save in this directory during the run will be persisted to Weights & Biases. We recommend that you modify your training script to save generated models and other run artifacts in this directory.
+While your script is running, `wandb.run.dir` is the path to your Weights & Biases run directory, which by default will be a subdirectory of `./wandb`. Any files you save in this directory during the run will be persisted to Weights & Biases. We recommend that you modify your training script to save generated models and other run artifacts in this directory.
 
 #### Aside: Saving all generated files without modifying your script
 
@@ -53,12 +52,12 @@ You can use `wandb run --dir=. <script.py>` to make wandb sync _all_ files (in t
 If you launch your script directly (`python <script.py>` or `./script.py`) instead of using `wandb run <script.py>`, it will be launched in dry run mode, wherein nothing is persisted to wandb. We still create a run directory and other `wandb.run` members, so your script will function normally. We recommend using dry run mode while developing your script.
 
 
-### wandb.run.config
+### Saving and loading configuration
 
-The config object is a dict-like that serves two purposes: 1) whatever you put into it will be persisted as the configuration for this run, 2) `wandb run` can optionally read in values from yaml files, and pass them to your script via `wandb.run.config`.
+During your run, `wandb.run.config` is a dict-like that serves two purposes: 1) whatever you put into it will be persisted as the configuration for this run, 2) `wandb run` can optionally read in values from yaml files, and pass them to your script via `wandb.run.config`.
 
 
-#### Saving parameters from argparse/tensorflow/other
+#### Saving parameters from argparse / tensorflow / other
 
 If you are using argparse you can easily persist your arguments:
 ```python
@@ -87,7 +86,7 @@ You can use the wandb config system to pass in configurations from yaml files, r
 
 You can pass extra config files with `wandb run --configs=<config_files>` where `<config_files>` is a comma-separated list of paths to yaml files. These will be processed in order, with values from later files overriding values from earlier files.
 
-### wandb.run.history / wandb.run.summary
+### Saving metrics
 
 wandb's history and summary allow you to save data about your training run.
 
