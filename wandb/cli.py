@@ -519,7 +519,10 @@ def run(ctx, program, args, id, dir, configs, message, show):
     # exit when the child process does.
 
     proc = util.SafeSubprocess(command, env=env, read_output=False)
-    proc.run()
+    try:
+        proc.run()
+    except (OSError, IOError):
+        raise ClickException('Could not find program: %s' % command[0])
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     while True:
         time.sleep(0.1)
