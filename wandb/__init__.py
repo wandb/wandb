@@ -55,7 +55,9 @@ except AttributeError:  # this happens with python 3
 
 # checking if running from a wandb command
 if (launched_file.endswith('wandb') or              # normal case
-        launched_file.endswith('wandb-script.py')):     # if installed with conda
+        launched_file.endswith('wandb-script.py') or
+        launched_file.endswith('runpy.py')):     # if installed with conda
+     # if installed with conda
     MODE = 'cli'
 else:
     MODE = os.environ.get('WANDB_MODE', 'dryrun')
