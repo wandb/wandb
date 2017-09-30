@@ -4,7 +4,6 @@ import tempfile
 import time
 import sys
 from requests import Session
-from wandb import Api
 from six.moves import queue
 import traceback
 import logging

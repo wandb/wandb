@@ -11,7 +11,8 @@ import hashlib
 import os
 import json
 import yaml
-from wandb import __version__, __stage_dir__, GitRepo
+from wandb import __version__, __stage_dir__, Error
+from wandb.git_repo import GitRepo
 from wandb import util
 import base64
 import binascii
@@ -44,14 +45,6 @@ class Progress(object):
         self.bytes_read += len(bites)
         self.callback(len(bites), self.bytes_read)
         return bites
-
-
-class Error(Exception):
-    """Base W&B Error"""
-    # For python 2 support
-
-    def encode(self, encoding):
-        return self.message
 
 
 class CommError(Error):

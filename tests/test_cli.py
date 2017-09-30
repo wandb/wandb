@@ -1,5 +1,8 @@
 import pytest, os, traceback, click
-from wandb import cli, Api, GitRepo, __version__
+from wandb import __version__
+from wandb import api as wandb_api
+from wandb import cli
+from wandb import git_repo
 from click.testing import CliRunner
 from .api_mocks import *
 import netrc, signal, time
@@ -19,7 +22,7 @@ except ImportError:
 
 @pytest.fixture
 def runner(monkeypatch):
-    monkeypatch.setattr(cli, 'api', Api(default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
+    monkeypatch.setattr(cli, 'api', wandb_api.Api(default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
     monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {'project_name': 'test_model', 'files': ['weights.h5']})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
@@ -46,7 +49,7 @@ def git_repo():
     open("README", "wb").close()
     r.index.add(["README"])
     r.index.commit("Initial commit")
-    return GitRepo(lazy=False)
+    return git_repo.GitRepo(lazy=False)
 
 def test_help(runner):
     result = runner.invoke(cli.cli)
@@ -124,7 +127,7 @@ def test_push(runner, request_mocker, query_project, upload_url, upsert_run, mon
     with runner.isolated_filesystem():
         #So GitRepo is in this cwd
         os.mkdir('wandb')
-        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
+        monkeypatch.setattr(cli, 'api', wandb_api.Api({'project': 'test'}))
         with open("wandb/latest.yaml", "w") as f:
             f.write(yaml.dump({'wandb_version': 1, 'test': {'value': 'success', 'desc': 'My life'}}))
         with open('weights.h5', 'wb') as f:
@@ -159,7 +162,7 @@ def test_push_dirty_git(runner, monkeypatch):
         repo = git_repo()
         open("foo.txt", "wb").close()
         repo.repo.index.add(["foo.txt"])
-        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
+        monkeypatch.setattr(cli, 'api', wandb_api.Api({'project': 'test'}))
         cli.api._settings['git_tag'] = True
         result = runner.invoke(cli.push, ["test", "foo.txt", "-p", "test", "-m", "Dirty"])
         print(result.output)
@@ -175,7 +178,7 @@ def test_push_dirty_force_git(runner, request_mocker, query_project, upload_url,
     update_mock = upsert_run(request_mocker)
     with runner.isolated_filesystem():
         #So GitRepo is in this cwd
-        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
+        monkeypatch.setattr(cli, 'api', wandb_api.Api({'project': 'test'}))
         repo = git_repo()
         with open('weights.h5', 'wb') as f:
             f.write(os.urandom(100))
@@ -273,7 +276,7 @@ def test_restore(runner, request_mocker, query_run, monkeypatch):
             f.write("test")
         repo.repo.index.add(["patch.txt"])
         repo.repo.commit()
-        monkeypatch.setattr(cli, 'api', Api({'project': 'test'}))
+        monkeypatch.setattr(cli, 'api', wandb_api.Api({'project': 'test'}))
         result = runner.invoke(cli.restore, ["test/abcdef"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))

@@ -23,9 +23,10 @@ import traceback
 import textwrap
 
 import wandb
-from wandb import util
-from wandb import Api, Error, Config, __version__, __stage_dir__
+from wandb.api import Api
+from wandb.config import Config
 from wandb import wandb_run
+from wandb import util
 
 DOCS_URL = 'http://wb-client.readthedocs.io/'
 
@@ -47,7 +48,7 @@ def display_error(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except Error as e:
+        except wandb.Error as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(
                 exc_type, exc_value, exc_traceback)
@@ -62,7 +63,7 @@ IS_INIT = False
 
 
 def _require_init():
-    if not IS_INIT and __stage_dir__ is None:
+    if not IS_INIT and wandb.__stage_dir__ is None:
         print('Directory not initialized. Please run "wandb init" to get started.')
         sys.exit(1)
 
@@ -151,7 +152,7 @@ class RunGroup(click.Group):
 
 
 @click.command(cls=RunGroup)
-@click.version_option(version=__version__)
+@click.version_option(version=wandb.__version__)
 @click.pass_context
 def cli(ctx):
     """Weights & Biases.
@@ -250,7 +251,7 @@ def status(run, settings, project):
 #@cli.command(context_settings=CONTEXT, help="Store notes for a future training run")
 @display_error
 def describe():
-    path = __stage_dir__ + 'description.md'
+    path = wandb.__stage_dir__ + 'description.md'
     existing = (os.path.exists(path) and open(path).read()) or ''
     description = editor(existing)
     if description:
@@ -285,10 +286,10 @@ def restore(run, branch, project, entity):
             api.git.repo.git.checkout(commit)
 
     if patch:
-        with open(__stage_dir__ + "diff.patch", "w") as f:
+        with open(wandb.__stage_dir__ + "diff.patch", "w") as f:
             f.write(patch)
         api.git.repo.git.execute(
-            ['git', 'apply', __stage_dir__ + 'diff.patch'])
+            ['git', 'apply', wandb.__stage_dir__ + 'diff.patch'])
         click.echo("Applied patch")
 
     config = Config()
@@ -401,23 +402,23 @@ def init(ctx):
                           default=api.viewer().get('entity', 'models'))
     project = prompt_for_project(ctx, entity)
 
-    from wandb import _set_stage_dir, get_stage_dir
-    if get_stage_dir() is None:
+    from wandb import _set_stage_dir, wandb_dir
+    if wandb_dir() is None:
         _set_stage_dir('wandb')
 
-    from wandb import get_stage_dir
-    wandb_path = os.path.join(os.getcwd(), get_stage_dir())
+    from wandb import wandb_dir
+    wandb_path = os.path.join(os.getcwd(), wandb_dir())
     if os.path.isdir(wandb_path):
         click.confirm(click.style(
             "This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
     else:
         os.mkdir(wandb_path)
 
-    with open(os.path.join(get_stage_dir(), 'settings'), "w") as file:
+    with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
         file.write("[default]\nentity: {entity}\nproject: {project}\n".format(
             entity=entity, project=project))
 
-    with open(os.path.join(get_stage_dir(), '.gitignore'), "w") as file:
+    with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
 
     config_defaults_path = 'config-defaults.yaml'

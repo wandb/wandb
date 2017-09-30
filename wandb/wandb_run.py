@@ -2,7 +2,7 @@ import datetime
 import os
 import shortuuid
 
-from wandb import __stage_dir__
+import wandb
 from wandb import history
 from wandb import summary
 from wandb import util
@@ -58,4 +58,4 @@ def run_dir_path(run_id, dry=False):
     else:
         prefix = 'run'
     time_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    return os.path.join(__stage_dir__, '%s-%s-%s' % (prefix, time_str, run_id))
+    return os.path.join(wandb.wandb_dir(), '%s-%s-%s' % (prefix, time_str, run_id))

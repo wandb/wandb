@@ -8,7 +8,7 @@ test_git_repo
 Tests for the `wandb.GitRepo` module.
 """
 import pytest
-from wandb import GitRepo
+from wandb.git_repo import GitRepo
 from .utils import git_repo
 
 def test_last_commit(git_repo):

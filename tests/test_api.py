@@ -16,8 +16,9 @@ import git
 from .utils import git_repo
 
 import wandb
+from wandb import api as wandb_api
 from six import StringIO
-api = wandb.Api(load_settings=False)
+api = wandb_api.Api(load_settings=False)
 
 
 def test_projects_success(request_mocker, query_projects):
@@ -100,7 +101,7 @@ def test_push_success(request_mocker, upload_url, query_project, upsert_run):
     with CliRunner().isolated_filesystem():
         res = os.mkdir("wandb")
         # TODO: need this for my mock to work
-        api = wandb.Api(load_settings=False)
+        api = wandb_api.Api(load_settings=False)
         with open("wandb/latest.yaml", "w") as f:
             f.write(yaml.dump({'wandb_version': 1, 'test': {
                     'value': 'success', 'desc': 'My life'}}))
@@ -128,8 +129,8 @@ def test_push_git_success(request_mocker, mocker, upload_url, query_project, ups
         r = git.Repo.init(".")
         r.index.add(["model.json"])
         r.index.commit("initial commit")
-        api = wandb.Api(load_settings=False,
-                        default_settings={'git_tag': True})
+        api = wandb_api.Api(load_settings=False,
+                            default_settings={'git_tag': True})
         mock = mocker.patch.object(api.git, "push")
         res = api.push("test/test", ["weights.h5", "model.json"])
     assert res[0].status_code == 200
@@ -186,7 +187,7 @@ def test_settings(mocker):
 
 
 def test_default_settings():
-    assert wandb.Api({'base_url': 'http://localhost'}, load_settings=False).settings() == {
+    assert wandb_api.Api({'base_url': 'http://localhost'}, load_settings=False).settings() == {
         'base_url': 'http://localhost',
         'entity': 'models',
         'section': 'default',

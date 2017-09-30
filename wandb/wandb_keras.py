@@ -28,6 +28,9 @@ class WandbKerasCallback(object):
             See keras.ModelCheckpoint for other definitions of other
                 arguments.
         """
+        if wandb.run is None:
+            raise wandb.Error(
+                'You must call wandb.init() before WandbKerasCallback()')
         self.validation_data = None
 
         self.monitor = monitor

@@ -21,24 +21,39 @@ else:
     __stage_dir__ = None
 
 
-def get_stage_dir():
+def wandb_dir():
     return __stage_dir__
-
-# Used when initing a new project with "wandb init"
 
 
 def _set_stage_dir(stage_dir):
+    # Used when initing a new project with "wandb init"
     global __stage_dir__
     __stage_dir__ = stage_dir
 
 
-from .git_repo import GitRepo
-from .api import Api, Error
-from .sync import Sync
-from .config import Config
-from .results import Results
-from .summary import Summary
-from .history import History
+if __stage_dir__ is not None:
+    log_fname = __stage_dir__ + 'debug.log'
+else:
+    log_fname = './wandb-debug.log'
+logging.basicConfig(
+    filemode="w",
+    filename=log_fname,
+    level=logging.DEBUG)
+
+
+class Error(Exception):
+    """Base W&B Error"""
+    # For python 2 support
+
+    def encode(self, encoding):
+        return self.message
+
+
+# These imports need to be below __stage_dir__ declration until we remove
+# 'from wandb import __stage_dir__' from api.py etc.
+from wandb import api as wandb_api
+from wandb import config as wandb_config
+from wandb import sync
 from wandb import wandb_run
 
 # Three possible modes:
@@ -46,74 +61,8 @@ from wandb import wandb_run
 #     'run': we're a script launched by "wandb run"
 #     'dryrun': we're a script not launched by "wandb run"
 
-# Hmmm....
-stack_frame0 = traceback.extract_stack()[0]
-try:
-    launched_file = stack_frame0.filename
-except AttributeError:  # this happens with python 3
-    launched_file = stack_frame0[0]
 
-# checking if running from a wandb command
-if (launched_file.endswith('wandb') or              # normal case
-        launched_file.endswith('wandb-script.py') or
-        launched_file.endswith('runpy.py')):     # if installed with conda
-     # if installed with conda
-    MODE = 'cli'
-else:
-    MODE = os.environ.get('WANDB_MODE', 'dryrun')
-
-
-# called by cli.py
-# Even when running the wandb cli, __init__.py is imported before main() runs, so we set
-# cli mode afterward. This means there's a period of time before this call when MODE will
-# be dryrun
-def _set_cli_mode():
-    global MODE, run
-    MODE = 'cli'
-    run = None
-
-
-if __stage_dir__ is not None:
-    log_fname = __stage_dir__ + 'debug.log'
-else:
-    log_fname = './wandb-debug.log'
-logging.basicConfig(
-    filemode="w",
-    filename=log_fname,
-    level=logging.DEBUG)
-
-
-def push(*args, **kwargs):
-    Api().push(*args, **kwargs)
-
-
-def pull(*args, **kwargs):
-    Api().pull(*args, **kwargs)
-
-
-syncer = None
-orig_stderr = sys.stderr
-
-
-def _do_sync(dir, show_run, extra_config=None):
-    global syncer
-
-    termlog()
-    if MODE == 'run':
-        api = Api()
-        if api.api_key is None:
-            raise Error(
-                "No API key found, run `wandb login` or set WANDB_API_KEY")
-        api.set_current_run_id(run.id)
-        if extra_config is not None:
-            run.config.update(extra_config)
-        syncer = Sync(api, run.id, config=run.config, dir=dir)
-        syncer.watch(files='*', show_run=show_run)
-    elif MODE == 'dryrun':
-        termlog(
-            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
-    termlog('Run directory: %s' % os.path.relpath(run.dir))
-    termlog()
+_orig_stderr = sys.stderr
 
 
 def termlog(string='', newline=True):
@@ -121,46 +70,70 @@ def termlog(string='', newline=True):
         line = '%s: %s' % (click.style('wandb', fg='blue', bold=True), string)
     else:
         line = ''
-    click.echo(line, file=orig_stderr, nl=newline)
+    click.echo(line, file=_orig_stderr, nl=newline)
 
 
-# The current run (a Run object)
+def _do_sync(mode, run, show_run, extra_config=None):
+    syncer = None
+    termlog()
+    if mode == 'run':
+        api = wandb_api.Api()
+        if api.api_key is None:
+            raise wandb_api.Error(
+                "No API key found, run `wandb login` or set WANDB_API_KEY")
+        api.set_current_run_id(run.id)
+        if extra_config is not None:
+            run.config.update(extra_config)
+        syncer = sync.Sync(api, run, config=run.config)
+        syncer.watch(files='*', show_run=show_run)
+    elif mode == 'dryrun':
+        termlog(
+            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
+    termlog('Run directory: %s' % os.path.relpath(run.dir))
+    termlog()
+    return syncer
+
+
+# Will be set to the run object for the current run, as returned by
+# wandb.init(). We may want to get rid of this, but WandbKerasCallback
+# relies on it, and it improves the API a bit (user doesn't have to
+# pass the run into WandbKerasCallback)
 run = None
 
-if MODE != 'cli':
-    if __stage_dir__:
-        _run_id = os.getenv('WANDB_RUN_ID')
-        if _run_id is None:
-            _run_id = wandb_run.generate_id()
-        _run_dir = os.getenv('WANDB_RUN_DIR')
-        if _run_dir is None:
-            _run_dir = wandb_run.run_dir_path(_run_id, dry=MODE == 'dryrun')
-        _conf_paths = os.getenv('WANDB_CONFIG_PATHS', '')
-        if _conf_paths:
-            _conf_paths = _conf_paths.split(',')
-        _show_run = bool(os.getenv('WANDB_SHOW_RUN'))
 
-        def persist_config_callback():
-            if syncer:
-                syncer.update_config(_config)
-        _config = Config(config_paths=_conf_paths,
-                         wandb_dir=__stage_dir__, run_dir=_run_dir,
-                         persist_callback=persist_config_callback)
-        run = wandb_run.Run(_run_id, _run_dir, _config)
-        _do_sync(run.dir, _show_run)
-    else:
-        # The WANDB_DEBUG check ensures tests still work.
-        if not os.getenv('WANDB_DEBUG'):
-            print('wandb imported but directory not initialized.\n'
-                  'Please run "wandb init" to get started')
-            sys.exit(1)
-if __stage_dir__ is not None:
-    log_fname = __stage_dir__ + 'debug.log'
-else:
-    log_fname = './wandb-debug.log'
-logging.basicConfig(
-    filemode="w",
-    filename=log_fname,
-    level=logging.DEBUG)
+def init():
+    # The WANDB_DEBUG check ensures tests still work.
+    if not __stage_dir__ and not os.getenv('WANDB_DEBUG'):
+        print('wandb.init() called but directory not initialized.\n'
+              'Please run "wandb init" to get started')
+        sys.exit(1)
 
-__all__ = ["Api", "Error", "Config", "Results", "History", "Summary"]
+    # parse environment variables
+    mode = os.getenv('WANDB_MODE', 'dryrun')
+    run_id = os.getenv('WANDB_RUN_ID')
+    if run_id is None:
+        run_id = wandb_run.generate_id()
+    run_dir = os.getenv('WANDB_RUN_DIR')
+    if run_dir is None:
+        run_dir = wandb_run.run_dir_path(run_id, dry=mode == 'dryrun')
+    conf_paths = os.getenv('WANDB_CONFIG_PATHS', '')
+    if conf_paths:
+        conf_paths = conf_paths.split(',')
+    show_run = bool(os.getenv('WANDB_SHOW_RUN'))
+
+    config = None
+    syncer = None
+
+    def persist_config_callback():
+        if syncer:
+            syncer.update_config(config)
+    config = wandb_config.Config(config_paths=conf_paths,
+                                 wandb_dir=__stage_dir__, run_dir=run_dir,
+                                 persist_callback=persist_config_callback)
+    global run
+    run = wandb_run.Run(run_id, run_dir, config)
+    syncer = _do_sync(mode, run, show_run)
+    return run
+
+
+__all__ = ['init', 'termlog', 'run']

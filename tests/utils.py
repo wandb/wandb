@@ -1,7 +1,9 @@
-import pytest, os
+import pytest
+import os
 from click.testing import CliRunner
 import git
-from wandb import GitRepo
+from wandb.git_repo import GitRepo
+
 
 @pytest.fixture
 def git_repo():

@@ -3,7 +3,6 @@ import os
 import sys
 import logging
 from .api import Error
-from wandb import get_stage_dir
 
 logger = logging.getLogger(__name__)
 

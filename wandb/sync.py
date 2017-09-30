@@ -219,13 +219,13 @@ class Sync(object):
     """Watches for files to change and automatically pushes them
     """
 
-    def __init__(self, api, run_id, config=None, project=None, tags=[], datasets=[], description=None, dir=None):
+    def __init__(self, api, run, config=None, project=None, tags=[], datasets=[], description=None):
         # 1.6 million 6 character combinations
-        self._run_id = run_id
-        self._watch_dir = os.path.abspath(dir)
+        self._run = run
+        self._watch_dir = os.path.abspath(self._run.dir)
         self._project = project or api.settings("project")
         self._entity = api.settings("entity")
-        logger.debug("Initialized sync for %s/%s", self._project, self._run_id)
+        logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
         # Load description and write it to the run directory.
         dpath = os.path.join(self._watch_dir, 'description.md')
@@ -264,7 +264,7 @@ class Sync(object):
         self.url = "{base}/{entity}/{project}/runs/{run}".format(
             project=self._project,
             entity=self._entity,
-            run=self._run_id,
+            run=self._run.id,
             base=base_url
         )
         self._hooks = ExitHooks()
@@ -281,7 +281,7 @@ class Sync(object):
 
         def push_function(save_name, path):
             with open(path, 'rb') as f:
-                self._api.push(self._project, {save_name: f}, run=self._run_id,
+                self._api.push(self._project, {save_name: f}, run=self._run.id,
                                progress=lambda _, total: self._stats.update_progress(path, total))
         self._file_pusher = file_pusher.FilePusher(push_function)
 
@@ -302,7 +302,7 @@ class Sync(object):
     def watch(self, files, show_run=False):
         try:
             # TODO: better failure handling
-            upsert_result = self._api.upsert_run(name=self._run_id, project=self._project, entity=self._entity,
+            upsert_result = self._api.upsert_run(name=self._run.id, project=self._project, entity=self._entity,
                                                  config=self._config.as_dict(), description=self._description, host=socket.gethostname())
             self._run_storage_id = upsert_result['id']
             self._handler._patterns = [
@@ -364,19 +364,19 @@ class Sync(object):
             wandb.termlog('Script ended.')
 
         # Show run summary/history
-        summary = wandb.run.summary.summary
+        summary = self._run.summary.summary
         if summary:
             wandb.termlog('Run summary:')
             max_len = max([len(k) for k in summary.keys()])
             format_str = '  {:>%s} {}' % max_len
             for k, v in summary.items():
                 wandb.termlog(format_str.format(k, v))
-        history_keys = wandb.run.history.keys()
+        history_keys = self._run.history.keys()
         if history_keys:
             wandb.termlog('Run history:')
             max_len = max([len(k) for k in history_keys])
             for key in history_keys:
-                vals = util.downsample(wandb.run.history.column(key), 40)
+                vals = util.downsample(self._run.history.column(key), 40)
                 line = sparkline.sparkify(vals)
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
@@ -441,7 +441,7 @@ class Sync(object):
         for delay_base in range(4):
             mismatched = []
             download_urls = self._api.download_urls(
-                self._project, run=self._run_id)
+                self._project, run=self._run.id)
             for fname, info in download_urls.items():
                 if fname == 'wandb-history.h5' or 'output.log':
                     continue
