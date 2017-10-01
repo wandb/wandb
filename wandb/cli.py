@@ -440,11 +440,14 @@ def init(ctx):
 
     click.echo(click.style("This directory is configured!  Next, track a run:\n", fg="green") +
                textwrap.dedent("""\
-        * `{code}` in your training script
+        * In your training script:
+            {code1}
+            {code2}
         * then `{run}`.
         """).format(
-        code=click.style("import wandb", bold=True),
-        run=click.style("wandb run <training_command>", bold=True),
+        code1=click.style("import wandb", bold=True),
+        code2=click.style("wandb.init()", bold=True),
+        run=click.style("wandb run <train.py>", bold=True),
         # saving this here so I can easily put it back when we re-enable
         # push/pull
         #"""
