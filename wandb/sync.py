@@ -65,6 +65,9 @@ class OutStreamTee(object):
                 break
             self._second_stream.write(item)
 
+    def fileno(self):
+        return self._orig_stream.fileno()
+
     def write(self, message):
         self._orig_stream.write(message)
         self._queue.put(message)

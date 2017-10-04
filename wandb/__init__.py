@@ -108,14 +108,31 @@ def init():
               'Please run "wandb init" to get started')
         sys.exit(1)
 
+    # urllib3 logs all requests by default, which is ok as long as it's
+    # going to wandb's debug.log, but it's a problem if the user's script
+    # directs all logging to stdout/stderr (because all those requests will
+    # get logged to wandb db, via making http requests). So we disable
+    # request logging here. Scripts based on OpenAI's rllab have this
+    # problem, maybe because of its use of Theano which uses the logging
+    # module.
+    # This is not an ideal solution. Other solutions:
+    #    - Don't hook into to logging in user scripts, do it outside with
+    #      "wandb run".
+    #    - If the user's script sends logging to stdout, take back over and
+    #      send it to wandb's debug.log. Not ideal.
+    logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+
     # parse environment variables
     mode = os.getenv('WANDB_MODE', 'dryrun')
     run_id = os.getenv('WANDB_RUN_ID')
     if run_id is None:
         run_id = wandb_run.generate_id()
+        os.environ['WANDB_RUN_ID'] = run_id
     run_dir = os.getenv('WANDB_RUN_DIR')
     if run_dir is None:
         run_dir = wandb_run.run_dir_path(run_id, dry=mode == 'dryrun')
+        os.environ['WANDB_RUN_DIR'] = run_dir
     conf_paths = os.getenv('WANDB_CONFIG_PATHS', '')
     if conf_paths:
         conf_paths = conf_paths.split(',')
@@ -132,7 +149,13 @@ def init():
                                  persist_callback=persist_config_callback)
     global run
     run = wandb_run.Run(run_id, run_dir, config)
-    syncer = _do_sync(mode, run, show_run)
+    # This check ensures that a child process can safely call wandb.init()
+    # after a parent has (only the parent will sync files/stdout/stderr).
+    # This doesn't protect against the case where the parent doesn't call
+    # wandb.init but two children do.
+    if not os.getenv('WANDB_INITED'):
+        syncer = _do_sync(mode, run, show_run)
+        os.environ['WANDB_INITED'] = '1'
     return run
 
 

@@ -34,7 +34,7 @@ class Progress(object):
     def __init__(self, file, callback=None):
         self.file = file
         if callback is None:
-            callback = lambda bites, total: (bites, total)
+            def callback(bites, total): return (bites, total)
         self.callback = callback
         self.bytes_read = 0
         self.len = os.fstat(file.fileno()).st_size
@@ -436,7 +436,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -598,11 +599,12 @@ class Api(object):
                 continue
             if progress:
                 if hasattr(progress, '__call__'):
-                    responses.append(self.upload_file(file_info['url'], open_file, progress))
+                    responses.append(self.upload_file(
+                        file_info['url'], open_file, progress))
                 else:
                     length = os.fstat(open_file.fileno()).st_size
                     with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
-                                        fill_char=click.style('&', fg='green')) as bar:
+                                           fill_char=click.style('&', fg='green')) as bar:
                         responses.append(self.upload_file(
                             file_info['url'], open_file, lambda bites, _: bar.update(bites)))
             else:
@@ -778,7 +780,6 @@ class FileStreamApi(object):
                 else:
                     # item is Chunk
                     ready_chunks.append(item)
-            logger.debug('DONE READ_QUEUE: %s %s', len(ready_chunks), finished)
 
             cur_time = time.time()
 
@@ -789,7 +790,6 @@ class FileStreamApi(object):
                 ready_chunks = []
 
             if cur_time - posted_anything_time > self.HEARTBEAT_INTERVAL_SECONDS:
-                logger.debug("Sending heartbeat at %s", cur_time)
                 posted_anything_time = cur_time
                 util.request_with_retry(self._client.post,
                                         self._endpoint, json={'complete': False, 'failed': False})
@@ -803,7 +803,7 @@ class FileStreamApi(object):
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
         files = {}
         # Groupby needs group keys to be consecutive, so sort first.
-        chunks.sort(key=lambda c:c.filename)
+        chunks.sort(key=lambda c: c.filename)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
             if filename not in self._file_policies:
