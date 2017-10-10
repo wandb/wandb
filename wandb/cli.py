@@ -225,13 +225,15 @@ def runs(ctx, project, entity):
         ))
 
 
-#@cli.command(context_settings=CONTEXT, help="List local & remote file status")
+@cli.command(context_settings=CONTEXT, help="List local & remote file status")
 @click.argument("run", envvar='WANDB_RUN')
-@click.option("--settings/--no-settings", help="Show the current settings", default=False)
+@click.option("--settings/--no-settings", help="Show the current settings", default=True)
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
 @display_error
 def status(run, settings, project):
     if settings:
+        click.echo(click.style("Logged in?", bold=True) + " %s" %
+                   bool(api.api_key))
         click.echo(click.style("Current Settings", bold=True) +
                    " (%s)" % api.settings_file)
         settings = api.settings()
@@ -241,33 +243,32 @@ def status(run, settings, project):
             indent=2,
             separators=(',', ': ')
         ))
-        click.echo(click.style("Logged in?", bold=True) + " %s\n" %
-                   bool(api.api_key))
-    project, run = api.parse_slug(run, project=project)
-    existing = set()  # TODO: populate this set with the current files in the run dir
-    remote = api.download_urls(project, run)
-    not_synced = set()
-    remote_names = set([name for name in remote])
-    for file in existing:
-        meta = remote.get(file)
-        if meta and not api.file_current(file, meta['md5']):
-            not_synced.add(file)
-        elif not meta:
-            not_synced.add(file)
+
+    #project, run = api.parse_slug(run, project=project)
+    # existing = set()  # TODO: populate this set with the current files in the run dir
+    #remote = api.download_urls(project, run)
+    #not_synced = set()
+    #remote_names = set([name for name in remote])
+    # for file in existing:
+    #    meta = remote.get(file)
+    #    if meta and not api.file_current(file, meta['md5']):
+    #        not_synced.add(file)
+    #    elif not meta:
+    #        not_synced.add(file)
     # TODO: remove items that exists and have the md5
-    only_remote = remote_names.difference(existing)
-    up_to_date = existing.difference(only_remote).difference(not_synced)
-    click.echo('File status for ' + click.style('"%s/%s" ' %
-                                                (project, run), bold=True))
-    if len(not_synced) > 0:
-        click.echo(click.style('Push needed: ', bold=True) +
-                   click.style(", ".join(not_synced), fg="red"))
-    if len(only_remote) > 0:
-        click.echo(click.style('Pull needed: ', bold=True) +
-                   click.style(", ".join(only_remote), fg="red"))
-    if len(up_to_date) > 0:
-        click.echo(click.style('Up to date: ', bold=True) +
-                   click.style(", ".join(up_to_date), fg="green"))
+    #only_remote = remote_names.difference(existing)
+    #up_to_date = existing.difference(only_remote).difference(not_synced)
+    # click.echo('File status for ' + click.style('"%s/%s" ' %
+    #                                            (project, run), bold=True))
+    # if len(not_synced) > 0:
+    #    click.echo(click.style('Push needed: ', bold=True) +
+    #               click.style(", ".join(not_synced), fg="red"))
+    # if len(only_remote) > 0:
+    #    click.echo(click.style('Pull needed: ', bold=True) +
+    #               click.style(", ".join(only_remote), fg="red"))
+    # if len(up_to_date) > 0:
+    #    click.echo(click.style('Up to date: ', bold=True) +
+    #               click.style(", ".join(up_to_date), fg="green"))
 
 
 #@cli.command(context_settings=CONTEXT, help="Store notes for a future training run")
