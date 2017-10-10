@@ -110,17 +110,39 @@ def prompt_for_project(ctx, entity):
 
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
+    if len(key) != 40:
+        click.secho(
+            'API-key must be exactly 40 characters long: %s (%s chars)' % (key, len(key)))
+        return None
     try:
-        normalized_host = host.split("/")[-1].split(":")[0]
         print("Appending to netrc %s" % os.path.expanduser('~/.netrc'))
-        with open(os.path.expanduser('~/.netrc'), 'a') as f:
+        normalized_host = host.split("/")[-1].split(":")[0]
+        machine_line = 'machine %s' % normalized_host
+        path = os.path.expanduser('~/.netrc')
+        orig_lines = None
+        try:
+            with open(path) as f:
+                orig_lines = f.read().strip().split('\n')
+        except (IOError, OSError) as e:
+            pass
+        with open(path, 'w') as f:
+            if orig_lines:
+                # delete this machine from the file if it's already there.
+                skip = 0
+                for line in orig_lines:
+                    if machine_line in line:
+                        skip = 2
+                    elif skip:
+                        skip -= 1
+                    else:
+                        f.write('%s\n' % line)
             f.write(textwrap.dedent("""\
             machine {host}
               login {entity}
               password {key}
             """).format(host=normalized_host, entity=entity, key=key))
-            os.chmod(os.path.expanduser('~/.netrc'),
-                     stat.S_IRUSR | stat.S_IWUSR)
+        os.chmod(os.path.expanduser('~/.netrc'),
+                 stat.S_IRUSR | stat.S_IWUSR)
     except IOError as e:
         click.secho("Unable to read ~/.netrc", fg="red")
         return None
@@ -429,7 +451,7 @@ def init(ctx):
 
                 # Example variables below. Uncomment (remove leading '# ') to use them, or just
                 # delete and create your own.
-                
+
                 # epochs:
                 #   desc: Number of epochs to train over
                 #   value: 100
@@ -454,8 +476,8 @@ def init(ctx):
         #* Run `{push}` to manually add a file.
         #* Pull popular models into your project with: `{pull}`.
         #"""
-        #push=click.style("wandb push run_id weights.h5", bold=True),
-        #pull=click.style("wandb pull models/inception-v4", bold=True)
+        # push=click.style("wandb push run_id weights.h5", bold=True),
+        # pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
 
 

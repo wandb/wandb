@@ -345,6 +345,9 @@ class Sync(object):
             wandb.termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
                 (ERROR_STRING, util.get_log_file_path())))
             wandb.termlog("%s: %s" % (ERROR_STRING, exc_value))
+            if 'permission' in str(exc_value):
+                wandb.termlog(
+                    '%s: Are you sure you provided the correct API key to "wandb login"?' % ERROR_STRING)
             lines = traceback.format_exception(
                 exc_type, exc_value, exc_traceback)
             logger.error('\n'.join(lines))
