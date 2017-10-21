@@ -5,7 +5,7 @@ import os
 class GitRepo(object):
     def __init__(self, root=None, remote="origin", lazy=True):
         self.remote_name = remote
-        self.root = root
+        self._root = root
         self._repo = None
         if not lazy:
             self.repo
@@ -17,7 +17,7 @@ class GitRepo(object):
                 self._repo = False
             else:
                 try:
-                    self._repo = Repo(self.root or os.getcwd(),
+                    self._repo = Repo(self._root or os.getcwd(),
                                       search_parent_directories=True)
                 except exc.InvalidGitRepositoryError:
                     self._repo = False
@@ -26,6 +26,12 @@ class GitRepo(object):
     @property
     def enabled(self):
         return self.repo
+
+    @property
+    def root(self):
+        if not self.repo:
+            return False
+        return self.repo.git.rev_parse("--show-toplevel")
 
     @property
     def dirty(self):

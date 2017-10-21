@@ -20,6 +20,8 @@ elif os.path.exists('wandb'):
 else:
     __stage_dir__ = None
 
+SCRIPT_PATH = os.path.abspath(sys.argv[0])
+
 
 def wandb_dir():
     return __stage_dir__
@@ -73,7 +75,7 @@ def termlog(string='', newline=True):
     click.echo(line, file=_orig_stderr, nl=newline)
 
 
-def _do_sync(mode, run, show_run, extra_config=None):
+def _do_sync(mode, job_type, run, show_run, extra_config=None):
     syncer = None
     termlog()
     if mode == 'run':
@@ -84,7 +86,7 @@ def _do_sync(mode, run, show_run, extra_config=None):
         api.set_current_run_id(run.id)
         if extra_config is not None:
             run.config.update(extra_config)
-        syncer = sync.Sync(api, run, config=run.config)
+        syncer = sync.Sync(api, job_type, run, config=run.config)
         syncer.watch(files='*', show_run=show_run)
     elif mode == 'dryrun':
         termlog(
@@ -101,7 +103,7 @@ def _do_sync(mode, run, show_run, extra_config=None):
 run = None
 
 
-def init():
+def init(job_type='train'):
     # The WANDB_DEBUG check ensures tests still work.
     if not __stage_dir__ and not os.getenv('WANDB_DEBUG'):
         print('wandb.init() called but directory not initialized.\n'
@@ -154,7 +156,7 @@ def init():
     # This doesn't protect against the case where the parent doesn't call
     # wandb.init but two children do.
     if not os.getenv('WANDB_INITED'):
-        syncer = _do_sync(mode, run, show_run)
+        syncer = _do_sync(mode, job_type, run, show_run)
         os.environ['WANDB_INITED'] = '1'
     return run
 

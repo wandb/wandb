@@ -222,8 +222,9 @@ class Sync(object):
     """Watches for files to change and automatically pushes them
     """
 
-    def __init__(self, api, run, config=None, project=None, tags=[], datasets=[], description=None):
+    def __init__(self, api, job_type, run, config=None, project=None, tags=[], datasets=[], description=None):
         # 1.6 million 6 character combinations
+        self._job_type = job_type
         self._run = run
         self._watch_dir = os.path.abspath(self._run.dir)
         self._project = project or api.settings("project")
@@ -304,9 +305,12 @@ class Sync(object):
 
     def watch(self, files, show_run=False):
         try:
+            program_path = os.path.relpath(
+                wandb.SCRIPT_PATH, self._api.git.root)
             # TODO: better failure handling
             upsert_result = self._api.upsert_run(name=self._run.id, project=self._project, entity=self._entity,
-                                                 config=self._config.as_dict(), description=self._description, host=socket.gethostname())
+                                                 config=self._config.as_dict(), description=self._description, host=socket.gethostname(),
+                                                 program_path=program_path, job_type=self._job_type, repo=self._api.git.remote_url)
             self._run_storage_id = upsert_result['id']
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
@@ -315,6 +319,10 @@ class Sync(object):
             self._observer.start()
 
             self._api.save_patch(self._watch_dir)
+
+            if self._job_type not in ['train', 'eval']:
+                wandb.termlog(
+                    'Warning: job type: "%s" is non-standard. Use "train" or "eval".')
 
             wandb.termlog("Syncing %s" % self.url)
             if show_run:

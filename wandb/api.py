@@ -339,7 +339,9 @@ class Api(object):
         return response['upsertModel']['model']
 
     @normalize_exceptions
-    def upsert_run(self, id=None, name=None, project=None, host=None, config=None, description=None, entity=None, commit=None):
+    def upsert_run(self, id=None, name=None, project=None, host=None,
+                   config=None, description=None, entity=None,
+                   repo=None, job_type=None, program_path=None, commit=None):
         """Update a run
 
         Args:
@@ -349,6 +351,9 @@ class Api(object):
             config (dict, optional): The latest config params
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
+            repo (str, optional): Url of the program's repository.
+            job_type (str, optional): Type of job, e.g 'train'.
+            program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
         """
         mutation = gql('''
@@ -360,7 +365,10 @@ class Api(object):
             $commit: String,
             $config: JSONString,
             $host: String,
-            $debug: Boolean
+            $debug: Boolean,
+            $program: String,
+            $repo: String,
+            $jobType: String
         ) {
             upsertBucket(input: {
                 id: $id, name: $name,
@@ -370,7 +378,10 @@ class Api(object):
                 config: $config,
                 commit: $commit,
                 host: $host,
-                debug: $debug
+                debug: $debug,
+                jobProgram: $program,
+                jobRepo: $repo,
+                jobType: $jobType
             }) {
                 bucket {
                     id
@@ -388,7 +399,7 @@ class Api(object):
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit or self._commit,
-            'host': host, 'debug': os.getenv('DEBUG')})
+            'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -436,8 +447,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']                  : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
