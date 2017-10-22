@@ -425,7 +425,7 @@ class Sync(object):
         for file_path in self._stats.files():
             wandb.termlog('  %s' % os.path.relpath(file_path, self._watch_dir))
         step = 0
-        spinner_states = ['-', '/', '|', '\\']
+        spinner_states = ['-', '\\', '|', '/']
         stop = False
         self._stats.update_all_files()
         while True:
