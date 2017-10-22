@@ -1,16 +1,33 @@
 import base64
 import io
+import collections
 
+class Percentage(object):
+    typestring = 'percentage'
 
-class WandbType(object):
+    def __init__(self, obj):
+        if obj < 0.0 or obj > 1.0:
+            raise ValueError('Percentage expects values between 0 and 1, got %i', obj)
+        self._data = obj
+
     def encode(self):
-        return {
-            'type': self.typestring,
-            'val': self._encode()
-        }
+        return self._data
+
+class Histogram(object):
+    typestring = 'histogram'
+
+    def __init__(self, obj):
+        if not isinstance(obj, collections.Iterable):
+            raise ValueError('Histogram expects lists of numbers')
+
+        self._data = obj
+
+    def encode(self):
+        return self._data
 
 
-class Image(WandbType):
+
+class Image(object):
     typestring = 'b64image'
 
     def __init__(self, obj):

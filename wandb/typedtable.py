@@ -7,7 +7,10 @@ TYPE_TO_TYPESTRING = {
     str: 'str',
     int: 'int',
     float: 'float',
-    wandb.types.Image: 'image'
+    wandb.types.Image: 'image',
+    wandb.types.Percentage: 'percentage',
+    wandb.types.Histogram: 'histogram'
+
 }
 
 # Just used in an error message
