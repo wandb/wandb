@@ -53,6 +53,7 @@ class Error(Exception):
 
 # These imports need to be below __stage_dir__ declration until we remove
 # 'from wandb import __stage_dir__' from api.py etc.
+from wandb import wandb_types as types
 from wandb import api as wandb_api
 from wandb import config as wandb_config
 from wandb import sync
@@ -161,4 +162,4 @@ def init(job_type='train'):
     return run
 
 
-__all__ = ['init', 'termlog', 'run']
+__all__ = ['init', 'termlog', 'run', 'types']
