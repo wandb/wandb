@@ -3,9 +3,13 @@ import os
 import shortuuid
 
 import wandb
-from wandb import history
+from wandb import jsonlfile
 from wandb import summary
+from wandb import typedtable
 from wandb import util
+
+HISTORY_FNAME = 'wandb-history.jsonl'
+EXAMPLES_FNAME = 'wandb-examples.jsonl'
 
 
 class Run(object):
@@ -19,6 +23,7 @@ class Run(object):
         # be created when the user accesses a run member for the first time).
         self._history = None
         self._summary = None
+        self._examples = None
 
     def _mkdir(self):
         if self._made_dir:
@@ -38,11 +43,31 @@ class Run(object):
         return self._summary
 
     @property
+    def has_summary(self):
+        return self._summary is not None
+
+    @property
     def history(self):
         self._mkdir()
         if self._history is None:
-            self._history = history.History(self._dir)
+            self._history = jsonlfile.JsonlFile(HISTORY_FNAME, self._dir)
         return self._history
+
+    @property
+    def has_history(self):
+        return self._history is not None
+
+    @property
+    def examples(self):
+        self._mkdir()
+        if self._examples is None:
+            self._examples = typedtable.TypedTable(
+                jsonlfile.JsonlFile(EXAMPLES_FNAME, self._dir))
+        return self._examples
+
+    @property
+    def has_examples(self):
+        return self._examples is not None
 
 
 def generate_id():

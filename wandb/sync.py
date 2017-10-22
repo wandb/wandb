@@ -378,15 +378,15 @@ class Sync(object):
             wandb.termlog('Script ended.')
 
         # Show run summary/history
-        summary = self._run.summary.summary
-        if summary:
+        if self._run.has_summary:
+            summary = self._run.summary.summary
             wandb.termlog('Run summary:')
             max_len = max([len(k) for k in summary.keys()])
             format_str = '  {:>%s} {}' % max_len
             for k, v in summary.items():
                 wandb.termlog(format_str.format(k, v))
-        history_keys = self._run.history.keys()
-        if history_keys:
+        if self._run.has_history:
+            history_keys = self._run.history.keys()
             wandb.termlog('Run history:')
             max_len = max([len(k) for k in history_keys])
             for key in history_keys:
@@ -394,6 +394,8 @@ class Sync(object):
                 line = sparkline.sparkify(vals)
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
+        if self._run.has_examples:
+            wandb.termlog('Saved %s examples' % self._run.examples.count())
 
         wandb.termlog('Waiting for final file modifications.')
         # This is a a heuristic delay to catch files that were written just before
