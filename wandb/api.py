@@ -193,12 +193,12 @@ class Api(object):
                             section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")
-            self._settings["project"] = self._settings.get(
-                "project", os.environ.get("WANDB_PROJECT"))
-            self._settings["entity"] = self._settings.get(
-                "entity", os.environ.get("WANDB_ENTITY"))
-            self._settings["base_url"] = self._settings.get(
-                "base_url", os.environ.get("WANDB_BASE_URL"))
+            self._settings["project"] = os.environ.get("WANDB_PROJECT",
+                                                       self._settings.get("project"))
+            self._settings["entity"] = os.environ.get("WANDB_ENTITY",
+                                                      self._settings.get("entity"))
+            self._settings["base_url"] = os.environ.get("WANDB_BASE_URL",
+                                                        self._settings.get("base_url"))
         return self._settings if key is None else self._settings[key]
 
     def parse_slug(self, slug, project=None, run=None):
@@ -447,7 +447,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']                  : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
