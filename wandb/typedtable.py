@@ -35,19 +35,21 @@ class TypedTable(object):
         """Set the column types
 
         args:
-            types: dict mapping from column name to type.
+            types: iterable of (column_name, type) pairs.
         """
         if self._types:
             raise wandb.Error('TypedTable.setup called more than once.')
-        if not isinstance(types, collections.Mapping):
-            raise wandb.Error('TypedTable.setup expected dict-like object.')
-        for key, type_ in types.items():
-            if type_ not in TYPE_TO_TYPESTRING:
-                raise wandb.Error('TypedTable.setup received invalid type (%s) for key "%s".\n  Valid types: %s' % (
-                    type_, key, '[%s]' % ', '.join(VALID_TYPE_NAMES)))
-        self._types = types
+        try:
+            for key, type_ in types:
+                if type_ not in TYPE_TO_TYPESTRING:
+                    raise wandb.Error('TypedTable.setup received invalid type (%s) for key "%s".\n  Valid types: %s' % (
+                        type_, key, '[%s]' % ', '.join(VALID_TYPE_NAMES)))
+        except TypeError:
+            raise wandb.Error(
+                'TypedTable.setup requires iterable of (column_name, type) pairs.')
+        self._types = dict(types)
         self._output.add(
-            {k: TYPE_TO_TYPESTRING[type_] for k, type_ in types.items()})
+            {k: TYPE_TO_TYPESTRING[type_] for k, type_ in types})
 
     def add(self, row):
         """Add a row to the table.
