@@ -74,7 +74,7 @@ class TypedTable(object):
                 mapped_row[key] = typed_val
             except KeyError:
                 raise wandb.Error(
-                    'TypedTable.add received key ("%s") which wasn\'t provided to set_columns', key)
+                    'TypedTable.add received key ("%s") which wasn\'t provided to set_columns' % key)
             except:
                 raise wandb.Error('TypedTable.add couldn\'t convert and encode ("%s") provided for key ("%s") to type (%s)' % (
                     val, key, self._types[key]))
