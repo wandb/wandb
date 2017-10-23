@@ -305,12 +305,19 @@ class Sync(object):
 
     def watch(self, files, show_run=False):
         try:
+            # handle non-git directories
+            root = self._api.git.root
+            remote_url = self._api.git.remote_url
+            if not root:
+                root = os.path.abspath(os.getcwd())
+                remote_url = 'local://%s' % root
+
             program_path = os.path.relpath(
-                wandb.SCRIPT_PATH, self._api.git.root)
+                wandb.SCRIPT_PATH, root)
             # TODO: better failure handling
             upsert_result = self._api.upsert_run(name=self._run.id, project=self._project, entity=self._entity,
                                                  config=self._config.as_dict(), description=self._description, host=socket.gethostname(),
-                                                 program_path=program_path, job_type=self._job_type, repo=self._api.git.remote_url)
+                                                 program_path=program_path, job_type=self._job_type, repo=remote_url)
             self._run_storage_id = upsert_result['id']
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
