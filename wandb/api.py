@@ -14,6 +14,7 @@ import yaml
 from wandb import __version__, __stage_dir__, Error
 from wandb.git_repo import GitRepo
 from wandb import util
+from .config import Config
 import base64
 import binascii
 import click
@@ -21,7 +22,9 @@ import collections
 import itertools
 import logging
 import requests
+import socket
 from six.moves import queue
+from six import StringIO
 import threading
 import time
 
@@ -284,6 +287,46 @@ class Api(object):
             'model': project or self.settings('project')})['model']['buckets'])
 
     @normalize_exceptions
+    def launch_run(self, command, project=None, entity=None, run_id=None):
+        """Launch a run in the cloud.
+
+        Args:
+            project (str): The project to scope the runs to
+            entity (str, optional): The entity to scope this project to.  Defaults to public models
+
+        Returns:
+                [{"podName","status"}]
+        """
+        query = gql('''
+        mutation launchRun(
+            $entity: String
+            $model: String
+            $runId: String
+            $image: String
+            $command: String
+            $patch: String
+            $datasets: [String]
+        ) {
+            launchRun(input: {id: $runId, entityName: $entity, patch: $patch, modelName: $model, image: $image, command: $command, datasets: $datasets}) {
+                podName
+                status
+                runId
+            }
+        }
+        ''')
+        patch = StringIO()
+        if self.git.dirty:
+            self.git.repo.git.execute(['git', 'diff'], output_stream=patch)
+            patch.seek(0)
+        return self.client.execute(query, variable_values={
+            'entity': entity or self.settings('entity'),
+            'model': project or self.settings('project'),
+            'command': command,
+            'runId': run_id,
+            'patch': patch.read()
+        })
+
+    @normalize_exceptions
     def run_config(self, project, run=None, entity=None):
         """Get the config for a run
 
@@ -447,8 +490,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']: file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions

@@ -27,6 +27,7 @@ from wandb.api import Api
 from wandb.config import Config
 from wandb import wandb_run
 from wandb import util
+from wandb import pusher
 
 DOCS_URL = 'http://wb-client.readthedocs.io/'
 
@@ -244,11 +245,11 @@ def status(run, settings, project):
             separators=(',', ': ')
         ))
 
-    #project, run = api.parse_slug(run, project=project)
+    # project, run = api.parse_slug(run, project=project)
     # existing = set()  # TODO: populate this set with the current files in the run dir
-    #remote = api.download_urls(project, run)
-    #not_synced = set()
-    #remote_names = set([name for name in remote])
+    # remote = api.download_urls(project, run)
+    # not_synced = set()
+    # remote_names = set([name for name in remote])
     # for file in existing:
     #    meta = remote.get(file)
     #    if meta and not api.file_current(file, meta['md5']):
@@ -256,8 +257,8 @@ def status(run, settings, project):
     #    elif not meta:
     #        not_synced.add(file)
     # TODO: remove items that exists and have the md5
-    #only_remote = remote_names.difference(existing)
-    #up_to_date = existing.difference(only_remote).difference(not_synced)
+    # only_remote = remote_names.difference(existing)
+    # up_to_date = existing.difference(only_remote).difference(not_synced)
     # click.echo('File status for ' + click.style('"%s/%s" ' %
     #                                            (project, run), bold=True))
     # if len(not_synced) > 0:
@@ -515,9 +516,11 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.option('--message', '-m', default=None,
               help='Message to associate with the run.')
 @click.option("--show/--no-show", default=False,
-              help="Open the run page in your default browser")
+              help="Open the run page in your default browser.")
+@click.option("--cloud/--no-cloud", default=False,
+              help="Run this script in the cloud.")
 @display_error
-def run(ctx, program, args, id, dir, configs, message, show):
+def run(ctx, program, args, id, dir, configs, message, show, cloud):
     env = copy.copy(os.environ)
     env['WANDB_MODE'] = 'run'
     if id is None:
@@ -538,26 +541,52 @@ def run(ctx, program, args, id, dir, configs, message, show):
     if runner:
         command = runner.split() + command
 
-    try:
-        signal.signal(signal.SIGQUIT, signal.SIG_IGN)
-    except AttributeError:
-        pass
-    # ignore SIGINT (ctrl-c), the child process will handle, and we'll
-    # exit when the child process does.
-
-    proc = util.SafeSubprocess(command, env=env, read_output=False)
-    try:
-        proc.run()
-    except (OSError, IOError):
-        raise ClickException('Could not find program: %s' % command[0])
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    while True:
-        time.sleep(0.1)
-        exitcode = proc.poll()
-        if exitcode is not None:
-            wandb.termlog('job (%s) Process exited with code: %s' %
-                          (program, exitcode))
-            break
+    if cloud:
+        wandb.termlog("Launching job in the cloud")
+        res = api.launch_run(program)
+        status = res["launchRun"]["status"]
+        if status == "Failed":
+            status = click.style(status, fg='red')
+        run_id = res["launchRun"]["runId"]
+        wandb.termlog("Run %s launched with status: %s" % (run_id, status))
+        if status == "Running":
+            # TODO: centralize this browser open logic
+            base_url = api.settings('base_url')
+            if base_url.endswith('.dev'):
+                base_url = 'http://app.dev'
+            elif base_url.endswith('wandb.ai'):
+                base_url = 'https://app.wandb.ai'
+            url = "{base}/{entity}/{project}/runs/{run}".format(
+                project=api.settings('project'),
+                entity=api.settings('entity'),
+                run=run_id,
+                base=base_url
+            )
+            import webbrowser
+            webbrowser.open_new_tab(url)
+            pusher.stream_run(run_id)
+        elif status == "Pending":
+            pass
+    else:
+        try:
+            signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+        except AttributeError:
+            pass
+        # ignore SIGINT (ctrl-c), the child process will handle, and we'll
+        # exit when the child process does.
+        proc = util.SafeSubprocess(command, env=env, read_output=False)
+        try:
+            proc.run()
+        except (OSError, IOError):
+            raise ClickException('Could not find program: %s' % command[0])
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        while True:
+            time.sleep(0.1)
+            exitcode = proc.poll()
+            if exitcode is not None:
+                wandb.termlog('job (%s) Process exited with code: %s' %
+                              (program, exitcode))
+                break
 
 
 #@cli.group()
