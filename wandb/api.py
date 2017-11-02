@@ -24,7 +24,7 @@ import logging
 import requests
 import socket
 from six.moves import queue
-from six import StringIO
+from six import BytesIO
 import threading
 import time
 
@@ -78,7 +78,10 @@ def normalize_exceptions(func):
             raise CommError(message)
         except Exception as err:
             # gql raises server errors with dict's as strings...
-            payload = err.args[0]
+            if len(err.args) > 0:
+                payload = err.args[0]
+            else:
+                payload = err
             if str(payload).startswith("{"):
                 message = ast.literal_eval(str(payload))["message"]
             else:
@@ -291,8 +294,11 @@ class Api(object):
         """Launch a run in the cloud.
 
         Args:
+            command (str): The command to run
+            program (str): The file to run
             project (str): The project to scope the runs to
             entity (str, optional): The entity to scope this project to.  Defaults to public models
+            run_id (str, optional): The run_id to scope to
 
         Returns:
                 [{"podName","status"}]
@@ -305,25 +311,31 @@ class Api(object):
             $image: String
             $command: String
             $patch: String
+            $cwd: String
             $datasets: [String]
         ) {
-            launchRun(input: {id: $runId, entityName: $entity, patch: $patch, modelName: $model, image: $image, command: $command, datasets: $datasets}) {
+            launchRun(input: {id: $runId, entityName: $entity, patch: $patch, modelName: $model,
+                image: $image, command: $command, datasets: $datasets, cwd: $cwd}) {
                 podName
                 status
                 runId
             }
         }
         ''')
-        patch = StringIO()
+        patch = BytesIO()
         if self.git.dirty:
             self.git.repo.git.execute(['git', 'diff'], output_stream=patch)
             patch.seek(0)
+        cwd = "."
+        if self.git.enabled:
+            cwd = cwd + os.getcwd().replace(self.git.repo.working_dir, "")
         return self.client.execute(query, variable_values={
             'entity': entity or self.settings('entity'),
             'model': project or self.settings('project'),
             'command': command,
             'runId': run_id,
-            'patch': patch.read()
+            'patch': patch.read().decode("utf8"),
+            'cwd': cwd
         })
 
     @normalize_exceptions
@@ -490,7 +502,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions

@@ -21,13 +21,14 @@ import whaaaaat
 import sys
 import traceback
 import textwrap
+import requests
 
 import wandb
 from wandb.api import Api
 from wandb.config import Config
+from wandb.pusher import Puller
 from wandb import wandb_run
 from wandb import util
-from wandb import pusher
 
 DOCS_URL = 'http://wb-client.readthedocs.io/'
 
@@ -502,6 +503,57 @@ RUN_CONTEXT['allow_extra_args'] = True
 RUN_CONTEXT['ignore_unknown_options'] = True
 
 
+def pending_loop(pod_id):
+    def elip(times):
+        return "." * (times % 4)
+    i = 0
+    wandb.termlog("Waiting for run to start%s\r" % elip(i), False)
+    while True:
+        try:
+            i += 1
+            if i > 3600:
+                wandb.termlog("Unknown error")
+                break
+            res = requests.get(
+                "http://kubed.endpoints.playground-111.cloud.goog/pods/%s" % pod_id)
+            logging.debug('\n'.join([', '.join([c["type"], c["status"], str(c["message"])])
+                                     for c in res.json()["status"]["conditions"]]))
+            if res.json()["status"]["phase"] == "Pending":
+                i -= 1
+                for x in range(10):
+                    i += 1
+                    wandb.termlog("Waiting for run to start%s   \r" %
+                                  elip(i), False)
+                    time.sleep(1)
+            else:
+                wandb.termlog("Waiting no more.  Here we go!      ")
+                break
+        except:
+            logging.debug(sys.exc_info()[1])
+            time.sleep(10)
+
+
+@cli.command(context_settings=RUN_CONTEXT, help="Log a job")
+@click.argument('run_id')
+def logs(run_id):
+    puller = Puller(run_id)
+    try:
+        def signal_handler(signal, frame):
+            print(
+                "\n\nDetaching from remote instance, type `wandb logs %s` to resume logging" % run_id)
+            exit(0)
+        signal.signal(signal.SIGINT, signal_handler)
+    except AttributeError:
+        pass
+    # run_id => pod_id
+    # res = requests.get(
+    #    "http://kubed.endpoints.playground-111.cloud.goog/pods/%s" % pod_id)
+    # print([(c["type"], c["status"], c["message"])
+    #       for c in res.json()["status"]["conditions"]])
+    wandb.termlog("Connecting to logstream of %s\n" % run_id)
+    puller.sync()
+
+
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @require_init
@@ -517,8 +569,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help='Message to associate with the run.')
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
-@click.option("--cloud/--no-cloud", default=False,
-              help="Run this script in the cloud.")
+@click.option("--cloud/--no-cloud", default=False)
 @display_error
 def run(ctx, program, args, id, dir, configs, message, show, cloud):
     env = copy.copy(os.environ)
@@ -537,20 +588,34 @@ def run(ctx, program, args, id, dir, configs, message, show, cloud):
     if show:
         env['WANDB_SHOW_RUN'] = '1'
     command = [program] + list(args)
-    runner = util.find_runner(program)
-    if runner:
-        command = runner.split() + command
 
     if cloud:
-        wandb.termlog("Launching job in the cloud")
-        res = api.launch_run(program)
+        if not api.git.enabled:
+            raise ClickException(
+                "--cloud can only be run from git repositories.")
+        wandb.termlog("Starting run in the \u26C5")
+        res = api.launch_run(' '.join(command))
         status = res["launchRun"]["status"]
         if status == "Failed":
-            status = click.style(status, fg='red')
+            wandb.termlog(click.style("Failed to launch job.", fg="red"))
+            res = requests.get(
+                "http://kubed.endpoints.playground-111.cloud.goog/pods/%s" % pod_id)
+            print([(c["type"], c["status"], c["message"])
+                   for c in res.json()["status"]["conditions"]])
         run_id = res["launchRun"]["runId"]
-        wandb.termlog("Run %s launched with status: %s" % (run_id, status))
+        pod_id = res["launchRun"]["podName"]
+        puller = Puller(run_id, pod_id)
+
+        try:
+            def signal_handler(signal, frame):
+                print(
+                    "\n\nDetaching from remote instance, type `wandb logs %s` to resume logging" % run_id)
+                exit(0)
+            signal.signal(signal.SIGINT, signal_handler)
+        except AttributeError:
+            pass
         if status == "Running":
-            # TODO: centralize this browser open logic
+            # TODO: centralize this browser url logic
             base_url = api.settings('base_url')
             if base_url.endswith('.dev'):
                 base_url = 'http://app.dev'
@@ -562,11 +627,15 @@ def run(ctx, program, args, id, dir, configs, message, show, cloud):
                 run=run_id,
                 base=base_url
             )
-            import webbrowser
-            webbrowser.open_new_tab(url)
-            pusher.stream_run(run_id)
+            wandb.termlog("Run \U0001F680 at %s" % (url))
+            if show:
+                # TODO: wait until the run has been created
+                import webbrowser
+                webbrowser.open_new_tab(url)
+            puller.sync()
         elif status == "Pending":
-            pass
+            pending_loop(pod_id)
+            puller.sync()
     else:
         try:
             signal.signal(signal.SIGQUIT, signal.SIG_IGN)
@@ -574,6 +643,9 @@ def run(ctx, program, args, id, dir, configs, message, show, cloud):
             pass
         # ignore SIGINT (ctrl-c), the child process will handle, and we'll
         # exit when the child process does.
+        runner = util.find_runner(program)
+        if runner:
+            command = runner.split() + command
         proc = util.SafeSubprocess(command, env=env, read_output=False)
         try:
             proc.run()
