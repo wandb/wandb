@@ -75,6 +75,9 @@ class OutStreamTee(object):
     def flush(self):
         self._orig_stream.flush()
 
+    def isatty(self):
+        return self._orig_stream.isatty()
+
     def close(self):
         self._queue.put(None)
 
