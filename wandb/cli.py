@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import click
+import itertools
 import sys
 import copy
 import random
@@ -22,6 +23,7 @@ import sys
 import traceback
 import textwrap
 import requests
+import yaml
 
 import wandb
 from wandb.api import Api
@@ -349,6 +351,56 @@ def push(ctx, run, project, description, entity, force, files):
     api.push(project, files=[f.name for f in files], run=run,
              description=description, entity=entity, force=force, progress=sys.stdout)
 
+
+@cli.command(context_settings=CONTEXT, help="Hyperparameter search")
+@click.argument('program')
+@click.argument('args', nargs=-1)
+@click.option("--config", "-c", help="The config file that you want to use.", default="config-search.yaml")
+@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you want to download.")
+@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.pass_context
+@display_error
+def search(ctx, program, config, args, project, entity):
+    # # skip any parameters which aren't hyperparameters
+    # excluded_symbols = ['wandb_version']
+
+    config_data = {}
+    hyperparameters = []
+    with open(config, 'r') as config_stream:
+        config_data = yaml.load(config_stream)
+    for key, value in config_data.items():
+        # skip any parameter that's not a hyperparameter
+        if type(value) != dict:
+            continue
+
+        # for discrete hyperparameters
+        elif 'values' in value:
+            hyperparameters.append([(key,v) for v in value['values']])
+
+        # for linear search of hyperparameters
+        elif {'min', 'max', 'steps'} < value.keys():
+            min_val, max_val, steps = value['min'], value['max'], value['steps']
+            values = [(key, (max_val - min_val - 1) * ii / steps + min_val) for ii in range(steps)]
+            hyperparameters.append(values)
+
+    # iterate over the outer product of all possible parameter settings
+    import tempfile, copy, os, sys, sh
+    for parameters in itertools.product(*hyperparameters):
+        # create the config dictionary for this set of parameters
+        temp_config = copy.copy(config_data)
+        for key, value in parameters:
+            temp_config[key]['value'] = value
+
+        with tempfile.NamedTemporaryFile('w', delete=False) as temp_file:
+            try:
+                temp_file.write(yaml.dump(temp_config))
+                temp_file.close()
+
+                command = 'wandb run --configs %s %s' % (temp_file.name, program)
+                print("command", command)
+                os.system(command)
+            finally:
+                os.remove(temp_file.name)
 
 #@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("run", envvar='WANDB_RUN')

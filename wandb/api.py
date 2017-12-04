@@ -290,6 +290,38 @@ class Api(object):
             'model': project or self.settings('project')})['model']['buckets'])
 
     @normalize_exceptions
+    def list_runs_metrics(self, project, entity=None):
+        """Lists runs in W&B scoped by project.
+
+        Args:
+            project (str): The project to scope the runs to
+            entity (str, optional): The entity to scope this project to.  Defaults to public models
+
+        Returns:
+                [{"id",name","description"}]
+        """
+        query = gql('''
+        query Buckets($model: String!, $entity: String!) {
+            model(name: $model, entityName: $entity) {
+                buckets(first: 1000) {
+                    edges {
+                        node {
+                            id
+                            name
+                            description
+                            config
+                            summaryMetrics
+                        }
+                    }
+                }
+            }
+        }
+        ''')
+        return self._flatten_edges(self.client.execute(query, variable_values={
+            'entity': entity or self.settings('entity'),
+            'model': project or self.settings('project')})['model']['buckets'])
+
+    @normalize_exceptions
     def launch_run(self, command, project=None, entity=None, run_id=None):
         """Launch a run in the cloud.
 
