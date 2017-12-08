@@ -16,7 +16,8 @@ requirements = [
     'watchdog>=0.8.3',
     'GitPython>=2.1.3',
     'shortuuid>=0.5.0',
-    'pusherclient>=0.3.0'
+    'pusherclient>=0.3.0',
+    'daemonocle>=1.0.1',
 ]
 
 test_requirements = [

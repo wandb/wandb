@@ -22,12 +22,15 @@ import sys
 import traceback
 import textwrap
 import requests
+from daemonocle.cli import DaemonCLI
 
 import wandb
 from wandb.api import Api
 from wandb.config import Config
-from wandb.pusher import Puller
+from wandb.pusher import LogPuller
+from wandb.agent import Agent
 from wandb import wandb_run
+from wandb import wandb_dir
 from wandb import util
 
 DOCS_URL = 'http://wb-client.readthedocs.io/'
@@ -536,7 +539,7 @@ def pending_loop(pod_id):
 @cli.command(context_settings=RUN_CONTEXT, help="Log a job")
 @click.argument('run_id')
 def logs(run_id):
-    puller = Puller(run_id)
+    puller = LogPuller(run_id)
     try:
         def signal_handler(signal, frame):
             print(
@@ -552,6 +555,14 @@ def logs(run_id):
     #       for c in res.json()["status"]["conditions"]])
     wandb.termlog("Connecting to logstream of %s\n" % run_id)
     puller.sync()
+
+
+@cli.command(cls=DaemonCLI, daemon_params={'pidfile': wandb_dir() + '/wandb-agent.pid',
+                                           'detach': os.getenv("DEBUG") != "true", 'workdir': wandb_dir()},
+             help="Start the wandb agent")
+def agent():
+    agent = Agent()
+    agent.run()
 
 
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
@@ -604,7 +615,7 @@ def run(ctx, program, args, id, dir, configs, message, show, cloud):
                    for c in res.json()["status"]["conditions"]])
         run_id = res["launchRun"]["runId"]
         pod_id = res["launchRun"]["podName"]
-        puller = Puller(run_id, pod_id)
+        puller = LogPuller(run_id, pod_id)
 
         try:
             def signal_handler(signal, frame):
