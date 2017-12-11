@@ -149,7 +149,7 @@ class Api(object):
 
     def save_patch(self, out_dir):
         if self.git.dirty:
-            self.git.repo.git.execute(['git', 'diff'], output_stream=open(
+            self.git.repo.git.execute(['git', 'diff', '--submodule=diff'], output_stream=open(
                 os.path.join(out_dir, 'diff.patch'), 'wb'))
 
     def set_current_run_id(self, run_id):
