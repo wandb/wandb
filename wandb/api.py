@@ -502,8 +502,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']: file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
