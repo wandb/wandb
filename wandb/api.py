@@ -502,7 +502,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -600,6 +601,67 @@ class Api(object):
                 else:
                     raise e
         return response
+
+    @normalize_exceptions
+    def register_agent(self, host, persistent):
+        """Register a new agent
+
+        Args:
+            host (str): hostname
+            persistent (bool): long running or oneoff
+        """
+        mutation = gql('''
+        mutation CreateAgent(
+            $host: String!
+            $persistent: Boolean,
+        ) {
+            createAgent(input: {
+                host: $host,
+                persistent: $persistent,
+            }) {
+                agent {
+                    id
+                }
+            }
+        }
+        ''')
+        response = self.client.execute(mutation, variable_values={
+                                       'host': host,
+                                       'persistent': persistent})
+        return response['createAgent']['agent']
+
+    @normalize_exceptions
+    def agent_heartbeat(self, agent_id, metrics, run_states):
+        """Notify server about agent state, receive commands.
+
+        Args:
+            agent_id (str): agent_id
+            metrics (dict): system metrics
+            run_states (dict): run_id: state mapping
+        """
+        mutation = gql('''
+        mutation Heartbeat(
+            $id: String!,
+            $metrics: JSONString,
+            $runState: JSONString
+        ) {
+            heartbeat(input: {
+                id: $id,
+                metrics: $metrics,
+                runState: $runState
+            }) {
+                agent {
+                    id
+                }
+                commands
+            }
+        }
+        ''')
+        response = self.client.execute(mutation, variable_values={
+                                       'id': agent_id,
+                                       'metrics': json.dumps(metrics),
+                                       'runState': json.dumps(run_states)})
+        return response['heartbeat']['commands']
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
