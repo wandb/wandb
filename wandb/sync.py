@@ -264,16 +264,11 @@ class Sync(object):
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.on_file_created
         self._handler.on_modified = self.on_file_modified
-        base_url = api.settings('base_url')
-        if base_url.endswith('.dev'):
-            base_url = 'http://app.dev'
-        elif base_url.endswith('wandb.ai'):
-            base_url = 'https://app.wandb.ai'
         self.url = "{base}/{entity}/{project}/runs/{run}".format(
             project=self._project,
             entity=self._entity,
             run=self._run.id,
-            base=base_url
+            base=api.app_url
         )
         self._hooks = ExitHooks()
         self._hooks.hook()

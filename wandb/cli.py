@@ -390,7 +390,7 @@ def login():
     # Import in here for performance reasons
     import webbrowser
     # TODO: use Oauth and a local webserver: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
-    url = "https://app.wandb.ai/profile"
+    url = api.app_url + '/profile'
     # TODO: google cloud SDK check_browser.py
     launched = webbrowser.open_new_tab(url)
     if launched:
@@ -403,11 +403,10 @@ def login():
         warning=click.style("Not authenticated!", fg="red")),
         value_proc=lambda x: x.strip())
 
-    host = api.settings()['base_url']
     if key:
         # TODO: get the username here...
         # username = api.viewer().get('entity', 'models')
-        write_netrc(host, "user", key)
+        write_netrc(api.app_url, "user", key)
 
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
@@ -559,14 +558,6 @@ def logs(run_id):
     #       for c in res.json()["status"]["conditions"]])
     wandb.termlog("Connecting to logstream of %s\n" % run_id)
     puller.sync()
-
-
-@cli.command(cls=DaemonCLI, daemon_params={'pidfile': wandb_dir() + '/wandb-agent.pid',
-                                           'detach': os.getenv("DEBUG") != "true", 'workdir': wandb_dir()},
-             help="Start the wandb agent")
-def agent():
-    agent = Agent()
-    agent.run()
 
 
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")

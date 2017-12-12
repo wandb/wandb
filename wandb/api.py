@@ -171,6 +171,20 @@ class Api(object):
         else:
             key = os.environ.get("WANDB_API_KEY")
         return key
+    
+    @property
+    def api_url(self):
+        return self.settings('base_url')
+    
+    @property
+    def app_url(self):
+        api_url = self.api_url
+        if api_url.endswith('.dev'):
+            return 'http://app.dev'
+        elif api_url.endswith('wandb.ai'):
+            return 'https://app.wandb.ai'
+        else:
+            return api_url
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
