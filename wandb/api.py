@@ -179,8 +179,8 @@ class Api(object):
     @property
     def app_url(self):
         api_url = self.api_url
-        if api_url.endswith('.dev'):
-            return 'http://app.dev'
+        if api_url.endswith('.test'):
+            return 'http://app.test'
         elif api_url.endswith('wandb.ai'):
             return 'https://app.wandb.ai'
         else:

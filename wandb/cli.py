@@ -620,17 +620,11 @@ def run(ctx, program, args, id, dir, configs, message, show, cloud):
         except AttributeError:
             pass
         if status == "Running":
-            # TODO: centralize this browser url logic
-            base_url = api.settings('base_url')
-            if base_url.endswith('.dev'):
-                base_url = 'http://app.dev'
-            elif base_url.endswith('wandb.ai'):
-                base_url = 'https://app.wandb.ai'
             url = "{base}/{entity}/{project}/runs/{run}".format(
                 project=api.settings('project'),
                 entity=api.settings('entity'),
                 run=run_id,
-                base=base_url
+                base=api.app_url
             )
             wandb.termlog("Run \U0001F680 at %s" % (url))
             if show:
