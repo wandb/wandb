@@ -291,7 +291,7 @@ def describe():
         "Notes stored for next training run\nCalling wandb.sync() in your training script will persist them.")
 
 
-#@cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
+@cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
 @click.argument("run", envvar='WANDB_RUN')
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
@@ -299,9 +299,39 @@ def describe():
 @display_error
 def restore(run, branch, project, entity):
     project, run = api.parse_slug(run, project=project)
-    commit, json_config, patch = api.run_config(
-        project, run=run, entity=entity)
+    commit, json_config, patch_content = api.run_config(project, run=run, entity=entity)
+    subprocess.check_call(['git', 'fetch', '--all'])
+    
     if commit:
+        try:
+            api.git.repo.commit(commit)
+        except ValueError:
+            click.echo("Couldn't find original commit: {}".format(commit))
+            commit = None
+            files = api.download_urls(project, run=run, entity=entity)
+            for filename in files:
+                if filename.startswith('upstream_diff_') and filename.endswith('.patch'):
+                    commit = filename[len('upstream_diff_'):-len('.patch')]
+                    try:
+                        api.git.repo.commit(commit)
+                    except ValueError:
+                        commit = None
+                    else:
+                        break
+            
+            if commit:
+                click.echo("Falling back to upstream commit: {}".format(commit))
+                patch_path, _ = api.download_write_file(files[filename])
+            else:
+                raise ClickException("Can't find commit from which to restore code")
+        else:
+            if patch_content:
+                patch_path = os.path.join(wandb.__stage_dir__, 'diff.patch')
+                with open(patch_path, "w") as f:
+                    f.write(patch_content)
+            else:
+                patch_path = None
+        
         branch_name = "wandb/%s" % run
         if branch and branch_name not in api.git.repo.branches:
             api.git.repo.git.checkout(commit, b=branch_name)
@@ -315,12 +345,17 @@ def restore(run, branch, project, entity):
             click.secho("Checking out %s in detached mode" % commit)
             api.git.repo.git.checkout(commit)
 
-    if patch:
-        with open(wandb.__stage_dir__ + "diff.patch", "w") as f:
-            f.write(patch)
-        api.git.repo.git.execute(
-            ['git', 'apply', wandb.__stage_dir__ + 'diff.patch'])
-        click.echo("Applied patch")
+        if patch_path:
+            # we apply the patch from the repository root so git doesn't exclude
+            # things outside the current directory
+            root = api.git.root
+            patch_rel_path = os.path.relpath(patch_path, start=root)
+            # --reject is necessary or else this fails any time a binary file
+            # occurs in the diff
+            # we use .call() instead of .check_call() for the same reason
+            # TODO(adrian): this means there is no error checking here
+            subprocess.call(['git', 'apply', '--reject', patch_rel_path], cwd=root)
+            click.echo("Applied patch")
 
     config = Config()
     config.load_json(json_config)

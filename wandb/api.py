@@ -147,10 +147,29 @@ class Api(object):
         self._current_run_id = None
         self._file_stream_api = None
 
-    def save_patch(self, out_dir):
+    def save_patches(self, out_dir):
+        """Save the current state of this repository to one or more patches.
+        
+        Makes one patch against HEAD and another one against the most recent
+        commit that occurs in an upstream branch. This way we can be robust
+        to history editing as long as the user never does "push -f" to break
+        history on an upstream branch.
+        
+        Writes the first patch to <out_dir>/diff.patch and the second to
+        <out_dir>/upstream_diff_<commit_id>.patch.
+        
+        Args:
+            out_dir (str): Directory to write the patch files.
+        """
         if self.git.dirty:
             self.git.repo.git.execute(['git', 'diff', '--submodule=diff'], output_stream=open(
                 os.path.join(out_dir, 'diff.patch'), 'wb'))
+        
+        upstream_commit = self.git.get_upstream_fork_point()
+        if upstream_commit and upstream_commit != self.git.repo.head.commit:
+            sha = upstream_commit.hexsha
+            with open(os.path.join(out_dir, 'upstream_diff_{}.patch'.format(sha)), 'wb') as upstream_patch:
+                self.git.repo.git.execute(['git', 'diff', '--submodule=diff', sha], output_stream=upstream_patch)
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
@@ -374,7 +393,7 @@ class Api(object):
         ''')
 
         response = self.client.execute(query, variable_values={
-            'name': project, 'bucket': run, 'entity': entity
+            'name': project, 'run': run, 'entity': entity
         })
         run = response['model']['bucket']
         commit = run['commit']
@@ -576,6 +595,29 @@ class Api(object):
         return (int(response.headers.get('content-length', 0)), response)
 
     @normalize_exceptions
+    def download_write_file(self, metadata):
+        """Download a file from a run and write it to wandb/
+
+        Args:
+            metadta (obj): The metadata object for the file to download. Comes from Api.download_urls().
+
+        Returns:
+            A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
+        """
+        fileName = metadata['name']
+        path = os.path.join(__stage_dir__, fileName)
+        if self.file_current(fileName, metadata['md5']):
+            return path, None
+        
+        size, response = self.download_file(metadata['url'])
+        
+        with open(path, "wb") as file:
+            for data in response.iter_content():
+                file.write(data)
+        
+        return path, response
+
+    @normalize_exceptions
     def upload_file(self, url, file, callback=None):
         """Uploads a file to W&B with failure resumption
 
@@ -698,13 +740,10 @@ class Api(object):
         urls = self.download_urls(project, run, entity)
         responses = []
         for fileName in urls:
-            if self.file_current(fileName, urls[fileName]['md5']):
-                continue
-            with open(fileName, "wb") as file:
-                size, res = self.download_file(urls[fileName]['url'])
-                responses.append(res)
-                for data in res.iter_content():
-                    file.write(data)
+            _, response = self.download_write_file(urls[fileName])
+            if response:
+                responses.append(response)
+                
         return responses
 
     @normalize_exceptions

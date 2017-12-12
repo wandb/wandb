@@ -33,7 +33,7 @@ class Config(object):
         self._load_defaults()
         for conf_path in config_paths:
             self._load_file(conf_path)
-        self._persist()
+        self.persist()
 
     def _load_defaults(self):
         if not self._wandb_dir:
@@ -102,7 +102,7 @@ class Config(object):
             self._items[key] = json[key].get('value')
             self._descriptions[key] = json[key].get('desc')
 
-    def _persist(self):
+    def persist(self):
         """Stores the current configuration for pushing to W&B"""
         if not self._run_dir or not os.path.isdir(self._run_dir):
             # In dryrun mode, without wandb run, we don't
@@ -127,7 +127,7 @@ class Config(object):
 
     def __setitem__(self, key, val):
         self._set_key(key, val)
-        self._persist()
+        self.persist()
 
     __setattr__ = __setitem__
 
@@ -148,7 +148,7 @@ class Config(object):
                 raise TypeError(
                     "config must be a dict or have a __dict__ attribute.")
         self._update_from_dict(params)
-        self._persist()
+        self.persist()
 
     def as_dict(self):
         defaults = {}
