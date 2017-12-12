@@ -78,6 +78,7 @@ def test_pull_success(request_mocker, download_url, query_project):
     query_project(request_mocker)
     download_url(request_mocker)
     with CliRunner().isolated_filesystem():
+        os.mkdir('wandb')
         res = api.pull("test/test")
     assert res[0].status_code == 200
 
@@ -86,6 +87,7 @@ def test_pull_existing_file(request_mocker, mocker, download_url, query_project)
     query_project(request_mocker)
     download_url(request_mocker)
     with CliRunner().isolated_filesystem():
+        os.mkdir('wandb')
         with open("model.json", "w") as f:
             f.write("{}")
         mocked = mocker.patch.object(
