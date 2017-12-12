@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
 import click
 import sys
 import copy
@@ -443,8 +445,10 @@ def init(ctx):
         os.mkdir(wandb_path)
 
     with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
-        file.write("[default]\nentity: {entity}\nproject: {project}\n".format(
-            entity=entity, project=project))
+        print('[default]', file=file)
+        print('entity: {}'.format(entity), file=file)
+        print('project: {}'.format(project), file=file)
+        print('base_url: {}'.format(api.settings()['base_url']), file=file)
 
     with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
