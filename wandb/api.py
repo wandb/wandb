@@ -87,7 +87,7 @@ def normalize_exceptions(func):
             else:
                 message = str(err)
             if os.getenv("WANDB_DEBUG") == "true":
-                raise err
+                raise
             else:
                 raise CommError(message)
     return wrapper
