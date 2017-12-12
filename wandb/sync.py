@@ -325,7 +325,7 @@ class Sync(object):
             self._handler._ignore_patterns = ['*/.*', '*.tmp']
             self._observer.start()
 
-            self._api.save_patch(self._watch_dir)
+            self._api.save_patches(self._watch_dir)
 
             if self._job_type not in ['train', 'eval']:
                 wandb.termlog(
