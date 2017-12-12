@@ -559,7 +559,6 @@ def logs(run_id):
     wandb.termlog("Connecting to logstream of %s\n" % run_id)
     puller.sync()
 
-
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @require_init

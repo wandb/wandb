@@ -201,3 +201,18 @@ def get_log_file_path():
         return os.path.relpath(parent_handlers[0].baseFilename, os.getcwd())
     else:
         return '<unknown>'
+
+
+def read_many_from_queue(q, max_items, queue_timeout):
+    try:
+        item = q.get(True, queue_timeout)
+    except queue.Empty:
+        return []
+    items = [item]
+    for i in range(max_items):
+        try:
+            item = q.get_nowait()
+        except queue.Empty:
+            return items
+        items.append(item)
+    return items

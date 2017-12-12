@@ -675,7 +675,7 @@ class Api(object):
                                        'id': agent_id,
                                        'metrics': json.dumps(metrics),
                                        'runState': json.dumps(run_states)})
-        return response['heartbeat']['commands']
+        return json.loads(response['heartbeat']['commands'])
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
@@ -894,19 +894,8 @@ class FileStreamApi(object):
         #
         # If we have more than MAX_ITEMS_PER_PUSH in the queue then the push thread
         # will get behind and data will buffer up in the queue.
-
-        try:
-            item = self._queue.get(True, self.RATE_LIMIT_SECONDS)
-        except queue.Empty:
-            return []
-        items = [item]
-        for i in range(self.MAX_ITEMS_PER_PUSH):
-            try:
-                item = self._queue.get_nowait()
-            except queue.Empty:
-                return items
-            items.append(item)
-        return items
+        return util.read_many_from_queue(
+            self._queue, self.MAX_ITEMS_PER_PUSH, self.RATE_LIMIT_SECONDS)
 
     def _thread_body(self):
         posted_data_time = time.time()
