@@ -44,8 +44,10 @@ class GitRepo(object):
         if not self.repo:
             return None
         # TODO: this was blowing up when the repo was detached in kubeml
-        # return self.repo.head.commit.hexsha
-        return self.repo.git.show_ref("--head").split(" ")[0]
+        if len(self.repo.refs) > 0:
+            return self.repo.head.commit.hexsha
+        else:
+            return self.repo.git.show_ref("--head").split(" ")[0]
 
     @property
     def branch(self):
@@ -82,8 +84,8 @@ class GitRepo(object):
         possible_relatives = []
         try:
             active_branch = self.repo.active_branch
-        except TypeError:
-            pass  # detached head
+        except (TypeError, ValueError):
+            return None  # detached head
         else:
             tracking_branch = active_branch.tracking_branch()
             if tracking_branch:
