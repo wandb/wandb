@@ -185,7 +185,7 @@ class Api(object):
 
     @property
     def api_key(self):
-        auth = requests.utils.get_netrc_auth(self.settings()['base_url'])
+        auth = requests.utils.get_netrc_auth(self.api_url)
         if auth:
             key = auth[-1]
         else:
