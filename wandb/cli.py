@@ -670,12 +670,12 @@ def sweep(ctx, config_yaml):
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
-@click.pass_context
+@click.argument('sweep_id')
 @require_init
 @display_error
-def agent(ctx):
+def agent(sweep_id):
     click.echo('Starting wandb agent 🕵️')
-    agent_api = wandb_agent.run_agent()
+    agent_api = wandb_agent.run_agent(sweep_id)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',

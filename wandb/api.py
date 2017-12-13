@@ -738,22 +738,25 @@ class Api(object):
         mutation = gql('''
         mutation UpsertSweet(
             $config: String,
-            $description: String
+            $description: String,
+            $modelName: String!
         ) {
             upsertSweep(input: {
                 config: $config,
-                description: $description
+                description: $description,
+                modelName: $modelName
             }) {
                 sweep {
-                    id
+                    name
                 }
             }
         }
         ''')
         response = self.client.execute(mutation, variable_values={
                                        'config': yaml.dump(config),
-                                       'description': 'New sweep'})
-        return json.loads(response['upsertSweep']['id'])
+                                       'description': config.get("description"),
+                                       'modelName': self.settings("project")})
+        return response['upsertSweep']['sweep']['name']
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
