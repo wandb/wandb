@@ -657,7 +657,7 @@ def run(ctx, program, args, id, dir, configs, message, show):
             break
 
 
-@cli.command(context_settings=CONTEXT, help="Run the wandb agent")
+@cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
 @require_init
 @click.argument('config_yaml')
@@ -669,7 +669,7 @@ def sweep(ctx, config_yaml):
     print('Create sweep with ID:', sweep_id)
 
 
-@cli.command(context_settings=CONTEXT, help="Create a sweep")
+@cli.command(context_settings=CONTEXT, help="Run the wandb agent")
 @click.argument('sweep_id')
 @require_init
 @display_error
