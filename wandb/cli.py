@@ -445,7 +445,7 @@ def login():
     if key:
         # TODO: get the username here...
         # username = api.viewer().get('entity', 'models')
-        write_netrc(api.app_url, "user", key)
+        write_netrc(api.api_url, "user", key)
 
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
