@@ -1,7 +1,7 @@
 import copy
 import multiprocessing
 import os
-import queue
+from six.moves import queue
 import signal
 import sys
 import time
