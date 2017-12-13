@@ -663,7 +663,7 @@ class Api(object):
         return response
 
     @normalize_exceptions
-    def register_agent(self, host, persistent, sweep, project_name=None):
+    def register_agent(self, host, persistent, sweep_id=None, project_name=None):
         """Register a new agent
 
         Args:
@@ -697,7 +697,7 @@ class Api(object):
                                        'host': host,
                                        'modelName': project_name,
                                        'persistent': persistent,
-                                       'sweep': sweep})
+                                       'sweep': sweep_id})
         return response['createAgent']['agent']
 
     @normalize_exceptions

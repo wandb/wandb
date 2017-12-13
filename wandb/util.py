@@ -116,6 +116,9 @@ class SafeSubprocess(object):
         else:
             return self._popen.poll()
 
+    def terminate(self):
+        self._popen.terminate()
+
 
 def request_with_retry(func, *args, **kwargs):
     """Perform a requests http call, retrying with exponetial backoff.

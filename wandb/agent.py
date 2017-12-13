@@ -14,7 +14,7 @@ class AgentError(Exception):
 class Agent(object):
     POLL_INTERVAL = 5
 
-    def __init__(self, api, queue, wandb_runner, sweep_id):
+    def __init__(self, api, queue, wandb_runner, sweep_id=None):
         self._api = api
         self._queue = queue
         self._runner = wandb_runner
@@ -25,7 +25,7 @@ class Agent(object):
     def run(self):
         # TODO: include sweep ID
         agent = self._api.register_agent(
-            socket.gethostname(), True, self._sweep_id)
+            socket.gethostname(), True, sweep_id=self._sweep_id)
         agent_id = agent['id']
         while True:
             commands = util.read_many_from_queue(
@@ -103,13 +103,14 @@ class AgentApi(object):
             for line in result['traceback']:
                 print(line.strip())
             print(result['exception'])
+        return result
 
 
-def run_agent(sweep_id):
+def run_agent(sweep_id=None):
     api = Api()
     wandb_runner = runner.Runner(api)
     queue = multiprocessing.Queue()
-    agent = Agent(api, queue, wandb_runner, sweep_id)
+    agent = Agent(api, queue, wandb_runner, sweep_id=sweep_id)
     p = multiprocessing.Process(target=agent.run)
     p.start()
     return AgentApi(queue)

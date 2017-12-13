@@ -232,6 +232,7 @@ class Sync(object):
         self._watch_dir = os.path.abspath(self._run.dir)
         self._project = project or api.settings("project")
         self._entity = api.settings("entity")
+        self._signal = None
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
         # Load description and write it to the run directory.
@@ -356,6 +357,7 @@ class Sync(object):
             logger.debug("Swapped stdout/stderr")
 
             atexit.register(self.stop)
+            signal.signal(signal.SIGTERM, self._sigkill)
         except KeyboardInterrupt:
             self.stop()
         except Error:
@@ -376,14 +378,26 @@ class Sync(object):
         self._api.upsert_run(id=self._run_storage_id,
                              config=self._config.as_dict())
 
+    def _sigkill(self, *args):
+        self._signal = signal.SIGTERM
+        # Send keyboard interrupt to ourself! This triggers the python behavior of stopping the
+        # running script, and since we've hooked into the exception handler we'll then run
+        # stop.
+        # This is ugly, but we're planning to move sync to an external process which will
+        # solve it.
+        os.kill(os.getpid(), signal.SIGINT)
+
     def stop(self):
         wandb.termlog()
-        if isinstance(self._hooks.exception, KeyboardInterrupt):
+        if self._signal == signal.SIGTERM:
+            wandb.termlog(
+                'Script ended because of SIGTERM, press ctrl-c to abort syncing.')
+        elif isinstance(self._hooks.exception, KeyboardInterrupt):
             wandb.termlog(
                 'Script ended because of ctrl-c, press ctrl-c again to abort syncing.')
         elif self._hooks.exception:
             wandb.termlog(
-                'Script ended because of Exception, press ctrl-c again to abort syncing.')
+                'Script ended because of Exception, press ctrl-c to abort syncing.')
         else:
             wandb.termlog('Script ended.')
 

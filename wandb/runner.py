@@ -31,6 +31,7 @@ class SingleRun(multiprocessing.Process):
         self._result_queue = multiprocessing.Queue()
         self._show_output = show_output
         self._sweep_id = sweep_id
+        self._stop_queue = multiprocessing.Queue()
 
     def run(self):
         # The process
@@ -94,6 +95,12 @@ class SingleRun(multiprocessing.Process):
         exitcode = None
         while True:
             time.sleep(0.1)
+            try:
+                self._stop_queue.get_nowait()
+                print('Sending SIGTERM')
+                proc.terminate()
+            except queue.Empty:
+                pass
             exitcode, stdout, stderr = proc.poll()
             for line in stdout:
                 # stdout_stream.write(line)
@@ -124,6 +131,9 @@ class SingleRun(multiprocessing.Process):
     def launch(self):
         self.start()
 
+    def term(self):
+        self._stop_queue.put(True)
+
 
 class Runner(object):
     def __init__(self, api):
@@ -141,10 +151,16 @@ class Runner(object):
         assert(start_event['type'] == 'start')
         if 'error' in start_event:
             raise RunnerError(start_event['error'])
-        self._runs[start_event['run_id']] = run
+        run_id = start_event['run_id']
+        self._runs[run_id] = run
+        return run_id
 
-    def stop(self, job_id):
-        print('Stop: %s' % job_id)
+    def stop(self, run_id):
+        print('Stop: %s' % run_id)
+        if run_id in self._runs:
+            self._runs[run_id].term()
+        else:
+            print('Run %s not running' % run_id)
 
     def running_runs(self):
         remove_runs = []
