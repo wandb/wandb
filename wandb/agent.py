@@ -76,7 +76,8 @@ class Agent(object):
         return response
 
     def _command_run(self, command):
-        return self._runner.run(command['program'], command['args'])
+        return self._runner.run(command['program'], command['args'],
+                                sweep_id=self._sweep_id)
 
     def _command_stop(self, command):
         return self._runner.stop(command['run_id'])
