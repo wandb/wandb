@@ -653,7 +653,7 @@ def run(ctx, program, args, id, dir, configs, message, show):
         exitcode = proc.poll()
         if exitcode is not None:
             wandb.termlog('job (%s) Process exited with code: %s' %
-                          (progrjjjjjam, exitcode))
+                          (program, exitcode))
             break
 
 
