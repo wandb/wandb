@@ -430,7 +430,8 @@ class Api(object):
     @normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None,
                    config=None, description=None, entity=None,
-                   repo=None, job_type=None, program_path=None, commit=None):
+                   repo=None, job_type=None, program_path=None, commit=None,
+                   sweep_name=None):
         """Update a run
 
         Args:
@@ -457,7 +458,8 @@ class Api(object):
             $debug: Boolean,
             $program: String,
             $repo: String,
-            $jobType: String
+            $jobType: String,
+            $sweep: String
         ) {
             upsertBucket(input: {
                 id: $id, name: $name,
@@ -470,7 +472,8 @@ class Api(object):
                 debug: $debug,
                 jobProgram: $program,
                 jobRepo: $repo,
-                jobType: $jobType
+                jobType: $jobType,
+                sweep: $sweep
             }) {
                 bucket {
                     id
@@ -488,7 +491,8 @@ class Api(object):
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit or self._commit,
-            'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type})
+            'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type,
+            'sweep': sweep_name})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions

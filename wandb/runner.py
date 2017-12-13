@@ -18,7 +18,7 @@ class RunnerError(Exception):
 
 
 class SingleRun(multiprocessing.Process):
-    def __init__(self, api, program, args, id, dir, configs, message, show, show_output, **kwargs):
+    def __init__(self, api, program, args, id, dir, configs, message, show, show_output, sweep_id, **kwargs):
         super(SingleRun, self).__init__(**kwargs)
         self._api = api
         self._program = program
@@ -30,6 +30,7 @@ class SingleRun(multiprocessing.Process):
         self._show = show
         self._result_queue = multiprocessing.Queue()
         self._show_output = show_output
+        self._sweep_id = sweep_id
 
     def run(self):
         # The process
@@ -52,6 +53,8 @@ class SingleRun(multiprocessing.Process):
             env['WANDB_CONFIG_PATHS'] = self._configs
         if self._show:
             env['WANDB_SHOW_RUN'] = '1'
+        if self._sweep_id:
+            env['WANDB_SWEEP_ID'] = self._sweep_id
         #env['WANDB_INITED'] = '1'
 
         # if self._api.api_key is None:
@@ -125,10 +128,11 @@ class Runner(object):
         self._runs = {}
 
     def run(self, program, args, id=None, dir=None,
-            configs=None, message=None, show=None, show_output=True):
+            configs=None, message=None, show=None, show_output=True, sweep_id=None):
         print('Run: %s %s' % (program, args))
         run = SingleRun(self._api, program, args, id,
-                        dir, configs, message, show, show_output)
+                        dir, configs, message, show, show_output,
+                        sweep_id)
         run.launch()
         start_event = run.next_event()
         assert(start_event['type'] == 'start')

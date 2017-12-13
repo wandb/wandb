@@ -225,10 +225,10 @@ class Sync(object):
     """Watches for files to change and automatically pushes them
     """
 
-    def __init__(self, api, job_type, run, config=None, project=None, tags=[], datasets=[], description=None):
-        # 1.6 million 6 character combinations
+    def __init__(self, api, job_type, run, config=None, project=None, tags=[], datasets=[], description=None, sweep_id=None):
         self._job_type = job_type
         self._run = run
+        self._sweep_id = sweep_id
         self._watch_dir = os.path.abspath(self._run.dir)
         self._project = project or api.settings("project")
         self._entity = api.settings("entity")
@@ -319,7 +319,8 @@ class Sync(object):
             # TODO: better failure handling
             upsert_result = self._api.upsert_run(name=self._run.id, project=self._project, entity=self._entity,
                                                  config=self._config.as_dict(), description=self._description, host=host,
-                                                 program_path=program_path, job_type=self._job_type, repo=remote_url)
+                                                 program_path=program_path, job_type=self._job_type, repo=remote_url,
+                                                 sweep_name=self._sweep_id)
             self._run_storage_id = upsert_result['id']
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
