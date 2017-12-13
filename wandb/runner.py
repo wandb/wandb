@@ -46,6 +46,9 @@ class SingleRun(multiprocessing.Process):
 
         # setup child environment
         env = copy.copy(os.environ)
+        # tell child python interpreters we accept utf-8
+        # TODO(adrian): is there a language-agnostic way of doing this?
+        env['PYTHONIOENCODING'] = 'UTF-8'
         env['WANDB_MODE'] = 'run'
         env['WANDB_RUN_ID'] = self._id
         env['WANDB_RUN_DIR'] = self._dir
