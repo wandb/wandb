@@ -248,8 +248,10 @@ class Sync(object):
                         os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno()))  # check if background process
         except AttributeError:  # windows
             self.tty = sys.stdin.isatty()  # TODO Check for background process in windows
+        except OSError:
+            self.tty = False
 
-        if not self._description and self.tty:
+        if not self._description:
             #self._description = editor()
             self._description = self._run.id
         if self._description is None:

@@ -24,13 +24,12 @@ import sys
 import traceback
 import textwrap
 import requests
-from daemonocle.cli import DaemonCLI
 
 import wandb
 from wandb.api import Api
 from wandb.config import Config
 from wandb.pusher import LogPuller
-from wandb.agent import Agent
+from wandb import agent as wandb_agent
 from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import util
@@ -594,6 +593,7 @@ def logs(run_id):
     wandb.termlog("Connecting to logstream of %s\n" % run_id)
     puller.sync()
 
+
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @require_init
@@ -609,9 +609,8 @@ def logs(run_id):
               help='Message to associate with the run.')
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
-@click.option("--cloud/--no-cloud", default=False)
 @display_error
-def run(ctx, program, args, id, dir, configs, message, show, cloud):
+def run(ctx, program, args, id, dir, configs, message, show):
     env = copy.copy(os.environ)
     env['WANDB_MODE'] = 'run'
     if id is None:
@@ -629,71 +628,43 @@ def run(ctx, program, args, id, dir, configs, message, show, cloud):
         env['WANDB_SHOW_RUN'] = '1'
     command = [program] + list(args)
 
-    if cloud:
-        if not api.git.enabled:
-            raise ClickException(
-                "--cloud can only be run from git repositories.")
-        wandb.termlog("Starting run in the \u26C5")
-        res = api.launch_run(' '.join(command))
-        status = res["launchRun"]["status"]
-        if status == "Failed":
-            wandb.termlog(click.style("Failed to launch job.", fg="red"))
-            res = requests.get(
-                "http://kubed.endpoints.playground-111.cloud.goog/pods/%s" % pod_id)
-            print([(c["type"], c["status"], c["message"])
-                   for c in res.json()["status"]["conditions"]])
-        run_id = res["launchRun"]["runId"]
-        pod_id = res["launchRun"]["podName"]
-        puller = LogPuller(run_id, pod_id)
+    try:
+        signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+    except AttributeError:
+        pass
+    runner = util.find_runner(program)
+    if runner:
+        command = runner.split() + command
+    proc = util.SafeSubprocess(command, env=env, read_output=False)
+    try:
+        proc.run()
+    except (OSError, IOError):
+        raise ClickException('Could not find program: %s' % command[0])
+    # ignore SIGINT (ctrl-c), the child process will handle, and we'll
+    # exit when the child process does.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    while True:
+        time.sleep(0.1)
+        exitcode = proc.poll()
+        if exitcode is not None:
+            wandb.termlog('job (%s) Process exited with code: %s' %
+                          (progrjjjjjam, exitcode))
+            break
 
-        try:
-            def signal_handler(signal, frame):
-                print(
-                    "\n\nDetaching from remote instance, type `wandb logs %s` to resume logging" % run_id)
-                exit(0)
-            signal.signal(signal.SIGINT, signal_handler)
-        except AttributeError:
-            pass
-        if status == "Running":
-            url = "{base}/{entity}/{project}/runs/{run}".format(
-                project=api.settings('project'),
-                entity=api.settings('entity'),
-                run=run_id,
-                base=api.app_url
-            )
-            wandb.termlog("Run \U0001F680 at %s" % (url))
-            if show:
-                # TODO: wait until the run has been created
-                import webbrowser
-                webbrowser.open_new_tab(url)
-            puller.sync()
-        elif status == "Pending":
-            pending_loop(pod_id)
-            puller.sync()
-    else:
-        try:
-            signal.signal(signal.SIGQUIT, signal.SIG_IGN)
-        except AttributeError:
-            pass
-        # ignore SIGINT (ctrl-c), the child process will handle, and we'll
-        # exit when the child process does.
-        runner = util.find_runner(program)
-        if runner:
-            command = runner.split() + command
-        proc = util.SafeSubprocess(command, env=env, read_output=False)
-        try:
-            proc.run()
-        except (OSError, IOError):
-            raise ClickException('Could not find program: %s' % command[0])
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        while True:
-            time.sleep(0.1)
-            exitcode = proc.poll()
-            if exitcode is not None:
-                wandb.termlog('job (%s) Process exited with code: %s' %
-                              (program, exitcode))
-                break
 
+@cli.command(context_settings=CONTEXT, help="Run the wandb agent")
+@click.pass_context
+@require_init
+@display_error
+def agent(ctx):
+    click.echo('Starting wandb agent 🕵️')
+    agent_api = wandb_agent.run_agent()
+
+    # you can send local commands like so:
+    # agent_api.command({'type': 'run', 'program': 'train.py',
+    #                'args': ['--max_epochs=10']})
+    while True:
+        time.sleep(1)
 
 #@cli.group()
 #@click.pass_context

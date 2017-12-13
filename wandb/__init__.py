@@ -76,7 +76,7 @@ def termlog(string='', newline=True):
     click.echo(line, file=_orig_stderr, nl=newline)
 
 
-def _do_sync(mode, job_type, run, show_run, extra_config=None):
+def _do_sync(mode, job_type, run, show_run):
     syncer = None
     termlog()
     if mode == 'run':
@@ -85,8 +85,6 @@ def _do_sync(mode, job_type, run, show_run, extra_config=None):
             raise wandb_api.Error(
                 "No API key found, run `wandb login` or set WANDB_API_KEY")
         api.set_current_run_id(run.id)
-        if extra_config is not None:
-            run.config.update(extra_config)
         syncer = sync.Sync(api, job_type, run, config=run.config)
         syncer.watch(files='*', show_run=show_run)
     elif mode == 'dryrun':
