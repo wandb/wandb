@@ -24,6 +24,7 @@ import sys
 import traceback
 import textwrap
 import requests
+import yaml
 
 import wandb
 from wandb.api import Api
@@ -298,9 +299,10 @@ def describe():
 @display_error
 def restore(run, branch, project, entity):
     project, run = api.parse_slug(run, project=project)
-    commit, json_config, patch_content = api.run_config(project, run=run, entity=entity)
+    commit, json_config, patch_content = api.run_config(
+        project, run=run, entity=entity)
     subprocess.check_call(['git', 'fetch', '--all'])
-    
+
     if commit:
         try:
             api.git.repo.commit(commit)
@@ -317,12 +319,14 @@ def restore(run, branch, project, entity):
                         commit = None
                     else:
                         break
-            
+
             if commit:
-                click.echo("Falling back to upstream commit: {}".format(commit))
+                click.echo(
+                    "Falling back to upstream commit: {}".format(commit))
                 patch_path, _ = api.download_write_file(files[filename])
             else:
-                raise ClickException("Can't find commit from which to restore code")
+                raise ClickException(
+                    "Can't find commit from which to restore code")
         else:
             if patch_content:
                 patch_path = os.path.join(wandb.__stage_dir__, 'diff.patch')
@@ -330,7 +334,7 @@ def restore(run, branch, project, entity):
                     f.write(patch_content)
             else:
                 patch_path = None
-        
+
         branch_name = "wandb/%s" % run
         if branch and branch_name not in api.git.repo.branches:
             api.git.repo.git.checkout(commit, b=branch_name)
@@ -353,7 +357,8 @@ def restore(run, branch, project, entity):
             # occurs in the diff
             # we use .call() instead of .check_call() for the same reason
             # TODO(adrian): this means there is no error checking here
-            subprocess.call(['git', 'apply', '--reject', patch_rel_path], cwd=root)
+            subprocess.call(['git', 'apply', '--reject',
+                             patch_rel_path], cwd=root)
             click.echo("Applied patch")
 
     config = Config()
@@ -653,6 +658,18 @@ def run(ctx, program, args, id, dir, configs, message, show):
 
 
 @cli.command(context_settings=CONTEXT, help="Run the wandb agent")
+@click.pass_context
+@require_init
+@click.argument('config_yaml')
+@display_error
+def sweep(ctx, config_yaml):
+    click.echo('Creating sweep from: %s' % config_yaml)
+    config = yaml.load(open(config_yaml))
+    sweep_id = api.upsert_sweep(config)
+    print('Create sweep with ID:', sweep_id)
+
+
+@cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
 @require_init
 @display_error

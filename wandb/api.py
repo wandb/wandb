@@ -149,27 +149,28 @@ class Api(object):
 
     def save_patches(self, out_dir):
         """Save the current state of this repository to one or more patches.
-        
+
         Makes one patch against HEAD and another one against the most recent
         commit that occurs in an upstream branch. This way we can be robust
         to history editing as long as the user never does "push -f" to break
         history on an upstream branch.
-        
+
         Writes the first patch to <out_dir>/diff.patch and the second to
         <out_dir>/upstream_diff_<commit_id>.patch.
-        
+
         Args:
             out_dir (str): Directory to write the patch files.
         """
         if self.git.dirty:
             self.git.repo.git.execute(['git', 'diff', '--submodule=diff'], output_stream=open(
                 os.path.join(out_dir, 'diff.patch'), 'wb'))
-        
+
         upstream_commit = self.git.get_upstream_fork_point()
         if upstream_commit and upstream_commit != self.git.repo.head.commit:
             sha = upstream_commit.hexsha
             with open(os.path.join(out_dir, 'upstream_diff_{}.patch'.format(sha)), 'wb') as upstream_patch:
-                self.git.repo.git.execute(['git', 'diff', '--submodule=diff', sha], output_stream=upstream_patch)
+                self.git.repo.git.execute(
+                    ['git', 'diff', '--submodule=diff', sha], output_stream=upstream_patch)
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
@@ -190,11 +191,11 @@ class Api(object):
         else:
             key = os.environ.get("WANDB_API_KEY")
         return key
-    
+
     @property
     def api_url(self):
         return self.settings('base_url')
-    
+
     @property
     def app_url(self):
         api_url = self.api_url
@@ -535,8 +536,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']: file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -608,13 +608,13 @@ class Api(object):
         path = os.path.join(__stage_dir__, fileName)
         if self.file_current(fileName, metadata['md5']):
             return path, None
-        
+
         size, response = self.download_file(metadata['url'])
-        
+
         with open(path, "wb") as file:
             for data in response.iter_content():
                 file.write(data)
-        
+
         return path, response
 
     @normalize_exceptions
@@ -659,21 +659,27 @@ class Api(object):
         return response
 
     @normalize_exceptions
-    def register_agent(self, host, persistent):
+    def register_agent(self, host, persistent, sweep, project_name=None):
         """Register a new agent
 
         Args:
             host (str): hostname
             persistent (bool): long running or oneoff
+            sweep (str): sweep id
+            project_name: (str): model that contains sweep
         """
         mutation = gql('''
         mutation CreateAgent(
             $host: String!
+            $modelName: String!,
             $persistent: Boolean,
+            $sweep: String
         ) {
             createAgent(input: {
                 host: $host,
+                modelName: $modelName,
                 persistent: $persistent,
+                sweep: $sweep,
             }) {
                 agent {
                     id
@@ -681,9 +687,13 @@ class Api(object):
             }
         }
         ''')
+        if project_name is None:
+            project_name = self.settings('project')
         response = self.client.execute(mutation, variable_values={
                                        'host': host,
-                                       'persistent': persistent})
+                                       'modelName': project_name,
+                                       'persistent': persistent,
+                                       'sweep': sweep})
         return response['createAgent']['agent']
 
     @normalize_exceptions
@@ -719,6 +729,32 @@ class Api(object):
                                        'runState': json.dumps(run_states)})
         return json.loads(response['heartbeat']['commands'])
 
+    def upsert_sweep(self, config):
+        """Upsert a sweep object.
+
+        Args:
+            config (str): sweep config (will be converted to yaml)
+        """
+        mutation = gql('''
+        mutation UpsertSweet(
+            $config: String,
+            $description: String
+        ) {
+            upsertSweep(input: {
+                config: $config,
+                description: $description
+            }) {
+                sweep {
+                    id
+                }
+            }
+        }
+        ''')
+        response = self.client.execute(mutation, variable_values={
+                                       'config': yaml.dump(config),
+                                       'description': 'New sweep'})
+        return json.loads(response['upsertSweep']['id'])
+
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
         """
@@ -743,7 +779,7 @@ class Api(object):
             _, response = self.download_write_file(urls[fileName])
             if response:
                 responses.append(response)
-                
+
         return responses
 
     @normalize_exceptions

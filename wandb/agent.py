@@ -22,7 +22,8 @@ class Agent(object):
         self._log = []
 
     def run(self):
-        agent = self._api.register_agent(socket.gethostname(), True)
+        # TODO: include sweep ID
+        agent = self._api.register_agent(socket.gethostname(), True, 'asdf')
         agent_id = agent['id']
         while True:
             commands = util.read_many_from_queue(
