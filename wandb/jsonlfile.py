@@ -1,5 +1,6 @@
 import collections
 import os
+import time
 
 import wandb
 from wandb import util
@@ -9,6 +10,7 @@ class JsonlFile(object):
     """Used to store data that changes over time during runs. """
 
     def __init__(self, fname, out_dir='.'):
+        self._start_time = time.time()
         self.fname = os.path.join(out_dir, fname)
         self._file = open(self.fname, 'w')
         self.rows = []
@@ -24,6 +26,7 @@ class JsonlFile(object):
     def add(self, row):
         if not isinstance(row, collections.Mapping):
             raise wandb.Error('history.add expects dict-like')
+        row['_runtime'] = time.time() - self._start_time
         self.rows.append(row)
         self._file.write(util.json_dumps_safer(row))
         self._file.write('\n')
