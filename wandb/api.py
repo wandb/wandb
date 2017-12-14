@@ -4,7 +4,6 @@ from gql.transport.requests import RequestsHTTPTransport
 import os
 import requests
 import ast
-from six.moves import configparser
 from functools import wraps
 import logging
 import hashlib
@@ -22,9 +21,11 @@ import collections
 import itertools
 import logging
 import requests
-import socket
-from six.moves import queue
 from six import BytesIO
+from six.moves import configparser
+from six.moves import queue
+import socket
+import subprocess
 import threading
 import time
 
@@ -161,16 +162,17 @@ class Api(object):
         Args:
             out_dir (str): Directory to write the patch files.
         """
+        root = self.git.root
         if self.git.dirty:
-            self.git.repo.git.execute(['git', 'diff', '--submodule=diff'], output_stream=open(
-                os.path.join(out_dir, 'diff.patch'), 'wb'))
+            with open(os.path.join(out_dir, 'diff.patch'), 'wb') as patch:
+                # we diff against HEAD to ensure we get changes in the index
+                subprocess.check_call(['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root)
 
         upstream_commit = self.git.get_upstream_fork_point()
         if upstream_commit and upstream_commit != self.git.repo.head.commit:
             sha = upstream_commit.hexsha
             with open(os.path.join(out_dir, 'upstream_diff_{}.patch'.format(sha)), 'wb') as upstream_patch:
-                self.git.repo.git.execute(
-                    ['git', 'diff', '--submodule=diff', sha], output_stream=upstream_patch)
+                subprocess.check_call(['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root)
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
