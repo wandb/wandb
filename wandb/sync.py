@@ -249,12 +249,9 @@ class Sync(object):
         except AttributeError:  # windows
             self.tty = sys.stdin.isatty()  # TODO Check for background process in windows
 
-        if not self._description and self.tty:
+        if not self._description:
             #self._description = editor()
             self._description = self._run.id
-        if self._description is None:
-            sys.stderr.write('No description provided, aborting run.\n')
-            sys.exit(1)
         with open(dpath, 'w') as f:
             f.write(self._description)
 
