@@ -19,6 +19,7 @@ import subprocess
 from functools import wraps
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
+import click_log
 import whaaaaat
 import sys
 import traceback
@@ -38,7 +39,6 @@ from wandb import util
 DOCS_URL = 'http://wb-client.readthedocs.io/'
 
 logger = logging.getLogger(__name__)
-
 
 class ClickWandbException(ClickException):
     def format_message(self):
@@ -188,7 +188,9 @@ def cli(ctx):
 
     Run "wandb docs" for full documentation.
     """
-    pass
+    root_logger = logging.getLogger()
+    click_log.basic_config(root_logger)
+    root_logger.setLevel(logging.WARN)
 
 
 @cli.command(context_settings=CONTEXT, help="List projects")
