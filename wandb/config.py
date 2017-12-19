@@ -129,7 +129,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
-        self._set_key(key, val)
+        self._set_key(key, {'desc': None, 'value': val})
         self.persist()
 
     __setattr__ = __setitem__

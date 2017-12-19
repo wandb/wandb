@@ -26,22 +26,11 @@ def test_config_empty_by_default():
         assert conf['b'] == 16
 
 
-@pytest.mark.skip(reason='Very TDD')
 def test_config_accepts_dict_vals():
     with CliRunner().isolated_filesystem():
         conf = config.Config()
         conf['a'] = {'b': 14, 'c': 15}
-
-
-def test_config_persists():
-    with CliRunner().isolated_filesystem():
-        conf = config.Config(run_dir='.')
-        conf['a'] = 5
-        conf.b = 14.3
-
-        conf2 = config.Config(config_paths=['config.yaml'])
-        assert conf2['a'] == 5
-        assert conf2.b == 14.3
+        assert conf.a == {'b': 14, 'c': 15}
 
 
 def test_config_persists():
@@ -66,10 +55,12 @@ def test_config_defaults():
             b:
               desc: null
               value: a_cow
+            c: 141912
             """))
         conf = config.Config(wandb_dir='.')
         assert conf.a == 19
         assert conf.b == 'a_cow'
+        assert conf.c == 141912
 
 
 def test_config_file_overrides():
