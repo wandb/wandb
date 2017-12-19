@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 from .api import Error
+from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,9 @@ class Config(object):
         # TODO: Replace this with an event system.
         object.__setattr__(self, '_persist_callback', persist_callback)
 
-        object.__setattr__(self, '_items', {})
+        # OrderedDict to make writing unit tests easier. (predictable order for
+        # .key())
+        object.__setattr__(self, '_items', OrderedDict())
         object.__setattr__(self, '_descriptions', {})
 
         self._load_defaults()
@@ -126,7 +129,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
-        self._set_key(key, val)
+        self._set_key(key, {'desc': None, 'value': val})
         self.persist()
 
     __setattr__ = __setitem__
