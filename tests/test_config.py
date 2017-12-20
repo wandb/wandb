@@ -33,6 +33,14 @@ def test_config_accepts_dict_vals():
         assert conf.a == {'b': 14, 'c': 15}
 
 
+def test_config_update_accepts_dict_vals():
+    with CliRunner().isolated_filesystem():
+        conf = config.Config()
+        conf.update({'b': 14, 'c': 15})
+        assert conf.b == 14
+        assert conf.c == 15
+
+
 def test_config_persists():
     with CliRunner().isolated_filesystem():
         conf = config.Config(run_dir='.')

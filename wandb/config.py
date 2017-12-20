@@ -78,17 +78,17 @@ class Config(object):
         for key, val in items.items():
             if key == 'wandb_version':
                 continue
-            self._set_key(key, val, error_prefix=error_prefix)
+            if isinstance(val, dict):
+                if 'value' not in val:
+                    raise Error('%svalue of %s is dict, but does not contain "value" key' % (
+                        error_prefix, key))
+                self._items[key] = val['value']
+                if 'desc' in val:
+                    self._descriptions[key] = val['desc']
+            else:
+                self._items[key] = val
 
-    def _set_key(self, key, val, error_prefix=''):
-        # if isinstance(val, dict):
-        #    if 'value' not in val:
-        #        raise Error('%svalue of %s is dict, but does not contain "value" key' % (
-        #            error_prefix, key))
-        #    self._items[key] = val['value']
-        #    if 'desc' in val:
-        #        self._descriptions[key] = val['desc']
-        # else:
+    def _set_key(self, key, val):
         self._items[key] = val
 
     def keys(self):
@@ -129,7 +129,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
-        self._set_key(key, {'desc': None, 'value': val})
+        self._set_key(key, val)
         self.persist()
 
     __setattr__ = __setitem__
