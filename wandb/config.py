@@ -81,15 +81,15 @@ class Config(object):
             self._set_key(key, val, error_prefix=error_prefix)
 
     def _set_key(self, key, val, error_prefix=''):
-        if isinstance(val, dict):
-            if 'value' not in val:
-                raise Error('%svalue of %s is dict, but does not contain "value" key' % (
-                    error_prefix, key))
-            self._items[key] = val['value']
-            if 'desc' in val:
-                self._descriptions[key] = val['desc']
-        else:
-            self._items[key] = val
+        # if isinstance(val, dict):
+        #    if 'value' not in val:
+        #        raise Error('%svalue of %s is dict, but does not contain "value" key' % (
+        #            error_prefix, key))
+        #    self._items[key] = val['value']
+        #    if 'desc' in val:
+        #        self._descriptions[key] = val['desc']
+        # else:
+        self._items[key] = val
 
     def keys(self):
         """All keys in the current configuration"""
