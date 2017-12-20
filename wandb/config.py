@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 from .api import Error
+from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +28,15 @@ class Config(object):
         # TODO: Replace this with an event system.
         object.__setattr__(self, '_persist_callback', persist_callback)
 
-        object.__setattr__(self, '_items', {})
+        # OrderedDict to make writing unit tests easier. (predictable order for
+        # .key())
+        object.__setattr__(self, '_items', OrderedDict())
         object.__setattr__(self, '_descriptions', {})
 
         self._load_defaults()
         for conf_path in config_paths:
             self._load_file(conf_path)
-        self._persist()
+        self.persist()
 
     def _load_defaults(self):
         if not self._wandb_dir:
@@ -102,7 +105,7 @@ class Config(object):
             self._items[key] = json[key].get('value')
             self._descriptions[key] = json[key].get('desc')
 
-    def _persist(self):
+    def persist(self):
         """Stores the current configuration for pushing to W&B"""
         if not self._run_dir or not os.path.isdir(self._run_dir):
             # In dryrun mode, without wandb run, we don't
@@ -126,8 +129,8 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
-        self._set_key(key, val)
-        self._persist()
+        self._set_key(key, {'desc': None, 'value': val})
+        self.persist()
 
     __setattr__ = __setitem__
 
@@ -148,7 +151,7 @@ class Config(object):
                 raise TypeError(
                     "config must be a dict or have a __dict__ attribute.")
         self._update_from_dict(params)
-        self._persist()
+        self.persist()
 
     def as_dict(self):
         defaults = {}

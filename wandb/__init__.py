@@ -76,7 +76,7 @@ def termlog(string='', newline=True):
     click.echo(line, file=_orig_stderr, nl=newline)
 
 
-def _do_sync(mode, job_type, run, show_run, extra_config=None):
+def _do_sync(mode, job_type, run, show_run, sweep_id=None):
     syncer = None
     termlog()
     if mode == 'run':
@@ -85,9 +85,8 @@ def _do_sync(mode, job_type, run, show_run, extra_config=None):
             raise wandb_api.Error(
                 "No API key found, run `wandb login` or set WANDB_API_KEY")
         api.set_current_run_id(run.id)
-        if extra_config is not None:
-            run.config.update(extra_config)
-        syncer = sync.Sync(api, job_type, run, config=run.config)
+        syncer = sync.Sync(api, job_type, run,
+                           config=run.config, sweep_id=sweep_id)
         syncer.watch(files='*', show_run=show_run)
     elif mode == 'dryrun':
         termlog(
@@ -140,6 +139,7 @@ def init(job_type='train'):
     if conf_paths:
         conf_paths = conf_paths.split(',')
     show_run = bool(os.getenv('WANDB_SHOW_RUN'))
+    sweep_id = os.getenv('WANDB_SWEEP_ID', None)
 
     config = None
     syncer = None
@@ -157,7 +157,7 @@ def init(job_type='train'):
     # This doesn't protect against the case where the parent doesn't call
     # wandb.init but two children do.
     if not os.getenv('WANDB_INITED'):
-        syncer = _do_sync(mode, job_type, run, show_run)
+        syncer = _do_sync(mode, job_type, run, show_run, sweep_id=sweep_id)
         os.environ['WANDB_INITED'] = '1'
     return run
 
