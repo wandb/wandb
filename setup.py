@@ -27,7 +27,7 @@ test_requirements = [
 
 setup(
     name='wandb',
-    version='0.4.36',
+    version='0.4.37',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     author="Chris Van Pelt",
