@@ -82,6 +82,8 @@ class GitRepo(object):
             git.Commit object or None
         """
         possible_relatives = []
+        if not self.repo:
+            return None
         try:
             active_branch = self.repo.active_branch
         except (TypeError, ValueError):
