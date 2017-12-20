@@ -68,28 +68,18 @@ class Config(object):
             except KeyError:
                 raise Error('Asked for %s but %s not present in %s' % (
                     path, subkey, conf_path))
-        self._update_from_dict(
-            loaded, error_prefix='In config %s, ' % path)
-
-    def _update_from_dict(self, items, error_prefix=''):
-        if not isinstance(items, dict):
-            raise Error('%sExpected dict but received %s' %
-                        (error_prefix, items))
-        for key, val in items.items():
+        for key, val in loaded.items():
             if key == 'wandb_version':
                 continue
             if isinstance(val, dict):
                 if 'value' not in val:
-                    raise Error('%svalue of %s is dict, but does not contain "value" key' % (
-                        error_prefix, key))
+                    raise Error('In config %s value of %s is dict, but does not contain "value" key' % (
+                        path, key))
                 self._items[key] = val['value']
                 if 'desc' in val:
                     self._descriptions[key] = val['desc']
             else:
                 self._items[key] = val
-
-    def _set_key(self, key, val):
-        self._items[key] = val
 
     def keys(self):
         """All keys in the current configuration"""
@@ -129,7 +119,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
-        self._set_key(key, val)
+        self._items[key] = val
         self.persist()
 
     __setattr__ = __setitem__
@@ -150,7 +140,10 @@ class Config(object):
             except TypeError:
                 raise TypeError(
                     "config must be a dict or have a __dict__ attribute.")
-        self._update_from_dict(params)
+        if not isinstance(params, dict):
+            raise Error('Expected dict but received %s' % params)
+        for key, val in params.items():
+            self._items[key] = val
         self.persist()
 
     def as_dict(self):
