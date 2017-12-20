@@ -4,7 +4,6 @@ from gql.transport.requests import RequestsHTTPTransport
 import os
 import requests
 import ast
-from six.moves import configparser
 from functools import wraps
 import logging
 import hashlib
@@ -22,9 +21,11 @@ import collections
 import itertools
 import logging
 import requests
-import socket
-from six.moves import queue
 from six import BytesIO
+from six.moves import configparser
+from six.moves import queue
+import socket
+import subprocess
 import threading
 import time
 
@@ -87,7 +88,7 @@ def normalize_exceptions(func):
             else:
                 message = str(err)
             if os.getenv("WANDB_DEBUG") == "true":
-                raise err
+                raise
             else:
                 raise CommError(message)
     return wrapper
@@ -147,10 +148,45 @@ class Api(object):
         self._current_run_id = None
         self._file_stream_api = None
 
-    def save_patch(self, out_dir):
+    def save_patches(self, out_dir):
+        """Save the current state of this repository to one or more patches.
+
+        Makes one patch against HEAD and another one against the most recent
+        commit that occurs in an upstream branch. This way we can be robust
+        to history editing as long as the user never does "push -f" to break
+        history on an upstream branch.
+
+        Writes the first patch to <out_dir>/diff.patch and the second to
+        <out_dir>/upstream_diff_<commit_id>.patch.
+
+        Args:
+            out_dir (str): Directory to write the patch files.
+        """
+        root = self.git.root
         if self.git.dirty:
-            self.git.repo.git.execute(['git', 'diff'], output_stream=open(
-                os.path.join(out_dir, 'diff.patch'), 'wb'))
+            patch_path = os.path.join(out_dir, 'diff.patch')
+            try:
+                with open(patch_path, 'wb') as patch:
+                    # we diff against HEAD to ensure we get changes in the index
+                    subprocess.check_call(['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root)
+            except subprocess.CalledProcessError:
+                # the --submodule=diff option doesn't exist in pre-2.11 versions of git (november 2016)
+                # https://stackoverflow.com/questions/10757091/git-list-of-all-changed-files-including-those-in-submodules
+                print("WARNING: Diffing ignoring submodules because git is an old version (< 2.11)")
+                with open(patch_path, 'wb') as patch:
+                    subprocess.check_call(['git', 'diff', 'HEAD'], stdout=patch, cwd=root)
+
+        upstream_commit = self.git.get_upstream_fork_point()
+        if upstream_commit and upstream_commit != self.git.repo.head.commit:
+            sha = upstream_commit.hexsha
+            upstream_patch_path = os.path.join(out_dir, 'upstream_diff_{}.patch'.format(sha))
+            try:
+                with open(upstream_patch_path, 'wb') as upstream_patch:
+                    subprocess.check_call(['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root)
+            except subprocess.CalledProcessError:
+                print("WARNING: Diffing ignoring submodules because git is an old version (< 2.11)")
+                with open(upstream_patch_path, 'wb') as upstream_patch:
+                    subprocess.check_call(['git', 'diff', sha], stdout=upstream_patch, cwd=root)
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
@@ -165,12 +201,26 @@ class Api(object):
 
     @property
     def api_key(self):
-        auth = requests.utils.get_netrc_auth(self.settings()['base_url'])
+        auth = requests.utils.get_netrc_auth(self.api_url)
         if auth:
             key = auth[-1]
         else:
             key = os.environ.get("WANDB_API_KEY")
         return key
+
+    @property
+    def api_url(self):
+        return self.settings('base_url')
+
+    @property
+    def app_url(self):
+        api_url = self.api_url
+        if api_url.endswith('.test'):
+            return 'http://app.test'
+        elif api_url.endswith('wandb.ai'):
+            return 'https://app.wandb.ai'
+        else:
+            return api_url
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
@@ -360,7 +410,7 @@ class Api(object):
         ''')
 
         response = self.client.execute(query, variable_values={
-            'name': project, 'bucket': run, 'entity': entity
+            'name': project, 'run': run, 'entity': entity
         })
         run = response['model']['bucket']
         commit = run['commit']
@@ -396,7 +446,8 @@ class Api(object):
     @normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None,
                    config=None, description=None, entity=None,
-                   repo=None, job_type=None, program_path=None, commit=None):
+                   repo=None, job_type=None, program_path=None, commit=None,
+                   sweep_name=None):
         """Update a run
 
         Args:
@@ -423,7 +474,8 @@ class Api(object):
             $debug: Boolean,
             $program: String,
             $repo: String,
-            $jobType: String
+            $jobType: String,
+            $sweep: String
         ) {
             upsertBucket(input: {
                 id: $id, name: $name,
@@ -436,7 +488,8 @@ class Api(object):
                 debug: $debug,
                 jobProgram: $program,
                 jobRepo: $repo,
-                jobType: $jobType
+                jobType: $jobType,
+                sweep: $sweep
             }) {
                 bucket {
                     id
@@ -454,7 +507,8 @@ class Api(object):
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit or self._commit,
-            'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type})
+            'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type,
+            'sweep': sweep_name})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -502,8 +556,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']: file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -562,6 +615,29 @@ class Api(object):
         return (int(response.headers.get('content-length', 0)), response)
 
     @normalize_exceptions
+    def download_write_file(self, metadata):
+        """Download a file from a run and write it to wandb/
+
+        Args:
+            metadta (obj): The metadata object for the file to download. Comes from Api.download_urls().
+
+        Returns:
+            A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
+        """
+        fileName = metadata['name']
+        path = os.path.join(__stage_dir__, fileName)
+        if self.file_current(fileName, metadata['md5']):
+            return path, None
+
+        size, response = self.download_file(metadata['url'])
+
+        with open(path, "wb") as file:
+            for data in response.iter_content():
+                file.write(data)
+
+        return path, response
+
+    @normalize_exceptions
     def upload_file(self, url, file, callback=None):
         """Uploads a file to W&B with failure resumption
 
@@ -602,6 +678,106 @@ class Api(object):
                     raise e
         return response
 
+    @normalize_exceptions
+    def register_agent(self, host, persistent, sweep_id=None, project_name=None):
+        """Register a new agent
+
+        Args:
+            host (str): hostname
+            persistent (bool): long running or oneoff
+            sweep (str): sweep id
+            project_name: (str): model that contains sweep
+        """
+        mutation = gql('''
+        mutation CreateAgent(
+            $host: String!
+            $modelName: String!,
+            $persistent: Boolean,
+            $sweep: String
+        ) {
+            createAgent(input: {
+                host: $host,
+                modelName: $modelName,
+                persistent: $persistent,
+                sweep: $sweep,
+            }) {
+                agent {
+                    id
+                }
+            }
+        }
+        ''')
+        if project_name is None:
+            project_name = self.settings('project')
+        response = self.client.execute(mutation, variable_values={
+                                       'host': host,
+                                       'modelName': project_name,
+                                       'persistent': persistent,
+                                       'sweep': sweep_id})
+        return response['createAgent']['agent']
+
+    @normalize_exceptions
+    def agent_heartbeat(self, agent_id, metrics, run_states):
+        """Notify server about agent state, receive commands.
+
+        Args:
+            agent_id (str): agent_id
+            metrics (dict): system metrics
+            run_states (dict): run_id: state mapping
+        """
+        mutation = gql('''
+        mutation Heartbeat(
+            $id: String!,
+            $metrics: JSONString,
+            $runState: JSONString
+        ) {
+            heartbeat(input: {
+                id: $id,
+                metrics: $metrics,
+                runState: $runState
+            }) {
+                agent {
+                    id
+                }
+                commands
+            }
+        }
+        ''')
+        response = self.client.execute(mutation, variable_values={
+                                       'id': agent_id,
+                                       'metrics': json.dumps(metrics),
+                                       'runState': json.dumps(run_states)})
+        return json.loads(response['heartbeat']['commands'])
+
+    def upsert_sweep(self, config):
+        """Upsert a sweep object.
+
+        Args:
+            config (str): sweep config (will be converted to yaml)
+        """
+        mutation = gql('''
+        mutation UpsertSweet(
+            $config: String,
+            $description: String,
+            $modelName: String!
+        ) {
+            upsertSweep(input: {
+                config: $config,
+                description: $description,
+                modelName: $modelName
+            }) {
+                sweep {
+                    name
+                }
+            }
+        }
+        ''')
+        response = self.client.execute(mutation, variable_values={
+                                       'config': yaml.dump(config),
+                                       'description': config.get("description"),
+                                       'modelName': self.settings("project")})
+        return response['upsertSweep']['sweep']['name']
+
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
         """
@@ -623,13 +799,10 @@ class Api(object):
         urls = self.download_urls(project, run, entity)
         responses = []
         for fileName in urls:
-            if self.file_current(fileName, urls[fileName]['md5']):
-                continue
-            with open(fileName, "wb") as file:
-                size, res = self.download_file(urls[fileName]['url'])
-                responses.append(res)
-                for data in res.iter_content():
-                    file.write(data)
+            _, response = self.download_write_file(urls[fileName])
+            if response:
+                responses.append(response)
+
         return responses
 
     @normalize_exceptions
@@ -819,19 +992,8 @@ class FileStreamApi(object):
         #
         # If we have more than MAX_ITEMS_PER_PUSH in the queue then the push thread
         # will get behind and data will buffer up in the queue.
-
-        try:
-            item = self._queue.get(True, self.RATE_LIMIT_SECONDS)
-        except queue.Empty:
-            return []
-        items = [item]
-        for i in range(self.MAX_ITEMS_PER_PUSH):
-            try:
-                item = self._queue.get_nowait()
-            except queue.Empty:
-                return items
-            items.append(item)
-        return items
+        return util.read_many_from_queue(
+            self._queue, self.MAX_ITEMS_PER_PUSH, self.RATE_LIMIT_SECONDS)
 
     def _thread_body(self):
         posted_data_time = time.time()

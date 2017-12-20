@@ -225,13 +225,14 @@ class Sync(object):
     """Watches for files to change and automatically pushes them
     """
 
-    def __init__(self, api, job_type, run, config=None, project=None, tags=[], datasets=[], description=None):
-        # 1.6 million 6 character combinations
+    def __init__(self, api, job_type, run, config=None, project=None, tags=[], datasets=[], description=None, sweep_id=None):
         self._job_type = job_type
         self._run = run
+        self._sweep_id = sweep_id
         self._watch_dir = os.path.abspath(self._run.dir)
         self._project = project or api.settings("project")
         self._entity = api.settings("entity")
+        self._signal = None
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
         # Load description and write it to the run directory.
@@ -248,6 +249,8 @@ class Sync(object):
                         os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno()))  # check if background process
         except AttributeError:  # windows
             self.tty = sys.stdin.isatty()  # TODO Check for background process in windows
+        except OSError:
+            self.tty = False
 
         if not self._description:
             #self._description = editor()
@@ -261,16 +264,11 @@ class Sync(object):
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.on_file_created
         self._handler.on_modified = self.on_file_modified
-        base_url = api.settings('base_url')
-        if base_url.endswith('.dev'):
-            base_url = 'http://app.dev'
-        elif base_url.endswith('wandb.ai'):
-            base_url = 'https://app.wandb.ai'
         self.url = "{base}/{entity}/{project}/runs/{run}".format(
             project=self._project,
             entity=self._entity,
             run=self._run.id,
-            base=base_url
+            base=api.app_url
         )
         self._hooks = ExitHooks()
         self._hooks.hook()
@@ -319,7 +317,8 @@ class Sync(object):
             # TODO: better failure handling
             upsert_result = self._api.upsert_run(name=self._run.id, project=self._project, entity=self._entity,
                                                  config=self._config.as_dict(), description=self._description, host=host,
-                                                 program_path=program_path, job_type=self._job_type, repo=remote_url)
+                                                 program_path=program_path, job_type=self._job_type, repo=remote_url,
+                                                 sweep_name=self._sweep_id)
             self._run_storage_id = upsert_result['id']
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
@@ -327,7 +326,7 @@ class Sync(object):
             self._handler._ignore_patterns = ['*/.*', '*.tmp']
             self._observer.start()
 
-            self._api.save_patch(self._watch_dir)
+            self._api.save_patches(self._watch_dir)
 
             if self._job_type not in ['train', 'eval']:
                 wandb.termlog(
@@ -355,6 +354,7 @@ class Sync(object):
             logger.debug("Swapped stdout/stderr")
 
             atexit.register(self.stop)
+            signal.signal(signal.SIGTERM, self._sigkill)
         except KeyboardInterrupt:
             self.stop()
         except Error:
@@ -375,14 +375,26 @@ class Sync(object):
         self._api.upsert_run(id=self._run_storage_id,
                              config=self._config.as_dict())
 
+    def _sigkill(self, *args):
+        self._signal = signal.SIGTERM
+        # Send keyboard interrupt to ourself! This triggers the python behavior of stopping the
+        # running script, and since we've hooked into the exception handler we'll then run
+        # stop.
+        # This is ugly, but we're planning to move sync to an external process which will
+        # solve it.
+        os.kill(os.getpid(), signal.SIGINT)
+
     def stop(self):
         wandb.termlog()
-        if isinstance(self._hooks.exception, KeyboardInterrupt):
+        if self._signal == signal.SIGTERM:
+            wandb.termlog(
+                'Script ended because of SIGTERM, press ctrl-c to abort syncing.')
+        elif isinstance(self._hooks.exception, KeyboardInterrupt):
             wandb.termlog(
                 'Script ended because of ctrl-c, press ctrl-c again to abort syncing.')
         elif self._hooks.exception:
             wandb.termlog(
-                'Script ended because of Exception, press ctrl-c again to abort syncing.')
+                'Script ended because of Exception, press ctrl-c to abort syncing.')
         else:
             wandb.termlog('Script ended.')
 
