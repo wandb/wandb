@@ -76,9 +76,11 @@ class WandbKerasCallback(object):
 
         # summary
         current = logs.get(self.monitor)
-        if current is None:
-            print('Can save best model only with %s available, '
-                  'skipping.' % (self.monitor))
+        if current is None:    # validation data wasn't set
+#            print('Can save best model only with %s available, '
+#                  'skipping.' % (self.monitor))
+            wandb.run.summary.update(row)
+            return
 
         copied = copy.copy(row)
         if self.monitor_op(current, self.best):
