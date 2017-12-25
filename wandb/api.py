@@ -716,7 +716,6 @@ class Api(object):
                                        'sweep': sweep_id})
         return response['createAgent']['agent']
 
-    @normalize_exceptions
     def agent_heartbeat(self, agent_id, metrics, run_states):
         """Notify server about agent state, receive commands.
 
@@ -724,6 +723,8 @@ class Api(object):
             agent_id (str): agent_id
             metrics (dict): system metrics
             run_states (dict): run_id: state mapping
+        Returns:
+            List of commands to execute.
         """
         mutation = gql('''
         mutation Heartbeat(
@@ -743,11 +744,18 @@ class Api(object):
             }
         }
         ''')
-        response = self.client.execute(mutation, variable_values={
-                                       'id': agent_id,
-                                       'metrics': json.dumps(metrics),
-                                       'runState': json.dumps(run_states)})
-        return json.loads(response['heartbeat']['commands'])
+        try:
+            response = self.client.execute(mutation, variable_values={
+                                           'id': agent_id,
+                                           'metrics': json.dumps(metrics),
+                                           'runState': json.dumps(run_states)})
+        except Exception as e:
+            # GQL raises exceptions with stringified python dictionaries :/
+            message = ast.literal_eval(e.args[0])["message"]
+            logger.error('Error communicating with W&B: %s', message)
+            return []
+        else:
+            return json.loads(response['heartbeat']['commands'])
 
     def upsert_sweep(self, config):
         """Upsert a sweep object.
