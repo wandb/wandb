@@ -1,17 +1,10 @@
+#!/usr/bin/env python
+
 import datetime
-import io
-import tempfile
-import time
-import sys
-from requests import Session
-from six.moves import queue
-import traceback
 import logging
 import re
-import signal
-import os
-import logging
-import six
+import time
+
 logger = logging.getLogger(__name__)
 
 

@@ -169,7 +169,7 @@ def find_runner(program):
             return None
         first_line = opened.readline().strip()
         if first_line.startswith('#!'):
-            return first_line[2:]
+            return first_line[2:]  # TODO(adrian): should shlex.split() this
         if program.endswith('.py'):
             return 'python'
     return None
