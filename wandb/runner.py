@@ -10,7 +10,6 @@ from wandb import wandb_run
 from wandb import util
 from wandb import sync
 from wandb import wandb_api
-from wandb import streaming_log
 
 
 class RunnerError(Exception):
@@ -68,12 +67,6 @@ class SingleRun(multiprocessing.Process):
         # self._api.set_current_run_id(run.id)
         #syncer = sync.Sync(self._api, 'train', run, config=run.config)
         #syncer.watch(files='*', show_run=self._show)
-
-        # stdout_stream = streaming_log.TextStreamPusher(
-        #    self._api.get_file_stream_api(), 'output.log', prepend_timestamp=True)
-        # stderr_stream = streaming_log.TextStreamPusher(
-        #    self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
-        #    prepend_timestamp=True)
 
         command = [self._program] + list(self._args)
         runner = util.find_runner(self._program)
