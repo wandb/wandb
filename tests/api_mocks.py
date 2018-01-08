@@ -77,12 +77,12 @@ def success_or_failure(payload=None, body_match="query"):
     return wrapper
 
 
-def _query(key, json):
+def _query(key, json, body_match="query"):
     payload = {}
     if type(json) == list:
         json = {'edges': [{'node': item} for item in json]}
     payload[key] = json
-    return success_or_failure(payload=payload)
+    return success_or_failure(payload=payload, body_match=body_match)
 
 
 def _mutate(key, json):
@@ -108,7 +108,7 @@ def query_empty_project():
 
 @pytest.fixture
 def query_projects():
-    return _query('models', [project("test_1"), project("test_2"), project("test_3")])
+    return _query('models', [project("test_1"), project("test_2"), project("test_3")], body_match="query Models")
 
 
 @pytest.fixture
@@ -122,8 +122,18 @@ def query_run():
 
 
 @pytest.fixture
-def query_viewer():
-    return success_or_failure(payload={'viewer': {'entity': 'foo'}})
+def query_viewer(request):
+    marker = request.node.get_marker('teams')
+    if marker:
+        teams = marker.args
+    else:
+        teams = ['foo']
+    return success_or_failure(payload={'viewer': {
+        'entity': 'foo',
+        'teams': {
+            'edges': [{'node': {'name': team}} for team in teams]
+        }
+    }}, body_match="query Viewer")
 
 
 @pytest.fixture

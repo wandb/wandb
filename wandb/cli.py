@@ -40,6 +40,7 @@ DOCS_URL = 'http://wb-client.readthedocs.io/'
 
 logger = logging.getLogger(__name__)
 
+
 class ClickWandbException(ClickException):
     def format_message(self):
         log_file = util.get_log_file_path()
@@ -468,9 +469,27 @@ def init(ctx):
 
     IS_INIT = True
 
-    entity = click.prompt("What username or org should we use?",
-                          default=api.viewer().get('entity', 'models'))
-    project = prompt_for_project(ctx, entity)
+    viewer = api.viewer()
+    if len(viewer["teams"]["edges"]) > 1:
+        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]]
+        question = {
+            'type': 'list',
+            'name': 'team_name',
+            'message': "Which team should we use?",
+            'choices': team_names + ["Manual Entry"]
+        }
+        entity = whaaaaat.prompt([question])['team_name']
+        if entity == "Manual Entry":
+            entity = click.prompt("Enter the name of the team you want to use")
+    else:
+        entity = click.prompt("What username or team should we use?",
+                              default=viewer.get('entity', 'models'))
+
+    # TODO: this error handling sucks and the output isn't pretty
+    try:
+        project = prompt_for_project(ctx, entity)
+    except wandb.cli.ClickWandbException:
+        raise ClickException('Could not find team: %s' % entity)
 
     from wandb import _set_stage_dir, wandb_dir
     if wandb_dir() is None:

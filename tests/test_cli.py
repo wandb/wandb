@@ -37,7 +37,8 @@ def runner(monkeypatch):
         default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
     monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {
-                        'project_name': 'test_model', 'files': ['weights.h5']})
+                        'project_name': 'test_model', 'files': ['weights.h5'],
+                        'team_name': 'Manual Entry'})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
     return CliRunner()
 
@@ -336,8 +337,8 @@ def test_projects_error(runner, request_mocker, query_projects):
 
 
 def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer):
+    mock = query_projects(request_mocker)
     query_viewer(request_mocker)
-    query_projects(request_mocker)
     with runner.isolated_filesystem():
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
@@ -346,6 +347,30 @@ def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_
         print('Output: ', result.output)
         print('Exception: ', result.exception)
         print('Traceback: ', traceback.print_tb(result.exc_info[2]))
+        assert mock.called
+        assert result.exit_code == 0
+        with open("netrc", "r") as f:
+            generatedNetrc = f.read()
+        with open("wandb/settings", "r") as f:
+            generatedWandb = f.read()
+        assert DUMMY_API_KEY in generatedNetrc
+        assert "test_model" in generatedWandb
+
+
+@pytest.mark.teams("foo", "bar")
+def test_init_multi_team(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer):
+    mock = query_projects(request_mocker)
+    query_viewer(request_mocker)
+    with runner.isolated_filesystem():
+        # If the test was run from a directory containing .wandb, then __stage_dir__
+        # was '.wandb' when imported by api.py, reload to fix. UGH!
+        reload(wandb)
+        result = runner.invoke(
+            cli.init, input="%s\nvanpelt" % DUMMY_API_KEY)
+        print('Output: ', result.output)
+        print('Exception: ', result.exception)
+        print('Traceback: ', traceback.print_tb(result.exc_info[2]))
+        assert mock.called
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()

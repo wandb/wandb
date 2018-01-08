@@ -277,10 +277,18 @@ class Api(object):
             viewer {
                 id
                 entity
+                teams {
+                    edges {
+                        node {
+                            name
+                        }
+                    }
+                }
             }
         }
         ''')
-        return self.client.execute(query).get('viewer') or {}
+        res = self.client.execute(query)
+        return res.get('viewer', {})
 
     @normalize_exceptions
     def list_projects(self, entity=None):
@@ -619,7 +627,7 @@ class Api(object):
         """Download a file from a run and write it to wandb/
 
         Args:
-            metadta (obj): The metadata object for the file to download. Comes from Api.download_urls().
+            metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
 
         Returns:
             A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
