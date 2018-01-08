@@ -10,6 +10,8 @@ import subprocess
 import threading
 import time
 
+from wandb import io_wrap
+
 logger = logging.getLogger(__name__)
 
 # TODO: get rid of this
@@ -71,23 +73,14 @@ class SafeSubprocess(object):
             self._popen = subprocess.Popen(
                 self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 env=self._env)
-            self._stdout_thread = self._spawn_reader_thread(
-                self._popen.stdout, self._stdout)
-            self._stderr_thread = self._spawn_reader_thread(
-                self._popen.stderr, self._stderr)
+            self._stdout_thread = io_wrap.spawn_reader_writer(
+                lambda: self._popen.stdout.read(64).decode('utf-8'),
+                self._stdout.put)
+            self._stderr_thread = io_wrap.spawn_reader_writer(
+                lambda: self._popen.stderr.read(64).decode('utf-8'),
+                self._stderr.put)
         else:
             self._popen = subprocess.Popen(self._args, env=self._env)
-
-    def _spawn_reader_thread(self, filelike, out_queue):
-        def _reader_thread(filelike, out_queue):
-            while True:
-                out = filelike.read(64).decode('utf-8')
-                if not out:
-                    break
-                out_queue.put(out)
-
-        threading.Thread(target=_reader_thread,
-                         args=(filelike, out_queue)).start()
 
     def _read(self, rqueue):
         try:
@@ -169,7 +162,7 @@ def find_runner(program):
             return None
         first_line = opened.readline().strip()
         if first_line.startswith('#!'):
-            return first_line[2:]
+            return first_line[2:]  # TODO(adrian): should shlex.split() this
         if program.endswith('.py'):
             return 'python'
     return None

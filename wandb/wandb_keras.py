@@ -92,11 +92,14 @@ class WandbKerasCallback(object):
                       % (epoch, self.monitor, self.best,
                          current, self.filepath))
             self.best = current
-            if self.save_weights_only:
-                self.model.save_weights(self.filepath, overwrite=True)
-            else:
-                self.model.save(self.filepath, overwrite=True)
-
+            try:
+                if self.save_weights_only:
+                    self.model.save_weights(self.filepath, overwrite=True)
+                else:
+                    self.model.save(self.filepath, overwrite=True)
+            except ImportError:
+                print("Warning: Can't save model without h5py installed")
+                
     def on_batch_begin(self, batch, logs=None):
         pass
 
