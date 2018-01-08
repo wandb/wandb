@@ -43,7 +43,8 @@ class GitRepo(object):
     def last_commit(self):
         if not self.repo:
             return None
-        # TODO: this was blowing up when the repo was detached in kubeml
+        if not self.repo.head:
+            return None
         if len(self.repo.refs) > 0:
             return self.repo.head.commit.hexsha
         else:

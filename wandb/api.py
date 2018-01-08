@@ -135,7 +135,6 @@ class Api(object):
         else:
             self.settings_file = "Not found"
         self.git = GitRepo(remote=self.settings("git_remote"))
-        self._commit = self.git.last_commit
         self.client = Client(
             retries=self.retries,
             transport=RequestsHTTPTransport(
@@ -504,9 +503,10 @@ class Api(object):
             config = json.dumps(config)
         if not description:
             description = None
+        commit = commit or self.git.last_commit
         response = self.client.execute(mutation, variable_values={
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
-            'description': description, 'config': config, 'commit': commit or self._commit,
+            'description': description, 'config': config, 'commit': commit,
             'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'sweep': sweep_name})
         return response['upsertBucket']['bucket']
