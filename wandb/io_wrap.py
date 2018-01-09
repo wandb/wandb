@@ -68,16 +68,14 @@ class FileTee(object):
         for q in self._queues:
             q.put(message)
 
+    # we implement the optional parts of the file interface in case the user's program uses them
     def fileno(self):
-        assert False  # XXX hope we don't actually need this
         return self._orig_stream.fileno()
 
     def flush(self):
-        assert False  # XXX hope we don't actually need this
         self._orig_stream.flush()
 
     def close(self):
-        assert False  # XXX hope we don't actually need this
         self._queue.put(None)
 
 
