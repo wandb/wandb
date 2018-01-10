@@ -1,11 +1,17 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 """Utilities for capturing output from the current process and processes it
 starts.
 
 This file is also a test harness for I/O wrapping: run it as a script with a
 shell command in the commandline arguments to see how PTY redirection behaves
 for that command.
+
+Watch out for bugs in this module. Uncaught exceptions here may prevent their
+own tracebacks from being written to the terminal. Disable STDERR wrapping by
+setting WANDB_DEBUG to 'true'.
 
 == Resources
 
@@ -21,21 +27,22 @@ https://github.com/python/cpython/blob/master/Lib/pty.py
 PTYProcess from Pexpect, a Python implementation of expect (good *nix support):
 https://github.com/pexpect/ptyprocess/blob/master/ptyprocess/ptyprocess.py
 
-https://eli.thegreenplace.net/2015/redirecting-all-kinds-of-stdout-in-python/
 https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python/22434262#22434262
+https://eli.thegreenplace.net/2015/redirecting-all-kinds-of-stdout-in-python/
 https://stackoverflow.com/questions/34186035/can-you-fool-isatty-and-log-stdout-and-stderr-separately?rq=1
 """
 
-import ctypes
+import atexit
 import io
 import logging
 import os
 import pty
+import subprocess
 import sys
 import tempfile
 import threading
 
-from six.moves import queue
+from six.moves import queue, shlex_quote
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +71,11 @@ class FileTee(object):
             self._threads.append(spawn_reader_writer(q.get, f.write))
 
     def write(self, message):
-        self._sync_file.write(message)
+        i = self._sync_file.write(message)
+        if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
+            while i < len(message):
+                i += self._sync_file.write(message[i:])
+
         for q in self._queues:
             q.put(message)
 
@@ -89,10 +100,21 @@ class FileTee(object):
 
 
 def spawn_reader_writer(get_data_fn, put_data_fn):
+    """Spawn a thread that reads from a data source and writes to a sink.
+
+    The thread will terminate if it receives None from the source.
+
+    Args:
+        get_data_fn: Data-reading function. Called repeatedly until it returns
+            None to indicate that the thread should terminate.
+        put_data_fn: Data-writing function. Called every time `get_data_fn`
+            returns something other than None.
+    Returns: threading.Thread
+    """
     def _reader_thread():
         while True:
             out = get_data_fn()
-            if not out:
+            if out is None:
                 break
             put_data_fn(out)
 
@@ -108,7 +130,8 @@ def python_io_wrap(stdout_pusher, stderr_pusher):
     libraries that do lower-level I/O directly.
     """
     sys.stdout = FileTee(sys.stdout, stdout_pusher)
-    sys.stderr = FileTee(sys.stderr, stderr_pusher)
+    if os.environ.get('WANDB_DEBUG') != 'true':
+        sys.stderr = FileTee(sys.stderr, stderr_pusher)
 
 
 class PtyIoWrap(object):
@@ -123,32 +146,34 @@ class PtyIoWrap(object):
         if stderr_readers is None:
             stderr_readers = []
 
+        # TODO(adrian): handle failures in the following:
         stdout_master_fd, stdout_slave_fd = pty.openpty()
         stderr_master_fd, stderr_slave_fd = pty.openpty()
 
-        self._stdout_master = os.fdopen(stdout_master_fd, 'rwb')
-        self._stdout_slave = os.fdopen(stdout_slave_fd, 'rwb')
-        self._stderr_master = os.fdopen(stderr_master_fd, 'rwb')
-        self._stderr_slave = os.fdopen(stderr_slave_fd, 'rwb')
+        self._stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
+        self._stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
-        # TODO(adrian): should probably set orig_stdout to unbuffered because we
-        # want the new stdout to take care of any buffering
         self._stdout_redirector = FileRedirector(sys.stdout, self._stdout_slave)
         self._stdout_tee = FileTee(self.orig_stdout, *stdout_readers)
-        # TODO(adrian): reading chunks like this causes stuttered output. is
-        # there a better solution than always reading one byte (or one line) at
-        # a time? looks like os.read() might be a good solution.
-        self._stdout_reader_writer = spawn_reader_writer(
-            lambda: self._stdout_master.read(64),
-            self._stdout_tee.write
-        )
 
         self._stderr_redirector = FileRedirector(sys.stderr, self._stderr_slave)
         self._stderr_tee = FileTee(self.orig_stderr, *stderr_readers)
+
+        # `os.read()` doesn't block until the read buffer is completely full the way
+        # `file.read()` does. we use `os.read()` here hoping it will help our eventual
+        # output look like it would have without any I/O wrapping.
+        self._stdout_reader_writer = spawn_reader_writer(
+            lambda: (os.read(stdout_master_fd, 1024) or None),
+            self._stdout_tee.write
+        )
         self._stderr_reader_writer = spawn_reader_writer(
-            lambda: self._stderr_master.read(64),
+            lambda: (os.read(stderr_master_fd, 1024) or None),
             self._stderr_tee.write
         )
+
+        self._stdout_redirector.redirect()
+        if os.environ.get('WANDB_DEBUG') != 'true':
+            self._stderr_redirector.redirect()
 
     @property
     def orig_stdout(self):
@@ -164,12 +189,12 @@ class FileRedirector(object):
 
     Properties:
         redir_file: The file object that gets redirected.
-        orig_file: A new file object that points where `redir_file` originally pointed.
+        orig_file: A unbuffered new file object that points where `redir_file` originally pointed.
 
     Adapted from
     https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python/22434262#22434262
     """
-    def __init__(self, redir_file, to_file): #to=os.devnull, stdout=None):
+    def __init__(self, redir_file, to_file):
         """Constructor
 
         Args:
@@ -181,14 +206,15 @@ class FileRedirector(object):
         self._to_fd = to_file.fileno()
         # copy from_fd before it is overwritten
         #NOTE: `self._from_fd` is inheritable on Windows when duplicating a standard stream
-        self.orig_file = os.fdopen(os.dup(self._from_fd), 'wb')
+        # we make this unbuffered because we want to rely on buffers earlier in the I/O chain
+        self.orig_file = os.fdopen(os.dup(self._from_fd), 'wb', 0)
 
-        self._redirect()
-
-    def _redirect(self):
+    def redirect(self):
         self.redir_file.flush()  # flush library buffers that dup2 knows nothing about
         os.dup2(self._to_fd, self._from_fd)  # $ exec >&to
 
+    '''
+    This isn't tested properly:
     def restore(self):
         """Restore `self.redir_file` to its original state.
 
@@ -197,12 +223,14 @@ class FileRedirector(object):
         #NOTE: dup2 makes `self._from_fd` inheritable unconditionally
         self.redir_file.flush()
         os.dup2(self.orig_file.fileno(), self._from_fd)  # $ exec >&copied
-        self.orig_file.close()
-        self.orig_file = None
+        #self.orig_file.close()
+        #self.orig_file = None
         self.redir_file = None
+    '''
 
 
 if __name__ == '__main__':
+    cmd = ' '.join(shlex_quote(arg) for arg in sys.argv[1:])
+    print(cmd)
     wrapper = PtyIoWrap()
-    import subprocess
-    subprocess.call(sys.argv[1:], shell=True)
+    subprocess.call(cmd, shell=True)

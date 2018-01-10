@@ -74,10 +74,10 @@ class SafeSubprocess(object):
                 self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 env=self._env)
             self._stdout_thread = io_wrap.spawn_reader_writer(
-                lambda: self._popen.stdout.read(64).decode('utf-8'),
+                lambda: (self._popen.stdout.read(64).decode('utf-8') or None),
                 self._stdout.put)
             self._stderr_thread = io_wrap.spawn_reader_writer(
-                lambda: self._popen.stderr.read(64).decode('utf-8'),
+                lambda: (self._popen.stderr.read(64).decode('utf-8') or None),
                 self._stderr.put)
         else:
             self._popen = subprocess.Popen(self._args, env=self._env)

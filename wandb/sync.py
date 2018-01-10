@@ -17,7 +17,7 @@ from six.moves import queue
 import socket
 import click
 import wandb
-from wandb import __stage_dir__, Error
+from wandb import Error
 from wandb import io_wrap
 from wandb import file_pusher
 from wandb import sparkline
