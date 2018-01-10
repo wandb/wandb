@@ -68,24 +68,15 @@ class FileTee(object):
         for q in self._queues:
             q.put(message)
 
-    # we implement the optional parts of the file interface so these FileTee objects
-    # can be used as in case the user's program uses them
+    # we implement the optional parts of the file interface in case the user's program uses them
     def fileno(self):
-        return self._sync_file.fileno()
+        return self._orig_stream.fileno()
 
     def flush(self):
-        self._sync_file.flush()
+        self._orig_stream.flush()
 
     def close(self):
-        self._sync_file.close()
-        for q in self._queues:
-            q.put(None)
-
-    def isatty(self):
-        if hasattr(self._sync_file, 'isatty'):
-            return self._sync_file.isatty()
-        else:
-            return False
+        self._queue.put(None)
 
 
 def spawn_reader_writer(get_data_fn, put_data_fn):
