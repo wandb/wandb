@@ -710,6 +710,7 @@ class Api(object):
             createAgent(input: {
                 host: $host,
                 modelName: $modelName,
+                entityName: $entityName,
                 persistent: $persistent,
                 sweep: $sweep,
             }) {
