@@ -25,7 +25,6 @@ from wandb import stats
 from wandb import streaming_log
 from wandb import util
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
-from .wandb_run import Run
 logger = logging.getLogger(__name__)
 
 ERROR_STRING = click.style('ERROR', bg='red', fg='green')

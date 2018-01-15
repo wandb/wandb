@@ -135,10 +135,16 @@ def python_io_wrap(stdout_pusher, stderr_pusher):
 
 
 class PtyIoWrap(object):
-    """OS-level I/O wrapping using PTYs
+    """Captures STDOUT and STDERR of the current process using PTYs
+
+    OS-level (file descriptor) redirection means child processes' output is
+    also captured.
 
     Using PTYs causes libc to use normal terminal-style buffering instead of
     the large fixed-size buffers it uses when output goes to PIPEs.
+
+    FIXME(adrian): Some processes may not behave properly unless the PTY is
+    their controlling terminal.
     """
     def __init__(self, stdout_readers=None, stderr_readers=None):
         if stdout_readers is None:

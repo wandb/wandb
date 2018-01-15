@@ -76,26 +76,6 @@ def termlog(string='', newline=True):
     click.echo(line, file=_orig_stderr, nl=newline)
 
 
-def _do_sync(mode, job_type, run, show_run, sweep_id=None):
-    syncer = None
-    termlog()
-    if mode == 'run':
-        api = wandb_api.Api()
-        if api.api_key is None:
-            raise wandb_api.Error(
-                "No API key found, run `wandb login` or set WANDB_API_KEY")
-        api.set_current_run_id(run.id)
-        syncer = sync.Sync(api, job_type, run,
-                           config=run.config, sweep_id=sweep_id)
-        syncer.watch(files='*', show_run=show_run)
-    elif mode == 'dryrun':
-        termlog(
-            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
-    termlog('Run directory: %s' % os.path.relpath(run.dir))
-    termlog()
-    return syncer
-
-
 # Will be set to the run object for the current run, as returned by
 # wandb.init(). We may want to get rid of this, but WandbKerasCallback
 # relies on it, and it improves the API a bit (user doesn't have to
@@ -104,6 +84,18 @@ run = None
 
 
 def init(job_type='train'):
+    global run
+    # If a thread calls wandb.init() it will get the same Run object as
+    # the parent. If a child process with distinct memory space calls
+    # wandb.init(), it won't get an error, but it will get a result of
+    # None.
+    # This check ensures that a child process can safely call wandb.init()
+    # after a parent has (only the parent will sync files/stdout/stderr).
+    # This doesn't protect against the case where the parent doesn't call
+    # wandb.init but two children do.
+    if os.getenv('WANDB_INITED'):
+        return run
+
     # The WANDB_DEBUG check ensures tests still work.
     if not __stage_dir__ and not os.getenv('WANDB_DEBUG'):
         print('wandb.init() called but directory not initialized.\n'
@@ -150,15 +142,25 @@ def init(job_type='train'):
     config = wandb_config.Config(config_paths=conf_paths,
                                  wandb_dir=__stage_dir__, run_dir=run_dir,
                                  persist_callback=persist_config_callback)
-    global run
     run = wandb_run.Run(run_id, run_dir, config)
-    # This check ensures that a child process can safely call wandb.init()
-    # after a parent has (only the parent will sync files/stdout/stderr).
-    # This doesn't protect against the case where the parent doesn't call
-    # wandb.init but two children do.
-    if not os.getenv('WANDB_INITED'):
-        syncer = _do_sync(mode, job_type, run, show_run, sweep_id=sweep_id)
-        os.environ['WANDB_INITED'] = '1'
+    syncer = None
+    termlog()
+    if mode == 'run':
+        api = wandb_api.Api()
+        if api.api_key is None:
+            raise wandb_api.Error(
+                "No API key found, run `wandb login` or set WANDB_API_KEY")
+        api.set_current_run_id(run.id)
+        syncer = sync.Sync(api, job_type, run,
+                           config=run.config, sweep_id=sweep_id)
+        syncer.watch(files='*', show_run=show_run)
+    elif mode == 'dryrun':
+        termlog(
+            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
+    termlog('Run directory: %s' % os.path.relpath(run.dir))
+    termlog()
+    os.environ['WANDB_INITED'] = '1'
+
     return run
 
 
