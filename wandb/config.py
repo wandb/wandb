@@ -26,7 +26,7 @@ class Config(object):
         object.__setattr__(self, '_run_dir', run_dir)
 
         # TODO: Replace this with an event system.
-        object.__setattr__(self, '_persist_callback', persist_callback)
+        self._set_persist_callback(persist_callback)
 
         # OrderedDict to make writing unit tests easier. (predictable order for
         # .key())
@@ -94,6 +94,15 @@ class Config(object):
         for key in json:
             self._items[key] = json[key].get('value')
             self._descriptions[key] = json[key].get('desc')
+
+    def _set_persist_callback(self, callback):
+        """Change the persist callback for this config.
+
+        This is used by wandb.init() but should not be called by customer code.
+
+        Does not call self.persist()
+        """
+        object.__setattr__(self, '_persist_callback', callback)
 
     def persist(self):
         """Stores the current configuration for pushing to W&B"""

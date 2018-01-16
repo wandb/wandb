@@ -14,7 +14,6 @@ from .config import Config
 import logging
 import threading
 from six.moves import queue
-import socket
 import click
 import wandb
 from wandb import Error
@@ -180,7 +179,7 @@ class Sync(object):
     """Watches for files to change and automatically pushes them
     """
 
-    def __init__(self, api, job_type, run, config=None, project=None, tags=[], datasets=[], description=None, sweep_id=None):
+    def __init__(self, api, job_type, run, config=None, project=None, tags=[], datasets=[], sweep_id=None):
         self._job_type = job_type
         self._run = run
         self._sweep_id = sweep_id
@@ -189,29 +188,6 @@ class Sync(object):
         self._entity = api.settings("entity")
         self._signal = None
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
-
-        # Load description and write it to the run directory.
-        dpath = os.path.join(self._watch_dir, 'description.md')
-        self._description = description
-        if not self._description:
-            if os.path.exists(dpath):
-                with open(dpath) as f:
-                    self._description = f.read()
-            else:
-                self._description = os.getenv('WANDB_DESCRIPTION')
-        try:
-            self.tty = (sys.stdin.isatty() and
-                        os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno()))  # check if background process
-        except AttributeError:  # windows
-            self.tty = sys.stdin.isatty()  # TODO Check for background process in windows
-        except OSError:
-            self.tty = False
-
-        if not self._description:
-            #self._description = editor()
-            self._description = self._run.id
-        with open(dpath, 'w') as f:
-            f.write(self._description)
 
         self._proc = psutil.Process(os.getpid())
         self._api = api
@@ -244,9 +220,15 @@ class Sync(object):
         self._file_pusher = file_pusher.FilePusher(push_function)
 
         self._event_handlers = {}
+
+        # Create an empty description file if one doesn't exist already. We need
+        # this to exist so the handler we add below doesn't break from the file
+        # not existing. This empty file won't override any other description
+        # setting because the empty file content is Falsey.
+        open(self._run.description_path, 'a').close()
         # create a handler for description.md, so that we'll save it at the end
         # of the run.
-        self._get_handler(dpath, 'description.md')
+        self._get_handler(self._run.description_path, 'description.md')
 
         try:
             signal.signal(signal.SIGQUIT, self._debugger)
@@ -259,22 +241,7 @@ class Sync(object):
 
     def watch(self, files, show_run=False):
         try:
-            host = socket.gethostname()
-            # handle non-git directories
-            root = self._api.git.root
-            remote_url = self._api.git.remote_url
-            if not root:
-                root = os.path.abspath(os.getcwd())
-                remote_url = 'file://%s%s' % (host, root)
-
-            program_path = os.path.relpath(
-                wandb.SCRIPT_PATH, root)
             # TODO: better failure handling
-            upsert_result = self._api.upsert_run(name=self._run.id, project=self._project, entity=self._entity,
-                                                 config=self._config.as_dict(), description=self._description, host=host,
-                                                 program_path=program_path, job_type=self._job_type, repo=remote_url,
-                                                 sweep_name=self._sweep_id)
-            self._run_storage_id = upsert_result['id']
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
             # Ignore hidden files/folders

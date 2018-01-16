@@ -7,6 +7,7 @@ __version__ = '0.4.43'
 import click
 import types
 import six
+import socket
 import sys
 import logging
 import os
@@ -136,14 +137,9 @@ def init(job_type='train'):
     config = None
     syncer = None
 
-    def persist_config_callback():
-        if syncer:
-            syncer.update_config(config)
     config = wandb_config.Config(config_paths=conf_paths,
-                                 wandb_dir=__stage_dir__, run_dir=run_dir,
-                                 persist_callback=persist_config_callback)
+                                 wandb_dir=__stage_dir__, run_dir=run_dir)
     run = wandb_run.Run(run_id, run_dir, config)
-    syncer = None
     termlog()
     if mode == 'run':
         api = wandb_api.Api()
@@ -151,9 +147,47 @@ def init(job_type='train'):
             raise wandb_api.Error(
                 "No API key found, run `wandb login` or set WANDB_API_KEY")
         api.set_current_run_id(run.id)
-        syncer = sync.Sync(api, job_type, run,
-                           config=run.config, sweep_id=sweep_id)
+
+        syncer = sync.Sync(api, job_type, run, config=run.config, sweep_id=sweep_id)
         syncer.watch(files='*', show_run=show_run)
+
+        root = api.git.root
+        remote_url = api.git.remote_url
+        host = socket.gethostname()
+        # handle non-git directories
+        if not root:
+            root = os.path.abspath(os.getcwd())
+            remote_url = 'file://%s%s' % (host, root)
+
+        # Load description and write it to the run directory.
+        dpath = run.description_path
+        description = None
+        if os.path.exists(dpath):
+            with open(dpath) as f:
+                description = f.read()
+        # An empty description.md may have been created by sync.Sync() so it's
+        # important that we disregard empty strings here.
+        if not description:
+            description = os.getenv('WANDB_DESCRIPTION')
+        if not description:
+            #self._description = editor()
+            description = run.id
+        with open(dpath, 'w') as f:
+            f.write(description)
+
+        entity = api.settings("entity")
+        project = api.settings("project")
+        program_path = os.path.relpath(SCRIPT_PATH, root)
+
+        # TODO: better failure handling
+        upsert_result = api.upsert_run(name=run.id, project=project, entity=entity,
+                                             config=config.as_dict(), description=description, host=host,
+                                             program_path=program_path, job_type=job_type, repo=remote_url,
+                                             sweep_name=sweep_id)
+        run_storage_id = upsert_result['id']
+        def config_persist_callback():
+            api.upsert_run(id=run_storage_id, config=config.as_dict())
+        config._set_persist_callback(config_persist_callback)
     elif mode == 'dryrun':
         termlog(
             'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')

@@ -69,6 +69,10 @@ class Run(object):
     def has_examples(self):
         return self._examples is not None
 
+    @property
+    def description_path(self):
+        return os.path.join(self._dir, 'description.md')
+
 
 def generate_id():
     # ~3t run ids (36**8)
