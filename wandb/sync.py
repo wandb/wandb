@@ -29,33 +29,6 @@ logger = logging.getLogger(__name__)
 ERROR_STRING = click.style('ERROR', bg='red', fg='green')
 
 
-def editor(content='', marker='# Before we start this run, enter a brief description. (to skip, direct stdin to dev/null: `python train.py < /dev/null`)\n'):
-    message = click.edit(content + '\n\n' + marker)
-    if message is None:
-        return None
-    return message.split(marker, 1)[0].rstrip('\n')
-
-
-class ExitHooks(object):
-    def __init__(self):
-        self.exit_code = None
-        self.exception = None
-
-    def hook(self):
-        self._orig_exit = sys.exit
-        self._orig_excepthook = sys.excepthook
-        sys.exit = self.exit
-        sys.excepthook = self.excepthook
-
-    def exit(self, code=0):
-        self.exit_code = code
-        self._orig_exit(code)
-
-    def excepthook(self, exc_type, exc, *args):
-        self.exception = exc
-        self._orig_excepthook(exc_type, exc, *args)
-
-
 class FileTailer(object):
     def __init__(self, path, on_read_fn, binary=False):
         self._path = path
@@ -201,8 +174,6 @@ class Sync(object):
             run=self._run.id,
             base=api.app_url
         )
-        self._hooks = ExitHooks()
-        self._hooks.hook()
         self._observer = Observer()
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
@@ -230,18 +201,8 @@ class Sync(object):
         # of the run.
         self._get_handler(self._run.description_path, 'description.md')
 
-        try:
-            signal.signal(signal.SIGQUIT, self._debugger)
-        except AttributeError:
-            pass
-
-    def _debugger(self, *args):
-        import pdb
-        pdb.set_trace()
-
     def watch(self, files, show_run=False):
         try:
-            # TODO: better failure handling
             self._handler._patterns = [
                 os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
             # Ignore hidden files/folders
@@ -275,7 +236,6 @@ class Sync(object):
             logger.debug("Swapped stdout/stderr")
 
             atexit.register(self.stop)
-            signal.signal(signal.SIGTERM, self._sigkill)
         except KeyboardInterrupt:
             self.stop()
         except Error:
@@ -291,54 +251,7 @@ class Sync(object):
             logger.error('\n'.join(lines))
             sys.exit(1)
 
-    def update_config(self, config):
-        self._config = config
-        self._api.upsert_run(id=self._run_storage_id,
-                             config=self._config.as_dict())
-
-    def _sigkill(self, *args):
-        self._signal = signal.SIGTERM
-        # Send keyboard interrupt to ourself! This triggers the python behavior of stopping the
-        # running script, and since we've hooked into the exception handler we'll then run
-        # stop.
-        # This is ugly, but we're planning to move sync to an external process which will
-        # solve it.
-        os.kill(os.getpid(), signal.SIGINT)
-
     def stop(self):
-        wandb.termlog()
-        if self._signal == signal.SIGTERM:
-            wandb.termlog(
-                'Script ended because of SIGTERM, press ctrl-c to abort syncing.')
-        elif isinstance(self._hooks.exception, KeyboardInterrupt):
-            wandb.termlog(
-                'Script ended because of ctrl-c, press ctrl-c again to abort syncing.')
-        elif self._hooks.exception:
-            wandb.termlog(
-                'Script ended because of Exception, press ctrl-c to abort syncing.')
-        else:
-            wandb.termlog('Script ended.')
-
-        # Show run summary/history
-        if self._run.has_summary:
-            summary = self._run.summary.summary
-            wandb.termlog('Run summary:')
-            max_len = max([len(k) for k in summary.keys()])
-            format_str = '  {:>%s} {}' % max_len
-            for k, v in summary.items():
-                wandb.termlog(format_str.format(k, v))
-        if self._run.has_history:
-            history_keys = self._run.history.keys()
-            wandb.termlog('Run history:')
-            max_len = max([len(k) for k in history_keys])
-            for key in history_keys:
-                vals = util.downsample(self._run.history.column(key), 40)
-                line = sparkline.sparkify(vals)
-                format_str = u'  {:>%s} {}' % max_len
-                wandb.termlog(format_str.format(key, line))
-        if self._run.has_examples:
-            wandb.termlog('Saved %s examples' % self._run.examples.count())
-
         wandb.termlog('Waiting for final file modifications.')
         # This is a a heuristic delay to catch files that were written just before
         # the end of the script.
@@ -356,7 +269,7 @@ class Sync(object):
 
         self._stdout_stream.close()
         self._stderr_stream.close()
-        self._api.get_file_stream_api().finish(self._hooks.exception)
+        self._api.get_file_stream_api().finish(bool(wandb._exit_hooks.exception))
 
         for handler in self._event_handlers.values():
             handler.finish()
@@ -467,13 +380,3 @@ class Sync(object):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_modified()
-
-    @property
-    def source_proc(self):
-        mode = os.fstat(0).st_mode
-        if not stat.S_ISFIFO(mode):
-            # stdin is not a pipe
-            return None
-        else:
-            source = self._proc.parent().children()[0]
-            return None if source == self._proc else source

@@ -4,14 +4,16 @@ __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.43'
 
+import atexit
 import click
-import types
+import logging
+import os
+import signal
 import six
 import socket
 import sys
-import logging
-import os
 import traceback
+import types
 
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists('.wandb'):
@@ -82,10 +84,12 @@ def termlog(string='', newline=True):
 # relies on it, and it improves the API a bit (user doesn't have to
 # pass the run into WandbKerasCallback)
 run = None
+_exit_hooks = None
 
 
 def init(job_type='train'):
     global run
+    global _exit_hooks
     # If a thread calls wandb.init() it will get the same Run object as
     # the parent. If a child process with distinct memory space calls
     # wandb.init(), it won't get an error, but it will get a result of
@@ -94,7 +98,7 @@ def init(job_type='train'):
     # after a parent has (only the parent will sync files/stdout/stderr).
     # This doesn't protect against the case where the parent doesn't call
     # wandb.init but two children do.
-    if os.getenv('WANDB_INITED'):
+    if run or os.getenv('WANDB_INITED'):
         return run
 
     # The WANDB_DEBUG check ensures tests still work.
@@ -170,7 +174,6 @@ def init(job_type='train'):
         if not description:
             description = os.getenv('WANDB_DESCRIPTION')
         if not description:
-            #self._description = editor()
             description = run.id
         with open(dpath, 'w') as f:
             f.write(description)
@@ -185,9 +188,15 @@ def init(job_type='train'):
                                              program_path=program_path, job_type=job_type, repo=remote_url,
                                              sweep_name=sweep_id)
         run_storage_id = upsert_result['id']
+
         def config_persist_callback():
             api.upsert_run(id=run_storage_id, config=config.as_dict())
         config._set_persist_callback(config_persist_callback)
+
+        # we do this after starting sync.Sync() because this atexit handler needs
+        # to happen before the one in sync.Sync.
+        _exit_hooks = ExitHooks()
+        _exit_hooks.hook()
     elif mode == 'dryrun':
         termlog(
             'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
@@ -196,6 +205,78 @@ def init(job_type='train'):
     os.environ['WANDB_INITED'] = '1'
 
     return run
+
+
+class ExitHooks(object):
+    def __init__(self):
+        self._signal = None
+        self.exit_code = None
+        self.exception = None
+
+    def hook(self):
+        signal.signal(signal.SIGTERM, self._sigkill)
+        try:
+            signal.signal(signal.SIGQUIT, self._debugger)
+        except AttributeError:
+            pass
+        atexit.register(self.atexit)
+        self._orig_exit = sys.exit
+        self._orig_excepthook = sys.excepthook
+        sys.exit = self.exit
+        sys.excepthook = self.excepthook
+
+    def _debugger(self, *args):
+        import pdb
+        pdb.set_trace()
+
+    def atexit(self):
+        termlog()
+        if self._signal == signal.SIGTERM:
+            termlog(
+                'Script ended because of SIGTERM, press ctrl-c to abort syncing.')
+        elif isinstance(self.exception, KeyboardInterrupt):
+            termlog(
+                'Script ended because of ctrl-c, press ctrl-c again to abort syncing.')
+        elif self.exception:
+            termlog(
+                'Script ended because of Exception, press ctrl-c to abort syncing.')
+        else:
+            termlog('Script ended.')
+
+        # Show run summary/history
+        if run.has_summary:
+            summary = run.summary.summary
+            termlog('Run summary:')
+            max_len = max([len(k) for k in summary.keys()])
+            format_str = '  {:>%s} {}' % max_len
+            for k, v in summary.items():
+                termlog(format_str.format(k, v))
+        if run.has_history:
+            history_keys = run.history.keys()
+            termlog('Run history:')
+            max_len = max([len(k) for k in history_keys])
+            for key in history_keys:
+                vals = util.downsample(run.history.column(key), 40)
+                line = sparkline.sparkify(vals)
+                format_str = u'  {:>%s} {}' % max_len
+                termlog(format_str.format(key, line))
+        if run.has_examples:
+            termlog('Saved %s examples' % run.examples.count())
+
+    def _sigkill(self, *args):
+        self._signal = signal.SIGTERM
+        # Send keyboard interrupt to ourself! This triggers the python behavior of stopping the
+        # running script and running the atexit handlers which don't normally get called
+        # when the script is terminated by a signal.
+        os.kill(os.getpid(), signal.SIGINT)
+
+    def exit(self, code=0):
+        self.exit_code = code
+        self._orig_exit(code)
+
+    def excepthook(self, exc_type, exc, *args):
+        self.exception = exc
+        self._orig_excepthook(exc_type, exc, *args)
 
 
 __all__ = ['init', 'termlog', 'run', 'types']

@@ -129,9 +129,26 @@ def python_io_wrap(stdout_pusher, stderr_pusher):
     Python process and its threads. Won't work for non-Python processes or any
     libraries that do lower-level I/O directly.
     """
-    sys.stdout = FileTee(sys.stdout, stdout_pusher)
+    new_stdout = FileTee(sys.stdout, stdout_pusher)
+    try:
+        new_stdout.encoding = sys.stdout.encoding
+    except AttributeError:
+        pass
+    try:
+        new_stdout.errors = sys.stdout.errors
+    except AttributeError:
+        pass
+    sys.stdout = new_stdout
     if os.environ.get('WANDB_DEBUG') != 'true':
         sys.stderr = FileTee(sys.stderr, stderr_pusher)
+        try:
+            new_stderr.encoding = sys.stderr.encoding
+        except AttributeError:
+            pass
+        try:
+            new_stderr.errors = sys.stderr.errors
+        except AttributeError:
+            pass
 
 
 class PtyIoWrap(object):
