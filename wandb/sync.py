@@ -281,6 +281,8 @@ class Sync(object):
         self._config = config
 
         self._stats = stats.Stats()
+        # This starts a thread to write system stats every 30 seconds
+        self._system_stats = stats.SystemStats(run)
 
         def push_function(save_name, path):
             with open(path, 'rb') as f:
@@ -397,6 +399,7 @@ class Sync(object):
                 'Script ended because of Exception, press ctrl-c to abort syncing.')
         else:
             wandb.termlog('Script ended.')
+        self._system_stats.flush()
 
         # Show run summary/history
         if self._run.has_summary:
@@ -512,6 +515,9 @@ class Sync(object):
             if save_name == 'wandb-history.jsonl':
                 self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
                     file_path, 'wandb-history.jsonl', self._api)
+            elif save_name == 'wandb-events.jsonl':
+                self._event_handlers['wandb-events.jsonl'] = FileEventHandlerTextStream(
+                    file_path, 'wandb-events.jsonl', self._api)
             # Don't try to stream tensorboard files for now.
             # elif 'tfevents' in save_name:
             #    # TODO: This is hard-coded, but we want to give users control

@@ -19,6 +19,7 @@ requirements = [
     'shortuuid>=0.5.0',
     'pusherclient>=0.3.0',
     'daemonocle>=1.0.1',
+    'nvidia-ml-py3>=7.352.0'
 ]
 
 test_requirements = [

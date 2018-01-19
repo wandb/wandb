@@ -1,12 +1,17 @@
 import collections
 import os
+import psutil
+from pynvml import *
+import time
+from numbers import Number
+
 
 class FileStats(object):
     def __init__(self, file_path):
         self._file_path = file_path
         self.size = 0
         self.uploaded = 0
-    
+
     def update_size(self):
         self.size = os.path.getsize(self._file_path)
 
@@ -41,3 +46,62 @@ class Stats(object):
             'uploaded_bytes': sum(f.uploaded for f in self._files.values()),
             'total_bytes': sum(f.size for f in self._files.values())
         }
+
+
+class SystemStats(object):
+    def __init__(self, run):
+        try:
+            self.gpu_count = nvmlDeviceGetCount()
+        except NVMLError as err:
+            self.gpu_count = 0
+        self.run = run
+        self.sampler = {}
+        self.samples = 0
+        self._thread = threading.Thread(target=self._thread_body)
+        self._thread.daemon = True
+        self._thread.start()
+
+    def _thread_body(self):
+        while True:
+            stats = self.stats()
+            for stat, value in stats.items():
+                if isinstance(value, Number):
+                    self.sampler[stat] = self.sampler.get(stat, [])
+                    self.sampler[stat].append(value)
+            self.samples += 1
+            if self.samples >= 15:
+                self.flush()
+            time.sleep(2)
+
+    def flush(self):
+        stats = self.stats()
+        for stat, value in stats.items():
+            if isinstance(value, Number):
+                samples = self.sampler.get(stat, [stats[stat]])
+                stats[stat] = round(reduce(lambda x, y: x + y,
+                                           samples) / len(samples), 2)
+        self.run.events.track("system", stats, _wandb=True)
+        self.samples = 0
+        self.sampler = {}
+
+    def stats(self):
+        stats = {}
+        for i in range(0, self.gpu_count):
+            handle = nvmlDeviceGetHandleByIndex(i)
+            try:
+                util = nvmlDeviceGetUtilizationRates(handle)
+                temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+                stats["gpu.{0}.{1}".format(i, "gpu")] = util.gpu
+                stats["gpu.{0}.{1}".format(i, "memory")] = util.memory
+                stats["gpu.{0}.{1}".format(i, "temp")] = temp
+            except NVMLError as err:
+                pass
+        net = psutil.net_io_counters()
+        stats["cpu"] = psutil.cpu_percent()
+        stats["memory"] = psutil.virtual_memory().percent
+        stats["network"] = {
+            "sent": net.bytes_sent,
+            "recv": net.bytes_recv
+        }
+        stats["disk"] = psutil.disk_usage('/').percent
+        return stats
