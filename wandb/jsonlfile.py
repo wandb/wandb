@@ -1,6 +1,7 @@
 import collections
 import os
 import time
+from threading import Lock
 
 import wandb
 from wandb import util
@@ -41,6 +42,8 @@ class JsonlEventsFile(object):
         self.fname = os.path.join(out_dir, fname)
         self._file = open(self.fname, 'w')
         self.buffer = []
+        self._start_time = time.time()
+        self.lock = Lock()
 
     def flatten(self, dictionary):
         if type(dictionary) == dict:
@@ -54,12 +57,17 @@ class JsonlEventsFile(object):
     def track(self, event, properties, timestamp=None, _wandb=False):
         if not isinstance(properties, collections.Mapping):
             raise wandb.Error('event.track expects dict-like object')
-        row = {}
-        row[event] = properties
-        self.flatten(row)
-        if _wandb:
-            row["_wandb"] = _wandb
-        row["_timestamp"] = int(timestamp or time.time())
-        self._file.write(util.json_dumps_safer(row))
-        self._file.write('\n')
-        self._file.flush()
+        self.lock.acquire()
+        try:
+            row = {}
+            row[event] = properties
+            self.flatten(row)
+            if _wandb:
+                row["_wandb"] = _wandb
+            row["_timestamp"] = int(timestamp or time.time())
+            row['_runtime'] = int(time.time() - self._start_time)
+            self._file.write(util.json_dumps_safer(row))
+            self._file.write('\n')
+            self._file.flush()
+        finally:
+            self.lock.release()

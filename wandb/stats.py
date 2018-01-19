@@ -57,6 +57,7 @@ class SystemStats(object):
         self.run = run
         self.sampler = {}
         self.samples = 0
+        self._shutdown = False
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
         self._thread.start()
@@ -69,9 +70,15 @@ class SystemStats(object):
                     self.sampler[stat] = self.sampler.get(stat, [])
                     self.sampler[stat].append(value)
             self.samples += 1
-            if self.samples >= 15:
+            if self._shutdown or self.samples >= 15:
                 self.flush()
+                if self._shutdown:
+                    break
             time.sleep(2)
+
+    def shutdown(self):
+        self._shutdown = True
+        self._thread.join()
 
     def flush(self):
         stats = self.stats()
@@ -79,9 +86,8 @@ class SystemStats(object):
             # TODO: a bit hacky, we assume all numbers should be averaged.  If you want
             # max for a stat, you must put it in a sub key, like ["network"]["sent"]
             if isinstance(value, Number):
-                samples = self.sampler.get(stat, [stats[stat]])
-                stats[stat] = round(reduce(lambda x, y: x + y,
-                                           samples) / len(samples), 2)
+                samples = list(self.sampler.get(stat, [stats[stat]]))
+                stats[stat] = round(sum(samples) / len(samples), 2)
         self.run.events.track("system", stats, _wandb=True)
         self.samples = 0
         self.sampler = {}

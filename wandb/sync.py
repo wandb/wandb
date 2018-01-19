@@ -399,7 +399,7 @@ class Sync(object):
                 'Script ended because of Exception, press ctrl-c to abort syncing.')
         else:
             wandb.termlog('Script ended.')
-        self._system_stats.flush()
+        self._system_stats.shutdown()
 
         # Show run summary/history
         if self._run.has_summary:
