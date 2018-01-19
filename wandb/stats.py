@@ -51,6 +51,7 @@ class Stats(object):
 class SystemStats(object):
     def __init__(self, run):
         try:
+            nvmlInit()
             self.gpu_count = nvmlDeviceGetCount()
         except NVMLError as err:
             self.gpu_count = 0
