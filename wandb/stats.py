@@ -59,6 +59,11 @@ class SystemStats(object):
         self.sampler = {}
         self.samples = 0
         self._shutdown = False
+        net = psutil.net_io_counters()
+        self.network_init = {
+            "sent": net.bytes_sent,
+            "recv": net.bytes_recv
+        }
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
         self._thread.start()
@@ -109,8 +114,8 @@ class SystemStats(object):
         stats["cpu"] = psutil.cpu_percent()
         stats["memory"] = psutil.virtual_memory().percent
         stats["network"] = {
-            "sent": net.bytes_sent,
-            "recv": net.bytes_recv
+            "sent": net.bytes_sent - self.network_init["sent"],
+            "recv": net.bytes_recv - self.network_init["recv"]
         }
         stats["disk"] = psutil.disk_usage('/').percent
         return stats
