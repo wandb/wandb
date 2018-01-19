@@ -117,7 +117,6 @@ class SystemStats(object):
             "sent": net.bytes_sent - self.network_init["sent"],
             "recv": net.bytes_recv - self.network_init["recv"]
         }
-        for partition in psutil.disk_partitions():
-            stats["disk.%s" % partition.mountpoint] = psutil.disk_usage(
-                partition.mountpoint).percent
+        # TODO: maybe show other partitions, will likely need user to configure
+        stats["disk"] = psutil.disk_usage('/').percent
         return stats
