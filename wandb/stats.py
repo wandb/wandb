@@ -76,6 +76,8 @@ class SystemStats(object):
     def flush(self):
         stats = self.stats()
         for stat, value in stats.items():
+            # TODO: a bit hacky, we assume all numbers should be averaged.  If you want
+            # max for a stat, you must put it in a sub key, like ["network"]["sent"]
             if isinstance(value, Number):
                 samples = self.sampler.get(stat, [stats[stat]])
                 stats[stat] = round(reduce(lambda x, y: x + y,
