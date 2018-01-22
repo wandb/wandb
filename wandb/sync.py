@@ -151,7 +151,7 @@ class FileEventHandlerBinaryStream(FileEventHandler):
 
 
 class Sync(object):
-    """Watches for files to change and automatically pushes them
+    """Manages a run process and synchronizing all pertinent files.
     """
 
     def __init__(self, api, run, program, args, env, project=None, tags=[]):

@@ -129,6 +129,8 @@ class Agent(object):
         # tell child python interpreters we accept utf-8
         # env['PYTHONIOENCODING'] = 'UTF-8'
 
+        # TODO(adrian): do this in a separate process so we can be sure sync threads etc
+        # get cleaned up properly?
         self._run_managers[run.id] = sync.Sync(api, run, program, args, env)
 
     def _command_stop(self, command):
