@@ -101,7 +101,7 @@ class Agent(object):
 
     def _command_run(self, command):
         config = Config.from_environment_or_defaults()
-        run = wandb_run.Run(mode='run', config=config)
+        run = wandb_run.Run(mode='run', config=config, sweep_id=self._sweep_id)
 
         api = Api()
         api.set_current_run_id(run.id)
@@ -125,7 +125,6 @@ class Agent(object):
         run.storage_id = upsert_result['id']
         env = dict(os.environ)
         run.set_environment(env)
-        env['WANDB_SWEEP_ID'] = self._sweep_id
         # TODO(adrian): we need to do the following if we use pipes instead of PTYs (eg. for windows)
         # tell child python interpreters we accept utf-8
         # env['PYTHONIOENCODING'] = 'UTF-8'
@@ -133,6 +132,7 @@ class Agent(object):
         self._run_managers[run.id] = sync.Sync(api, run, program, args, env)
 
     def _command_stop(self, command):
+        run_id = command['run_id']
         logger.info('Stop: %s', run_id)
         if run_id in self._run_managers:
             self._run_managers[run_id].proc.kill()
