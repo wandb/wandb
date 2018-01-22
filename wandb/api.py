@@ -72,8 +72,11 @@ def normalize_exceptions(func):
             raise CommError(err.response)
         except RetryError as err:
             if "response" in dir(err.last_exception) and err.last_exception.response is not None:
-                message = err.last_exception.response.json().get(
-                    'errors', [{'message': message}])[0]['message']
+                try:
+                    message = err.last_exception.response.json().get(
+                        'errors', [{'message': message}])[0]['message']
+                except ValueError:
+                    message = err.last_exception.response.text
             else:
                 message = err.last_exception
             raise CommError(message)
@@ -703,12 +706,14 @@ class Api(object):
         mutation CreateAgent(
             $host: String!
             $modelName: String!,
+            $entityName: String,
             $persistent: Boolean,
             $sweep: String
         ) {
             createAgent(input: {
                 host: $host,
                 modelName: $modelName,
+                entityName: $entityName,
                 persistent: $persistent,
                 sweep: $sweep,
             }) {
@@ -722,6 +727,7 @@ class Api(object):
             project_name = self.settings('project')
         response = self.client.execute(mutation, variable_values={
                                        'host': host,
+                                       'entityName': self.settings("entity"),
                                        'modelName': project_name,
                                        'persistent': persistent,
                                        'sweep': sweep_id})
@@ -775,14 +781,16 @@ class Api(object):
             config (str): sweep config (will be converted to yaml)
         """
         mutation = gql('''
-        mutation UpsertSweet(
+        mutation UpsertSweep(
             $config: String,
             $description: String,
+            $entityName: String,
             $modelName: String!
         ) {
             upsertSweep(input: {
                 config: $config,
                 description: $description,
+                entityName: $entityName,
                 modelName: $modelName
             }) {
                 sweep {
@@ -794,6 +802,7 @@ class Api(object):
         response = self.client.execute(mutation, variable_values={
                                        'config': yaml.dump(config),
                                        'description': config.get("description"),
+                                       'entityName': self.settings("entity"),
                                        'modelName': self.settings("project")})
         return response['upsertSweep']['sweep']['name']
 

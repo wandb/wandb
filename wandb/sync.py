@@ -180,6 +180,8 @@ class Sync(object):
         self._config = run.config
 
         self._stats = stats.Stats()
+        # This starts a thread to write system stats every 30 seconds
+        self._system_stats = stats.SystemStats(run)
 
         def push_function(save_name, path):
             with open(path, 'rb') as f:
@@ -241,6 +243,8 @@ class Sync(object):
         if self.cleaned_up:
             return
         self.cleaned_up = True
+
+        self._system_stats.shutdown()
 
         wandb.termlog('Waiting for final file modifications.')
         # This is a a heuristic delay to catch files that were written just before
@@ -341,6 +345,9 @@ class Sync(object):
             if save_name == 'wandb-history.jsonl':
                 self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
                     file_path, 'wandb-history.jsonl', self._api)
+            elif save_name == 'wandb-events.jsonl':
+                self._event_handlers['wandb-events.jsonl'] = FileEventHandlerTextStream(
+                    file_path, 'wandb-events.jsonl', self._api)
             # Don't try to stream tensorboard files for now.
             # elif 'tfevents' in save_name:
             #    # TODO: This is hard-coded, but we want to give users control

@@ -10,6 +10,7 @@ from wandb import util
 from wandb.config import Config
 
 HISTORY_FNAME = 'wandb-history.jsonl'
+EVENTS_FNAME = 'wandb-events.jsonl'
 EXAMPLES_FNAME = 'wandb-examples.jsonl'
 DESCRIPTION_FNAME = 'description.md'
 
@@ -46,6 +47,7 @@ class Run(object):
         self.sweep_id = sweep_id
 
         self._history = None
+        self._events = None
         self._summary = None
         self._examples = None
 
@@ -120,6 +122,13 @@ class Run(object):
         if self._history is None:
             self._history = jsonlfile.JsonlFile(HISTORY_FNAME, self._dir)
         return self._history
+
+    @property
+    def events(self):
+        self._mkdir()
+        if self._events is None:
+            self._events = jsonlfile.JsonlEventsFile(EVENTS_FNAME, self._dir)
+        return self._events
 
     @property
     def has_history(self):

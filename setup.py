@@ -19,6 +19,7 @@ requirements = [
     'shortuuid>=0.5.0',
     'pusherclient>=0.3.0',
     'daemonocle>=1.0.1',
+    'nvidia-ml-py3>=7.352.0'
 ]
 
 test_requirements = [
@@ -28,7 +29,7 @@ test_requirements = [
 
 setup(
     name='wandb',
-    version='0.4.43',
+    version='0.4.45',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     author="Chris Van Pelt",
