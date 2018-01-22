@@ -6,6 +6,7 @@ import logging
 import os
 from six.moves import queue
 import requests
+import shlex
 import subprocess
 import threading
 import time
@@ -152,7 +153,7 @@ def find_runner(program):
     Args:
         program: The string name of the program to try to run.
     Returns:
-        string, Runner name.
+        commandline list of strings to run the program (eg. with subprocess.call()) or None
     """
     if os.path.isfile(program) and not os.access(program, os.X_OK):
         # program is a path to a non-executable file
@@ -162,9 +163,9 @@ def find_runner(program):
             return None
         first_line = opened.readline().strip()
         if first_line.startswith('#!'):
-            return first_line[2:]  # TODO(adrian): should shlex.split() this
+            return shlex.split(first_line[2:])
         if program.endswith('.py'):
-            return 'python'
+            return ['python']
     return None
 
 

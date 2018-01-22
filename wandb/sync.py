@@ -1,7 +1,9 @@
 import psutil
 import os
 import signal
+import socket
 import stat
+import subprocess
 import sys
 import time
 import traceback
@@ -9,20 +11,20 @@ from tempfile import NamedTemporaryFile
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 from shortuuid import ShortUUID
-import atexit
 from .config import Config
 import logging
 import threading
 from six.moves import queue
 import click
+
 import wandb
 from wandb import Error
 from wandb import io_wrap
 from wandb import file_pusher
-from wandb import sparkline
 from wandb import stats
 from wandb import streaming_log
 from wandb import util
+from wandb import wandb_run
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
 logger = logging.getLogger(__name__)
 
@@ -152,35 +154,30 @@ class Sync(object):
     """Watches for files to change and automatically pushes them
     """
 
-    def __init__(self, api, job_type, run, config=None, project=None, tags=[], datasets=[], sweep_id=None):
-        self._job_type = job_type
+    def __init__(self, api, run, program, args, env, project=None, tags=[]):
+        self.cleaned_up = False
+        self._api = api
         self._run = run
-        self._sweep_id = sweep_id
-        self._watch_dir = os.path.abspath(self._run.dir)
-        self._project = project or api.settings("project")
-        self._entity = api.settings("entity")
-        self._signal = None
+        self._command = [program] + list(args)
+        runner = util.find_runner(program)
+        if runner:
+            self._command = runner + self._command
+
+        self._project = project if project else api.settings("project")
+        self._tags = tags
+        self._watch_dir = self._run.dir
+        
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
-        self._proc = psutil.Process(os.getpid())
-        self._api = api
-        self._tags = tags
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.on_file_created
         self._handler.on_modified = self.on_file_modified
-        self.url = "{base}/{entity}/{project}/runs/{run}".format(
-            project=self._project,
-            entity=self._entity,
-            run=self._run.id,
-            base=api.app_url
-        )
+        self.url = run.get_url(api)
         self._observer = Observer()
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
-        if config is None:
-            config = Config()
-        self._config = config
+        self._config = run.config
 
         self._stats = stats.Stats()
 
@@ -192,74 +189,70 @@ class Sync(object):
 
         self._event_handlers = {}
 
-        # Create an empty description file if one doesn't exist already. We need
-        # this to exist so the handler we add below doesn't break from the file
-        # not existing. This empty file won't override any other description
-        # setting because the empty file content is Falsey.
-        open(self._run.description_path, 'a').close()
         # create a handler for description.md, so that we'll save it at the end
         # of the run.
-        self._get_handler(self._run.description_path, 'description.md')
+        #self._get_handler(self._run.description_path, wandb_run.DESCRIPTION_FNAME)
 
-    def watch(self, files, show_run=False):
+        self._handler._patterns = [
+            os.path.join(self._watch_dir, os.path.normpath('*'))]
+        # Ignore hidden files/folders
+        self._handler._ignore_patterns = ['*/.*', '*.tmp']
+        self._observer.start()
+
+        self._api.save_patches(self._watch_dir)
+
+        wandb.termlog("Syncing %s" % self.url)
+
+        self._api.get_file_stream_api().set_file_policy(
+            'output.log', CRDedupeFilePolicy())
+        # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
+        self._stdout_stream = streaming_log.TextStreamPusher(
+            self._api.get_file_stream_api(), 'output.log', prepend_timestamp=True)
+        self._stderr_stream = streaming_log.TextStreamPusher(
+            self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
+            prepend_timestamp=True)
+
+        self._stdout_stream.write(" ".join(psutil.Process(
+            os.getpid()).cmdline()) + "\n\n")
+
+        self._stdout_tee = io_wrap.Tee.pty(sys.stdout, self._stdout_stream)
+        self._stderr_tee = io_wrap.Tee.pty(sys.stderr, self._stderr_stream)
+
         try:
-            self._handler._patterns = [
-                os.path.join(self._watch_dir, os.path.normpath(f)) for f in files]
-            # Ignore hidden files/folders
-            self._handler._ignore_patterns = ['*/.*', '*.tmp']
-            self._observer.start()
+            self.proc = subprocess.Popen(
+                    self._command,
+                    env=env,
+                    stdout=self._stdout_tee.tee_file,
+                    stderr=self._stderr_tee.tee_file
+            )
+        except (OSError, IOError):
+            raise ClickException('Could not find program: %s' % command)
 
-            self._api.save_patches(self._watch_dir)
+    def is_running(self):
+        return self.proc.poll() is None
 
-            if self._job_type not in ['train', 'eval']:
-                wandb.termlog(
-                    'Warning: job type: "%s" is non-standard. Use "train" or "eval".')
+    def poll(self):
+        terminated = self.proc.poll() is not None
+        if self.cleaned_up is not terminated:
+            self.clean_up(bool(self.proc.returncode))
+        return self.proc.returncode
 
-            wandb.termlog("Syncing %s" % self.url)
-            if show_run:
-                import webbrowser
-                webbrowser.open_new_tab(self.url)
+    def clean_up(self, success):
+        if self.cleaned_up:
+            return
+        self.cleaned_up = True
 
-            self._api.get_file_stream_api().set_file_policy(
-                'output.log', CRDedupeFilePolicy())
-            # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
-            self._stdout_stream = streaming_log.TextStreamPusher(
-                self._api.get_file_stream_api(), 'output.log', prepend_timestamp=True)
-            self._stderr_stream = streaming_log.TextStreamPusher(
-                self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
-                prepend_timestamp=True)
-            io_wrap.python_io_wrap(self._stdout_stream, self._stderr_stream)
-
-            self._stdout_stream.write(" ".join(psutil.Process(
-                os.getpid()).cmdline()) + "\n\n")
-
-            logger.debug("Swapped stdout/stderr")
-
-            atexit.register(self.stop)
-        except KeyboardInterrupt:
-            self.stop()
-        except Error:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            wandb.termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
-                (ERROR_STRING, util.get_log_file_path())))
-            wandb.termlog("%s: %s" % (ERROR_STRING, exc_value))
-            if 'permission' in str(exc_value):
-                wandb.termlog(
-                    '%s: Are you sure you provided the correct API key to "wandb login"?' % ERROR_STRING)
-            lines = traceback.format_exception(
-                exc_type, exc_value, exc_traceback)
-            logger.error('\n'.join(lines))
-            sys.exit(1)
-
-    def stop(self):
         wandb.termlog('Waiting for final file modifications.')
         # This is a a heuristic delay to catch files that were written just before
         # the end of the script.
         # TODO: ensure we catch all saved files.
+        # TODO(adrian): do we need this?
         time.sleep(2)
         try:
-            self._observer.stop()
-            self._observer.join()
+            # avoid hanging if we crashed before the observer was started
+            if self._observer.is_alive():
+                self._observer.stop()
+                self._observer.join()
         # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
         except TypeError:
             pass
@@ -267,9 +260,11 @@ class Sync(object):
         except SystemError:
             pass
 
+        self._stdout_tee.close_join()
+        self._stderr_tee.close_join()
         self._stdout_stream.close()
         self._stderr_stream.close()
-        self._api.get_file_stream_api().finish(bool(wandb._exit_hooks.exception))
+        self._api.get_file_stream_api().finish(success)
 
         for handler in self._event_handlers.values():
             handler.finish()

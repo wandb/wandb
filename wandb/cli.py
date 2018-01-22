@@ -2,30 +2,32 @@
 from __future__ import print_function
 
 import click
-import sys
 import copy
-import random
-import time
-import os
-import re
-import netrc
-import logging
-import json
+from functools import wraps
 import glob
 import io
+import json
+import logging
+import netrc
+import os
+import random
+import re
+import requests
+import shlex
 import signal
+import socket
 import stat
 import subprocess
-from functools import wraps
+import sys
+import textwrap
+import time
+import traceback
+import yaml
+
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
 import click_log
 import whaaaaat
-import sys
-import traceback
-import textwrap
-import requests
-import yaml
 
 import wandb
 from wandb.api import Api
@@ -35,6 +37,7 @@ from wandb import agent as wandb_agent
 from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import util
+from wandb import sync
 
 DOCS_URL = 'http://wb-client.readthedocs.io/'
 
@@ -191,7 +194,9 @@ def cli(ctx):
     """
     root_logger = logging.getLogger()
     click_log.basic_config(root_logger)
-    root_logger.setLevel(logging.WARN)
+    root_logger.setLevel(logging.INFO)
+    logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 
 @cli.command(context_settings=CONTEXT, help="List projects")
@@ -637,45 +642,81 @@ def logs(run_id):
               help="Open the run page in your default browser.")
 @display_error
 def run(ctx, program, args, id, dir, configs, message, show):
-    env = copy.copy(os.environ)
-    env['WANDB_MODE'] = 'run'
-    if id is None:
-        id = wandb_run.generate_id()
-    env['WANDB_RUN_ID'] = id
-    if dir is None:
-        dir = wandb_run.run_dir_path(id, dry=False)
-        util.mkdir_exists_ok(dir)
-    if message:
-        open(os.path.join(dir, 'description.md'), 'w').write('%s\n' % message)
-    env['WANDB_RUN_DIR'] = dir
+    if configs:
+        config_paths = configs.split(',')
+    else:
+        config_paths = []
+    config = Config(config_paths=config_paths, wandb_dir=wandb.wandb_dir())
+    run = wandb_run.Run(run_id=id, mode='run', config=config, description=message)
+
+    api.set_current_run_id(run.id)
+
+    # TODO: better failure handling
+    root = api.git.root
+    remote_url = api.git.remote_url
+    host = socket.gethostname()
+    # handle non-git directories
+    if not root:
+        root = os.path.abspath(os.getcwd())
+        remote_url = 'file://%s%s' % (host, root)
+
+    #program_path = os.path.relpath(SCRIPT_PATH, root)
+    upsert_result = api.upsert_run(name=run.id,
+       project=api.settings("project"),
+       entity=api.settings("entity"),
+       config=run.config.as_dict(), description=run.description, host=host,
+       program_path=program, repo=remote_url, sweep_name=run.sweep_id)
+    run.storage_id = upsert_result['id']
+    env = dict(os.environ)
+    run.set_environment(env)
     if configs:
         env['WANDB_CONFIG_PATHS'] = configs
     if show:
-        env['WANDB_SHOW_RUN'] = '1'
-    command = [program] + list(args)
+        env['WANDB_SHOW_RUN'] = 'True'
 
+    syncer = None
+    success = False
     try:
-        signal.signal(signal.SIGQUIT, signal.SIG_IGN)
-    except AttributeError:
-        pass
-    runner = util.find_runner(program)
-    if runner:
-        command = runner.split() + command
-    proc = util.SafeSubprocess(command, env=env, read_output=False)
-    try:
-        proc.run()
-    except (OSError, IOError):
-        raise ClickException('Could not find program: %s' % command[0])
-    # ignore SIGINT (ctrl-c), the child process will handle, and we'll
-    # exit when the child process does.
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    while True:
-        time.sleep(0.1)
-        exitcode = proc.poll()
-        if exitcode is not None:
-            wandb.termlog('job (%s) Process exited with code: %s' %
-                          (program, exitcode))
-            break
+        try:
+            syncer = sync.Sync(api, run, program, args, env)
+        except Error:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
+                (ERROR_STRING, util.get_log_file_path())))
+            termlog("%s: %s" % (ERROR_STRING, exc_value))
+            if 'permission' in str(exc_value):
+                termlog(
+                    '%s: Are you sure you provided the correct API key to "wandb login"?' % ERROR_STRING)
+            lines = traceback.format_exception(
+                exc_type, exc_value, exc_traceback)
+            logger.error('\n'.join(lines))
+            return
+
+        # Ignore SIGINT (ctrl-c) and SIGQUIT (ctrl-\). The child process will
+        # handle them, and we'll exit if / when the child process does.
+        #
+        # We disable these signals after running the process so the child doesn't
+        # inherit this behaviour.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+        except AttributeError:  # SIGQUIT doesn't exist on windows
+            pass
+
+        exitcode = syncer.proc.wait()
+        wandb.termlog('job (%s) Process exited with code: %s' % (program, exitcode))
+
+        success = True
+    finally:
+        # Restore default signal handlers so the user can abort final syncing
+        # if they like.
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        try:
+            signal.signal(signal.SIGQUIT, signal.SIG_DFL)
+        except AttributeError:  # SIGQUIT doesn't exist on windows
+            pass
+        if syncer:
+            syncer.clean_up(success)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
@@ -696,13 +737,11 @@ def sweep(ctx, config_yaml):
 @display_error
 def agent(sweep_id):
     click.echo('Starting wandb agent 🕵️')
-    agent_api = wandb_agent.run_agent(sweep_id)
+    wandb_agent.run_agent(sweep_id)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
     #                'args': ['--max_epochs=10']})
-    while True:
-        time.sleep(1)
 
 #@cli.group()
 #@click.pass_context

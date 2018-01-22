@@ -14,6 +14,9 @@ import socket
 import sys
 import traceback
 import types
+import webbrowser
+
+from wandb import sparkline
 
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists('.wandb'):
@@ -59,7 +62,6 @@ class Error(Exception):
 from wandb import wandb_types as types
 from wandb import api as wandb_api
 from wandb import config as wandb_config
-from wandb import sync
 from wandb import wandb_run
 
 # Three possible modes:
@@ -68,15 +70,12 @@ from wandb import wandb_run
 #     'dryrun': we're a script not launched by "wandb run"
 
 
-_orig_stderr = sys.stderr
-
-
 def termlog(string='', newline=True):
     if string:
         line = '%s: %s' % (click.style('wandb', fg='blue', bold=True), string)
     else:
         line = ''
-    click.echo(line, file=_orig_stderr, nl=newline)
+    click.echo(line, file=sys.stderr, nl=newline)
 
 
 # Will be set to the run object for the current run, as returned by
@@ -95,108 +94,43 @@ def init(job_type='train'):
     # wandb.init(), it won't get an error, but it will get a result of
     # None.
     # This check ensures that a child process can safely call wandb.init()
-    # after a parent has (only the parent will sync files/stdout/stderr).
+    # after a parent has (only the parent will create the Run object).
     # This doesn't protect against the case where the parent doesn't call
     # wandb.init but two children do.
     if run or os.getenv('WANDB_INITED'):
         return run
 
     # The WANDB_DEBUG check ensures tests still work.
-    if not __stage_dir__ and not os.getenv('WANDB_DEBUG'):
+    if not wandb_dir() and not os.getenv('WANDB_DEBUG'):
         print('wandb.init() called but directory not initialized.\n'
               'Please run "wandb init" to get started')
         sys.exit(1)
 
-    # urllib3 logs all requests by default, which is ok as long as it's
-    # going to wandb's debug.log, but it's a problem if the user's script
-    # directs all logging to stdout/stderr (because all those requests will
-    # get logged to wandb db, via making http requests). So we disable
-    # request logging here. Scripts based on OpenAI's rllab have this
-    # problem, maybe because of its use of Theano which uses the logging
-    # module.
-    # This is not an ideal solution. Other solutions:
-    #    - Don't hook into to logging in user scripts, do it outside with
-    #      "wandb run".
-    #    - If the user's script sends logging to stdout, take back over and
-    #      send it to wandb's debug.log. Not ideal.
-    logging.getLogger('requests').setLevel(logging.WARNING)
-    logging.getLogger('urllib3').setLevel(logging.WARNING)
-
-    # parse environment variables
-    mode = os.getenv('WANDB_MODE', 'dryrun')
-    run_id = os.getenv('WANDB_RUN_ID')
-    if run_id is None:
-        run_id = wandb_run.generate_id()
-        os.environ['WANDB_RUN_ID'] = run_id
-    run_dir = os.getenv('WANDB_RUN_DIR')
-    if run_dir is None:
-        run_dir = wandb_run.run_dir_path(run_id, dry=mode == 'dryrun')
-        os.environ['WANDB_RUN_DIR'] = run_dir
-    conf_paths = os.getenv('WANDB_CONFIG_PATHS', '')
-    if conf_paths:
-        conf_paths = conf_paths.split(',')
-    show_run = bool(os.getenv('WANDB_SHOW_RUN'))
-    sweep_id = os.getenv('WANDB_SWEEP_ID', None)
-
-    config = None
     syncer = None
 
-    config = wandb_config.Config(config_paths=conf_paths,
-                                 wandb_dir=__stage_dir__, run_dir=run_dir)
-    run = wandb_run.Run(run_id, run_dir, config)
+    run = wandb_run.Run.from_environment_or_defaults()
+    run.job_type = job_type
+    run.set_environment()
+    assert run.storage_id
     termlog()
-    if mode == 'run':
+    if run.mode == 'run':
+        run.config.set_run_dir(run.dir)  # set the run directory in the config so it actually gets persisted
         api = wandb_api.Api()
-        if api.api_key is None:
-            raise wandb_api.Error(
-                "No API key found, run `wandb login` or set WANDB_API_KEY")
         api.set_current_run_id(run.id)
-
-        syncer = sync.Sync(api, job_type, run, config=run.config, sweep_id=sweep_id)
-        syncer.watch(files='*', show_run=show_run)
-
-        root = api.git.root
-        remote_url = api.git.remote_url
-        host = socket.gethostname()
-        # handle non-git directories
-        if not root:
-            root = os.path.abspath(os.getcwd())
-            remote_url = 'file://%s%s' % (host, root)
-
-        # Load description and write it to the run directory.
-        dpath = run.description_path
-        description = None
-        if os.path.exists(dpath):
-            with open(dpath) as f:
-                description = f.read()
-        # An empty description.md may have been created by sync.Sync() so it's
-        # important that we disregard empty strings here.
-        if not description:
-            description = os.getenv('WANDB_DESCRIPTION')
-        if not description:
-            description = run.id
-        with open(dpath, 'w') as f:
-            f.write(description)
-
-        entity = api.settings("entity")
-        project = api.settings("project")
-        program_path = os.path.relpath(SCRIPT_PATH, root)
-
-        # TODO: better failure handling
-        upsert_result = api.upsert_run(name=run.id, project=project, entity=entity,
-                                             config=config.as_dict(), description=description, host=host,
-                                             program_path=program_path, job_type=job_type, repo=remote_url,
-                                             sweep_name=sweep_id)
-        run_storage_id = upsert_result['id']
+        # we have to write job_type here because we don't know it before init()
+        api.upsert_run(id=run.storage_id, job_type=job_type)
 
         def config_persist_callback():
-            api.upsert_run(id=run_storage_id, config=config.as_dict())
-        config._set_persist_callback(config_persist_callback)
+            api.upsert_run(id=run.storage_id, config=run.config.as_dict())
+        run.config.set_persist_callback(config_persist_callback)
 
         # we do this after starting sync.Sync() because this atexit handler needs
         # to happen before the one in sync.Sync.
         _exit_hooks = ExitHooks()
         _exit_hooks.hook()
+
+        if bool(os.environ.get('WANDB_SHOW_RUN')):
+            webbrowser.open_new_tab(run.get_url(api))
     elif mode == 'dryrun':
         termlog(
             'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')

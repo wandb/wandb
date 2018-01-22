@@ -147,6 +147,9 @@ class Api(object):
         self._current_run_id = None
         self._file_stream_api = None
 
+        if self.api_key is None:
+            raise Error("No API key found, run `wandb login` or set WANDB_API_KEY")
+
     def save_patches(self, out_dir):
         """Save the current state of this repository to one or more patches.
 

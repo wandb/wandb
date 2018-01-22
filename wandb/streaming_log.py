@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import datetime
 import logging
 import re
@@ -13,7 +15,7 @@ class LineBuffer(object):
 
     def __init__(self):
         self._buf = []
-        self._line_end_re = re.compile('[\r\n]')
+        self._line_end_re = re.compile('[\r\n]+')
 
     def add_string(self, string):
         """Process a string.
@@ -30,7 +32,7 @@ class LineBuffer(object):
                 self._buf.append(string)
                 break
             else:
-                line_end_pos = match.start()
+                line_end_pos = match.end()
                 lines.append(''.join(self._buf) + string[:line_end_pos + 1])
                 string = string[line_end_pos + 1:]
                 self._buf = []
@@ -69,6 +71,7 @@ class TextStreamPusher(object):
             cur_time = time.time()
         lines = self._line_buffer.add_string(message)
         for line in lines:
+            #print('pushing', repr(line))
             timestamp = ''
             if self._prepend_timestamp:
                 timestamp = datetime.datetime.utcfromtimestamp(
