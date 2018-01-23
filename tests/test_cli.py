@@ -386,7 +386,7 @@ def test_init_reinit(runner, empty_netrc, local_netrc, request_mocker, query_pro
     with runner.isolated_filesystem():
         os.mkdir('wandb')
         result = runner.invoke(
-            cli.init, input="%s\nvanpelt\ny" % DUMMY_API_KEY)
+            cli.init, input="y\n%s\nvanpelt\n" % DUMMY_API_KEY)
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
