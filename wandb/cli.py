@@ -39,7 +39,7 @@ from wandb import wandb_dir
 from wandb import util
 from wandb import sync
 
-DOCS_URL = 'http://wb-client.readthedocs.io/'
+DOCS_URL = 'http://docs.wandb.com/'
 
 logger = logging.getLogger(__name__)
 
@@ -460,12 +460,17 @@ def login():
 @click.pass_context
 @display_error
 def init(ctx):
-    # TODO: This is commented out because we always automatically create this dir in __init__.py
-    # however this isn't ideal, we'll litter the filesystem with wandb directories.
-    # if(os.path.exists(__stage_dir__)):
-    #    click.confirm(click.style("This directory is already configured, should we overwrite it?", fg="red"), abort=True)
-    click.echo(click.style(
-        "Let's setup this directory for W&B!", fg="green", bold=True))
+    from wandb import _set_stage_dir, wandb_dir
+    if wandb_dir() is None:
+        _set_stage_dir('wandb')
+    wandb_path = os.path.join(os.getcwd(), wandb_dir())
+    if os.path.isdir(wandb_path):
+        click.confirm(click.style(
+            "This directory has been configured previously, should we re-configure it?", bold=True), abort=True)
+    else:
+        click.echo(click.style(
+            "Let's setup this directory for W&B!", fg="green", bold=True))
+
     global api, IS_INIT
 
     if api.api_key is None:
@@ -496,16 +501,7 @@ def init(ctx):
     except wandb.cli.ClickWandbException:
         raise ClickException('Could not find team: %s' % entity)
 
-    from wandb import _set_stage_dir, wandb_dir
-    if wandb_dir() is None:
-        _set_stage_dir('wandb')
-
-    from wandb import wandb_dir
-    wandb_path = os.path.join(os.getcwd(), wandb_dir())
-    if os.path.isdir(wandb_path):
-        click.confirm(click.style(
-            "This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
-    else:
+    if not os.path.isdir(wandb_path):
         os.mkdir(wandb_path)
 
     with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
