@@ -79,6 +79,10 @@ release: clean ## package and upload a release
 	python setup.py sdist upload
 	python setup.py bdist_wheel upload
 
+release-test: clean ## package and upload test release
+	python setup.py sdist upload -r pypitest
+	python setup.py bdist_wheel upload -r pypitest
+
 dist: clean ## builds source and wheel package
 	python setup.py sdist
 	python setup.py bdist_wheel
