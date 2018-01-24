@@ -8,7 +8,6 @@ import traceback
 from wandb.api import Api
 from wandb.config import Config
 from wandb import util
-from wandb import runner
 from wandb import sync
 from wandb import wandb_run
 
@@ -23,7 +22,7 @@ class AgentError(Exception):
 class Agent(object):
     POLL_INTERVAL = 5
 
-    def __init__(self, api, queue, wandb_runner, sweep_id=None):
+    def __init__(self, api, queue, sweep_id=None):
         self._api = api
         self._queue = queue
         self._run_managers = {}  # keyed by run.id (GQL run name)
@@ -169,7 +168,6 @@ class AgentApi(object):
 
 def run_agent(sweep_id=None):
     api = Api()
-    wandb_runner = runner.Runner(api)
     queue = multiprocessing.Queue()
-    agent = Agent(api, queue, wandb_runner, sweep_id=sweep_id)
+    agent = Agent(api, queue, sweep_id=sweep_id)
     agent.run()

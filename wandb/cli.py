@@ -675,7 +675,7 @@ def run(ctx, program, args, id, dir, configs, message, show):
     try:
         try:
             syncer = sync.Sync(api, run, program, args, env)
-        except Error:
+        except sync.Error:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
                 (ERROR_STRING, util.get_log_file_path())))

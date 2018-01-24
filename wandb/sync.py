@@ -228,7 +228,7 @@ class Sync(object):
                     stderr=self._stderr_tee.tee_file
             )
         except (OSError, IOError):
-            raise ClickException('Could not find program: %s' % command)
+            raise Exception('Could not find program: %s' % self._command)
 
     def is_running(self):
         return self.proc.poll() is None
