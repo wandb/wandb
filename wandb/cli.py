@@ -114,7 +114,7 @@ def prompt_for_project(ctx, entity):
                 project = api.upsert_project(project, entity=entity)["name"]
 
     except wandb.api.CommError as e:
-        raise ClickException(e.message)
+        raise ClickException(str(e))
 
     return project
 
