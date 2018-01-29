@@ -10,6 +10,7 @@ import hashlib
 import os
 import json
 import yaml
+import re
 from wandb import __version__, __stage_dir__, Error
 from wandb.git_repo import GitRepo
 from wandb import util
@@ -428,6 +429,9 @@ class Api(object):
         config = json.loads(run['config'] or '{}')
         return (commit, config, patch)
 
+    def format_project(self, project):
+        return re.sub(r'\W+', '-', project.lower()).strip("-_")
+
     @normalize_exceptions
     def upsert_project(self, project, id=None, description=None, entity=None):
         """Create a new project
@@ -447,9 +451,8 @@ class Api(object):
             }
         }
         ''')
-
         response = self.client.execute(mutation, variable_values={
-            'name': project, 'entity': entity or self.settings('entity'),
+            'name': self.format_project(project), 'entity': entity or self.settings('entity'),
             'description': description, 'repo': self.git.remote_url, 'id': id})
         return response['upsertModel']['model']
 
