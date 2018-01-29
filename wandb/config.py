@@ -129,14 +129,19 @@ class Config(object):
 
     def update(self, params):
         if not isinstance(params, dict):
+            # handle tensorflow flags
+            
             try:
-                # for tensorflow flags
+                # for older tensorflow flags (pre 1.4)
                 if "__flags" in dir(params):
                     if not params.__dict__['__parsed']:
                         params._parse_flags()
                     params = params.__dict__['__flags']
                 else:
-                    params = vars(params)
+                    # newer tensorflow (post 1.4) uses absl.flags
+                    params = {name: params[name].value
+                        for name in dir(params)}
+
             except TypeError:
                 raise TypeError(
                     "config must be a dict or have a __dict__ attribute.")
