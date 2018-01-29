@@ -112,10 +112,7 @@ def prompt_for_project(ctx, entity):
                     "Enter a name for your new project", value_proc=api.format_project)
                 #description = editor()
                 project = api.upsert_project(project, entity=entity)["name"]
-            else:
-                ids = [res['id'] for res in result if res['name'] == project]
-                if len(ids) > 0:
-                    api.upsert_project(project, id=ids[0], entity=entity)
+
     except wandb.api.CommError as e:
         raise ClickException(e.message)
 
