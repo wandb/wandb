@@ -130,7 +130,7 @@ class Config(object):
     def update(self, params):
         if not isinstance(params, dict):
             # handle tensorflow flags
-            
+
             try:
                 # for older tensorflow flags (pre 1.4)
                 if "__flags" in dir(params):
@@ -145,6 +145,7 @@ class Config(object):
             except TypeError:
                 raise TypeError(
                     "config must be a dict or have a __dict__ attribute.")
+                    
         if not isinstance(params, dict):
             raise Error('Expected dict but received %s' % params)
         for key, val in params.items():
