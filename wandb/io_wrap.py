@@ -41,6 +41,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import tty
 
 from six.moves import queue, shlex_quote
 
@@ -56,6 +57,8 @@ class Tee(object):
     @classmethod
     def pty(cls, sync_dst_file, *async_dst_files):
         master_fd, slave_fd = pty.openpty()
+        tty.setraw(master_fd)
+        tty.setraw(slave_fd)
         master = os.fdopen(master_fd, 'rb')
         slave = os.fdopen(slave_fd, 'wb')
         return cls(slave, master, sync_dst_file, *async_dst_files)

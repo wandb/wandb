@@ -7,6 +7,7 @@ import traceback
 
 import six
 
+import wandb
 from wandb.api import Api
 from wandb.config import Config
 from wandb import util
@@ -60,14 +61,14 @@ class Agent(object):
             pass
         finally:
             try:
-                logger.info('Terminating and syncing runs. Press ctrl-c to kill.')
+                wandb.termlog('Terminating and syncing runs. Press ctrl-c to kill.')
                 for run_id, run_manager in six.iteritems(self._run_managers):
                     run_manager.proc.terminate()
                 for run_id, run_manager in six.iteritems(self._run_managers):
                     run_manager.proc.wait()
                     run_manager.poll()  # clean up if necessary
             except KeyboardInterrupt:
-                logger.info('Killing and syncing runs. Press ctrl-c again to quit.')
+                wandb.termlog('Killing and syncing runs. Press ctrl-c again to quit.')
                 for run_id, run_manager in six.iteritems(self._run_managers):
                     run_manager.proc.kill()
                 for run_id, run_manager in six.iteritems(self._run_managers):
