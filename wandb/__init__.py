@@ -112,7 +112,6 @@ def init(job_type='train'):
     run.job_type = job_type
     run.set_environment()
     assert run.storage_id
-    termlog()
     if run.mode == 'run':
         run.config.set_run_dir(run.dir)  # set the run directory in the config so it actually gets persisted
         api = wandb_api.Api()

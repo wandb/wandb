@@ -17,7 +17,7 @@ class LineBuffer(object):
 
     def __init__(self):
         self._buf = []
-        self._line_end_re = re.compile(b('[\r\n]+'))
+        self._line_end_re = re.compile(b('[\r\n]'))
 
     def add_string(self, string):
         """Process a string.
