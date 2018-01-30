@@ -8,7 +8,6 @@ with open('README.md') as readme_file:
 
 requirements = [
     'Click>=6.0',
-    'click_log>=0.2.1',
     'gql>=0.1.0',
     'requests>=2.0.0',
     'whaaaaat>=0.5.2',

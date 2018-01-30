@@ -331,8 +331,10 @@ def test_restore(runner, request_mocker, query_run, monkeypatch):
 def test_projects_error(runner, request_mocker, query_projects):
     query_projects(request_mocker, status_code=400)
     result = runner.invoke(cli.projects)
-    assert result.exit_code == 1
+    print(result.exception)
     print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 1
     assert "Error" in result.output
 
 

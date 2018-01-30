@@ -10,6 +10,7 @@ import hashlib
 import os
 import json
 import yaml
+import re
 from wandb import __version__, __stage_dir__, Error
 from wandb.git_repo import GitRepo
 from wandb import util
@@ -169,31 +170,33 @@ class Api(object):
         Args:
             out_dir (str): Directory to write the patch files.
         """
-        root = self.git.root
-        if self.git.dirty:
-            patch_path = os.path.join(out_dir, 'diff.patch')
-            try:
-                with open(patch_path, 'wb') as patch:
-                    # we diff against HEAD to ensure we get changes in the index
-                    subprocess.check_call(['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root)
-            except subprocess.CalledProcessError:
-                # the --submodule=diff option doesn't exist in pre-2.11 versions of git (november 2016)
-                # https://stackoverflow.com/questions/10757091/git-list-of-all-changed-files-including-those-in-submodules
-                print("WARNING: Diffing ignoring submodules because git is an old version (< 2.11)")
-                with open(patch_path, 'wb') as patch:
-                    subprocess.check_call(['git', 'diff', 'HEAD'], stdout=patch, cwd=root)
+        if not self.git.repo:
+            return False
 
-        upstream_commit = self.git.get_upstream_fork_point()
-        if upstream_commit and upstream_commit != self.git.repo.head.commit:
-            sha = upstream_commit.hexsha
-            upstream_patch_path = os.path.join(out_dir, 'upstream_diff_{}.patch'.format(sha))
-            try:
-                with open(upstream_patch_path, 'wb') as upstream_patch:
-                    subprocess.check_call(['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root)
-            except subprocess.CalledProcessError:
-                print("WARNING: Diffing ignoring submodules because git is an old version (< 2.11)")
-                with open(upstream_patch_path, 'wb') as upstream_patch:
-                    subprocess.check_call(['git', 'diff', sha], stdout=upstream_patch, cwd=root)
+        try:
+            root = self.git.root
+            if self.git.dirty:
+                patch_path = os.path.join(out_dir, 'diff.patch')
+                if self.git.has_submodule_diff:
+                    with open(patch_path, 'wb') as patch:
+                        # we diff against HEAD to ensure we get changes in the index
+                        subprocess.check_call(['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root)
+                else:
+                    with open(patch_path, 'wb') as patch:
+                        subprocess.check_call(['git', 'diff', 'HEAD'], stdout=patch, cwd=root)
+
+            upstream_commit = self.git.get_upstream_fork_point()
+            if upstream_commit and upstream_commit != self.git.repo.head.commit:
+                sha = upstream_commit.hexsha
+                upstream_patch_path = os.path.join(out_dir, 'upstream_diff_{}.patch'.format(sha))
+                if self.git.has_submodule_diff:
+                    with open(upstream_patch_path, 'wb') as upstream_patch:
+                        subprocess.check_call(['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root)
+                else:
+                    with open(upstream_patch_path, 'wb') as upstream_patch:
+                        subprocess.check_call(['git', 'diff', sha], stdout=upstream_patch, cwd=root)
+        except subprocess.CalledProcessError:
+            logger.error('Error generating diff')
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
@@ -433,6 +436,9 @@ class Api(object):
         config = json.loads(run['config'] or '{}')
         return (commit, config, patch)
 
+    def format_project(self, project):
+        return re.sub(r'\W+', '-', project.lower()).strip("-_")
+
     @normalize_exceptions
     def upsert_project(self, project, id=None, description=None, entity=None):
         """Create a new project
@@ -452,9 +458,8 @@ class Api(object):
             }
         }
         ''')
-
         response = self.client.execute(mutation, variable_values={
-            'name': project, 'entity': entity or self.settings('entity'),
+            'name': self.format_project(project), 'entity': entity or self.settings('entity'),
             'description': description, 'repo': self.git.remote_url, 'id': id})
         return response['upsertModel']['model']
 

@@ -61,6 +61,16 @@ class Agent(object):
             pass
         finally:
             try:
+                # TODO(adrian): hitting ctrl-c a lot sometimes causes the following:
+                """
+                  File "/Users/adrian/src/wandb-client/wandb/agent.py", line 66, in run
+                    run_manager.proc.terminate()
+                  File "/Users/adrian/.pyenv/versions/2.7.12/lib/python2.7/subprocess.py", line 1567, in terminate
+                    self.send_signal(signal.SIGTERM)
+                  File "/Users/adrian/.pyenv/versions/2.7.12/lib/python2.7/subprocess.py", line 1562, in send_signal
+                    os.kill(self.pid, sig)
+                OSError: [Errno 3] No such process
+                """
                 wandb.termlog('Terminating and syncing runs. Press ctrl-c to kill.')
                 for run_id, run_manager in six.iteritems(self._run_managers):
                     run_manager.proc.terminate()

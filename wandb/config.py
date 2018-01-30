@@ -153,17 +153,22 @@ class Config(object):
 
     def update(self, params):
         if not isinstance(params, dict):
-            try:
-                # for tensorflow flags
-                if "__flags" in dir(params):
-                    if not params.__dict__['__parsed']:
-                        params._parse_flags()
-                    params = params.__dict__['__flags']
-                else:
-                    params = vars(params)
-            except TypeError:
-                raise TypeError(
-                    "config must be a dict or have a __dict__ attribute.")
+            # handle tensorflow flags
+            if not hasattr(params, '__dict__'):
+                raise TypeError("config must be a dict or have a __dict__ attribute.")
+
+            # for older tensorflow flags (pre 1.4)
+            if "__flags" in dir(params):
+                if not params.__dict__['__parsed']:
+                    params._parse_flags()
+                params = params.__dict__['__flags']
+            else:
+                # newer tensorflow (post 1.4) uses absl.flags
+                params = dict(params.__dict__)
+                # the following was giving me errors that "Namespace is not subscriptable"
+                # so I replaced it with the above.
+                # {name: params[name].value for name in dir(params)}
+                    
         if not isinstance(params, dict):
             raise Error('Expected dict but received %s' % params)
         for key, val in params.items():

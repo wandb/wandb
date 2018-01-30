@@ -69,6 +69,14 @@ class GitRepo(object):
         except IndexError:
             return None
 
+    # the --submodule=diff option doesn't exist in pre-2.11 versions of git (november 2016)
+    # https://stackoverflow.com/questions/10757091/git-list-of-all-changed-files-including-those-in-submodules
+    @property
+    def has_submodule_diff(self):
+        if not self.repo:
+            return False
+        return self.repo.git.version_info >= (2, 11, 0)
+
     @property
     def remote_url(self):
         if not self.remote:

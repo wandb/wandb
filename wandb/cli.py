@@ -26,7 +26,6 @@ import yaml
 
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
-import click_log
 import whaaaaat
 
 import wandb
@@ -38,9 +37,9 @@ from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import util
 from wandb import sync
+from wandb import Error
 
 DOCS_URL = 'http://docs.wandb.com/'
-
 logger = logging.getLogger(__name__)
 
 
@@ -49,8 +48,11 @@ class ClickWandbException(ClickException):
         log_file = util.get_log_file_path()
         orig_type = '%s.%s' % (self.orig_type.__module__,
                                self.orig_type.__name__)
-        return ('An Exception was raised, see %s for full traceback.\n'
-                '%s: %s' % (log_file, orig_type, self.message))
+        if issubclass(self.orig_type, Error):
+            return click.style(str(self.message), fg="red")
+        else:
+            return ('An Exception was raised, see %s for full traceback.\n'
+                    '%s: %s' % (log_file, orig_type, self.message))
 
 
 def display_error(func):
@@ -92,29 +94,30 @@ def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
 
-    if len(result) == 0:
-        project = click.prompt("Enter a name for your first project")
-        description = editor()
-        api.upsert_project(project, entity=entity, description=description)
-    else:
-        project_names = [project["name"] for project in result]
-        question = {
-            'type': 'list',
-            'name': 'project_name',
-            'message': "Which project should we use?",
-            'choices': project_names + ["Create New"]
-        }
-        project = whaaaaat.prompt([question])['project_name']
-
-        # TODO: check with the server if the project exists
-        if project == "Create New":
-            project = click.prompt("Enter a name for your new project")
-            description = editor()
-            api.upsert_project(project, entity=entity, description=description)
+    try:
+        if len(result) == 0:
+            project = click.prompt("Enter a name for your first project")
+            #description = editor()
+            project = api.upsert_project(project, entity=entity)["name"]
         else:
-            ids = [res['id'] for res in result if res['name'] == project]
-            if len(ids) > 0:
-                api.upsert_project(project, id=ids[0], entity=entity)
+            project_names = [project["name"] for project in result]
+            question = {
+                'type': 'list',
+                'name': 'project_name',
+                'message': "Which project should we use?",
+                'choices': project_names + ["Create New"]
+            }
+            project = whaaaaat.prompt([question])['project_name']
+
+            # TODO: check with the server if the project exists
+            if project == "Create New":
+                project = click.prompt(
+                    "Enter a name for your new project", value_proc=api.format_project)
+                #description = editor()
+                project = api.upsert_project(project, entity=entity)["name"]
+
+    except wandb.api.CommError as e:
+        raise ClickException(str(e))
 
     return project
 
@@ -192,11 +195,7 @@ def cli(ctx):
 
     Run "wandb docs" for full documentation.
     """
-    root_logger = logging.getLogger()
-    click_log.basic_config(root_logger)
-    root_logger.setLevel(logging.INFO)
-    logging.getLogger('requests').setLevel(logging.WARNING)
-    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    pass
 
 
 @cli.command(context_settings=CONTEXT, help="List projects")
@@ -215,7 +214,7 @@ def projects(entity, display=True):
             click.echo("".join(
                 (click.style(project['name'], fg="blue", bold=True),
                  " - ",
-                 str(project['description']).split("\n")[0])
+                 str(project['description'] or "").split("\n")[0])
             ))
     return projects
 
@@ -437,7 +436,7 @@ def login():
     # Import in here for performance reasons
     import webbrowser
     # TODO: use Oauth and a local webserver: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
-    url = api.app_url + '/profile'
+    url = api.app_url + '/profile?message=true'
     # TODO: google cloud SDK check_browser.py
     launched = webbrowser.open_new_tab(url)
     if launched:
