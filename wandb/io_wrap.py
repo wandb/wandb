@@ -36,7 +36,11 @@ import atexit
 import io
 import logging
 import os
-import pty
+try:
+    import pty
+except ModuleNotFoundError:  # windows
+    pass
+
 import subprocess
 import sys
 import tempfile
@@ -88,7 +92,8 @@ class Tee(object):
         self._write_threads = []
         for f in async_dst_files:
             q = queue.Queue()
-            write = lambda data: self._write(f, data)
+
+            def write(data): return self._write(f, data)
             t = spawn_reader_writer(q.get, write)
             self._write_queues.append(q)
             self._write_threads.append(t)
@@ -99,7 +104,8 @@ class Tee(object):
         # be read. One the other hand, `file.read()` waits until its buffer is full.
         # Since we use this code for console output, `file.read()`'s stuttering output
         # is undesirable.
-        read = lambda: os.read(src_fd, 1024)
+
+        def read(): return os.read(src_fd, 1024)
         self._read_thread = spawn_reader_writer(read, self._write_to_all)
 
     def _write_to_all(self, data):
@@ -163,6 +169,7 @@ class PtyIoWrap(object):
     FIXME(adrian): Some processes may not behave properly unless the PTY is
     their controlling terminal.
     """
+
     def __init__(self, stdout_readers=None, stderr_readers=None):
         if stdout_readers is None:
             stdout_readers = []
@@ -176,10 +183,12 @@ class PtyIoWrap(object):
         self._stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
         self._stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
-        self._stdout_redirector = FileRedirector(sys.stdout, self._stdout_slave)
+        self._stdout_redirector = FileRedirector(
+            sys.stdout, self._stdout_slave)
         self._stdout_tee = FileTee(self.orig_stdout, *stdout_readers)
 
-        self._stderr_redirector = FileRedirector(sys.stderr, self._stderr_slave)
+        self._stderr_redirector = FileRedirector(
+            sys.stderr, self._stderr_slave)
         self._stderr_tee = FileTee(self.orig_stderr, *stderr_readers)
 
         self._stdout_reader_writer = spawn_reader_writer(
@@ -214,6 +223,7 @@ class FileRedirector(object):
     Adapted from
     https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python/22434262#22434262
     """
+
     def __init__(self, redir_file, to_file):
         """Constructor
 
@@ -225,7 +235,7 @@ class FileRedirector(object):
         self._from_fd = redir_file.fileno()
         self._to_fd = to_file.fileno()
         # copy from_fd before it is overwritten
-        #NOTE: `self._from_fd` is inheritable on Windows when duplicating a standard stream
+        # NOTE: `self._from_fd` is inheritable on Windows when duplicating a standard stream
         # we make this unbuffered because we want to rely on buffers earlier in the I/O chain
         self.orig_file = os.fdopen(os.dup(self._from_fd), 'wb', 0)
 

@@ -168,7 +168,7 @@ class Sync(object):
         self._project = project if project else api.settings("project")
         self._tags = tags
         self._watch_dir = self._run.dir
-        
+
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
         self._handler = PatternMatchingEventHandler()
@@ -225,15 +225,19 @@ class Sync(object):
         else:  # we write binary so grab the raw I/O object in python 3
             stdout = sys.stdout.buffer.raw
             stderr = sys.stderr.buffer.raw
-        self._stdout_tee = io_wrap.Tee.pty(stdout, self._stdout_stream)
-        self._stderr_tee = io_wrap.Tee.pty(stderr, self._stderr_stream)
+        if sys.platform == "win32":
+            self._stdout_tee = io_wrap.Tee.pipe(stdout, self._stdout_stream)
+            self._stderr_tee = io_wrap.Tee.pipe(stderr, self._stderr_stream)
+        else:
+            self._stdout_tee = io_wrap.Tee.pty(stdout, self._stdout_stream)
+            self._stderr_tee = io_wrap.Tee.pty(stderr, self._stderr_stream)
 
         try:
             self.proc = subprocess.Popen(
-                    self._command,
-                    env=env,
-                    stdout=self._stdout_tee.tee_file,
-                    stderr=self._stderr_tee.tee_file
+                self._command,
+                env=env,
+                stdout=self._stdout_tee.tee_file,
+                stderr=self._stderr_tee.tee_file
             )
         except (OSError, IOError):
             raise Exception('Could not find program: %s' % self._command)
