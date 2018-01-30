@@ -7,6 +7,8 @@ import logging
 import re
 import time
 
+from six import b
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,7 +17,7 @@ class LineBuffer(object):
 
     def __init__(self):
         self._buf = []
-        self._line_end_re = re.compile('[\r\n]+')
+        self._line_end_re = re.compile(b('[\r\n]+'))
 
     def add_string(self, string):
         """Process a string.
@@ -33,8 +35,9 @@ class LineBuffer(object):
                 break
             else:
                 line_end_pos = match.end()
-                lines.append(''.join(self._buf) + string[:line_end_pos + 1])
-                string = string[line_end_pos + 1:]
+                self._buf.append(string[:line_end_pos])
+                lines.append(b('').join(self._buf).decode('utf-8'))
+                string = string[line_end_pos:]
                 self._buf = []
         return lines
 
@@ -60,6 +63,9 @@ class TextStreamPusher(object):
         self._prepend_timestamp = prepend_timestamp
         self._line_buffer = LineBuffer()
 
+    def write_string(self, message, cur_time=None):
+        return self.write(message.encode('utf-8'), cur_time)
+
     def write(self, message, cur_time=None):
         """Write some text to the pusher.
 
@@ -71,7 +77,6 @@ class TextStreamPusher(object):
             cur_time = time.time()
         lines = self._line_buffer.add_string(message)
         for line in lines:
-            #print('pushing', repr(line))
             timestamp = ''
             if self._prepend_timestamp:
                 timestamp = datetime.datetime.utcfromtimestamp(
@@ -82,4 +87,4 @@ class TextStreamPusher(object):
     def close(self):
         """Close the file."""
         # Force a final line to clear whatever might be in the buffer.
-        self.write('\n')
+        self.write_string('\n')

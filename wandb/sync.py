@@ -14,6 +14,8 @@ from shortuuid import ShortUUID
 from .config import Config
 import logging
 import threading
+
+import six
 from six.moves import queue
 import click
 
@@ -119,7 +121,7 @@ class FileEventHandlerTextStream(FileEventHandler):
         pusher = streaming_log.TextStreamPusher(fsapi, self.save_name)
 
         def on_read(data):
-            pusher.write(data)
+            pusher.write_string(data)
 
         self._tailer = FileTailer(self.file_path, on_read)
 
@@ -214,11 +216,17 @@ class Sync(object):
             self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
             prepend_timestamp=True)
 
-        self._stdout_stream.write(" ".join(psutil.Process(
+        self._stdout_stream.write_string(" ".join(psutil.Process(
             os.getpid()).cmdline()) + "\n\n")
 
-        self._stdout_tee = io_wrap.Tee.pty(sys.stdout, self._stdout_stream)
-        self._stderr_tee = io_wrap.Tee.pty(sys.stderr, self._stderr_stream)
+        if six.PY2:
+            stdout = sys.stdout
+            stderr = sys.stderr
+        else:  # we write binary so grab the raw I/O object in python 3
+            stdout = sys.stdout.buffer.raw
+            stderr = sys.stderr.buffer.raw
+        self._stdout_tee = io_wrap.Tee.pty(stdout, self._stdout_stream)
+        self._stderr_tee = io_wrap.Tee.pty(stderr, self._stderr_stream)
 
         try:
             self.proc = subprocess.Popen(

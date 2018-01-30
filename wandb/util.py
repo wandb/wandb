@@ -58,62 +58,6 @@ def mkdir_exists_ok(path):
             raise
 
 
-class SafeSubprocess(object):
-    def __init__(self, args, env=None, read_output=False):
-        self._args = args
-        self._env = env
-        self._read_output = read_output
-        self._stdout = queue.Queue()
-        self._stderr = queue.Queue()
-        self._popen = None
-        self._stdout_thread = None
-        self._stderr_thread = None
-
-    def run(self):
-        if self._read_output:
-            self._popen = subprocess.Popen(
-                self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                env=self._env)
-            self._stdout_thread = io_wrap.spawn_reader_writer(
-                lambda: (self._popen.stdout.read(64).decode('utf-8') or None),
-                self._stdout.put)
-            self._stderr_thread = io_wrap.spawn_reader_writer(
-                lambda: (self._popen.stderr.read(64).decode('utf-8') or None),
-                self._stderr.put)
-        else:
-            self._popen = subprocess.Popen(self._args, env=self._env)
-
-    def _read(self, rqueue):
-        try:
-            return rqueue.get(False)
-        except queue.Empty:
-            return None
-
-    def _read_all(self, rqueue):
-        reads = []
-        while True:
-            got = self._read(rqueue)
-            if got is None:
-                break
-            reads.append(got)
-        return reads
-
-    def _read_stdout(self):
-        return self._read_all(self._stdout)
-
-    def _read_stderr(self):
-        return self._read_all(self._stderr)
-
-    def poll(self):
-        if self._read_output:
-            return self._popen.poll(), self._read_stdout(), self._read_stderr()
-        else:
-            return self._popen.poll()
-
-    def terminate(self):
-        self._popen.terminate()
-
-
 def request_with_retry(func, *args, **kwargs):
     """Perform a requests http call, retrying with exponetial backoff.
 
@@ -132,7 +76,7 @@ def request_with_retry(func, *args, **kwargs):
             response.raise_for_status()
             return True
         except (requests.exceptions.ConnectionError,
-                requests.exceptions.HTTPError,
+                requests.exceptions.HTTPError,  # XXX 500s aren't retryable
                 requests.exceptions.Timeout) as e:
             logger.warning('requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s',
                            e, args, kwargs)
@@ -142,7 +86,8 @@ def request_with_retry(func, *args, **kwargs):
             time.sleep(retry_delay)
             retry_delay *= 2
         except requests.exceptions.RequestException as e:
-            logger.error(
+            logger.error(response.json()['error'])  # XXX clean this up
+            logger.exception(
                 'requests_with_retry encountered unretryable exception: %s', e)
             return e
 

@@ -29,6 +29,8 @@ import subprocess
 import threading
 import time
 
+from six import b
+
 logger = logging.getLogger(__name__)
 
 

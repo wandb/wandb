@@ -5,6 +5,8 @@ import socket
 import sys
 import traceback
 
+import six
+
 from wandb.api import Api
 from wandb.config import Config
 from wandb import util
@@ -44,7 +46,7 @@ class Agent(object):
 
                 logger.info('Running runs: %s', self._run_managers.keys())
                 run_status = {}
-                for run_id, run_manager in self._run_managers.iteritems():
+                for run_id, run_manager in six.iteritems(self._run_managers):
                     if run_manager.poll() is None:
                         run_status[run_id] = True
 
@@ -59,16 +61,16 @@ class Agent(object):
         finally:
             try:
                 logger.info('Terminating and syncing runs. Press ctrl-c to kill.')
-                for run_id, run_manager in self._run_managers.iteritems():
+                for run_id, run_manager in six.iteritems(self._run_managers):
                     run_manager.proc.terminate()
-                for run_id, run_manager in self._run_managers.iteritems():
+                for run_id, run_manager in six.iteritems(self._run_managers):
                     run_manager.proc.wait()
                     run_manager.poll()  # clean up if necessary
             except KeyboardInterrupt:
                 logger.info('Killing and syncing runs. Press ctrl-c again to quit.')
-                for run_id, run_manager in self._run_managers.iteritems():
+                for run_id, run_manager in six.iteritems(self._run_managers):
                     run_manager.proc.kill()
-                for run_id, run_manager in self._run_managers.iteritems():
+                for run_id, run_manager in six.iteritems(self._run_managers):
                     run_manager.clean_up(False)
 
     def _process_command(self, command):
