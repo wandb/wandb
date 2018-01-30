@@ -38,6 +38,7 @@ import logging
 import os
 try:
     import pty
+    import tty
 except ModuleNotFoundError:  # windows
     pass
 
@@ -45,7 +46,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import tty
 
 from six.moves import queue, shlex_quote
 
@@ -70,8 +70,8 @@ class Tee(object):
     @classmethod
     def pipe(cls, sync_dst_file, *async_dst_files):
         read_fd, write_fd = os.pipe()
-        read_file = os.fdopen(slave_fd, 'rb')
-        write_file = os.fdopen(master_fd, 'wb')
+        read_file = os.fdopen(read_fd, 'rb')
+        write_file = os.fdopen(write_fd, 'wb')
         return cls(write_file, read_file, sync_dst_file, *async_dst_files)
 
     def __init__(self, tee_file, src_file, sync_dst_file, *async_dst_files):
