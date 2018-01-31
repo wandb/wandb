@@ -114,7 +114,7 @@ class Run(object):
 
     @property
     def has_summary(self):
-        return self._summary is not None
+        return self._summary or os.path.exists(os.path.join(self._dir, summary.SUMMARY_FNAME))
 
     @property
     def history(self):
@@ -125,11 +125,7 @@ class Run(object):
 
     @property
     def has_history(self):
-        return self._history is not None
-
-    @property
-    def has_events(self):
-        return self._events is not None
+        return self._history or os.path.exists(os.path.join(self._dir, HISTORY_FNAME))
 
     @property
     def events(self):
@@ -137,6 +133,10 @@ class Run(object):
         if self._events is None:
             self._events = jsonlfile.JsonlEventsFile(EVENTS_FNAME, self._dir)
         return self._events
+
+    @property
+    def has_events(self):
+        return self._events or os.path.exists(os.path.join(self._dir, EVENTS_FNAME))
 
     @property
     def examples(self):
@@ -148,7 +148,7 @@ class Run(object):
 
     @property
     def has_examples(self):
-        return self._examples is not None
+        return self._examples or os.path.exists(os.path.join(self._dir, EXAMPLES_FNAME))
 
     @property
     def description_path(self):
@@ -175,10 +175,10 @@ class Run(object):
         Exception ignored in: <_io.FileIO name='wandb/dryrun-20180130_144602-9vmqjhgy/wandb-history.jsonl' mode='wb' closefd=True>
         ResourceWarning: unclosed file <_io.TextIOWrapper name='wandb/dryrun-20180130_144602-9vmqjhgy/wandb-history.jsonl' mode='w' encoding='UTF-8'>
         """
-        if self.has_events:
-            self.events.close()
-        if self.has_history:
-            self.history.close()
+        if self._events is not None:
+            self._events.close()
+        if self._history is not None:
+            self._history.close()
 
 
 def generate_id():

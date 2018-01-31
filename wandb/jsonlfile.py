@@ -1,4 +1,5 @@
 import collections
+import json
 import os
 import time
 from threading import Lock
@@ -14,8 +15,15 @@ class JsonlFile(object):
     def __init__(self, fname, out_dir='.'):
         self._start_time = global_start_time
         self.fname = os.path.join(out_dir, fname)
-        self._file = open(self.fname, 'w')
         self.rows = []
+        try:
+            with open(self.fname) as f:
+                for line in f:
+                    self.rows.append(json.loads(line))
+        except IOError:
+            pass
+
+        self._file = open(self.fname, 'w')
 
     def keys(self):
         if self.rows:

@@ -13,7 +13,10 @@ class Summary(object):
 
     def __init__(self, out_dir='.'):
         self.fname = os.path.join(out_dir, SUMMARY_FNAME)
-        self.summary = {}
+        try:
+            self.summary = json.load(open(self.fname))
+        except IOError:
+            self.summary = {}
 
     def _write(self):
         with open(self.fname, 'w') as f:

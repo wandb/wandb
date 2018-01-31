@@ -23,6 +23,7 @@ import wandb
 from wandb import Error
 from wandb import io_wrap
 from wandb import file_pusher
+from wandb import sparkline
 from wandb import stats
 from wandb import streaming_log
 from wandb import util
@@ -224,10 +225,12 @@ class Sync(object):
         if six.PY2:
             stdout = sys.stdout
             stderr = sys.stderr
-        else:  # we write binary so grab the raw I/O object in python 3
+        else:  # we write binary so grab the raw I/O objects in python 3
             stdout = sys.stdout.buffer.raw
             stderr = sys.stderr.buffer.raw
+
         if sys.platform == "win32":
+            # PTYs don't work in windows so we use pipes.
             self._stdout_tee = io_wrap.Tee.pipe(stdout, self._stdout_stream)
             self._stderr_tee = io_wrap.Tee.pipe(stderr, self._stderr_stream)
         else:
@@ -248,15 +251,35 @@ class Sync(object):
         return self.proc.poll() is None
 
     def poll(self):
-        terminated = self.proc.poll() is not None
-        if self.cleaned_up is not terminated:
-            self.clean_up(bool(self.proc.returncode))
-        return self.proc.returncode
+        returncode = self.proc.poll()
+        if returncode is not None and not self.cleaned_up:
+            self.clean_up(not returncode)
+        return returncode
 
     def clean_up(self, success):
         if self.cleaned_up:
             return
         self.cleaned_up = True
+
+        # Show run summary/history
+        if self._run.has_summary:
+            summary = self._run.summary.summary
+            wandb.termlog('Run summary:')
+            max_len = max([len(k) for k in summary.keys()])
+            format_str = '  {:>%s} {}' % max_len
+            for k, v in summary.items():
+                wandb.termlog(format_str.format(k, v))
+        if self._run.has_history:
+            history_keys = self._run.history.keys()
+            wandb.termlog('Run history:')
+            max_len = max([len(k) for k in history_keys])
+            for key in history_keys:
+                vals = util.downsample(self._run.history.column(key), 40)
+                line = sparkline.sparkify(vals)
+                format_str = u'  {:>%s} {}' % max_len
+                wandb.termlog(format_str.format(key, line))
+        if self._run.has_examples:
+            wandb.termlog('Saved %s examples' % self._run.examples.count())
 
         self._system_stats.shutdown()
 
