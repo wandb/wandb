@@ -124,15 +124,19 @@ class Run(object):
         return self._history
 
     @property
+    def has_history(self):
+        return self._history is not None
+
+    @property
+    def has_events(self):
+        return self._events is not None
+
+    @property
     def events(self):
         self._mkdir()
         if self._events is None:
             self._events = jsonlfile.JsonlEventsFile(EVENTS_FNAME, self._dir)
         return self._events
-
-    @property
-    def has_history(self):
-        return self._history is not None
 
     @property
     def examples(self):
@@ -164,6 +168,17 @@ class Run(object):
         with open(self.description_path, 'w') as d_file:
             d_file.write(description)
         return description
+
+    def close_files(self):
+        """Close open files to avoid Python warnings on termination:
+
+        Exception ignored in: <_io.FileIO name='wandb/dryrun-20180130_144602-9vmqjhgy/wandb-history.jsonl' mode='wb' closefd=True>
+        ResourceWarning: unclosed file <_io.TextIOWrapper name='wandb/dryrun-20180130_144602-9vmqjhgy/wandb-history.jsonl' mode='w' encoding='UTF-8'>
+        """
+        if self.has_events:
+            self.events.close()
+        if self.has_history:
+            self.history.close()
 
 
 def generate_id():

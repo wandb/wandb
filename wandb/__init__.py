@@ -102,7 +102,7 @@ def init(job_type='train'):
 
     # The WANDB_DEBUG check ensures tests still work.
     if not wandb_dir() and not os.getenv('WANDB_DEBUG'):
-        print('wandb.init() called but directory not initialized.\n'
+        termlog('wandb.init() called but directory not initialized.\n'
               'Please run "wandb init" to get started')
         sys.exit(1)
 
@@ -111,8 +111,8 @@ def init(job_type='train'):
     run = wandb_run.Run.from_environment_or_defaults()
     run.job_type = job_type
     run.set_environment()
-    assert run.storage_id
     if run.mode == 'run':
+        assert run.storage_id
         run.config.set_run_dir(run.dir)  # set the run directory in the config so it actually gets persisted
         api = wandb_api.Api()
         api.set_current_run_id(run.id)
@@ -123,18 +123,21 @@ def init(job_type='train'):
             api.upsert_run(id=run.storage_id, config=run.config.as_dict())
         run.config.set_persist_callback(config_persist_callback)
 
-        # we do this after starting sync.Sync() because this atexit handler needs
-        # to happen before the one in sync.Sync.
         _exit_hooks = ExitHooks()
         _exit_hooks.hook()
 
         if bool(os.environ.get('WANDB_SHOW_RUN')):
             webbrowser.open_new_tab(run.get_url(api))
-    elif mode == 'dryrun':
-        termlog(
-            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
-    termlog('Run directory: %s' % os.path.relpath(run.dir))
-    termlog()
+    elif run.mode == 'dryrun':
+        termlog('wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
+        termlog()
+
+        atexit.register(run.close_files)
+    else:
+        termlog('Invalid run mode "%s". Please unset WANDB_MODE to do a dry run or')
+        termlog('run with "wandb run" to do a real run.')
+        sys.exit(1)
+
     os.environ['WANDB_INITED'] = '1'
 
     return run
@@ -195,6 +198,8 @@ class ExitHooks(object):
                 termlog(format_str.format(key, line))
         if run.has_examples:
             termlog('Saved %s examples' % run.examples.count())
+
+        run.close_files()
 
     def _sigkill(self, *args):
         self._signal = signal.SIGTERM

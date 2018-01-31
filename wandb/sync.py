@@ -206,6 +206,8 @@ class Sync(object):
         self._api.save_patches(self._watch_dir)
 
         wandb.termlog("Syncing %s" % self.url)
+        wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
+        wandb.termlog()
 
         self._api.get_file_stream_api().set_file_policy(
             'output.log', CRDedupeFilePolicy())

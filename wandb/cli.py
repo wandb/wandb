@@ -702,6 +702,12 @@ def run(ctx, program, args, id, dir, configs, message, show):
             pass
 
         exitcode = syncer.proc.wait()
+        """
+        Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
+        Traceback (most recent call last):
+          File "/Users/adrian/.pyenv/versions/3.6.0/Python.framework/Versions/3.6/lib/python3.6/subprocess.py", line 760, in __del__
+        AttributeError: 'NoneType' object has no attribute 'warn'
+        """
         wandb.termlog('job (%s) Process exited with code: %s' % (program, exitcode))
 
         success = True

@@ -34,6 +34,10 @@ class JsonlFile(object):
         self._file.write('\n')
         self._file.flush()
 
+    def close(self):
+        self._file.close()
+        self._file = None
+
 
 class JsonlEventsFile(object):
     """Used to store events during a run. """
@@ -69,5 +73,13 @@ class JsonlEventsFile(object):
             self._file.write(util.json_dumps_safer(row))
             self._file.write('\n')
             self._file.flush()
+        finally:
+            self.lock.release()
+
+    def close(self):
+        self.lock.acquire()
+        try:
+            self._file.close()
+            self._file = None
         finally:
             self.lock.release()
