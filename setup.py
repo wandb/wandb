@@ -18,7 +18,10 @@ requirements = [
     'shortuuid>=0.5.0',
     'pusherclient>=0.3.0',
     'daemonocle>=1.0.1',
-    'nvidia-ml-py3>=7.352.0'
+    'nvidia-ml-py3>=7.352.0',
+    'flask-cors>=3.0.3',
+    'flask-graphql>=1.4.0',
+    'graphene>=2.0.0'
 ]
 
 test_requirements = [

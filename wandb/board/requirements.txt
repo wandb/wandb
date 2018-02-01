@@ -1,6 +1,5 @@
 flask
 graphene
 flask-graphql
-dotenv
-flask-shell-ipython
 flask-cors
+flask-shell-ipython

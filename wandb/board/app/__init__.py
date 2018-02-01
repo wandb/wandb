@@ -3,9 +3,9 @@ import os
 
 from flask import Flask
 
-from app import blueprints
-from config import config
-from app.graphql.loader import load
+from wandb.board.app import blueprints
+from wandb.board.config import config
+from wandb.board.app.graphql.loader import load
 
 BLUEPRINTS = [blueprints.graphql]
 
@@ -16,7 +16,8 @@ __all__ = ['create_app']
 def create_app(config_name):
     """Create flask app and return it"""
     load()
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder="../dist/static",
+                template_folder="../dist")
 
     configure_app(app, config_name)
     configure_blueprints(app, BLUEPRINTS)

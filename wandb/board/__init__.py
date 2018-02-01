@@ -1,0 +1,1 @@
+from .board import app

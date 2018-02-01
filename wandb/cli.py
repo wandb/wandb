@@ -595,27 +595,6 @@ def pending_loop(pod_id):
             time.sleep(10)
 
 
-@cli.command(context_settings=RUN_CONTEXT, help="Log a job")
-@click.argument('run_id')
-def logs(run_id):
-    puller = LogPuller(run_id)
-    try:
-        def signal_handler(signal, frame):
-            print(
-                "\n\nDetaching from remote instance, type `wandb logs %s` to resume logging" % run_id)
-            exit(0)
-        signal.signal(signal.SIGINT, signal_handler)
-    except AttributeError:
-        pass
-    # run_id => pod_id
-    # res = requests.get(
-    #    "http://kubed.endpoints.playground-111.cloud.goog/pods/%s" % pod_id)
-    # print([(c["type"], c["status"], c["message"])
-    #       for c in res.json()["status"]["conditions"]])
-    wandb.termlog("Connecting to logstream of %s\n" % run_id)
-    puller.sync()
-
-
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @require_init
@@ -686,7 +665,7 @@ def sweep(ctx, config_yaml):
     print('Create sweep with ID:', sweep_id)
 
 
-@cli.command(context_settings=CONTEXT, help="Run the wandb agent")
+@cli.command(context_settings=CONTEXT, help="Run the WandB agent")
 @click.argument('sweep_id')
 @require_init
 @display_error
@@ -700,6 +679,32 @@ def agent(sweep_id):
     while True:
         time.sleep(1)
 
+
+@cli.command(context_settings=CONTEXT, help="Start a local WandB Board server")
+@click.option('--port', '-p', default=7177,
+              help='The port to start the server on')
+@display_error
+def board(port):
+    from wandb.board import app
+    click.echo('Started wandb board on http://0.0.0.0:%s ✨' % port)
+    app.run("0.0.0.0", port, threaded=True, debug=False)
+
+
+# @cli.command(context_settings=RUN_CONTEXT, help="Log a job")
+#@click.argument('run_id')
+# def logs(run_id):
+#    puller = LogPuller(run_id)
+#    try:
+#        def signal_handler(signal, frame):
+#            print(
+#                "\n\nDetaching from remote instance, type `wandb logs %s` to resume logging" % run_id)
+#            exit(0)
+#        signal.signal(signal.SIGINT, signal_handler)
+#    except AttributeError:
+#        pass
+#    wandb.termlog("Connecting to logstream of %s\n" % run_id)
+#    puller.sync()
+#
 #@cli.group()
 #@click.pass_context
 #@display_error

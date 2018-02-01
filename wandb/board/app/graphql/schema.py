@@ -3,7 +3,7 @@ import logging
 import graphene
 from graphene import relay
 from .loader import data, find_run, settings
-from app.models import History, Events
+from wandb.board.app.models import History, Events
 import getpass
 
 logger = logging.getLogger(__name__)

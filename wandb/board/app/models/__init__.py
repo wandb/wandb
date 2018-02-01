@@ -1,1 +1,1 @@
-from app.models.files import *
+from wandb.board.app.models.files import *

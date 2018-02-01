@@ -5,7 +5,7 @@ import json
 import re
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
-from app.models import Dir, Settings, RunMutator
+from wandb.board.app.models import Dir, Settings, RunMutator
 
 base_path = __stage_dir__ or "/Users/vanpelt/Development/WandB/wandb-examples/simple/wandb"
 data = {

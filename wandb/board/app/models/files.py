@@ -70,7 +70,7 @@ class Summary(Base):
     def parsed(self):
         try:
             return json.loads(self.read())
-        except json.decoder.JSONDecodeError:
+        except ValueError:
             return {}
 
 
@@ -106,7 +106,7 @@ class Dir(Base):
         return Summary(self.path).updated_at
 
     def load(self, run=None):
-        from app.graphql.schema import Run
+        from wandb.board.app.graphql.schema import Run
         if not run:
             run = Run()
         desc = Description(self.path)
@@ -148,7 +148,7 @@ class Settings(Base):
     def parsed(self):
         try:
             return json.loads(self.read())
-        except json.decoder.JSONDecodeError:
+        except ValueError:
             return {"projects": {"default": {}}}
 
 

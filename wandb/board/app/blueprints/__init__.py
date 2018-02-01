@@ -1,1 +1,1 @@
-from app.blueprints.graphql import graphql
+from wandb.board.app.blueprints.graphql import graphql
