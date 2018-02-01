@@ -20,3 +20,8 @@ graphql.add_url_rule(
 @graphql.route("/<path:path>")
 def serve_file(path):
     return send_from_directory(current_app.template_folder, path)
+
+
+@graphql.errorhandler(404)
+def lost_index(e):
+    return render_template("index.html")

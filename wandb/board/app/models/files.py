@@ -2,6 +2,7 @@ import os
 import yaml
 import json
 import re
+import glob
 from datetime import datetime
 
 
@@ -24,7 +25,7 @@ class Base(object):
             return datetime.utcfromtimestamp(
                 os.path.getmtime(self.file_name))
         else:
-            datetime.now()
+            datetime.utcnow()
 
     def read(self):
         if self.exists:
@@ -103,7 +104,13 @@ class Dir(Base):
 
     @property
     def heartbeat_at(self):
-        return Summary(self.path).updated_at
+        latest = None
+        for path in glob.glob("%s/*" % self.path):
+            mtime = datetime.utcfromtimestamp(
+                os.path.getmtime(path))
+            if not latest or latest < mtime:
+                latest = mtime
+        return latest
 
     def load(self, run=None):
         from wandb.board.app.graphql.schema import Run
@@ -116,7 +123,7 @@ class Dir(Base):
         run.path = self.path
         run.id = self.run_id
         run.createdAt = self.created_at
-        run.heartbeatAt = summary.updated_at
+        run.heartbeatAt = self.updated_at
         run.description = desc.read()
         run.state = "finished"
         run.patch = patch.read()
