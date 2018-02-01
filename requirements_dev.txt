@@ -6,7 +6,7 @@ flake8==3.3.0
 tox==2.6.0
 coverage==4.3.4
 Sphinx==1.5.3
-cryptography==1.8.1
+cryptography==2.1.4
 PyYAML==3.12
 pytest==3.0.7
 pytest-watch==4.1.0
