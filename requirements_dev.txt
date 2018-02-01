@@ -10,7 +10,7 @@ cryptography==1.8.1
 PyYAML==3.12
 pytest==3.0.7
 pytest-watch==4.1.0
-requests-mock==1.3.0
+requests-mock==1.4.0
 pytest-mock==1.5.0
 tox-pyenv==1.0.3
 pytest-cov==2.4.0
