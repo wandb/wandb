@@ -8,7 +8,7 @@ coverage==4.3.4
 Sphinx==1.5.3
 cryptography==1.8.1
 PyYAML==3.12
-pytest==3.0.7
+pytest==3.4.0
 pytest-watch==4.1.0
 requests-mock==1.3.0
 pytest-mock==1.5.0
