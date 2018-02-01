@@ -1,40 +1,67 @@
-data = {
-    'Runs': []
-}
 from wandb import __stage_dir__
 import glob
 import os
 import json
+import re
+from watchdog.observers import Observer
+from watchdog.events import PatternMatchingEventHandler
+from app.models import Dir, Settings, RunMutator
+
+base_path = __stage_dir__ or "/Users/vanpelt/Development/WandB/wandb-examples/simple/wandb"
+data = {
+    'Runs': []
+}
+settings = Settings(base_path)
 
 
 def load():
     global data
 
-    from app.models import Dir, Description, Config, Summary, History, Events, Patch
-    from .schema import Run
-    base_path = __stage_dir__ or "/Users/vanpelt/Development/WandB/wandb-examples/simple/wandb"
     for path in sorted(glob.glob(base_path + "/*run-*"), key=lambda p: p.split("run-")[1], reverse=True):
-        directory = Dir(path)
-        desc = Description(path)
-        config = Config(path)
-        summary = Summary(path)
-        patch = Patch(path)
-        run = Run(
-            path=path,
-            id=directory.run_id,
-            createdAt=directory.created_at,
-            heartbeatAt=summary.updated_at,
-            description=desc.read(),
-            state="finished",
-            patch=patch.read(),
-            summaryMetrics=summary.parsed(),
-            config=config.parsed()
-        )
-        data['Runs'].append(run)
+        run_dir = Dir(path)
+        data['Runs'].append(run_dir.load())
+    watch_dir(base_path)
 
 
-def find_run(name):
+def watch_dir(path):
+    def on_file_created(event):
+        try:
+            run_dir = Dir(event.src_path)
+        except ValueError:
+            return None
+        if os.path.isdir(event.src_path):
+            # TODO: ensure this is the top level dir?
+            if run_dir.run_id and not find_run(run_dir.run_id):
+                data["Runs"].insert(0, run_dir.load())
+        run = find_run(run_dir.run_id)
+        run_dir.load(run)
+
+    def on_file_modified(event):
+        try:
+            run_dir = Dir(event.src_path)
+        except ValueError:
+            return None
+        run = find_run(run_dir.run_id)
+        run_dir.load(run)
+
+    handler = PatternMatchingEventHandler(
+        patterns=[os.path.join(path, "*")], ignore_patterns=['*/.*', '*.tmp'])
+    handler.on_created = on_file_created
+    handler.on_modified = on_file_modified
+    observer = Observer()
+    observer.schedule(handler, path, recursive=True)
+    observer.start()
+
+
+def find_run(name, mutator=False):
     if name == "latest":
         return data["Runs"][0]
     else:
-        return next(run for run in data["Runs"] if run.id == name)
+        try:
+            run = next(run for run in data["Runs"] if run.id == name)
+        except StopIteration:
+            run = None
+        if mutator and run:
+            return RunMutator(run)
+        else:
+            return run

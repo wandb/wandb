@@ -2,7 +2,7 @@ import logging
 
 import graphene
 from graphene import relay
-from .loader import data, find_run
+from .loader import data, find_run, settings
 from app.models import History, Events
 import getpass
 
@@ -127,6 +127,9 @@ class Run(graphene.ObjectType):
     def resolve_user(self, info, **args):
         return UserType()
 
+    def __repr__(self):
+        return "<Run %s>" % self.id
+
 
 class BucketType(Run):
     pass
@@ -165,11 +168,14 @@ class Project(graphene.ObjectType):
     bucket = graphene.Field(BucketType, name=graphene.String())
     sweeps = relay.ConnectionField(SweepConnectionType)
 
+    def resolve_description(self, info, **args):
+        return settings.get_project("description")
+
     def resolve_sweeps(self, info, **args):
         return []
 
     def resolve_run(self, info, **args):
-        return find_run(args["name"])
+        return run
 
     def resolve_bucket(self, info, **args):
         return find_run(args["name"])
@@ -191,6 +197,9 @@ class Project(graphene.ObjectType):
 
     def resolve_summaryMetrics(self, info, **args):
         return "{}"
+
+    def resolve_views(self, info, **args):
+        return settings.get_project("views")
 
 
 class ModelType(Project):
@@ -216,4 +225,66 @@ class Query(graphene.ObjectType):
         return UserType()
 
 
-schema = graphene.Schema(query=Query, types=[Project, Run])
+class UpsertProject(relay.ClientIDMutation):
+    class Input:
+        name = graphene.String()
+        description = graphene.String()
+        id = graphene.String()
+        framework = graphene.String()
+        access = graphene.String()
+        entityName = graphene.String()
+        repo = graphene.String()
+        access = graphene.String()
+        views = graphene.JSONString()
+
+    model = graphene.Field(ModelType)
+    entityName = graphene.String()
+    inserted = graphene.Boolean()
+
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, **input):
+        if input.get("description"):
+            settings.set_project("description", input["description"])
+        if input.get("views"):
+            settings.set_project("views", input["views"])
+
+        settings.save()
+        return UpsertProject(model=Project(), entityName="board", inserted=False)
+
+
+class UpsertRun(relay.ClientIDMutation):
+    class Input:
+        name = graphene.String()
+        description = graphene.String()
+        sweep = graphene.String()
+        id = graphene.String()
+        framework = graphene.String()
+        config = graphene.types.json.JSONString()
+        commit = graphene.String()
+        host = graphene.String()
+        debug = graphene.Boolean()
+        entityName = graphene.String()
+        modelName = graphene.String()
+        jobProgram = graphene.String()
+        jobRepo = graphene.String()
+        jobType = graphene.String()
+
+    bucket = graphene.Field(BucketType)
+    inserted = graphene.Boolean()
+
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, **input):
+        run = find_run(input["id"], mutator=True)
+        if input.get("description"):
+            run.description = input["description"]
+        return UpsertRun(bucket=find_run(input["id"]), inserted=False)
+
+
+class Mutation(graphene.ObjectType):
+    upsertModel = UpsertProject.Field()
+    upsertProject = UpsertProject.Field()
+    upsertBucket = UpsertRun.Field()
+    upsertRun = UpsertRun.Field()
+
+
+schema = graphene.Schema(query=Query, mutation=Mutation, types=[Project, Run])
