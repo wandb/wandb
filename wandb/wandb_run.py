@@ -91,5 +91,5 @@ def run_dir_path(run_id, dry=False):
         prefix = 'dryrun'
     else:
         prefix = 'run'
-    time_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    time_str = datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')
     return os.path.join(wandb.wandb_dir(), '%s-%s-%s' % (prefix, time_str, run_id))
