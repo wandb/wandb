@@ -126,6 +126,11 @@ class Tee(object):
 
     @classmethod
     def _write(_, f, data):
+        if not data:
+            # windows explodes if you try to write an empty string to a terminal:
+            # OSError: [WinError 87] The parameter is incorrect
+            # https://github.com/pytest-dev/py/issues/103
+            return
         i = f.write(data)
         if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
             while i < len(data):
