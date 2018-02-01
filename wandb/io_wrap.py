@@ -47,6 +47,7 @@ import sys
 import tempfile
 import threading
 
+import six
 from six.moves import queue, shlex_quote
 
 logger = logging.getLogger(__name__)
@@ -100,13 +101,20 @@ class Tee(object):
             self._write_threads.append(t)
 
         src_fd = self._src_file.fileno()
-        # We use `os.read()` instead of `file.read()` because `os.read()` will return
-        # any non-empty amount of data, blocking only until there is data available to
-        # be read. One the other hand, `file.read()` waits until its buffer is full.
-        # Since we use this code for console output, `file.read()`'s stuttering output
-        # is undesirable.
 
-        def read(): return os.read(src_fd, 1024)
+        def read():
+            # We use `os.read()` instead of `file.read()` because `os.read()` will return
+            # any non-empty amount of data, blocking only until there is data available to
+            # be read. On the other hand, `file.read()` waits until its buffer is full.
+            # Since we use this code for console output, `file.read()`'s stuttering output
+            # is undesirable.
+            try:
+                return os.read(src_fd, 1024)
+            except OSError:
+                # errno 5 on linux; happens with PTYs if the slave is closed. mac os just
+                # returns b'' from os.read().
+                return six.b('')
+
         self._read_thread = spawn_reader_writer(read, self._write_to_all)
 
     def _write_to_all(self, data):
