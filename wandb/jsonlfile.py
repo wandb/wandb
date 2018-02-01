@@ -8,14 +8,16 @@ from wandb import util
 
 global_start_time = time.time()
 
+
 class JsonlFile(object):
     """Used to store data that changes over time during runs. """
 
-    def __init__(self, fname, out_dir='.'):
+    def __init__(self, fname, out_dir='.', add_callback=None):
         self._start_time = global_start_time
         self.fname = os.path.join(out_dir, fname)
         self._file = open(self.fname, 'w')
         self.rows = []
+        self._add_callback = add_callback
 
     def keys(self):
         if self.rows:
@@ -33,6 +35,8 @@ class JsonlFile(object):
         self._file.write(util.json_dumps_safer(row))
         self._file.write('\n')
         self._file.flush()
+        if self._add_callback:
+            self._add_callback(row)
 
 
 class JsonlEventsFile(object):
