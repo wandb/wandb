@@ -49,6 +49,7 @@ class Run(object):
         self._history = None
         self._events = None
         self._summary = None
+        self._user_accessed_summary = False
         self._examples = None
 
     @classmethod
@@ -107,7 +108,9 @@ class Run(object):
 
     @property
     def summary(self):
+        """We use this to track whether user has accessed summary"""
         self._mkdir()
+        self._user_accessed_summary = True
         if self._summary is None:
             self._summary = summary.Summary(self._dir)
         return self._summary
@@ -116,11 +119,22 @@ class Run(object):
     def has_summary(self):
         return self._summary or os.path.exists(os.path.join(self._dir, summary.SUMMARY_FNAME))
 
+    def nonuser_summary_get(self):
+        """Used by internal code to get summary without marking as user accessed."""
+        return self._summary
+
+    def _history_added(self, row):
+        if self._summary is None:
+            self._summary = summary.Summary(self._dir)
+        if not self._user_accessed_summary:
+            self._summary.update(row)
+
     @property
     def history(self):
         self._mkdir()
         if self._history is None:
-            self._history = jsonlfile.JsonlFile(HISTORY_FNAME, self._dir)
+            self._history = jsonlfile.JsonlFile(
+                HISTORY_FNAME, self._dir, add_callback=self._history_added)
         return self._history
 
     @property
