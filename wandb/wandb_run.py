@@ -108,8 +108,8 @@ class Run(object):
 
     @property
     def summary(self):
-        """We use this to track whether user has accessed summary"""
         self._mkdir()
+        # We use this to track whether user has accessed summary
         self._user_accessed_summary = True
         if self._summary is None:
             self._summary = summary.Summary(self._dir)
@@ -117,11 +117,7 @@ class Run(object):
 
     @property
     def has_summary(self):
-        return self._summary is not None
-
-    def nonuser_summary_get(self):
-        """Used by internal code to get summary without marking as user accessed."""
-        return self._summary
+        return self._summary or os.path.exists(os.path.join(self._dir, summary.SUMMARY_FNAME))
 
     def _history_added(self, row):
         if self._summary is None:
@@ -138,6 +134,10 @@ class Run(object):
         return self._history
 
     @property
+    def has_history(self):
+        return self._history or os.path.exists(os.path.join(self._dir, HISTORY_FNAME))
+
+    @property
     def events(self):
         self._mkdir()
         if self._events is None:
@@ -145,8 +145,8 @@ class Run(object):
         return self._events
 
     @property
-    def has_history(self):
-        return self._history is not None
+    def has_events(self):
+        return self._events or os.path.exists(os.path.join(self._dir, EVENTS_FNAME))
 
     @property
     def examples(self):
@@ -158,7 +158,7 @@ class Run(object):
 
     @property
     def has_examples(self):
-        return self._examples is not None
+        return self._examples or os.path.exists(os.path.join(self._dir, EXAMPLES_FNAME))
 
     @property
     def description_path(self):
@@ -178,6 +178,17 @@ class Run(object):
         with open(self.description_path, 'w') as d_file:
             d_file.write(description)
         return description
+
+    def close_files(self):
+        """Close open files to avoid Python warnings on termination:
+
+        Exception ignored in: <_io.FileIO name='wandb/dryrun-20180130_144602-9vmqjhgy/wandb-history.jsonl' mode='wb' closefd=True>
+        ResourceWarning: unclosed file <_io.TextIOWrapper name='wandb/dryrun-20180130_144602-9vmqjhgy/wandb-history.jsonl' mode='w' encoding='UTF-8'>
+        """
+        if self._events is not None:
+            self._events.close()
+        if self._history is not None:
+            self._history.close()
 
 
 def generate_id():

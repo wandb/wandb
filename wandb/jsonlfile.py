@@ -1,4 +1,5 @@
 import collections
+import json
 import os
 import time
 from threading import Lock
@@ -15,8 +16,15 @@ class JsonlFile(object):
     def __init__(self, fname, out_dir='.', add_callback=None):
         self._start_time = global_start_time
         self.fname = os.path.join(out_dir, fname)
-        self._file = open(self.fname, 'w')
         self.rows = []
+        try:
+            with open(self.fname) as f:
+                for line in f:
+                    self.rows.append(json.loads(line))
+        except IOError:
+            pass
+
+        self._file = open(self.fname, 'w')
         self._add_callback = add_callback
 
     def keys(self):
@@ -37,6 +45,10 @@ class JsonlFile(object):
         self._file.flush()
         if self._add_callback:
             self._add_callback(row)
+
+    def close(self):
+        self._file.close()
+        self._file = None
 
 
 class JsonlEventsFile(object):
@@ -73,5 +85,13 @@ class JsonlEventsFile(object):
             self._file.write(util.json_dumps_safer(row))
             self._file.write('\n')
             self._file.flush()
+        finally:
+            self.lock.release()
+
+    def close(self):
+        self.lock.acquire()
+        try:
+            self._file.close()
+            self._file = None
         finally:
             self.lock.release()

@@ -14,6 +14,8 @@ from shortuuid import ShortUUID
 from .config import Config
 import logging
 import threading
+
+import six
 from six.moves import queue
 import click
 
@@ -21,6 +23,7 @@ import wandb
 from wandb import Error
 from wandb import io_wrap
 from wandb import file_pusher
+from wandb import sparkline
 from wandb import stats
 from wandb import streaming_log
 from wandb import util
@@ -119,7 +122,7 @@ class FileEventHandlerTextStream(FileEventHandler):
         pusher = streaming_log.TextStreamPusher(fsapi, self.save_name)
 
         def on_read(data):
-            pusher.write(data)
+            pusher.write_string(data)
 
         self._tailer = FileTailer(self.file_path, on_read)
 
@@ -204,6 +207,8 @@ class Sync(object):
         self._api.save_patches(self._watch_dir)
 
         wandb.termlog("Syncing %s" % self.url)
+        wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
+        wandb.termlog()
 
         self._api.get_file_stream_api().set_file_policy(
             'output.log', CRDedupeFilePolicy())
@@ -214,11 +219,23 @@ class Sync(object):
             self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
             prepend_timestamp=True)
 
-        self._stdout_stream.write(" ".join(psutil.Process(
+        self._stdout_stream.write_string(" ".join(psutil.Process(
             os.getpid()).cmdline()) + "\n\n")
 
-        self._stdout_tee = io_wrap.Tee.pty(sys.stdout, self._stdout_stream)
-        self._stderr_tee = io_wrap.Tee.pty(sys.stderr, self._stderr_stream)
+        if six.PY2:
+            stdout = sys.stdout
+            stderr = sys.stderr
+        else:  # we write binary so grab the raw I/O objects in python 3
+            stdout = sys.stdout.buffer.raw
+            stderr = sys.stderr.buffer.raw
+
+        if sys.platform == "win32":
+            # PTYs don't work in windows so we use pipes.
+            self._stdout_tee = io_wrap.Tee.pipe(stdout, self._stdout_stream)
+            self._stderr_tee = io_wrap.Tee.pipe(stderr, self._stderr_stream)
+        else:
+            self._stdout_tee = io_wrap.Tee.pty(stdout, self._stdout_stream)
+            self._stderr_tee = io_wrap.Tee.pty(stderr, self._stderr_stream)
 
         try:
             self.proc = subprocess.Popen(
@@ -234,10 +251,10 @@ class Sync(object):
         return self.proc.poll() is None
 
     def poll(self):
-        terminated = self.proc.poll() is not None
-        if self.cleaned_up is not terminated:
-            self.clean_up(bool(self.proc.returncode))
-        return self.proc.returncode
+        returncode = self.proc.poll()
+        if returncode is not None and not self.cleaned_up:
+            self.clean_up(not returncode)
+        return returncode
 
     def clean_up(self, success):
         if self.cleaned_up:
@@ -246,7 +263,7 @@ class Sync(object):
 
         # Show run summary/history
         if self._run.has_summary:
-            summary = self._run.nonuser_summary_get().summary
+            summary = self._run.summary.summary
             wandb.termlog('Run summary:')
             max_len = max([len(k) for k in summary.keys()])
             format_str = '  {:>%s} {}' % max_len
@@ -263,6 +280,7 @@ class Sync(object):
                 wandb.termlog(format_str.format(key, line))
         if self._run.has_examples:
             wandb.termlog('Saved %s examples' % self._run.examples.count())
+
         self._system_stats.shutdown()
 
         wandb.termlog('Waiting for final file modifications.')

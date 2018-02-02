@@ -37,6 +37,7 @@ from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import util
 from wandb import sync
+from wandb import Error
 
 DOCS_URL = 'http://docs.wandb.com/'
 logger = logging.getLogger(__name__)
@@ -194,6 +195,8 @@ def cli(ctx):
 
     Run "wandb docs" for full documentation.
     """
+    pass
+>>>>>>> feature/pty
 
 
 @cli.command(context_settings=CONTEXT, help="List projects")
@@ -653,11 +656,11 @@ def run(ctx, program, args, id, dir, configs, message, show):
             syncer = sync.Sync(api, run, program, args, env)
         except sync.Error:
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
+            wandb.termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
                 (ERROR_STRING, util.get_log_file_path())))
-            termlog("%s: %s" % (ERROR_STRING, exc_value))
+            wandb.termlog("%s: %s" % (ERROR_STRING, exc_value))
             if 'permission' in str(exc_value):
-                termlog(
+                wandb.termlog(
                     '%s: Are you sure you provided the correct API key to "wandb login"?' % ERROR_STRING)
             lines = traceback.format_exception(
                 exc_type, exc_value, exc_traceback)
@@ -665,7 +668,7 @@ def run(ctx, program, args, id, dir, configs, message, show):
             return
 
         # Ignore SIGINT (ctrl-c) and SIGQUIT (ctrl-\). The child process will
-        # handle them, and we'll exit if / when the child process does.
+        # handle them, and we'll exit when the child process does.
         #
         # We disable these signals after running the process so the child doesn't
         # inherit this behaviour.
@@ -676,9 +679,20 @@ def run(ctx, program, args, id, dir, configs, message, show):
             pass
 
         exitcode = syncer.proc.wait()
-        wandb.termlog('job (%s) Process exited with code: %s' % (program, exitcode))
+        success = not exitcode
+        """
+        Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
+        Traceback (most recent call last):
+          File "/Users/adrian/.pyenv/versions/3.6.0/Python.framework/Versions/3.6/lib/python3.6/subprocess.py", line 760, in __del__
+        AttributeError: 'NoneType' object has no attribute 'warn'
+        """
+        wandb.termlog()
+        if exitcode == 0:
+            wandb.termlog('Program ended.')
+        else:
+            wandb.termlog('Program failed with code %d. Press ctrl-c to abort syncing.' % exitcode)
+        #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
 
-        success = True
     finally:
         # Restore default signal handlers so the user can abort final syncing
         # if they like.

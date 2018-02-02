@@ -36,12 +36,18 @@ import atexit
 import io
 import logging
 import os
-import pty
+try:
+    import pty
+    import tty
+except ModuleNotFoundError:  # windows
+    pass
+
 import subprocess
 import sys
 import tempfile
 import threading
 
+import six
 from six.moves import queue, shlex_quote
 
 logger = logging.getLogger(__name__)
@@ -56,6 +62,9 @@ class Tee(object):
     @classmethod
     def pty(cls, sync_dst_file, *async_dst_files):
         master_fd, slave_fd = pty.openpty()
+        # raw mode so carriage returns etc. don't get added by the terminal driver
+        tty.setraw(master_fd)
+        tty.setraw(slave_fd)
         master = os.fdopen(master_fd, 'rb')
         slave = os.fdopen(slave_fd, 'wb')
         return cls(slave, master, sync_dst_file, *async_dst_files)
@@ -63,8 +72,8 @@ class Tee(object):
     @classmethod
     def pipe(cls, sync_dst_file, *async_dst_files):
         read_fd, write_fd = os.pipe()
-        read_file = os.fdopen(slave_fd, 'rb')
-        write_file = os.fdopen(master_fd, 'wb')
+        read_file = os.fdopen(read_fd, 'rb')
+        write_file = os.fdopen(write_fd, 'wb')
         return cls(write_file, read_file, sync_dst_file, *async_dst_files)
 
     def __init__(self, tee_file, src_file, sync_dst_file, *async_dst_files):
@@ -85,18 +94,27 @@ class Tee(object):
         self._write_threads = []
         for f in async_dst_files:
             q = queue.Queue()
-            write = lambda data: self._write(f, data)
+
+            def write(data): return self._write(f, data)
             t = spawn_reader_writer(q.get, write)
             self._write_queues.append(q)
             self._write_threads.append(t)
 
         src_fd = self._src_file.fileno()
-        # We use `os.read()` instead of `file.read()` because `os.read()` will return
-        # any non-empty amount of data, blocking only until there is data available to
-        # be read. One the other hand, `file.read()` waits until its buffer is full.
-        # Since we use this code for console output, `file.read()`'s stuttering output
-        # is undesirable.
-        read = lambda: os.read(src_fd, 1024)
+
+        def read():
+            # We use `os.read()` instead of `file.read()` because `os.read()` will return
+            # any non-empty amount of data, blocking only until there is data available to
+            # be read. On the other hand, `file.read()` waits until its buffer is full.
+            # Since we use this code for console output, `file.read()`'s stuttering output
+            # is undesirable.
+            try:
+                return os.read(src_fd, 1024)
+            except OSError:
+                # errno 5 on linux; happens with PTYs if the slave is closed. mac os just
+                # returns b'' from os.read().
+                return six.b('')
+
         self._read_thread = spawn_reader_writer(read, self._write_to_all)
 
     def _write_to_all(self, data):
@@ -108,6 +126,11 @@ class Tee(object):
 
     @classmethod
     def _write(_, f, data):
+        if not data:
+            # windows explodes if you try to write an empty string to a terminal:
+            # OSError: [WinError 87] The parameter is incorrect
+            # https://github.com/pytest-dev/py/issues/103
+            return
         i = f.write(data)
         if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
             while i < len(data):
@@ -160,6 +183,7 @@ class PtyIoWrap(object):
     FIXME(adrian): Some processes may not behave properly unless the PTY is
     their controlling terminal.
     """
+
     def __init__(self, stdout_readers=None, stderr_readers=None):
         if stdout_readers is None:
             stdout_readers = []
@@ -173,10 +197,12 @@ class PtyIoWrap(object):
         self._stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
         self._stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
-        self._stdout_redirector = FileRedirector(sys.stdout, self._stdout_slave)
+        self._stdout_redirector = FileRedirector(
+            sys.stdout, self._stdout_slave)
         self._stdout_tee = FileTee(self.orig_stdout, *stdout_readers)
 
-        self._stderr_redirector = FileRedirector(sys.stderr, self._stderr_slave)
+        self._stderr_redirector = FileRedirector(
+            sys.stderr, self._stderr_slave)
         self._stderr_tee = FileTee(self.orig_stderr, *stderr_readers)
 
         self._stdout_reader_writer = spawn_reader_writer(
@@ -211,6 +237,7 @@ class FileRedirector(object):
     Adapted from
     https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python/22434262#22434262
     """
+
     def __init__(self, redir_file, to_file):
         """Constructor
 
@@ -222,7 +249,7 @@ class FileRedirector(object):
         self._from_fd = redir_file.fileno()
         self._to_fd = to_file.fileno()
         # copy from_fd before it is overwritten
-        #NOTE: `self._from_fd` is inheritable on Windows when duplicating a standard stream
+        # NOTE: `self._from_fd` is inheritable on Windows when duplicating a standard stream
         # we make this unbuffered because we want to rely on buffers earlier in the I/O chain
         self.orig_file = os.fdopen(os.dup(self._from_fd), 'wb', 0)
 
