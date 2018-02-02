@@ -1,7 +1,9 @@
+import collections
 import logging
 import multiprocessing
 import os
 import socket
+import subprocess
 import sys
 import traceback
 
@@ -11,7 +13,6 @@ import wandb
 from wandb.api import Api
 from wandb.config import Config
 from wandb import util
-from wandb import sync
 from wandb import wandb_run
 
 
@@ -28,7 +29,7 @@ class Agent(object):
     def __init__(self, api, queue, sweep_id=None):
         self._api = api
         self._queue = queue
-        self._run_managers = {}  # keyed by run.id (GQL run name)
+        self._run_processes = {}  # keyed by run.id (GQL run name)
         self._server_responses = []
         self._sweep_id = sweep_id
         self._log = []
@@ -45,11 +46,15 @@ class Agent(object):
                 for command in commands:
                     command['resp_queue'].put(self._process_command(command))
 
-                logger.info('Running runs: %s', self._run_managers.keys())
+                logger.info('Running runs: %s', list(self._run_processes.keys()))
                 run_status = {}
-                for run_id, run_manager in six.iteritems(self._run_managers):
-                    if run_manager.poll() is None:
+                for run_id, run_process in list(six.iteritems(self._run_processes)):
+                    if run_process.poll() is None:
                         run_status[run_id] = True
+                    else:
+                        logger.info('Cleaning up dead run: %s', run_id)
+                        del self._run_processes[run_id]
+
 
                 commands = self._api.agent_heartbeat(agent_id, {}, run_status)
 
@@ -58,27 +63,28 @@ class Agent(object):
                 for command in commands:
                     self._server_responses.append(self._process_command(command))
         except KeyboardInterrupt:
-            pass
+            try:
+                wandb.termlog('Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them.')
+                for run_id, run_process in six.iteritems(self._run_processes):
+                    run_process.wait()
+            except KeyboardInterrupt:
+                pass
         finally:
             try:
                 wandb.termlog('Terminating and syncing runs. Press ctrl-c to kill.')
-                for run_id, run_manager in six.iteritems(self._run_managers):
+                for run_id, run_process in six.iteritems(self._run_processes):
                     try:
-                        run_manager.proc.terminate()
+                        run_process.terminate()
                     except OSError:
                         pass  # if process is already dead
-                for run_id, run_manager in six.iteritems(self._run_managers):
-                    run_manager.proc.wait()
-                    run_manager.poll()  # clean up if necessary
+                for run_id, run_process in six.iteritems(self._run_processes):
+                    run_process.wait()
             except KeyboardInterrupt:
-                wandb.termlog('Killing and syncing runs. Press ctrl-c again to quit.')
-                for run_id, run_manager in six.iteritems(self._run_managers):
-                    try:
-                        run_manager.proc.kill()
-                    except OSError:
-                        pass  # if process is already dead
-                for run_id, run_manager in six.iteritems(self._run_managers):
-                    run_manager.clean_up(False)
+                wandb.termlog('Killing runs and quitting.')
+                try:
+                    run_process.kill()
+                except OSError:
+                    pass  # if process is already dead
 
     def _process_command(self, command):
         logger.info('Agent received command: %s' % command)
@@ -110,44 +116,32 @@ class Agent(object):
     def _command_run(self, command):
         config = Config.from_environment_or_defaults()
         run = wandb_run.Run(mode='run', config=config, sweep_id=self._sweep_id)
-
-        api = Api()
-        api.set_current_run_id(run.id)
-
-        root = api.git.root
-        remote_url = api.git.remote_url
-        host = socket.gethostname()
-        # handle non-git directories
-        if not root:
-            root = os.path.abspath(os.getcwd())
-            remote_url = 'file://%s%s' % (host, root)
-
-        program = command['program']
-        args = command['args']
-
-        upsert_result = api.upsert_run(name=run.id,
-            project=api.settings("project"),
-            entity=api.settings("entity"),
-            config=run.config.as_dict(), description=run.description, host=host,
-            program_path=program, repo=remote_url, sweep_name=run.sweep_id)
-        run.storage_id = upsert_result['id']
         env = dict(os.environ)
         run.set_environment(env)
-        # TODO(adrian): we need to do the following if we use pipes instead of PTYs (eg. for windows)
-        # tell child python interpreters we accept utf-8
-        # env['PYTHONIOENCODING'] = 'UTF-8'
 
-        # TODO(adrian): do this in a separate process so we can be sure sync threads etc
-        # get cleaned up properly?
-        self._run_managers[run.id] = sync.Sync(api, run, program, args, env)
+        program = command['program']
+        args = list(command['args'])
+        command = [sys.argv[0], 'run', program, '--run-from-env'] + args
+        self._run_processes[run.id] = subprocess.Popen(command, env=env)
+
+        # we track how many times the user has tried to stop this run
+        # so we can escalate how hard we try to kill it in self._command_stop()
+        self._run_processes[run.id].num_times_stopped = 0
 
     def _command_stop(self, command):
         run_id = command['run_id']
         logger.info('Stop: %s', run_id)
-        if run_id in self._run_managers:
-            self._run_managers[run_id].proc.kill()
-            self._run_managers[run_id].clean_up(False)
-            del self._run_managers[run_id]
+        if run_id in self._run_processes:
+            proc = self._run_processes[run_id]
+            try:
+                if proc.num_times_stopped == 0:
+                    proc.terminate()
+                elif proc.num_times_stopped == 1:
+                    proc.kill()
+            except OSError:  # if process is already dead
+                pass
+            finally:
+                proc.num_times_stopped += 1
         else:
             logger.error('Run %s not running', run_id)
 
@@ -176,6 +170,13 @@ class AgentApi(object):
 
 
 def run_agent(sweep_id=None):
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
     api = Api()
     queue = multiprocessing.Queue()
     agent = Agent(api, queue, sweep_id=sweep_id)

@@ -36,7 +36,7 @@ from wandb import agent as wandb_agent
 from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import util
-from wandb import sync
+from wandb import run_manager
 from wandb import Error
 
 DOCS_URL = 'http://docs.wandb.com/'
@@ -614,14 +614,19 @@ def pending_loop(pod_id):
               help='Message to associate with the run.')
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
+@click.option("--run-from-env/--no-run-from-env", default=False,
+              help="Load Run information from environment variables (used by wandb agent).")
 @display_error
-def run(ctx, program, args, id, dir, configs, message, show):
-    if configs:
-        config_paths = configs.split(',')
+def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
+    if run_from_env:
+        run = wandb_run.Run.from_environment_or_defaults()
     else:
-        config_paths = []
-    config = Config(config_paths=config_paths, wandb_dir=wandb.wandb_dir())
-    run = wandb_run.Run(run_id=id, mode='run', config=config, description=message)
+        if configs:
+            config_paths = configs.split(',')
+        else:
+            config_paths = []
+        config = Config(config_paths=config_paths, wandb_dir=wandb.wandb_dir())
+        run = wandb_run.Run.from_environment_or_defaults(run_id=id, mode='run', config=config, description=message)
 
     api.set_current_run_id(run.id)
 
@@ -648,60 +653,19 @@ def run(ctx, program, args, id, dir, configs, message, show):
     if show:
         env['WANDB_SHOW_RUN'] = 'True'
 
-    syncer = None
-    success = False
     try:
-        try:
-            syncer = sync.Sync(api, run, program, args, env)
-        except sync.Error:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            wandb.termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
-                (ERROR_STRING, util.get_log_file_path())))
-            wandb.termlog("%s: %s" % (ERROR_STRING, exc_value))
-            if 'permission' in str(exc_value):
-                wandb.termlog(
-                    '%s: Are you sure you provided the correct API key to "wandb login"?' % ERROR_STRING)
-            lines = traceback.format_exception(
-                exc_type, exc_value, exc_traceback)
-            logger.error('\n'.join(lines))
-            return
-
-        # Ignore SIGINT (ctrl-c) and SIGQUIT (ctrl-\). The child process will
-        # handle them, and we'll exit when the child process does.
-        #
-        # We disable these signals after running the process so the child doesn't
-        # inherit this behaviour.
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        try:
-            signal.signal(signal.SIGQUIT, signal.SIG_IGN)
-        except AttributeError:  # SIGQUIT doesn't exist on windows
-            pass
-
-        exitcode = syncer.proc.wait()
-        success = not exitcode
-        """
-        Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
-        Traceback (most recent call last):
-          File "/Users/adrian/.pyenv/versions/3.6.0/Python.framework/Versions/3.6/lib/python3.6/subprocess.py", line 760, in __del__
-        AttributeError: 'NoneType' object has no attribute 'warn'
-        """
-        wandb.termlog()
-        if exitcode == 0:
-            wandb.termlog('Program ended.')
-        else:
-            wandb.termlog('Program failed with code %d. Press ctrl-c to abort syncing.' % exitcode)
-        #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
-
-    finally:
-        # Restore default signal handlers so the user can abort final syncing
-        # if they like.
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        try:
-            signal.signal(signal.SIGQUIT, signal.SIG_DFL)
-        except AttributeError:  # SIGQUIT doesn't exist on windows
-            pass
-        if syncer:
-            syncer.clean_up(success)
+        run_manager.RunManager(api, run, program, args, env)
+    except run_manager.Error:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        wandb.termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
+            (ERROR_STRING, util.get_log_file_path())))
+        wandb.termlog("%s: %s" % (ERROR_STRING, exc_value))
+        if 'permission' in str(exc_value):
+            wandb.termlog(
+                '%s: Are you sure you provided the correct API key to "wandb login"?' % ERROR_STRING)
+        lines = traceback.format_exception(
+            exc_type, exc_value, exc_traceback)
+        logger.error('\n'.join(lines))
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")

@@ -1,3 +1,4 @@
+import multiprocessing
 import psutil
 import os
 import signal
@@ -153,12 +154,11 @@ class FileEventHandlerBinaryStream(FileEventHandler):
         self._tailer = FileTailer(self.file_path, on_read, binary=True)
 
 
-class Sync(object):
-    """Manages a run process and synchronizing all pertinent files.
+class RunManager(object):
+    """Manages a run process, wraps its I/O, and synchronizes its files.
     """
 
     def __init__(self, api, run, program, args, env, project=None, tags=[]):
-        self.cleaned_up = False
         self._api = api
         self._run = run
         self._command = [program] + list(args)
@@ -175,7 +175,7 @@ class Sync(object):
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.on_file_created
         self._handler.on_modified = self.on_file_modified
-        self.url = run.get_url(api)
+        self.url = self._run.get_url(api)
         self._observer = Observer()
 
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
@@ -233,6 +233,10 @@ class Sync(object):
             # PTYs don't work in windows so we use pipes.
             self._stdout_tee = io_wrap.Tee.pipe(stdout, self._stdout_stream)
             self._stderr_tee = io_wrap.Tee.pipe(stderr, self._stderr_stream)
+            # TODO(adrian): we may need to do the following if we use pipes instead of PTYs
+            # because Python on Unix doesn't like writing UTF-8 to files
+            # tell child python interpreters we accept utf-8
+            # env['PYTHONIOENCODING'] = 'UTF-8'
         else:
             self._stdout_tee = io_wrap.Tee.pty(stdout, self._stdout_stream)
             self._stderr_tee = io_wrap.Tee.pty(stderr, self._stderr_stream)
@@ -247,19 +251,54 @@ class Sync(object):
         except (OSError, IOError):
             raise Exception('Could not find program: %s' % self._command)
 
-    def is_running(self):
-        return self.proc.poll() is None
+        # Ignore SIGQUIT (ctrl-\). The child process will # handle it, and we'll
+        # exit when the child process does.
+        #
+        # We disable these signals after running the process so the child doesn't
+        # inherit this behaviour.
+        try:
+            signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+        except AttributeError:  # SIGQUIT doesn't exist on windows
+            pass
 
-    def poll(self):
-        returncode = self.proc.poll()
-        if returncode is not None and not self.cleaned_up:
-            self.clean_up(not returncode)
-        return returncode
+        try:
+            exitcode = self.proc.wait()
+        except KeyboardInterrupt:
+            wandb.termlog('Ctrl-c pressed; waiting for program to end.')
+            keyboard_interrupt_time = time.time()
+            # give the process a couple of seconds to die, then kill it
+            while self.proc.poll() is None and (time.time() - keyboard_interrupt_time) < 2:
+                time.sleep(0.1)
+            if self.proc.poll() is None:
+                wandb.termlog('Program still alive. Killing it.')
+                try:
+                    self.proc.kill()
+                except OSError:
+                    pass
 
-    def clean_up(self, success):
-        if self.cleaned_up:
-            return
-        self.cleaned_up = True
+        # Close output capturing stuff. This also flushes anything left in the buffers.
+        self._stdout_tee.close_join()
+        self._stderr_tee.close_join()
+        self._stdout_stream.close()
+        self._stderr_stream.close()
+        self._api.get_file_stream_api().finish(self.proc.returncode == 0)
+
+        """
+        Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
+        Traceback (most recent call last):
+          File "/Users/adrian/.pyenv/versions/3.6.0/Python.framework/Versions/3.6/lib/python3.6/subprocess.py", line 760, in __del__
+        AttributeError: 'NoneType' object has no attribute 'warn'
+        """
+        wandb.termlog()
+
+        if self.proc.poll() is None:
+            wandb.termlog('Killing program failed; syncing files anyway. Press ctrl-c to abort syncing.')
+        else:
+            if self.proc.returncode == 0:
+                wandb.termlog('Program ended.')
+            else:
+                wandb.termlog('Program failed with code %d. Press ctrl-c to abort syncing.' % self.proc.returncode)
+        #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
 
         # Show run summary/history
         if self._run.has_summary:
@@ -300,12 +339,6 @@ class Sync(object):
         # TODO: py3 SystemError: <built-in function stop> returned a result with an error set
         except SystemError:
             pass
-
-        self._stdout_tee.close_join()
-        self._stderr_tee.close_join()
-        self._stdout_stream.close()
-        self._stderr_stream.close()
-        self._api.get_file_stream_api().finish(success)
 
         for handler in self._event_handlers.values():
             handler.finish()
