@@ -2,4 +2,4 @@ flask
 graphene
 flask-graphql
 flask-cors
-flask-shell-ipython
+flask-shell-ipython==0.3.0
