@@ -114,7 +114,6 @@ class Agent(object):
         run = wandb_run.Run(mode='run', config=config, sweep_id=self._sweep_id)
         env = dict(os.environ)
         run.set_environment(env)
-        print(env)
 
         program = command['program']
         args = list(command['args'])

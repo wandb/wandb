@@ -618,8 +618,6 @@ def pending_loop(pod_id):
               help="Load Run information from environment variables (used by wandb agent).")
 @display_error
 def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
-    print(program)
-    print(args)
     if run_from_env:
         run = wandb_run.Run.from_environment_or_defaults()
     else:
