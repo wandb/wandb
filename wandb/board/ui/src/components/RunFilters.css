@@ -1,0 +1,15 @@
+.buttons.runFilterViewer button.delete {
+    display: none;
+}
+
+.buttons.runFilterViewer button.filter {
+    border-radius: .29rem;
+}
+
+.buttons.runFilterViewer:hover button.filter {
+    border-radius: .29rem 0 0 .29rem;
+}
+
+.buttons.runFilterViewer:hover button.delete {
+    display: block;
+}

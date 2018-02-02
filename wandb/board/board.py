@@ -1,8 +1,8 @@
 import os
-from .app import create_app
-from .app.graphql.schema import Run, Project
-from .app.models import Dir
-from .app.graphql.loader import data, find_run
+from wandb.board.app import create_app
+from wandb.board.app.graphql.schema import Run, Project
+from wandb.board.app.models import Dir
+from wandb.board.app.graphql.loader import data, find_run
 
 app = create_app(os.getenv('FLASK_CONFIG') or 'default')  # TODO: configure env
 

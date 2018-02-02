@@ -1,0 +1,30 @@
+span.commit a {
+  width: 55px;
+  overflow: hidden;
+  text-overflow: "";
+  display: inline-block;
+  margin-bottom: -6px;
+}
+.ui.grid.run {
+  margin-bottom: 20px;
+}
+.ui.header {
+  opacity: 0.7;
+}
+.vars .ui.list {
+  height: 170px;
+  overflow-y: auto;
+}
+.vars .ui.list .item {
+  padding: 15px;
+}
+.vars .ui.list .header {
+  float: left;
+  opacity: 0.7;
+}
+.vars .ui.list .description {
+  float: right;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

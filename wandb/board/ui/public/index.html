@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#000000">
+  <!--
+      manifest.json provides metadata used when your web app is added to the
+      homescreen on Android. See https://developers.google.com/web/fundamentals/engage-and-retain/web-app-manifest/
+    -->
+  <link rel="manifest" href="%PUBLIC_URL%/manifest.json">
+  <script src="https://js.pusher.com/4.1/pusher.min.js"></script>
+  <script src="%PUBLIC_URL%/prism.js"></script>
+  <script src="//d3js.org/d3.v3.min.js"></script>
+  <link type="text/css" rel="stylesheet" href="%PUBLIC_URL%/prism.css" />
+  <link rel="shortcut icon" type="image/png" href="%PUBLIC_URL%/favicon.png">
+  <title>Weights &amp; Biases</title>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script>
+    window.ga = window.ga || function () { (ga.q = ga.q || []).push(arguments) }; ga.l = +new Date;
+    ga('create', 'UA-98229934-1', 'auto');
+
+    ga('require', 'eventTracker');
+    ga('require', 'outboundLinkTracker');
+    ga('require', 'urlChangeTracker');
+    ga('require', 'cleanUrlTracker');
+    ga('require', 'impressionTracker');
+    ga('require', 'maxScrollTracker');
+    ga('require', 'mediaQueryTracker');
+    ga('require', 'outboundFormTracker');
+    ga('require', 'pageVisibilityTracker');
+    ga('send', 'pageview');
+  </script>
+  <script async src="https://www.google-analytics.com/analytics.js"></script>
+  <script async src="%PUBLIC_URL%/autotrack.js"></script>
+  <script>
+    !function () {
+      var analytics = window.analytics = window.analytics || []; if (!analytics.initialize) if (analytics.invoked) window.console && console.error && console.error("Segment snippet included twice."); else {
+        analytics.invoked = !0; analytics.methods = ["trackSubmit", "trackClick", "trackLink", "trackForm", "pageview", "identify", "reset", "group", "track", "ready", "alias", "debug", "page", "once", "off", "on"]; analytics.factory = function (t) { return function () { var e = Array.prototype.slice.call(arguments); e.unshift(t); analytics.push(e); return analytics } }; for (var t = 0; t < analytics.methods.length; t++) { var e = analytics.methods[t]; analytics[e] = analytics.factory(e) } analytics.load = function (t) { var e = document.createElement("script"); e.type = "text/javascript"; e.async = !0; e.src = ("https:" === document.location.protocol ? "https://" : "http://") + "cdn.segment.com/analytics.js/v1/" + t + "/analytics.min.js"; var n = document.getElementsByTagName("script")[0]; n.parentNode.insertBefore(e, n) }; analytics.SNIPPET_VERSION = "4.0.0";
+        analytics.load("WmJvIs1MTqNjKAeQmEyw6TvqyRI5Su2z");
+        analytics.page();
+      }
+    }();
+  </script>
+</body>
+
+</html>

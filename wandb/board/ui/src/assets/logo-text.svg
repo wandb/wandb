@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="94px" height="61px" viewBox="0 0 94 61" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 42 (36781) - http://www.bohemiancoding.com/sketch -->
+    <title>Logo</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <text id="W" font-family="Lora-Bold, Lora" font-size="48" font-weight="bold" fill="#000000">
+            <tspan x="0" y="48">W </tspan>
+        </text>
+        <text id="B" font-family="Lora-Bold, Lora" font-size="48" font-weight="bold" fill="#000000">
+            <tspan x="62" y="48">B</tspan>
+        </text>
+        <text id="&amp;" font-family="ClickerScript-Regular, Clicker Script" font-size="30" font-weight="normal" fill="#000000">
+            <tspan x="43" y="42">&amp;</tspan>
+        </text>
+    </g>
+</svg>

@@ -8,6 +8,10 @@ __pycache__/
 .DS_Store
 .wandb
 
+# Board
+wandb/board/ui/node_modules
+wandb/board/ui/build
+
 # Distribution / packaging
 .Python
 env/
