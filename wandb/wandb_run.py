@@ -108,8 +108,8 @@ class Run(object):
 
     @property
     def summary(self):
-        """We use this to track whether user has accessed summary"""
         self._mkdir()
+        # We use this to track whether user has accessed summary
         self._user_accessed_summary = True
         if self._summary is None:
             self._summary = summary.Summary(self._dir)
@@ -118,10 +118,6 @@ class Run(object):
     @property
     def has_summary(self):
         return self._summary or os.path.exists(os.path.join(self._dir, summary.SUMMARY_FNAME))
-
-    def nonuser_summary_get(self):
-        """Used by internal code to get summary without marking as user accessed."""
-        return self._summary
 
     def _history_added(self, row):
         if self._summary is None:

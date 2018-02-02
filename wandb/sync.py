@@ -263,7 +263,7 @@ class Sync(object):
 
         # Show run summary/history
         if self._run.has_summary:
-            summary = self._run.nonuser_summary_get().summary
+            summary = self._run.summary.summary
             wandb.termlog('Run summary:')
             max_len = max([len(k) for k in summary.keys()])
             format_str = '  {:>%s} {}' % max_len
