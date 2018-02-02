@@ -1,5 +1,5 @@
 flask
 graphene
 flask-graphql
-flask-cors
+flask-cors==3.0.3
 flask-shell-ipython
