@@ -48,9 +48,13 @@ class Agent(object):
 
                 logger.info('Running runs: %s', list(self._run_processes.keys()))
                 run_status = {}
-                for run_id, run_process in six.iteritems(self._run_processes):
+                for run_id, run_process in list(six.iteritems(self._run_processes)):
                     if run_process.poll() is None:
                         run_status[run_id] = True
+                    else:
+                        logger.info('Cleaning up dead run: %s', run_id)
+                        del self._run_processes[run_id]
+
 
                 commands = self._api.agent_heartbeat(agent_id, {}, run_status)
 
