@@ -196,7 +196,6 @@ def cli(ctx):
     Run "wandb docs" for full documentation.
     """
     pass
->>>>>>> feature/pty
 
 
 @cli.command(context_settings=CONTEXT, help="List projects")
