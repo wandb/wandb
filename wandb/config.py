@@ -1,9 +1,11 @@
-import yaml
+from collections import OrderedDict
+import logging
 import os
 import sys
-import logging
+import yaml
+
+import wandb
 from .api import Error
-from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +25,10 @@ class Config(object):
 
     def __init__(self, config_paths=[], wandb_dir=None, run_dir=None, persist_callback=None):
         object.__setattr__(self, '_wandb_dir', wandb_dir)
-        object.__setattr__(self, '_run_dir', run_dir)
+        self.set_run_dir(run_dir)
 
         # TODO: Replace this with an event system.
-        object.__setattr__(self, '_persist_callback', persist_callback)
+        self.set_persist_callback(persist_callback)
 
         # OrderedDict to make writing unit tests easier. (predictable order for
         # .key())
@@ -37,6 +39,13 @@ class Config(object):
         for conf_path in config_paths:
             self._load_file(conf_path)
         self.persist()
+
+    @classmethod
+    def from_environment_or_defaults(cls):
+        conf_paths = os.environ.get('WANDB_CONFIG_PATHS', [])
+        if conf_paths:
+            conf_paths = conf_paths.split(',')
+        return Config(config_paths=conf_paths, wandb_dir=wandb.wandb_dir())
 
     def _load_defaults(self):
         if not self._wandb_dir:
@@ -94,6 +103,21 @@ class Config(object):
         for key in json:
             self._items[key] = json[key].get('value')
             self._descriptions[key] = json[key].get('desc')
+
+    def set_run_dir(self, run_dir):
+        """Set the run directory to which this Config should be persisted.
+
+        Changes to this Config won't be written anywhere unless the run directory
+        is set.
+        """
+        object.__setattr__(self, '_run_dir', run_dir)
+
+    def set_persist_callback(self, callback):
+        """Change the persist callback for this Config.
+
+        Does not call self.persist()
+        """
+        object.__setattr__(self, '_persist_callback', callback)
 
     def persist(self):
         """Stores the current configuration for pushing to W&B"""

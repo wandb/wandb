@@ -4,13 +4,19 @@ __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.46'
 
+import atexit
 import click
-import types
-import six
-import sys
 import logging
 import os
+import signal
+import six
+import socket
+import sys
 import traceback
+import types
+import webbrowser
+
+from wandb import sparkline
 
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists('.wandb'):
@@ -56,7 +62,6 @@ class Error(Exception):
 from wandb import wandb_types as types
 from wandb import api as wandb_api
 from wandb import config as wandb_config
-from wandb import sync
 from wandb import wandb_run
 
 # Three possible modes:
@@ -65,35 +70,12 @@ from wandb import wandb_run
 #     'dryrun': we're a script not launched by "wandb run"
 
 
-_orig_stderr = sys.stderr
-
-
 def termlog(string='', newline=True):
     if string:
         line = '%s: %s' % (click.style('wandb', fg='blue', bold=True), string)
     else:
         line = ''
-    click.echo(line, file=_orig_stderr, nl=newline)
-
-
-def _do_sync(mode, job_type, run, show_run, sweep_id=None):
-    syncer = None
-    termlog()
-    if mode == 'run':
-        api = wandb_api.Api()
-        if api.api_key is None:
-            raise wandb_api.Error(
-                "No API key found, run `wandb login` or set WANDB_API_KEY")
-        api.set_current_run_id(run.id)
-        syncer = sync.Sync(api, job_type, run,
-                           config=run.config, sweep_id=sweep_id)
-        syncer.watch(files='*', show_run=show_run)
-    elif mode == 'dryrun':
-        termlog(
-            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
-    termlog('Run directory: %s' % os.path.relpath(run.dir))
-    termlog()
-    return syncer
+    click.echo(line, file=sys.stderr, nl=newline)
 
 
 # Will be set to the run object for the current run, as returned by
@@ -101,65 +83,134 @@ def _do_sync(mode, job_type, run, show_run, sweep_id=None):
 # relies on it, and it improves the API a bit (user doesn't have to
 # pass the run into WandbKerasCallback)
 run = None
+_exit_hooks = None
 
 
 def init(job_type='train'):
+    global run
+    global _exit_hooks
+    # If a thread calls wandb.init() it will get the same Run object as
+    # the parent. If a child process with distinct memory space calls
+    # wandb.init(), it won't get an error, but it will get a result of
+    # None.
+    # This check ensures that a child process can safely call wandb.init()
+    # after a parent has (only the parent will create the Run object).
+    # This doesn't protect against the case where the parent doesn't call
+    # wandb.init but two children do.
+    if run or os.getenv('WANDB_INITED'):
+        return run
+
     # The WANDB_DEBUG check ensures tests still work.
-    if not __stage_dir__ and not os.getenv('WANDB_DEBUG'):
+    if not wandb_dir() and not os.getenv('WANDB_DEBUG'):
         print('wandb.init() called but directory not initialized.\n'
               'Please run "wandb init" to get started')
         sys.exit(1)
 
-    # urllib3 logs all requests by default, which is ok as long as it's
-    # going to wandb's debug.log, but it's a problem if the user's script
-    # directs all logging to stdout/stderr (because all those requests will
-    # get logged to wandb db, via making http requests). So we disable
-    # request logging here. Scripts based on OpenAI's rllab have this
-    # problem, maybe because of its use of Theano which uses the logging
-    # module.
-    # This is not an ideal solution. Other solutions:
-    #    - Don't hook into to logging in user scripts, do it outside with
-    #      "wandb run".
-    #    - If the user's script sends logging to stdout, take back over and
-    #      send it to wandb's debug.log. Not ideal.
-    logging.getLogger('requests').setLevel(logging.WARNING)
-    logging.getLogger('urllib3').setLevel(logging.WARNING)
-
-    # parse environment variables
-    mode = os.getenv('WANDB_MODE', 'dryrun')
-    run_id = os.getenv('WANDB_RUN_ID')
-    if run_id is None:
-        run_id = wandb_run.generate_id()
-        os.environ['WANDB_RUN_ID'] = run_id
-    run_dir = os.getenv('WANDB_RUN_DIR')
-    if run_dir is None:
-        run_dir = wandb_run.run_dir_path(run_id, dry=mode == 'dryrun')
-        os.environ['WANDB_RUN_DIR'] = run_dir
-    conf_paths = os.getenv('WANDB_CONFIG_PATHS', '')
-    if conf_paths:
-        conf_paths = conf_paths.split(',')
-    show_run = bool(os.getenv('WANDB_SHOW_RUN'))
-    sweep_id = os.getenv('WANDB_SWEEP_ID', None)
-
-    config = None
     syncer = None
 
-    def persist_config_callback():
-        if syncer:
-            syncer.update_config(config)
-    config = wandb_config.Config(config_paths=conf_paths,
-                                 wandb_dir=__stage_dir__, run_dir=run_dir,
-                                 persist_callback=persist_config_callback)
-    global run
-    run = wandb_run.Run(run_id, run_dir, config)
-    # This check ensures that a child process can safely call wandb.init()
-    # after a parent has (only the parent will sync files/stdout/stderr).
-    # This doesn't protect against the case where the parent doesn't call
-    # wandb.init but two children do.
-    if not os.getenv('WANDB_INITED'):
-        syncer = _do_sync(mode, job_type, run, show_run, sweep_id=sweep_id)
-        os.environ['WANDB_INITED'] = '1'
+    run = wandb_run.Run.from_environment_or_defaults()
+    run.job_type = job_type
+    run.set_environment()
+    assert run.storage_id
+    termlog()
+    if run.mode == 'run':
+        run.config.set_run_dir(run.dir)  # set the run directory in the config so it actually gets persisted
+        api = wandb_api.Api()
+        api.set_current_run_id(run.id)
+        # we have to write job_type here because we don't know it before init()
+        api.upsert_run(id=run.storage_id, job_type=job_type)
+
+        def config_persist_callback():
+            api.upsert_run(id=run.storage_id, config=run.config.as_dict())
+        run.config.set_persist_callback(config_persist_callback)
+
+        # we do this after starting sync.Sync() because this atexit handler needs
+        # to happen before the one in sync.Sync.
+        _exit_hooks = ExitHooks()
+        _exit_hooks.hook()
+
+        if bool(os.environ.get('WANDB_SHOW_RUN')):
+            webbrowser.open_new_tab(run.get_url(api))
+    elif mode == 'dryrun':
+        termlog(
+            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
+    termlog('Run directory: %s' % os.path.relpath(run.dir))
+    termlog()
+    os.environ['WANDB_INITED'] = '1'
+
     return run
+
+
+class ExitHooks(object):
+    def __init__(self):
+        self._signal = None
+        self.exit_code = None
+        self.exception = None
+
+    def hook(self):
+        signal.signal(signal.SIGTERM, self._sigkill)
+        try:
+            signal.signal(signal.SIGQUIT, self._debugger)
+        except AttributeError:
+            pass
+        atexit.register(self.atexit)
+        self._orig_exit = sys.exit
+        self._orig_excepthook = sys.excepthook
+        sys.exit = self.exit
+        sys.excepthook = self.excepthook
+
+    def _debugger(self, *args):
+        import pdb
+        pdb.set_trace()
+
+    def atexit(self):
+        termlog()
+        if self._signal == signal.SIGTERM:
+            termlog(
+                'Script ended because of SIGTERM, press ctrl-c to abort syncing.')
+        elif isinstance(self.exception, KeyboardInterrupt):
+            termlog(
+                'Script ended because of ctrl-c, press ctrl-c again to abort syncing.')
+        elif self.exception:
+            termlog(
+                'Script ended because of Exception, press ctrl-c to abort syncing.')
+        else:
+            termlog('Script ended.')
+
+        # Show run summary/history
+        if run.has_summary:
+            summary = run.summary.summary
+            termlog('Run summary:')
+            max_len = max([len(k) for k in summary.keys()])
+            format_str = '  {:>%s} {}' % max_len
+            for k, v in summary.items():
+                termlog(format_str.format(k, v))
+        if run.has_history:
+            history_keys = run.history.keys()
+            termlog('Run history:')
+            max_len = max([len(k) for k in history_keys])
+            for key in history_keys:
+                vals = util.downsample(run.history.column(key), 40)
+                line = sparkline.sparkify(vals)
+                format_str = u'  {:>%s} {}' % max_len
+                termlog(format_str.format(key, line))
+        if run.has_examples:
+            termlog('Saved %s examples' % run.examples.count())
+
+    def _sigkill(self, *args):
+        self._signal = signal.SIGTERM
+        # Send keyboard interrupt to ourself! This triggers the python behavior of stopping the
+        # running script and running the atexit handlers which don't normally get called
+        # when the script is terminated by a signal.
+        os.kill(os.getpid(), signal.SIGINT)
+
+    def exit(self, code=0):
+        self.exit_code = code
+        self._orig_exit(code)
+
+    def excepthook(self, exc_type, exc, *args):
+        self.exception = exc
+        self._orig_excepthook(exc_type, exc, *args)
 
 
 __all__ = ['init', 'termlog', 'run', 'types']
