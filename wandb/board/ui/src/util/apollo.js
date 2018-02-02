@@ -14,7 +14,10 @@ const SERVERS = {
   // development: 'http://gql.test/graphql',
   development: 'http://gql.test/quiver',
   devprod: 'https://api.wandb.ai/quiver',
-  board: 'http://localhost:7177/graphql',
+  board:
+    process.env.NODE_ENV === 'production'
+      ? 'http://localhost:7177/graphql'
+      : '/graphql',
 };
 export const SERVER =
   process.env.REACT_APP_BACKEND_URL ||

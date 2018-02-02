@@ -21,6 +21,7 @@ class ModelViewer extends React.Component {
     return (
       <div>
         <ModelHeader {...this.props} />
+        <Markdown content={model.description} />
         {!condensed &&
         model.bucketCount === 0 && (
           <Markdown

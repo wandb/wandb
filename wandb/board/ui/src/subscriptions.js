@@ -97,7 +97,8 @@ export default (store, client) => {
       }
       if (
         newParams.project &&
-        ['teams', 'admin'].indexOf(newParams.entity) < 0
+        ['teams', 'admin'].indexOf(newParams.entity) < 0 &&
+        ['new', 'projects'].indexOf(newParams.project) < 0
       ) {
         let queuedPayloads = [];
         let nextTimeout = null;
