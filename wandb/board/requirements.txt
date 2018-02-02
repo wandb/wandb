@@ -1,4 +1,4 @@
-flask
+flask==0.12.2
 graphene
 flask-graphql
 flask-cors
