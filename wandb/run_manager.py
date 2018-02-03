@@ -32,8 +32,6 @@ from wandb import wandb_run
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
 logger = logging.getLogger(__name__)
 
-ERROR_STRING = click.style('ERROR', bg='red', fg='green')
-
 
 class FileTailer(object):
     def __init__(self, path, on_read_fn, binary=False):
@@ -317,8 +315,10 @@ class RunManager(object):
 
         stdout_read_file = os.fdopen(stdout_read_fd, 'rb')
         stderr_read_file = os.fdopen(stderr_read_fd, 'rb')
-        self._stdout_tee = io_wrap.Tee(stdout_read_file, stdout, self._stdout_stream)
-        self._stderr_tee = io_wrap.Tee(stderr_read_file, stderr, self._stderr_stream)
+        self._stdout_tee = io_wrap.Tee(
+            stdout_read_file, stdout, self._stdout_stream)
+        self._stderr_tee = io_wrap.Tee(
+            stderr_read_file, stderr, self._stderr_stream)
 
         self.proc = Process(pid)
 
@@ -374,12 +374,14 @@ class RunManager(object):
         wandb.termlog()
 
         if self.proc.poll() is None:
-            wandb.termlog('Killing program failed; syncing files anyway. Press ctrl-c to abort syncing.')
+            wandb.termlog(
+                'Killing program failed; syncing files anyway. Press ctrl-c to abort syncing.')
         else:
             if self.proc.returncode == 0:
                 wandb.termlog('Program ended.')
             else:
-                wandb.termlog('Program failed with code %d. Press ctrl-c to abort syncing.' % self.proc.returncode)
+                wandb.termlog(
+                    'Program failed with code %d. Press ctrl-c to abort syncing.' % self.proc.returncode)
         #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
 
         # Show run summary/history
@@ -480,14 +482,14 @@ class RunManager(object):
             print('')
             error = True
             for local_path, local_md5, remote_md5 in mismatched:
-                wandb.termlog(
-                    '%s: %s (%s) did not match uploaded file (%s) md5' % (
-                        ERROR_STRING, local_path, local_md5, remote_md5))
+                wandb.termerror(
+                    '%s (%s) did not match uploaded file (%s) md5' % (
+                        local_path, local_md5, remote_md5))
         else:
             print('verified!')
 
         if error:
-            wandb.termlog('%s: Sync failed %s' % (ERROR_STRING, self.url))
+            wandb.termerror('Sync failed %s' % self.url)
         else:
             wandb.termlog('Synced %s' % self.url)
 

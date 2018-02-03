@@ -676,15 +676,16 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
         rm = run_manager.RunManager(api, run)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
-        wandb.termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
-            (ERROR_STRING, util.get_log_file_path())))
-        wandb.termlog("%s: %s" % (ERROR_STRING, exc_value))
+        wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %
+                        util.get_log_file_path())
+        wandb.termerror(exc_value)
         if 'permission' in str(exc_value):
-            wandb.termlog(
-                '%s: Are you sure you provided the correct API key to "wandb login"?' % ERROR_STRING)
+            wandb.termerror(
+                'Are you sure you provided the correct API key to "wandb login"?')
         lines = traceback.format_exception(
             exc_type, exc_value, exc_traceback)
         logger.error('\n'.join(lines))
+        return
 
     rm.run_user_process(program, args, env)
 

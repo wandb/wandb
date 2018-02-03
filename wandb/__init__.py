@@ -27,7 +27,7 @@ import sys
 import traceback
 try:
     import tty
-except ImportError: # windows
+except ImportError:  # windows
     tty = None
 import types
 import webbrowser
@@ -85,6 +85,8 @@ from wandb import wandb_run
 #     'run': we're a script launched by "wandb run"
 #     'dryrun': we're a script not launched by "wandb run"
 
+ERROR_STRING = click.style('ERROR', bg='red', fg='green')
+
 
 def termlog(string='', newline=True):
     if string:
@@ -92,6 +94,10 @@ def termlog(string='', newline=True):
     else:
         line = ''
     click.echo(line, file=sys.stderr, nl=newline)
+
+
+def termerror(s):
+    termlog(string='%s: %s' % (ERROR_STRING, s), newline=True)
 
 
 def _debugger(*args):
@@ -122,11 +128,11 @@ def _init_headless(api, run, job_type):
     # we need to create the run first of all so history and summary syncing
     # work even if the syncer process is slow to start.
     upsert_result = api.upsert_run(name=run.id,
-       project=api.settings("project"),
-       entity=api.settings("entity"),
-       config=run.config.as_dict(), description=run.description, host=host,
-       program_path=program, repo=remote_url, sweep_name=run.sweep_id,
-       job_type=job_type)
+                                   project=api.settings("project"),
+                                   entity=api.settings("entity"),
+                                   config=run.config.as_dict(), description=run.description, host=host,
+                                   program_path=program, repo=remote_url, sweep_name=run.sweep_id,
+                                   job_type=job_type)
     run.storage_id = upsert_result['id']
     env = dict(os.environ)
     run.set_environment(env)
@@ -155,7 +161,8 @@ def _init_headless(api, run, job_type):
     # TODO(adrian): make wandb the foreground process so we don't give
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
-    subprocess.Popen(['python', cli_path, 'headless', json.dumps(headless_args)], env=env, **popen_kwargs)
+    subprocess.Popen(['python', cli_path, 'headless', json.dumps(
+        headless_args)], env=env, **popen_kwargs)
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
 
@@ -193,7 +200,7 @@ def init(job_type='train'):
     # The WANDB_DEBUG check ensures tests still work.
     if not wandb_dir() and not os.getenv('WANDB_DEBUG'):
         termlog('wandb.init() called but directory not initialized.\n'
-              'Please run "wandb init" to get started')
+                'Please run "wandb init" to get started')
         sys.exit(1)
 
     try:
@@ -216,7 +223,8 @@ def init(job_type='train'):
 
         def config_persist_callback():
             api.upsert_run(id=run.storage_id, config=run.config.as_dict())
-        run.config.set_run_dir(run.dir)  # set the run directory in the config so it actually gets persisted
+        # set the run directory in the config so it actually gets persisted
+        run.config.set_run_dir(run.dir)
         run.config.set_persist_callback(config_persist_callback)
 
         if bool(os.environ.get('WANDB_SHOW_RUN')):
