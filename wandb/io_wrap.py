@@ -65,28 +65,27 @@ class Tee(object):
         # raw mode so carriage returns etc. don't get added by the terminal driver
         tty.setraw(master_fd)
         tty.setraw(slave_fd)
-        master = os.fdopen(master_fd, 'rb')
         slave = os.fdopen(slave_fd, 'wb')
-        return cls(slave, master, sync_dst_file, *async_dst_files)
+        tee = cls(slave, master, sync_dst_file, *async_dst_files)
+        tee.tee_file = os.fdopen(master_fd, 'rb')
 
     @classmethod
     def pipe(cls, sync_dst_file, *async_dst_files):
         read_fd, write_fd = os.pipe()
         read_file = os.fdopen(read_fd, 'rb')
-        write_file = os.fdopen(write_fd, 'wb')
-        return cls(write_file, read_file, sync_dst_file, *async_dst_files)
+        tee =  cls(write_file, read_file, sync_dst_file, *async_dst_files)
+        tee.tee_file = os.fdopen(write_fd, 'wb')
 
-    def __init__(self, tee_file, src_file, sync_dst_file, *async_dst_files):
+    def __init__(self, src_file, sync_dst_file, *async_dst_files):
         """Constructor.
 
         Args:
-            tee_file: file others can write to to send data through this Tee
             src_file: file to read from.
             sync_dst_file: file to write to synchronously when `self.write()` is
                 called.
             async_dst_files: files to write to asynchronously
         """
-        self.tee_file = tee_file
+        self.tee_file = None  # convenience for users that want a writable file to put things into the tee
         self._src_file = src_file
         self._sync_dst_file = sync_dst_file
         self._async_dst_files = list(async_dst_files)
@@ -137,7 +136,6 @@ class Tee(object):
                 i += f.write(data[i:])
 
     def close_join(self):
-        self.tee_file.close()
         self._read_thread.join()
         for t in self._write_threads:
             t.join()

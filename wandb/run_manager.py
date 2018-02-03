@@ -1,4 +1,4 @@
-import multiprocessing
+import errno
 import psutil
 import os
 import signal
@@ -154,17 +154,59 @@ class FileEventHandlerBinaryStream(FileEventHandler):
         self._tailer = FileTailer(self.file_path, on_read, binary=True)
 
 
-class RunManager(object):
-    """Manages a run process, wraps its I/O, and synchronizes its files.
+class Process(object):
+    """Class representing a running process with an interface that
+    mimics Popen's.
+
+    Only works on Unix-y systems.
+
+    TODO(adrian): probably rewrite using psutil.Process
     """
 
-    def __init__(self, api, run, program, args, env, project=None, tags=[]):
+    def __init__(self, pid):
+        self.returncode = None
+        self.pid = pid
+
+    def poll(self):
+        if self.returncode is None:
+            try:
+                os.kill(self.pid, 0)
+            except OSError as err:
+                if err.errno == errno.ESRCH:
+                    # ESRCH == No such process
+                    # we have no way of getting the real return code, so just set it to 0
+                    self.returncode = 0
+                elif err.errno == errno.EPERM:
+                    # EPERM clearly means there's a process to deny access to
+                    pass
+                else:
+                    # According to "man 2 kill" possible error values are
+                    # (EINVAL, EPERM, ESRCH)
+                    raise
+
+        return self.returncode
+
+    def wait(self):
+        while self.poll() is None:
+            time.sleep(1)
+
+    def interrupt(self):
+        os.kill(self.pid, signal.SIGINT)
+
+    def terminate(self):
+        os.kill(self.pid, signal.SIGTERM)
+
+    def kill(self):
+        os.kill(self.pid, signal.SIGKILL)
+
+
+class RunManager(object):
+    """Manages a run's process, wraps its I/O, and synchronizes its files.
+    """
+
+    def __init__(self, api, run, project=None, tags=[]):
         self._api = api
         self._run = run
-        self._command = [program] + list(args)
-        runner = util.find_runner(program)
-        if runner:
-            self._command = runner + self._command
 
         self._project = project if project else api.settings("project")
         self._tags = tags
@@ -194,10 +236,6 @@ class RunManager(object):
 
         self._event_handlers = {}
 
-        # create a handler for description.md, so that we'll save it at the end
-        # of the run.
-        #self._get_handler(self._run.description_path, wandb_run.DESCRIPTION_FNAME)
-
         self._handler._patterns = [
             os.path.join(self._watch_dir, os.path.normpath('*'))]
         # Ignore hidden files/folders
@@ -219,9 +257,12 @@ class RunManager(object):
             self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
             prepend_timestamp=True)
 
-        self._stdout_stream.write_string(" ".join(psutil.Process(
-            os.getpid()).cmdline()) + "\n\n")
+    def run_user_process(self, program, args):
+        """Launch a user process, capture its output, and sync its files to the backend.
 
+        This returns after the process has ended and syncing is done.
+        Captures ctrl-c's, signals, etc.
+        """
         if six.PY2:
             stdout = sys.stdout
             stderr = sys.stderr
@@ -241,16 +282,49 @@ class RunManager(object):
             self._stdout_tee = io_wrap.Tee.pty(stdout, self._stdout_stream)
             self._stderr_tee = io_wrap.Tee.pty(stderr, self._stderr_stream)
 
+        self._stdout_stream.write_string(" ".join(psutil.Process(
+            os.getpid()).cmdline()) + "\n\n")
+
+        command = [program] + list(args)
+        runner = util.find_runner(program)
+        if runner:
+            command = runner + command
+
         try:
             self.proc = subprocess.Popen(
-                self._command,
+                command,
                 env=env,
-                stdout=self._stdout_tee.tee_file,
-                stderr=self._stderr_tee.tee_file
+                stdout=run_manager._stdout_tee.tee_file,
+                stderr=run_manager._stderr_tee.tee_file
             )
         except (OSError, IOError):
             raise Exception('Could not find program: %s' % self._command)
 
+        self._sync_etc()
+
+    def wrap_existing_process(self, pid, stdout_read_fd, stderr_read_fd):
+        """Do syncing, etc. for an already-running process.
+
+        This returns after the process has ended and syncing is done.
+        Captures ctrl-c's, signals, etc.
+        """
+        if six.PY2:
+            stdout = sys.stdout
+            stderr = sys.stderr
+        else:  # we write binary so grab the raw I/O objects in python 3
+            stdout = sys.stdout.buffer.raw
+            stderr = sys.stderr.buffer.raw
+
+        stdout_read_file = os.fdopen(stdout_read_fd, 'rb')
+        stderr_read_file = os.fdopen(stderr_read_fd, 'rb')
+        self._stdout_tee = io_wrap.Tee(stdout_read_file, stdout, self._stdout_stream)
+        self._stderr_tee = io_wrap.Tee(stderr_read_file, stderr, self._stderr_stream)
+
+        self.proc = Process(pid)
+
+        self._sync_etc()
+
+    def _sync_etc(self):
         # Ignore SIGQUIT (ctrl-\). The child process will # handle it, and we'll
         # exit when the child process does.
         #
@@ -277,8 +351,12 @@ class RunManager(object):
                     pass
 
         # Close output capturing stuff. This also flushes anything left in the buffers.
-        self._stdout_tee.close_join()
-        self._stderr_tee.close_join()
+        if self._stdout_tee.tee_file is not None:
+            self._stdout_tee.tee_file.close()
+            self._stdout_tee.close_join()
+        if self._stderr_tee.tee_file is not None:
+            self._stderr_tee.tee_file.close()
+            self._stderr_tee.close_join()
         self._stdout_stream.close()
         self._stderr_stream.close()
         self._api.get_file_stream_api().finish(self.proc.returncode == 0)

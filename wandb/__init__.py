@@ -1,21 +1,34 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import absolute_import, print_function
+
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.4.46'
 
 import atexit
 import click
+try:
+    import fcntl
+except ImportError:  # windows
+    fcntl = None
+import json
 import logging
 import os
+try:
+    import pty
+except ImportError:  # windows
+    pty = None
 import signal
 import six
 import socket
+import subprocess
 import sys
 import traceback
 import types
 import webbrowser
 
+from . import io_wrap
 
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists('.wandb'):
@@ -82,6 +95,74 @@ def _debugger(*args):
     pdb.set_trace()
 
 
+def _init_headless(api, run, job_type):
+    # TODO: better failure handling
+    root = api.git.root
+    remote_url = api.git.remote_url
+    host = socket.gethostname()
+    # handle non-git directories
+    if not root:
+        root = os.path.abspath(os.getcwd())
+        remote_url = 'file://%s%s' % (host, root)
+
+    try:
+        import __main__
+        program = __main__.__file__
+    except (ImportError, AttributeError):
+        # probably `python -c`, an embedded interpreter or something
+        program = '<python with no main file>'
+
+    # we need to create the run first of all so history and summary syncing
+    # work even if the syncer process is slow to start.
+    upsert_result = api.upsert_run(name=run.id,
+       project=api.settings("project"),
+       entity=api.settings("entity"),
+       config=run.config.as_dict(), description=run.description, host=host,
+       program_path=program, repo=remote_url, sweep_name=run.sweep_id,
+       job_type=job_type)
+    run.storage_id = upsert_result['id']
+    env = dict(os.environ)
+    run.set_environment(env)
+
+    stdout_master_fd, stdout_slave_fd = pty.openpty()
+    stderr_master_fd, stderr_slave_fd = pty.openpty()
+
+    #_make_fd_inheritable(stdout_master_fd)
+    #_make_fd_inheritable(stderr_master_fd)
+    headless_args = {
+        'pid': os.getpid(),
+        'stdout_master_fd': stdout_master_fd,
+        'stderr_master_fd': stderr_master_fd
+    }
+    cli_path = os.path.join(os.path.dirname(__file__), 'cli.py')
+
+    # TODO(adrian): close_fds=False is bad for security. we set
+    # it so we can pass the PTY fds to the wandb process but maybe
+    # we should do that some other way.
+    # TODO(adrian): somehow make the wandb process the foreground
+    # process so we don't give up terminal control until syncing
+    # is finished.
+    # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
+    subprocess.Popen(['python', cli_path, 'headless', json.dumps(headless_args)], env=env, close_fds=False)
+    os.close(stdout_master_fd)
+    os.close(stderr_master_fd)
+
+    stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
+    stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
+
+    stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+    stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+
+    stdout_redirector.redirect()
+    if os.environ.get('WANDB_DEBUG') != 'true':
+        stderr_redirector.redirect()
+
+
+def _make_fd_inheritable(fd):
+    old_flags = fcntl.fcntl(fd, fcntl.F_GETFD)
+    fcntl.fcntl(fd, fcntl.F_SETFL, old_flags & ~fcntl.FD_CLOEXEC)
+
+
 # Will be set to the run object for the current run, as returned by
 # wandb.init(). We may want to get rid of this, but WandbKerasCallback
 # relies on it, and it improves the API a bit (user doesn't have to
@@ -117,15 +198,18 @@ def init(job_type='train'):
     run.job_type = job_type
     run.set_environment()
     if run.mode == 'run':
-        assert run.storage_id
-        run.config.set_run_dir(run.dir)  # set the run directory in the config so it actually gets persisted
         api = wandb_api.Api()
         api.set_current_run_id(run.id)
-        # we have to write job_type here because we don't know it before init()
-        api.upsert_run(id=run.storage_id, job_type=job_type)
+
+        if run.storage_id:
+            # we have to write job_type here because we don't know it before init()
+            api.upsert_run(id=run.storage_id, job_type=job_type)
+        else:
+            _init_headless(api, run, job_type)
 
         def config_persist_callback():
             api.upsert_run(id=run.storage_id, config=run.config.as_dict())
+        run.config.set_run_dir(run.dir)  # set the run directory in the config so it actually gets persisted
         run.config.set_persist_callback(config_persist_callback)
 
         if bool(os.environ.get('WANDB_SHOW_RUN')):
