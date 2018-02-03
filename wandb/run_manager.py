@@ -33,8 +33,6 @@ from wandb import meta
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
 logger = logging.getLogger(__name__)
 
-ERROR_STRING = click.style('ERROR', bg='red', fg='green')
-
 
 class FileTailer(object):
     def __init__(self, path, on_read_fn, binary=False):
@@ -505,14 +503,14 @@ class RunManager(object):
             print('')
             error = True
             for local_path, local_md5, remote_md5 in mismatched:
-                wandb.termlog(
-                    '%s: %s (%s) did not match uploaded file (%s) md5' % (
-                        ERROR_STRING, local_path, local_md5, remote_md5))
+                wandb.termerror(
+                    '%s (%s) did not match uploaded file (%s) md5' % (
+                        local_path, local_md5, remote_md5))
         else:
             print('verified!')
 
         if error:
-            wandb.termlog('%s: Sync failed %s' % (ERROR_STRING, self.url))
+            wandb.termerror('Sync failed %s' % self.url)
         else:
             wandb.termlog('Synced %s' % self.url)
 

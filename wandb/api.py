@@ -784,6 +784,7 @@ class Api(object):
         else:
             return json.loads(response['heartbeat']['commands'])
 
+    @normalize_exceptions
     def upsert_sweep(self, config):
         """Upsert a sweep object.
 
