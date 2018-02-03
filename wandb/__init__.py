@@ -27,7 +27,7 @@ import sys
 import traceback
 try:
     import tty
-except ImportError: # windows
+except ImportError:  # windows
     tty = None
 import types
 import webbrowser
@@ -99,7 +99,7 @@ def _debugger(*args):
     pdb.set_trace()
 
 
-def _init_headless(api, run, job_type):
+def _init_headless(api, run, job_type, cloud=True):
     if 'WANDB_DESCRIPTION' in os.environ:
         run.description = os.environ['WANDB_DESCRIPTION']
 
@@ -121,13 +121,14 @@ def _init_headless(api, run, job_type):
 
     # we need to create the run first of all so history and summary syncing
     # work even if the syncer process is slow to start.
-    upsert_result = api.upsert_run(name=run.id,
-       project=api.settings("project"),
-       entity=api.settings("entity"),
-       config=run.config.as_dict(), description=run.description, host=host,
-       program_path=program, repo=remote_url, sweep_name=run.sweep_id,
-       job_type=job_type)
-    run.storage_id = upsert_result['id']
+    if cloud:
+        upsert_result = api.upsert_run(name=run.id,
+                                       project=api.settings("project"),
+                                       entity=api.settings("entity"),
+                                       config=run.config.as_dict(), description=run.description, host=host,
+                                       program_path=program, repo=remote_url, sweep_name=run.sweep_id,
+                                       job_type=job_type)
+        run.storage_id = upsert_result['id']
     env = dict(os.environ)
     run.set_environment(env)
 
@@ -141,7 +142,8 @@ def _init_headless(api, run, job_type):
     headless_args = {
         'pid': os.getpid(),
         'stdout_master_fd': stdout_master_fd,
-        'stderr_master_fd': stderr_master_fd
+        'stderr_master_fd': stderr_master_fd,
+        'cloud': cloud
     }
     cli_path = os.path.join(os.path.dirname(__file__), 'cli.py')
 
@@ -155,7 +157,8 @@ def _init_headless(api, run, job_type):
     # TODO(adrian): make wandb the foreground process so we don't give
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
-    subprocess.Popen(['python', cli_path, 'headless', json.dumps(headless_args)], env=env, **popen_kwargs)
+    subprocess.Popen(['python', cli_path, 'headless', json.dumps(
+        headless_args)], env=env, **popen_kwargs)
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
 
@@ -193,7 +196,7 @@ def init(job_type='train'):
     # The WANDB_DEBUG check ensures tests still work.
     if not wandb_dir() and not os.getenv('WANDB_DEBUG'):
         termlog('wandb.init() called but directory not initialized.\n'
-              'Please run "wandb init" to get started')
+                'Please run "wandb init" to get started')
         sys.exit(1)
 
     try:
@@ -204,10 +207,9 @@ def init(job_type='train'):
     run = wandb_run.Run.from_environment_or_defaults()
     run.job_type = job_type
     run.set_environment()
+    api = wandb_api.Api()
+    api.set_current_run_id(run.id)
     if run.mode == 'run':
-        api = wandb_api.Api()
-        api.set_current_run_id(run.id)
-
         if run.storage_id:
             # we have to write job_type here because we don't know it before init()
             api.upsert_run(id=run.storage_id, job_type=job_type)
@@ -216,16 +218,20 @@ def init(job_type='train'):
 
         def config_persist_callback():
             api.upsert_run(id=run.storage_id, config=run.config.as_dict())
-        run.config.set_run_dir(run.dir)  # set the run directory in the config so it actually gets persisted
+        # set the run directory in the config so it actually gets persisted
+        run.config.set_run_dir(run.dir)
         run.config.set_persist_callback(config_persist_callback)
 
         if bool(os.environ.get('WANDB_SHOW_RUN')):
             webbrowser.open_new_tab(run.get_url(api))
     elif run.mode == 'dryrun':
-        termlog('wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
+        _init_headless(api, run, job_type, False)
+        termlog(
+            'wandb dryrun mode, saving files in %s. Use "wandb run <script>" to save results to the cloud.' % run.dir)
         termlog()
     else:
-        termlog('Invalid run mode "%s". Please unset WANDB_MODE to do a dry run or')
+        termlog(
+            'Invalid run mode "%s". Please unset WANDB_MODE to do a dry run or' % run.mode)
         termlog('run with "wandb run" to do a real run.')
         sys.exit(1)
 

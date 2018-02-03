@@ -29,6 +29,7 @@ from wandb import stats
 from wandb import streaming_log
 from wandb import util
 from wandb import wandb_run
+from wandb import meta
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
 logger = logging.getLogger(__name__)
 
@@ -204,7 +205,7 @@ class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
 
-    def __init__(self, api, run, project=None, tags=[]):
+    def __init__(self, api, run, project=None, tags=[], cloud=True):
         self._api = api
         self._run = run
 
@@ -227,6 +228,7 @@ class RunManager(object):
         self._stats = stats.Stats()
         # This starts a thread to write system stats every 30 seconds
         self._system_stats = stats.SystemStats(run)
+        self._meta = meta.Meta(api, self._run.dir)
 
         def push_function(save_name, path):
             with open(path, 'rb') as f:
@@ -240,22 +242,23 @@ class RunManager(object):
             os.path.join(self._watch_dir, os.path.normpath('*'))]
         # Ignore hidden files/folders
         self._handler._ignore_patterns = ['*/.*', '*.tmp']
-        self._observer.start()
+        if cloud:
+            self._observer.start()
 
-        self._api.save_patches(self._watch_dir)
+            self._api.save_patches(self._watch_dir)
 
-        wandb.termlog("Syncing %s" % self.url)
-        wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
-        wandb.termlog()
+            wandb.termlog("Syncing %s" % self.url)
+            wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
+            wandb.termlog()
 
-        self._api.get_file_stream_api().set_file_policy(
-            'output.log', CRDedupeFilePolicy())
-        # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
-        self._stdout_stream = streaming_log.TextStreamPusher(
-            self._api.get_file_stream_api(), 'output.log', prepend_timestamp=True)
-        self._stderr_stream = streaming_log.TextStreamPusher(
-            self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
-            prepend_timestamp=True)
+            self._api.get_file_stream_api().set_file_policy(
+                'output.log', CRDedupeFilePolicy())
+            # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
+            self._stdout_stream = streaming_log.TextStreamPusher(
+                self._api.get_file_stream_api(), 'output.log', prepend_timestamp=True)
+            self._stderr_stream = streaming_log.TextStreamPusher(
+                self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
+                prepend_timestamp=True)
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -317,8 +320,10 @@ class RunManager(object):
 
         stdout_read_file = os.fdopen(stdout_read_fd, 'rb')
         stderr_read_file = os.fdopen(stderr_read_fd, 'rb')
-        self._stdout_tee = io_wrap.Tee(stdout_read_file, stdout, self._stdout_stream)
-        self._stderr_tee = io_wrap.Tee(stderr_read_file, stderr, self._stderr_stream)
+        self._stdout_tee = io_wrap.Tee(
+            stdout_read_file, stdout, self._stdout_stream)
+        self._stderr_tee = io_wrap.Tee(
+            stderr_read_file, stderr, self._stderr_stream)
 
         self.proc = Process(pid)
 
@@ -349,6 +354,7 @@ class RunManager(object):
                     self.proc.kill()
                 except OSError:
                     pass
+            self._meta.data["state"] = "killed"
 
         # Close output-capturing stuff. This also flushes anything left in the buffers.
         if self._stdout_tee.tee_file is not None:
@@ -374,12 +380,17 @@ class RunManager(object):
         wandb.termlog()
 
         if self.proc.poll() is None:
-            wandb.termlog('Killing program failed; syncing files anyway. Press ctrl-c to abort syncing.')
+            wandb.termlog(
+                'Killing program failed; syncing files anyway. Press ctrl-c to abort syncing.')
         else:
+            self._meta.data["exitcode"] = self.proc.returncode
             if self.proc.returncode == 0:
                 wandb.termlog('Program ended.')
+                self._meta.data["state"] = "finished"
             else:
-                wandb.termlog('Program failed with code %d. Press ctrl-c to abort syncing.' % self.proc.returncode)
+                self._meta.data["state"] = "failed"
+                wandb.termlog(
+                    'Program failed with code %d. Press ctrl-c to abort syncing.' % self.proc.returncode)
         #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
 
         # Show run summary/history
@@ -403,6 +414,7 @@ class RunManager(object):
             wandb.termlog('Saved %s examples' % self._run.examples.count())
 
         self._system_stats.shutdown()
+        self._meta.shutdown()
 
         wandb.termlog('Waiting for final file modifications.')
         # This is a a heuristic delay to catch files that were written just before

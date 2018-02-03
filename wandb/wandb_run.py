@@ -40,7 +40,7 @@ class Run(object):
 
         if description is not None:
             self.description = description
-        # An empty description.md may have been created by sync.RunManager() so it's
+        # An empty description.md may have been created by RunManager() so it's
         # important that we overwrite empty strings here.
         if not self.description:
             self.description = self.id
