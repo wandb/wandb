@@ -47,7 +47,6 @@ export default class LinePlot extends React.Component {
   }
 
   render() {
-    console.log('LinePlot render');
     let maxLength = _.max(
       this.props.lines
         .filter(line => !this.state.disabled[line.title])
@@ -62,7 +61,9 @@ export default class LinePlot extends React.Component {
     }
     return (
       <div
-        style={{border: this.props.lines.length === 0 ? '1px solid #ccc' : ''}}>
+        style={{
+          border: this.props.lines.length === 0 ? '1px solid #ccc' : '',
+        }}>
         <DiscreteColorLegend
           orientation="horizontal"
           onItemClick={(item, i) => {

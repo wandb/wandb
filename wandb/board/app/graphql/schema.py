@@ -4,7 +4,6 @@ import graphene
 from graphene import relay
 from .loader import data, find_run, settings
 from wandb.board.app.models import History, Events
-import getpass
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -22,12 +21,6 @@ class UserType(graphene.ObjectType):
 
     def resolve_id(self, info, **args):
         return "id"
-
-    def resolve_photoUrl(self, info, **args):
-        return "/unknown.jpeg"
-
-    def resolve_username(self, info, **args):
-        return getpass.getuser()
 
 
 class LogLine(graphene.ObjectType):
@@ -125,17 +118,6 @@ class Run(graphene.ObjectType):
 
     def resolve_exampleTable(self, info, **args):
         return ""
-
-    def resolve_user(self, info, **args):
-        return UserType()
-
-    def resolve_state(self, info, **args):
-        if self.heartbeatAt is None:
-            return "failed"
-        elif (datetime.utcnow() - self.heartbeatAt).seconds < 30:
-            return "running"
-        else:
-            return "finished"
 
     def __repr__(self):
         return "<Run %s>" % self.id

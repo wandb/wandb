@@ -208,6 +208,7 @@ class RunManager(object):
     def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train"):
         self._api = api
         self._run = run
+        self._cloud = cloud
 
         self._project = project if project else api.settings("project")
         self._tags = tags
@@ -243,7 +244,7 @@ class RunManager(object):
             os.path.join(self._watch_dir, os.path.normpath('*'))]
         # Ignore hidden files/folders
         self._handler._ignore_patterns = ['*/.*', '*.tmp']
-        if cloud:
+        if self._cloud:
             self._observer.start()
 
             self._api.save_patches(self._watch_dir)
@@ -261,8 +262,8 @@ class RunManager(object):
                 self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
                 prepend_timestamp=True)
         else:
-            self._stdout_stream = sys.stdout
-            self._stderr_stream = sys.stderr
+            self._stdout_stream = open(self._run.dir + "/output.log", "w")
+            self._stderr_stream = open(self._run.dir + "/output.log", "w")
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -376,7 +377,8 @@ class RunManager(object):
             self._stderr_tee.close_join()
         self._stdout_stream.close()
         self._stderr_stream.close()
-        self._api.get_file_stream_api().finish(self.proc.returncode == 0)
+        if self._cloud:
+            self._api.get_file_stream_api().finish(self.proc.returncode == 0)
 
         """
         Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
@@ -393,12 +395,19 @@ class RunManager(object):
             self._meta.data["exitcode"] = self.proc.returncode
             if self.proc.returncode == 0:
                 wandb.termlog('Program ended.')
-                self._meta.data["state"] = "finished"
+                self._meta.data["state"] = self._meta.data["state"] or "finished"
             else:
                 self._meta.data["state"] = self._meta.data["state"] or "failed"
                 wandb.termlog(
                     'Program failed with code %d. Press ctrl-c to abort syncing.' % self.proc.returncode)
         #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
+
+        self._system_stats.shutdown()
+        self._meta.shutdown()
+
+        # If we're not syncing to the cloud, we're done
+        if not self._cloud:
+            return None
 
         # Show run summary/history
         if self._run.has_summary:
@@ -419,9 +428,6 @@ class RunManager(object):
                 wandb.termlog(format_str.format(key, line))
         if self._run.has_examples:
             wandb.termlog('Saved %s examples' % self._run.examples.count())
-
-        self._system_stats.shutdown()
-        self._meta.shutdown()
 
         wandb.termlog('Waiting for final file modifications.')
         # This is a a heuristic delay to catch files that were written just before

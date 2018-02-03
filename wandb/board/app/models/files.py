@@ -3,6 +3,10 @@ import yaml
 import json
 import re
 import glob
+import socket
+import getpass
+import urllib
+import hashlib
 from datetime import datetime
 
 
@@ -87,6 +91,12 @@ class Events(Base):
         self.name = "wandb-events.jsonl"
 
 
+class Meta(Summary):
+    def __init__(self, base_path):
+        super(Meta, self).__init__(base_path)
+        self.name = "wandb-metadata.json"
+
+
 class Dir(Base):
     def __init__(self, base_path):
         matches = re.search(
@@ -97,13 +107,16 @@ class Dir(Base):
         self.run_id = matches.group(3)
         path = base_path.split(self.run_id)[0] + self.run_id
         super(Dir, self).__init__(path)
+        self.load_meta()
 
     @property
     def created_at(self):
-        return datetime.strptime(self.date, "%Y%m%d_%H%M%S")
+        return self.meta.get("startedAt", datetime.strptime(self.date, "%Y%m%d_%H%M%S"))
 
     @property
     def heartbeat_at(self):
+        if self.meta.get("heartbeatAt"):
+            return self.meta["heartbeatAt"]
         latest = None
         for path in glob.glob("%s/*" % self.path):
             mtime = datetime.utcfromtimestamp(
@@ -112,10 +125,27 @@ class Dir(Base):
                 latest = mtime
         return latest
 
+    def load_meta(self):
+        self.meta = Meta(self.path).parsed()
+        if not self.meta.get("git"):
+            self.meta["git"] = {}
+
+    def gravatar(self):
+        default = "/unknown.jpeg"
+        size = 40
+        if self.meta.get("email"):
+            gravatar_url = "https://www.gravatar.com/avatar/" + \
+                hashlib.md5(self.meta["email"].lower()).hexdigest() + "?"
+            gravatar_url += urllib.urlencode({'d': default, 's': str(size)})
+            return gravatar_url
+        else:
+            return default
+
     def load(self, run=None):
-        from wandb.board.app.graphql.schema import Run
+        from wandb.board.app.graphql.schema import Run, UserType
         if not run:
             run = Run()
+        self.load_meta()
         desc = Description(self.path)
         config = Config(self.path)
         summary = Summary(self.path)
@@ -125,10 +155,17 @@ class Dir(Base):
         run.createdAt = self.created_at
         run.heartbeatAt = self.updated_at
         run.description = desc.read()
-        run.state = "finished"
+        run.commit = self.meta["git"].get("commit")
+        run.state = self.meta.get("state", "finished")
+        run.host = self.meta.get("host", socket.gethostname())
         run.patch = patch.read()
         run.summaryMetrics = summary.parsed()
         run.config = config.parsed()
+        run.user = UserType(
+            email=self.meta.get("email"),
+            username=self.meta.get("username", getpass.getuser()),
+            photoUrl=self.gravatar()
+        )
         return run
 
 

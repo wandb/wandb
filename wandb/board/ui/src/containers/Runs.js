@@ -461,6 +461,8 @@ function withData() {
       if (model && model.views) {
         views = JSON.parse(model.views);
       }
+      //TODO: For some reason the first poll causes loading to be true
+      if (model && model.buckets && loading) loading = false;
       return {
         loading,
         refetch,

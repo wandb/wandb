@@ -118,6 +118,9 @@ class RunFeed extends PureComponent {
     if (state === 'failed') {
       icon = 'remove';
       color = 'red';
+    } else if (state === 'killed') {
+      icon = 'remove user';
+      color = 'orange';
     } else if (state === 'running') {
       icon = 'spinner';
       color = 'blue';

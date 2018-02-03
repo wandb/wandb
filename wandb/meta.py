@@ -47,6 +47,7 @@ class Meta(object):
         except (ImportError, AttributeError):
             self.data["program"] = '<python with no main file>'
         self.data["state"] = "running"
+        self.write()
 
     def write(self):
         self.lock.acquire()
