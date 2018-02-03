@@ -13,7 +13,7 @@ class Meta(object):
         self.fname = os.path.join(out_dir, METADATA_FNAME)
         try:
             self.data = json.load(open(self.fname))
-        except IOError:
+        except (IOError, ValueError):
             self.data = {}
 
     def write(self):

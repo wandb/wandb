@@ -1033,7 +1033,7 @@ class FileStreamApi(object):
         return util.read_many_from_queue(
             self._queue, self.MAX_ITEMS_PER_PUSH, self.RATE_LIMIT_SECONDS)
 
-    def _thread_body(self, dry=False):
+    def _thread_body(self):
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []

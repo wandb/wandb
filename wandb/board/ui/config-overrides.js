@@ -71,4 +71,11 @@ function rewire(config, env) {
 
 module.exports = {
   webpack: rewire,
+  devServer: function(configFunction) {
+    return function(proxy, allowedHost) {
+      const config = configFunction(proxy, allowedHost);
+      config.proxy = {'/graphql': 'http://localhost:7177'};
+      return config;
+    };
+  },
 };

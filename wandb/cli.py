@@ -626,7 +626,8 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
         else:
             config_paths = []
         config = Config(config_paths=config_paths, wandb_dir=wandb.wandb_dir())
-        run = wandb_run.Run.from_environment_or_defaults(run_id=id, mode='run', config=config, description=message)
+        run = wandb_run.Run.from_environment_or_defaults(
+            run_id=id, mode='run', config=config, description=message)
 
     api.set_current_run_id(run.id)
 
@@ -641,10 +642,10 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
 
     #program_path = os.path.relpath(SCRIPT_PATH, root)
     upsert_result = api.upsert_run(name=run.id,
-       project=api.settings("project"),
-       entity=api.settings("entity"),
-       config=run.config.as_dict(), description=run.description, host=host,
-       program_path=program, repo=remote_url, sweep_name=run.sweep_id)
+                                   project=api.settings("project"),
+                                   entity=api.settings("entity"),
+                                   config=run.config.as_dict(), description=run.description, host=host,
+                                   program_path=program, repo=remote_url, sweep_name=run.sweep_id)
     run.storage_id = upsert_result['id']
     env = dict(os.environ)
     run.set_environment(env)
@@ -699,8 +700,11 @@ def agent(sweep_id):
 @display_error
 def board(port):
     from wandb.board import app
-    click.echo('Started wandb board on http://0.0.0.0:%s ✨' % port)
-    app.run("0.0.0.0", port, threaded=True, debug=False)
+    dev = os.getenv('WANDB_ENV', "").startswith("dev")
+    extra = "(dev)" if dev else ""
+    click.echo(
+        'Started wandb board on http://0.0.0.0:{0} ✨ {1}'.format(port, extra))
+    app.run("0.0.0.0", port, threaded=True, debug=dev)
 
 
 # @cli.command(context_settings=RUN_CONTEXT, help="Log a job")

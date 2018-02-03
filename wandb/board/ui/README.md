@@ -1,10 +1,10 @@
 # Weights and Biases Frontend!
 
-The frontend uses [Create React App (CRA)](https://github.com/facebookincubator/create-react-app) to make sound stack choices for us.  It uses [Apollo Client](http://dev.apollodata.com) for GraphQL server communication, Redux for state management, and Auth0 for authentication.
+The frontend uses [Create React App (CRA)](https://github.com/facebookincubator/create-react-app) to make sound stack choices for us.  It uses [Apollo Client](http://dev.apollodata.com) for GraphQL server communication, Redux for state management, and [Semantic UI](https://react.semantic-ui.com/introduction) for themeing.
 
 ## Customization
 
-CRA makes it easy for us to stay up to date with React best practices, however sometimes we want the latest hotness.  To accomplish this we use [react-app-rewired](https://github.com/timarney/react-app-rewired) to make modifications to our webpack config.  The primary customizations we've made are generating build stats and using the AutoDLL plugin to increase compilation speed and split our bundles into ones that rarely change and one that changes often.
+CRA makes it easy for us to stay up to date with React best practices, however sometimes we want the latest hotness.  To accomplish this we use [react-app-rewired](https://github.com/timarney/react-app-rewired) to make modifications to our webpack config.  `config-overrides.js` contains customizations to our webpack configs.
 
 ### Theming
 
@@ -16,6 +16,10 @@ cd semantic
 gulp build
 ```
 
+## Development
+
+Running `yarn start` will start the web pack dev server.  You can start a live reloading backend server by running `WANDB_ENV=dev wandb board` in a directory with wandb runs.
+
 ## Testing
 
 Make sure you have the latest version of watchman
@@ -24,6 +28,3 @@ Make sure you have the latest version of watchman
 brew install watchman
 ```
 
-## Deployment
-
-Firebase is used for frontend hosting, `yarn deploy` away!
