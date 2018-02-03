@@ -350,9 +350,13 @@ class RunManager(object):
                 except OSError:
                     pass
 
-        # Close output capturing stuff. This also flushes anything left in the buffers.
+        # Close output-capturing stuff. This also flushes anything left in the buffers.
         if self._stdout_tee.tee_file is not None:
+            # we don't have tee_file's in headless mode
             self._stdout_tee.tee_file.close()
+            # TODO(adrian): we should close these even in headless mode
+            # but in python 2 the read thread doesn't stop on its own
+            # for some reason
             self._stdout_tee.close_join()
         if self._stderr_tee.tee_file is not None:
             self._stderr_tee.tee_file.close()

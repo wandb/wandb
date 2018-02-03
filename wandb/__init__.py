@@ -127,8 +127,6 @@ def _init_headless(api, run, job_type):
     stdout_master_fd, stdout_slave_fd = pty.openpty()
     stderr_master_fd, stderr_slave_fd = pty.openpty()
 
-    #_make_fd_inheritable(stdout_master_fd)
-    #_make_fd_inheritable(stderr_master_fd)
     headless_args = {
         'pid': os.getpid(),
         'stdout_master_fd': stdout_master_fd,
@@ -136,14 +134,17 @@ def _init_headless(api, run, job_type):
     }
     cli_path = os.path.join(os.path.dirname(__file__), 'cli.py')
 
-    # TODO(adrian): close_fds=False is bad for security. we set
-    # it so we can pass the PTY fds to the wandb process but maybe
-    # we should do that some other way.
-    # TODO(adrian): somehow make the wandb process the foreground
-    # process so we don't give up terminal control until syncing
-    # is finished.
+    if six.PY2:
+        # TODO(adrian): close_fds=False is bad for security. we set
+        # it so we can pass the PTY FDs to the wandb process. We
+        # should use subprocess32, which has pass_fds.
+        popen_kwargs = {'close_fds': False}
+    else:
+        popen_kwargs = {'pass_fds': [stdout_master_fd, stderr_master_fd]}
+    # TODO(adrian): make wandb the foreground process so we don't give
+    # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
-    subprocess.Popen(['python', cli_path, 'headless', json.dumps(headless_args)], env=env, close_fds=False)
+    subprocess.Popen(['python', cli_path, 'headless', json.dumps(headless_args)], env=env, **popen_kwargs)
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
 
@@ -156,11 +157,6 @@ def _init_headless(api, run, job_type):
     stdout_redirector.redirect()
     if os.environ.get('WANDB_DEBUG') != 'true':
         stderr_redirector.redirect()
-
-
-def _make_fd_inheritable(fd):
-    old_flags = fcntl.fcntl(fd, fcntl.F_GETFD)
-    fcntl.fcntl(fd, fcntl.F_SETFL, old_flags & ~fcntl.FD_CLOEXEC)
 
 
 # Will be set to the run object for the current run, as returned by
