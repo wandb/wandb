@@ -66,27 +66,30 @@ class Tee(object):
         tty.setraw(master_fd)
         tty.setraw(slave_fd)
         master = os.fdopen(master_fd, 'rb')
-        slave = os.fdopen(slave_fd, 'wb')
-        return cls(slave, master, sync_dst_file, *async_dst_files)
+        tee = cls(master, sync_dst_file, *async_dst_files)
+        tee.tee_file = os.fdopen(slave_fd, 'wb')
+
+        return tee
 
     @classmethod
     def pipe(cls, sync_dst_file, *async_dst_files):
         read_fd, write_fd = os.pipe()
         read_file = os.fdopen(read_fd, 'rb')
-        write_file = os.fdopen(write_fd, 'wb')
-        return cls(write_file, read_file, sync_dst_file, *async_dst_files)
+        tee =  cls(read_file, sync_dst_file, *async_dst_files)
+        tee.tee_file = os.fdopen(write_fd, 'wb')
 
-    def __init__(self, tee_file, src_file, sync_dst_file, *async_dst_files):
+        return tee
+
+    def __init__(self, src_file, sync_dst_file, *async_dst_files):
         """Constructor.
 
         Args:
-            tee_file: file others can write to to send data through this Tee
             src_file: file to read from.
             sync_dst_file: file to write to synchronously when `self.write()` is
                 called.
             async_dst_files: files to write to asynchronously
         """
-        self.tee_file = tee_file
+        self.tee_file = None  # convenience for users that want a writable file to put things into the tee
         self._src_file = src_file
         self._sync_dst_file = sync_dst_file
         self._async_dst_files = list(async_dst_files)
@@ -137,7 +140,6 @@ class Tee(object):
                 i += f.write(data[i:])
 
     def close_join(self):
-        self.tee_file.close()
         self._read_thread.join()
         for t in self._write_threads:
             t.join()
@@ -169,62 +171,6 @@ def spawn_reader_writer(get_data_fn, put_data_fn):
     t.daemon = True
     t.start()
     return t
-
-
-class PtyIoWrap(object):
-    """Captures STDOUT and STDERR of the current process using PTYs
-
-    OS-level (file descriptor) redirection means child processes' output is
-    also captured.
-
-    Using PTYs causes libc to use normal terminal-style buffering instead of
-    the large fixed-size buffers it uses when output goes to PIPEs.
-
-    FIXME(adrian): Some processes may not behave properly unless the PTY is
-    their controlling terminal.
-    """
-
-    def __init__(self, stdout_readers=None, stderr_readers=None):
-        if stdout_readers is None:
-            stdout_readers = []
-        if stderr_readers is None:
-            stderr_readers = []
-
-        # TODO(adrian): handle failures in the following:
-        stdout_master_fd, stdout_slave_fd = pty.openpty()
-        stderr_master_fd, stderr_slave_fd = pty.openpty()
-
-        self._stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
-        self._stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-
-        self._stdout_redirector = FileRedirector(
-            sys.stdout, self._stdout_slave)
-        self._stdout_tee = FileTee(self.orig_stdout, *stdout_readers)
-
-        self._stderr_redirector = FileRedirector(
-            sys.stderr, self._stderr_slave)
-        self._stderr_tee = FileTee(self.orig_stderr, *stderr_readers)
-
-        self._stdout_reader_writer = spawn_reader_writer(
-            lambda: (os.read(stdout_master_fd, 1024) or None),
-            self._stdout_tee.write
-        )
-        self._stderr_reader_writer = spawn_reader_writer(
-            lambda: (os.read(stderr_master_fd, 1024) or None),
-            self._stderr_tee.write
-        )
-
-        self._stdout_redirector.redirect()
-        if os.environ.get('WANDB_DEBUG') != 'true':
-            self._stderr_redirector.redirect()
-
-    @property
-    def orig_stdout(self):
-        return self._stdout_redirector.orig_file
-
-    @property
-    def orig_stderr(self):
-        return self._stderr_redirector.orig_file
 
 
 class FileRedirector(object):
@@ -271,10 +217,3 @@ class FileRedirector(object):
         #self.orig_file = None
         self.redir_file = None
     '''
-
-
-if __name__ == '__main__':
-    cmd = ' '.join(shlex_quote(arg) for arg in sys.argv[1:])
-    print(cmd)
-    wrapper = PtyIoWrap()
-    subprocess.call(cmd, shell=True)

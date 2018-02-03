@@ -599,6 +599,25 @@ def pending_loop(pod_id):
             time.sleep(10)
 
 
+@cli.command(context_settings=RUN_CONTEXT, help="Synchronize files and output streams for an already-running user process")
+@click.pass_context
+@require_init
+@click.argument('headless_args_json')
+@display_error
+def headless(ctx, headless_args_json):
+    args = json.loads(headless_args_json)
+    user_process_pid = args['pid']
+    stdout_master_fd = args['stdout_master_fd']
+    stderr_master_fd = args['stderr_master_fd']
+
+    run = wandb_run.Run.from_environment_or_defaults()
+    api.set_current_run_id(run.id)
+
+    rm = run_manager.RunManager(api, run)
+    rm.wrap_existing_process(
+        user_process_pid, stdout_master_fd, stderr_master_fd)
+
+
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @require_init
@@ -626,8 +645,8 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
         else:
             config_paths = []
         config = Config(config_paths=config_paths, wandb_dir=wandb.wandb_dir())
-        run = wandb_run.Run.from_environment_or_defaults(
-            run_id=id, mode='run', config=config, description=message)
+        run = wandb_run.Run(run_id=id, mode='run',
+                            config=config, description=message)
 
     api.set_current_run_id(run.id)
 
@@ -640,7 +659,6 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
         root = os.path.abspath(os.getcwd())
         remote_url = 'file://%s%s' % (host, root)
 
-    #program_path = os.path.relpath(SCRIPT_PATH, root)
     upsert_result = api.upsert_run(name=run.id,
                                    project=api.settings("project"),
                                    entity=api.settings("entity"),
@@ -655,7 +673,7 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
         env['WANDB_SHOW_RUN'] = 'True'
 
     try:
-        run_manager.RunManager(api, run, program, args, env)
+        rm = run_manager.RunManager(api, run)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
@@ -667,6 +685,8 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
         lines = traceback.format_exception(
             exc_type, exc_value, exc_traceback)
         logger.error('\n'.join(lines))
+
+    rm.run_user_process(program, args, env)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
