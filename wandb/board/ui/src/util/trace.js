@@ -1,2 +1,0 @@
-//TODO: remove
-export default () => {};
