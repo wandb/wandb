@@ -697,7 +697,19 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
 @display_error
 def sweep(ctx, config_yaml):
     click.echo('Creating sweep from: %s' % config_yaml)
-    config = yaml.load(open(config_yaml))
+    try:
+        yaml_file = open(config_yaml)
+    except OSError:
+        wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
+        return
+    try:
+        config = yaml.load(yaml_file)
+    except yaml.YAMLError as err:
+        wandb.termerror('Error in configuration file: %s' % err)
+        return
+    if config is None:
+        wandb.termerror('Configuration file is empty')
+        return
     sweep_id = api.upsert_sweep(config)
     print('Create sweep with ID:', sweep_id)
 

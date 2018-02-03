@@ -85,19 +85,23 @@ from wandb import wandb_run
 #     'run': we're a script launched by "wandb run"
 #     'dryrun': we're a script not launched by "wandb run"
 
+LOG_STRING = click.style('wandb', fg='blue', bold=True)
 ERROR_STRING = click.style('ERROR', bg='red', fg='green')
 
 
 def termlog(string='', newline=True):
     if string:
-        line = '%s: %s' % (click.style('wandb', fg='blue', bold=True), string)
+        line = '\n'.join(['%s: %s' % (LOG_STRING, s)
+                          for s in string.split('\n')])
     else:
         line = ''
     click.echo(line, file=sys.stderr, nl=newline)
 
 
-def termerror(s):
-    termlog(string='%s: %s' % (ERROR_STRING, s), newline=True)
+def termerror(string):
+    string = '\n'.join(['%s: %s' % (ERROR_STRING, s)
+                        for s in string.split('\n')])
+    termlog(string=string, newline=True)
 
 
 def _debugger(*args):
