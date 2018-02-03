@@ -6,10 +6,14 @@ import update from 'immutability-helper';
 import {Container, Loader} from 'semantic-ui-react';
 import ModelEditor from '../components/ModelEditor';
 import ModelViewer from '../components/ModelViewer';
-import Sweeps from '../components/Sweeps';
 import ErrorPage from '../components/ErrorPage';
 import {MODEL_QUERY, MODEL_DELETION, MODEL_UPSERT} from '../graphql/models';
 import {updateLocationParams} from '../actions/location';
+
+let Sweeps;
+try {
+  Sweeps = require('Cloud/components/Sweeps').default;
+} catch (e) {}
 
 class Model extends React.Component {
   componentWillMount() {

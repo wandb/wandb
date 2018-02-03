@@ -1,6 +1,6 @@
 import 'whatwg-fetch';
 import React, {Component} from 'react';
-import Nav from './components/Nav';
+//import Nav from './components/Nav';
 import {Container, Loader} from 'semantic-ui-react';
 import AutoReload from './components/AutoReload';
 import Footer from './components/Footer';
@@ -9,6 +9,13 @@ import './App.css';
 import './react-autosuggest.css';
 import './components/vis/ReactVis.css';
 import {mouseListenersStart} from './util/mouse';
+
+let Nav;
+try {
+  Nav = require('Cloud/components/Nav').default;
+} catch (err) {
+  Nav = require('./components/Nav').default;
+}
 
 class App extends Component {
   state = {loading: false, error: null};
