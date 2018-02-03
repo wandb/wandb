@@ -153,9 +153,6 @@ class Api(object):
         self._current_run_id = None
         self._file_stream_api = None
 
-        # if self.api_key is None:
-        #     raise Error("No API key found, run `wandb login` or set WANDB_API_KEY")
-
     def save_patches(self, out_dir):
         """Save the current state of this repository to one or more patches.
 
@@ -180,21 +177,26 @@ class Api(object):
                 if self.git.has_submodule_diff:
                     with open(patch_path, 'wb') as patch:
                         # we diff against HEAD to ensure we get changes in the index
-                        subprocess.check_call(['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root)
+                        subprocess.check_call(
+                            ['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root)
                 else:
                     with open(patch_path, 'wb') as patch:
-                        subprocess.check_call(['git', 'diff', 'HEAD'], stdout=patch, cwd=root)
+                        subprocess.check_call(
+                            ['git', 'diff', 'HEAD'], stdout=patch, cwd=root)
 
             upstream_commit = self.git.get_upstream_fork_point()
             if upstream_commit and upstream_commit != self.git.repo.head.commit:
                 sha = upstream_commit.hexsha
-                upstream_patch_path = os.path.join(out_dir, 'upstream_diff_{}.patch'.format(sha))
+                upstream_patch_path = os.path.join(
+                    out_dir, 'upstream_diff_{}.patch'.format(sha))
                 if self.git.has_submodule_diff:
                     with open(upstream_patch_path, 'wb') as upstream_patch:
-                        subprocess.check_call(['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root)
+                        subprocess.check_call(
+                            ['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root)
                 else:
                     with open(upstream_patch_path, 'wb') as upstream_patch:
-                        subprocess.check_call(['git', 'diff', sha], stdout=upstream_patch, cwd=root)
+                        subprocess.check_call(
+                            ['git', 'diff', sha], stdout=upstream_patch, cwd=root)
         except subprocess.CalledProcessError:
             logger.error('Error generating diff')
 
@@ -577,7 +579,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
