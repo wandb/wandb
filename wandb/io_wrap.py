@@ -64,7 +64,6 @@ class Tee(object):
         master_fd, slave_fd = pty.openpty()
         # raw mode so carriage returns etc. don't get added by the terminal driver
         tty.setraw(master_fd)
-        tty.setraw(slave_fd)
         master = os.fdopen(master_fd, 'rb')
         tee = cls(master, sync_dst_file, *async_dst_files)
         tee.tee_file = os.fdopen(slave_fd, 'wb')

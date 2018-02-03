@@ -25,6 +25,10 @@ import socket
 import subprocess
 import sys
 import traceback
+try:
+    import tty
+except ImportError: # windows
+    tty = None
 import types
 import webbrowser
 
@@ -96,6 +100,9 @@ def _debugger(*args):
 
 
 def _init_headless(api, run, job_type):
+    if 'WANDB_DESCRIPTION' in os.environ:
+        run.description = os.environ['WANDB_DESCRIPTION']
+
     # TODO: better failure handling
     root = api.git.root
     remote_url = api.git.remote_url
@@ -126,6 +133,10 @@ def _init_headless(api, run, job_type):
 
     stdout_master_fd, stdout_slave_fd = pty.openpty()
     stderr_master_fd, stderr_slave_fd = pty.openpty()
+
+    # raw mode so carriage returns etc. don't get added by the terminal driver
+    tty.setraw(stdout_master_fd)
+    tty.setraw(stderr_master_fd)
 
     headless_args = {
         'pid': os.getpid(),
