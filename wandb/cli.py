@@ -644,7 +644,7 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
         else:
             config_paths = []
         config = Config(config_paths=config_paths, wandb_dir=wandb.wandb_dir())
-        run = wandb_run.Run.from_environment_or_defaults(run_id=id, mode='run', config=config, description=message)
+        run = wandb_run.Run(run_id=id, mode='run', config=config, description=message)
 
     api.set_current_run_id(run.id)
 
@@ -671,7 +671,7 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
         env['WANDB_SHOW_RUN'] = 'True'
 
     try:
-        run_manager.RunManager(api, run, program, args, env)
+        rm = run_manager.RunManager(api, run)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termlog('%s: An Exception was raised during setup, see %s for full traceback.' % (
@@ -683,6 +683,8 @@ def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
         lines = traceback.format_exception(
             exc_type, exc_value, exc_traceback)
         logger.error('\n'.join(lines))
+
+    rm.run_user_process(program, args, env)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")

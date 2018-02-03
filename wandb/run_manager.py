@@ -257,7 +257,7 @@ class RunManager(object):
             self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
             prepend_timestamp=True)
 
-    def run_user_process(self, program, args):
+    def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
 
         This returns after the process has ended and syncing is done.
@@ -294,11 +294,11 @@ class RunManager(object):
             self.proc = subprocess.Popen(
                 command,
                 env=env,
-                stdout=run_manager._stdout_tee.tee_file,
-                stderr=run_manager._stderr_tee.tee_file
+                stdout=self._stdout_tee.tee_file,
+                stderr=self._stderr_tee.tee_file
             )
         except (OSError, IOError):
-            raise Exception('Could not find program: %s' % self._command)
+            raise Exception('Could not find program: %s' % command)
 
         self._sync_etc()
 

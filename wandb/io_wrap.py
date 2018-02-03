@@ -65,9 +65,11 @@ class Tee(object):
         # raw mode so carriage returns etc. don't get added by the terminal driver
         tty.setraw(master_fd)
         tty.setraw(slave_fd)
-        slave = os.fdopen(slave_fd, 'wb')
-        tee = cls(slave, master, sync_dst_file, *async_dst_files)
-        tee.tee_file = os.fdopen(master_fd, 'rb')
+        master = os.fdopen(master_fd, 'rb')
+        tee = cls(master, sync_dst_file, *async_dst_files)
+        tee.tee_file = os.fdopen(slave_fd, 'wb')
+
+        return tee
 
     @classmethod
     def pipe(cls, sync_dst_file, *async_dst_files):
@@ -75,6 +77,8 @@ class Tee(object):
         read_file = os.fdopen(read_fd, 'rb')
         tee =  cls(write_file, read_file, sync_dst_file, *async_dst_files)
         tee.tee_file = os.fdopen(write_fd, 'wb')
+
+        return tee
 
     def __init__(self, src_file, sync_dst_file, *async_dst_files):
         """Constructor.
