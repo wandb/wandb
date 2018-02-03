@@ -6,7 +6,23 @@ import RunViewer from '../components/RunViewer';
 import RunEditor from '../components/RunEditor';
 
 describe('Run page components test', () => {
-  const store = mockStore({global: {}}),
+  const store = mockStore({
+      global: {},
+      views: {
+        server: {},
+        browser: {
+          run: {
+            views: [],
+            tabs: [],
+          },
+        },
+        other: {
+          run: {
+            activeView: '',
+          },
+        },
+      },
+    }),
     model = {
       bucket: {
         createdAt: '2017-24-09T10:09:28.487559',
@@ -25,7 +41,9 @@ describe('Run page components test', () => {
   let container,
     loading = true,
     match = {
-      params: {},
+      params: {
+        run: '',
+      },
       path: '/:entity/:model/runs/:run',
     };
 

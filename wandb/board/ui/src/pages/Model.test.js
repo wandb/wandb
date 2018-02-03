@@ -1,7 +1,7 @@
 import React from 'react';
 import MockAppWrapper from '../util/test/mockAppWrapper';
 import {Model} from './Model';
-import Markdown from '../components/Markdown';
+import ModelViewer from '../components/ModelViewer';
 import Jobs from '../containers/Jobs';
 
 describe('Model page components test', () => {
@@ -32,7 +32,7 @@ describe('Model page components test', () => {
     );
   });
 
-  it('finds <Markdown /> inside component', () => {
-    expect(container.find(Markdown)).to.have.length(1);
+  it('finds <ModelViewer /> inside component', () => {
+    expect(container.find(ModelViewer)).to.have.length(1);
   });
 });

@@ -95,6 +95,7 @@ export const RUNS_QUERY = gql`
             updatedAt
             description
             state
+            runCount
             user {
               username
               photoUrl
@@ -102,7 +103,13 @@ export const RUNS_QUERY = gql`
           }
         }
       }
-      buckets(first: $limit, after: $cursor, jobKey: $jobKey, order: $order, names: $bucketIds) {
+      buckets(
+        first: $limit
+        after: $cursor
+        jobKey: $jobKey
+        order: $order
+        names: $bucketIds
+      ) {
         edges {
           node {
             ...BasicRunFragment

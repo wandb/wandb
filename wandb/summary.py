@@ -1,9 +1,9 @@
-import csv
 import json
 import os
 
 import wandb
 from wandb import util
+from wandb.meta import Meta
 
 SUMMARY_FNAME = 'wandb-summary.json'
 
@@ -13,12 +13,15 @@ class Summary(object):
 
     def __init__(self, out_dir='.'):
         self.fname = os.path.join(out_dir, SUMMARY_FNAME)
+        self.meta = Meta(out_dir)
         try:
             self.summary = json.load(open(self.fname))
         except IOError:
             self.summary = {}
 
     def _write(self):
+        self.meta.data["summary"] = self.summary
+        self.meta.write()
         with open(self.fname, 'w') as f:
             s = util.json_dumps_safer(self.summary, indent=4)
             f.write(s)

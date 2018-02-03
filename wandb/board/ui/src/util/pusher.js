@@ -1,4 +1,4 @@
 //TODO: remove
-export const unsubscribe = null;
-export const runsChannel = null;
-export const logsChannel = null;
+export const unsubscribe = () => {};
+export const runsChannel = () => ({bind: () => {}});
+export const logsChannel = () => ({bind: () => {}});

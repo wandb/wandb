@@ -2,7 +2,8 @@
 {
     "python.pythonPath": "~/.pyenv/shims/python",
     "editor.formatOnSave": true,
-    "files.exclude":{
+    "prettier.eslintIntegration": true,
+    "files.exclude": {
         "**/*.pyc": true,
         "docs/_build": true,
         "build": true

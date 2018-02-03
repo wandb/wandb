@@ -5,6 +5,7 @@ import shortuuid
 import wandb
 from wandb import jsonlfile
 from wandb import summary
+from wandb import meta
 from wandb import typedtable
 from wandb import util
 from wandb.config import Config
@@ -49,6 +50,7 @@ class Run(object):
         self._history = None
         self._events = None
         self._summary = None
+        self._meta = None
         self._user_accessed_summary = False
         self._examples = None
 
@@ -105,6 +107,13 @@ class Run(object):
     def dir(self):
         self._mkdir()
         return self._dir
+
+    @property
+    def meta(self):
+        self._mkdir()
+        if self._meta is None:
+            self._meta = meta.Meta(self._dir)
+        return self._meta
 
     @property
     def summary(self):
