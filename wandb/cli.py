@@ -613,7 +613,8 @@ def headless(ctx, headless_args_json):
     run = wandb_run.Run.from_environment_or_defaults()
     api.set_current_run_id(run.id)
 
-    rm = run_manager.RunManager(api, run, cloud=args['cloud'])
+    rm = run_manager.RunManager(
+        api, run, cloud=args['cloud'], job_type=args['job_type'])
     rm.wrap_existing_process(
         user_process_pid, stdout_master_fd, stderr_master_fd)
 

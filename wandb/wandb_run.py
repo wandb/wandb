@@ -109,13 +109,6 @@ class Run(object):
         return self._dir
 
     @property
-    def meta(self):
-        self._mkdir()
-        if self._meta is None:
-            self._meta = meta.Meta(self._dir)
-        return self._meta
-
-    @property
     def summary(self):
         self._mkdir()
         # We use this to track whether user has accessed summary

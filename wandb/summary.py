@@ -11,17 +11,17 @@ SUMMARY_FNAME = 'wandb-summary.json'
 class Summary(object):
     """Used to store summary metrics during and after a run."""
 
-    def __init__(self, out_dir='.', meta=None):
+    def __init__(self, out_dir='.'):
         self.fname = os.path.join(out_dir, SUMMARY_FNAME)
-        self.meta = meta
+        self.load()
+
+    def load(self):
         try:
             self.summary = json.load(open(self.fname))
         except IOError:
             self.summary = {}
 
     def _write(self):
-        if self.meta:
-            self.meta.data["summary"] = self.summary
         with open(self.fname, 'w') as f:
             s = util.json_dumps_safer(self.summary, indent=4)
             f.write(s)

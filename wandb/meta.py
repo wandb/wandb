@@ -3,6 +3,7 @@ import os
 import threading
 import time
 import socket
+import getpass
 from datetime import datetime
 
 from wandb import util
@@ -32,11 +33,14 @@ class Meta(object):
     def setup(self):
         if self._api.git.enabled:
             self.data["git"] = {
-                "root": self._api.git.root,
                 "remote": self._api.git.remote_url,
                 "commit": self._api.git.last_commit
             }
+        self.data["startedAt"] = datetime.utcnow().isoformat()
+        self.data["email"] = self._api.git.email
+        self.data["root"] = self._api.git.root or os.getcwd()
         self.data["host"] = socket.gethostname()
+        self.data["username"] = os.getenv("WANDB_USERNAME", getpass.getuser())
         try:
             import __main__
             self.data["program"] = __main__.__file__
@@ -47,7 +51,7 @@ class Meta(object):
     def write(self):
         self.lock.acquire()
         try:
-            self.data["heartbeatAt"] = datetime.now()
+            self.data["heartbeatAt"] = datetime.utcnow().isoformat()
             with open(self.fname, 'w') as f:
                 s = util.json_dumps_safer(self.data, indent=4)
                 f.write(s)

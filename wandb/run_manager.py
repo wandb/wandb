@@ -205,7 +205,7 @@ class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True):
+    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train"):
         self._api = api
         self._run = run
 
@@ -229,6 +229,7 @@ class RunManager(object):
         # This starts a thread to write system stats every 30 seconds
         self._system_stats = stats.SystemStats(run)
         self._meta = meta.Meta(api, self._run.dir)
+        self._meta.data["jobType"] = job_type
 
         def push_function(save_name, path):
             with open(path, 'rb') as f:
@@ -259,6 +260,9 @@ class RunManager(object):
             self._stderr_stream = streaming_log.TextStreamPusher(
                 self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
                 prepend_timestamp=True)
+        else:
+            self._stdout_stream = sys.stdout
+            self._stderr_stream = sys.stderr
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -342,6 +346,9 @@ class RunManager(object):
 
         try:
             exitcode = self.proc.wait()
+            self._meta.data["exitcode"] = self.proc.returncode
+            self._meta.data["state"] = "finished" if self.proc.returncode == 0 else "failed"
+            self._meta.write()
         except KeyboardInterrupt:
             wandb.termlog('Ctrl-c pressed; waiting for program to end.')
             keyboard_interrupt_time = time.time()
@@ -388,7 +395,7 @@ class RunManager(object):
                 wandb.termlog('Program ended.')
                 self._meta.data["state"] = "finished"
             else:
-                self._meta.data["state"] = "failed"
+                self._meta.data["state"] = self._meta.data["state"] or "failed"
                 wandb.termlog(
                     'Program failed with code %d. Press ctrl-c to abort syncing.' % self.proc.returncode)
         #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
@@ -526,6 +533,8 @@ class RunManager(object):
             # TODO: send wandb-summary during run. One option is to copy to a temporary
             # file before uploading.
             elif save_name == 'wandb-summary.json':
+                # Load the summary into the syncer process for meta etc to work
+                self._run.summary.load()
                 self._event_handlers[save_name] = FileEventHandlerOverwrite(
                     file_path, save_name, self._api, self._file_pusher)
             else:

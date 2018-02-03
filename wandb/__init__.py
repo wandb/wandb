@@ -143,7 +143,8 @@ def _init_headless(api, run, job_type, cloud=True):
         'pid': os.getpid(),
         'stdout_master_fd': stdout_master_fd,
         'stderr_master_fd': stderr_master_fd,
-        'cloud': cloud
+        'cloud': cloud,
+        'job_type': job_type
     }
     cli_path = os.path.join(os.path.dirname(__file__), 'cli.py')
 
