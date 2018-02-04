@@ -627,7 +627,7 @@ def headless(ctx, headless_args_json):
 @click.option('--id', default=None,
               help='Run id to use, default is to generate.')
 @click.option('--dir', default=None,
-              help='Files in this directory will be saved to wandb, defaults to wandb/run-<run_id>')
+              help='Files in this directory will be saved to wandb, defaults to wandb')
 @click.option('--configs', default=None,
               help='Config file paths to load')
 @click.option('--message', '-m', default=None,
@@ -636,11 +636,13 @@ def headless(ctx, headless_args_json):
               help="Open the run page in your default browser.")
 @display_error
 def run(ctx, program, args, id, dir, configs, message, show):
+    api.ensure_configured()
     if configs:
         config_paths = configs.split(',')
     else:
         config_paths = []
-    config = Config(config_paths=config_paths, wandb_dir=wandb.wandb_dir())
+    config = Config(config_paths=config_paths,
+                    wandb_dir=dir or wandb.wandb_dir())
     run = wandb_run.Run(run_id=id, mode='run',
                         config=config, description=message)
 

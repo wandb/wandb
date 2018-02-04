@@ -11,6 +11,7 @@ import os
 import json
 import yaml
 import re
+import wandb
 from wandb import __version__, __stage_dir__, Error
 from wandb.git_repo import GitRepo
 from wandb import util
@@ -29,6 +30,7 @@ import socket
 import subprocess
 import threading
 import time
+import sys
 
 from six import b
 
@@ -202,6 +204,13 @@ class Api(object):
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
+
+    def ensure_configured(self):
+        # The WANDB_DEBUG check ensures tests still work.
+        if not os.getenv('WANDB_DEBUG') and not self.settings("project"):
+            wandb.termlog('wandb.init() called but system not configured.\n'
+                    'Run "wandb init" or set environment variables to get started')
+            sys.exit(1)
 
     @property
     def current_run_id(self):

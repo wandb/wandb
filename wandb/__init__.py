@@ -157,7 +157,8 @@ def _init_headless(api, run, job_type, cloud=True):
         'cloud': cloud,
         'job_type': job_type
     }
-    internal_cli_path = os.path.join(os.path.dirname(__file__), 'internal_cli.py')
+    internal_cli_path = os.path.join(
+        os.path.dirname(__file__), 'internal_cli.py')
 
     if six.PY2:
         # TODO(adrian): close_fds=False is bad for security. we set
@@ -194,6 +195,7 @@ run = None
 
 def init(job_type='train'):
     global run
+    global __stage_dir__
     # If a thread calls wandb.init() it will get the same Run object as
     # the parent. If a child process with distinct memory space calls
     # wandb.init(), it won't get an error, but it will get a result of
@@ -205,11 +207,9 @@ def init(job_type='train'):
     if run or os.getenv('WANDB_INITED'):
         return run
 
-    # The WANDB_DEBUG check ensures tests still work.
-    if not wandb_dir() and not os.getenv('WANDB_DEBUG'):
-        termlog('wandb.init() called but directory not initialized.\n'
-                'Please run "wandb init" to get started')
-        sys.exit(1)
+    if not wandb_dir():
+        __stage_dir__ = "wandb"
+        os.mkdir(__stage_dir__)
 
     try:
         signal.signal(signal.SIGQUIT, _debugger)
@@ -222,6 +222,7 @@ def init(job_type='train'):
     api = wandb_api.Api()
     api.set_current_run_id(run.id)
     if run.mode == 'run':
+        api.ensure_configured()
         if run.storage_id:
             # we have to write job_type here because we don't know it before init()
             api.upsert_run(id=run.storage_id, job_type=job_type)
