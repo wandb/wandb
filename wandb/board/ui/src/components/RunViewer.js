@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Grid,
   List,
-  Dropdown,
   Popup,
   Header,
   Button,
@@ -21,7 +20,6 @@ import StreamingLog from '../containers/StreamingLog';
 import Files from '../components/Files';
 import Views from '../components/Views';
 import './Run.css';
-//import zoom from '../util/chartjs-zoom';
 import {color} from '../util/colors.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import {displayValue} from '../util/runhelpers';
@@ -36,21 +34,6 @@ export default class RunViewer extends React.Component {
       activeIndex: data.activeIndex,
     });
   };
-
-  componentWillMount() {
-    /*
-    A refactor broke this zoom stuff
-    this.zoomPlugin = zoom.call(this);
-    Chart.pluginService.register(this.zoomPlugin);
-    */
-  }
-
-  componentWillUnmount() {
-    /*
-    A refactor broke this zoom stuff
-    Chart.pluginService.unregister(this.zoomPlugin);
-    */
-  }
 
   panes() {
     // NOTE as an alternative, fc value can be extracted directly from files length
@@ -89,27 +72,6 @@ export default class RunViewer extends React.Component {
       this._config ||
       (this.props.bucket.config && JSONparseNaN(this.props.bucket.config));
     return this._config;
-  }
-
-  dropdown(except, model) {
-    return (
-      <Dropdown trigger={<Button icon="arrow right" />}>
-        <Dropdown.Menu>
-          <Dropdown.Item>
-            <NavLink
-              to={`/${model.entityName}/${model.name}/compare/run_1...run_2`}>
-              run_1
-            </NavLink>
-          </Dropdown.Item>
-          <Dropdown.Item>
-            <NavLink
-              to={`/${model.entityName}/${model.name}/compare/run_2...run_1`}>
-              run_2
-            </NavLink>
-          </Dropdown.Item>
-        </Dropdown.Menu>
-      </Dropdown>
-    );
   }
 
   formatMetric(name, metric) {
@@ -166,21 +128,6 @@ export default class RunViewer extends React.Component {
           </Grid.Column>
         </Grid.Row>
         <Grid.Row columns={1}>
-          {this.state.zoomed && (
-            <Button
-              icon="refresh"
-              style={{position: 'absolute', right: 10, top: 0, zIndex: 5}}
-              onClick={() => {
-                //TODO: this is hacky sharing `this` with chartjs-zoom, should be refactored
-                this.setState({zoomed: false});
-                let scale = this.chartInstance.scales['x-axis-0'];
-                this.chartInstance.zoom.zoomed = false;
-                delete scale.options.ticks.min;
-                delete scale.options.ticks.max;
-                this.chartInstance.update(0);
-              }}
-            />
-          )}
           <Grid.Column>
             <Views
               viewType="run"
@@ -194,52 +141,6 @@ export default class RunViewer extends React.Component {
               updateViews={this.props.updateViews}
             />
           </Grid.Column>
-          {/*
-            <Grid.Column>
-              <Line
-                data={{
-                  datasets: lines.map((key, i) => {
-                    return {
-                      label: key,
-                      hidden: !key.match(/loss/) && i > 0,
-                      data: data.map((d, y) => ({
-                        x: y,
-                        y: d[key],
-                      })),
-                      borderColor: color(i),
-                      backgroundColor: color(i, 0.3),
-                    };
-                  }),
-                  labels: labels,
-                }}
-                options={{
-                  downsample: {
-                    enabled: true,
-                    threshold: threshold,
-                  },
-                  scales: {
-                    yAxes: [
-                      {
-                        ticks: {
-                          beginAtZero: true,
-                        },
-                      },
-                    ],
-                    xAxes: [
-                      {
-                        ticks: {
-                          autoskip: true,
-                          autoSkipPadding: 10,
-                        },
-                      },
-                    ],
-                  },
-                  maintainAspectRatio: false,
-                }}
-                height={500}
-              />
-            </Grid.Column>
-              */}
         </Grid.Row>
         {exampleTable.length != 0 && (
           <Grid.Row columns={1}>

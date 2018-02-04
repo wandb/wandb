@@ -19,9 +19,10 @@ function rewire(config, env) {
       'react-apollo',
       'react-table',
       'react-virtualized',
+      'react-vis',
+      'd3',
       'markdown-it',
       'redux',
-      'auth0-lock',
       'semantic-ui-react',
       'lodash',
     ],
@@ -41,11 +42,6 @@ function rewire(config, env) {
   const defineIdx = config.plugins.findIndex(
     p => p.constructor.name === 'DefinePlugin',
   );
-  if (process.env.REACT_APP_SERVER === 'board') {
-    config.plugins[htmlIdx].options.template =
-      appDirectory + '/public/board.html';
-    console.log('Using board template');
-  }
   if (env === 'production') {
     config.plugins.splice(
       htmlIdx + 1,
