@@ -6,6 +6,7 @@
         "apollo-test-utils": "^0.3.2",
         "autodll-webpack-plugin": "^0.2.1",
         "babel-plugin-lodash": "^3.2.11",
+        "chai": "^4.1.2",
         "enzyme": "^3.2.0",
         "enzyme-adapter-react-16": "^1.1.0",
         "eslint-config-prettier": "^2.3.0",
