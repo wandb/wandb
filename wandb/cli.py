@@ -634,20 +634,15 @@ def headless(ctx, headless_args_json):
               help='Message to associate with the run.')
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
-@click.option("--run-from-env/--no-run-from-env", default=False,
-              help="Load Run information from environment variables (used by wandb agent).")
 @display_error
-def run(ctx, program, args, id, dir, configs, message, show, run_from_env):
-    if run_from_env:
-        run = wandb_run.Run.from_environment_or_defaults()
+def run(ctx, program, args, id, dir, configs, message, show):
+    if configs:
+        config_paths = configs.split(',')
     else:
-        if configs:
-            config_paths = configs.split(',')
-        else:
-            config_paths = []
-        config = Config(config_paths=config_paths, wandb_dir=wandb.wandb_dir())
-        run = wandb_run.Run(run_id=id, mode='run',
-                            config=config, description=message)
+        config_paths = []
+    config = Config(config_paths=config_paths, wandb_dir=wandb.wandb_dir())
+    run = wandb_run.Run(run_id=id, mode='run',
+                        config=config, description=message)
 
     api.set_current_run_id(run.id)
 

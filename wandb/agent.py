@@ -1,4 +1,5 @@
 import collections
+import json
 import logging
 import multiprocessing
 import os
@@ -54,7 +55,6 @@ class Agent(object):
                     else:
                         logger.info('Cleaning up dead run: %s', run_id)
                         del self._run_processes[run_id]
-
 
                 commands = self._api.agent_heartbeat(agent_id, {}, run_status)
 
@@ -119,10 +119,15 @@ class Agent(object):
         env = dict(os.environ)
         run.set_environment(env)
 
-        program = command['program']
-        args = list(command['args'])
-        command = [sys.argv[0], 'run', program, '--run-from-env'] + args
-        self._run_processes[run.id] = subprocess.Popen(command, env=env)
+        agent_run_args = {
+            'command': 'agent-run',
+            'program': command['program'],
+            'args': command['args']
+        }
+        internal_cli_path = os.path.join(os.path.dirname(__file__), 'internal_cli.py')
+        self._run_processes[run.id] = subprocess.Popen(
+            [internal_cli_path, json.dumps(agent_run_args)],
+            env=env)
 
         # we track how many times the user has tried to stop this run
         # so we can escalate how hard we try to kill it in self._command_stop()

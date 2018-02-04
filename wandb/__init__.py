@@ -150,13 +150,14 @@ def _init_headless(api, run, job_type, cloud=True):
     tty.setraw(stderr_master_fd)
 
     headless_args = {
+        'command': 'headless',
         'pid': os.getpid(),
         'stdout_master_fd': stdout_master_fd,
         'stderr_master_fd': stderr_master_fd,
         'cloud': cloud,
         'job_type': job_type
     }
-    cli_path = os.path.join(os.path.dirname(__file__), 'cli.py')
+    internal_cli_path = os.path.join(os.path.dirname(__file__), 'internal_cli.py')
 
     if six.PY2:
         # TODO(adrian): close_fds=False is bad for security. we set
@@ -168,7 +169,7 @@ def _init_headless(api, run, job_type, cloud=True):
     # TODO(adrian): make wandb the foreground process so we don't give
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
-    subprocess.Popen(['python', cli_path, 'headless', json.dumps(
+    subprocess.Popen([internal_cli_path, json.dumps(
         headless_args)], env=env, **popen_kwargs)
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
