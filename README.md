@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://app.wandb.ai/logo.svg" style="width:300px" /><br><br>
+  <img src="https://app.wandb.ai/logo.svg" width="350" /><br><br>
 </div>
 
 # Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb)
