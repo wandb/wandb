@@ -4,7 +4,7 @@
 
 # Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb)
 
-The **Weights and Biases** client is am open source library, CLI (wandb), and local web application for organizing and analyzing your machine learning experiments. Think of it as a framework-agnostic lite-weight TensorBoard that persists additional information such as the state of your code, system metrics, and configuration parameters.
+The **Weights and Biases** client is am open source library, CLI (wandb), and local web application for organizing and analyzing your machine learning experiments. Think of it as a framework-agnostic lightweight TensorBoard that persists additional information such as the state of your code, system metrics, and configuration parameters.
 
 ## Local Features
 
