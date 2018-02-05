@@ -43,11 +43,13 @@ class Agent(object):
 
         try:
             while True:
-                commands = util.read_many_from_queue(self._queue, 100, self.POLL_INTERVAL)
+                commands = util.read_many_from_queue(
+                    self._queue, 100, self.POLL_INTERVAL)
                 for command in commands:
                     command['resp_queue'].put(self._process_command(command))
 
-                logger.info('Running runs: %s', list(self._run_processes.keys()))
+                logger.info('Running runs: %s', list(
+                    self._run_processes.keys()))
                 run_status = {}
                 for run_id, run_process in list(six.iteritems(self._run_processes)):
                     if run_process.poll() is None:
@@ -61,17 +63,20 @@ class Agent(object):
                 # TODO: send _server_responses
                 self._server_responses = []
                 for command in commands:
-                    self._server_responses.append(self._process_command(command))
+                    self._server_responses.append(
+                        self._process_command(command))
         except KeyboardInterrupt:
             try:
-                wandb.termlog('Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them.')
+                wandb.termlog(
+                    'Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them.')
                 for run_id, run_process in six.iteritems(self._run_processes):
                     run_process.wait()
             except KeyboardInterrupt:
                 pass
         finally:
             try:
-                wandb.termlog('Terminating and syncing runs. Press ctrl-c to kill.')
+                wandb.termlog(
+                    'Terminating and syncing runs. Press ctrl-c to kill.')
                 for run_id, run_process in six.iteritems(self._run_processes):
                     try:
                         run_process.terminate()
@@ -124,9 +129,11 @@ class Agent(object):
             'program': command['program'],
             'args': command['args']
         }
-        internal_cli_path = os.path.join(os.path.dirname(__file__), 'internal_cli.py')
+        internal_cli_path = os.path.join(
+            os.path.dirname(__file__), 'internal_cli.py')
         self._run_processes[run.id] = subprocess.Popen(
-            [internal_cli_path, json.dumps(agent_run_args)],
+            ['/usr/bin/env', 'python', internal_cli_path,
+                json.dumps(agent_run_args)],
             env=env)
 
         # we track how many times the user has tried to stop this run
@@ -178,7 +185,8 @@ def run_agent(sweep_id=None):
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
