@@ -8,6 +8,7 @@ import getpass
 import urllib
 import hashlib
 from datetime import datetime
+from dateutil.parser import parse
 
 
 class Base(object):
@@ -111,12 +112,14 @@ class Dir(Base):
 
     @property
     def created_at(self):
-        return self.meta.get("startedAt", datetime.strptime(self.date, "%Y%m%d_%H%M%S"))
+        startedAt = self.meta.get("startedAt") and parse(
+            self.meta["startedAt"])
+        return startedAt or datetime.strptime(self.date, "%Y%m%d_%H%M%S")
 
     @property
     def heartbeat_at(self):
         if self.meta.get("heartbeatAt"):
-            return self.meta["heartbeatAt"]
+            return parse(self.meta["heartbeatAt"])
         latest = None
         for path in glob.glob("%s/*" % self.path):
             mtime = datetime.utcfromtimestamp(
@@ -152,8 +155,8 @@ class Dir(Base):
         patch = Patch(self.path)
         run.path = self.path
         run.id = self.run_id
-        run.createdAt = self.created_at
-        run.heartbeatAt = self.updated_at
+        run.createdAt = self.created_at.isoformat()
+        run.heartbeatAt = self.updated_at.isoformat()
         run.description = desc.read()
         run.commit = self.meta["git"].get("commit")
         run.state = self.meta.get("state", "finished")

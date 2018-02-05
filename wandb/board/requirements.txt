@@ -1,5 +1,0 @@
-flask
-graphene
-flask-graphql
-flask-cors
-flask-shell-ipython
