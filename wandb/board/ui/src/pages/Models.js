@@ -3,7 +3,7 @@ import {graphql} from 'react-apollo';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import {Container, Header, Loader, Item, Button} from 'semantic-ui-react';
-import ModelViewer from '../components/ModelViewer';
+import ModelHeader from '../components/ModelHeader';
 import Markdown from '../components/Markdown';
 import ErrorPage from '../components/ErrorPage';
 import {MODELS_QUERY} from '../graphql/models';
@@ -41,19 +41,18 @@ class Models extends Component {
           </Button>
         )}
         <Header style={{marginRight: 200}}>Projects</Header>
-        <Item.Group divided>
+        <Item.Group divided relaxed>
           {this.models().map(edge => (
-            <ModelViewer
-              condensed={true}
-              key={edge.node.id}
-              user={this.props.user}
-              model={edge.node}
-            />
+            <Item style={{display: 'block'}} key={edge.node.id}>
+              <ModelHeader condensed={true} model={edge.node} />
+              <div style={{marginTop: 16}} />
+              <Markdown content={edge.node.description} />
+            </Item>
           ))}
           {!this.props.loading &&
-          this.models().length === 0 && (
-            <Markdown
-              content={`
+            this.models().length === 0 && (
+              <Markdown
+                content={`
 ### Install the client and start tracking runs
 ~~~bash
 $ pip install wandb
@@ -69,8 +68,8 @@ $ wandb run --show train.py
 
 Visit our [documentation](http://docs.wandb.com/) for more information.
         `}
-            />
-          )}
+              />
+            )}
         </Item.Group>
       </Container>
     );
