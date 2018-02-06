@@ -1,8 +1,18 @@
 import {withApollo} from 'react-apollo';
 import {connect} from 'react-redux';
 import Log from '../components/Log';
-import {logsChannel, runsChannel} from '../util/pusher';
 import {fragments} from '../graphql/runs';
+
+let logsChannel, runsChannel;
+try {
+  const p = require('Cloud/util/pusher');
+  logsChannel = p.logsChannel;
+  runsChannel = p.runsChannel;
+} catch (e) {
+  const p = require('../util/pusher');
+  logsChannel = p.logsChannel;
+  runsChannel = p.runsChannel;
+}
 
 function gidToIdx(gid) {
   //return parseInt(atob(gid).split(':')[2]);

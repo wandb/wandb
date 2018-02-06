@@ -17,23 +17,23 @@ When `wandb.init()` is called from a user script, communication with a seperate 
 
 ### Special Files
 
-The following files can be created by the wandb library in the run directory in all modes.
+The following files may be created by the wandb library in the run directory:
 
 <dl>
     <dt>description.md</dt>
-    <dd>Experiment notes specified with <pre>wandb run -m 'My notes'</pre> or edited via the local web server.</dd>
+    <dd>Experiment notes specified with <code>wandb run -m 'My notes'</code> or edited via the local web server.</dd>
     <dt>wandb-metadata.json</dt>
     <dd>Data about the run such as git commit, program name, host, directory, exit code, etc.</dd>
     <dt>wandb-summary.json</td>
-    <dd>The latest summary metrics generated either from <pre>run.history.add(...)</pre> or <pre>run.summary.update(...)</pre></dt>
+    <dd>The latest summary metrics generated either from <code>run.history.add(...)</code> or <code>run.summary.update(...)</code></dt>
     <dt>wandb-history.jsonl</dt>
-    <dd>The history metrics added via our callbacks, or manually with <pre>run.history.add(...)</pre></dd>
+    <dd>The history metrics added via our callbacks, or manually with <code>run.history.add(...)</code></dd>
     <dt>wandb-events.jsonl</dt>
     <dd>System metrics are automatically stored every 30 seconds.  This file can contain custom user metrics as weel</dd>
     <dt>diff.patch</dt>
     <dd>A git diff of any un-commited changes</dd>
     <dt>config.yaml</dt>
-    <dd>The config parameters specified in <pre>run.config.update(...)</pre></dd>
+    <dd>The config parameters specified in <code>run.config.update(...)</code></dd>
     <dt>output.log</dt>
     <dd>The stdout and stderr collected during the run</dd>
 </dl>

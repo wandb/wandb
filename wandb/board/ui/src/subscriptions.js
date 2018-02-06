@@ -1,8 +1,18 @@
 import watch from 'redux-watch';
-import {runsChannel, unsubscribe} from './util/pusher';
 import {RUNS_QUERY} from './graphql/runs';
 import {matchPath} from 'react-router';
 import {setFlash} from './actions';
+
+let unsubscribe, runsChannel;
+try {
+  const p = require('Cloud/util/pusher');
+  unsubscribe = p.unsubscribe;
+  runsChannel = p.runsChannel;
+} catch (e) {
+  const p = require('../util/pusher');
+  unsubscribe = p.unsubscribe;
+  runsChannel = p.runsChannel;
+}
 
 const SUBSCRIPTION_COOLDOWN = 5000;
 

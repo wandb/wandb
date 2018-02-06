@@ -47,8 +47,12 @@ Running your script will save run data in a directory named _wandb_ relative to 
 
 ## Cloud Usage
 
-[Signup](https://app.wandb.ai/login?invited) for an account, then run `wandb init` from the directory with your training script. You can checkin _wandb/settings_ into version control to enable other user on your team to share experiments. Run your script with `wandb run my_script.py` and all metadata will be synced to the cloud.
+[Signup](https://app.wandb.ai/login?invited) for an account, then run `wandb init` from the directory with your training script. You can checkin _wandb/settings_ into version control to enable other users on your team to share experiments. Run your script with `wandb run my_script.py` and all metadata will be synced to the cloud.
 
 ## Detailed Usage
 
 Framework specific and detailed usage can be found in our [documentation](http://docs.wandb.com/).
+
+## Development
+
+See https://github.com/wandb/client/blob/master/DEVELOPMENT.md

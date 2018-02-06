@@ -1,9 +1,15 @@
 import React from 'react';
 import {List, Segment} from 'semantic-ui-react';
 import './Log.css';
-import {unsubscribe} from '../util/pusher';
 import {AutoSizer, List as VirtualList} from 'react-virtualized';
 import AU from 'ansi_up';
+
+let unsubscribe;
+try {
+  unsubscribe = require('Cloud/util/pusher').unsubscribe;
+} catch (e) {
+  unsubscribe = require('../util/pusher').unsubscribe;
+}
 
 class Log extends React.Component {
   state = {
