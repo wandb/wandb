@@ -9,6 +9,7 @@ import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
 import {setServerViews} from '../actions/view';
+import {updateLocationParams} from '../actions/location';
 import _ from 'lodash';
 import {BOARD} from '../util/board';
 
@@ -16,6 +17,10 @@ class Run extends React.Component {
   state = {
     activeIndex: 0,
   };
+
+  componentWillMount() {
+    this.props.updateLocationParams(this.props.match.params);
+  }
 
   componentDidUpdate() {
     window.Prism.highlightAll();
@@ -104,7 +109,8 @@ class Run extends React.Component {
                 name: this.props.match.params.model,
                 id: this.props.model.id,
                 views: views,
-              })}
+              })
+            }
           />
         )}
       </Container>
@@ -199,7 +205,7 @@ function mapStateToProps(state, ownProps) {
 }
 
 function mapDispatchToProps(dispatch) {
-  return bindActionCreators({setServerViews}, dispatch);
+  return bindActionCreators({updateLocationParams, setServerViews}, dispatch);
 }
 
 // export dumb component for testing purposes
