@@ -9,7 +9,7 @@ try {
   unsubscribe = p.unsubscribe;
   runsChannel = p.runsChannel;
 } catch (e) {
-  const p = require('../util/pusher');
+  const p = require('./util/pusher');
   unsubscribe = p.unsubscribe;
   runsChannel = p.runsChannel;
 }
