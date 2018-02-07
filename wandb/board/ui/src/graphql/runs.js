@@ -92,6 +92,7 @@ export const RUNS_QUERY = gql`
             id
             name
             createdAt
+            heartbeatAt
             updatedAt
             description
             state
