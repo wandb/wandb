@@ -170,15 +170,33 @@ class Runs extends React.Component {
   }
 
   componentDidMount() {
-    this.props.setColumns({
-      Description: true,
-      Ran: true,
-      Runtime: true,
-    });
+    this.doneLoading = false;
+
     this._setUrl({}, this.props);
   }
 
   componentWillReceiveProps(nextProps) {
+    if (
+      !this.doneLoading &&
+      nextProps.loading === false &&
+      nextProps.runs.length > 0
+    ) {
+      this.doneLoading = true;
+      let defaultColumns = {
+        Description: true,
+        Ran: true,
+        Runtime: true,
+        _ConfigAuto: true,
+        Sweep: _.indexOf(nextProps.columnNames, 'Sweep') !== -1,
+      };
+      let summaryColumns = nextProps.columnNames.filter(col =>
+        _.startsWith(col, 'summary'),
+      );
+      for (var col of summaryColumns) {
+        defaultColumns[col] = true;
+      }
+      this.props.setColumns(defaultColumns);
+    }
     // Setup views loaded from server.
     if (
       (nextProps.views === null || !nextProps.views.runs) &&
@@ -384,8 +402,9 @@ function getColumns(runs) {
   ).map(col => 'summary:' + col);
   let sweepColumns =
     runs && runs.findIndex(r => r.sweep) > -1 ? ['Sweep', 'Stop'] : [];
-  return ['Description', 'Ran', 'Runtime', 'Config'].concat(
+  return ['Description'].concat(
     sweepColumns,
+    ['Ran', 'Runtime', 'Config'],
     configColumns,
     ['Summary'],
     summaryColumns,
@@ -410,6 +429,10 @@ function setupKeySuggestions(runs) {
         section: 'run',
         value: suggestion,
       })),
+    },
+    {
+      title: 'sweep',
+      suggestions: [{section: 'sweep', value: 'name'}],
     },
     {
       title: 'config',

@@ -43,9 +43,17 @@ class ValueDisplay extends PureComponent {
         style={{padding: 6}}
         trigger={
           <span className="config">
-            <span className="value">{displayValue(this.props.value)}</span>{' '}
-            {!this.props.justValue && (
-              <span className="key">{this.props.valKey}</span>
+            {this.props.content ? (
+              <span className="value"> {this.props.content} </span>
+            ) : (
+              <span>
+                <span className="value">
+                  {displayValue(this.props.value)}
+                </span>{' '}
+                {!this.props.justValue && (
+                  <span className="key">{this.props.valKey}</span>
+                )}
+              </span>
             )}
           </span>
         }
@@ -232,12 +240,13 @@ class RunFeed extends PureComponent {
               <Item.Content>
                 <Item.Header>
                   <NavLink
-                    to={`/${props.project.entityName}/${
-                      props.project.name
-                    }/runs/${edge.name}`}>
-                    {edge.description || edge.name
-                      ? (edge.description || edge.name).split('\n')[0]
-                      : ''}{' '}
+                    to={`/${props.project.entityName}/${props.project
+                      .name}/runs/${edge.name}`}>
+                    {edge.description || edge.name ? (
+                      (edge.description || edge.name).split('\n')[0]
+                    ) : (
+                      ''
+                    )}{' '}
                     {this.stateToIcon(edge.state)}
                   </NavLink>
                 </Item.Header>
@@ -292,9 +301,11 @@ class RunFeed extends PureComponent {
                       key={columnName}
                       className={
                         _.startsWith(columnName, 'config:') ||
-                        _.startsWith(columnName, 'summary:')
-                          ? 'rotate'
-                          : ''
+                        _.startsWith(columnName, 'summary:') ? (
+                          'rotate'
+                        ) : (
+                          ''
+                        )
                       }
                       style={{textAlign: 'center', verticalAlign: 'bottom'}}
                       onClick={() => {
@@ -310,9 +321,11 @@ class RunFeed extends PureComponent {
                       <div>
                         <span>
                           {_.startsWith(columnName, 'config:') ||
-                          _.startsWith(columnName, 'summary:')
-                            ? columnName.split(':')[1]
-                            : columnName}
+                          _.startsWith(columnName, 'summary:') ? (
+                            columnName.split(':')[1]
+                          ) : (
+                            columnName
+                          )}
                           {this.props.sort.name == columnName &&
                             (this.props.sort.ascending ? (
                               <Icon name="caret up" />
@@ -338,8 +351,7 @@ class RunFeed extends PureComponent {
                           <Checkbox
                             checked={!!this.props.selectedRuns[run.name]}
                             onChange={() =>
-                              this.props.toggleRunSelection(run.name, run.id)
-                            }
+                              this.props.toggleRunSelection(run.name, run.id)}
                           />
                         </Table.Cell>
                       )}
@@ -348,6 +360,26 @@ class RunFeed extends PureComponent {
                         .map(columnName => {
                           if (columnName == 'Description') {
                             return this.descriptionCell(run, this.props);
+                          } else if (columnName == 'Sweep') {
+                            return (
+                              <Table.Cell key="stop" collapsing>
+                                {run.sweep && (
+                                  <ValueDisplay
+                                    section="sweep"
+                                    valKey="name"
+                                    value={run.sweep.name}
+                                    content={
+                                      <NavLink
+                                        to={`/${this.props.project
+                                          .entityName}/${this.props.project
+                                          .name}/sweeps/${run.sweep.name}`}>
+                                        {run.sweep.name}
+                                      </NavLink>
+                                    }
+                                  />
+                                )}
+                              </Table.Cell>
+                            );
                           } else if (columnName == 'Ran') {
                             return (
                               <Table.Cell key={columnName} collapsing>
@@ -364,8 +396,7 @@ class RunFeed extends PureComponent {
                                       return Date.parse(run.heartbeatAt + 'Z');
                                     }}
                                     formatter={(v, u, s, d, f) =>
-                                      f().replace(s, '')
-                                    }
+                                      f().replace(s, '')}
                                     live={false}
                                   />
                                 )}
@@ -412,19 +443,6 @@ class RunFeed extends PureComponent {
                                       />
                                     ))}
                                 </div>
-                              </Table.Cell>
-                            );
-                          } else if (columnName == 'Sweep') {
-                            return (
-                              <Table.Cell key="stop" collapsing>
-                                {run.sweep && (
-                                  <NavLink
-                                    to={`/${this.props.project.entityName}/${
-                                      this.props.project.name
-                                    }/sweeps/${run.sweep.name}`}>
-                                    {run.sweep.name}
-                                  </NavLink>
-                                )}
                               </Table.Cell>
                             );
                           } else if (columnName == 'Stop') {

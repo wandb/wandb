@@ -42,13 +42,7 @@ class Runs extends React.Component {
       <Form style={{minWidth: 500}}>
         <h5>Columns</h5>
         <Form.Group inline>
-          {[
-            'Description',
-            'Ran',
-            'Runtime',
-            'Config',
-            'Summary',
-          ].map(colName => (
+          {['Description', 'Sweep', 'Ran', 'Runtime'].map(colName => (
             <Form.Checkbox
               key={colName}
               label={colName}
