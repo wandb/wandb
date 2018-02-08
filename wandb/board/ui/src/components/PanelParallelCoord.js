@@ -65,19 +65,22 @@ function parcoor(
 
   var dimensions;
   x.domain(
-    (dimensions = d3.keys(data[0]).filter(function(d) {
-      return (
-        parseFloat(data[0][d]) &&
-        (y[d] = d3.scale
-          .linear()
-          .domain(
-            d3.extent(data, function(p) {
-              return +parseFloat(p[d]);
-            }),
-          )
-          .range([height, 0]))
-      );
-    })),
+    (dimensions = d3
+      .keys(data[0])
+      .filter(d => d != 'name')
+      .filter(function(d) {
+        return (
+          parseFloat(data[0][d]) &&
+          (y[d] = d3.scale
+            .linear()
+            .domain(
+              d3.extent(data, function(p) {
+                return +parseFloat(p[d]);
+              }),
+            )
+            .range([height, 0]))
+        );
+      })),
   );
   function position(d) {
     var v = dragging[d];
