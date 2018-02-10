@@ -355,8 +355,15 @@ class RunFeed extends PureComponent {
                           />
                         </Table.Cell>
                       )}
-                      {this.props.columnNames
-                        .filter(columnName => this.props.columns[columnName])
+                      {(this.props.loading
+                        ? ['Description']
+                        : this.props.columnNames)
+                        .filter(
+                          columnName =>
+                            this.props.loading
+                              ? true
+                              : this.props.columns[columnName],
+                        )
                         .map(columnName => {
                           if (columnName == 'Description') {
                             return this.descriptionCell(run, this.props);

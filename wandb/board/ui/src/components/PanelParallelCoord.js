@@ -36,6 +36,9 @@ function parcoor(
   mouseOutCallback,
 ) {
   var select = reactEl.props.select;
+
+  let isBrushing = false;
+
   var d3node = d3.select(node).node(),
     computedWidth = 1070;
   if (d3node)
@@ -101,6 +104,7 @@ function parcoor(
   }
 
   function brushstart() {
+    isBrushing = true;
     if (d3.event.sourceEvent) {
       d3.event.sourceEvent.stopPropagation();
     }
@@ -123,6 +127,7 @@ function parcoor(
   }
 
   function brushend(axis) {
+    isBrushing = false;
     // This doesn't work well if we do it in brush, probably a feedback loop.
     // Doing it here for now, we can fix later.
     if (axis) {
@@ -258,6 +263,9 @@ function parcoor(
   brush();
 
   function handleHighlight(runData) {
+    if (isBrushing) {
+      return;
+    }
     if (!runData) {
       svg.selectAll('g.hover').remove();
       //TODO: this calling of self and redefining handleHighlight is gross
