@@ -32,7 +32,7 @@ def headless(args):
     rm = wandb.run_manager.RunManager(
         api, run, cloud=args['cloud'], job_type=args['job_type'])
     rm.wrap_existing_process(
-        user_process_pid, stdout_master_fd, stderr_master_fd)
+        user_process_pid, stdout_master_fd, stderr_master_fd, port=args['port'])
 
 
 def agent_run(args):
@@ -53,10 +53,10 @@ def agent_run(args):
         remote_url = 'file://%s%s' % (host, root)
 
     upsert_result = api.upsert_run(name=run.id,
-        project=api.settings("project"),
-        entity=api.settings("entity"),
-        config=run.config.as_dict(), description=run.description, host=host,
-        program_path=args['program'], repo=remote_url, sweep_name=run.sweep_id)
+                                   project=api.settings("project"),
+                                   entity=api.settings("entity"),
+                                   config=run.config.as_dict(), description=run.description, host=host,
+                                   program_path=args['program'], repo=remote_url, sweep_name=run.sweep_id)
     run.storage_id = upsert_result['id']
     env = dict(os.environ)
     run.set_environment(env)
@@ -66,7 +66,7 @@ def agent_run(args):
     except wandb.run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %
-            util.get_log_file_path())
+                        util.get_log_file_path())
         wandb.termerror(exc_value)
         if 'permission' in str(exc_value):
             wandb.termerror(

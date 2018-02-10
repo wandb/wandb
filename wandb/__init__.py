@@ -95,7 +95,8 @@ def termlog(string='', newline=True):
                           for s in string.split('\n')])
     else:
         line = ''
-    click.echo(line, file=sys.stderr, nl=newline)
+    if os.getenv('WANDB_MODE') != "dryrun":
+        click.echo(line, file=sys.stderr, nl=newline)
 
 
 def termerror(string):
@@ -149,13 +150,19 @@ def _init_headless(api, run, job_type, cloud=True):
     tty.setraw(stdout_master_fd)
     tty.setraw(stderr_master_fd)
 
+    # Socket for knowing the syncer process is ready
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(('', 0))
+    server.listen(1)
+
     headless_args = {
         'command': 'headless',
         'pid': os.getpid(),
         'stdout_master_fd': stdout_master_fd,
         'stderr_master_fd': stderr_master_fd,
         'cloud': cloud,
-        'job_type': job_type
+        'job_type': job_type,
+        'port': server.getsockname()[1]
     }
     internal_cli_path = os.path.join(
         os.path.dirname(__file__), 'internal_cli.py')
@@ -167,6 +174,7 @@ def _init_headless(api, run, job_type, cloud=True):
         popen_kwargs = {'close_fds': False}
     else:
         popen_kwargs = {'pass_fds': [stdout_master_fd, stderr_master_fd]}
+
     # TODO(adrian): make wandb the foreground process so we don't give
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
@@ -184,6 +192,13 @@ def _init_headless(api, run, job_type, cloud=True):
     stdout_redirector.redirect()
     if os.environ.get('WANDB_DEBUG') != 'true':
         stderr_redirector.redirect()
+
+    # Listen on the socket waiting for the wandb process to be ready
+    while True:
+        connection, addr = server.accept()
+        res = connection.recv(128)
+        if len(res) > 0:
+            break
 
 
 # Will be set to the run object for the current run, as returned by

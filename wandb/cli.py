@@ -258,45 +258,6 @@ def status(run, settings, project):
             separators=(',', ': ')
         ))
 
-    # project, run = api.parse_slug(run, project=project)
-    # existing = set()  # TODO: populate this set with the current files in the run dir
-    # remote = api.download_urls(project, run)
-    # not_synced = set()
-    # remote_names = set([name for name in remote])
-    # for file in existing:
-    #    meta = remote.get(file)
-    #    if meta and not api.file_current(file, meta['md5']):
-    #        not_synced.add(file)
-    #    elif not meta:
-    #        not_synced.add(file)
-    # TODO: remove items that exists and have the md5
-    # only_remote = remote_names.difference(existing)
-    # up_to_date = existing.difference(only_remote).difference(not_synced)
-    # click.echo('File status for ' + click.style('"%s/%s" ' %
-    #                                            (project, run), bold=True))
-    # if len(not_synced) > 0:
-    #    click.echo(click.style('Push needed: ', bold=True) +
-    #               click.style(", ".join(not_synced), fg="red"))
-    # if len(only_remote) > 0:
-    #    click.echo(click.style('Pull needed: ', bold=True) +
-    #               click.style(", ".join(only_remote), fg="red"))
-    # if len(up_to_date) > 0:
-    #    click.echo(click.style('Up to date: ', bold=True) +
-    #               click.style(", ".join(up_to_date), fg="green"))
-
-
-#@cli.command(context_settings=CONTEXT, help="Store notes for a future training run")
-@display_error
-def describe():
-    path = wandb.__stage_dir__ + 'description.md'
-    existing = (os.path.exists(path) and open(path).read()) or ''
-    description = editor(existing)
-    if description:
-        with open(path, 'w') as file:
-            file.write(description)
-    click.echo(
-        "Notes stored for next training run\nCalling wandb.sync() in your training script will persist them.")
-
 
 @cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
 @click.argument("run", envvar='WANDB_RUN')
@@ -728,173 +689,20 @@ def agent(sweep_id):
 @cli.command(context_settings=CONTEXT, help="Start a local WandB Board server")
 @click.option('--port', '-p', default=7177,
               help='The port to start the server on')
+@click.option('--host', '-h', default="0.0.0.0",
+              help='The host to bind to')
+@click.option('--logdir', default=".",
+              help='The directory to find wandb logs')
 @display_error
-def board(port):
+def board(port, host, logdir):
+    if logdir != ".":
+        os.environ['WANDB_LOGDIR'] = os.path.abspath(logdir)
     from wandb.board import app
     dev = os.getenv('WANDB_ENV', "").startswith("dev")
     extra = "(dev)" if dev else ""
     click.echo(
-        'Started wandb board on http://0.0.0.0:{0} ✨ {1}'.format(port, extra))
+        'Started wandb board on http://{0}:{1} ✨ {2}'.format(host, port, extra))
     app.run("0.0.0.0", port, threaded=True, debug=dev)
-
-
-# @cli.command(context_settings=RUN_CONTEXT, help="Log a job")
-#@click.argument('run_id')
-# def logs(run_id):
-#    puller = LogPuller(run_id)
-#    try:
-#        def signal_handler(signal, frame):
-#            print(
-#                "\n\nDetaching from remote instance, type `wandb logs %s` to resume logging" % run_id)
-#            exit(0)
-#        signal.signal(signal.SIGINT, signal_handler)
-#    except AttributeError:
-#        pass
-#    wandb.termlog("Connecting to logstream of %s\n" % run_id)
-#    puller.sync()
-#
-#@cli.group()
-#@click.pass_context
-#@display_error
-# def config(ctx):
-#    """Manage this projects configuration.
-#
-# Examples:
-#
-#    wandb config set param=2 --description="Some tunning parameter"
-#    wandb config del param
-#    wandb config show
-#    """
-#    pass
-
-
-#@config.command("init", help="Initialize a directory with wandb configuration")
-#@display_error
-# def config_init(prompt=True):
-#    from wandb import get_stage_dir
-#    config_path = os.path.join(os.getcwd(), get_stage_dir())
-#    config = Config()
-#    if os.path.isdir(config_path):
-#        if prompt:
-#            click.confirm(click.style("This directory is already initialized, should we overwrite it?", fg="red"), abort=True)
-#    else:
-#        os.mkdir(config_path)
-#    config.epochs_desc = "Number epochs to train over"
-#    config.epochs = 32
-#    config.persist()
-#    if prompt:
-#        click.echo("""Configuration initialized, use `wandb config set` to set parameters.  Then in your training script:
-# import wandb
-# conf = wandb.sync()
-# conf.batch_size
-#""")
-
-
-#@config.command(help="Show the current config")
-#@click.option("--format", help="The format to dump the config as", default="python", type=click.Choice(['python', 'yaml', 'json']))
-#@display_error
-# def show(format, changed=[], diff=False):
-#    if len(changed) == 0 and diff:
-#        click.secho("No parameters were changed", fg="red")
-#    elif diff:
-#        click.echo("%i parameters changed: " % len(changed))
-#    config = Config()
-#    if len(vars(config)) == 0:
-#        click.secho(
-#            "No configuration found in this directory, run `wandb config init`", fg="red")
-#    if format == "yaml":
-#        click.echo("%s" % config)
-#    elif format == "json":
-#        click.echo(json.dumps(vars(config)))
-#    elif format == "python":
-#        res = ""
-#        for key in set(config.keys + changed):
-#            if config.desc(key):
-#                res += "# %s\n" % config.desc(key)
-#            style = None
-#            if key in changed:
-#                style = "green" if config.get(key) else "red"
-#            res += click.style("%s=%r\n" % (key, config.get(key)),
-#                               bold=True if style is None else False, fg=style)
-#        click.echo(res)
-
-
-#@config.command("import", help="Import configuration parameters")
-#@click.option("--format", "-f", help="The format to parse the imported params", default="python", type=click.Choice(["python"]))
-#@click.pass_context
-#@display_error
-# def import_config(ctx, format):
-#    data = editor("# Paste python comments and variable definitions above")
-#    desc = None
-#    config = Config()
-#    imported = []
-#    if data:
-#        for line in data.split("\n"):
-#            if line.strip().startswith("#"):
-#                desc = line.strip(" #")
-#            elif "=" in line:
-#                try:
-#                    key, value = [str(part.strip())
-#                                  for part in line.split("=")]
-#                    if len(value) == 0:
-#                        continue
-#                    config[key] = value
-#                    imported.append(key)
-#                    if desc:
-#                        config[key + "_desc"] = desc
-#                    desc = None
-#                except ValueError:
-#                    logging.error("Invalid line: %s" % line)
-#            else:
-#                logging.warn("Skipping line %s", line)
-#        config.persist()
-#    ctx.invoke(show, changed=imported, diff=True)
-
-
-#@config.command("set", help="Set config variables with key=value pairs")
-#@click.argument("key_values", nargs=-1)
-#@click.option("--description", "-d", help="A description for the config value if specifying one pair")
-#@click.pass_context
-#@display_error
-# def config_set(ctx, key_values, description=None):
-#    config = Config()
-#    if len(key_values) == 0:
-#        raise ClickException(
-#            "Must specify at least 1 key value pair i.e. `wandb config set epochs=11`")
-#    if len(key_values) > 1 and description:
-#        raise ClickException(
-#            "Description can only be specified with 1 key value pair.")
-#    changed = []
-#    for pair in key_values:
-#        try:
-#            key, value = pair.split("=")
-#        except ValueError:
-#            key = pair
-#            value = None
-#        if value:
-#            changed.append(key)
-#            config[str(key)] = value
-#        if description:
-#            config[str(key) + "_desc"] = description
-#    config.persist()
-#    ctx.invoke(show, changed=changed, diff=True)
-
-
-#@config.command("del", help="Delete config variables")
-#@click.argument("keys", nargs=-1)
-#@click.pass_context
-#@display_error
-# def delete(ctx, keys):
-#    config = Config()
-#    if len(keys) == 0:
-#        raise ClickException(
-#            "Must specify at least 1 key i.e. `wandb config rm epochs`")
-#    changed = []
-#    for key in keys:
-#        del config[str(key)]
-#        changed.append(key)
-#    config.persist()
-#    ctx.invoke(show, changed=changed, diff=True)
 
 
 if __name__ == "__main__":

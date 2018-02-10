@@ -4,7 +4,7 @@
 
 # Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb)
 
-The **Weights and Biases** client is am open source library, CLI (wandb), and local web application for organizing and analyzing your machine learning experiments. Think of it as a framework-agnostic lightweight TensorBoard that persists additional information such as the state of your code, system metrics, and configuration parameters.
+The **Weights and Biases** client is an open source library, CLI (wandb), and local web application for organizing and analyzing your machine learning experiments. Think of it as a framework-agnostic lightweight TensorBoard that persists additional information such as the state of your code, system metrics, and configuration parameters.
 
 ## Local Features
 
@@ -45,9 +45,11 @@ def training_loop():
 
 Running your script will save run data in a directory named _wandb_ relative to your training script. To view your runs, call `wandb board` from the same directory as your training script.
 
+![Runs screenshot](docs/screenshot.jpg?raw=true)
+
 ## Cloud Usage
 
-[Signup](https://app.wandb.ai/login?invited) for an account, then run `wandb init` from the directory with your training script. You can checkin _wandb/settings_ into version control to enable other users on your team to share experiments. Run your script with `wandb run my_script.py` and all metadata will be synced to the cloud.
+[Signup](https://app.wandb.ai/login?invited) for an account, then run `wandb init` from the directory with your training script. You can checkin _wandb/settings_ to version control to enable other users on your team to share experiments. Run your script with `wandb run my_script.py` and all metadata will be synced to the cloud.
 
 ## Detailed Usage
 

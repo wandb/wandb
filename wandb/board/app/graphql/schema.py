@@ -40,6 +40,7 @@ class SweepType(graphene.ObjectType):
     name = graphene.String()
     createdAt = graphene.String()
     updatedAt = graphene.String()
+    heartbeatAt = graphene.String()
     description = graphene.String()
     runCount = graphene.Int()
     state = graphene.String()

@@ -308,7 +308,7 @@ class RunManager(object):
 
         self._sync_etc()
 
-    def wrap_existing_process(self, pid, stdout_read_fd, stderr_read_fd):
+    def wrap_existing_process(self, pid, stdout_read_fd, stderr_read_fd, port=None):
         """Do syncing, etc. for an already-running process.
 
         This returns after the process has ended and syncing is done.
@@ -330,6 +330,13 @@ class RunManager(object):
 
         self.proc = Process(pid)
 
+        # Signal the main process that we're all hooked up
+        if port:
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client.connect(('', port))
+            client.sendall('ready')
+
+        print
         self._sync_etc()
 
     def _sync_etc(self):

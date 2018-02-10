@@ -74,7 +74,7 @@ class Tee(object):
     def pipe(cls, sync_dst_file, *async_dst_files):
         read_fd, write_fd = os.pipe()
         read_file = os.fdopen(read_fd, 'rb')
-        tee =  cls(read_file, sync_dst_file, *async_dst_files)
+        tee = cls(read_file, sync_dst_file, *async_dst_files)
         tee.tee_file = os.fdopen(write_fd, 'wb')
 
         return tee

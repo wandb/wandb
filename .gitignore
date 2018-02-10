@@ -6,18 +6,13 @@ __pycache__/
 # C extensions
 *.so
 .DS_Store
-.wandb
-
-# Board
-wandb/board/ui/node_modules
-wandb/board/ui/build
 
 # Distribution / packaging
 .Python
 env/
 build/
 develop-eggs/
-/dist
+dist/
 downloads/
 eggs/
 .eggs/
@@ -29,6 +24,10 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Board
+wandb/board/ui/node_modules
+!wandb/board/ui/build/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

@@ -16,8 +16,8 @@ __all__ = ['create_app']
 def create_app(config_name):
     """Create flask app and return it"""
     load()
-    app = Flask(__name__, static_folder="../dist/static",
-                template_folder="../dist")
+    app = Flask(__name__, static_folder="../ui/build/static",
+                template_folder="../ui/build")
 
     configure_app(app, config_name)
     configure_blueprints(app, BLUEPRINTS)

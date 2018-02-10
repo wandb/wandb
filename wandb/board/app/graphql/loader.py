@@ -7,7 +7,7 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 from wandb.board.app.models import Dir, Settings, RunMutator
 
-base_path = __stage_dir__ or "/Users/vanpelt/Development/WandB/wandb-examples/simple/wandb"
+base_path = os.getenv("WANDB_LOGDIR", __stage_dir__)
 data = {
     'Runs': []
 }

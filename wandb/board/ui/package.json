@@ -61,7 +61,6 @@
         "postinstall": "ln -sf ../semantic node_modules",
         "start": "REACT_APP_SERVER=board react-app-rewired start",
         "build": "REACT_APP_SERVER=board react-app-rewired build",
-        "release": "yarn build && ./release.sh",
         "test": "react-scripts test --env=jsdom"
     }
 }
