@@ -345,6 +345,7 @@ class RunManager(object):
         #
         # We disable these signals after running the process so the child doesn't
         # inherit this behaviour.
+        killed = False
         try:
             signal.signal(signal.SIGQUIT, signal.SIG_IGN)
         except AttributeError:  # SIGQUIT doesn't exist on windows
@@ -356,6 +357,7 @@ class RunManager(object):
             self._meta.data["state"] = "finished" if self.proc.returncode == 0 else "failed"
             self._meta.write()
         except KeyboardInterrupt:
+            killed = True
             wandb.termlog('Ctrl-c pressed; waiting for program to end.')
             keyboard_interrupt_time = time.time()
             # give the process a couple of seconds to die, then kill it
@@ -383,7 +385,8 @@ class RunManager(object):
         self._stdout_stream.close()
         self._stderr_stream.close()
         if self._cloud:
-            self._api.get_file_stream_api().finish(self.proc.returncode == 0)
+            self._api.get_file_stream_api().finish(self.proc.returncode ==
+                                                   0, killed, self.proc.returncode)
 
         """
         Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
