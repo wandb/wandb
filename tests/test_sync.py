@@ -18,7 +18,7 @@ def mock_stop(*args):
 def test_watches_for_all_changes(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
-        sync = wandb.Sync(api, "test", dir='.')
+        sync = wandb.Sync(api, dir='.')
         sync.stop = mock_stop
         sync.watch(['*'])
         with open("some_file.h5", "w") as f:
@@ -32,7 +32,7 @@ def test_watches_for_all_changes(mocker):
 def test_watches_for_specific_change(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
-        sync = wandb.Sync(api, "test", dir='.')
+        sync = wandb.Sync(api, dir='.')
         sync.stop = mock_stop
         sync.watch(["rad.txt"])
         with open("rad.txt", "a") as f:
@@ -44,7 +44,7 @@ def test_watches_for_specific_change(mocker):
 def test_watches_for_subdir_change(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
-        sync = wandb.Sync(api, "test", dir='.')
+        sync = wandb.Sync(api, dir='.')
         sync.stop = mock_stop
         sync.watch(["./subdir/*.txt"])
         os.mkdir('subdir')
@@ -57,7 +57,7 @@ def test_watches_for_subdir_change(mocker):
 def test_ignores_hidden_folders(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
-        sync = wandb.Sync(api, "test", dir='.')
+        sync = wandb.Sync(api, dir='.')
         sync.stop = mock_stop
         sync.watch(["*"])
         os.mkdir('.subdir')
@@ -70,7 +70,7 @@ def test_ignores_hidden_folders(mocker):
 def test_watches_for_glob_change(mocker):
     with CliRunner().isolated_filesystem():
         api = mocker.MagicMock()
-        sync = wandb.Sync(api, "test", dir='.')
+        sync = wandb.Sync(api, dir='.')
         sync.stop = mock_stop
         sync.watch(["*.txt"])
         with open("file.txt", "a") as f:

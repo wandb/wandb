@@ -4,6 +4,7 @@ import psutil
 from pynvml import *
 import time
 from numbers import Number
+import threading
 
 
 class FileStats(object):

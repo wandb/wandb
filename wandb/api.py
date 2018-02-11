@@ -11,6 +11,7 @@ import os
 import json
 import yaml
 import re
+import wandb
 from wandb import __version__, __stage_dir__, Error
 from wandb.git_repo import GitRepo
 from wandb import util
@@ -29,6 +30,9 @@ import socket
 import subprocess
 import threading
 import time
+import sys
+
+from six import b
 
 logger = logging.getLogger(__name__)
 
@@ -175,26 +179,38 @@ class Api(object):
                 if self.git.has_submodule_diff:
                     with open(patch_path, 'wb') as patch:
                         # we diff against HEAD to ensure we get changes in the index
-                        subprocess.check_call(['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root)
+                        subprocess.check_call(
+                            ['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root)
                 else:
                     with open(patch_path, 'wb') as patch:
-                        subprocess.check_call(['git', 'diff', 'HEAD'], stdout=patch, cwd=root)
+                        subprocess.check_call(
+                            ['git', 'diff', 'HEAD'], stdout=patch, cwd=root)
 
             upstream_commit = self.git.get_upstream_fork_point()
             if upstream_commit and upstream_commit != self.git.repo.head.commit:
                 sha = upstream_commit.hexsha
-                upstream_patch_path = os.path.join(out_dir, 'upstream_diff_{}.patch'.format(sha))
+                upstream_patch_path = os.path.join(
+                    out_dir, 'upstream_diff_{}.patch'.format(sha))
                 if self.git.has_submodule_diff:
                     with open(upstream_patch_path, 'wb') as upstream_patch:
-                        subprocess.check_call(['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root)
+                        subprocess.check_call(
+                            ['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root)
                 else:
                     with open(upstream_patch_path, 'wb') as upstream_patch:
-                        subprocess.check_call(['git', 'diff', sha], stdout=upstream_patch, cwd=root)
+                        subprocess.check_call(
+                            ['git', 'diff', sha], stdout=upstream_patch, cwd=root)
         except subprocess.CalledProcessError:
             logger.error('Error generating diff')
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
+
+    def ensure_configured(self):
+        # The WANDB_DEBUG check ensures tests still work.
+        if not os.getenv('WANDB_DEBUG') and not self.settings("project"):
+            wandb.termlog('wandb.init() called but system not configured.\n'
+                    'Run "wandb init" or set environment variables to get started')
+            sys.exit(1)
 
     @property
     def current_run_id(self):
@@ -572,7 +588,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -776,6 +793,7 @@ class Api(object):
         else:
             return json.loads(response['heartbeat']['commands'])
 
+    @normalize_exceptions
     def upsert_sweep(self, config):
         """Upsert a sweep object.
 

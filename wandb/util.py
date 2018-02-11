@@ -6,9 +6,12 @@ import logging
 import os
 from six.moves import queue
 import requests
+import shlex
 import subprocess
 import threading
 import time
+
+from wandb import io_wrap
 
 logger = logging.getLogger(__name__)
 
@@ -55,71 +58,6 @@ def mkdir_exists_ok(path):
             raise
 
 
-class SafeSubprocess(object):
-    def __init__(self, args, env=None, read_output=False):
-        self._args = args
-        self._env = env
-        self._read_output = read_output
-        self._stdout = queue.Queue()
-        self._stderr = queue.Queue()
-        self._popen = None
-        self._stdout_thread = None
-        self._stderr_thread = None
-
-    def run(self):
-        if self._read_output:
-            self._popen = subprocess.Popen(
-                self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                env=self._env)
-            self._stdout_thread = self._spawn_reader_thread(
-                self._popen.stdout, self._stdout)
-            self._stderr_thread = self._spawn_reader_thread(
-                self._popen.stderr, self._stderr)
-        else:
-            self._popen = subprocess.Popen(self._args, env=self._env)
-
-    def _spawn_reader_thread(self, filelike, out_queue):
-        def _reader_thread(filelike, out_queue):
-            while True:
-                out = filelike.read(64).decode('utf-8')
-                if not out:
-                    break
-                out_queue.put(out)
-
-        threading.Thread(target=_reader_thread,
-                         args=(filelike, out_queue)).start()
-
-    def _read(self, rqueue):
-        try:
-            return rqueue.get(False)
-        except queue.Empty:
-            return None
-
-    def _read_all(self, rqueue):
-        reads = []
-        while True:
-            got = self._read(rqueue)
-            if got is None:
-                break
-            reads.append(got)
-        return reads
-
-    def _read_stdout(self):
-        return self._read_all(self._stdout)
-
-    def _read_stderr(self):
-        return self._read_all(self._stderr)
-
-    def poll(self):
-        if self._read_output:
-            return self._popen.poll(), self._read_stdout(), self._read_stderr()
-        else:
-            return self._popen.poll()
-
-    def terminate(self):
-        self._popen.terminate()
-
-
 def request_with_retry(func, *args, **kwargs):
     """Perform a requests http call, retrying with exponetial backoff.
 
@@ -138,7 +76,7 @@ def request_with_retry(func, *args, **kwargs):
             response.raise_for_status()
             return True
         except (requests.exceptions.ConnectionError,
-                requests.exceptions.HTTPError,
+                requests.exceptions.HTTPError,  # XXX 500s aren't retryable
                 requests.exceptions.Timeout) as e:
             logger.warning('requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s',
                            e, args, kwargs)
@@ -148,7 +86,8 @@ def request_with_retry(func, *args, **kwargs):
             time.sleep(retry_delay)
             retry_delay *= 2
         except requests.exceptions.RequestException as e:
-            logger.error(
+            logger.error(response.json()['error'])  # XXX clean this up
+            logger.exception(
                 'requests_with_retry encountered unretryable exception: %s', e)
             return e
 
@@ -159,7 +98,7 @@ def find_runner(program):
     Args:
         program: The string name of the program to try to run.
     Returns:
-        string, Runner name.
+        commandline list of strings to run the program (eg. with subprocess.call()) or None
     """
     if os.path.isfile(program) and not os.access(program, os.X_OK):
         # program is a path to a non-executable file
@@ -169,9 +108,9 @@ def find_runner(program):
             return None
         first_line = opened.readline().strip()
         if first_line.startswith('#!'):
-            return first_line[2:]
+            return shlex.split(first_line[2:])
         if program.endswith('.py'):
-            return 'python'
+            return ['python']
     return None
 
 

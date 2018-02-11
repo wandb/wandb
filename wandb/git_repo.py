@@ -1,6 +1,7 @@
 from git import Repo, exc
 import logging
 import os
+from six.moves import configparser
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,15 @@ class GitRepo(object):
         if not self.repo:
             return False
         return self.repo.is_dirty()
+
+    @property
+    def email(self):
+        if not self.repo:
+            return None
+        try:
+            return self.repo.config_reader().get_value("user", "email")
+        except configparser.Error:
+            return None
 
     @property
     def last_commit(self):

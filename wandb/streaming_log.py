@@ -1,17 +1,15 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
 import datetime
-import io
-import tempfile
-import time
-import sys
-from requests import Session
-from six.moves import queue
-import traceback
 import logging
-import re
-import signal
 import os
-import logging
-import six
+import re
+import time
+
+from six import b
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,28 +18,54 @@ class LineBuffer(object):
 
     def __init__(self):
         self._buf = []
-        self._line_end_re = re.compile('[\r\n]')
+        # If the backend receive a line ending with \r, it assumes that
+        # line is part of a progress bar and ignores it. To handle terminal
+        # output properly on Windows we need to ensure we always pass along
+        # a newline if it comes after a carriage return.
+        self._line_end_re = re.compile(b('\r\n|\r|\n'))
 
-    def add_string(self, string):
-        """Process a string.
+    def add_string(self, data):
+        """Process some data splitting it into complete lines and buffering the rest
 
         Args:
-            string: Any string
+            data: A `str` in Python 2 or `bytes` in Python 3
         Returns:
-            list of found lines, remainder will be buffered.
+            list of complete lines ending with a carriage return (eg. a progress
+            bar) or a newline.
         """
         lines = []
-        while string:
-            match = self._line_end_re.search(string)
+        while data:
+            match = self._line_end_re.search(data)
             if match is None:
-                self._buf.append(string)
-                break
+                chunk = data
             else:
-                line_end_pos = match.start()
-                lines.append(''.join(self._buf) + string[:line_end_pos + 1])
-                string = string[line_end_pos + 1:]
-                self._buf = []
+                chunk = data[:match.end()]
+
+            data = data[len(chunk):]
+
+            if self._buf and self._buf[-1].endswith(b('\r')) and not chunk.startswith(b('\n')):
+                # if we get a carriage return followed by something other than
+                # a newline then we assume that we're overwriting the current
+                # line (ie. a progress bar)
+                #
+                # We don't terminate lines that end with a carriage return until
+                # we see what's coming next so we can distinguish between a
+                # progress bar situation and a Windows line terminator.
+                #
+                # TODO(adrian): some day these hacks should be replaced with
+                # real terminal emulation
+                lines.append(self._finish_line())
+
+            self._buf.append(chunk)
+            if chunk.endswith(b('\n')):
+                lines.append(self._finish_line())
+
         return lines
+
+    def _finish_line(self):
+        line = b('').join(self._buf).decode('utf-8')
+        self._buf = []
+        return line
 
 
 class TextStreamPusher(object):
@@ -65,6 +89,9 @@ class TextStreamPusher(object):
         self._prepend_timestamp = prepend_timestamp
         self._line_buffer = LineBuffer()
 
+    def write_string(self, message, cur_time=None):
+        return self.write(message.encode('utf-8'), cur_time)
+
     def write(self, message, cur_time=None):
         """Write some text to the pusher.
 
@@ -86,4 +113,4 @@ class TextStreamPusher(object):
     def close(self):
         """Close the file."""
         # Force a final line to clear whatever might be in the buffer.
-        self.write('\n')
+        self.write_string(os.linesep)

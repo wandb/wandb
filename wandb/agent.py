@@ -1,10 +1,23 @@
+import collections
+import json
+import logging
 import multiprocessing
+import os
 import socket
+import subprocess
 import sys
 import traceback
+
+import six
+
+import wandb
 from wandb.api import Api
+from wandb.config import Config
 from wandb import util
-from wandb import runner
+from wandb import wandb_run
+
+
+logger = logging.getLogger(__name__)
 
 
 class AgentError(Exception):
@@ -14,10 +27,10 @@ class AgentError(Exception):
 class Agent(object):
     POLL_INTERVAL = 5
 
-    def __init__(self, api, queue, wandb_runner, sweep_id=None):
+    def __init__(self, api, queue, sweep_id=None):
         self._api = api
         self._queue = queue
-        self._runner = wandb_runner
+        self._run_processes = {}  # keyed by run.id (GQL run name)
         self._server_responses = []
         self._sweep_id = sweep_id
         self._log = []
@@ -27,30 +40,59 @@ class Agent(object):
         agent = self._api.register_agent(
             socket.gethostname(), True, sweep_id=self._sweep_id)
         agent_id = agent['id']
-        while True:
-            commands = util.read_many_from_queue(
-                self._queue, 100, self.POLL_INTERVAL)
-            # TODO: send _server_responses
-            running_runs = self._runner.running_runs()
-            print('Running runs: ', running_runs)
-            run_status = {}
-            for run in running_runs:
-                run_status[run] = True
-            heartbeat_commands = self._api.agent_heartbeat(
-                agent_id, {}, run_status)
-            self._server_responses = []
-            for command in heartbeat_commands:
-                command['origin'] = 'server'
-            commands += heartbeat_commands
-            for command in commands:
-                response = self._process_command(command)
-                if command['origin'] == 'server':
-                    self._server_responses.append(response)
-                elif command['origin'] == 'local':
-                    command['resp_queue'].put(response)
+
+        try:
+            while True:
+                commands = util.read_many_from_queue(
+                    self._queue, 100, self.POLL_INTERVAL)
+                for command in commands:
+                    command['resp_queue'].put(self._process_command(command))
+
+                logger.info('Running runs: %s', list(
+                    self._run_processes.keys()))
+                run_status = {}
+                for run_id, run_process in list(six.iteritems(self._run_processes)):
+                    if run_process.poll() is None:
+                        run_status[run_id] = True
+                    else:
+                        logger.info('Cleaning up dead run: %s', run_id)
+                        del self._run_processes[run_id]
+
+                commands = self._api.agent_heartbeat(agent_id, {}, run_status)
+
+                # TODO: send _server_responses
+                self._server_responses = []
+                for command in commands:
+                    self._server_responses.append(
+                        self._process_command(command))
+        except KeyboardInterrupt:
+            try:
+                wandb.termlog(
+                    'Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them.')
+                for run_id, run_process in six.iteritems(self._run_processes):
+                    run_process.wait()
+            except KeyboardInterrupt:
+                pass
+        finally:
+            try:
+                wandb.termlog(
+                    'Terminating and syncing runs. Press ctrl-c to kill.')
+                for run_id, run_process in six.iteritems(self._run_processes):
+                    try:
+                        run_process.terminate()
+                    except OSError:
+                        pass  # if process is already dead
+                for run_id, run_process in six.iteritems(self._run_processes):
+                    run_process.wait()
+            except KeyboardInterrupt:
+                wandb.termlog('Killing runs and quitting.')
+                try:
+                    run_process.kill()
+                except OSError:
+                    pass  # if process is already dead
 
     def _process_command(self, command):
-        print('Agent received command: %s' % command)
+        logger.info('Agent received command: %s' % command)
         response = {
             'id': command.get('id'),
             'result': None,
@@ -66,6 +108,7 @@ class Agent(object):
                 raise AgentError('No such command: %s' % command_type)
             response['result'] = result
         except:
+            logger.exception('Exception while processing command: %s', command)
             ex_type, ex, tb = sys.exc_info()
             response['exception'] = '%s: %s' % (ex_type.__name__, str(ex))
             response['traceback'] = traceback.format_tb(tb)
@@ -76,11 +119,43 @@ class Agent(object):
         return response
 
     def _command_run(self, command):
-        return self._runner.run(command['program'], command['args'],
-                                sweep_id=self._sweep_id)
+        config = Config.from_environment_or_defaults()
+        run = wandb_run.Run(mode='run', config=config, sweep_id=self._sweep_id)
+        env = dict(os.environ)
+        run.set_environment(env)
+
+        agent_run_args = {
+            'command': 'agent-run',
+            'program': command['program'],
+            'args': command['args']
+        }
+        internal_cli_path = os.path.join(
+            os.path.dirname(__file__), 'internal_cli.py')
+        self._run_processes[run.id] = subprocess.Popen(
+            ['/usr/bin/env', 'python', internal_cli_path,
+                json.dumps(agent_run_args)],
+            env=env)
+
+        # we track how many times the user has tried to stop this run
+        # so we can escalate how hard we try to kill it in self._command_stop()
+        self._run_processes[run.id].num_times_stopped = 0
 
     def _command_stop(self, command):
-        return self._runner.stop(command['run_id'])
+        run_id = command['run_id']
+        logger.info('Stop: %s', run_id)
+        if run_id in self._run_processes:
+            proc = self._run_processes[run_id]
+            try:
+                if proc.num_times_stopped == 0:
+                    proc.terminate()
+                elif proc.num_times_stopped == 1:
+                    proc.kill()
+            except OSError:  # if process is already dead
+                pass
+            finally:
+                proc.num_times_stopped += 1
+        else:
+            logger.error('Run %s not running', run_id)
 
 
 class AgentApi(object):
@@ -107,10 +182,15 @@ class AgentApi(object):
 
 
 def run_agent(sweep_id=None):
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
     api = Api()
-    wandb_runner = runner.Runner(api)
     queue = multiprocessing.Queue()
-    agent = Agent(api, queue, wandb_runner, sweep_id=sweep_id)
-    p = multiprocessing.Process(target=agent.run)
-    p.start()
-    return AgentApi(queue)
+    agent = Agent(api, queue, sweep_id=sweep_id)
+    agent.run()
