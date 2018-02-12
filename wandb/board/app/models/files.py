@@ -92,6 +92,24 @@ class Events(Base):
         self.name = "wandb-events.jsonl"
 
 
+class Log(Base):
+    def __init__(self, base_path):
+        super(Log, self).__init__(base_path)
+        self.name = "output.log"
+
+    def lines(self):
+        from wandb.board.app.graphql.schema import LogLine
+        lines = []
+        for i, line in enumerate(self.read().split("\n")):
+            lines.append(LogLine(
+                line=line,
+                number=i,
+                id=i,
+                level="error" if line.startswith("ERROR") else "info"
+            ))
+        return lines
+
+
 class Meta(Summary):
     def __init__(self, base_path):
         super(Meta, self).__init__(base_path)

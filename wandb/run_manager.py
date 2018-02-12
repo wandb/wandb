@@ -7,7 +7,7 @@ import stat
 import subprocess
 import sys
 import time
-import traceback
+import re
 from tempfile import NamedTemporaryFile
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
@@ -203,10 +203,11 @@ class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train"):
+    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train", port=None, program=None):
         self._api = api
         self._run = run
         self._cloud = cloud
+        self._port = port
 
         self._project = project if project else api.settings("project")
         self._tags = tags
@@ -229,6 +230,8 @@ class RunManager(object):
         self._system_stats = stats.SystemStats(run)
         self._meta = meta.Meta(api, self._run.dir)
         self._meta.data["jobType"] = job_type
+        if program:
+            self._meta.data["program"] = program
 
         def push_function(save_name, path):
             with open(path, 'rb') as f:
@@ -242,6 +245,12 @@ class RunManager(object):
             os.path.join(self._watch_dir, os.path.normpath('*'))]
         # Ignore hidden files/folders
         self._handler._ignore_patterns = ['*/.*', '*.tmp']
+
+        self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._client.settimeout(1.0)
+        if self._port:
+            self._client.connect(('', self._port))
+
         if self._cloud:
             self._observer.start()
 
@@ -260,8 +269,8 @@ class RunManager(object):
                 self._api.get_file_stream_api(), 'output.log', line_prepend='ERROR',
                 prepend_timestamp=True)
         else:
-            self._stdout_stream = open(self._run.dir + "/output.log", "w")
-            self._stderr_stream = open(self._run.dir + "/output.log", "w")
+            self._stdout_stream = open(self._run.dir + "/output.log", "ab")
+            self._stderr_stream = open(self._run.dir + "/output.log", "ab")
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -331,12 +340,8 @@ class RunManager(object):
         self.proc = Process(pid)
 
         # Signal the main process that we're all hooked up
-        if port:
-            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client.connect(('', port))
-            client.sendall('ready')
+        self._client.sendall(six.b("ready"))
 
-        print
         self._sync_etc()
 
     def _sync_etc(self):
@@ -350,11 +355,32 @@ class RunManager(object):
         except AttributeError:  # SIGQUIT doesn't exist on windows
             pass
 
+        exitcode = None
         try:
-            exitcode = self.proc.wait()
-            self._meta.data["exitcode"] = self.proc.returncode
-            self._meta.data["state"] = "finished" if self.proc.returncode == 0 else "failed"
-            self._meta.write()
+            while True:
+                res = None
+                try:
+                    res = self._client.recv(128)
+                except socket.timeout:
+                    exitcode = self.proc.poll()
+                    if exitcode is not None:
+                        break
+                match = res and re.match(
+                    r"done\((-?\d+)\)", res.decode("utf8"))
+                if match:
+                    exitcode = int(match.group(1))
+                    self._meta.data["exitcode"] = exitcode
+                    if exitcode == 0:
+                        self._meta.data["state"] = "finished"
+                    elif exitcode == -1:
+                        self._meta.data["state"] = "killed"
+                    else:
+                        self._meta.data["state"] = "failed"
+                    break
+                elif res is not None:
+                    wandb.termerror(
+                        "Invalid message received from child process: %s" % res)
+                    break
         except KeyboardInterrupt:
             wandb.termlog('Ctrl-c pressed; waiting for program to end.')
             keyboard_interrupt_time = time.time()
@@ -383,7 +409,7 @@ class RunManager(object):
         self._stdout_stream.close()
         self._stderr_stream.close()
         if self._cloud:
-            self._api.get_file_stream_api().finish(self.proc.returncode == 0)
+            self._api.get_file_stream_api().finish(exitcode == 0)
 
         """
         Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
@@ -393,18 +419,15 @@ class RunManager(object):
         """
         wandb.termlog()
 
-        if self.proc.poll() is None:
+        if exitcode is None:
             wandb.termlog(
                 'Killing program failed; syncing files anyway. Press ctrl-c to abort syncing.')
         else:
-            self._meta.data["exitcode"] = self.proc.returncode
-            if self.proc.returncode == 0:
+            if exitcode == 0:
                 wandb.termlog('Program ended.')
-                self._meta.data["state"] = self._meta.data["state"] or "finished"
             else:
-                self._meta.data["state"] = self._meta.data["state"] or "failed"
                 wandb.termlog(
-                    'Program failed with code %d. Press ctrl-c to abort syncing.' % self.proc.returncode)
+                    'Program failed with code %d. Press ctrl-c to abort syncing.' % exitcode)
         #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
 
         self._system_stats.shutdown()
@@ -412,6 +435,7 @@ class RunManager(object):
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
+            self._client.sendall(six.b("done"))
             return None
 
         # Show run summary/history
@@ -520,6 +544,7 @@ class RunManager(object):
             wandb.termerror('Sync failed %s' % self.url)
         else:
             wandb.termlog('Synced %s' % self.url)
+        self._client.sendall(six.b("done"))
 
     def _get_handler(self, file_path, save_name):
         self._stats.update_file(file_path)

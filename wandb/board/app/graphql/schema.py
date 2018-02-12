@@ -3,7 +3,7 @@ import logging
 import graphene
 from graphene import relay
 from .loader import data, find_run, settings
-from wandb.board.app.models import History, Events
+from wandb.board.app.models import History, Events, Log
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -99,14 +99,11 @@ class Run(graphene.ObjectType):
 
     user = graphene.Field(UserType)
 
-    def resolve_logLines(self, info, **args):
-        return []
-
     def resolve_files(self, info, **args):
         return []
 
     def resolve_fileCount(self, info, **args):
-        return 2
+        return 0
 
     def resolve_name(self, info, **args):
         return self.id
@@ -116,6 +113,9 @@ class Run(graphene.ObjectType):
 
     def resolve_events(self, info, **args):
         return Events(self.path).read().split("\n")
+
+    def resolve_logLines(self, info, **args):
+        return Log(self.path).lines()
 
     def resolve_exampleTable(self, info, **args):
         return ""
