@@ -1002,7 +1002,7 @@ class FileStreamApi(object):
 
     TODO: Differentiate between binary/text encoding.
     """
-    Finish = collections.namedtuple('Finish', ('failed'))
+    Finish = collections.namedtuple('Finish', ('failed', 'killed', 'exitcode'))
 
     HTTP_TIMEOUT = 10
     RATE_LIMIT_SECONDS = 1
@@ -1074,7 +1074,8 @@ class FileStreamApi(object):
 
         # post the final close message. (item is self.Finish instance now)
         util.request_with_retry(self._client.post,
-                                self._endpoint, json={'complete': True, 'failed': bool(finished.failed)})
+                                self._endpoint, json={'complete': True, 'killed': bool(finished.killed),
+                                                      'failed': bool(finished.failed), 'exitcode': int(finished.exitcode)})
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
@@ -1102,13 +1103,15 @@ class FileStreamApi(object):
         """
         self._queue.put(Chunk(filename, data))
 
-    def finish(self, failed):
+    def finish(self, failed, killed=False, crashed=False):
         """Cleans up.
 
         Anything pushed after finish will be dropped.
 
         Args:
-            failed: Set True to to display run failure in UI.
+            failed: Set to True to display run failure in UI.
+            killed: Set to True to display user killed in UI.
+            crahsed: Set to True to display system failure in UI.
         """
-        self._queue.put(self.Finish(failed))
+        self._queue.put(self.Finish(failed, killed, crashed))
         self._thread.join()
