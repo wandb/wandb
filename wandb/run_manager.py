@@ -340,7 +340,7 @@ class RunManager(object):
         self.proc = Process(pid)
 
         # Signal the main process that we're all hooked up
-        self._client.sendall(six.b("ready"))
+        self._client.sendall(bytes([1]))
 
         self._sync_etc()
 
@@ -358,26 +358,24 @@ class RunManager(object):
         exitcode = None
         try:
             while True:
-                res = None
+                res = ''
                 try:
-                    res = self._client.recv(128)
+                    res = self._client.recv(2)
                 except socket.timeout:
                     exitcode = self.proc.poll()
                     if exitcode is not None:
                         break
-                match = res and re.match(
-                    r"done\((-?\d+)\)", res.decode("utf8"))
-                if match:
-                    exitcode = int(match.group(1))
+                if len(res) == 2 and res[0] == 2:
+                    exitcode = res[1]
                     self._meta.data["exitcode"] = exitcode
                     if exitcode == 0:
                         self._meta.data["state"] = "finished"
-                    elif exitcode == -1:
+                    elif exitcode == 255:
                         self._meta.data["state"] = "killed"
                     else:
                         self._meta.data["state"] = "failed"
                     break
-                elif res is not None:
+                elif res:
                     wandb.termerror(
                         "Invalid message received from child process: %s" % res)
                     break
@@ -435,7 +433,7 @@ class RunManager(object):
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
-            self._client.sendall(six.b("done"))
+            self._client.sendall(bytes([2]))
             return None
 
         # Show run summary/history
@@ -544,7 +542,7 @@ class RunManager(object):
             wandb.termerror('Sync failed %s' % self.url)
         else:
             wandb.termlog('Synced %s' % self.url)
-        self._client.sendall(six.b("done"))
+        self._client.sendall(bytes([2]))
 
     def _get_handler(self, file_path, save_name):
         self._stats.update_file(file_path)

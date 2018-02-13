@@ -39,7 +39,7 @@ class ExitHooks(object):
         if issubclass(exc_type, wandb.Error):
             wandb.termerror(str(exc))
         if issubclass(exc_type, KeyboardInterrupt):
-            self.exit_code = -1
+            self.exit_code = 255
             print_exception(exc_type, exc, *traceback)
         else:
             print_exception(exc_type, exc, *traceback)

@@ -55,6 +55,6 @@ def test_dry_run_kill(runner):
         run_dir = glob.glob("wandb/dry*")[0]
         meta = json.loads(open(run_dir + "/wandb-metadata.json").read())
         assert meta["state"] == "killed"
-        assert meta["exitcode"] == -1
+        assert meta["exitcode"] == 255
 
 # TODO: test server communication

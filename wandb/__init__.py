@@ -152,6 +152,9 @@ def _init_headless(api, run, job_type, cloud=True):
     tty.setraw(stderr_master_fd)
 
     # Socket for knowing the syncer process is ready
+    # binary protocol:
+    # 1 => ready
+    # 2 => done, followed by optional exitcode byte
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(('', 0))
     server.listen(1)
@@ -204,8 +207,8 @@ def _init_headless(api, run, job_type, cloud=True):
         started = time.time()
         while True:
             try:
-                res = connection.recv(128)
-                if res == b"ready" or res == b"done":
+                res = connection.recv(2)
+                if res[0] in [1, 2]:
                     break
                 else:
                     raise socket.error()
@@ -219,7 +222,7 @@ def _init_headless(api, run, job_type, cloud=True):
     wait(5)
 
     def done():
-        connection.sendall(b"done(%i)" % run.hooks.exit_code)
+        connection.sendall(bytes([2, run.hooks.exit_code]))
         logger.info("Waiting for wandb process to finish")
         wait()
 
