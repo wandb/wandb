@@ -33,6 +33,7 @@ https://stackoverflow.com/questions/34186035/can-you-fool-isatty-and-log-stdout-
 """
 
 import atexit
+import functools
 import io
 import logging
 import os
@@ -97,8 +98,7 @@ class Tee(object):
         for f in async_dst_files:
             q = queue.Queue()
 
-            def write(data): return self._write(f, data)
-            t = spawn_reader_writer(q.get, write)
+            t = spawn_reader_writer(q.get, functools.partial(self._write, f))
             self._write_queues.append(q)
             self._write_threads.append(t)
 
