@@ -632,7 +632,7 @@ def run(ctx, program, args, id, dir, configs, message, show):
         env['WANDB_SHOW_RUN'] = 'True'
 
     try:
-        rm = run_manager.RunManager(api, run)
+        rm = run_manager.RunManager(api, run, program=program)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %

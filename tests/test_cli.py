@@ -6,7 +6,7 @@ from wandb import __version__
 from wandb import api as wandb_api
 from wandb import cli
 from wandb import git_repo
-from click.testing import CliRunner
+from .utils import runner
 from .api_mocks import *
 import netrc
 import signal
@@ -29,18 +29,6 @@ except ImportError:
     from imp import reload
 except ImportError:
     pass
-
-
-@pytest.fixture
-def runner(monkeypatch):
-    monkeypatch.setattr(cli, 'api', wandb_api.Api(
-        default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
-    monkeypatch.setattr(click, 'launch', lambda x: 1)
-    monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {
-                        'project_name': 'test_model', 'files': ['weights.h5'],
-                        'team_name': 'Manual Entry'})
-    monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
-    return CliRunner()
 
 
 @pytest.fixture
@@ -276,7 +264,6 @@ def test_projects(runner, request_mocker, query_projects):
     assert "test_2 - Test model" in result.output
 
 
-@pytest.mark.skip(reason='feature disabled')
 def test_status(runner, request_mocker, query_project):
     with runner.isolated_filesystem():
         query_project(request_mocker)
@@ -285,10 +272,10 @@ def test_status(runner, request_mocker, query_project):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "/latest" in result.output
+        assert "latest" in result.output
 
 
-@pytest.mark.skip(reason='feature disabled')
+@pytest.mark.skip(reason='currently we dont parse entity/project')
 def test_status_project_and_run(runner, request_mocker, query_project):
     query_project(request_mocker)
     result = runner.invoke(cli.status, ["test/awesome"])

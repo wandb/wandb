@@ -53,7 +53,9 @@ export default class RunViewer extends React.Component {
           </Tab.Pane>
         ),
       },
-      {
+    ];
+    if (fc > 0) {
+      panes.push({
         menuItem: files,
         render: () => (
           <Tab.Pane>
@@ -62,8 +64,8 @@ export default class RunViewer extends React.Component {
             </Segment>
           </Tab.Pane>
         ),
-      },
-    ];
+      });
+    }
     return panes;
   }
 

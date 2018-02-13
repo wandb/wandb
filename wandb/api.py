@@ -117,6 +117,8 @@ class Api(object):
         Override the settings here.
     """
 
+    HTTP_TIMEOUT = 10
+
     def __init__(self, default_settings=None, load_settings=True):
         self.default_settings = {
             'section': "default",
@@ -148,6 +150,7 @@ class Api(object):
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent},
                 use_json=True,
+                timeout=self.HTTP_TIMEOUT,
                 auth=("api", self.api_key),
                 url='%s/graphql' % self.settings('base_url')
             )
@@ -209,7 +212,7 @@ class Api(object):
         # The WANDB_DEBUG check ensures tests still work.
         if not os.getenv('WANDB_DEBUG') and not self.settings("project"):
             wandb.termlog('wandb.init() called but system not configured.\n'
-                    'Run "wandb init" or set environment variables to get started')
+                          'Run "wandb init" or set environment variables to get started')
             sys.exit(1)
 
     @property
@@ -588,8 +591,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']                  : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
