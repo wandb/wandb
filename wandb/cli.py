@@ -23,6 +23,7 @@ import textwrap
 import time
 import traceback
 import yaml
+import threading
 
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
@@ -695,6 +696,7 @@ def agent(sweep_id):
               help='The directory to find wandb logs')
 @display_error
 def board(port, host, logdir):
+    import webbrowser
     if logdir != ".":
         os.environ['WANDB_LOGDIR'] = os.path.abspath(logdir)
     from wandb.board import app
@@ -702,7 +704,10 @@ def board(port, host, logdir):
     extra = "(dev)" if dev else ""
     click.echo(
         'Started wandb board on http://{0}:{1} ✨ {2}'.format(host, port, extra))
-    app.run("0.0.0.0", port, threaded=True, debug=dev)
+
+    threading.Timer(1, webbrowser.open,
+                    ("http://{0}:{1}".format(host, port),)).start()
+    app.run(host, port, threaded=True, debug=dev)
 
 
 if __name__ == "__main__":

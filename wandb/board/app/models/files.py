@@ -7,6 +7,7 @@ import socket
 import getpass
 import urllib
 import hashlib
+from six.moves import urllib
 from datetime import datetime
 from dateutil.parser import parse
 
@@ -156,8 +157,10 @@ class Dir(Base):
         size = 40
         if self.meta.get("email"):
             gravatar_url = "https://www.gravatar.com/avatar/" + \
-                hashlib.md5(self.meta["email"].lower()).hexdigest() + "?"
-            gravatar_url += urllib.urlencode({'d': default, 's': str(size)})
+                hashlib.md5(self.meta["email"].lower().encode(
+                    "utf8")).hexdigest() + "?"
+            gravatar_url += urllib.parse.urlencode(
+                {'d': default, 's': str(size)})
             return gravatar_url
         else:
             return default
