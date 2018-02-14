@@ -13,11 +13,16 @@ def ints2bytes(ints):
 
 
 class Server(object):
+    """A simple socket server started in the user process.  It binds to a port
+    assigned by the OS.  It must receive a message from the wandb process within
+    5 seconds of calling connect to be established.
+
+    Wire Protocol:
+    1 => ready
+    2 => done, followed by optional exitcode byte
+    """
+
     def __init__(self):
-        # Socket for knowing the syncer process is ready
-        # binary protocol:
-        # 1 => ready
-        # 2 => done, followed by optional exitcode byte
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind(('', 0))
         self.socket.listen(1)
@@ -30,6 +35,7 @@ class Server(object):
         self.connection.setblocking(False)
 
     def listen(self, max_seconds=30):
+        """Waits to receive up to two bytes for up to max_seconds"""
         if not self.connection:
             self.connect()
         # TODO: handle errs
@@ -43,7 +49,7 @@ class Server(object):
                 raise socket.error()
         except socket.error as e:
             logger.error(
-                "Failed to receive valid message from wandb process within % seconds" % max_seconds)
+                "Failed to receive valid message from wandb process within %s seconds" % max_seconds)
             return False
 
     def done(self, exitcode=None):
@@ -60,6 +66,8 @@ class Server(object):
 
 
 class Client(object):
+    """Socket client used in the wandb process"""
+
     def __init__(self, port=None):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.settimeout(1.0)

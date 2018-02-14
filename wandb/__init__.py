@@ -111,6 +111,42 @@ def _debugger(*args):
     pdb.set_trace()
 
 
+class Callbacks():
+    @property
+    def Keras(self):
+        from .wandb_keras import WandbKerasCallback
+        return WandbKerasCallback
+
+
+callbacks = Callbacks()
+
+
+class ExitHooks(object):
+    def __init__(self):
+        self.exit_code = 0
+        self.exception = None
+
+    def hook(self):
+        self._orig_exit = sys.exit
+        sys.exit = self.exit
+        sys.excepthook = self.exc_handler
+
+    def exit(self, code=0):
+        self.exit_code = code
+        self._orig_exit(code)
+
+    def exc_handler(self, exc_type, exc, *tb):
+        self.exit_code = 1
+        self.exception = exc
+        if issubclass(exc_type, Error):
+            termerror(str(exc))
+        if issubclass(exc_type, KeyboardInterrupt):
+            self.exit_code = 255
+            traceback.print_exception(exc_type, exc, *tb)
+        else:
+            traceback.print_exception(exc_type, exc, *tb)
+
+
 def _init_headless(api, run, job_type, cloud=True):
     if 'WANDB_DESCRIPTION' in os.environ:
         run.description = os.environ['WANDB_DESCRIPTION']
@@ -145,6 +181,8 @@ def _init_headless(api, run, job_type, cloud=True):
     run.set_environment(env)
 
     server = wandb_socket.Server()
+    hooks = ExitHooks()
+    hooks.hook()
 
     stdout_master_fd, stdout_slave_fd = pty.openpty()
     stderr_master_fd, stderr_slave_fd = pty.openpty()
@@ -196,11 +234,12 @@ def _init_headless(api, run, job_type, cloud=True):
     server.listen(5)
 
     def done():
-        server.done(run.hooks.exit_code)
+        server.done(hooks.exit_code)
         logger.info("Waiting for wandb process to finish")
         server.listen()
 
     atexit.register(done)
+
 
 
 # Will be set to the run object for the current run, as returned by
@@ -274,4 +313,4 @@ def init(job_type='train', config=None):
     return run
 
 
-__all__ = ['init', 'termlog', 'run', 'types']
+__all__ = ['init', 'termlog', 'run', 'types', 'callbacks']

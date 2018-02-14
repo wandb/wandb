@@ -3,7 +3,7 @@ import {ApolloLink} from 'apollo-link';
 import {InMemoryCache} from 'apollo-cache-inmemory';
 import {createHttpLink} from 'apollo-link-http';
 import {onError} from 'apollo-link-error';
-import {displayError} from '../actions';
+import {displayError, setFlash} from '../actions';
 import {push} from 'react-router-redux';
 import queryString from 'query-string';
 
@@ -110,7 +110,8 @@ const errorLink = onError(({networkError, graphQLErrors}, store) => {
     if (networkError.result) {
       console.error(networkError.result.errors);
     }
-    dispatch(displayError(networkError));
+
+    dispatch(setFlash({message: 'Backend Unavailable', color: 'red'}));
   }
 });
 

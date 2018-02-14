@@ -271,6 +271,10 @@ class RunFeed extends PureComponent {
       runsLength = this.props.runs && this.props.runs.length,
       startIndex = (this.props.currentPage - 1) * this.props.limit,
       endIndex = Math.min(startIndex + this.props.limit, runsLength),
+      longestColumn =
+        Object.assign([], this.props.columnNames).sort(
+          (a, b) => b.length - a.length,
+        )[0] || '',
       runs =
         this.props.runs && this.props.runs.length > 0 && !this.props.loading
           ? this.props.runs.slice(startIndex, endIndex)
@@ -289,7 +293,10 @@ class RunFeed extends PureComponent {
             unstackable
             size="small">
             <Table.Header>
-              <Table.Row>
+              <Table.Row
+                style={{
+                  height: longestColumn.length * 6,
+                }}>
                 {this.props.selectable && <Table.HeaderCell />}
                 {this.props.columnNames
                   .filter(columnName => this.props.columns[columnName])

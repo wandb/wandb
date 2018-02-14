@@ -15,9 +15,9 @@ The **Weights and Biases** client is an open source library, CLI (wandb), and lo
 
 ## Cloud Features
 
-* Persist runs forever
 * Collaborate with team members
 * Run parameter sweeps
+* Persist runs forever
 
 ## Quickstart
 
@@ -32,20 +32,24 @@ import wandb
 # Your custom arguments defined here
 args = ...
 
-run = wandb.init()
-run.config.update(args)
-run.config["custom"] = "parameter"
+run = wandb.init(config=args)
+run.config["more"] = "custom"
 
 def training_loop():
     while True:
         # Do some machine learning
         epoch, loss, val_loss = ...
+        # Framework agnostic / custom metrics
         run.history.add({"epoch": epoch, "loss": loss, "val_loss": val_loss})
+        # Keras metrics
+        model.fit(..., callbacks=[wandb.callbacks.Keras()])
 ```
 
-Running your script will save run data in a directory named _wandb_ relative to your training script. To view your runs, call `wandb board` from the same directory as your training script.
+Running your training script will save data in a directory named _wandb_ relative to your training script. To view your runs, call `wandb board` from the same directory as your training script.
 
-![Runs screenshot](docs/screenshot.jpg?raw=true)
+<p align="center">
+    <img src="/wandb/client/raw/master/docs/screenshot.jpg?raw=true" alt="Runs screenshot" style="max-width:100%;">
+</p>
 
 ## Cloud Usage
 

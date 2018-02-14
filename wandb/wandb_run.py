@@ -1,7 +1,6 @@
 import datetime
 import os
 import shortuuid
-from traceback import print_exception
 
 import wandb
 from wandb import jsonlfile
@@ -17,32 +16,6 @@ HISTORY_FNAME = 'wandb-history.jsonl'
 EVENTS_FNAME = 'wandb-events.jsonl'
 EXAMPLES_FNAME = 'wandb-examples.jsonl'
 DESCRIPTION_FNAME = 'description.md'
-
-
-class ExitHooks(object):
-    def __init__(self):
-        self.exit_code = 0
-        self.exception = None
-
-    def hook(self):
-        self._orig_exit = sys.exit
-        sys.exit = self.exit
-        sys.excepthook = self.exc_handler
-
-    def exit(self, code=0):
-        self.exit_code = code
-        self._orig_exit(code)
-
-    def exc_handler(self, exc_type, exc, *traceback):
-        self.exit_code = 1
-        self.exception = exc
-        if issubclass(exc_type, wandb.Error):
-            wandb.termerror(str(exc))
-        if issubclass(exc_type, KeyboardInterrupt):
-            self.exit_code = 255
-            print_exception(exc_type, exc, *traceback)
-        else:
-            print_exception(exc_type, exc, *traceback)
 
 
 class Run(object):
@@ -75,8 +48,6 @@ class Run(object):
             self.description = self.id
 
         self.sweep_id = sweep_id
-        self.hooks = ExitHooks()
-        self.hooks.hook()
 
         self._history = None
         self._events = None
