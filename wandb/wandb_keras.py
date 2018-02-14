@@ -3,8 +3,11 @@ import operator
 import os
 import numpy as np
 import wandb
+import sys
+from importlib import import_module
 import keras
 import keras.backend as K
+
 
 class WandbKerasCallback(keras.callbacks.Callback):
     """WandB Keras Callback.
@@ -39,7 +42,7 @@ class WandbKerasCallback(keras.callbacks.Callback):
             log_weights: if True save the weights in wandb.history
             log_gradients: if True log the training gradients in wandb.history
             training_data: tuple (X,y) needed for calculating gradients
-            
+
 
         """
         if wandb.run is None:
@@ -104,14 +107,13 @@ class WandbKerasCallback(keras.callbacks.Callback):
             gradients_metrics = self._log_gradients()
             row.update(gradients_metrics)
 
-
         wandb.run.history.add(row)
 
         # summary
         self.current = logs.get(self.monitor)
         if self.current is None:    # validation data wasn't set
-#            print('Can save best model only with %s available, '
-#                  'skipping.' % (self.monitor))
+            #            print('Can save best model only with %s available, '
+            #                  'skipping.' % (self.monitor))
             wandb.run.summary.update(row)
             return
 
@@ -122,9 +124,6 @@ class WandbKerasCallback(keras.callbacks.Callback):
             if self.save_model:
                 self._save_model()
 
-
-
-                
     def on_batch_begin(self, batch, logs=None):
         pass
 
@@ -144,44 +143,47 @@ class WandbKerasCallback(keras.callbacks.Callback):
             if len(weights) == 1:
                 metrics[layer.name] = np.mean(weights[0])
             elif len(weights) == 2:
-                metrics[layer.name+":weights-mean"] = np.mean(weights[0])                
-                metrics[layer.name+":bias-mean"] = np.mean(weights[1])
+                metrics[layer.name + ":weights-mean"] = np.mean(weights[0])
+                metrics[layer.name + ":bias-mean"] = np.mean(weights[1])
         return metrics
 
     def _log_gradients(self):
         if (not self.training_data):
-            raise ValueError("Need to pass in training data if logging gradients")
+            raise ValueError(
+                "Need to pass in training data if logging gradients")
 
         X_train = self.training_data[0]
         y_train = self.training_data[1]
         metrics = {}
-        weights = self.model.trainable_weights # weight tensors
+        weights = self.model.trainable_weights  # weight tensors
         # filter down weights tensors to only ones which are trainable
-        weights = [weight for weight in weights 
-            if self.model.get_layer(weight.name.split('/')[0]).trainable] 
+        weights = [weight for weight in weights
+                   if self.model.get_layer(weight.name.split('/')[0]).trainable]
 
-        gradients = self.model.optimizer.get_gradients(self.model.total_loss, weights) # gradient tensors
-        input_tensors = [self.model.inputs[0], # input data
-                        self.model.sample_weights[0], # how much to weight each sample by
-                        self.model.targets[0], # labels
-                        K.learning_phase(), # train or test mode
-        ]
+        gradients = self.model.optimizer.get_gradients(
+            self.model.total_loss, weights)  # gradient tensors
+        input_tensors = [self.model.inputs[0],  # input data
+                         # how much to weight each sample by
+                         self.model.sample_weights[0],
+                         self.model.targets[0],  # labels
+                         K.learning_phase(),  # train or test mode
+                         ]
 
         get_gradients = K.function(inputs=input_tensors, outputs=gradients)
 
-        grads = get_gradients([X_train, np.ones(len(y_train)), y_train ])
-    
+        grads = get_gradients([X_train, np.ones(len(y_train)), y_train])
+
         for (weight, grad) in zip(weights, grads):
-            metrics[weight.name.split(':')[0]+":grad-mean"] = np.mean(grad)
-            metrics[weight.name.split(':')[0]+":grad-stddev"] = np.std(grad)
+            metrics[weight.name.split(':')[0] + ":grad-mean"] = np.mean(grad)
+            metrics[weight.name.split(':')[0] + ":grad-stddev"] = np.std(grad)
         return metrics
 
     def _save_model(self):
         if self.verbose > 0:
             print('Epoch %05d: %s improved from %0.5f to %0.5f,'
-                    ' saving model to %s'
-                    % (epoch, self.monitor, self.best,
-                        self.current, self.filepath))
+                  ' saving model to %s'
+                  % (epoch, self.monitor, self.best,
+                     self.current, self.filepath))
         self.best = self.current
 
         try:

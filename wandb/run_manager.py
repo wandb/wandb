@@ -29,6 +29,7 @@ from wandb import stats
 from wandb import streaming_log
 from wandb import util
 from wandb import wandb_run
+from wandb import wandb_socket
 from wandb import meta
 from .api import BinaryFilePolicy, CRDedupeFilePolicy
 logger = logging.getLogger(__name__)
@@ -246,10 +247,7 @@ class RunManager(object):
         # Ignore hidden files/folders
         self._handler._ignore_patterns = ['*/.*', '*.tmp']
 
-        self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._client.settimeout(1.0)
-        if self._port:
-            self._client.connect(('', self._port))
+        self._socket = wandb_socket.Client(self._port)
 
         if self._cloud:
             self._observer.start()
@@ -340,17 +338,16 @@ class RunManager(object):
         self.proc = Process(pid)
 
         # Signal the main process that we're all hooked up
-        self._client.sendall(bytes([1]))
+        self._socket.ready()
 
-        self._sync_etc()
+        self._sync_etc(headless=True)
 
-    def _sync_etc(self):
+    def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will # handle it, and we'll
         # exit when the child process does.
         #
         # We disable these signals after running the process so the child doesn't
         # inherit this behaviour.
-        killed = False
         try:
             signal.signal(signal.SIGQUIT, signal.SIG_IGN)
         except AttributeError:  # SIGQUIT doesn't exist on windows
@@ -359,29 +356,25 @@ class RunManager(object):
         exitcode = None
         try:
             while True:
-                res = ''
+                res = bytearray()
                 try:
-                    res = self._client.recv(2)
+                    res = self._socket.recv(2)
                 except socket.timeout:
+                    pass
+                if len(res) == 2 and res[0] == 2:
+                    exitcode = res[1]
+                    break
+                elif len(res) > 0:
+                    wandb.termerror(
+                        "Invalid message received from child process: %s" % str(res).encode("hex"))
+                    break
+                else:
                     exitcode = self.proc.poll()
                     if exitcode is not None:
                         break
-                if len(res) == 2 and res[0] == 2:
-                    exitcode = res[1]
-                    self._meta.data["exitcode"] = exitcode
-                    if exitcode == 0:
-                        self._meta.data["state"] = "finished"
-                    elif exitcode == 255:
-                        self._meta.data["state"] = "killed"
-                    else:
-                        self._meta.data["state"] = "failed"
-                    break
-                elif res:
-                    wandb.termerror(
-                        "Invalid message received from child process: %s" % res)
-                    break
+                    time.sleep(1)
         except KeyboardInterrupt:
-            killed = True
+            exitcode = 255
             wandb.termlog('Ctrl-c pressed; waiting for program to end.')
             keyboard_interrupt_time = time.time()
             # give the process a couple of seconds to die, then kill it
@@ -393,7 +386,6 @@ class RunManager(object):
                     self.proc.kill()
                 except OSError:
                     pass
-            self._meta.data["state"] = "killed"
 
         # Close output-capturing stuff. This also flushes anything left in the buffers.
         if self._stdout_tee.tee_file is not None:
@@ -409,7 +401,7 @@ class RunManager(object):
         self._stdout_stream.close()
         self._stderr_stream.close()
         if self._cloud:
-            self._api.get_file_stream_api().finish(exitcode == 0, killed, exitcode)
+            self._api.get_file_stream_api().finish(exitcode)
 
         """
         Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
@@ -420,6 +412,7 @@ class RunManager(object):
         wandb.termlog()
 
         if exitcode is None:
+            exitcode = 254
             wandb.termlog(
                 'Killing program failed; syncing files anyway. Press ctrl-c to abort syncing.')
         else:
@@ -431,11 +424,18 @@ class RunManager(object):
         #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
 
         self._system_stats.shutdown()
+        self._meta.data["exitcode"] = exitcode
+        if exitcode == 0:
+            self._meta.data["state"] = "finished"
+        elif exitcode == 255:
+            self._meta.data["state"] = "killed"
+        else:
+            self._meta.data["state"] = "failed"
         self._meta.shutdown()
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
-            self._client.sendall(bytes([2]))
+            self._socket.done()
             return None
 
         # Show run summary/history
@@ -544,7 +544,9 @@ class RunManager(object):
             wandb.termerror('Sync failed %s' % self.url)
         else:
             wandb.termlog('Synced %s' % self.url)
-        self._client.sendall(bytes([2]))
+
+        if headless:
+            self._socket.done()
 
     def _get_handler(self, file_path, save_name):
         self._stats.update_file(file_path)

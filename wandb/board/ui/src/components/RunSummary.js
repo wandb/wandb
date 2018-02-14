@@ -20,6 +20,9 @@ class RunSummary extends Component {
         return 'blue';
       case 'finished':
         return 'green';
+      case 'killed':
+        return 'orange';
+      case 'crashed':
       case 'failed':
         return 'red';
       default:
@@ -50,21 +53,23 @@ class RunSummary extends Component {
                 size="tiny"
                 floated="right">
                 <NavLink
-                  to={`/${model.entityName}/${model.name}/runs/${bucket.name}/edit`}>
+                  to={`/${model.entityName}/${model.name}/runs/${
+                    bucket.name
+                  }/edit`}>
                   <Button icon="edit" basic />
                 </NavLink>
                 {bucket.sweep &&
-                bucket.state == 'running' && (
-                  <Button
-                    icon="stop circle"
-                    onClick={() => {
-                      if (window.confirm('Should we stop this run?')) {
-                        this.props.onStop(bucket.id);
-                      }
-                    }}
-                    negative
-                  />
-                )}
+                  bucket.state == 'running' && (
+                    <Button
+                      icon="stop circle"
+                      onClick={() => {
+                        if (window.confirm('Should we stop this run?')) {
+                          this.props.onStop(bucket.id);
+                        }
+                      }}
+                      negative
+                    />
+                  )}
               </Button.Group>
             </div>
           }

@@ -81,7 +81,7 @@ from wandb import wandb_types as types
 from wandb import api as wandb_api
 from wandb import config as wandb_config
 from wandb import wandb_run
-from wandb import keras
+from wandb import wandb_socket
 # Three possible modes:
 #     'cli': running from "wandb" command
 #     'run': we're a script launched by "wandb run"
@@ -144,22 +144,14 @@ def _init_headless(api, run, job_type, cloud=True):
     env = dict(os.environ)
     run.set_environment(env)
 
+    server = wandb_socket.Server()
+
     stdout_master_fd, stdout_slave_fd = pty.openpty()
     stderr_master_fd, stderr_slave_fd = pty.openpty()
 
     # raw mode so carriage returns etc. don't get added by the terminal driver
     tty.setraw(stdout_master_fd)
     tty.setraw(stderr_master_fd)
-
-    # Socket for knowing the syncer process is ready
-    # binary protocol:
-    # 1 => ready
-    # 2 => done, followed by optional exitcode byte
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(('', 0))
-    server.listen(1)
-    server.settimeout(1.0)
-    port = server.getsockname()[1]
 
     headless_args = {
         'command': 'headless',
@@ -169,7 +161,7 @@ def _init_headless(api, run, job_type, cloud=True):
         'cloud': cloud,
         'job_type': job_type,
         'program': program,
-        'port': port
+        'port': server.port
     }
     internal_cli_path = os.path.join(
         os.path.dirname(__file__), 'internal_cli.py')
@@ -201,30 +193,12 @@ def _init_headless(api, run, job_type, cloud=True):
         stderr_redirector.redirect()
 
     # Listen on the socket waiting for the wandb process to be ready
-    connection, addr = server.accept()
-
-    def wait(max_seconds=30):
-        started = time.time()
-        while True:
-            try:
-                res = connection.recv(2)
-                if res[0] in [1, 2]:
-                    break
-                else:
-                    raise socket.error()
-            except socket.error as e:
-                time.sleep(0.1)
-                elapsed = time.time() - started
-                if elapsed > max_seconds:
-                    logger.error(
-                        "Failed to receive message from wandb process after %s seconds" % elapsed)
-                    break
-    wait(5)
+    server.listen(5)
 
     def done():
-        connection.sendall(bytes([2, run.hooks.exit_code]))
+        server.done(run.hooks.exit_code)
         logger.info("Waiting for wandb process to finish")
-        wait()
+        server.listen()
 
     atexit.register(done)
 
