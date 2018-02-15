@@ -151,7 +151,9 @@ export function sortRuns(sort, runs) {
       return runDisplayName(run);
     } else if (sort.name == 'Runtime') {
       return (
-        run.heartbeatAt && new Date(run.heartbeatAt) - new Date(run.createdAt)
+        (run.heartbeatAt &&
+          new Date(run.heartbeatAt) - new Date(run.createdAt)) ||
+        0
       );
     } else if (sort.name == 'Stop') {
       return run.shouldStop || 0;
@@ -187,4 +189,36 @@ export function runDisplayName(run) {
     return run.description.split('\n')[0];
   }
   return run.name || '';
+}
+
+export function defaultViews(data) {
+  return {
+    runs: {
+      views: {
+        '0': {
+          defaults: [],
+          name: 'Charts',
+          config: [],
+        },
+      },
+      tabs: [0],
+    },
+    run: {
+      views: {
+        '0': {
+          defaults: [],
+          name: 'Charts',
+          config: [
+            {
+              size: {
+                width: 16,
+              },
+              config: {},
+            },
+          ],
+        },
+      },
+      tabs: [0],
+    },
+  };
 }

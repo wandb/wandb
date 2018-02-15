@@ -34,6 +34,7 @@ import {
   filterFromString,
   displayFilterKey,
   runDisplayName,
+  defaultViews,
 } from '../util/runhelpers.js';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {bindActionCreators} from 'redux';
@@ -206,35 +207,7 @@ class Runs extends React.Component {
     ) {
       // no views on server, provide a default
       this.props.setServerViews(
-        {
-          runs: {
-            views: {
-              '0': {
-                defaults: [],
-                name: 'Charts',
-                config: [],
-              },
-            },
-            tabs: [0],
-          },
-          run: {
-            views: {
-              '0': {
-                defaults: [],
-                name: 'Charts',
-                config: [
-                  {
-                    size: {
-                      width: 16,
-                    },
-                    config: {},
-                  },
-                ],
-              },
-            },
-            tabs: [0],
-          },
-        },
+        defaultViews(nextProps.runs || this.props.runs),
         true,
       );
     } else if (

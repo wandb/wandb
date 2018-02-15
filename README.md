@@ -48,7 +48,7 @@ def training_loop():
 Running your training script will save data in a directory named _wandb_ relative to your training script. To view your runs, call `wandb board` from the same directory as your training script.
 
 <p align="center">
-    <img src="/wandb/client/raw/master/docs/screenshot.jpg?raw=true" alt="Runs screenshot" style="max-width:100%;">
+    <img src="https://github.com/wandb/client/raw/master/docs/screenshot.jpg?raw=true" alt="Runs screenshot" style="max-width:100%;">
 </p>
 
 ## Cloud Usage

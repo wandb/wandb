@@ -1071,7 +1071,6 @@ class FileStreamApi(object):
                 posted_anything_time = cur_time
                 util.request_with_retry(self._client.post,
                                         self._endpoint, json={'complete': False, 'failed': False})
-
         # post the final close message. (item is self.Finish instance now)
         util.request_with_retry(self._client.post,
                                 self._endpoint, json={'complete': True, 'exitcode': int(finished.exitcode)})

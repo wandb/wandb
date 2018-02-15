@@ -11,6 +11,7 @@ import update from 'immutability-helper';
 import {setServerViews} from '../actions/view';
 import {updateLocationParams} from '../actions/location';
 import _ from 'lodash';
+import {defaultViews} from '../util/runhelpers';
 import {BOARD} from '../util/board';
 
 class Run extends React.Component {
@@ -35,35 +36,7 @@ class Run extends React.Component {
     ) {
       // no views on server, provide a default
       this.props.setServerViews(
-        {
-          runs: {
-            views: {
-              '0': {
-                defaults: [],
-                name: 'Charts',
-                config: [],
-              },
-            },
-            tabs: [0],
-          },
-          run: {
-            views: {
-              '0': {
-                defaults: [],
-                name: 'Charts',
-                config: [
-                  {
-                    size: {
-                      width: 16,
-                    },
-                    config: {},
-                  },
-                ],
-              },
-            },
-            tabs: [0],
-          },
-        },
+        defaultViews(nextProps.runs || this.props.runs),
         true,
       );
     } else if (

@@ -377,15 +377,16 @@ class RunManager(object):
             exitcode = 255
             wandb.termlog('Ctrl-c pressed; waiting for program to end.')
             keyboard_interrupt_time = time.time()
-            # give the process a couple of seconds to die, then kill it
-            while self.proc.poll() is None and (time.time() - keyboard_interrupt_time) < 2:
-                time.sleep(0.1)
-            if self.proc.poll() is None:
-                wandb.termlog('Program still alive. Killing it.')
-                try:
-                    self.proc.kill()
-                except OSError:
-                    pass
+            if not headless:
+                # give the process a couple of seconds to die, then kill it
+                while self.proc.poll() is None and (time.time() - keyboard_interrupt_time) < 2:
+                    time.sleep(0.1)
+                if self.proc.poll() is None:
+                    wandb.termlog('Program still alive. Killing it.')
+                    try:
+                        self.proc.kill()
+                    except OSError:
+                        pass
 
         # Close output-capturing stuff. This also flushes anything left in the buffers.
         if self._stdout_tee.tee_file is not None:
