@@ -86,11 +86,20 @@ export default class RunViewer extends React.Component {
     }
   }
 
-  parseData(rows) {
+  parseData(rows, type) {
     if (!rows) {
       return [null, null];
     }
-    let data = rows.map(line => JSONparseNaN(line));
+    let data = rows
+      .map((line, i) => {
+        try {
+          return JSONparseNaN(line);
+        } catch (error) {
+          console.log(`WARNING: JSON error parsing ${type}:${i}:`, error);
+          return null;
+        }
+      })
+      .filter(row => row !== null);
     let keys = _.flatMap(data, row => _.keys(row));
     keys = _.uniq(keys);
     keys = _.sortBy(keys);
@@ -99,8 +108,8 @@ export default class RunViewer extends React.Component {
 
   render() {
     const {model, bucket, condensed, onDelete, loss} = this.props;
-    let [histKeys, histData] = this.parseData(bucket.history);
-    let [eventKeys, eventData] = this.parseData(bucket.events);
+    let [histKeys, histData] = this.parseData(bucket.history, 'history');
+    let [eventKeys, eventData] = this.parseData(bucket.events, 'events');
     const summaryMetrics = JSONparseNaN(bucket.summaryMetrics),
       systemMetrics = JSONparseNaN(bucket.systemMetrics);
     const columns = Object.keys(systemMetrics || {}).length > 0 ? 3 : 2;

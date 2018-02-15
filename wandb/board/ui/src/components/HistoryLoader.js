@@ -183,7 +183,19 @@ export default function withHistoryLoader(WrappedComponent) {
           runHistory = data.model.buckets.edges.map(edge => ({
             name: edge.node.name,
             history: edge.node.history
-              ? edge.node.history.map(row => JSONparseNaN(row))
+              ? edge.node.history
+                  .map((row, i) => {
+                    try {
+                      return JSONparseNaN(row);
+                    } catch (error) {
+                      console.log(
+                        `WARNING: JSON error parsing history (HistoryLoader):${i}:`,
+                        error,
+                      );
+                      return null;
+                    }
+                  })
+                  .filter(row => row !== null)
               : null,
           }));
           prevBuckets = data.model.buckets;
