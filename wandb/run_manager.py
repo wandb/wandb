@@ -161,6 +161,7 @@ class FileEventHandlerBinaryStream(FileEventHandler):
 class WriteSerializingFile(object):
     """Wrapper for a file object that serializes writes.
     """
+
     def __init__(self, f):
         self.lock = threading.Lock()
         self.f = f
@@ -313,7 +314,7 @@ class RunManager(object):
 
         return stdout_streams, stderr_streams
 
-    def _close_stdout_stderr_streams(self):
+    def _close_stdout_stderr_streams(self, exitcode):
         self._output_log.f.close()
         self._output_log = None
 
@@ -333,7 +334,7 @@ class RunManager(object):
             # not set in dry run mode
             self._stdout_stream.close()
             self._stderr_stream.close()
-            self._api.get_file_stream_api().finish(self.proc.returncode == 0)
+            self._api.get_file_stream_api().finish(exitcode)
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -442,7 +443,7 @@ class RunManager(object):
                     except OSError:
                         pass
 
-        self._close_stdout_stderr_streams()
+        self._close_stdout_stderr_streams(exitcode or 254)
 
         """TODO(adrian): garbage that appears in the logs sometimes
 
