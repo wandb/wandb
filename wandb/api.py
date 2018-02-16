@@ -773,7 +773,8 @@ class Api(object):
             heartbeat(input: {
                 id: $id,
                 metrics: $metrics,
-                runState: $runState
+                runState: $runState,
+                serverRunGen: true
             }) {
                 agent {
                     id

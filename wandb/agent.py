@@ -120,7 +120,10 @@ class Agent(object):
 
     def _command_run(self, command):
         config = Config.from_environment_or_defaults()
-        run = wandb_run.Run(mode='run', config=config, sweep_id=self._sweep_id)
+        run = wandb_run.Run(mode='run', config=config,
+                            sweep_id=self._sweep_id,
+                            storage_id=command.get('run_storage_id'),
+                            run_id=command.get('run_id'))
         env = dict(os.environ)
         run.set_environment(env)
 

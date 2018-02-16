@@ -53,7 +53,8 @@ def agent_run(args):
         root = os.path.abspath(os.getcwd())
         remote_url = 'file://%s%s' % (host, root)
 
-    upsert_result = api.upsert_run(name=run.id,
+    upsert_result = api.upsert_run(id=run.storage_id,
+                                   name=run.id,
                                    project=api.settings("project"),
                                    entity=api.settings("entity"),
                                    config=run.config.as_dict(), description=run.description, host=host,
