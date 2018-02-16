@@ -10,6 +10,10 @@ from .api import Error
 logger = logging.getLogger(__name__)
 
 
+class ConfigError(Error):
+    pass
+
+
 def boolify(s):
     if s.lower() == 'none':
         return None
@@ -70,23 +74,23 @@ class Config(object):
         try:
             conf_file = open(conf_path)
         except (OSError, IOError):
-            raise Error('Couldn\'t read config file: %s' % conf_path)
+            raise ConfigError('Couldn\'t read config file: %s' % conf_path)
         try:
             loaded = yaml.load(conf_file)
         except yaml.parser.ParserError:
-            raise Error('Invalid YAML in config-defaults.yaml')
+            raise ConfigError('Invalid YAML in config-defaults.yaml')
         if subkey:
             try:
                 loaded = loaded[subkey]
             except KeyError:
-                raise Error('Asked for %s but %s not present in %s' % (
+                raise ConfigError('Asked for %s but %s not present in %s' % (
                     path, subkey, conf_path))
         for key, val in loaded.items():
             if key == 'wandb_version':
                 continue
             if isinstance(val, dict):
                 if 'value' not in val:
-                    raise Error('In config %s value of %s is dict, but does not contain "value" key' % (
+                    raise ConfigError('In config %s value of %s is dict, but does not contain "value" key' % (
                         path, key))
                 self._items[key] = val['value']
                 if 'desc' in val:
@@ -159,6 +163,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
+        key = self._sanitize(key)
         self._items[key] = val
         self.persist()
 
@@ -167,7 +172,16 @@ class Config(object):
     def __getattr__(self, key):
         return self.__getitem__(key)
 
-    def update(self, params):
+    def _sanitize(self, key, val, allow_val_change=False):
+        # We always normalize keys by stripping '-'
+        key = key.strip('-')
+        if not allow_val_change:
+            if key in self._items and val != self._items[key]:
+                raise ConfigError('Attempted to change value of key "%s" from %s to %s\nIf you really want to do this, pass allow_val_change=True to config.update()' % (
+                    key, self._items[key], val))
+        return key
+
+    def update(self, params, allow_val_change=False):
         if not isinstance(params, dict):
             # Handle some cases where params is not a dictionary
             # by trying to convert it into a dictionary
@@ -189,8 +203,9 @@ class Config(object):
                 params = vars(params)
 
         if not isinstance(params, dict):
-            raise Error('Expected dict but received %s' % params)
+            raise ConfigError('Expected dict but received %s' % params)
         for key, val in params.items():
+            key = self._sanitize(key, val, allow_val_change=allow_val_change)
             self._items[key] = val
         self.persist()
 
