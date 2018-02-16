@@ -24,13 +24,11 @@ class Run(object):
         self.id = run_id if run_id else generate_id()
         self.mode = mode if mode else 'dryrun'
 
-        # Use internal self._dir so dir isn't created yet (it should only
-        # be created when the user accesses a run member for the first time).
-        self._made_dir = False
         if dir is None:
             self._dir = run_dir_path(self.id, dry=self.mode == 'dryrun')
         else:
             self._dir = os.path.abspath(dir)
+        self._mkdir()
 
         if config is None:
             self.config = Config()
@@ -93,8 +91,6 @@ class Run(object):
             environment['WANDB_SWEEP_ID'] = self.sweep_id
 
     def _mkdir(self):
-        if self._made_dir:
-            return
         util.mkdir_exists_ok(self._dir)
 
     def get_url(self, api):
@@ -107,12 +103,10 @@ class Run(object):
 
     @property
     def dir(self):
-        self._mkdir()
         return self._dir
 
     @property
     def summary(self):
-        self._mkdir()
         # We use this to track whether user has accessed summary
         self._user_accessed_summary = True
         if self._summary is None:
@@ -131,7 +125,6 @@ class Run(object):
 
     @property
     def history(self):
-        self._mkdir()
         if self._history is None:
             self._history = jsonlfile.JsonlFile(
                 HISTORY_FNAME, self._dir, add_callback=self._history_added)
@@ -143,7 +136,6 @@ class Run(object):
 
     @property
     def events(self):
-        self._mkdir()
         if self._events is None:
             self._events = jsonlfile.JsonlEventsFile(EVENTS_FNAME, self._dir)
         return self._events
@@ -154,7 +146,6 @@ class Run(object):
 
     @property
     def examples(self):
-        self._mkdir()
         if self._examples is None:
             self._examples = typedtable.TypedTable(
                 jsonlfile.JsonlFile(EXAMPLES_FNAME, self._dir))
