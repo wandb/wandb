@@ -25,7 +25,6 @@ class Config(object):
 
     def __init__(self, config_paths=[], wandb_dir=None, run_dir=None, persist_callback=None):
         object.__setattr__(self, '_wandb_dir', wandb_dir)
-        self.set_run_dir(run_dir)
 
         # TODO: Replace this with an event system.
         self.set_persist_callback(persist_callback)
@@ -38,6 +37,11 @@ class Config(object):
         self._load_defaults()
         for conf_path in config_paths:
             self._load_file(conf_path)
+
+        # Do this after defaults because it triggers loading of pre-existing
+        # config.yaml (if it exists)
+        self.set_run_dir(run_dir)
+
         self.persist()
 
     @classmethod
@@ -90,6 +94,17 @@ class Config(object):
             else:
                 self._items[key] = val
 
+    def _load_values(self):
+        """Load config.yaml from the run directory if available."""
+        path = self._config_path()
+        if path is not None and os.path.isfile(path):
+            self._load_file(path)
+
+    def _config_path(self):
+        if self._run_dir and os.path.isdir(self._run_dir):
+            return os.path.join(self._run_dir, 'config.yaml')
+        return None
+
     def keys(self):
         """All keys in the current configuration"""
         return self._items.keys()
@@ -111,6 +126,7 @@ class Config(object):
         is set.
         """
         object.__setattr__(self, '_run_dir', run_dir)
+        self._load_values()
 
     def set_persist_callback(self, callback):
         """Change the persist callback for this Config.
@@ -121,14 +137,14 @@ class Config(object):
 
     def persist(self):
         """Stores the current configuration for pushing to W&B"""
-        if not self._run_dir or not os.path.isdir(self._run_dir):
-            # In dryrun mode, without wandb run, we don't
-            # save config  on initial load, because the run directory
-            # may not be created yet (because we don't know if we're
-            # being used in a run context, or as an API).
-            # TODO: Defer saving somehow, maybe via an events system
+        # In dryrun mode, without wandb run, we don't
+        # save config  on initial load, because the run directory
+        # may not be created yet (because we don't know if we're
+        # being used in a run context, or as an API).
+        # TODO: Defer saving somehow, maybe via an events system
+        path = self._config_path()
+        if path is None:
             return
-        path = os.path.join(self._run_dir, 'config.yaml')
         with open(path, "w") as conf_file:
             conf_file.write(str(self))
 
