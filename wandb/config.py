@@ -163,7 +163,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
-        key = self._sanitize(key)
+        key = self._sanitize(key, val)
         self._items[key] = val
         self.persist()
 
