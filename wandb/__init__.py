@@ -4,7 +4,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.4.46'
+__version__ = '0.5.0'
 
 import atexit
 import click
