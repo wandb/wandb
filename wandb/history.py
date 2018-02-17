@@ -202,8 +202,10 @@ class TorchHistory(object):
             return
 
         flat = tensor.view(-1)
-        i0_05 = int(round(0.05*len(flat)))
-        i0_95 = int(round(0.95*len(flat)))
+        l = len(flat)
+        # kthvalue uses 1-based indexing for some reason
+        i0_05 = max(1, min(int(round(0.05*l)), l))
+        i0_95 = max(1, min(int(round(0.95*l)), l))
         history.update_row({
             name+'-0.00': tensor.min(),
             name+'-0.05': flat.kthvalue(i0_05)[0][0],
