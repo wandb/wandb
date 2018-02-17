@@ -73,7 +73,7 @@ function parcoor(
       .filter(d => d != 'name')
       .filter(function(d) {
         return (
-          parseFloat(data[0][d]) &&
+          _.isFinite(parseFloat(data[0][d])) &&
           (y[d] = d3.scale
             .linear()
             .domain(
