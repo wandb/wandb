@@ -23,7 +23,8 @@ class WandbKerasCallback(keras.callbacks.Callback):
 
     def __init__(self, monitor='val_loss', verbose=0, mode='auto',
                  save_weights_only=False, log_weights=False, log_gradients=False,
-                 save_model=True, training_data=None
+                 save_model=True, training_data=None, validation_data=[],
+                 labels=[], data_type="image"
                  ):
         """Constructor.
 
@@ -42,13 +43,16 @@ class WandbKerasCallback(keras.callbacks.Callback):
             log_weights: if True save the weights in wandb.history
             log_gradients: if True log the training gradients in wandb.history
             training_data: tuple (X,y) needed for calculating gradients
-
-
+            validation_data: numpy array of validation data
+            data_type: the type of data we're saving, default "image"
+            labels: list of labels
         """
         if wandb.run is None:
             raise wandb.Error(
                 'You must call wandb.init() before WandbKerasCallback()')
-        self.validation_data = None
+        self._validation_data = validation_data
+        self.labels = labels
+        self.data_type = data_type
 
         self.monitor = monitor
         self.verbose = verbose
@@ -86,7 +90,6 @@ class WandbKerasCallback(keras.callbacks.Callback):
 
     def set_params(self, params):
         self.params = params
-        print(params)
 
     def set_model(self, model):
         self.model = model
@@ -107,7 +110,10 @@ class WandbKerasCallback(keras.callbacks.Callback):
             gradients_metrics = self._log_gradients()
             row.update(gradients_metrics)
 
-        wandb.run.history.add(row)
+        if self.data_type == "image" and len(self._validation_data) > 0:
+            images, captions = self._log_images()
+            wandb.run.history.add_images(images, captions, step=epoch)
+        wandb.run.history.add(row, step=epoch)
 
         # summary
         self.current = logs.get(self.monitor)
@@ -135,6 +141,21 @@ class WandbKerasCallback(keras.callbacks.Callback):
 
     def on_train_end(self, logs=None):
         pass
+
+    def _log_images(self):
+        indices = np.random.choice(self._validation_data.shape[0], 36)
+        test_data = self._validation_data[indices]
+        labels = np.argmax(self.model.predict(test_data), axis=1)
+        if len(self.labels) > 0:
+            captions = []
+            for label in labels:
+                try:
+                    captions.append(self.labels[label])
+                except IndexError:
+                    captions.append(label)
+        else:
+            captions = labels
+        return test_data, captions
 
     def _log_weights(self):
         metrics = {}

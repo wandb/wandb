@@ -147,6 +147,7 @@ export default class RunViewer extends React.Component {
                 history: histData,
                 eventKeys: eventKeys,
                 events: eventData,
+                match: this.props.match,
               }}
               blank={histData.length === 0}
               updateViews={this.props.updateViews}

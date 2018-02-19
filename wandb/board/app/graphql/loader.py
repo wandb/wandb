@@ -6,8 +6,9 @@ import re
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 from wandb.board.app.models import Dir, Settings, RunMutator
+from wandb.board.app.util.errors import NotFoundError
 
-base_path = os.getenv("WANDB_LOGDIR", __stage_dir__)
+base_path = os.getenv("WANDB_LOGDIR", __stage_dir__) or "."
 data = {
     'Runs': []
 }
@@ -63,5 +64,7 @@ def find_run(name, mutator=False):
             run = None
         if mutator and run:
             return RunMutator(run)
+        elif run is None:
+            raise NotFoundError("Run %s not found" % name)
         else:
             return run

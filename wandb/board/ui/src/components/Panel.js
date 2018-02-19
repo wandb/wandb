@@ -7,6 +7,7 @@ import {panelClasses} from '../util/registry.js';
 
 import './PanelRunsLinePlot';
 import './PanelLinePlot';
+import './PanelImages';
 import './PanelScatterPlot';
 import './PanelParallelCoord';
 
@@ -47,7 +48,7 @@ class Panel extends React.Component {
     }
     type = type || options[0].value;
     config = config || {};
-    let PanelType = panelClasses[type];
+    let PanelType = panelClasses[type] || panelClasses[_.keys(panelClasses)[0]];
     let configMode = this.props.editMode;
     size = PanelType.options.width
       ? {width: PanelType.options.width}

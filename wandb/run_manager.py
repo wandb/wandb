@@ -443,8 +443,6 @@ class RunManager(object):
                     except OSError:
                         pass
 
-        self._close_stdout_stderr_streams(exitcode or 254)
-
         """TODO(adrian): garbage that appears in the logs sometimes
 
         Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
@@ -475,6 +473,7 @@ class RunManager(object):
             self._meta.data["state"] = "failed"
         self._meta.shutdown()
         self._system_stats.shutdown()
+        self._close_stdout_stderr_streams(exitcode or 254)
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:

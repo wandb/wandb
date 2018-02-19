@@ -191,14 +191,32 @@ export function runDisplayName(run) {
   return run.name || '';
 }
 
-export function defaultViews(data) {
-  return {
+export function defaultViews(run) {
+  //TODO: do we need to handle this case?
+  if (!run) run = {summaryMetrics: '{}'};
+  const scalars = Object.keys(JSON.parse(run.summaryMetrics));
+  let lossy = scalars.find(s => s.match(/loss/));
+  if (!lossy) {
+    lossy = scalars[0];
+  }
+  const base = {
     runs: {
+      configured: true,
       views: {
         '0': {
           defaults: [],
           name: 'Charts',
-          config: [],
+          config: [
+            {
+              size: {
+                width: 16,
+              },
+              config: {
+                source: 'history',
+                key: lossy,
+              },
+            },
+          ],
         },
       },
       tabs: [0],
@@ -221,4 +239,58 @@ export function defaultViews(data) {
       tabs: [0],
     },
   };
+  if (run.events && run.events.length > 0) {
+    const event = JSON.parse(run.events[0]);
+    base.run.configured = true;
+    base.run.views['system'] = {
+      name: 'System Metrics',
+      defaults: [],
+      config: [
+        {
+          size: {
+            width: 8,
+          },
+          config: {
+            source: 'events',
+            lines: ['system.cpu', 'system.disk', 'system.memory'],
+          },
+        },
+      ],
+    };
+    if (Object.keys(event).indexOf('system.gpu.0.gpu') > -1) {
+      base.run.views.system.config.push({
+        size: {
+          width: 8,
+        },
+        config: {
+          source: 'events',
+          lines: Object.keys(event).filter(k => k.match(/system\.gpu/)),
+        },
+      });
+    } else {
+      base.run.views.system.config[0].size.width = 16;
+    }
+    base.run.tabs.push('system');
+  }
+  if (run.history && run.history.length > 0) {
+    const history = JSON.parse(run.history[0]);
+    //TODO: support multi media
+    if (history._media && history._media[0]._type === 'images') {
+      base.run.configured = true;
+      base.run.views['images'] = {
+        name: 'Images',
+        defaults: [],
+        config: [
+          {
+            size: {
+              width: 16,
+            },
+            viewType: 'Images',
+          },
+        ],
+      };
+      base.run.tabs.push('images');
+    }
+  }
+  return base;
 }

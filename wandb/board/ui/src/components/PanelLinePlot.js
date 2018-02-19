@@ -81,7 +81,8 @@ class LinePlotPanel extends React.Component {
             options={sourceOptions}
             value={this.props.config.source}
             onChange={(e, {value}) =>
-              this.props.updateConfig({...this.props.config, source: value})}
+              this.props.updateConfig({...this.props.config, source: value})
+            }
           />
         )}
         <Form.Dropdown
@@ -94,7 +95,8 @@ class LinePlotPanel extends React.Component {
           options={options}
           value={this.lines}
           onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, lines: value})}
+            this.props.updateConfig({...this.props.config, lines: value})
+          }
         />
         <Form.Dropdown
           label="X-Axis Label"
@@ -105,7 +107,8 @@ class LinePlotPanel extends React.Component {
           options={xAxisOptions}
           value={this.props.config.xAxis}
           onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, xAxis: value})}
+            this.props.updateConfig({...this.props.config, xAxis: value})
+          }
         />
       </Form>
     );
@@ -118,7 +121,7 @@ class LinePlotPanel extends React.Component {
       return <p>This plot type is not supported on this page.</p>;
     }
     let data = this.props.data.history;
-    let keys = this.props.data.historyKeys;
+    let keys = this.props.data.historyKeys.filter(k => k !== 'examples');
     if (this.props.config.source === 'events') {
       data = this.props.data.events;
       keys = this.props.data.eventKeys;

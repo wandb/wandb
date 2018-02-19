@@ -690,7 +690,7 @@ def agent(sweep_id):
 @cli.command(context_settings=CONTEXT, help="Start a local WandB Board server")
 @click.option('--port', '-p', default=7177,
               help='The port to start the server on')
-@click.option('--host', '-h', default="0.0.0.0",
+@click.option('--host', '-h', default="localhost",
               help='The host to bind to')
 @click.option('--logdir', default=".",
               help='The directory to find wandb logs')

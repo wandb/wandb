@@ -7,7 +7,7 @@ from wandb.board.app import blueprints
 from wandb.board.config import config
 from wandb.board.app.graphql.loader import load
 
-BLUEPRINTS = [blueprints.graphql]
+BLUEPRINTS = [blueprints.graphql, blueprints.files, blueprints.static]
 
 
 __all__ = ['create_app']
