@@ -45,7 +45,7 @@ const stackdriverMiddleware = new ApolloLink((operation, forward) => {
   let qs = queryString.parse(document.location.search);
 
   if (qs.trace) {
-    let count = parseInt(localStorage.getItem('request_count'));
+    let count = parseInt(localStorage.getItem('request_count'), 10);
     operation.setContext(({headers = {}}) => ({
       headers: {
         ...headers,
@@ -91,7 +91,7 @@ const userTimingMiddleware = new ApolloLink((operation, forward) => {
 
 const errorLink = onError(({networkError, graphQLErrors}, store) => {
   if (graphQLErrors) {
-    graphQLErrors.map(error => {
+    graphQLErrors.forEach(error => {
       let {message, code} = error;
       if (code === 401) {
         localStorage.removeItem('id_token');

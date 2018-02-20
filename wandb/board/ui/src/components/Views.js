@@ -1,11 +1,8 @@
 import React from 'react';
-import {graphql, compose} from 'react-apollo';
-import update from 'immutability-helper';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 import {Button, Icon, Menu, Tab} from 'semantic-ui-react';
-import Panel from '../components/Panel';
 import View from '../components/View';
 import {
   addView,
@@ -34,20 +31,25 @@ class Views extends React.Component {
             name={this.props.views[viewId].name}
             config={this.props.views[viewId].config}
             changeViewName={viewName =>
-              this.props.changeViewName(this.props.viewType, viewId, viewName)}
+              this.props.changeViewName(this.props.viewType, viewId, viewName)
+            }
             removeView={() =>
-              this.props.removeView(this.props.viewType, viewId)}
+              this.props.removeView(this.props.viewType, viewId)
+            }
             updatePanel={(panelIndex, panelConfig) =>
               this.props.updatePanel(
                 this.props.viewType,
                 viewId,
                 panelIndex,
                 panelConfig,
-              )}
+              )
+            }
             addPanel={panel =>
-              this.props.addPanel(this.props.viewType, viewId, panel)}
+              this.props.addPanel(this.props.viewType, viewId, panel)
+            }
             removePanel={panelIndex =>
-              this.props.removePanel(this.props.viewType, viewId, panelIndex)}
+              this.props.removePanel(this.props.viewType, viewId, panelIndex)
+            }
           />
         </Tab.Pane>
       ),
@@ -58,7 +60,8 @@ class Views extends React.Component {
           <Menu.Item
             key="add"
             onClick={() =>
-              this.props.addView(this.props.viewType, 'New View', [])}>
+              this.props.addView(this.props.viewType, 'New View', [])
+            }>
             <Icon name="plus" />
           </Menu.Item>
         ),

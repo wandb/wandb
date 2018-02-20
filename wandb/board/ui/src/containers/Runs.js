@@ -1,15 +1,11 @@
 import React from 'react';
 import {graphql, compose, withApollo} from 'react-apollo';
 import {
-  Accordion,
   Container,
-  Header,
   Button,
   Grid,
   Icon,
   Popup,
-  Tab,
-  Segment,
   Transition,
 } from 'semantic-ui-react';
 import RunFeed from '../components/RunFeed';
@@ -20,20 +16,15 @@ import Views from '../components/Views';
 import HelpIcon from '../components/HelpIcon';
 import {RUNS_QUERY} from '../graphql/runs';
 import {MODEL_UPSERT} from '../graphql/models';
-import {NavLink} from 'react-router-dom';
 import {connect} from 'react-redux';
 import queryString from 'query-string';
 import _ from 'lodash';
 import {
-  sortableValue,
-  getRunValue,
-  getRunValueFromFilterKey,
   filterRuns,
   sortRuns,
   filterToString,
   filterFromString,
   displayFilterKey,
-  runDisplayName,
   defaultViews,
 } from '../util/runhelpers.js';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
@@ -160,7 +151,7 @@ class Runs extends React.Component {
       this.props.addFilter('select', {section: 'run', value: 'id'}, '=', '*');
     }
     if (!_.isNil(parsed.activeView)) {
-      this.props.setActiveView('runs', parseInt(parsed.activeView));
+      this.props.setActiveView('runs', parseInt(parsed.activeView, 10));
     }
   }
 
@@ -250,8 +241,8 @@ class Runs extends React.Component {
                   rotated={this.state.showFilters ? null : 'counterclockwise'}
                   name="dropdown"
                 />
-                {_.keys(this.props.runFilters).length == 0 &&
-                _.keys(this.props.runSelections).length == 0
+                {_.keys(this.props.runFilters).length === 0 &&
+                _.keys(this.props.runSelections).length === 0
                   ? 'Filters / Selections'
                   : _.keys(this.props.runFilters).length +
                     ' Filters / ' +

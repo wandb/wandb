@@ -1,5 +1,5 @@
 import React from 'react';
-import {Switch, Route, Redirect} from 'react-router';
+import {Switch, Redirect} from 'react-router';
 import ConnectedApp from './containers/ConnectedApp';
 import Model from './pages/Model';
 import Run from './pages/Run';

@@ -1,8 +1,6 @@
 import React from 'react';
-import {connect} from 'react-redux';
-import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {Button, Card, Dropdown, Grid, Header, Popup} from 'semantic-ui-react';
+import {Button, Card, Dropdown, Grid} from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
 
 import './PanelRunsLinePlot';
@@ -71,11 +69,11 @@ class Panel extends React.Component {
                   />*/}
                 {!PanelType.options.width && (
                   <Button
-                    icon={size.width == 8 ? 'expand' : 'compress'}
+                    icon={size.width === 8 ? 'expand' : 'compress'}
                     circular
                     size="tiny"
                     onClick={() => {
-                      let newWidth = size.width == 8 ? 16 : 8;
+                      let newWidth = size.width === 8 ? 16 : 8;
                       this.props.updateSize({width: newWidth});
                     }}
                   />

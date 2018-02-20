@@ -1,6 +1,6 @@
 import React from 'react';
 import {graphql, compose} from 'react-apollo';
-import {Container, Loader, Tab, Segment} from 'semantic-ui-react';
+import {Container, Loader} from 'semantic-ui-react';
 import RunEditor from '../components/RunEditor';
 import RunViewer from '../components/RunViewer';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';

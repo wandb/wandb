@@ -2,7 +2,6 @@
 
 import React from 'react';
 import {ScaleUtils, AbstractSeries} from 'react-vis';
-import _ from 'lodash';
 import {
   registerMouseUpListener,
   unregisterMouseUpListener,
@@ -23,7 +22,7 @@ export default class BoxSelection extends AbstractSeries {
 
   _getDrawArea(loc) {
     const {innerWidth, innerHeight} = this.props;
-    const {drawArea, startLoc} = this.state;
+    const {startLoc} = this.state;
 
     let area = {
       top: Math.max(0, Math.min(startLoc.y, loc.y)),
@@ -69,7 +68,7 @@ export default class BoxSelection extends AbstractSeries {
       return;
     }
 
-    const {marginLeft, marginTop, onSelectChange} = this.props;
+    const {onSelectChange} = this.props;
     const {drawArea} = this.state;
     const xScale = ScaleUtils.getAttributeScale(this.props, 'x');
     const yScale = ScaleUtils.getAttributeScale(this.props, 'y');
@@ -93,8 +92,6 @@ export default class BoxSelection extends AbstractSeries {
     };
 
     if (onSelectChange) {
-      const xScale = ScaleUtils.getAttributeScale(this.props, 'x');
-      const yScale = ScaleUtils.getAttributeScale(this.props, 'y');
       const xSelect = {
         low: domainArea.left,
         high: domainArea.right,
@@ -108,7 +105,7 @@ export default class BoxSelection extends AbstractSeries {
   }
 
   onParentMouseMove(e) {
-    const {marginLeft, marginTop, onSelectChange} = this.props;
+    const {marginLeft, marginTop} = this.props;
     const {drawing} = this.state;
     const locX = e.nativeEvent.offsetX - marginLeft;
     const locY = e.nativeEvent.offsetY - marginTop;

@@ -6,7 +6,6 @@ import {
   Image,
   Table,
   Item,
-  Loader,
   Popup,
 } from 'semantic-ui-react';
 import TimeAgo from 'react-timeago';
@@ -22,14 +21,12 @@ import {
   setSort,
 } from '../actions/run';
 import _ from 'lodash';
-import {JSONparseNaN} from '../util/jsonnan';
+// import {JSONparseNaN} from '../util/jsonnan';
 import Pagination from './Pagination';
-import numeral from 'numeral';
 import {
   displayValue,
   getRunValue,
   sortableValue,
-  filterRuns,
 } from '../util/runhelpers.js';
 import ContentLoader from 'react-content-loader';
 
@@ -264,10 +261,9 @@ class RunFeed extends PureComponent {
   }
 
   render() {
-    let lastDay = 0,
-      stats =
+    let /*stats =
         this.props.project &&
-        Object.keys(JSONparseNaN(this.props.project.summaryMetrics)).sort(),
+        Object.keys(JSONparseNaN(this.props.project.summaryMetrics)).sort(),*/
       runsLength = this.props.runs && this.props.runs.length,
       startIndex = (this.props.currentPage - 1) * this.props.limit,
       endIndex = Math.min(startIndex + this.props.limit, runsLength),
@@ -311,11 +307,11 @@ class RunFeed extends PureComponent {
                       }
                       style={{textAlign: 'center', verticalAlign: 'bottom'}}
                       onClick={() => {
-                        if (columnName == 'Config' || columnName == 'Summary') {
+                        if (columnName === 'Config' || columnName === 'Summary') {
                           return;
                         }
                         let ascending = true;
-                        if (this.props.sort.name == columnName) {
+                        if (this.props.sort.name === columnName) {
                           ascending = !this.props.sort.ascending;
                         }
                         this.props.setSort(columnName, ascending);
@@ -326,7 +322,7 @@ class RunFeed extends PureComponent {
                           _.startsWith(columnName, 'summary:')
                             ? columnName.split(':')[1]
                             : columnName}
-                          {this.props.sort.name == columnName &&
+                          {this.props.sort.name === columnName &&
                             (this.props.sort.ascending ? (
                               <Icon name="caret up" />
                             ) : (
@@ -367,9 +363,9 @@ class RunFeed extends PureComponent {
                               : this.props.columns[columnName],
                         )
                         .map(columnName => {
-                          if (columnName == 'Description') {
+                          if (columnName === 'Description') {
                             return this.descriptionCell(run, this.props);
-                          } else if (columnName == 'Sweep') {
+                          } else if (columnName === 'Sweep') {
                             return (
                               <Table.Cell key="stop" collapsing>
                                 {run.sweep && (
@@ -391,13 +387,13 @@ class RunFeed extends PureComponent {
                                 )}
                               </Table.Cell>
                             );
-                          } else if (columnName == 'Ran') {
+                          } else if (columnName === 'Ran') {
                             return (
                               <Table.Cell key={columnName} collapsing>
                                 <TimeAgo date={run.createdAt + 'Z'} />
                               </Table.Cell>
                             );
-                          } else if (columnName == 'Runtime') {
+                          } else if (columnName === 'Runtime') {
                             return (
                               <Table.Cell key={columnName} collapsing>
                                 {run.heartbeatAt && (
@@ -414,7 +410,7 @@ class RunFeed extends PureComponent {
                                 )}
                               </Table.Cell>
                             );
-                          } else if (columnName == 'Config') {
+                          } else if (columnName === 'Config') {
                             return (
                               <Table.Cell
                                 className="config"
@@ -436,7 +432,7 @@ class RunFeed extends PureComponent {
                                 </div>
                               </Table.Cell>
                             );
-                          } else if (columnName == 'Summary') {
+                          } else if (columnName === 'Summary') {
                             return (
                               <Table.Cell
                                 className="config"
@@ -457,7 +453,7 @@ class RunFeed extends PureComponent {
                                 </div>
                               </Table.Cell>
                             );
-                          } else if (columnName == 'Stop') {
+                          } else if (columnName === 'Stop') {
                             return (
                               <Table.Cell key="stop" collapsing>
                                 {run.shouldStop}
@@ -510,7 +506,7 @@ function autoConfigCols(runs) {
   }
   let allKeys = _.uniq(_.flatMap(runs, run => _.keys(run.config)));
   let result = {};
-  for (var key of allKeys) {
+  for (let key of allKeys) {
     let vals = runs.map(run => run.config[key]);
     let types = _.uniq(vals.map(val => typeof val));
     if (types.length !== 1) {
