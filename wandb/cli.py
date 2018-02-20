@@ -561,26 +561,6 @@ def pending_loop(pod_id):
             time.sleep(10)
 
 
-@cli.command(context_settings=RUN_CONTEXT, help="Synchronize files and output streams for an already-running user process")
-@click.pass_context
-@require_init
-@click.argument('headless_args_json')
-@display_error
-def headless(ctx, headless_args_json):
-    args = json.loads(headless_args_json)
-    user_process_pid = args['pid']
-    stdout_master_fd = args['stdout_master_fd']
-    stderr_master_fd = args['stderr_master_fd']
-
-    run = wandb_run.Run.from_environment_or_defaults()
-    api.set_current_run_id(run.id)
-
-    rm = run_manager.RunManager(
-        api, run, cloud=args['cloud'], job_type=args['job_type'])
-    rm.wrap_existing_process(
-        user_process_pid, stdout_master_fd, stderr_master_fd)
-
-
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @require_init
@@ -685,29 +665,6 @@ def agent(sweep_id):
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
     #                'args': ['--max_epochs=10']})
-
-
-@cli.command(context_settings=CONTEXT, help="Start a local WandB Board server")
-@click.option('--port', '-p', default=7177,
-              help='The port to start the server on')
-@click.option('--host', '-h', default="0.0.0.0",
-              help='The host to bind to')
-@click.option('--logdir', default=".",
-              help='The directory to find wandb logs')
-@display_error
-def board(port, host, logdir):
-    import webbrowser
-    if logdir != ".":
-        os.environ['WANDB_LOGDIR'] = os.path.abspath(logdir)
-    from wandb.board import app
-    dev = os.getenv('WANDB_ENV', "").startswith("dev")
-    extra = "(dev)" if dev else ""
-    click.echo(
-        'Started wandb board on http://{0}:{1} ✨ {2}'.format(host, port, extra))
-
-    threading.Timer(1, webbrowser.open,
-                    ("http://{0}:{1}".format(host, port),)).start()
-    app.run(host, port, threaded=True, debug=dev)
 
 
 if __name__ == "__main__":
