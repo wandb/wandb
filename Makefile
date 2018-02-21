@@ -74,7 +74,17 @@ docs: ## generate Sphinx HTML documentation, including API docs
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
-release: clean ## package and upload a release
+ui: 
+	@dirty=$$(git diff --quiet HEAD); \
+	if test "x$${dirty}" = x; then \
+		echo 'Un-commited changes cant build frontend' >&2; \
+		exit 1; \
+	else \
+		cd wandb/board/ui && yarn build; \
+		git commit -am 'New frontend build'; \
+	fi
+
+release: clean ui## package and upload a release
 	git push
 	python setup.py sdist upload
 	python setup.py bdist_wheel upload
