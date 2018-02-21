@@ -561,26 +561,6 @@ def pending_loop(pod_id):
             time.sleep(10)
 
 
-@cli.command(context_settings=RUN_CONTEXT, help="Synchronize files and output streams for an already-running user process")
-@click.pass_context
-@require_init
-@click.argument('headless_args_json')
-@display_error
-def headless(ctx, headless_args_json):
-    args = json.loads(headless_args_json)
-    user_process_pid = args['pid']
-    stdout_master_fd = args['stdout_master_fd']
-    stderr_master_fd = args['stderr_master_fd']
-
-    run = wandb_run.Run.from_environment_or_defaults()
-    api.set_current_run_id(run.id)
-
-    rm = run_manager.RunManager(
-        api, run, cloud=args['cloud'], job_type=args['job_type'])
-    rm.wrap_existing_process(
-        user_process_pid, stdout_master_fd, stderr_master_fd)
-
-
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @require_init

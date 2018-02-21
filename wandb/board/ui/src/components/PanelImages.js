@@ -14,7 +14,6 @@ import {
 import {color} from '../util/colors.js';
 import {registerPanelClass} from '../util/registry.js';
 import {displayValue} from '../util/runhelpers.js';
-import {Sprite} from 'react-spritesheet';
 
 class ImagesPanel extends React.Component {
   state = {epoch: 0};
@@ -24,8 +23,7 @@ class ImagesPanel extends React.Component {
   static validForData(data) {
     return (
       !_.isNil(data.history) &&
-      !_.isNil(data.history[0]._media) &&
-      data.history[0]._media.find(m => m._type === 'images')
+      Object.values(data.history[0]).find(v => v._type == 'images')
     );
   }
 
@@ -87,8 +85,14 @@ class ImagesPanel extends React.Component {
 
   renderNormal() {
     let {historyKeys, history} = this.props.data;
-    //TODO: performance?
-    let images = history.map(h => h._media.find(m => m._type === 'images'));
+    //TODO: performance / support multiple image keys
+    let imageKey = null;
+    let images = history.map(h => {
+      for (let key in h) {
+        if (!imageKey) imageKey = key;
+        if (h[key]._type == 'images') return h[key];
+      }
+    });
     let captions =
       images[this.state.epoch].captions ||
       new Array(images[this.state.epoch].count);
@@ -96,7 +100,7 @@ class ImagesPanel extends React.Component {
     let sprite =
       'http://localhost:7177' +
       this.props.data.match.url +
-      '/step-' +
+      `/${imageKey}_` +
       this.state.epoch +
       '.jpg';
     let ticks = Math.min(8, history.length);
@@ -119,12 +123,13 @@ class ImagesPanel extends React.Component {
                 padding: 5,
                 textAlign: 'center',
               }}>
-              <Sprite
-                filename={sprite}
-                x={i * width}
-                y={0}
-                width={width}
-                height={height}
+              <div
+                style={{
+                  backgroundImage: `url(${sprite})`,
+                  width: width,
+                  height: height,
+                  backgroundPosition: `${i * width}px 0`,
+                }}
               />
               <span style={{fontSize: '0.6em', lineHeight: '1em'}}>
                 {label}

@@ -12,8 +12,8 @@ import keras.backend as K
 class WandbKerasCallback(keras.callbacks.Callback):
     """WandB Keras Callback.
 
-    Automatically saves wandb-history.csv and wandb-summary.csv, both tracking
-    keras metrics.
+    Automatically saves history and summary data.  Optionally logs gradients, writes modes,
+    and saves example images.
 
     Optionally saves the best model while training.
 
@@ -111,9 +111,8 @@ class WandbKerasCallback(keras.callbacks.Callback):
             row.update(gradients_metrics)
 
         if self.data_type == "image" and len(self._validation_data) > 0:
-            images, captions = self._log_images()
-            wandb.run.history.add_images(images, captions, step=epoch)
-        wandb.run.history.add(row, step=epoch)
+            wandb.run.history.row.update({"examples": self._log_images()})
+        wandb.run.history.add(row)
 
         # summary
         self.current = logs.get(self.monitor)
@@ -128,7 +127,7 @@ class WandbKerasCallback(keras.callbacks.Callback):
             copied.pop('epoch')
             wandb.run.summary.update(copied)
             if self.save_model:
-                self._save_model()
+                self._save_model(epoch)
 
     def on_batch_begin(self, batch, logs=None):
         pass
@@ -155,7 +154,7 @@ class WandbKerasCallback(keras.callbacks.Callback):
                     captions.append(label)
         else:
             captions = labels
-        return test_data, captions
+        return [wandb.Image(data, caption=captions[i]) for i, data in enumerate(test_data)]
 
     def _log_weights(self):
         metrics = {}
@@ -164,8 +163,8 @@ class WandbKerasCallback(keras.callbacks.Callback):
             if len(weights) == 1:
                 metrics[layer.name] = np.mean(weights[0])
             elif len(weights) == 2:
-                metrics[layer.name + ":weights-mean"] = np.mean(weights[0])
-                metrics[layer.name + ":bias-mean"] = np.mean(weights[1])
+                metrics[layer.name + ".weights-mean"] = np.mean(weights[0])
+                metrics[layer.name + ".bias-mean"] = np.mean(weights[1])
         return metrics
 
     def _log_gradients(self):
@@ -195,11 +194,11 @@ class WandbKerasCallback(keras.callbacks.Callback):
         grads = get_gradients([X_train, np.ones(len(y_train)), y_train])
 
         for (weight, grad) in zip(weights, grads):
-            metrics[weight.name.split(':')[0] + ":grad-mean"] = np.mean(grad)
-            metrics[weight.name.split(':')[0] + ":grad-stddev"] = np.std(grad)
+            metrics[weight.name.split(':')[0] + ".grad-mean"] = np.mean(grad)
+            metrics[weight.name.split(':')[0] + ".grad-stddev"] = np.std(grad)
         return metrics
 
-    def _save_model(self):
+    def _save_model(self, epoch):
         if self.verbose > 0:
             print('Epoch %05d: %s improved from %0.5f to %0.5f,'
                   ' saving model to %s'

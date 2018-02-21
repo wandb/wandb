@@ -3,6 +3,7 @@ import os
 import shortuuid
 
 import wandb
+from wandb import history
 from wandb import jsonlfile
 from wandb import summary
 from wandb import meta
@@ -133,7 +134,7 @@ class Run(object):
     def history(self):
         self._mkdir()
         if self._history is None:
-            self._history = jsonlfile.JsonlFile(
+            self._history = history.History(
                 HISTORY_FNAME, self._dir, add_callback=self._history_added)
         return self._history
 
