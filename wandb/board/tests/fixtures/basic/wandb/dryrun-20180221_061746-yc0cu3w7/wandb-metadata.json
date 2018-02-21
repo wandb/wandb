@@ -1,0 +1,14 @@
+{
+    "git": {
+        "remote": "git@github.com:wandb/wandb-examples.git",
+        "commit": "4b3326627dddd27a91654aec5ba94b240962fa0a"
+    },
+    "startedAt": "2018-02-21T06:17:46.997296",
+    "email": "vanpelt@gmail.com",
+    "root": "/Users/vanpelt/Development/WandB/wandb-examples",
+    "host": "CVP.local",
+    "username": "vanpelt",
+    "program": "/Users/vanpelt/Development/WandB/core/frontends/client/wandb/internal_cli.py",
+    "state": "running",
+    "heartbeatAt": "2018-02-21T06:17:47.446860"
+}

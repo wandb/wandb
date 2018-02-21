@@ -15,10 +15,12 @@ data = {
 settings = Settings(base_path)
 
 
-def load():
+def load(path_override=None):
     global data
-
-    for path in sorted(glob.glob(base_path + "/*run-*"), key=lambda p: p.split("run-")[1], reverse=True):
+    data['Runs'] = []
+    root = path_override or base_path
+    settings.path = root
+    for path in sorted(glob.glob(root + "/*run-*"), key=lambda p: p.split("run-")[1], reverse=True):
         run_dir = Dir(path)
         data['Runs'].append(run_dir.load())
     watch_dir(base_path)
