@@ -118,7 +118,7 @@ export function filtersForAxis(filters, axis) {
   let selections = _.values(filters);
   let sels = selections.filter(sel => displayFilterKey(sel.key) === axis);
   function getValueForOp(selections, op) {
-    let opSel = _.find(selections, sel => sel.op == op);
+    let opSel = _.find(selections, sel => sel.op === op);
     if (opSel) {
       return opSel.value;
     }
@@ -145,17 +145,17 @@ export function sortRuns(sort, runs) {
     return runs;
   }
   let getVal = run => {
-    if (sort.name == 'Ran') {
+    if (sort.name === 'Ran') {
       return run.createdAt;
-    } else if (sort.name == 'Description') {
+    } else if (sort.name === 'Description') {
       return runDisplayName(run);
-    } else if (sort.name == 'Runtime') {
+    } else if (sort.name === 'Runtime') {
       return (
         (run.heartbeatAt &&
           new Date(run.heartbeatAt) - new Date(run.createdAt)) ||
         0
       );
-    } else if (sort.name == 'Stop') {
+    } else if (sort.name === 'Stop') {
       return run.shouldStop || 0;
     } else {
       return getRunValue(run, sort.name);
@@ -164,7 +164,7 @@ export function sortRuns(sort, runs) {
   let cmp = (a, b) => {
     let valA = getVal(a);
     let valB = getVal(b);
-    if (valA == valB) {
+    if (valA === valB) {
       return 0;
     }
     if (valA == null) {

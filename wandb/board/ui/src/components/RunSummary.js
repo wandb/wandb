@@ -1,12 +1,10 @@
 import React, {Component} from 'react';
 import {
   Button,
-  Divider,
   Grid,
   Header,
   Modal,
   Message,
-  Popup,
   Segment,
 } from 'semantic-ui-react';
 import {NavLink} from 'react-router-dom';
@@ -59,7 +57,7 @@ class RunSummary extends Component {
                   <Button icon="edit" basic />
                 </NavLink>
                 {bucket.sweep &&
-                  bucket.state == 'running' && (
+                  bucket.state === 'running' && (
                     <Button
                       icon="stop circle"
                       onClick={() => {

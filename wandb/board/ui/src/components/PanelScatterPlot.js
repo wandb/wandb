@@ -2,22 +2,11 @@ import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {
-  Button,
-  Card,
-  Dropdown,
-  Grid,
-  Form,
-  Header,
-  Popup,
-} from 'semantic-ui-react';
-import {color} from '../util/colors.js';
+import {Form} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {
   convertValue,
-  displayValue,
   getRunValue,
-  displayFilterKey,
   filterKeyFromString,
   filtersForAxis,
 } from '../util/runhelpers.js';
@@ -27,7 +16,6 @@ import {
   FlexibleWidthXYPlot,
   VerticalGridLines,
   HorizontalGridLines,
-  XYPlot,
   MarkSeries,
   VerticalRectSeries,
   Hint,
@@ -81,7 +69,7 @@ class ScatterPlotPanel extends React.Component {
   }
 
   renderConfig() {
-    let {base, filtered, keys, axisOptions} = this.props.data;
+    let {axisOptions} = this.props.data;
     return (
       <Form>
         <Form.Dropdown
@@ -119,7 +107,6 @@ class ScatterPlotPanel extends React.Component {
         />
       </Form>
     );
-    return;
   }
 
   renderNormal() {
@@ -139,7 +126,6 @@ class ScatterPlotPanel extends React.Component {
           return point;
         })
         .filter(point => point.x && point.y);
-      let zMin, zMax;
       let gradientData = [];
       if (zAxis) {
         data = data.filter(point => point.color);

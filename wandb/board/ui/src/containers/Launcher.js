@@ -71,8 +71,9 @@ class Launcher extends Component {
           });
         } else if (result.data.launchRun.status === 'Pending') {
           this.props.setFlash({
-            message: `Unable to start ${result.data.launchRun
-              .podName}, retrying`,
+            message: `Unable to start ${
+              result.data.launchRun.podName
+            }, retrying`,
             color: 'orange',
           });
         } else {
@@ -87,9 +88,11 @@ class Launcher extends Component {
   render() {
     return (
       <div>
-        <a href="#" className="launcher" onClick={this.show}>
-          <Icon name="cloud upload" />
-        </a>
+        <Icon
+          name="cloud upload"
+          className="launcher link blue"
+          onClick={this.show}
+        />
         <Modal size="small" open={this.state.open} onClose={this.close}>
           <Modal.Header>
             Configure cloud evaluation for run {this.props.runName}

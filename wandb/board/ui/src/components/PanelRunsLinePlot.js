@@ -4,33 +4,15 @@ import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 import {
   Button,
-  Card,
-  Dropdown,
-  Grid,
   List,
   Loader,
   Form,
-  Header,
-  Popup,
 } from 'semantic-ui-react';
-import {
-  XAxis,
-  YAxis,
-  FlexibleWidthXYPlot,
-  VerticalGridLines,
-  HorizontalGridLines,
-  XYPlot,
-  LineSeries,
-  MarkSeries,
-  VerticalRectSeries,
-  Hint,
-  DiscreteColorLegend,
-} from 'react-vis';
 import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {color} from '../util/colors.js';
 import {registerPanelClass} from '../util/registry.js';
-import {displayValue, runDisplayName} from '../util/runhelpers.js';
+import {runDisplayName} from '../util/runhelpers.js';
 import {addFilter} from '../actions/run';
 
 class RunsLinePlotPanel extends React.Component {
@@ -42,7 +24,7 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   renderConfig() {
-    let {loading, data, keys} = this.props.data.histories;
+    let {keys} = this.props.data.histories;
     let options = keys.map(key => ({
       key: key,
       value: key,
@@ -86,11 +68,10 @@ class RunsLinePlotPanel extends React.Component {
         </Form.Group>
       </Form>
     );
-    return;
   }
 
   renderNormal() {
-    let {loading, data, keys, maxRuns, totalRuns} = this.props.data.histories;
+    let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
     data = data.filter(run => this.props.data.filteredRunsById[run.name]);
     let key = this.props.config.key;
     let lines = data

@@ -1,5 +1,5 @@
 import React from 'react';
-import {Dropdown, Menu, Header, Button, Form} from 'semantic-ui-react';
+import {Button, Form} from 'semantic-ui-react';
 import DangerModal from './DangerModal';
 import Markdown from './Markdown';
 import Breadcrumbs from './Breadcrumbs';
@@ -62,6 +62,8 @@ class ModelEditor extends React.Component {
         return 'Team readable';
       case 'PRIVATE':
         return 'Private';
+      default:
+        return;
     }
   }
 

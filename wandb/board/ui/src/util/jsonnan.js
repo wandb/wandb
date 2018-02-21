@@ -1,4 +1,3 @@
-import _ from 'lodash';
 import './json_parseMore.js';
 
 export function JSONparseNaN(str) {

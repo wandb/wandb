@@ -19,9 +19,7 @@ import {
   SET_HIGHLIGHT,
 } from '../actions/run.js';
 
-let nextFilterID = 0,
-  nextPlotID = 0,
-  filters;
+let nextFilterID = 0;
 
 export default function runs(
   state = {
@@ -60,9 +58,9 @@ export default function runs(
       let filter = _.find(
         state.filters[action.kind],
         (filter, filterID) =>
-          filter.key.section == action.key.section &&
-          filter.key.value == action.key.value &&
-          filter.op == action.op,
+          filter.key.section === action.key.section &&
+          filter.key.value === action.key.value &&
+          filter.op === action.op,
       );
       if (action.value === null) {
         // Remove filter if value is null

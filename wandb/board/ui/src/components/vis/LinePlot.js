@@ -6,11 +6,7 @@ import {
   FlexibleWidthXYPlot,
   VerticalGridLines,
   HorizontalGridLines,
-  XYPlot,
   LineSeries,
-  MarkSeries,
-  VerticalRectSeries,
-  Hint,
   DiscreteColorLegend,
   Crosshair,
 } from 'react-vis';
@@ -99,10 +95,10 @@ export default class LinePlot extends React.Component {
                   <LineSeries
                     key={i}
                     onNearestX={
-                      line.data.length === maxLength ? (
-                        item =>
-                          this.setState({...this.state, highlightX: item.x})
-                      ) : null
+                      line.data.length === maxLength
+                        ? item =>
+                            this.setState({...this.state, highlightX: item.x})
+                        : null
                     }
                     color={line.color}
                     data={line.data}

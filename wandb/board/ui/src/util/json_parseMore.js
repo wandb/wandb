@@ -16,12 +16,12 @@
     },
     text,
     error = function(m) {
-      throw {
+      throw new Error({
         name: 'SyntaxError',
         message: m,
         at: at,
         text: text,
-      };
+      });
     },
     next = function(c) {
       return (ch = text.charAt(at++));
@@ -150,8 +150,9 @@
           check('t');
           check('y');
           return Infinity;
+        default:
+          error("Unexpected '" + ch + "'");
       }
-      error("Unexpected '" + ch + "'");
     },
     array = function() {
       var array = [];

@@ -6,7 +6,7 @@ import numeral from 'numeral';
 
 class ModelHeader extends React.Component {
   render() {
-    var {entityName, model, user, condensed, match} = this.props;
+    var {model, user, condensed} = this.props;
     const hasFiles =
       model.bucket && model.bucket.files && model.bucket.files.edges.length > 0;
     return (
@@ -20,22 +20,20 @@ class ModelHeader extends React.Component {
           </NavLink>
           <Button.Group basic size="small">
             {!condensed &&
-            user && (
-              <NavLink to={`/${model.entityName}/${model.name}/edit`}>
-                <Button icon="edit" />
-                {/* Empty span so that Button doesn't match an :only-child css rule
+              user && (
+                <NavLink to={`/${model.entityName}/${model.name}/edit`}>
+                  <Button icon="edit" />
+                  {/* Empty span so that Button doesn't match an :only-child css rule
                   that screws up rendering in the header */}
-                <span />
-              </NavLink>
-            )}
+                  <span />
+                </NavLink>
+              )}
           </Button.Group>
         </Header>
         {!condensed && (
           <div style={{color: 'gray'}}>
             Updated{' '}
-            <TimeAgo
-              date={(model.bucket.createdAt || model.createdAt) + 'Z'}
-            />,
+            <TimeAgo date={(model.bucket.createdAt || model.createdAt) + 'Z'} />,
             {hasFiles &&
               `Avg Size ${numeral(
                 model.bucket.files.edges

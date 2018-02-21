@@ -1,6 +1,5 @@
 import React from 'react';
 import Autosuggest from 'react-autosuggest';
-import {Button, Header, Popup} from 'semantic-ui-react';
 
 class RunFieldSelector extends React.Component {
   constructor(props) {

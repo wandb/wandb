@@ -1,9 +1,7 @@
 import React from 'react';
 import Markdown from './Markdown';
-import DownloadModal from './DownloadModal';
 import ModelHeader from './ModelHeader';
 import Runs from '../containers/Runs';
-import Jobs from '../containers/Jobs';
 
 class ModelViewer extends React.Component {
   static defaultProps = {
@@ -16,7 +14,7 @@ class ModelViewer extends React.Component {
   };
 
   render() {
-    var {entityName, model, user, condensed, match} = this.props;
+    var {model, condensed, match} = this.props;
 
     return (
       <div>

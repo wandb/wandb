@@ -1,7 +1,5 @@
 import React, {Component} from 'react';
-import {Icon, Image, Table, Item, Loader} from 'semantic-ui-react';
-import TimeAgo from 'react-timeago';
-import {NavLink} from 'react-router-dom';
+import {Table} from 'semantic-ui-react';
 import {connect} from 'react-redux';
 
 class JobFeed extends Component {
@@ -27,11 +25,11 @@ class JobFeed extends Component {
                 let job = edge.node;
                 return (
                   <Table.Row
-                    active={this.props.jobId == edge.node.id}
+                    active={this.props.jobId === edge.node.id}
                     key={edge.node.id}
                     onClick={() =>
                       this.onSelect(
-                        this.props.jobId != edge.node.id ? edge.node.id : null,
+                        this.props.jobId !== edge.node.id ? edge.node.id : null,
                       )}>
                     <Table.Cell>{job.type}</Table.Cell>
                     <Table.Cell>{job.repo}</Table.Cell>

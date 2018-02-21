@@ -1,8 +1,5 @@
 import React from 'react';
-import {connect} from 'react-redux';
-import {bindActionCreators} from 'redux';
-import _ from 'lodash';
-import {Button, Form, Input, Grid} from 'semantic-ui-react';
+import {Button, Form, Grid} from 'semantic-ui-react';
 import Panel from '../components/Panel';
 
 class View extends React.Component {
