@@ -315,20 +315,22 @@ class RunManager(object):
         return stdout_streams, stderr_streams
 
     def _close_stdout_stderr_streams(self, exitcode):
-        self._output_log.f.close()
-        self._output_log = None
-
         # Close output-capturing stuff. This also flushes anything left in the buffers.
         if self._stdout_tee.tee_file is not None:
             # we don't have tee_file's in headless mode
             self._stdout_tee.tee_file.close()
             # TODO(adrian): we should close these even in headless mode
             # but in python 2 the read thread doesn't stop on its own
-            # for some reason
+            # for some reason.
+            # It may be that os.read() doesn't return partial data in Python 2
+            # like it does in Python 3.
             self._stdout_tee.close_join()
         if self._stderr_tee.tee_file is not None:
             self._stderr_tee.tee_file.close()
             self._stderr_tee.close_join()
+
+        self._output_log.f.close()
+        self._output_log = None
 
         if self._cloud:
             # not set in dry run mode
@@ -447,7 +449,7 @@ class RunManager(object):
 
         """TODO(adrian): garbage that appears in the logs sometimes
 
-        Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>>
+        Exception ignored in: <bound method Popen.__del__ of <subprocess.Popen object at 0x111adce48>
         Traceback (most recent call last):
           File "/Users/adrian/.pyenv/versions/3.6.0/Python.framework/Versions/3.6/lib/python3.6/subprocess.py", line 760, in __del__
         AttributeError: 'NoneType' object has no attribute 'warn'
@@ -484,20 +486,28 @@ class RunManager(object):
         # Show run summary/history
         if self._run.has_summary:
             summary = self._run.summary.summary
-            wandb.termlog('Run summary:')
-            max_len = max([len(k) for k in summary.keys()])
-            format_str = '  {:>%s} {}' % max_len
-            for k, v in summary.items():
-                wandb.termlog(format_str.format(k, v))
+
+            # we only print keys that don't start with '_'
+            summary_keys = [k for k in summary.keys() if k[0] != '_']
+            if summary_keys:
+                wandb.termlog('Run summary:')
+                max_len = max(len(k) for k in summary_keys)
+                format_str = '  {:>%s} {}' % max_len
+                for k in sorted(summary_keys):
+                    wandb.termlog(format_str.format(k, summary[k]))
         if self._run.has_history:
-            history_keys = self._run.history.keys()
-            wandb.termlog('Run history:')
-            max_len = max([len(k) for k in history_keys])
-            for key in history_keys:
-                vals = util.downsample(self._run.history.column(key), 40)
-                line = sparkline.sparkify(vals)
+            history = self._run.history
+
+            # we only print keys that don't start with '_'
+            history_keys = [k for k in history.keys() if k[0] != '_']
+            if history_keys:  # history may have been accessed, but no items added
+                wandb.termlog('Run history:')
+                max_len = max(len(k) for k in history_keys)
                 format_str = u'  {:>%s} {}' % max_len
-                wandb.termlog(format_str.format(key, line))
+                for key in sorted(history_keys):
+                    vals = util.downsample(history.column(key), 40)
+                    line = sparkline.sparkify(vals)
+                    wandb.termlog(format_str.format(key, line))
         if self._run.has_examples:
             wandb.termlog('Saved %s examples' % self._run.examples.count())
 

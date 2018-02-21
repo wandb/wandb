@@ -121,6 +121,7 @@ def downsample(values, target_length):
     Algorithm just rounds index down.
     """
     assert target_length > 1
+    values = list(values)
     if len(values) < target_length:
         return values
     ratio = float(len(values) - 1) / (target_length - 1)

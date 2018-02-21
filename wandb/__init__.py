@@ -8,10 +8,6 @@ __version__ = '0.5.1'
 
 import atexit
 import click
-try:
-    import fcntl
-except ImportError:  # windows
-    fcntl = None
 import json
 import logging
 import time
@@ -44,6 +40,7 @@ else:
     __stage_dir__ = None
 
 SCRIPT_PATH = os.path.abspath(sys.argv[0])
+START_TIME = time.time()
 
 
 def wandb_dir():
