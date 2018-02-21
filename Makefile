@@ -77,7 +77,7 @@ servedocs: docs ## compile the docs watching for changes
 ui: 
 	@dirty=$$(git diff --quiet HEAD); \
 	if test "x$${dirty}" = x; then \
-		echo 'Un-commited changes cant build frontend' >&2; \
+		echo "Un-commited changes can't build frontend" >&2; \
 		exit 1; \
 	else \
 		cd wandb/board/ui && yarn build; \
