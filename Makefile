@@ -87,7 +87,11 @@ endif
 
 ui: gitdirty
 	cd wandb/board/ui && yarn build
-	git commit -am 'New frontend build'
+	ifeq ($(GIT_TREE_STATE),dirty)
+		git commit -am 'New frontend build'
+	else
+		@echo "No frontend changes to commit"
+	endif
 
 release: clean ui## package and upload a release
 	git push
