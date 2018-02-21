@@ -20,4 +20,4 @@ freezegun==0.3.9
 sh==1.12.14
 pillow==5.0.0
 numpy
-torch
+http://download.pytorch.org/whl/cpu/torch-0.3.1-cp35-cp35m-linux_x86_64.whl

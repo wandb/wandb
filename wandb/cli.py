@@ -667,7 +667,6 @@ def agent(sweep_id):
     #                'args': ['--max_epochs=10']})
 
 
-<<<<<<< HEAD
 @cli.command(context_settings=CONTEXT, help="Start a local WandB Board server")
 @click.option('--port', '-p', default=7177,
               help='The port to start the server on')
@@ -691,7 +690,5 @@ def board(port, host, logdir):
     app.run(host, port, threaded=True, debug=dev)
 
 
-=======
->>>>>>> master
 if __name__ == "__main__":
     cli()
