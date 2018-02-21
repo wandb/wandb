@@ -677,16 +677,19 @@ def agent(sweep_id):
 @display_error
 def board(port, host, logdir):
     import webbrowser
+    import werkzeug.serving
     if logdir != ".":
         os.environ['WANDB_LOGDIR'] = os.path.abspath(logdir)
     from wandb.board import app
     dev = os.getenv('WANDB_ENV', "").startswith("dev")
     extra = "(dev)" if dev else ""
-    click.echo(
-        'Started wandb board on http://{0}:{1} ✨ {2}'.format(host, port, extra))
-
-    threading.Timer(1, webbrowser.open,
-                    ("http://{0}:{1}".format(host, port),)).start()
+    if not werkzeug.serving.is_running_from_reloader():
+        click.echo(
+            'Started wandb board on http://{0}:{1} ✨ {2}'.format(host, port, extra))
+        threading.Timer(1, webbrowser.open,
+                        ("http://{0}:{1}".format(host, port),)).start()
+    elif dev:
+        click.echo("Reloading backend...")
     app.run(host, port, threaded=True, debug=dev)
 
 
