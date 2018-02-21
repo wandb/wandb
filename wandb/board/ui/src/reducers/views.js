@@ -17,7 +17,7 @@ function getAvailableViewId(views) {
       return i;
     }
   }
-  throw "Didn't find available viewId??";
+  throw new Error("Didn't find available viewId??");
 }
 
 function viewTypeDefaults() {
@@ -86,7 +86,7 @@ export default function views(
     case REMOVE_VIEW:
       let tabIndex = _.findIndex(
         state.browser[action.viewType].tabs,
-        o => o == action.viewId,
+        o => o === action.viewId,
       );
       return update(state, {
         browser: {

@@ -51,9 +51,10 @@ def make_json_if_not_number(v):
 def mkdir_exists_ok(path):
     try:
         os.makedirs(path)
+        return True
     except OSError as exc:
         if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
+            return False
         else:
             raise
 

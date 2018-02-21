@@ -91,7 +91,7 @@ class Log extends React.Component {
     return (
       <div
         key={key}
-        role="item"
+        role="row"
         className={`item ${line.node.level}`}
         style={style}
         dangerouslySetInnerHTML={{

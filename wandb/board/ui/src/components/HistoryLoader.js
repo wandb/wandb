@@ -1,13 +1,8 @@
 import React from 'react';
-import {graphql, compose, withApollo} from 'react-apollo';
-import {Container, Loader, Tab, Segment} from 'semantic-ui-react';
-import RunEditor from '../components/RunEditor';
-import RunViewer from '../components/RunViewer';
+import {graphql, withApollo} from 'react-apollo';
 import {fragments, FAKE_HISTORY_QUERY, HISTORY_QUERY} from '../graphql/runs';
-import {BOARD} from '../util/board';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
-import update from 'immutability-helper';
 import {filterRuns, sortRuns} from '../util/runhelpers.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
@@ -28,7 +23,7 @@ export default function withHistoryLoader(WrappedComponent) {
         nextProps.sort !== props.sort ||
         nextProps.runs !== props.runs
       ) {
-        if (_.size(nextProps.selectFilters) != 0) {
+        if (_.size(nextProps.selectFilters) !== 0) {
           selectedRuns = sortRuns(
             nextProps.sort,
             filterRuns(

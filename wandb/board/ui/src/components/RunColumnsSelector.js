@@ -1,5 +1,5 @@
 import React from 'react';
-import {Checkbox, Form, List} from 'semantic-ui-react';
+import {Form} from 'semantic-ui-react';
 import {enableColumn, disableColumn, toggleColumn} from '../actions/run';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';

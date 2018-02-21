@@ -42,7 +42,7 @@ class AutoReload extends Component {
               <Message.Content>
                 <Message.Header>A new version is available!</Message.Header>
                 <p>
-                  <a href="#" onClick={this.reloadApp}>
+                  <a href="/" onClick={this.reloadApp}>
                     Click to reload
                   </a>
                 </p>
@@ -57,10 +57,10 @@ class AutoReload extends Component {
   }
 
   /**
-     * Java-like hashCode function for strings
-     *
-     * taken from http://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript-jquery/7616484#7616484
-     */
+   * Java-like hashCode function for strings
+   *
+   * taken from http://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript-jquery/7616484#7616484
+   */
   hash(str) {
     const len = str.length;
     let hash = 0;

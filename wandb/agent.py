@@ -119,15 +119,26 @@ class Agent(object):
         return response
 
     def _command_run(self, command):
-        config = Config.from_environment_or_defaults()
-        run = wandb_run.Run(mode='run', config=config, sweep_id=self._sweep_id)
+        run = wandb_run.Run(mode='run',
+                            sweep_id=self._sweep_id,
+                            storage_id=command.get('run_storage_id'),
+                            run_id=command.get('run_id'))
+
+        # save the the wandb config to reflect the state of the run that the
+        # the server generated.
+        run.config.set_run_dir(run.dir)
+        run.config.update({k: v['value'] for k, v in command['args'].items()})
+
         env = dict(os.environ)
         run.set_environment(env)
+
+        flags = ["--{0}={1}".format(name, config['value'])
+                 for name, config in command['args'].items()]
 
         agent_run_args = {
             'command': 'agent-run',
             'program': command['program'],
-            'args': command['args']
+            'args': flags
         }
         internal_cli_path = os.path.join(
             os.path.dirname(__file__), 'internal_cli.py')

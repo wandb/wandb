@@ -10,6 +10,10 @@ from .api import Error
 logger = logging.getLogger(__name__)
 
 
+class ConfigError(Error):
+    pass
+
+
 def boolify(s):
     if s.lower() == 'none':
         return None
@@ -25,7 +29,6 @@ class Config(object):
 
     def __init__(self, config_paths=[], wandb_dir=None, run_dir=None, persist_callback=None):
         object.__setattr__(self, '_wandb_dir', wandb_dir)
-        self.set_run_dir(run_dir)
 
         # TODO: Replace this with an event system.
         self.set_persist_callback(persist_callback)
@@ -38,6 +41,11 @@ class Config(object):
         self._load_defaults()
         for conf_path in config_paths:
             self._load_file(conf_path)
+
+        # Do this after defaults because it triggers loading of pre-existing
+        # config.yaml (if it exists)
+        self.set_run_dir(run_dir)
+
         self.persist()
 
     @classmethod
@@ -66,29 +74,40 @@ class Config(object):
         try:
             conf_file = open(conf_path)
         except (OSError, IOError):
-            raise Error('Couldn\'t read config file: %s' % conf_path)
+            raise ConfigError('Couldn\'t read config file: %s' % conf_path)
         try:
             loaded = yaml.load(conf_file)
         except yaml.parser.ParserError:
-            raise Error('Invalid YAML in config-defaults.yaml')
+            raise ConfigError('Invalid YAML in config-defaults.yaml')
         if subkey:
             try:
                 loaded = loaded[subkey]
             except KeyError:
-                raise Error('Asked for %s but %s not present in %s' % (
+                raise ConfigError('Asked for %s but %s not present in %s' % (
                     path, subkey, conf_path))
         for key, val in loaded.items():
             if key == 'wandb_version':
                 continue
             if isinstance(val, dict):
                 if 'value' not in val:
-                    raise Error('In config %s value of %s is dict, but does not contain "value" key' % (
+                    raise ConfigError('In config %s value of %s is dict, but does not contain "value" key' % (
                         path, key))
                 self._items[key] = val['value']
                 if 'desc' in val:
                     self._descriptions[key] = val['desc']
             else:
                 self._items[key] = val
+
+    def _load_values(self):
+        """Load config.yaml from the run directory if available."""
+        path = self._config_path()
+        if path is not None and os.path.isfile(path):
+            self._load_file(path)
+
+    def _config_path(self):
+        if self._run_dir and os.path.isdir(self._run_dir):
+            return os.path.join(self._run_dir, 'config.yaml')
+        return None
 
     def keys(self):
         """All keys in the current configuration"""
@@ -111,6 +130,7 @@ class Config(object):
         is set.
         """
         object.__setattr__(self, '_run_dir', run_dir)
+        self._load_values()
 
     def set_persist_callback(self, callback):
         """Change the persist callback for this Config.
@@ -121,14 +141,14 @@ class Config(object):
 
     def persist(self):
         """Stores the current configuration for pushing to W&B"""
-        if not self._run_dir or not os.path.isdir(self._run_dir):
-            # In dryrun mode, without wandb run, we don't
-            # save config  on initial load, because the run directory
-            # may not be created yet (because we don't know if we're
-            # being used in a run context, or as an API).
-            # TODO: Defer saving somehow, maybe via an events system
+        # In dryrun mode, without wandb run, we don't
+        # save config  on initial load, because the run directory
+        # may not be created yet (because we don't know if we're
+        # being used in a run context, or as an API).
+        # TODO: Defer saving somehow, maybe via an events system
+        path = self._config_path()
+        if path is None:
             return
-        path = os.path.join(self._run_dir, 'config.yaml')
         with open(path, "w") as conf_file:
             conf_file.write(str(self))
 
@@ -143,6 +163,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
+        key = self._sanitize(key, val)
         self._items[key] = val
         self.persist()
 
@@ -151,7 +172,16 @@ class Config(object):
     def __getattr__(self, key):
         return self.__getitem__(key)
 
-    def update(self, params):
+    def _sanitize(self, key, val, allow_val_change=False):
+        # We always normalize keys by stripping '-'
+        key = key.strip('-')
+        if not allow_val_change:
+            if key in self._items and val != self._items[key]:
+                raise ConfigError('Attempted to change value of key "%s" from %s to %s\nIf you really want to do this, pass allow_val_change=True to config.update()' % (
+                    key, self._items[key], val))
+        return key
+
+    def update(self, params, allow_val_change=False):
         if not isinstance(params, dict):
             # Handle some cases where params is not a dictionary
             # by trying to convert it into a dictionary
@@ -173,8 +203,9 @@ class Config(object):
                 params = vars(params)
 
         if not isinstance(params, dict):
-            raise Error('Expected dict but received %s' % params)
+            raise ConfigError('Expected dict but received %s' % params)
         for key, val in params.items():
+            key = self._sanitize(key, val, allow_val_change=allow_val_change)
             self._items[key] = val
         self.persist()
 

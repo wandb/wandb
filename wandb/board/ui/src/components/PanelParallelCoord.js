@@ -2,24 +2,13 @@ import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {
-  Button,
-  Card,
-  Dropdown,
-  Grid,
-  Form,
-  Header,
-  Popup,
-} from 'semantic-ui-react';
-import {color} from '../util/colors.js';
+import {Form} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {
-  displayValue,
   filterKeyFromString,
   filtersForAxis,
 } from '../util/runhelpers.js';
-import {ScatterplotChart} from 'react-easy-chart';
-import {convertValue, getRunValue} from '../util/runhelpers.js';
+import {getRunValue} from '../util/runhelpers.js';
 import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
 
@@ -54,7 +43,6 @@ function parcoor(
   var line = d3.svg.line(),
     axis = d3.svg.axis().orient('left'),
     background,
-    hover,
     foreground;
 
   var svg = d3
@@ -70,10 +58,10 @@ function parcoor(
   x.domain(
     (dimensions = d3
       .keys(data[0])
-      .filter(d => d != 'name')
+      .filter(d => d !== 'name')
       .filter(function(d) {
         return (
-          parseFloat(data[0][d]) &&
+          _.isFinite(parseFloat(data[0][d])) &&
           (y[d] = d3.scale
             .linear()
             .domain(
@@ -132,7 +120,7 @@ function parcoor(
     // Doing it here for now, we can fix later.
     if (axis) {
       let [low, high] = y[axis].brush.extent();
-      if (low == high) {
+      if (low === high) {
         low = null;
         high = null;
       }
@@ -406,7 +394,7 @@ class ParCoordPanel extends React.Component {
   }
 
   renderConfig() {
-    let {filtered, keys, axisOptions} = this.props.data;
+    let {axisOptions} = this.props.data;
     return (
       <Form>
         <Form.Dropdown
@@ -426,7 +414,6 @@ class ParCoordPanel extends React.Component {
         />
       </Form>
     );
-    return;
   }
 
   renderNormal() {

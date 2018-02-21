@@ -3,10 +3,6 @@ import {
   Button,
   Dropdown,
   Form,
-  Header,
-  Icon,
-  Input,
-  Label,
   Popup,
   Select,
 } from 'semantic-ui-react';
@@ -18,7 +14,6 @@ import {
 } from '../actions/run';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
-import Autosuggest from 'react-autosuggest';
 import _ from 'lodash';
 import RunFieldSelector from '../components/RunFieldSelector';
 import {
@@ -259,7 +254,7 @@ class RunFilter extends React.Component {
 const mapRunFilterStateToProps = (state, ownProps) => {
   let filter = state.runs.filters[ownProps.kind][ownProps.id];
   return {
-    editing: state.runs.editingFilter == ownProps.id,
+    editing: state.runs.editingFilter === ownProps.id,
     id: filter.id,
     filterKey: filter.key,
     op: filter.op,

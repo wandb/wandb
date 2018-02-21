@@ -1,11 +1,9 @@
 import React, {Component} from 'react';
 import {connect} from 'react-redux';
-import {NavLink, Link} from 'react-router-dom';
+import {NavLink} from 'react-router-dom';
 import {
   Menu,
   Container,
-  Dropdown,
-  Image,
   Message,
   Transition,
 } from 'semantic-ui-react';
@@ -28,8 +26,6 @@ class Nav extends Component {
   }
 
   render() {
-    const {user} = this.props;
-    const {params} = this.props;
     const flash = this.props.flash || {};
 
     return (

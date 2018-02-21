@@ -1,19 +1,8 @@
 import React from 'react';
-import {connect} from 'react-redux';
-import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {
-  Button,
-  Card,
-  Dropdown,
-  Grid,
-  Form,
-  Header,
-  Popup,
-} from 'semantic-ui-react';
+import {Form} from 'semantic-ui-react';
 import {color} from '../util/colors.js';
 import {registerPanelClass} from '../util/registry.js';
-import {displayValue} from '../util/runhelpers.js';
 import LinePlot from '../components/vis/LinePlot';
 
 class LinePlotPanel extends React.Component {
@@ -25,7 +14,7 @@ class LinePlotPanel extends React.Component {
   }
 
   renderConfig() {
-    let {historyKeys, history, eventKeys, events} = this.props.data;
+    let {historyKeys, events} = this.props.data;
     if (!historyKeys) {
       return <p>This plot type is not supported on this page.</p>;
     }
@@ -112,11 +101,10 @@ class LinePlotPanel extends React.Component {
         />
       </Form>
     );
-    return;
   }
 
   renderNormal() {
-    let {historyKeys, history} = this.props.data;
+    let {historyKeys} = this.props.data;
     if (!historyKeys) {
       return <p>This plot type is not supported on this page.</p>;
     }
@@ -139,7 +127,7 @@ class LinePlotPanel extends React.Component {
         ? keys
             .filter(
               lineName =>
-                !_.startsWith(lineName, '_') && !(lineName == 'epoch'),
+                !_.startsWith(lineName, '_') && !(lineName === 'epoch'),
             )
             .slice(0, 10)
         : this.lines;
@@ -148,7 +136,7 @@ class LinePlotPanel extends React.Component {
       .map((lineName, i) => {
         let lineData = data
           .map((row, j) => ({
-            x: xAxis == '__index' ? j : row[xAxis],
+            x: xAxis === '__index' ? j : row[xAxis],
             y: row[lineName],
           }))
           .filter(point => !_.isNil(point.x) && !_.isNil(point.y));

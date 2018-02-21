@@ -4,14 +4,10 @@ import {
   List,
   Popup,
   Header,
-  Button,
-  Table,
   Tab,
   Segment,
 } from 'semantic-ui-react';
 import RunSummary from './RunSummary';
-import {NavLink} from 'react-router-dom';
-import DangerModal from './DangerModal';
 import numeral from 'numeral';
 import ReactTable from 'react-table';
 import 'react-table/react-table.css';
@@ -20,7 +16,6 @@ import StreamingLog from '../containers/StreamingLog';
 import Files from '../components/Files';
 import Views from '../components/Views';
 import './Run.css';
-import {color} from '../util/colors.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import {displayValue} from '../util/runhelpers';
 import _ from 'lodash';
@@ -79,7 +74,7 @@ export default class RunViewer extends React.Component {
   formatMetric(name, metric) {
     if (name.indexOf('.temp') > -1) {
       return metric + '°';
-    } else if (parseInt(metric) <= 100) {
+    } else if (parseInt(metric, 10) <= 100) {
       return metric + '%';
     } else {
       return numeral(metric).format('0.0b');
@@ -107,14 +102,13 @@ export default class RunViewer extends React.Component {
   }
 
   render() {
-    const {model, bucket, condensed, onDelete, loss} = this.props;
+    const {model, bucket, condensed} = this.props;
     let [histKeys, histData] = this.parseData(bucket.history, 'history');
     let [eventKeys, eventData] = this.parseData(bucket.events, 'events');
     const summaryMetrics = JSONparseNaN(bucket.summaryMetrics),
       systemMetrics = JSONparseNaN(bucket.systemMetrics);
     const columns = Object.keys(systemMetrics || {}).length > 0 ? 3 : 2;
 
-    const threshold = 100;
     let exampleTableTypes = JSONparseNaN(bucket.exampleTableTypes);
     let exampleTable = JSONparseNaN(bucket.exampleTable);
     let exampleTableColumns = JSONparseNaN(bucket.exampleTableColumns);
@@ -154,7 +148,7 @@ export default class RunViewer extends React.Component {
             />
           </Grid.Column>
         </Grid.Row>
-        {exampleTable.length != 0 && (
+        {exampleTable.length !== 0 && (
           <Grid.Row columns={1}>
             <Grid.Column>
               <Header>Examples</Header>
@@ -169,22 +163,24 @@ export default class RunViewer extends React.Component {
                     //minWidth: type == 'histogram' ? 400 : undefined,
                     Cell: row => {
                       let val = row.value;
-                      if (type == 'image') {
+                      if (type === 'image') {
                         val = (
                           <Popup
                             trigger={
                               <img
                                 style={{'max-width': 128}}
                                 src={'data:image/png;base64,' + val}
+                                alt='example'
                               />
                             }>
                             <img
                               style={{width: 256}}
                               src={'data:image/png;base64,' + val}
+                              alt='example'
                             />
                           </Popup>
                         );
-                      } else if (type == 'float' && val) {
+                      } else if (type === 'float' && val) {
                         // toPrecision converts to exponential notation only
                         // when abs(exponent) >-= 7, so we get a lot of zeroes
                         // that make for a long string at exponent==6. We control
@@ -195,7 +191,7 @@ export default class RunViewer extends React.Component {
                         } else {
                           val = val.toPrecision(4);
                         }
-                      } else if (type == 'percentage' && val) {
+                      } else if (type === 'percentage' && val) {
                         let percentage = val * 100;
                         val = (
                           <div

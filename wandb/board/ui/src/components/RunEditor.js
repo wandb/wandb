@@ -1,5 +1,5 @@
 import React from 'react';
-import {Dropdown, Menu, Header, Button, Form} from 'semantic-ui-react';
+import {Button, Form} from 'semantic-ui-react';
 import Markdown from './Markdown';
 import Breadcrumbs from './Breadcrumbs';
 
