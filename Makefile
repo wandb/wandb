@@ -82,16 +82,16 @@ servedocs: docs ## compile the docs watching for changes
 
 gitdirty:
 ifeq ($(GIT_TREE_STATE),dirty)
-    $(error un-committed changes, commit before continuing)
+	$(error un-committed changes, commit before continuing)
 endif
 
 ui: gitdirty
 	cd wandb/board/ui && yarn build
-	ifeq ($(GIT_TREE_STATE),dirty)
-		git commit -am 'New frontend build'
-	else
-		@echo "No frontend changes to commit"
-	endif
+ifeq ($(GIT_TREE_STATE),dirty)
+	git commit -am 'New frontend build'
+else
+	@echo "No frontend changes to commit"
+endif
 
 release: clean ui## package and upload a release
 	git push
