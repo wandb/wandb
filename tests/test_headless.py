@@ -11,6 +11,7 @@ train_py = open(os.path.join(os.path.dirname(
 
 
 def test_dry_run(runner, monkeypatch):
+    print("OH NO", dict(os.environ))
     with runner.isolated_filesystem():
         with open("train.py", "w") as f:
             f.write(train_py)

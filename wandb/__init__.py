@@ -179,6 +179,7 @@ def _init_headless(api, run, job_type, cloud=True):
     run.set_environment(env)
 
     server = wandb_socket.Server()
+    run.socket = server
     hooks = ExitHooks()
     hooks.hook()
 

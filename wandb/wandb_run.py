@@ -38,6 +38,8 @@ class Run(object):
 
         # this is the GQL ID:
         self.storage_id = storage_id
+        # socket server, currently only available in headless mode
+        self.socket = None
 
         if description is not None:
             self.description = description

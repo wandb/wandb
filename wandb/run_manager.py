@@ -427,7 +427,7 @@ class RunManager(object):
                     break
                 elif len(res) > 0:
                     wandb.termerror(
-                        "Invalid message received from child process: %s" % str(res).encode("hex"))
+                        "Invalid message received from child process: %s" % str(res))
                     break
                 else:
                     exitcode = self.proc.poll()
