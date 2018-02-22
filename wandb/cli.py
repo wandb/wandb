@@ -336,40 +336,12 @@ def restore(run, branch, project, entity):
     click.echo("Restored config variables")
 
 
-#@cli.command(context_settings=CONTEXT, help="Push files to Weights & Biases")
-@click.argument("run", envvar='WANDB_RUN')
-@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
-@click.option("--description", "-m", help="A description to associate with this upload.")
-@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
-@click.option("--force/--no-force", "-f", default=False, help="Whether to force git tag creation.")
-@click.argument("files", type=click.File('rb'), nargs=-1)
-@click.pass_context
-@display_error
-def push(ctx, run, project, description, entity, force, files):
-    # TODO: do we support the case of a run with the same name as a file?
-    if os.path.exists(run):
-        raise BadParameter("Run id is required if files are specified.")
-    project, run = api.parse_slug(run, project=project)
-
-    click.echo("Updating run: {project}/{run}".format(
-        project=click.style(project, bold=True), run=run))
-
-    candidates = []
-    if len(files) == 0:
-        raise BadParameter("No files specified")
-
-    # TODO: Deal with files in a sub directory
-    api.push(project, files=[f.name for f in files], run=run,
-             description=description, entity=entity, force=force, progress=sys.stdout)
-
-
-#@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
+@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("run", envvar='WANDB_RUN')
 @click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you want to download.")
-@click.option("--kind", "-k", default="all", type=click.Choice(['all', 'model', 'weights', 'other']))
 @click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
-def pull(project, run, kind, entity):
+def pull(project, run, entity):
     project, run = api.parse_slug(run, project=project)
 
     urls = api.download_urls(project, run=run, entity=entity)
@@ -531,36 +503,6 @@ RUN_CONTEXT['allow_extra_args'] = True
 RUN_CONTEXT['ignore_unknown_options'] = True
 
 
-def pending_loop(pod_id):
-    def elip(times):
-        return "." * (times % 4)
-    i = 0
-    wandb.termlog("Waiting for run to start%s\r" % elip(i), False)
-    while True:
-        try:
-            i += 1
-            if i > 3600:
-                wandb.termlog("Unknown error")
-                break
-            res = requests.get(
-                "http://kubed.endpoints.playground-111.cloud.goog/pods/%s" % pod_id)
-            logging.debug('\n'.join([', '.join([c["type"], c["status"], str(c["message"])])
-                                     for c in res.json()["status"]["conditions"]]))
-            if res.json()["status"]["phase"] == "Pending":
-                i -= 1
-                for x in range(10):
-                    i += 1
-                    wandb.termlog("Waiting for run to start%s   \r" %
-                                  elip(i), False)
-                    time.sleep(1)
-            else:
-                wandb.termlog("Waiting no more.  Here we go!      ")
-                break
-        except:
-            logging.debug(sys.exc_info()[1])
-            time.sleep(10)
-
-
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
 @require_init
@@ -686,7 +628,7 @@ def board(port, host, logdir):
     if not werkzeug.serving.is_running_from_reloader():
         click.echo(
             'Started wandb board on http://{0}:{1} ✨ {2}'.format(host, port, extra))
-        threading.Timer(1, webbrowser.open,
+        threading.Timer(1, webbrowser.open_new_tab,
                         ("http://{0}:{1}".format(host, port),)).start()
     elif dev:
         click.echo("Reloading backend...")

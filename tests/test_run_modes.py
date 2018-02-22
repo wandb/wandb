@@ -10,7 +10,7 @@ train_py = open(os.path.join(os.path.dirname(
     __file__), "fixtures/train.py")).read()
 
 
-def test_dry_run(runner):
+def test_dry_run(runner, monkeypatch):
     with runner.isolated_filesystem():
         with open("train.py", "w") as f:
             f.write(train_py)

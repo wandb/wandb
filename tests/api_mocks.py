@@ -73,7 +73,7 @@ def success_or_failure(payload=None, body_match="query"):
             return body_match in (request.text or '')
 
         return mocker.register_uri('POST', 'https://api.wandb.ai/graphql',
-                                   json=body, status_code=status_code, additional_matcher=match_body)
+                                   [{'json': body, 'status_code': status_code}], additional_matcher=match_body)
     return wrapper
 
 
@@ -98,7 +98,7 @@ def upsert_run():
 
 @pytest.fixture
 def query_project():
-    return _query('model', project())
+    return _query('model', project(), body_match="query Model")
 
 
 @pytest.fixture
@@ -159,8 +159,13 @@ def download_url():
 @pytest.fixture
 def upload_logs():
     def wrapper(mocker, run, status_code=200, body_match='', error=None):
+        from wandb.cli import api
+
         def match_body(request):
             return body_match in (request.text or '')
-        return mocker.register_uri("POST", StreamingLog.endpoint % run,
+
+        api._current_run_id = run
+        url = api.get_file_stream_api()._endpoint
+        return mocker.register_uri("POST", url,
                                    status_code=status_code, additional_matcher=match_body)
     return wrapper
