@@ -46,7 +46,7 @@ class Log extends React.Component {
       this.updateCallback,
     );
     //TODO: This is rather unfortunate
-    if (this.state.autoScroll) {
+    if (this.props.logLines && this.state.autoScroll) {
       setTimeout(() => {
         if (this.list) this.list.scrollToRow(this.props.logLines.edges.length);
       }, 500);
@@ -104,9 +104,14 @@ class Log extends React.Component {
   };
 
   render() {
-    let rowCount = this.props.logLines.edges.length;
+    let rowCount = this.props.logLines ? this.props.logLines.edges.length : 0;
     return (
-      <Segment inverted className="logs" attached style={{height: 400}}>
+      <Segment
+        inverted
+        loading={!this.props.logLines}
+        className="logs"
+        attached
+        style={{height: 400}}>
         <AutoSizer>
           {({width, height}) => (
             <List ordered inverted size="small">

@@ -2,7 +2,7 @@ import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {Button, Icon, Menu, Tab} from 'semantic-ui-react';
+import {Button, Icon, Menu, Tab, Segment, Message} from 'semantic-ui-react';
 import View from '../components/View';
 import {
   addView,
@@ -25,32 +25,38 @@ class Views extends React.Component {
       },
       render: () => (
         <Tab.Pane>
-          <View
-            editMode={this.state.editMode}
-            data={this.props.data}
-            name={this.props.views[viewId].name}
-            config={this.props.views[viewId].config}
-            changeViewName={viewName =>
-              this.props.changeViewName(this.props.viewType, viewId, viewName)
-            }
-            removeView={() =>
-              this.props.removeView(this.props.viewType, viewId)
-            }
-            updatePanel={(panelIndex, panelConfig) =>
-              this.props.updatePanel(
-                this.props.viewType,
-                viewId,
-                panelIndex,
-                panelConfig,
-              )
-            }
-            addPanel={panel =>
-              this.props.addPanel(this.props.viewType, viewId, panel)
-            }
-            removePanel={panelIndex =>
-              this.props.removePanel(this.props.viewType, viewId, panelIndex)
-            }
-          />
+          {this.props.loader && !this.props.data.history ? (
+            <Segment loading basic style={{minHeight: 260}} />
+          ) : !this.props.loader || this.props.data.history.length !== 0 ? (
+            <View
+              editMode={this.state.editMode}
+              data={this.props.data}
+              name={this.props.views[viewId].name}
+              config={this.props.views[viewId].config}
+              changeViewName={viewName =>
+                this.props.changeViewName(this.props.viewType, viewId, viewName)
+              }
+              removeView={() =>
+                this.props.removeView(this.props.viewType, viewId)
+              }
+              updatePanel={(panelIndex, panelConfig) =>
+                this.props.updatePanel(
+                  this.props.viewType,
+                  viewId,
+                  panelIndex,
+                  panelConfig,
+                )
+              }
+              addPanel={panel =>
+                this.props.addPanel(this.props.viewType, viewId, panel)
+              }
+              removePanel={panelIndex =>
+                this.props.removePanel(this.props.viewType, viewId, panelIndex)
+              }
+            />
+          ) : (
+            <Message>No data available</Message>
+          )}
         </Tab.Pane>
       ),
     }));
@@ -94,18 +100,16 @@ class Views extends React.Component {
           icon={this.state.editMode ? 'unhide' : 'configure'}
           onClick={() => this.setState({editMode: !this.state.editMode})}
         />
-        {(!this.props.blank || this.state.editMode) && (
-          <Tab
-            panes={panes}
-            activeIndex={activeIndex}
-            onTabChange={(event, {activeIndex}) => {
-              this.props.setActiveView(
-                this.props.viewType,
-                this.props.tabs[activeIndex],
-              );
-            }}
-          />
-        )}
+        <Tab
+          panes={panes}
+          activeIndex={activeIndex}
+          onTabChange={(event, {activeIndex}) => {
+            this.props.setActiveView(
+              this.props.viewType,
+              this.props.tabs[activeIndex],
+            );
+          }}
+        />
       </div>
     );
   }

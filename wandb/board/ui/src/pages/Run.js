@@ -25,6 +25,9 @@ class Run extends React.Component {
 
   componentDidUpdate() {
     window.Prism.highlightAll();
+    if (!this.props.loading) {
+      this.props.refetch({detailed: true});
+    }
   }
 
   componentWillReceiveProps(nextProps) {
@@ -53,7 +56,7 @@ class Run extends React.Component {
     let action = this.props.match.path.split('/').pop();
     return (
       <Container>
-        {this.props.loading || !this.props.model ? (
+        {!this.props.model ? (
           <Loader size="massive" active={true} />
         ) : this.props.user && action === 'edit' ? (
           // TODO: Don't render button if user can't edit
@@ -98,13 +101,13 @@ const withData = graphql(MODEL_QUERY, {
         entityName: params.entity,
         name: params.model,
         bucketName: params.run,
-        detailed: true,
+        detailed: false,
       },
     };
     if (BOARD) defaults.pollInterval = 2000;
     return defaults;
   },
-  props: ({data, errors}) => {
+  props: ({data, refetch, errors}) => {
     let views = null;
     if (data.model && data.model.views) {
       views = JSON.parse(data.model.views);
@@ -116,6 +119,7 @@ const withData = graphql(MODEL_QUERY, {
       viewer: data.viewer,
       bucket: data.model && data.model.bucket,
       views: views,
+      refetch: data.refetch,
     };
   },
 });
