@@ -17,6 +17,12 @@ def make_printer(msg):
 
 
 class Retry(object):
+    """Creates a retryable version of a function.
+
+    Calling this will call the passed function, retrying if any exceptions in
+    retryable_exceptions are caught, with exponential backoff.
+    """
+
     def __init__(self, call_fn, retryable_exceptions=None, error_prefix="wandb network error"):
         self._call_fn = call_fn
         self._error_prefix = error_prefix
@@ -27,9 +33,17 @@ class Retry(object):
 
     @property
     def num_iters(self):
+        """The number of iterations the previous __call__ retried."""
         return self._num_iter
 
     def __call__(self, *args, **kwargs):
+        """Call the wrapped function, with retries.
+
+        Args:
+           retry_timedelta (kwarg): amount of time to retry before giving up.
+           sleep_base (kwarg): amount of time to sleep upon first failure, all other sleeps
+               are derived from this one.
+        """
         retry_timedelta = kwargs.pop('retry_timedelta')  # required
         if retry_timedelta is None:
             # retry forever
