@@ -1,3 +1,4 @@
+import datetime
 import pytest
 import os
 import traceback
@@ -317,6 +318,9 @@ def test_restore(runner, request_mocker, query_run, monkeypatch):
 
 def test_projects_error(runner, request_mocker, query_projects):
     query_projects(request_mocker, status_code=400)
+    # Ugly, reach in to APIs request Retry object and tell it to only
+    # retry for 50us
+    cli.api.gql._retry_timedelta = datetime.timedelta(0, 0, 50)
     result = runner.invoke(cli.projects)
     print(result.exception)
     print(result.output)

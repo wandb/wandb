@@ -121,7 +121,7 @@ class Api(object):
 
     HTTP_TIMEOUT = 10
 
-    def __init__(self, default_settings=None, load_settings=True):
+    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(1)):
         self.default_settings = {
             'section': "default",
             'entity': "models",
@@ -130,6 +130,7 @@ class Api(object):
             'git_tag': False,
             'base_url': "https://api.wandb.ai"
         }
+        self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self._settings = None
         self.retries = 3
@@ -158,7 +159,7 @@ class Api(object):
             )
         )
         # 1-day worth of retry
-        self.gql = retry.Retry(client.execute, retry_timedelta=datetime.timedelta(1),
+        self.gql = retry.Retry(client.execute, retry_timedelta=retry_timedelta,
                                retryable_exceptions=(RetryError, requests.HTTPError))
         self._current_run_id = None
         self._file_stream_api = None
@@ -596,7 +597,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions

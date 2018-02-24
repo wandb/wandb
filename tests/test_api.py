@@ -7,6 +7,7 @@ test_wandb
 
 Tests for the `wandb.Api` module.
 """
+import datetime
 import pytest
 import os
 import yaml
@@ -18,7 +19,8 @@ from .utils import git_repo
 import wandb
 from wandb import api as wandb_api
 from six import StringIO
-api = wandb_api.Api(load_settings=False)
+api = wandb_api.Api(load_settings=False,
+                    retry_timedelta=datetime.timedelta(0, 0, 50))
 
 
 def test_projects_success(request_mocker, query_projects):
