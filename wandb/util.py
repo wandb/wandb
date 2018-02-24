@@ -139,9 +139,9 @@ def md5_file(path):
 
 
 def get_log_file_path():
-    parent_handlers = logger.parent.handlers
-    if parent_handlers and "baseFilename" in dir(parent_handlers[0]):
-        return os.path.relpath(parent_handlers[0].baseFilename, os.getcwd())
+    root_handlers = logger.root.handlers
+    if root_handlers and "baseFilename" in dir(root_handlers[0]):
+        return os.path.relpath(root_handlers[0].baseFilename, os.getcwd())
     else:
         return '<unknown>'
 

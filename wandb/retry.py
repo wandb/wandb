@@ -23,10 +23,14 @@ class Retry(object):
     retryable_exceptions are caught, with exponential backoff.
     """
 
-    def __init__(self, call_fn, retry_timedelta=None, retryable_exceptions=None, error_prefix="wandb network error"):
+    MAX_SLEEP_SECONDS = 5 * 60
+
+    def __init__(self, call_fn, retry_timedelta=None, num_retries=None,
+                 retryable_exceptions=None, error_prefix="wandb network error"):
         self._call_fn = call_fn
         self._error_prefix = error_prefix
         self._retry_timedelta = retry_timedelta
+        self._num_retries = num_retries
         self._retryable_exceptions = retryable_exceptions
         if self._retryable_exceptions is None:
             self._retryable_exceptions = (Exception,)
@@ -45,12 +49,13 @@ class Retry(object):
            sleep_base (kwarg): amount of time to sleep upon first failure, all other sleeps
                are derived from this one.
         """
-        retry_timedelta = kwargs.pop('retry_timedelta')  # required
+        retry_timedelta = kwargs.get(
+            'retry_timedelta') or self._retry_timedelta
         if retry_timedelta is None:
-            retry_timedelta = self._retry_timedelta
-            if retry_timedelta is None:
-                # retry forever
-                retry_timedelta = datetime.timedelta(days=1000000)
+            retry_timedelta = datetime.timedelta(days=1000000)
+        num_retries = kwargs.get('num_retries') or self._num_retries
+        if num_retries is None:
+            num_retries = 1000000
         sleep_base = 1
         try:
             sleep_base = kwargs.pop('retry_sleep_base')
@@ -72,9 +77,10 @@ class Retry(object):
                         self._error_prefix, datetime.datetime.now() - start_time))
                 return result
             except self._retryable_exceptions as e:
-                if datetime.datetime.now() - start_time >= retry_timedelta:
+                if (datetime.datetime.now() - start_time >= retry_timedelta
+                        or self._num_iter >= num_retries):
                     raise
-                if first:
+                if self._num_iter == 2:
                     logger.error(traceback.format_exc())
                     print(
                         '%s (%s), entering retry loop. See %s for full traceback.' % (
@@ -84,8 +90,8 @@ class Retry(object):
             first = False
             time.sleep(sleep + random.random() * 0.25 * sleep)
             sleep *= 2
-            if sleep > 3600:
-                sleep = 3600
+            if sleep > self.MAX_SLEEP_SECONDS:
+                sleep = self.MAX_SLEEP_SECONDS
             now = datetime.datetime.now()
 
             self._num_iter += 1
