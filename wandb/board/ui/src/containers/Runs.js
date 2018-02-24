@@ -348,7 +348,9 @@ function parseBuckets(buckets) {
     {
       let node = {...edge.node};
       node.config = node.config ? JSONparseNaN(node.config) : {};
-      node.config = flatten(_.mapValues(node.config, confObj => confObj.value));
+      node.config = flatten(
+        _.mapValues(node.config, confObj => confObj.value || confObj),
+      );
       node.summary = flatten(node.summaryMetrics)
         ? JSONparseNaN(node.summaryMetrics)
         : {};
