@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  Grid,
-  List,
-  Popup,
-  Header,
-  Tab,
-  Segment,
-} from 'semantic-ui-react';
+import {Grid, List, Popup, Header, Tab, Segment} from 'semantic-ui-react';
 import RunSummary from './RunSummary';
 import numeral from 'numeral';
 import ReactTable from 'react-table';
@@ -169,13 +162,13 @@ export default class RunViewer extends React.Component {
                               <img
                                 style={{'max-width': 128}}
                                 src={'data:image/png;base64,' + val}
-                                alt='example'
+                                alt="example"
                               />
                             }>
                             <img
                               style={{width: 256}}
                               src={'data:image/png;base64,' + val}
-                              alt='example'
+                              alt="example"
                             />
                           </Popup>
                         );
@@ -266,7 +259,10 @@ export default class RunViewer extends React.Component {
                       <List.Header>{key}</List.Header>
                     )}
                     <List.Description>
-                      {'' + displayValue(this.config()[key].value)}
+                      {'' +
+                        displayValue(
+                          this.config()[key].value || this.config()[key],
+                        )}
                     </List.Description>
                   </List.Item>
                 ))}
