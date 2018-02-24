@@ -23,9 +23,10 @@ class Retry(object):
     retryable_exceptions are caught, with exponential backoff.
     """
 
-    def __init__(self, call_fn, retryable_exceptions=None, error_prefix="wandb network error"):
+    def __init__(self, call_fn, retry_timedelta=None, retryable_exceptions=None, error_prefix="wandb network error"):
         self._call_fn = call_fn
         self._error_prefix = error_prefix
+        self._retry_timedelta = retry_timedelta
         self._retryable_exceptions = retryable_exceptions
         if self._retryable_exceptions is None:
             self._retryable_exceptions = (Exception,)
@@ -46,8 +47,10 @@ class Retry(object):
         """
         retry_timedelta = kwargs.pop('retry_timedelta')  # required
         if retry_timedelta is None:
-            # retry forever
-            retry_timedelta = datetime.timedelta(days=1000000)
+            retry_timedelta = self._retry_timedelta
+            if retry_timedelta is None:
+                # retry forever
+                retry_timedelta = datetime.timedelta(days=1000000)
         sleep_base = 1
         try:
             sleep_base = kwargs.pop('retry_sleep_base')
@@ -61,7 +64,7 @@ class Retry(object):
 
         self._num_iter = 0
 
-        while (now - start_time) < retry_timedelta:
+        while True:
             try:
                 result = self._call_fn(*args, **kwargs)
                 if not first:
@@ -69,10 +72,12 @@ class Retry(object):
                         self._error_prefix, datetime.datetime.now() - start_time))
                 return result
             except self._retryable_exceptions as e:
+                if datetime.datetime.now() - start_time >= retry_timedelta:
+                    raise
                 if first:
                     logger.error(traceback.format_exc())
                     print(
-                        '%s (%s), retrying indefinitely. See %s for full traceback.' % (
+                        '%s (%s), entering retry loop. See %s for full traceback.' % (
                             self._error_prefix, e.__class__.__name__, util.get_log_file_path()))
                 if os.getenv('WANDB_DEBUG'):
                     traceback.print_exc()
