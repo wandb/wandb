@@ -40,13 +40,15 @@ class History(object):
         self._lock = Lock()
         self._torch = None
         try:
-            with open(self.fname) as f:
-                for line in f:
-                    self._index(json.loads(line))
+            # only preload the default stream, TODO: better stream support
+            if stream_name == "default":
+                with open(self.fname) as f:
+                    for line in f:
+                        self._index(json.loads(line))
         except IOError:
             pass
 
-        self._file = open(self.fname, 'w')
+        self._file = open(self.fname, 'a')
         self._add_callback = add_callback
 
     def keys(self):
@@ -65,7 +67,7 @@ class History(object):
         return self._streams[name]
 
     def column(self, key):
-        """Fetches a key from all rows that have it. Skips those that don't.
+        """Iterator over a given column, skipping rows that don't have a key
         """
         for row in self.rows:
             if key in row:
@@ -120,16 +122,21 @@ class History(object):
     def _transform(self):
         """Transforms media classes into the proper format before writing"""
         for key, val in six.iteritems(self.row):
-            if type(val) in (list, tuple):
-                if len(val) > 0 and type(val[0]) == media.Image:
+            if type(val) in (list, tuple) and len(val) > 0:
+                is_image = [isinstance(v, media.Image) for v in val]
+                if all(is_image):
                     self.row[key] = media.Image.transform(val, self.out_dir,
                                                           "{}_{}.jpg".format(key, self.row["_step"]))
+                elif any(is_image):
+                    raise ValueError(
+                        "Mixed media types in the same list aren't supported")
 
     def _write(self):
         if self.row:
             self._lock.acquire()
             try:
-                self.row['_runtime'] = round(time.time() - self._start_time, 2)
+                self.row['_runtime'] = time.time() - self._start_time
+                self.row['_timestamp'] = time.time()
                 self.row['_step'] = self._steps
                 if self.stream_name != "default":
                     self.row["_stream"] = self.stream_name

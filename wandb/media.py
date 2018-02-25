@@ -3,8 +3,8 @@ from wandb import util
 
 
 class Media(object):
-    @staticmethod
-    def from_type(type):
+    @classmethod
+    def from_type(cls, type):
         pass
 
 
@@ -31,19 +31,26 @@ class Image(object):
         Guess what type of image the np.array is representing 
         """
         # TODO: do we want to support dimensions being at the beginning of the array?
-        if data.shape[-1] == 1:
+        if data.shape[-1] == 1 or len(data.shape) == 2:
             return "L"
         elif data.shape[-1] == 3:
             return "RGB"
         elif data.shape[-1] == 4:
             return "RGBA"
+        else:
+            raise ValueError(
+                "Un-supported shape for image conversion %s" % list(data.shape))
 
     def to_uint8(self, data):
         """
         Converts floating point image on the range [0,1] and integer images
         on the range [0,255] to uint8, clipping if necessary.
         """
-        import numpy as np
+        try:
+            import numpy as np
+        except ImportError:
+            raise ValueError(
+                "wandb.Image requires numpy if not supplying PIL Images: pip install numpy")
         if issubclass(data.dtype.type, np.floating):
             data = (data * 255).astype(np.int32)
         assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
