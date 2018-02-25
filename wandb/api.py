@@ -485,7 +485,7 @@ class Api(object):
 
     @normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None,
-                   config=None, description=None, entity=None,
+                   config=None, description=None, entity=None, state=None,
                    repo=None, job_type=None, program_path=None, commit=None,
                    sweep_name=None):
         """Update a run
@@ -498,6 +498,7 @@ class Api(object):
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
             repo (str, optional): Url of the program's repository.
+            state (str, optional): State of the program.
             job_type (str, optional): Type of job, e.g 'train'.
             program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
@@ -515,6 +516,7 @@ class Api(object):
             $program: String,
             $repo: String,
             $jobType: String,
+            $state: String,
             $sweep: String
         ) {
             upsertBucket(input: {
@@ -529,6 +531,7 @@ class Api(object):
                 jobProgram: $program,
                 jobRepo: $repo,
                 jobType: $jobType,
+                state: $state,
                 sweep: $sweep
             }) {
                 bucket {
@@ -549,7 +552,7 @@ class Api(object):
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit,
             'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type,
-            'sweep': sweep_name})
+            'state': state, 'sweep': sweep_name})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions

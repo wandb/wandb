@@ -1,6 +1,6 @@
 #!/bin/sh
 
-pyenvs="py27 py34 py35 py36"
+pyenvs="py27 py35 py36"
 
 # reduce to the set we need for this circle node, and interpserse with ","
 pyenvs=$(echo $pyenvs \

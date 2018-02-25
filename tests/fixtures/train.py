@@ -17,6 +17,5 @@ for i in range(0, run.config.epochs):
     loss = random.uniform(0, run.config.epochs - i)
     print("loss: %s" % loss)
     run.history.add({"loss": loss})
-    time.sleep(0.1)
 
 print("Finished")

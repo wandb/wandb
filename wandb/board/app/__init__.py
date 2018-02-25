@@ -7,15 +7,15 @@ from wandb.board.app import blueprints
 from wandb.board.config import config
 from wandb.board.app.graphql.loader import load
 
-BLUEPRINTS = [blueprints.graphql]
+BLUEPRINTS = [blueprints.graphql, blueprints.files, blueprints.static]
 
 
 __all__ = ['create_app']
 
 
-def create_app(config_name):
+def create_app(config_name, base_path=None):
     """Create flask app and return it"""
-    load()
+    load(base_path)
     app = Flask(__name__, static_folder="../ui/build/static",
                 template_folder="../ui/build")
 

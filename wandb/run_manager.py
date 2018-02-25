@@ -291,8 +291,14 @@ class RunManager(object):
             stdout = sys.stdout
             stderr = sys.stderr
         else:  # we write binary so grab the raw I/O objects in python 3
-            stdout = sys.stdout.buffer.raw
-            stderr = sys.stderr.buffer.raw
+            try:
+                stdout = sys.stdout.buffer.raw
+                stderr = sys.stderr.buffer.raw
+            except AttributeError:
+                # The testing environment and potentially others may have screwed with their
+                # io so we fallback to raw stdout / err
+                stdout = sys.stdout.buffer
+                stderr = sys.stderr.buffer
 
         output_log_path = os.path.join(self._run.dir, OUTPUT_FNAME)
         self._output_log = WriteSerializingFile(open(output_log_path, 'wb'))
@@ -421,7 +427,7 @@ class RunManager(object):
                     break
                 elif len(res) > 0:
                     wandb.termerror(
-                        "Invalid message received from child process: %s" % str(res).encode("hex"))
+                        "Invalid message received from child process: %s" % str(res))
                     break
                 else:
                     exitcode = self.proc.poll()
@@ -442,8 +448,6 @@ class RunManager(object):
                         self.proc.kill()
                     except OSError:
                         pass
-
-        self._close_stdout_stderr_streams(exitcode or 254)
 
         """TODO(adrian): garbage that appears in the logs sometimes
 
@@ -475,6 +479,7 @@ class RunManager(object):
             self._meta.data["state"] = "failed"
         self._meta.shutdown()
         self._system_stats.shutdown()
+        self._close_stdout_stderr_streams(exitcode or 254)
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
