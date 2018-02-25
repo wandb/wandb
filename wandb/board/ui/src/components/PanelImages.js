@@ -84,7 +84,7 @@ class ImagesPanel extends React.Component {
   }
 
   renderNormal() {
-    let {historyKeys, history} = this.props.data;
+    let {history} = this.props.data;
     //TODO: performance / support multiple image keys
     let imageKey = null;
     let images = history.map(h => {

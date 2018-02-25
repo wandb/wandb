@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  Grid,
-  List,
-  Popup,
-  Header,
-  Tab,
-  Segment,
-} from 'semantic-ui-react';
+import {Grid, List, Popup, Header, Tab, Segment} from 'semantic-ui-react';
 import RunSummary from './RunSummary';
 import numeral from 'numeral';
 import ReactTable from 'react-table';
@@ -95,7 +88,9 @@ export default class RunViewer extends React.Component {
         }
       })
       .filter(row => row !== null);
-    let keys = _.flatMap(data, row => _.keys(row));
+    let keys = _.flatMap(data, row =>
+      _.keys(row).filter(key => !row[key]._type),
+    );
     keys = _.uniq(keys);
     keys = _.sortBy(keys);
     return [keys, data];
@@ -170,13 +165,13 @@ export default class RunViewer extends React.Component {
                               <img
                                 style={{'max-width': 128}}
                                 src={'data:image/png;base64,' + val}
-                                alt='example'
+                                alt="example"
                               />
                             }>
                             <img
                               style={{width: 256}}
                               src={'data:image/png;base64,' + val}
-                              alt='example'
+                              alt="example"
                             />
                           </Popup>
                         );
