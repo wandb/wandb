@@ -2,7 +2,7 @@
   <img src="https://app.wandb.ai/logo.svg" width="350" /><br><br>
 </div>
 
-# Wandb Development
+# Development
 
 ## CLI and Library
 
@@ -56,3 +56,11 @@ yarn install
 ### Running the development servers
 
 The flask app can be started in development mode from a directory containing a _wandb_ directory with `WANDB_ENV=dev wandb board`. This will automatically reload when changes are made. The frontend can be run by calling `yarn start` from the _wandb/board/ui_ directory, you can then access the frontend at http://localhost:3000 by default.
+
+### Running tests
+
+The backend tests can be run via `pytest` in the root directory. The frontend tests are run with `yarn run` from the _wandb/board/ui_ directory.
+
+## Contributing
+
+We love pull requests, show us what you're thinking!
