@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="https://app.wandb.ai/logo.svg" width="350" /><br><br>
+</div>
+
 # Wandb Development
 
 ## CLI and Library
@@ -13,7 +17,7 @@ pip install -r requirements_dev.txt
 
 ### Architecture
 
-When `wandb.init()` is called from a user script, communication with a seperate wandb process is coordinated. This is done by creating a pty for stdout and stderr and listening for changes to files in the run directory. If a script is started with `wandb run` the wandb process is started immediately and the user process is started by it. If the script is run directly, the wandb process is started from `wandb.init()`. Communication with the WandB cloud only occurs when `wandb run` is used, or `WANDB_MODE=run` is set in the environment.
+When `wandb.init()` is called from a user script, communication with a seperate wandb process is coordinated. This is done by creating a pty for stdout and stderr, listening for file change events, and sending signals over a socket. If a script is started with `wandb run` the wandb process is started immediately and the user process is started by it. If the script is run directly, the wandb process is started from `wandb.init()`. Communication with the WandB cloud only occurs when `wandb run` is used, or `WANDB_MODE=run` is set in the environment.
 
 ### Special Files
 
@@ -51,10 +55,4 @@ yarn install
 
 ### Running the development servers
 
-The flask app can be started in development mode from a directory containing a _wandb_ directory with `WANDB_ENV=dev wandb board`. This will automatically reload when changes are made. The frontend can be run by calling `yarn start` from the _wandb/board/ui_ directory.
-
-### Building the frontend
-
-```shell
-yarn release
-```
+The flask app can be started in development mode from a directory containing a _wandb_ directory with `WANDB_ENV=dev wandb board`. This will automatically reload when changes are made. The frontend can be run by calling `yarn start` from the _wandb/board/ui_ directory, you can then access the frontend at http://localhost:3000 by default.
