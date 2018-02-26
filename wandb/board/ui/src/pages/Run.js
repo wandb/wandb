@@ -5,7 +5,6 @@ import RunEditor from '../components/RunEditor';
 import RunViewer from '../components/RunViewer';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
 import {RUN_UPSERT, RUN_DELETION, RUN_STOP, RUNS_QUERY} from '../graphql/runs';
-import {defaultDataIdFromObject} from 'apollo-cache-inmemory';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
