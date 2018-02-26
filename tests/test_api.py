@@ -7,6 +7,7 @@ test_wandb
 
 Tests for the `wandb.Api` module.
 """
+import datetime
 import pytest
 import os
 import yaml
@@ -18,7 +19,8 @@ from .utils import git_repo
 import wandb
 from wandb import api as wandb_api
 from six import StringIO
-api = wandb_api.Api(load_settings=False)
+api = wandb_api.Api(load_settings=False,
+                    retry_timedelta=datetime.timedelta(0, 0, 50))
 
 
 def test_projects_success(request_mocker, query_projects):
@@ -200,3 +202,17 @@ def test_default_settings():
         'git_tag': False,
         'project': None,
     }
+
+
+def test_init(git_repo, upsert_run, request_mocker):
+    upsert_run(request_mocker)
+    os.environ['WANDB_RUN_STORAGE_ID'] = 'abc'
+    os.environ['WANDB_MODE'] = 'run'
+    run = wandb.init()
+    assert run.mode == "run"
+    # TODO: make a fixture?  This is gross
+    del os.environ['WANDB_MODE']
+    del os.environ['WANDB_INITED']
+    del os.environ['WANDB_RUN_STORAGE_ID']
+    del os.environ['WANDB_RUN_ID']
+    del os.environ['WANDB_RUN_DIR']

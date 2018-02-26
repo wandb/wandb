@@ -27,6 +27,10 @@ def runner(monkeypatch):
 def git_repo():
     with CliRunner().isolated_filesystem():
         r = git.Repo.init(".")
+        os.mkdir("wandb")
+        # Because the forked process doesn't use my monkey patch above
+        with open("wandb/settings", "w") as f:
+            f.write("[default]\nproject: test")
         open("README", "wb").close()
         r.index.add(["README"])
         r.index.commit("Initial commit")

@@ -4,14 +4,10 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.5.1'
+__version__ = '0.5.3'
 
 import atexit
 import click
-try:
-    import fcntl
-except ImportError:  # windows
-    fcntl = None
 import json
 import logging
 import time
@@ -44,6 +40,7 @@ else:
     __stage_dir__ = None
 
 SCRIPT_PATH = os.path.abspath(sys.argv[0])
+START_TIME = time.time()
 
 
 def wandb_dir():
@@ -82,6 +79,7 @@ from wandb import api as wandb_api
 from wandb import config as wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
+from wandb.media import Image
 # Three possible modes:
 #     'cli': running from "wandb" command
 #     'run': we're a script launched by "wandb run"
@@ -181,6 +179,7 @@ def _init_headless(api, run, job_type, cloud=True):
     run.set_environment(env)
 
     server = wandb_socket.Server()
+    run.socket = server
     hooks = ExitHooks()
     hooks.hook()
 
@@ -297,7 +296,7 @@ def init(job_type='train', config=None):
             webbrowser.open_new_tab(run.get_url(api))
     elif run.mode == 'dryrun':
         termlog(
-            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
+            'wandb dry run mode. Run `wandb board` from this directory to see results')
         termlog()
         _init_headless(api, run, job_type, False)
     else:

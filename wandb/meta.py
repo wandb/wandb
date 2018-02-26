@@ -7,6 +7,7 @@ import getpass
 from datetime import datetime
 
 from wandb import util
+import wandb
 
 METADATA_FNAME = 'wandb-metadata.json'
 
@@ -36,7 +37,8 @@ class Meta(object):
                 "remote": self._api.git.remote_url,
                 "commit": self._api.git.last_commit
             }
-        self.data["startedAt"] = datetime.utcnow().isoformat()
+        self.data["startedAt"] = datetime.utcfromtimestamp(
+            wandb.START_TIME).isoformat()
         self.data["email"] = self._api.git.email
         self.data["root"] = self._api.git.root or os.getcwd()
         self.data["host"] = socket.gethostname()

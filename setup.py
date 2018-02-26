@@ -16,7 +16,6 @@ requirements = [
     'watchdog>=0.8.3',
     'GitPython>=2.1.8',
     'shortuuid>=0.5.0',
-    'pusherclient>=0.3.0',
     'daemonocle>=1.0.1',
     'nvidia-ml-py3>=7.352.0',
     'flask-cors>=3.0.3',
@@ -31,7 +30,7 @@ test_requirements = [
 
 setup(
     name='wandb',
-    version='0.5.1',
+    version='0.5.3',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     author="Chris Van Pelt",

@@ -7,6 +7,7 @@ import socket
 import getpass
 import urllib
 import hashlib
+import logging
 from six.moves import urllib
 from datetime import datetime
 from dateutil.parser import parse
@@ -181,6 +182,9 @@ class Dir(Base):
         run.description = desc.read()
         run.commit = self.meta["git"].get("commit")
         run.state = self.meta.get("state", "finished")
+        age = (datetime.utcnow() - self.updated_at).total_seconds()
+        if run.state == "running" and age > 300:
+            run.state = "crashed"
         run.host = self.meta.get("host", socket.gethostname())
         run.patch = patch.read()
         run.summaryMetrics = summary.parsed()

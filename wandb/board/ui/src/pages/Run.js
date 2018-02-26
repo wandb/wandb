@@ -52,15 +52,13 @@ class Run extends React.Component {
     }
     // Setup views loaded from server.
     if (
-      (nextProps.views === null || !nextProps.views.runs) &&
-      _.isEmpty(this.props.reduxServerViews.runs.views) &&
-      _.isEmpty(this.props.reduxBrowserViews.runs.views)
+      nextProps.bucket &&
+      (nextProps.views === null || !nextProps.views.run) &&
+      _.isEmpty(this.props.reduxServerViews.run.views) &&
+      !this.props.reduxBrowserViews.run.configured
     ) {
       // no views on server, provide a default
-      this.props.setServerViews(
-        defaultViews(nextProps.runs || this.props.runs),
-        true,
-      );
+      this.props.setServerViews(defaultViews(nextProps.bucket), true);
     } else if (
       nextProps.views &&
       nextProps.views.runs &&

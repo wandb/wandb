@@ -1,0 +1,16 @@
+{
+    "git": {
+        "remote": "git@github.com:wandb/wandb-examples.git",
+        "commit": "4b3326627dddd27a91654aec5ba94b240962fa0a"
+    },
+    "startedAt": "2018-02-21T06:26:51.220192",
+    "email": "vanpelt@gmail.com",
+    "root": "/Users/vanpelt/Development/WandB/wandb-examples",
+    "host": "CVP.local",
+    "username": "vanpelt",
+    "program": "cifar-cnn.py",
+    "state": "killed",
+    "heartbeatAt": "2018-02-21T06:29:13.804028",
+    "jobType": "train",
+    "exitcode": 1
+}

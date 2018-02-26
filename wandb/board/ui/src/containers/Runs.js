@@ -192,13 +192,14 @@ class Runs extends React.Component {
     }
     // Setup views loaded from server.
     if (
+      nextProps.buckets &&
       (nextProps.views === null || !nextProps.views.runs) &&
       _.isEmpty(this.props.reduxServerViews.runs.views) &&
       _.isEmpty(this.props.reduxBrowserViews.runs.views)
     ) {
       // no views on server, provide a default
       this.props.setServerViews(
-        defaultViews(nextProps.runs || this.props.runs),
+        defaultViews((nextProps.buckets.edges[0] || {}).node),
         true,
       );
     } else if (
@@ -348,7 +349,9 @@ function parseBuckets(buckets) {
     {
       let node = {...edge.node};
       node.config = node.config ? JSONparseNaN(node.config) : {};
-      node.config = flatten(_.mapValues(node.config, confObj => confObj.value));
+      node.config = flatten(
+        _.mapValues(node.config, confObj => confObj.value || confObj),
+      );
       node.summary = flatten(node.summaryMetrics)
         ? JSONparseNaN(node.summaryMetrics)
         : {};
@@ -363,7 +366,9 @@ function getColumns(runs) {
     _.flatMap(runs, run => _.keys(run.config)).sort(),
   ).map(col => 'config:' + col);
   let summaryColumns = _.uniq(
-    _.flatMap(runs, run => _.keys(run.summary)).sort(),
+    _.flatMap(runs, run => _.keys(run.summary))
+      .filter(k => !k.startsWith('_') && k !== 'examples')
+      .sort(),
   ).map(col => 'summary:' + col);
   let sweepColumns =
     runs && runs.findIndex(r => r.sweep) > -1 ? ['Sweep', 'Stop'] : [];

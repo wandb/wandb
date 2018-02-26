@@ -21,4 +21,5 @@ ReactDOM.render(
   </Provider>,
   document.getElementById('root'),
 );
-registerServiceWorker();
+//TODO: do we want to use service workers in the board?
+//registerServiceWorker();

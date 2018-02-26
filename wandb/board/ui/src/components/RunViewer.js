@@ -88,7 +88,9 @@ export default class RunViewer extends React.Component {
         }
       })
       .filter(row => row !== null);
-    let keys = _.flatMap(data, row => _.keys(row));
+    let keys = _.flatMap(data, row =>
+      _.keys(row).filter(key => !row[key]._type),
+    );
     keys = _.uniq(keys);
     keys = _.sortBy(keys);
     return [keys, data];
@@ -134,6 +136,7 @@ export default class RunViewer extends React.Component {
                 history: histData,
                 eventKeys: eventKeys,
                 events: eventData,
+                match: this.props.match,
               }}
               blank={!histData || histData.length === 0}
               updateViews={this.props.updateViews}
@@ -261,7 +264,10 @@ export default class RunViewer extends React.Component {
                       <List.Header>{key}</List.Header>
                     )}
                     <List.Description>
-                      {'' + displayValue(this.config()[key].value)}
+                      {'' +
+                        displayValue(
+                          this.config()[key].value || this.config()[key],
+                        )}
                     </List.Description>
                   </List.Item>
                 ))}

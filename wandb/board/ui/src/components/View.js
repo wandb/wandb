@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import {Button, Form, Grid} from 'semantic-ui-react';
 import Panel from '../components/Panel';
 
@@ -23,6 +24,12 @@ class View extends React.Component {
     if (nextProps.config !== this.props.config) {
       this._makeUpdatePanelMethods(nextProps.config);
     }
+    if (nextProps.editMode) {
+      const tab = ReactDOM.findDOMNode(this).querySelector('.tab-name input');
+      if (tab) {
+        tab.focus();
+      }
+    }
   }
 
   render() {
@@ -35,6 +42,7 @@ class View extends React.Component {
                 <Form.Input
                   placeholder="Tab Name"
                   value={this.props.name}
+                  className="tab-name"
                   onChange={(e, {value}) => this.props.changeViewName(value)}
                 />
                 {/* hidden button so the remove button's onClick doesn't fire when the
@@ -44,7 +52,6 @@ class View extends React.Component {
                   icon="x"
                   content="Remove Tab"
                   onClick={() => {
-                    console.log('removeView');
                     this.props.removeView();
                   }}
                 />
@@ -61,9 +68,11 @@ class View extends React.Component {
             config={panelConfig.config}
             data={this.props.data}
             updateType={newType =>
-              this.props.updatePanel(i, {...panelConfig, viewType: newType})}
+              this.props.updatePanel(i, {...panelConfig, viewType: newType})
+            }
             updateSize={newSize =>
-              this.props.updatePanel(i, {...panelConfig, size: newSize})}
+              this.props.updatePanel(i, {...panelConfig, size: newSize})
+            }
             panelIndex={i}
             updateConfig={this.updateConfig[i]}
             removePanel={() => this.props.removePanel(i)}

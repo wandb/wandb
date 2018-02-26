@@ -23,6 +23,12 @@ endef
 export PRINT_HELP_PYSCRIPT
 BROWSER := python -c "$$BROWSER_PYSCRIPT"
 
+ifeq ($(strip $(shell git status --untracked-files=no --porcelain 2>/dev/null)),)
+	GIT_TREE_STATE=clean
+else
+	GIT_TREE_STATE=dirty
+endif
+
 help:
 	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
 
@@ -74,7 +80,26 @@ docs: ## generate Sphinx HTML documentation, including API docs
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
-release: clean ## package and upload a release
+gitdirty:
+ifeq ($(GIT_TREE_STATE),dirty)
+	$(error un-committed changes, commit before continuing)
+endif
+
+ui: gitdirty
+	cd wandb/board/ui && yarn build
+ifeq ($(strip $(shell git status --untracked-files=no --porcelain 2>/dev/null)),)
+	GIT_TREE_STATE=clean
+else
+	GIT_TREE_STATE=dirty
+endif
+ifeq ($(GIT_TREE_STATE),dirty)
+	git add .
+	git commit -m 'New frontend build'
+else
+	@echo "No frontend changes to commit"
+endif
+
+release: clean ui## package and upload a release
 	git push
 	python setup.py sdist upload
 	python setup.py bdist_wheel upload

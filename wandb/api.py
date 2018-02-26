@@ -1,6 +1,7 @@
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
+import datetime
 import os
 import requests
 import ast
@@ -14,6 +15,7 @@ import re
 import wandb
 from wandb import __version__, __stage_dir__, Error
 from wandb.git_repo import GitRepo
+from wandb import retry
 from wandb import util
 from .config import Config
 import base64
@@ -119,7 +121,7 @@ class Api(object):
 
     HTTP_TIMEOUT = 10
 
-    def __init__(self, default_settings=None, load_settings=True):
+    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(1)):
         self.default_settings = {
             'section': "default",
             'entity': "models",
@@ -128,6 +130,7 @@ class Api(object):
             'git_tag': False,
             'base_url': "https://api.wandb.ai"
         }
+        self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self._settings = None
         self.retries = 3
@@ -145,8 +148,8 @@ class Api(object):
         else:
             self.settings_file = "Not found"
         self.git = GitRepo(remote=self.settings("git_remote"))
-        self.client = Client(
-            retries=self.retries,
+        client = Client(
+            retries=1,
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent},
                 use_json=True,
@@ -155,6 +158,9 @@ class Api(object):
                 url='%s/graphql' % self.settings('base_url')
             )
         )
+        # 1-day worth of retry
+        self.gql = retry.Retry(client.execute, retry_timedelta=retry_timedelta,
+                               retryable_exceptions=(RetryError, requests.HTTPError))
         self._current_run_id = None
         self._file_stream_api = None
 
@@ -312,7 +318,7 @@ class Api(object):
             }
         }
         ''')
-        res = self.client.execute(query)
+        res = self.gql(query)
         return res.get('viewer', {})
 
     @normalize_exceptions
@@ -338,7 +344,7 @@ class Api(object):
             }
         }
         ''')
-        return self._flatten_edges(self.client.execute(query, variable_values={
+        return self._flatten_edges(self.gql(query, variable_values={
             'entity': entity or self.settings('entity')})['models'])
 
     @normalize_exceptions
@@ -367,7 +373,7 @@ class Api(object):
             }
         }
         ''')
-        return self._flatten_edges(self.client.execute(query, variable_values={
+        return self._flatten_edges(self.gql(query, variable_values={
             'entity': entity or self.settings('entity'),
             'model': project or self.settings('project')})['model']['buckets'])
 
@@ -411,7 +417,7 @@ class Api(object):
         cwd = "."
         if self.git.enabled:
             cwd = cwd + os.getcwd().replace(self.git.repo.working_dir, "")
-        return self.client.execute(query, variable_values={
+        return self.gql(query, variable_values={
             'entity': entity or self.settings('entity'),
             'model': project or self.settings('project'),
             'command': command,
@@ -441,7 +447,7 @@ class Api(object):
         }
         ''')
 
-        response = self.client.execute(query, variable_values={
+        response = self.gql(query, variable_values={
             'name': project, 'run': run, 'entity': entity
         })
         run = response['model']['bucket']
@@ -472,14 +478,14 @@ class Api(object):
             }
         }
         ''')
-        response = self.client.execute(mutation, variable_values={
+        response = self.gql(mutation, variable_values={
             'name': self.format_project(project), 'entity': entity or self.settings('entity'),
             'description': description, 'repo': self.git.remote_url, 'id': id})
         return response['upsertModel']['model']
 
     @normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None,
-                   config=None, description=None, entity=None,
+                   config=None, description=None, entity=None, state=None,
                    repo=None, job_type=None, program_path=None, commit=None,
                    sweep_name=None):
         """Update a run
@@ -492,6 +498,7 @@ class Api(object):
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
             repo (str, optional): Url of the program's repository.
+            state (str, optional): State of the program.
             job_type (str, optional): Type of job, e.g 'train'.
             program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
@@ -509,6 +516,7 @@ class Api(object):
             $program: String,
             $repo: String,
             $jobType: String,
+            $state: String,
             $sweep: String
         ) {
             upsertBucket(input: {
@@ -523,6 +531,7 @@ class Api(object):
                 jobProgram: $program,
                 jobRepo: $repo,
                 jobType: $jobType,
+                state: $state,
                 sweep: $sweep
             }) {
                 bucket {
@@ -539,11 +548,11 @@ class Api(object):
         if not description:
             description = None
         commit = commit or self.git.last_commit
-        response = self.client.execute(mutation, variable_values={
+        response = self.gql(mutation, variable_values={
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit,
             'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type,
-            'sweep': sweep_name})
+            'state': state, 'sweep': sweep_name})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -583,7 +592,7 @@ class Api(object):
             }
         }
         ''')
-        query_result = self.client.execute(query, variable_values={
+        query_result = self.gql(query, variable_values={
             'name': project, 'run': run or self.settings('run'),
             'entity': entity or self.settings('entity'),
             'description': description,
@@ -591,7 +600,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']                  : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -629,7 +639,7 @@ class Api(object):
             }
         }
         ''')
-        query_result = self.client.execute(query, variable_values={
+        query_result = self.gql(query, variable_values={
             'name': project, 'run': run or self.settings('run'),
             'entity': entity or self.settings('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
@@ -746,12 +756,12 @@ class Api(object):
         ''')
         if project_name is None:
             project_name = self.settings('project')
-        response = self.client.execute(mutation, variable_values={
-                                       'host': host,
-                                       'entityName': self.settings("entity"),
-                                       'modelName': project_name,
-                                       'persistent': persistent,
-                                       'sweep': sweep_id})
+        response = self.gql(mutation, variable_values={
+            'host': host,
+            'entityName': self.settings("entity"),
+            'modelName': project_name,
+            'persistent': persistent,
+            'sweep': sweep_id})
         return response['createAgent']['agent']
 
     def agent_heartbeat(self, agent_id, metrics, run_states):
@@ -784,10 +794,10 @@ class Api(object):
         }
         ''')
         try:
-            response = self.client.execute(mutation, variable_values={
-                                           'id': agent_id,
-                                           'metrics': json.dumps(metrics),
-                                           'runState': json.dumps(run_states)})
+            response = self.gql(mutation, variable_values={
+                'id': agent_id,
+                'metrics': json.dumps(metrics),
+                'runState': json.dumps(run_states)})
         except Exception as e:
             # GQL raises exceptions with stringified python dictionaries :/
             message = ast.literal_eval(e.args[0])["message"]
@@ -822,11 +832,11 @@ class Api(object):
             }
         }
         ''')
-        response = self.client.execute(mutation, variable_values={
-                                       'config': yaml.dump(config),
-                                       'description': config.get("description"),
-                                       'entityName': self.settings("entity"),
-                                       'modelName': self.settings("project")})
+        response = self.gql(mutation, variable_values={
+            'config': yaml.dump(config),
+            'description': config.get("description"),
+            'entityName': self.settings("entity"),
+            'modelName': self.settings("project")})
         return response['upsertSweep']['sweep']['name']
 
     def file_current(self, fname, md5):

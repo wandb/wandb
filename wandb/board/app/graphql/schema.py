@@ -4,6 +4,7 @@ import graphene
 from graphene import relay
 from .loader import data, find_run, settings
 from wandb.board.app.models import History, Events, Log
+from wandb.board.app.util.errors import NotFoundError
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -109,10 +110,10 @@ class Run(graphene.ObjectType):
         return self.id
 
     def resolve_history(self, info, **args):
-        return History(self.path).read().split("\n")
+        return filter(None, History(self.path).read().split("\n"))
 
     def resolve_events(self, info, **args):
-        return Events(self.path).read().split("\n")
+        return filter(None, Events(self.path).read().split("\n"))
 
     def resolve_logLines(self, info, **args):
         return Log(self.path).lines()
