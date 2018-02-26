@@ -1,10 +1,11 @@
 import React from 'react';
-import {graphql, compose} from 'react-apollo';
+import {graphql, compose, withApollo} from 'react-apollo';
 import {Container, Loader} from 'semantic-ui-react';
 import RunEditor from '../components/RunEditor';
 import RunViewer from '../components/RunViewer';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
-import {RUN_UPSERT, RUN_DELETION, RUN_STOP} from '../graphql/runs';
+import {RUN_UPSERT, RUN_DELETION, RUN_STOP, RUNS_QUERY} from '../graphql/runs';
+import {defaultDataIdFromObject} from 'apollo-cache-inmemory';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
@@ -31,6 +32,24 @@ class Run extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
+    if (nextProps.model) {
+      this.setState({model: nextProps.model, bucket: nextProps.bucket});
+    } else {
+      try {
+        let query = nextProps.client.readQuery({
+          query: RUNS_QUERY,
+          variables: {
+            entityName: nextProps.match.params.entity,
+            name: nextProps.match.params.model,
+            order: 'timeline',
+          },
+        });
+        let model = _.find(query.model.buckets.edges, function(item) {
+          return item.node.name === nextProps.match.params.run;
+        });
+        this.setState({model: query.model, bucket: model.node});
+      } catch (e) {}
+    }
     // Setup views loaded from server.
     if (
       (nextProps.views === null || !nextProps.views.runs) &&
@@ -56,7 +75,7 @@ class Run extends React.Component {
     let action = this.props.match.path.split('/').pop();
     return (
       <Container>
-        {!this.props.model ? (
+        {!this.state.model ? (
           <Loader size="massive" active={true} />
         ) : this.props.user && action === 'edit' ? (
           // TODO: Don't render button if user can't edit
@@ -74,8 +93,8 @@ class Run extends React.Component {
               this.setState({activeIndex: 1});
             }}
             user={this.props.user}
-            model={this.props.model}
-            bucket={this.props.bucket}
+            model={this.state.model}
+            bucket={this.state.bucket}
             loss={this.props.loss}
             stream={this.props.stream}
             match={this.props.match}
@@ -189,5 +208,5 @@ function mapDispatchToProps(dispatch) {
 export {Run};
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withData(Run)),
+  withMutations(withData(withApollo(Run))),
 );

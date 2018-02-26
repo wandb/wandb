@@ -20,6 +20,10 @@ export const fragments = {
       }
       summaryMetrics
       systemMetrics
+      user {
+        username
+        photoUrl
+      }
     }
   `,
   detailedRun: gql`
