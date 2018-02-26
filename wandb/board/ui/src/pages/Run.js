@@ -32,9 +32,9 @@ class Run extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    if (nextProps.model) {
+    if (nextProps.model && !_.isEqual(nextProps.model, this.props.model)) {
       this.setState({model: nextProps.model, bucket: nextProps.bucket});
-    } else {
+    } else if (!nextProps.model) {
       try {
         let query = nextProps.client.readQuery({
           query: RUNS_QUERY,
@@ -55,6 +55,7 @@ class Run extends React.Component {
       nextProps.bucket &&
       (nextProps.views === null || !nextProps.views.run) &&
       _.isEmpty(this.props.reduxServerViews.run.views) &&
+      _.isEmpty(this.props.reduxBrowserViews.runs.views) &&
       !this.props.reduxBrowserViews.run.configured
     ) {
       // no views on server, provide a default
