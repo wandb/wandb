@@ -24,13 +24,16 @@ def graphql_url(**url_params):
     return string
 
 
+basic_fixture_path = os.path.join(
+    os.path.dirname(__file__), "fixtures/basic/wandb")
+
+
 @pytest.fixture
 def app(request):
-    me = os.path.dirname(__file__)
-    path = os.path.join(me, "fixtures/basic/wandb")
     marker = request.node.get_marker('base_path')
+    path = basic_fixture_path
     if marker:
         path = os.path.join(
-            me, "fixtures", marker.args[0], "wandb")
+            os.path.dirname(__file__), "fixtures", marker.args[0], "wandb")
     from wandb.board.app import create_app
     return create_app("testing", path)

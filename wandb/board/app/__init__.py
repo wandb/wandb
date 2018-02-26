@@ -1,7 +1,8 @@
-import logging.config
+import logging
 import os
+import sys
 
-from flask import Flask
+from flask import Flask, render_template
 
 from wandb.board.app import blueprints
 from wandb.board.config import config
@@ -21,7 +22,12 @@ def create_app(config_name, base_path=None):
 
     configure_app(app, config_name)
     configure_blueprints(app, BLUEPRINTS)
-    # configure_logging(app)
+    configure_logging(app)
+
+    @app.errorhandler(404)
+    def lost_index(e):
+        print("Handled 404")
+        return render_template("index.html")
 
     return app
 
@@ -41,4 +47,6 @@ def configure_blueprints(app, blueprints):
 
 def configure_logging(app):
     """Configure logging"""
-    logging.config.dictConfig(app.config['LOGGING_CONFIG'])
+    if app.debug:
+        logger = logging.getLogger('werkzeug')
+        logger.addHandler(logging.StreamHandler(sys.stdout))

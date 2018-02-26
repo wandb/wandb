@@ -2,7 +2,6 @@ import collections
 import json
 import os
 import time
-import numpy as np
 import six
 from threading import Lock
 

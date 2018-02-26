@@ -372,8 +372,36 @@ def test_sweep_no_config(runner):
     assert result.exit_code == 0
 
 
-def test_board(runner, mocker):
-    from wandb.board import app
-    app.run = mocker.MagicMock()
-    runner.invoke(cli.board)
+def test_board_error(runner, mocker):
+    result = runner.invoke(cli.board)
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 1
+    assert "No runs found in this directory" in result.output
+
+
+def test_board_bad_dir(runner, mocker):
+    result = runner.invoke(cli.board, ["--logdir", "non-existent"])
+    print("F", result.output)
+    print("E", result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code != 0
+    assert "Directory does not exist" in str(result.exception)
+
+
+def test_board_custom_dir(runner, mocker, monkeypatch):
+    from wandb.board.tests.util import basic_fixture_path
+    from wandb.board.app.graphql.loader import load
+    app = mocker.MagicMock()
+
+    def create(config, path):
+        load(path)
+        return app
+    monkeypatch.setattr('wandb.board.create_app', create)
+    result = runner.invoke(cli.board, ["--logdir", basic_fixture_path])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
     assert app.run.called

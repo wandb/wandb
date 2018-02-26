@@ -619,9 +619,14 @@ def agent(sweep_id):
 def board(port, host, logdir):
     import webbrowser
     import werkzeug.serving
-    if logdir != ".":
-        os.environ['WANDB_LOGDIR'] = os.path.abspath(logdir)
-    from wandb.board import app
+    path = os.path.abspath(logdir) if logdir != "." else None
+    if path and os.path.exists(path + "/wandb"):
+        path = path + "/wandb"
+    from wandb.board import create_app, data
+    app = create_app("default", path)
+    if len(data['Runs']) == 0:
+        raise ClickException(
+            "No runs found in this directory, specify a different directory with --logdir")
     dev = os.getenv('WANDB_ENV', "").startswith("dev")
     extra = "(dev)" if dev else ""
     if not werkzeug.serving.is_running_from_reloader():

@@ -6,6 +6,7 @@ import {onError} from 'apollo-link-error';
 import {displayError, setFlash} from '../actions';
 import {push} from 'react-router-redux';
 import queryString from 'query-string';
+import {BOARD} from './board';
 
 let dispatch = null;
 
@@ -62,7 +63,7 @@ const stackdriverMiddleware = new ApolloLink((operation, forward) => {
 const userTimingMiddleware = new ApolloLink((operation, forward) => {
   const uuid = localStorage.getItem('page_id');
   return forward(operation).map(data => {
-    if (window.performance) {
+    if (window.performance && !BOARD) {
       setTimeout(() => {
         try {
           window.performance.mark(uuid + '-end');

@@ -43,7 +43,7 @@ def test_state(client):
     print(body)
     assert response.status_code == 200
     assert [e["node"]["state"]
-            for e in body["data"]["model"]["buckets"]["edges"]] == ["killed", "failed", "running"]
+            for e in body["data"]["model"]["buckets"]["edges"]] == ["killed", "failed", "crashed"]
 
 
 def test_upsert_project(client):

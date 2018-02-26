@@ -296,7 +296,7 @@ def init(job_type='train', config=None):
             webbrowser.open_new_tab(run.get_url(api))
     elif run.mode == 'dryrun':
         termlog(
-            'wandb dryrun mode. Use "wandb run <script>" to save results to wandb.')
+            'wandb dry run mode. Run `wandb board` from this directory to see results')
         termlog()
         _init_headless(api, run, job_type, False)
     else:

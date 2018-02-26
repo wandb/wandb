@@ -170,6 +170,7 @@ class WriteSerializingFile(object):
         self.lock.acquire()
         try:
             self.f.write(*args, **kargs)
+            self.f.flush()
         finally:
             self.lock.release()
 
