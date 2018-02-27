@@ -25,14 +25,22 @@ function viewTypeDefaults() {
 }
 
 function copyDefaults() {
-  return {run: viewTypeDefaults(), runs: viewTypeDefaults()};
+  return {
+    run: viewTypeDefaults(),
+    runs: viewTypeDefaults(),
+    dashboards: viewTypeDefaults(),
+  };
 }
 
 export default function views(
   state = {
     server: copyDefaults(),
     browser: copyDefaults(),
-    other: {run: {activeView: null}, runs: {activeView: null}},
+    other: {
+      run: {activeView: null},
+      runs: {activeView: null},
+      dashboards: {activeView: null},
+    },
   },
   action,
 ) {

@@ -28,6 +28,7 @@
         "apollo-link-error": "^1.0.1",
         "apollo-link-http": "^1.2.0",
         "battery-friendly-timer": "^1.0.1",
+        "classnames": "^2.2.5",
         "flat": "^4.0.0",
         "graphql": "^0.11.7",
         "graphql-tag": "^2.5.0",

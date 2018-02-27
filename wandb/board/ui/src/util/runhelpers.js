@@ -238,6 +238,7 @@ export function defaultViews(run) {
       },
       tabs: [0],
     },
+    dashboards: [{views: {}}],
   };
   if (run.events && run.events.length > 0) {
     const event = JSON.parse(run.events[0]);

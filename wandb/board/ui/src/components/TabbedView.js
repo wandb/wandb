@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import {Button, Form, Grid} from 'semantic-ui-react';
 import Panel from '../components/Panel';
 
-class View extends React.Component {
+class TabbedView extends React.Component {
   _makeUpdatePanelMethods(config) {
     // We do this so that child props don't change
     if (config) {
@@ -92,4 +92,4 @@ class View extends React.Component {
   }
 }
 
-export default View;
+export default TabbedView;

@@ -12,7 +12,7 @@ import RunFeed from '../components/RunFeed';
 import RunFilters from '../components/RunFilters';
 import RunColumnsSelector from '../components/RunColumnsSelector';
 import withHistoryLoader from '../components/HistoryLoader';
-import Views from '../components/Views';
+import ViewModifier from '../containers/ViewModifier';
 import HelpIcon from '../components/HelpIcon';
 import {RUNS_QUERY} from '../graphql/runs';
 import {MODEL_UPSERT} from '../graphql/models';
@@ -298,7 +298,7 @@ class Runs extends React.Component {
             </Grid.Column>
           </Grid.Row>
           <Grid.Column width={16}>
-            <Views
+            <ViewModifier
               viewType="runs"
               data={this.viewData}
               updateViews={views =>
