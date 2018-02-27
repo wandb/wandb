@@ -106,7 +106,7 @@ class Views extends React.Component {
           onTabChange={(event, {activeIndex}) => {
             this.props.setActiveView(
               this.props.viewType,
-              this.props.tabs[activeIndex],
+              this.props.tabs[activeIndex] || activeIndex,
             );
           }}
         />
