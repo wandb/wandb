@@ -45,12 +45,7 @@ class Log extends React.Component {
       this.props.bucket,
       this.updateCallback,
     );
-    //TODO: This is rather unfortunate
-    if (this.state.autoScroll) {
-      setTimeout(() => {
-        if (this.list) this.list.scrollToRow(this.props.logLines.edges.length);
-      }, 500);
-    }
+    this.scrollToBottom();
   }
 
   componentWillReceiveProps(nextProps) {
@@ -62,23 +57,25 @@ class Log extends React.Component {
           this.parseLoss(nextProps.logLines.edges),
         );
       }
-      //TODO: This is rather unfortunate
-      if (this.state.autoScroll) {
-        setTimeout(() => {
-          if (this.list)
-            this.list.scrollToRow(this.props.logLines.edges.length);
-        }, 500);
-      }
+      this.scrollToBottom();
     }
   }
 
-  checkAutoScroll = () => {
-    this.scrolls = this.scrolls || 0;
-    this.scrolls += 1;
-    setTimeout(() => (this.scrolls = 0), 100);
-    if (this.scrolls > 5) {
-      this.setState({autoScroll: false});
+  scrollToBottom = () => {
+    if (this.state.autoScroll) {
+      setTimeout(() => {
+        if (this.list) this.list.scrollToRow(this.props.logLines.edges.length);
+      }, 500);
     }
+  };
+
+  checkAutoScroll = e => {
+    // autoScroll is enabled if current scroll position is close to the bottom
+    // or if list is still empty meaning List height is zero
+    const scroll = e.scrollHeight - e.clientHeight - Math.round(e.scrollTop);
+    this.setState({
+      autoScroll: scroll < 5 || e.clientHeight === 0,
+    });
   };
 
   processLine(line) {
