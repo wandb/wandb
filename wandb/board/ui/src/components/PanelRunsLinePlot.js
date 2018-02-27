@@ -2,12 +2,7 @@ import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {
-  Button,
-  List,
-  Loader,
-  Form,
-} from 'semantic-ui-react';
+import {Button, List, Loader, Form} from 'semantic-ui-react';
 import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {color} from '../util/colors.js';
@@ -20,7 +15,7 @@ class RunsLinePlotPanel extends React.Component {
   static options = {};
 
   static validForData(data) {
-    return !_.isNil(data.histories);
+    return data && !_.isNil(data.histories);
   }
 
   renderConfig() {
@@ -41,7 +36,8 @@ class RunsLinePlotPanel extends React.Component {
           options={options}
           value={this.props.config.key}
           onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, key: value})}
+            this.props.updateConfig({...this.props.config, key: value})
+          }
         />
         <Form.Group inline>
           <label>Y-Scale</label>
@@ -54,7 +50,8 @@ class RunsLinePlotPanel extends React.Component {
               this.props.updateConfig({
                 ...this.props.config,
                 yScale: 'linear',
-              })}
+              })
+            }
           />
           <Form.Radio
             label="Log"
@@ -63,7 +60,8 @@ class RunsLinePlotPanel extends React.Component {
               this.props.updateConfig({
                 ...this.props.config,
                 yScale: 'log',
-              })}
+              })
+            }
           />
         </Form.Group>
       </Form>
@@ -93,7 +91,7 @@ class RunsLinePlotPanel extends React.Component {
         <h3 style={{display: 'inline'}}>
           {key + ' '}
           {loading &&
-          data.length < maxRuns && <Loader active inline size="small" />}
+            data.length < maxRuns && <Loader active inline size="small" />}
         </h3>
         <p style={{float: 'right'}}>
           {totalRuns > maxRuns && (
@@ -105,62 +103,63 @@ class RunsLinePlotPanel extends React.Component {
         </p>
         <div style={{clear: 'both'}}>
           {data.length === 0 &&
-          !loading && (
-            <div
-              style={{
-                zIndex: 10,
-                position: 'absolute',
-                height: 200,
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
+            !loading && (
               <div
                 style={{
-                  maxWidth: 300,
-                  backgroundColor: 'white',
-                  border: '1px solid #333',
-                  padding: 15,
+                  zIndex: 10,
+                  position: 'absolute',
+                  height: 200,
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}>
-                <p>
-                  Select runs containing <i>{key}</i> in their history.
-                  <HelpIcon
-                    content={
-                      <div>
-                        <p>You can select runs by:</p>
-                        <List bulleted>
-                          <List.Item>
-                            Highlighting regions or axes in charts
-                          </List.Item>
-                          <List.Item>
-                            Checking them in the table below
-                          </List.Item>
-                          <List.Item>
-                            Manually adding selections above.
-                          </List.Item>
-                        </List>
-                      </div>
-                    }
-                  />
-                </p>
-                <p style={{textAlign: 'center'}}> - or - </p>
-                <p style={{textAlign: 'center'}}>
-                  <Button
-                    content="Select All"
-                    onClick={() =>
-                      this.props.addFilter(
-                        'select',
-                        {section: 'run', value: 'id'},
-                        '=',
-                        '*',
-                      )}
-                  />{' '}
-                  {this.props.data.filtered.length} runs.
-                </p>
+                <div
+                  style={{
+                    maxWidth: 300,
+                    backgroundColor: 'white',
+                    border: '1px solid #333',
+                    padding: 15,
+                  }}>
+                  <p>
+                    Select runs containing <i>{key}</i> in their history.
+                    <HelpIcon
+                      content={
+                        <div>
+                          <p>You can select runs by:</p>
+                          <List bulleted>
+                            <List.Item>
+                              Highlighting regions or axes in charts
+                            </List.Item>
+                            <List.Item>
+                              Checking them in the table below
+                            </List.Item>
+                            <List.Item>
+                              Manually adding selections above.
+                            </List.Item>
+                          </List>
+                        </div>
+                      }
+                    />
+                  </p>
+                  <p style={{textAlign: 'center'}}> - or - </p>
+                  <p style={{textAlign: 'center'}}>
+                    <Button
+                      content="Select All"
+                      onClick={() =>
+                        this.props.addFilter(
+                          'select',
+                          {section: 'run', value: 'id'},
+                          '=',
+                          '*',
+                        )
+                      }
+                    />{' '}
+                    {this.props.data.filtered.length} runs.
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
           <LinePlot
             xAxis="index"
             yScale={this.props.config.yScale || 'linear'}

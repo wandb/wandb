@@ -4,7 +4,7 @@ import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import {Container, Loader} from 'semantic-ui-react';
 import update from 'immutability-helper';
-import DashboardViews from '../components/DashboardViews';
+import Dashboards from '../components/Dashboards';
 import DashboardView from '../components/DashboardView';
 import ViewModifier from '../containers/ViewModifier';
 import ErrorPage from '../components/ErrorPage';
@@ -44,7 +44,7 @@ class Dashboard extends React.Component {
           <ViewModifier
             {...this.props}
             {...this.state}
-            component={DashboardViews}
+            component={Dashboards}
             viewComponent={DashboardView}
             editMode={this.props.user && action === 'edit'}
             viewType="dashboards"

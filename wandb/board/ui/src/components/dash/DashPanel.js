@@ -17,6 +17,7 @@ export default class GridItem extends Component {
 
   onDragHandler(handlerName) {
     return (e, {node, x, y}) => {
+      console.log('DRAGGING');
       // react-draggle seems to return undefined/NaN occasionally, which breaks things
       if (isNaN(x) || isNaN(y)) {
         return;
@@ -29,7 +30,7 @@ export default class GridItem extends Component {
         this.setState({dragStartPosition, dragStartScrollTop});
       }
 
-      // track vertical scroll. we don't need horizontal  allow horizontal scrolling
+      // track vertical scroll. no allow horizontal scrolling
       let scrollTopDelta = document.body.scrollTop - dragStartScrollTop;
       // compute new position
       let pos = {
@@ -84,7 +85,6 @@ export default class GridItem extends Component {
     let child = React.Children.only(this.props.children);
     return (
       <DraggableCore
-        cancel=".react-resizable-handle, .drag-disabled"
         onStart={this.onDragHandler('onDragStart')}
         onDrag={this.onDragHandler('onDrag')}
         onStop={this.onDragHandler('onDragStop')}>

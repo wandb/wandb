@@ -13,6 +13,9 @@ class Panel extends React.Component {
   state = {configMode: false};
 
   renderPanelType(PanelType, configMode, config, data, sizeKey) {
+    if (!data) {
+      return <p>Views unavailable until data is ready</p>;
+    }
     return (
       <div style={{clear: 'both'}}>
         <PanelType
@@ -35,27 +38,31 @@ class Panel extends React.Component {
 
   render() {
     let {type, size, config, data} = this.props;
+    console.log('WHAT', this.props);
+    let panel, PanelType, configMode, options, sizeKey;
     if (!data) {
-      return <p>Views unavailable until data is ready.</p>;
-    }
-    let options = _.keys(panelClasses)
-      .filter(type => panelClasses[type].validForData(data))
-      .map(type => ({text: type, value: type}));
-    if (options.length === 0) {
-      return <p>Views unavailable until data is ready.</p>;
-    }
-    type = type || options[0].value;
-    config = config || {};
-    let PanelType = panelClasses[type] || panelClasses[_.keys(panelClasses)[0]];
-    let configMode = this.props.editMode;
-    size = PanelType.options.width
-      ? {width: PanelType.options.width}
-      : size || {width: 8};
+      panel = <p>Views unavailable until data is ready.</p>;
+    } else {
+      options = _.keys(panelClasses)
+        .filter(type => panelClasses[type].validForData(data))
+        .map(type => ({text: type, value: type}));
+      if (options.length === 0) {
+        panel = <p>Views unavailable until data is ready.</p>;
+      } else {
+        type = type || options[0].value;
+        config = config || {};
+        PanelType = panelClasses[type] || panelClasses[_.keys(panelClasses)[0]];
+        configMode = this.props.editMode;
+        size = PanelType.options.width
+          ? {width: PanelType.options.width}
+          : size || {width: 8};
 
-    let sizeKey = size.width;
+        sizeKey = size.width;
+      }
+    }
 
-    if (this.props.editMode) {
-      return (
+    if (!panel && this.props.editMode) {
+      panel = (
         <Grid.Column width={size.width}>
           <Card fluid>
             <Card.Content>
@@ -107,13 +114,18 @@ class Panel extends React.Component {
           </Card>
         </Grid.Column>
       );
-    } else {
-      return (
+    } else if (!panel) {
+      panel = (
         <Grid.Column width={size.width}>
           {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
         </Grid.Column>
       );
     }
+    return (
+      <div style={this.props.style} className={this.props.className}>
+        {panel}
+      </div>
+    );
   }
 }
 

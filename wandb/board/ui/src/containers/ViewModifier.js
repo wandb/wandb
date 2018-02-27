@@ -16,11 +16,13 @@ import {
 
 class ViewModifier extends React.Component {
   renderView = (viewId, editMode) => {
-    //TODO: Currently DashboardLayout is looking for key here
+    //TODO: Maybe render panel?
     const ViewComponent = this.props.viewComponent || TabbedView;
     return (
       <ViewComponent
         editMode={editMode}
+        width={this.props.width}
+        height={this.props.height}
         data={this.props.data}
         name={this.props.views[viewId].name}
         config={this.props.views[viewId].config}

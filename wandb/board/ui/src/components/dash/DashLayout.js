@@ -47,6 +47,7 @@ export default class DashLayout extends Component {
   }
 
   onDragStart(i, {position}) {
+    console.log('STARTED DRAG');
     // this.setState({ dragging: true })
   }
 
@@ -205,6 +206,7 @@ export default class DashLayout extends Component {
     let l = this.getLayoutForItem(child.key);
     if (!l) return null;
     let style = this.getStyleForLayout(l);
+    console.log('RENDERING CHILD', l, style);
     return (
       <DashPanel
         {...l}
@@ -240,7 +242,7 @@ export default class DashLayout extends Component {
       _(cols)
         .times(
           i =>
-            `<rect stroke='rgba(0, 0, 0, 0.117647)' stroke-width='1' fill='none' x='${Math.round(
+            `<rect stroke='rgba(0, 0, 0, 0.2)' stroke-width='1' fill='none' x='${Math.round(
               margin / 2 + i * cellSize.width,
             ) + 1.5}' y='${margin / 2 + 1.5}' width='${Math.round(
               cellSize.width - margin - 3,
@@ -259,7 +261,6 @@ export default class DashLayout extends Component {
 
     let backgroundImage;
     if (isEditing) {
-      // render grid as a background image:
       backgroundImage = this.getGridBackground();
       // add one vertical screen worth of rows to ensure the grid fills the screen
       bottom += Math.ceil(window.innerHeight / cellSize.height);
@@ -267,7 +268,6 @@ export default class DashLayout extends Component {
 
     let width = cellSize.width * cols;
     let height = cellSize.height * bottom;
-    // TODO: don't use children, use a property
     return (
       <div
         className={className}
@@ -279,9 +279,7 @@ export default class DashLayout extends Component {
           marginLeft: -margin / 2,
           marginRight: -margin / 2,
         }}>
-        {React.Children.map(this.props.children, child =>
-          this.renderChild(child),
-        )}
+        {this.props.children.map(child => this.renderChild(child))}
         {this.renderPlaceholder()}
       </div>
     );

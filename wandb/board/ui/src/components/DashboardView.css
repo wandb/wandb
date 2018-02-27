@@ -1,0 +1,5 @@
+.DashboardGrid.Dash--editing .react-resizable {
+    background: #fff;
+    cursor: move;
+    z-index: 1;
+}
