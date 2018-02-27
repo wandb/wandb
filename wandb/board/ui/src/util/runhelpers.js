@@ -275,9 +275,9 @@ export function defaultViews(run) {
   }
   if (run.history && run.history.length > 0) {
     const history = JSON.parse(run.history[0]);
+    base.run.configured = true;
     //TODO: support multi media
     if (history._media && history._media[0]._type === 'images') {
-      base.run.configured = true;
       base.run.views['images'] = {
         name: 'Images',
         defaults: [],
