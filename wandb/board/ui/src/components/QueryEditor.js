@@ -57,17 +57,19 @@ class QueryEditor extends React.Component {
             checked={strategy === 'merge'}
             onChange={() => this.setStrategy('merge')}
           />
-          <RunFilters
-            filters={this.filters}
-            runs={runs}
-            keySuggestions={keySuggestions}
-            addFilter={(_, key, op, value) => this.addFilter(key, op, value)}
-            deleteFilter={(_, id) => this.deleteFilter(id)}
-            setFilterComponent={(_, id, component, value) =>
-              this.setFilterComponent(id, component, value)
-            }
-            buttonText="Add Filter"
-          />
+          {strategy === 'merge' && (
+            <RunFilters
+              filters={this.filters}
+              runs={runs}
+              keySuggestions={keySuggestions}
+              addFilter={(_, key, op, value) => this.addFilter(key, op, value)}
+              deleteFilter={(_, id) => this.deleteFilter(id)}
+              setFilterComponent={(_, id, component, value) =>
+                this.setFilterComponent(id, component, value)
+              }
+              buttonText="Add Filter"
+            />
+          )}
         </Form.Group>
       </Form>
     );
