@@ -9,10 +9,10 @@ import {
   Transition,
 } from 'semantic-ui-react';
 import RunFeed from '../components/RunFeed';
-import RunFiltersRedux from '../containers/RunFiltersRedux';
+import RunFiltersRedux from './RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
 import withHistoryLoader from '../components/HistoryLoader';
-import ViewModifier from '../containers/ViewModifier';
+import ViewModifier from './ViewModifier';
 import HelpIcon from '../components/HelpIcon';
 import {RUNS_QUERY} from '../graphql/runs';
 import {MODEL_UPSERT} from '../graphql/models';
@@ -26,14 +26,14 @@ import {
   filterFromString,
   displayFilterKey,
   defaultViews,
+  parseBuckets,
+  setupKeySuggestions,
 } from '../util/runhelpers.js';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {bindActionCreators} from 'redux';
 import {clearFilters, addFilter, setColumns} from '../actions/run';
 import {setServerViews, setActiveView} from '../actions/view';
-import {JSONparseNaN} from '../util/jsonnan';
 import update from 'immutability-helper';
-import flatten from 'flat';
 import {BOARD} from '../util/board';
 
 class Runs extends React.Component {
@@ -342,26 +342,6 @@ class Runs extends React.Component {
   }
 }
 
-function parseBuckets(buckets) {
-  if (!buckets) {
-    return [];
-  }
-  return buckets.edges.map(edge => {
-    {
-      let node = {...edge.node};
-      node.config = node.config ? JSONparseNaN(node.config) : {};
-      node.config = flatten(
-        _.mapValues(node.config, confObj => confObj.value || confObj),
-      );
-      node.summary = flatten(node.summaryMetrics)
-        ? JSONparseNaN(node.summaryMetrics)
-        : {};
-      delete node.summaryMetrics;
-      return node;
-    }
-  });
-}
-
 function getColumns(runs) {
   let configColumns = _.uniq(
     _.flatMap(runs, run => _.keys(run.config)).sort(),
@@ -380,47 +360,6 @@ function getColumns(runs) {
     ['Summary'],
     summaryColumns,
   );
-}
-
-function setupKeySuggestions(runs) {
-  if (runs.length === 0) {
-    return [];
-  }
-
-  let getSectionSuggestions = section => {
-    let suggestions = _.uniq(_.flatMap(runs, run => _.keys(run[section])));
-    suggestions.sort();
-    return suggestions;
-  };
-  let runSuggestions = ['state', 'id'];
-  let keySuggestions = [
-    {
-      title: 'run',
-      suggestions: runSuggestions.map(suggestion => ({
-        section: 'run',
-        value: suggestion,
-      })),
-    },
-    {
-      title: 'sweep',
-      suggestions: [{section: 'sweep', value: 'name'}],
-    },
-    {
-      title: 'config',
-      suggestions: getSectionSuggestions('config').map(suggestion => ({
-        section: 'config',
-        value: suggestion,
-      })),
-    },
-    {
-      title: 'summary',
-      suggestions: getSectionSuggestions('summary').map(suggestion => ({
-        section: 'summary',
-        value: suggestion,
-      })),
-    },
-  ];
-  return keySuggestions;
 }
 
 function withData() {

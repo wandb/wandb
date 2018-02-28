@@ -1,5 +1,7 @@
 import _ from 'lodash';
 import numeral from 'numeral';
+import {JSONparseNaN} from '../util/jsonnan';
+import flatten from 'flat';
 
 export function convertValue(string) {
   let val = Number.parseFloat(string);
@@ -294,4 +296,65 @@ export function defaultViews(run) {
     }
   }
   return base;
+}
+
+export function parseBuckets(buckets) {
+  if (!buckets) {
+    return [];
+  }
+  return buckets.edges.map(edge => {
+    {
+      let node = {...edge.node};
+      node.config = node.config ? JSONparseNaN(node.config) : {};
+      node.config = flatten(
+        _.mapValues(node.config, confObj => confObj.value || confObj),
+      );
+      node.summary = flatten(node.summaryMetrics)
+        ? JSONparseNaN(node.summaryMetrics)
+        : {};
+      delete node.summaryMetrics;
+      return node;
+    }
+  });
+}
+
+export function setupKeySuggestions(runs) {
+  if (runs.length === 0) {
+    return [];
+  }
+
+  let getSectionSuggestions = section => {
+    let suggestions = _.uniq(_.flatMap(runs, run => _.keys(run[section])));
+    suggestions.sort();
+    return suggestions;
+  };
+  let runSuggestions = ['state', 'id'];
+  let keySuggestions = [
+    {
+      title: 'run',
+      suggestions: runSuggestions.map(suggestion => ({
+        section: 'run',
+        value: suggestion,
+      })),
+    },
+    {
+      title: 'sweep',
+      suggestions: [{section: 'sweep', value: 'name'}],
+    },
+    {
+      title: 'config',
+      suggestions: getSectionSuggestions('config').map(suggestion => ({
+        section: 'config',
+        value: suggestion,
+      })),
+    },
+    {
+      title: 'summary',
+      suggestions: getSectionSuggestions('summary').map(suggestion => ({
+        section: 'summary',
+        value: suggestion,
+      })),
+    },
+  ];
+  return keySuggestions;
 }

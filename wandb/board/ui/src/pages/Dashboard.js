@@ -8,7 +8,18 @@ import Dashboards from '../components/Dashboards';
 import DashboardView from '../components/DashboardView';
 import ViewModifier from '../containers/ViewModifier';
 import ErrorPage from '../components/ErrorPage';
+import withHistoryLoader from '../components/HistoryLoader';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
+import {
+  filterRuns,
+  sortRuns,
+  filterToString,
+  filterFromString,
+  displayFilterKey,
+  defaultViews,
+  parseBuckets,
+  setupKeySuggestions,
+} from '../util/runhelpers.js';
 
 class Dashboard extends React.Component {
   ensureModel() {
@@ -54,12 +65,20 @@ const withData = graphql(MODEL_QUERY, {
       },
     };
   },
-  props: ({data: {loading, model, viewer}}) => {
+  props: ({data: {loading, model, viewer}, ownProps}) => {
     return {
       loading,
       model,
       viewer,
-      data: model && model.views.dashboards && model.views.dashboards[0],
+      data: {
+        base: model && parseBuckets(model.buckets),
+        filtered: [],
+        filteredRunsById: {},
+        keys: ownProps.keySuggestions,
+        axisOptions: this.axisOptions,
+        histories: ownProps.runHistories,
+        sort: ownProps.sort,
+      },
     };
   },
 });
