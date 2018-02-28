@@ -54,6 +54,7 @@ class Run extends React.Component {
       nextProps.bucket &&
       (nextProps.views === null || !nextProps.views.run) &&
       _.isEmpty(this.props.reduxServerViews.run.views) &&
+      // Prevent infinite loop
       _.isEmpty(this.props.reduxBrowserViews.runs.views) &&
       !this.props.reduxBrowserViews.run.configured
     ) {
