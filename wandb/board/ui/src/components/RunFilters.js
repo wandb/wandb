@@ -147,14 +147,6 @@ class RunFilterEditor extends React.Component {
   }
 }
 
-const runFilterEditorMapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({editFilter, setFilterComponent}, dispatch);
-};
-
-RunFilterEditor = connect(null, runFilterEditorMapDispatchToProps)(
-  RunFilterEditor,
-);
-
 class RunFilter extends React.Component {
   componentDidMount() {
     // We want newly added filters to be in the editing state by default. But semantic-ui-react's
@@ -223,6 +215,8 @@ class RunFilter extends React.Component {
             filterKey={this.props.filterKey}
             op={this.props.op}
             value={this.props.value}
+            editFilter={this.props.editFilter}
+            setFilterComponent={this.props.setFilterComponent}
           />
         }
         open={this.props.editing}
@@ -234,12 +228,6 @@ class RunFilter extends React.Component {
     );
   }
 }
-
-const runFilterMapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({deleteFilter}, dispatch);
-};
-
-RunFilter = connect(null, runFilterMapDispatchToProps)(RunFilter);
 
 class RunFilters extends React.Component {
   state = {editingFilter: null};
@@ -263,6 +251,8 @@ class RunFilters extends React.Component {
                 keySuggestions={this.props.keySuggestions}
                 editing={this.state.editingFilter === filter.id}
                 editFilter={id => this.setState({editingFilter: id})}
+                deleteFilter={this.props.deleteFilter}
+                setFilterComponent={this.props.setFilterComponent}
               />
             );
           })}
@@ -289,7 +279,10 @@ function mapStateToProps(state, ownProps) {
 }
 
 const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({addFilter, editFilter}, dispatch);
+  return bindActionCreators(
+    {addFilter, deleteFilter, setFilterComponent},
+    dispatch,
+  );
 };
 
 export default connect(mapStateToProps, mapDispatchToProps)(RunFilters);

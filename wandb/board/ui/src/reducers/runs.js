@@ -95,10 +95,6 @@ export default function runs(
       });
     case DELETE_FILTER:
       return update(state, {filters: {[action.kind]: {$unset: [action.id]}}});
-    case EDIT_FILTER:
-      return update(state, {
-        editingFilter: {$set: action.id},
-      });
     case SET_FILTER_COMPONENT:
       return update(state, {
         filters: {
