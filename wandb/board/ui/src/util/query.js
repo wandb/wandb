@@ -21,7 +21,8 @@ export function addFilter(filters, key, op, value) {
   if (filter) {
     filterID = filter.id;
   } else {
-    filterID = filters.length > 0 ? _.max(_.keys(filters)) + 1 : 0;
+    let keys = _.keys(filters);
+    filterID = keys.length > 0 ? _.max(keys) + 1 : 0;
   }
   return update(filters, {
     [filterID]: {

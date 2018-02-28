@@ -36,7 +36,6 @@ class QueryEditor extends React.Component {
   }
 
   render() {
-    // TODO: pass in runs and keySuggestions
     let {setQuery, runs, keySuggestions} = this.props;
     this.query = this.props.query || {};
     let strategy = this.query.strategy;
@@ -63,7 +62,7 @@ class QueryEditor extends React.Component {
             runs={runs}
             keySuggestions={keySuggestions}
             addFilter={(_, key, op, value) => this.addFilter(key, op, value)}
-            deleteFilter={id => this.deleteFilter(id)}
+            deleteFilter={(_, id) => this.deleteFilter(id)}
             setFilterComponent={(_, id, component, value) =>
               this.setFilterComponent(id, component, value)
             }
