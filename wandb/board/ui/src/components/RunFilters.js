@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  Button,
-  Dropdown,
-  Form,
-  Popup,
-  Select,
-} from 'semantic-ui-react';
+import {Button, Dropdown, Form, Popup, Select} from 'semantic-ui-react';
 import {
   addFilter,
   deleteFilter,
@@ -153,25 +147,6 @@ class RunFilterEditor extends React.Component {
   }
 }
 
-const mapRunFilterEditorStateToProps = (state, ownProps) => {
-  let filter = state.runs.filters[ownProps.kind][ownProps.id];
-  return {
-    id: filter.id,
-    filterKey: filter.key,
-    op: filter.op,
-    value: filter.value,
-  };
-};
-
-const runFilterEditorMapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({editFilter, setFilterComponent}, dispatch);
-};
-
-RunFilterEditor = connect(
-  mapRunFilterEditorStateToProps,
-  runFilterEditorMapDispatchToProps,
-)(RunFilterEditor);
-
 class RunFilter extends React.Component {
   componentDidMount() {
     // We want newly added filters to be in the editing state by default. But semantic-ui-react's
@@ -206,13 +181,11 @@ class RunFilter extends React.Component {
               size="tiny">
               <Button className="filter" id={'runFilterViewer' + this.props.id}>
                 <span>
-                  {this.props.filterKey ? (
-                    this.props.filterKey.section +
-                    ':' +
-                    this.props.filterKey.value
-                  ) : (
-                    '_'
-                  )}
+                  {this.props.filterKey
+                    ? this.props.filterKey.section +
+                      ':' +
+                      this.props.filterKey.value
+                    : '_'}
                 </span>{' '}
                 <span>{this.props.op ? this.props.op : '_'}</span>{' '}
                 <span>
@@ -239,6 +212,11 @@ class RunFilter extends React.Component {
             keySuggestions={this.props.keySuggestions}
             kind={this.props.kind}
             id={this.props.id}
+            filterKey={this.props.filterKey}
+            op={this.props.op}
+            value={this.props.value}
+            editFilter={this.props.editFilter}
+            setFilterComponent={this.props.setFilterComponent}
           />
         }
         open={this.props.editing}
@@ -251,51 +229,51 @@ class RunFilter extends React.Component {
   }
 }
 
-const mapRunFilterStateToProps = (state, ownProps) => {
-  let filter = state.runs.filters[ownProps.kind][ownProps.id];
-  return {
-    editing: state.runs.editingFilter === ownProps.id,
-    id: filter.id,
-    filterKey: filter.key,
-    op: filter.op,
-    value: filter.value,
-  };
-};
+export default class RunFilters extends React.Component {
+  state = {editingFilter: null};
 
-const runFilterMapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({deleteFilter, editFilter}, dispatch);
-};
-
-RunFilter = connect(mapRunFilterStateToProps, runFilterMapDispatchToProps)(
-  RunFilter,
-);
-
-class RunFilters extends React.Component {
   render() {
-    let filterIDs = _.keys(this.props.filters).sort();
+    let {
+      filters,
+      kind,
+      runs,
+      keySuggestions,
+      deleteFilter,
+      setFilterComponent,
+      addFilter,
+      buttonText,
+    } = this.props;
+    let filterIDs = _.keys(filters).sort();
     return (
       <div>
         <div className="input-style">
           {filterIDs.map(filterID => {
-            let filter = this.props.filters[filterID];
+            let filter = filters[filterID];
             return (
               <RunFilter
-                kind={this.props.kind}
-                runs={this.props.runs}
+                kind={kind}
+                runs={runs}
                 key={filter.id}
                 id={filter.id}
-                keySuggestions={this.props.keySuggestions}
+                filterKey={filter.key}
+                op={filter.op}
+                value={filter.value}
+                keySuggestions={keySuggestions}
+                editing={this.state.editingFilter === filter.id}
+                editFilter={id => this.setState({editingFilter: id})}
+                deleteFilter={deleteFilter}
+                setFilterComponent={setFilterComponent}
               />
             );
           })}
           <Button
             icon="plus"
             circular
-            content={this.props.buttonText}
+            content={buttonText}
             style={{marginTop: 8}}
             size="tiny"
             onClick={() => {
-              this.props.addFilter(this.props.kind, '', '=', '');
+              addFilter(kind, '', '=', '');
             }}
           />
         </div>
@@ -303,16 +281,3 @@ class RunFilters extends React.Component {
     );
   }
 }
-
-function mapStateToProps(state, ownProps) {
-  return {
-    editingFilter: state.runs.editingFilter,
-    filters: state.runs.filters[ownProps.kind],
-  };
-}
-
-const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({addFilter, editFilter}, dispatch);
-};
-
-export default connect(mapStateToProps, mapDispatchToProps)(RunFilters);

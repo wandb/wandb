@@ -18,6 +18,7 @@ import {
   CURRENT_PAGE,
   SET_HIGHLIGHT,
 } from '../actions/run.js';
+import * as Query from '../util/query';
 
 let nextFilterID = 0;
 
@@ -54,56 +55,36 @@ export default function runs(
     case UPDATE_JOB:
       return {...state, currentJob: action.id};
     case ADD_FILTER:
-      // We just change the value if we already have filter for this key/op
-      let filter = _.find(
-        state.filters[action.kind],
-        (filter, filterID) =>
-          filter.key.section === action.key.section &&
-          filter.key.value === action.key.value &&
-          filter.op === action.op,
-      );
-      if (action.value === null) {
-        // Remove filter if value is null
-        if (!filter) {
-          return state;
-        } else {
-          return update(state, {
-            filters: {[action.kind]: {$unset: [filter.id]}},
-          });
-        }
-      }
-      let filterID;
-      if (filter) {
-        filterID = filter.id;
-      } else {
-        filterID = nextFilterID;
-        nextFilterID++;
-      }
       return update(state, {
         filters: {
           [action.kind]: {
-            [filterID]: {
-              $set: {
-                id: filterID,
-                key: action.key,
-                op: action.op,
-                value: action.value,
-              },
-            },
+            $set: Query.addFilter(
+              state.filters[action.kind],
+              action.key,
+              action.op,
+              action.value,
+            ),
           },
         },
       });
     case DELETE_FILTER:
-      return update(state, {filters: {[action.kind]: {$unset: [action.id]}}});
-    case EDIT_FILTER:
       return update(state, {
-        editingFilter: {$set: action.id},
+        filters: {
+          [action.kind]: {
+            $set: Query.deleteFilter(state.filters[action.kind], action.id),
+          },
+        },
       });
     case SET_FILTER_COMPONENT:
       return update(state, {
         filters: {
           [action.kind]: {
-            [action.id]: {[action.component]: {$set: action.value}},
+            $set: Query.setFilterComponent(
+              state.filters[action.kind],
+              action.id,
+              action.component,
+              action.value,
+            ),
           },
         },
       });
