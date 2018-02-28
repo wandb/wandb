@@ -9,7 +9,7 @@ import {
   Transition,
 } from 'semantic-ui-react';
 import RunFeed from '../components/RunFeed';
-import RunFilters from '../components/RunFilters';
+import RunFiltersRedux from '../containers/RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
 import withHistoryLoader from '../components/HistoryLoader';
 import ViewModifier from '../containers/ViewModifier';
@@ -269,7 +269,7 @@ class Runs extends React.Component {
                         Filters{' '}
                         <HelpIcon text="Filters limit the set of runs that will be displayed in charts and tables on this page." />
                       </h5>
-                      <RunFilters
+                      <RunFiltersRedux
                         kind="filter"
                         buttonText="Add Filter"
                         keySuggestions={this.props.keySuggestions}
@@ -285,7 +285,7 @@ class Runs extends React.Component {
                         Selections
                         <HelpIcon text="Selections control highlighted regions on charts, the runs displayed on History charts, and which runs are checked in the table." />
                       </h5>
-                      <RunFilters
+                      <RunFiltersRedux
                         kind="select"
                         buttonText="Add Selection"
                         keySuggestions={this.props.keySuggestions}
