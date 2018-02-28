@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  Button,
-  Dropdown,
-  Form,
-  Popup,
-  Select,
-} from 'semantic-ui-react';
+import {Button, Dropdown, Form, Popup, Select} from 'semantic-ui-react';
 import {
   addFilter,
   deleteFilter,
@@ -153,24 +147,13 @@ class RunFilterEditor extends React.Component {
   }
 }
 
-const mapRunFilterEditorStateToProps = (state, ownProps) => {
-  let filter = state.runs.filters[ownProps.kind][ownProps.id];
-  return {
-    id: filter.id,
-    filterKey: filter.key,
-    op: filter.op,
-    value: filter.value,
-  };
-};
-
 const runFilterEditorMapDispatchToProps = (dispatch, ownProps) => {
   return bindActionCreators({editFilter, setFilterComponent}, dispatch);
 };
 
-RunFilterEditor = connect(
-  mapRunFilterEditorStateToProps,
-  runFilterEditorMapDispatchToProps,
-)(RunFilterEditor);
+RunFilterEditor = connect(null, runFilterEditorMapDispatchToProps)(
+  RunFilterEditor,
+);
 
 class RunFilter extends React.Component {
   componentDidMount() {
@@ -206,13 +189,11 @@ class RunFilter extends React.Component {
               size="tiny">
               <Button className="filter" id={'runFilterViewer' + this.props.id}>
                 <span>
-                  {this.props.filterKey ? (
-                    this.props.filterKey.section +
-                    ':' +
-                    this.props.filterKey.value
-                  ) : (
-                    '_'
-                  )}
+                  {this.props.filterKey
+                    ? this.props.filterKey.section +
+                      ':' +
+                      this.props.filterKey.value
+                    : '_'}
                 </span>{' '}
                 <span>{this.props.op ? this.props.op : '_'}</span>{' '}
                 <span>
@@ -239,6 +220,9 @@ class RunFilter extends React.Component {
             keySuggestions={this.props.keySuggestions}
             kind={this.props.kind}
             id={this.props.id}
+            filterKey={this.props.filterKey}
+            op={this.props.op}
+            value={this.props.value}
           />
         }
         open={this.props.editing}
@@ -251,26 +235,15 @@ class RunFilter extends React.Component {
   }
 }
 
-const mapRunFilterStateToProps = (state, ownProps) => {
-  let filter = state.runs.filters[ownProps.kind][ownProps.id];
-  return {
-    editing: state.runs.editingFilter === ownProps.id,
-    id: filter.id,
-    filterKey: filter.key,
-    op: filter.op,
-    value: filter.value,
-  };
-};
-
 const runFilterMapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({deleteFilter, editFilter}, dispatch);
+  return bindActionCreators({deleteFilter}, dispatch);
 };
 
-RunFilter = connect(mapRunFilterStateToProps, runFilterMapDispatchToProps)(
-  RunFilter,
-);
+RunFilter = connect(null, runFilterMapDispatchToProps)(RunFilter);
 
 class RunFilters extends React.Component {
+  state = {editingFilter: null};
+
   render() {
     let filterIDs = _.keys(this.props.filters).sort();
     return (
@@ -284,7 +257,12 @@ class RunFilters extends React.Component {
                 runs={this.props.runs}
                 key={filter.id}
                 id={filter.id}
+                filterKey={filter.key}
+                op={filter.op}
+                value={filter.value}
                 keySuggestions={this.props.keySuggestions}
+                editing={this.state.editingFilter === filter.id}
+                editFilter={id => this.setState({editingFilter: id})}
               />
             );
           })}
@@ -306,7 +284,6 @@ class RunFilters extends React.Component {
 
 function mapStateToProps(state, ownProps) {
   return {
-    editingFilter: state.runs.editingFilter,
     filters: state.runs.filters[ownProps.kind],
   };
 }
