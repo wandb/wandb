@@ -4,14 +4,20 @@ import {Container, Loader} from 'semantic-ui-react';
 import RunEditor from '../components/RunEditor';
 import RunViewer from '../components/RunViewer';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
-import {RUN_UPSERT, RUN_DELETION, RUN_STOP, RUNS_QUERY} from '../graphql/runs';
+import {
+  RUN_UPSERT,
+  RUN_DELETION,
+  RUN_STOP,
+  RUNS_QUERY,
+  fragments,
+} from '../graphql/runs';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
 import {setServerViews} from '../actions/view';
 import {updateLocationParams} from '../actions/location';
 import _ from 'lodash';
-import {defaultViews} from '../util/runhelpers';
+import {defaultViews, generateBucketId} from '../util/runhelpers';
 import {BOARD} from '../util/board';
 
 class Run extends React.Component {
@@ -34,20 +40,18 @@ class Run extends React.Component {
     if (nextProps.model && !_.isEqual(nextProps.model, this.props.model)) {
       this.setState({model: nextProps.model, bucket: nextProps.bucket});
     } else if (!nextProps.model) {
-      try {
-        let query = nextProps.client.readQuery({
-          query: RUNS_QUERY,
-          variables: {
-            entityName: nextProps.match.params.entity,
-            name: nextProps.match.params.model,
-            order: 'timeline',
-          },
+      const params = this.props.match.params,
+        id = generateBucketId(params),
+        bucket = nextProps.client.readFragment({
+          id: id,
+          fragment: fragments.basicRun,
         });
-        let model = _.find(query.model.buckets.edges, function(item) {
-          return item.node.name === nextProps.match.params.run;
+      if (bucket) {
+        this.setState({
+          bucket: bucket,
+          model: {entityName: params.entity, name: params.model},
         });
-        this.setState({model: query.model, bucket: model.node});
-      } catch (e) {}
+      }
     }
     // Setup views loaded from server.
     if (

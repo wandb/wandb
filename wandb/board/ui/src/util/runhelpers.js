@@ -294,3 +294,18 @@ export function defaultViews(run) {
   }
   return base;
 }
+
+// Generate bucket id
+export function generateBucketId(params) {
+  return btoa(
+    [
+      'BucketType',
+      'Entity',
+      params.entity,
+      'Model',
+      params.model,
+      'Bucket',
+      params.run,
+    ].join(':'),
+  );
+}
