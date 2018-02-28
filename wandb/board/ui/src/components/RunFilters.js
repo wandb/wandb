@@ -233,37 +233,47 @@ class RunFilters extends React.Component {
   state = {editingFilter: null};
 
   render() {
-    let filterIDs = _.keys(this.props.filters).sort();
+    let {
+      filters,
+      kind,
+      runs,
+      keySuggestions,
+      deleteFilter,
+      setFilterComponent,
+      addFilter,
+      buttonText,
+    } = this.props;
+    let filterIDs = _.keys(filters).sort();
     return (
       <div>
         <div className="input-style">
           {filterIDs.map(filterID => {
-            let filter = this.props.filters[filterID];
+            let filter = filters[filterID];
             return (
               <RunFilter
-                kind={this.props.kind}
-                runs={this.props.runs}
+                kind={kind}
+                runs={runs}
                 key={filter.id}
                 id={filter.id}
                 filterKey={filter.key}
                 op={filter.op}
                 value={filter.value}
-                keySuggestions={this.props.keySuggestions}
+                keySuggestions={keySuggestions}
                 editing={this.state.editingFilter === filter.id}
                 editFilter={id => this.setState({editingFilter: id})}
-                deleteFilter={this.props.deleteFilter}
-                setFilterComponent={this.props.setFilterComponent}
+                deleteFilter={deleteFilter}
+                setFilterComponent={setFilterComponent}
               />
             );
           })}
           <Button
             icon="plus"
             circular
-            content={this.props.buttonText}
+            content={buttonText}
             style={{marginTop: 8}}
             size="tiny"
             onClick={() => {
-              this.props.addFilter(this.props.kind, '', '=', '');
+              addFilter(kind, '', '=', '');
             }}
           />
         </div>
