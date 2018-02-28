@@ -57,6 +57,14 @@ class Log extends React.Component {
           this.parseLoss(nextProps.logLines.edges),
         );
       }
+    }
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (
+      this.props.logLines &&
+      !_.isEqual(this.props.logLines, prevProps.logLines)
+    ) {
       this.scrollToBottom();
     }
   }
