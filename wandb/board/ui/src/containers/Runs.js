@@ -55,6 +55,7 @@ class Runs extends React.Component {
       keys: props.keySuggestions,
       axisOptions: this.axisOptions,
       histories: this.runHistories,
+      sort: props.sort,
     };
   }
 

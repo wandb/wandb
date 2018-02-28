@@ -3,6 +3,7 @@ import _ from 'lodash';
 import {Button, Card, Dropdown, Grid, Icon} from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
 import QueryEditor from '../components/QueryEditor';
+import {filterRuns, sortRuns} from '../util/runhelpers.js';
 
 import './PanelRunsLinePlot';
 import './PanelLinePlot';
@@ -30,11 +31,30 @@ class Panel extends React.Component {
     );
   }
 
+  _setup(props) {
+    if (props.query && props.data) {
+      // Ew modifying props. TODO fix me
+      props.data.filteredRuns = sortRuns(
+        props.data.sort,
+        filterRuns(props.query.filters, props.data.base),
+      );
+      props.data.filteredRunsById = {};
+      for (var run of props.data.filteredRuns) {
+        props.data.filteredRunsById[run.name] = run;
+      }
+    }
+  }
+
   componentDidMount() {
     // This happens when a new panel is added, go straight to configMode
     if (!this.props.config) {
       this.setState({configMode: true});
     }
+    this._setup(this.props);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    this._setup(nextProps);
   }
 
   render() {
@@ -120,6 +140,8 @@ class Panel extends React.Component {
                     <QueryEditor
                       query={this.props.query}
                       setQuery={this.props.updateQuery}
+                      runs={this.props.data.base}
+                      keySuggestions={this.props.data.keys}
                     />
                   )}
                 </div>
