@@ -1,113 +1,88 @@
 import React, {Component} from 'react';
-import DashLayout from './dash/DashLayout';
-import DashPanel from './dash/DashLayout';
+import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
 import Panel from './Panel';
 import {Button, Icon} from 'semantic-ui-react';
 import _ from 'underscore';
-import cx from 'classnames';
 import './DashboardView.css';
 
-export const GRID_WIDTH = 9;
-export const GRID_ASPECT_RATIO = 1;
+export const GRID_WIDTH = 12;
 export const GRID_MARGIN = 6;
-export const DEFAULT_CARD_SIZE = {width: 3, height: 2};
 
+const Grid = WidthProvider(ReactGridLayout);
 class DashboardView extends Component {
-  state = {isDragging: false};
   static defaultProps = {
-    width: 0,
     editMode: true,
   };
-  onDrag() {
-    if (!this.state.isDragging) {
-      this.setState({isDragging: true});
-    }
-  }
-  onDragStop() {
-    this.setState({isDragging: false});
-  }
-  //TODO: might need to intercept onMouseDownCapture
-  onDashCardMouseDown = () => {};
-  onLayoutChange = () => {
-    console.log('Layout change');
+
+  onLayoutChange = layouts => {
+    layouts.forEach(layout =>
+      this.props.updatePanel(parseInt(layout.i), layout),
+    );
   };
 
-  renderGrid() {
+  render() {
     const {data, editMode, width} = this.props;
-    const rowHeight = Math.floor(width / GRID_WIDTH / GRID_ASPECT_RATIO);
     return (
       <div>
         {editMode && (
           <Button
+            icon
+            size="tiny"
+            style={{position: 'absolute', right: 5, top: 5, zIndex: 102}}
             onClick={() => {
               this.props.addPanel({
-                i: 0,
+                i: this.props.config.length.toString(),
                 x: 0,
                 y: 0,
-                h: 2,
                 w: 3,
-                minSize: {
-                  width: 3,
-                  height: 2,
-                },
+                h: 2,
+                minW: 3,
+                minH: 1,
               });
             }}>
             <Icon name="plus" />
           </Button>
         )}
-        <DashLayout
-          className={cx('DashboardGrid', {
-            'Dash--editing': editMode,
-            'Dash--dragging': this.state.isDragging,
-          })}
+        <Grid
+          className={editMode ? 'editing' : 'display'}
           layout={this.props.config || []}
           cols={GRID_WIDTH}
-          margin={GRID_MARGIN}
-          rowHeight={rowHeight}
-          onLayoutChange={(...args) => this.onLayoutChange(...args)}
-          onDrag={(...args) => this.onDrag(...args)}
-          onDragStop={(...args) => this.onDragStop(...args)}
-          isEditing={editMode}>
+          isDraggable={editMode}
+          isResizable={editMode}
+          margin={[GRID_MARGIN, GRID_MARGIN]}
+          onLayoutChange={this.onLayoutChange}>
           {this.props.config.map((panelConfig, i) => (
-            <Panel
-              key={i}
-              editMode={this.props.editMode}
-              type={panelConfig.viewType}
-              size={panelConfig.size}
-              config={panelConfig}
-              data={data}
-              updateType={newType =>
-                this.props.updatePanel(i, {
-                  ...panelConfig,
-                  viewType: newType,
-                })
-              }
-              updateSize={newSize =>
-                this.props.updatePanel(i, {
-                  ...panelConfig,
-                  size: newSize,
-                })
-              }
-              panelIndex={this.props.id}
-              updateConfig={config =>
-                this.props.updatePanel(i, {
-                  ...panelConfig,
-                  config: config,
-                })
-              }
-              removePanel={() => this.props.removePanel(i)}
-            />
+            <div key={i} className="panel">
+              <Panel
+                editMode={this.props.editMode}
+                type={panelConfig.viewType}
+                size={panelConfig.size}
+                config={panelConfig}
+                data={data}
+                updateType={newType =>
+                  this.props.updatePanel(i, {
+                    ...panelConfig,
+                    viewType: newType,
+                  })
+                }
+                updateSize={newSize =>
+                  this.props.updatePanel(i, {
+                    ...panelConfig,
+                    size: newSize,
+                  })
+                }
+                panelIndex={this.props.id}
+                updateConfig={config =>
+                  this.props.updatePanel(i, {
+                    ...panelConfig,
+                    config: config,
+                  })
+                }
+                removePanel={() => this.props.removePanel(i)}
+              />
+            </div>
           ))}
-        </DashLayout>
-      </div>
-    );
-  }
-
-  render() {
-    const {width} = this.props;
-    return (
-      <div className="flex layout-centered">
-        {width === 0 ? <div /> : this.renderGrid()}
+        </Grid>
       </div>
     );
   }

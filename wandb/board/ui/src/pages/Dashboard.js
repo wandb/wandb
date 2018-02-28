@@ -15,25 +15,6 @@ class Dashboard extends React.Component {
     return this.props.loading || (this.props.model && this.props.model.name);
   }
 
-  updateDimensions = () => {
-    this.setState({
-      width: Math.max(640, window.innerWidth),
-      height: window.innerHeight,
-    });
-  };
-
-  componentWillMount() {
-    this.updateDimensions();
-  }
-
-  componentDidMount() {
-    window.addEventListener('resize', this.updateDimensions);
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('resize', this.updateDimensions);
-  }
-
   render() {
     let action = this.props.match.path.split('/').pop();
     return (
@@ -43,7 +24,6 @@ class Dashboard extends React.Component {
         ) : (
           <ViewModifier
             {...this.props}
-            {...this.state}
             component={Dashboards}
             viewComponent={DashboardView}
             editMode={this.props.user && action === 'edit'}

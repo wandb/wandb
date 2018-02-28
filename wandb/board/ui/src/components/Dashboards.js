@@ -14,11 +14,10 @@ class Dashboards extends Component {
   render() {
     const {tabs, editMode} = this.props;
     //TODO: single dashboard view support for now
-    console.log('WHAT?', tabs);
     const viewId = tabs && tabs[0];
     //TODO: Add new dashboards
     return (
-      <div>
+      <div className="dashboard">
         {viewId !== undefined && this.props.renderView(viewId, editMode)}
       </div>
     );

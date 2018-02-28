@@ -38,7 +38,6 @@ class Panel extends React.Component {
 
   render() {
     let {type, size, config, data} = this.props;
-    console.log('WHAT', this.props);
     let panel, PanelType, configMode, options, sizeKey;
     if (!data) {
       panel = <p>Views unavailable until data is ready.</p>;
