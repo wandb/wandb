@@ -65,6 +65,7 @@ class TabbedView extends React.Component {
             editMode={this.props.editMode}
             type={panelConfig.viewType}
             size={panelConfig.size}
+            query={panelConfig.query}
             config={panelConfig.config}
             data={this.props.data}
             updateType={newType =>
@@ -72,6 +73,9 @@ class TabbedView extends React.Component {
             }
             updateSize={newSize =>
               this.props.updatePanel(i, {...panelConfig, size: newSize})
+            }
+            updateQuery={newQuery =>
+              this.props.updatePanel(i, {...panelConfig, query: newQuery})
             }
             panelIndex={i}
             updateConfig={this.updateConfig[i]}

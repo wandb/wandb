@@ -1,7 +1,8 @@
 import React from 'react';
 import _ from 'lodash';
-import {Button, Card, Dropdown, Grid} from 'semantic-ui-react';
+import {Button, Card, Dropdown, Grid, Icon} from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
+import QueryEditor from '../components/QueryEditor';
 
 import './PanelRunsLinePlot';
 import './PanelLinePlot';
@@ -10,7 +11,7 @@ import './PanelScatterPlot';
 import './PanelParallelCoord';
 
 class Panel extends React.Component {
-  state = {configMode: false};
+  state = {configMode: false, showQuery: false};
 
   renderPanelType(PanelType, configMode, config, data, sizeKey) {
     if (!data) {
@@ -102,6 +103,27 @@ class Panel extends React.Component {
                   onChange={(e, {value}) => this.props.updateType(value)}
                   style={{marginBottom: 12}}
                 />
+              )}
+              {configMode && (
+                <div>
+                  <p
+                    style={{cursor: 'pointer'}}
+                    onClick={() =>
+                      this.setState({showQuery: !this.state.showQuery})
+                    }>
+                    <Icon
+                      rotated={this.state.showQuery ? null : 'counterclockwise'}
+                      name="dropdown"
+                    />
+                    Query Settings
+                  </p>
+                  {this.state.showQuery && (
+                    <QueryEditor
+                      query={this.props.query}
+                      setQuery={this.props.updateQuery}
+                    />
+                  )}
+                </div>
               )}
               {this.renderPanelType(
                 PanelType,
