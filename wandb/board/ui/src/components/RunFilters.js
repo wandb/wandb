@@ -238,9 +238,9 @@ export default class RunFilters extends React.Component {
       kind,
       runs,
       keySuggestions,
+      addFilter,
       deleteFilter,
       setFilterComponent,
-      addFilter,
       buttonText,
     } = this.props;
     let filterIDs = _.keys(filters).sort();

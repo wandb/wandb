@@ -120,6 +120,8 @@ class Panel extends React.Component {
                     <QueryEditor
                       query={this.props.query}
                       setQuery={this.props.updateQuery}
+                      runs={this.props.data.base}
+                      keySuggestions={this.props.data.keys}
                     />
                   )}
                 </div>
