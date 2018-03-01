@@ -58,11 +58,10 @@ class Panel extends React.Component {
 
     if (!panel && this.props.editMode) {
       panel = (
-        <Grid.Column width={size.width}>
-          <Card fluid>
-            <Card.Content>
-              <Button.Group basic floated="right">
-                {/*
+        <Card fluid>
+          <Card.Content>
+            <Button.Group basic floated="right">
+              {/*
                 <Button
                   icon="settings"
                   circular
@@ -70,79 +69,77 @@ class Panel extends React.Component {
                   onClick={() =>
                     this.setState({configMode: !this.state.configMode})}
                   />*/}
-                {!PanelType.options.width && (
-                  <Button
-                    icon={size.width === 8 ? 'expand' : 'compress'}
-                    circular
-                    size="tiny"
-                    onClick={() => {
-                      let newWidth = size.width === 8 ? 16 : 8;
-                      this.props.updateSize({width: newWidth});
-                    }}
-                  />
-                )}
+              {!PanelType.options.width && (
                 <Button
-                  icon="close"
+                  icon={size.width === 8 ? 'expand' : 'compress'}
                   circular
                   size="tiny"
-                  onClick={() => this.props.removePanel()}
-                />
-              </Button.Group>
-              {configMode && (
-                <Dropdown
-                  placeholder="Panel Type"
-                  selection
-                  options={options}
-                  value={type}
-                  onChange={(e, {value}) => this.props.updateType(value)}
-                  style={{marginBottom: 12}}
+                  onClick={() => {
+                    let newWidth = size.width === 8 ? 16 : 8;
+                    this.props.updateSize({width: newWidth});
+                  }}
                 />
               )}
-              {configMode && (
-                <div>
-                  <p
-                    style={{cursor: 'pointer'}}
-                    onClick={() =>
-                      this.setState({showQuery: !this.state.showQuery})
-                    }>
-                    <Icon
-                      rotated={this.state.showQuery ? null : 'counterclockwise'}
-                      name="dropdown"
-                    />
-                    Query Settings
-                  </p>
-                  {this.state.showQuery && (
-                    <QueryEditor
-                      panelQuery={this.props.panelQuery}
-                      setQuery={this.props.updateQuery}
-                      runs={this.props.data.base}
-                      keySuggestions={this.props.data.keys}
-                    />
-                  )}
-                </div>
-              )}
-              {this.renderPanelType(
-                PanelType,
-                configMode,
-                config,
-                data,
-                sizeKey,
-              )}
-            </Card.Content>
-          </Card>
-        </Grid.Column>
+              <Button
+                icon="close"
+                circular
+                size="tiny"
+                onClick={() => this.props.removePanel()}
+              />
+            </Button.Group>
+            {configMode && (
+              <Dropdown
+                placeholder="Panel Type"
+                selection
+                options={options}
+                value={type}
+                onChange={(e, {value}) => this.props.updateType(value)}
+                style={{marginBottom: 12}}
+              />
+            )}
+            {configMode && (
+              <div>
+                <p
+                  style={{cursor: 'pointer'}}
+                  onClick={() =>
+                    this.setState({showQuery: !this.state.showQuery})
+                  }>
+                  <Icon
+                    rotated={this.state.showQuery ? null : 'counterclockwise'}
+                    name="dropdown"
+                  />
+                  Query Settings
+                </p>
+                {this.state.showQuery && (
+                  <QueryEditor
+                    panelQuery={this.props.panelQuery}
+                    setQuery={this.props.updateQuery}
+                    runs={this.props.data.base}
+                    keySuggestions={this.props.data.keys}
+                  />
+                )}
+              </div>
+            )}
+            {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
+          </Card.Content>
+        </Card>
       );
     } else if (!panel) {
-      panel = (
-        <Grid.Column width={size.width}>
-          {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
-        </Grid.Column>
+      panel = this.renderPanelType(
+        PanelType,
+        configMode,
+        config,
+        data,
+        sizeKey,
       );
     }
     return (
-      <div style={this.props.style} className={this.props.className}>
+      <Grid.Column
+        width={size.width || 8}
+        style={this.props.style}
+        className={this.props.className}>
         {panel}
-      </div>
+      </Grid.Column>
     );
   }
 }

@@ -31,7 +31,6 @@ export default function withHistoryLoader(WrappedComponent) {
               filterRuns(nextProps.runFilters, nextProps.runs),
             ),
           );
-          console.log('HIST LOADER 1', this.selectedRuns);
         }
         this.selectedRunsById = _.fromPairs(
           this.selectedRuns.map(run => [run.name, run.id]),
@@ -43,7 +42,6 @@ export default function withHistoryLoader(WrappedComponent) {
             .slice(0, MAX_HISTORIES_LOADED)
             .map(run => [run.name, run.id]),
         );
-        console.log('HISTORYLOADER1 selected', selected);
         // find set of selected runs that have not been fetched
         //console.log('n selected', _.size(selected));
         let selectedInfo = _.map(selected, (id, name) => {
