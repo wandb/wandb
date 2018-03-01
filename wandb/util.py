@@ -119,8 +119,11 @@ def downsample(values, target_length):
     """Downsamples 1d values to target_length, including start and end.
 
     Algorithm just rounds index down.
+
+    Values can be any sequence, including a generator.
     """
     assert target_length > 1
+    values = list(values)
     if len(values) < target_length:
         return values
     ratio = float(len(values) - 1) / (target_length - 1)
