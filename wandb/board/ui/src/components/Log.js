@@ -39,23 +39,32 @@ class Log extends React.Component {
   };
 
   componentDidMount() {
-    this.props.stream(
-      this.props.client,
-      this.props.match.params,
-      this.props.bucket,
-      this.updateCallback,
-    );
     this.scrollToBottom();
   }
 
   componentWillReceiveProps(nextProps) {
-    if (nextProps.logLines && this.props.logLines !== nextProps.logLines) {
-      //TODO: WTF
-      if (this.props.updateLoss) {
-        this.props.updateLoss(
-          this.props.run,
-          this.parseLoss(nextProps.logLines.edges),
+    if (nextProps.logLines) {
+      // Bind stream only when `logLines` is not empty, and only once,
+      // otherwise `readFragment` will break.
+      // As an alternative, we can go with unbinding all events from `StreamingLog`
+      if (!this.bound) {
+        this.props.stream(
+          this.props.client,
+          this.props.match.params,
+          this.props.bucket,
+          this.updateCallback,
         );
+        this.bound = true;
+      }
+
+      if (this.props.logLines !== nextProps.logLines) {
+        //TODO: WTF
+        if (this.props.updateLoss) {
+          this.props.updateLoss(
+            this.props.run,
+            this.parseLoss(nextProps.logLines.edges),
+          );
+        }
       }
     }
   }
