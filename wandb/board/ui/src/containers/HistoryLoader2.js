@@ -12,38 +12,17 @@ export default function withHistoryLoader(WrappedComponent) {
   let HistoryLoader = class extends React.Component {
     constructor(props) {
       super(props);
-      this.selectedRuns = [];
-      this.selectedRunsById = {};
+      this.selectedRuns = {};
     }
 
     _setup(props, nextProps) {
-      if (
-        nextProps.runFilters !== props.runFilters ||
-        nextProps.selectFilters !== props.selectFilters ||
-        nextProps.sort !== props.sort ||
-        nextProps.runs !== props.runs
-      ) {
-        if (_.size(nextProps.selectFilters) !== 0) {
-          this.selectedRuns = sortRuns(
-            nextProps.sort,
-            filterRuns(
-              nextProps.selectFilters,
-              filterRuns(nextProps.runFilters, nextProps.runs),
-            ),
-          );
-          console.log('HIST LOADER 1', this.selectedRuns);
-        }
-        this.selectedRunsById = _.fromPairs(
-          this.selectedRuns.map(run => [run.name, run.id]),
-        );
-
+      if (nextProps.data.selectedRuns !== props.data.selectedRuns) {
         //console.log('SelectionQueryThing willReceiveProps', nextProps);
         let selected = _.fromPairs(
-          this.selectedRuns
+          nextProps.data.selectedRuns
             .slice(0, MAX_HISTORIES_LOADED)
             .map(run => [run.name, run.id]),
         );
-        console.log('HISTORYLOADER1 selected', selected);
         // find set of selected runs that have not been fetched
         //console.log('n selected', _.size(selected));
         let selectedInfo = _.map(selected, (id, name) => {
@@ -103,8 +82,8 @@ export default function withHistoryLoader(WrappedComponent) {
               .query({
                 query: HISTORY_QUERY,
                 variables: {
-                  entityName: nextProps.match.params.entity,
-                  name: nextProps.match.params.model,
+                  entityName: this.props.query.entity,
+                  name: this.props.query.model,
                   bucketIds: toLoad.map(o => o.name),
                 },
               })
@@ -125,7 +104,7 @@ export default function withHistoryLoader(WrappedComponent) {
           variables: {histQueryKey: nextProps.histQueryKey},
           data: {
             model: {
-              id: 'fake_history_query',
+              id: 'fake_history_query_' + nextProps.histQueryKey,
               __typename: 'ModelType',
               buckets: {
                 __typename: 'BucketConnectionType',
@@ -147,7 +126,7 @@ export default function withHistoryLoader(WrappedComponent) {
 
     componentWillMount() {
       this.historyLoadedRuns = {};
-      this._setup({}, this.props);
+      this._setup({data: {}}, this.props);
     }
 
     componentWillReceiveProps(nextProps) {
@@ -156,11 +135,7 @@ export default function withHistoryLoader(WrappedComponent) {
 
     render() {
       return (
-        <WrappedComponent
-          {...this.props}
-          selectedRuns={this.selectedRuns}
-          selectedRunsById={this.selectedRunsById}
-        />
+        <WrappedComponent {...this.props} selectedRuns={this.selectedRuns} />
       );
     }
   };
@@ -208,19 +183,5 @@ export default function withHistoryLoader(WrappedComponent) {
     });
   }
 
-  function mapStateToProps(state, ownProps) {
-    return {
-      sort: state.runs.sort,
-      runFilters: state.runs.filters.filter,
-      selectFilters: state.runs.filters.select,
-    };
-  }
-
-  function mapDispatchToProps(dispatch) {
-    return bindActionCreators({}, dispatch);
-  }
-
-  return connect(mapStateToProps, mapDispatchToProps)(
-    withApollo(withData()(HistoryLoader)),
-  );
+  return withApollo(withData()(HistoryLoader));
 }

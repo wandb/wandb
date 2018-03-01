@@ -52,10 +52,20 @@ class Runs extends React.Component {
       base: props.runs,
       filtered: this.filteredRuns,
       filteredRunsById: this.filteredRunsById,
+      selectedRuns: this.props.selectedRuns,
+      selectedRunsById: this.props.selectedRunsById,
       keys: props.keySuggestions,
       axisOptions: this.axisOptions,
       histories: this.runHistories,
       sort: props.sort,
+      query: {
+        entity: this.props.model.entityName,
+        model: this.props.model.name,
+        filters: this.props.runFilters,
+        selections: this.props.selectFilters,
+        sort: this.props.sort,
+        num_histories: 10,
+      },
     };
   }
 
@@ -94,7 +104,7 @@ class Runs extends React.Component {
     this.runHistories = {
       loading: props.runHistory.some(o => !o.history),
       maxRuns: MAX_HISTORIES_LOADED,
-      totalRuns: _.keys(props.selectedRuns).length,
+      totalRuns: props.selectedRuns.length,
       data: props.runHistory.filter(o => o.history),
       keys: this.historyKeys,
     };
@@ -253,7 +263,7 @@ class Runs extends React.Component {
               </p>
               <p>
                 {this.props.runs.length} total runs, {this.filteredRuns.length}{' '}
-                filtered, {_.keys(this.props.selectedRuns).length} selected
+                filtered, {this.props.selectedRuns.length} selected
               </p>
             </Grid.Column>
           </Grid.Row>
@@ -333,7 +343,7 @@ class Runs extends React.Component {
           onSort={this.onSort}
           showFailed={this.state.showFailed}
           selectable={true}
-          selectedRuns={this.props.selectedRuns}
+          selectedRuns={this.props.selectedRunsById}
           columnNames={this.props.columnNames}
           limit={this.props.limit}
         />

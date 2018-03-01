@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import {Button, Form, Grid} from 'semantic-ui-react';
 import Panel from '../components/Panel';
+import * as Query from '../util/query';
 
 class TabbedView extends React.Component {
   _makeUpdatePanelMethods(config) {
@@ -59,29 +60,37 @@ class TabbedView extends React.Component {
             </Form>
           </Grid.Column>
         )}
-        {this.props.config.map((panelConfig, i) => (
-          <Panel
-            key={i}
-            editMode={this.props.editMode}
-            type={panelConfig.viewType}
-            size={panelConfig.size}
-            query={panelConfig.query}
-            config={panelConfig.config}
-            data={this.props.data}
-            updateType={newType =>
-              this.props.updatePanel(i, {...panelConfig, viewType: newType})
-            }
-            updateSize={newSize =>
-              this.props.updatePanel(i, {...panelConfig, size: newSize})
-            }
-            updateQuery={newQuery =>
-              this.props.updatePanel(i, {...panelConfig, query: newQuery})
-            }
-            panelIndex={i}
-            updateConfig={this.updateConfig[i]}
-            removePanel={() => this.props.removePanel(i)}
-          />
-        ))}
+        {this.props.config.map((panelConfig, i) => {
+          let query = Query.merge(
+            this.props.data.query,
+            panelConfig.query || {},
+          );
+          return (
+            <Panel
+              key={i}
+              histQueryKey={i}
+              editMode={this.props.editMode}
+              type={panelConfig.viewType}
+              size={panelConfig.size}
+              panelQuery={panelConfig.query}
+              query={query}
+              config={panelConfig.config}
+              data={this.props.data}
+              updateType={newType =>
+                this.props.updatePanel(i, {...panelConfig, viewType: newType})
+              }
+              updateSize={newSize =>
+                this.props.updatePanel(i, {...panelConfig, size: newSize})
+              }
+              updateQuery={newQuery =>
+                this.props.updatePanel(i, {...panelConfig, query: newQuery})
+              }
+              panelIndex={i}
+              updateConfig={this.updateConfig[i]}
+              removePanel={() => this.props.removePanel(i)}
+            />
+          );
+        })}
         {this.props.editMode && (
           <Grid.Column width={8}>
             <Button

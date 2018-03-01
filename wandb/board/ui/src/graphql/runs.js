@@ -203,8 +203,8 @@ export const HISTORY_QUERY = gql`
 `;
 
 export const FAKE_HISTORY_QUERY = gql`
-  query FakeRunHistory {
-    model {
+  query FakeRunHistory($histQueryKey: String!) {
+    model(key: $histQueryKey) {
       id
       buckets {
         edges {

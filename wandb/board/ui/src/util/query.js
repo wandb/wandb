@@ -43,3 +43,20 @@ export function deleteFilter(filters, id) {
 export function setFilterComponent(filters, id, component, value) {
   return update(filters, {[id]: {[component]: {$set: value}}});
 }
+
+export function merge(base, apply) {
+  let strategy = apply.strategy || 'page';
+  if (strategy === 'page') {
+    return {...base, strategy: apply.strategy};
+  }
+  let result = {};
+  result.strategy = apply.strategy;
+  result.entity = apply.entity || base.entity;
+  result.model = apply.model || base.model;
+  result.filters = {...base.filters, ...apply.filters};
+  // TODO: probably not the right thing to do
+  result.selections = {...base.selections};
+  result.sort = apply.sort || base.sort;
+  result.num_histories = apply.num_histories || base.num_histories;
+  return result;
+}

@@ -37,7 +37,7 @@ class QueryEditor extends React.Component {
 
   render() {
     let {setQuery, runs, keySuggestions} = this.props;
-    this.query = this.props.query || {};
+    this.query = this.props.panelQuery || {};
     let strategy = this.query.strategy;
     if (strategy !== 'page' && strategy !== 'merge') {
       strategy = 'page';
@@ -58,17 +58,21 @@ class QueryEditor extends React.Component {
             onChange={() => this.setStrategy('merge')}
           />
           {strategy === 'merge' && (
-            <RunFilters
-              filters={this.filters}
-              runs={runs}
-              keySuggestions={keySuggestions}
-              addFilter={(_, key, op, value) => this.addFilter(key, op, value)}
-              deleteFilter={(_, id) => this.deleteFilter(id)}
-              setFilterComponent={(_, id, component, value) =>
-                this.setFilterComponent(id, component, value)
-              }
-              buttonText="Add Filter"
-            />
+            <div>
+              <RunFilters
+                filters={this.filters}
+                runs={runs}
+                keySuggestions={keySuggestions}
+                addFilter={(_, key, op, value) =>
+                  this.addFilter(key, op, value)
+                }
+                deleteFilter={(_, id) => this.deleteFilter(id)}
+                setFilterComponent={(_, id, component, value) =>
+                  this.setFilterComponent(id, component, value)
+                }
+                buttonText="Add Filter"
+              />
+            </div>
           )}
         </Form.Group>
       </Form>
