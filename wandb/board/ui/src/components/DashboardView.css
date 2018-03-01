@@ -16,7 +16,7 @@
     z-index: 1;
 }
 
-.panel > div {
+.react-grid-item.panel > div {
     position: absolute;
     top: 0;
     left: 0;
@@ -27,6 +27,14 @@
     border: 1px solid rgb(219, 219, 219);
     border-radius: 4px;
     padding: 5px;
+}
+
+.panel > .edit {
+    position: absolute;
+    z-index: 1;
+    top: 3px;
+    right: 0;
+    border: none !important;
 }
 
 .editing .panel > div {
@@ -95,6 +103,16 @@
     right: 0;
     cursor: nwse-resize;
     z-index: 1;
+}
+.react-grid-item > .react-resizable-handle::after {
+    content: "";
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid rgba(0, 0, 0, 0.4);
+    border-bottom: 2px solid rgba(0, 0, 0, 0.4);
 }
 
 .editing .react-grid-placeholder {
