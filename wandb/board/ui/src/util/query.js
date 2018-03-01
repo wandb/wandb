@@ -53,9 +53,22 @@ export function merge(base, apply) {
   result.strategy = apply.strategy;
   result.entity = apply.entity || base.entity;
   result.model = apply.model || base.model;
-  result.filters = {...base.filters, ...apply.filters};
+
+  // base and apply may share keys, so we rekey
+  result.filters = {};
+  let filterIndex = 0;
+  for (var key of _.keys(base.filters)) {
+    result.filters[filterIndex] = base.filters[key];
+    filterIndex++;
+  }
+  for (var key of _.keys(apply.filters)) {
+    result.filters[filterIndex] = apply.filters[key];
+    filterIndex++;
+  }
+
   // TODO: probably not the right thing to do
   result.selections = {...base.selections};
+
   result.sort = apply.sort || base.sort;
   result.num_histories = apply.num_histories || base.num_histories;
   return result;
