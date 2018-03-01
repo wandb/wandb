@@ -144,7 +144,6 @@ function withDerivedHistoryData(WrappedComponent) {
     }
 
     _setup(props) {
-      console.log('derived history props', props);
       this.historyKeys = _.uniq(
         _.flatMap(
           _.uniq(

@@ -93,7 +93,10 @@ class Panel extends React.Component {
                 selection
                 options={options}
                 value={type}
-                onChange={(e, {value}) => this.props.updateType(value)}
+                onChange={(e, {value}) => {
+                  console.log('onchange', value);
+                  this.props.updateType(value);
+                }}
                 style={{marginBottom: 12}}
               />
             )}

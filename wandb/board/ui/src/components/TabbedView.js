@@ -26,10 +26,12 @@ class TabbedView extends React.Component {
       this._makeUpdatePanelMethods(nextProps.config);
     }
     if (nextProps.editMode) {
-      const tab = ReactDOM.findDOMNode(this).querySelector('.tab-name input');
-      if (tab) {
-        tab.focus();
-      }
+      // This tries to focus on the new tabs input field, but it breaks changing panel type
+      // TODO: let's solve this somehow.
+      // const tab = ReactDOM.findDOMNode(this).querySelector('.tab-name input');
+      // if (tab) {
+      //   tab.focus();
+      // }
     }
   }
 
