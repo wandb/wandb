@@ -15,7 +15,7 @@ import './PanelParallelCoord';
 class Panel extends React.Component {
   state = {configMode: false, showQuery: false};
 
-  renderPanelType(PanelType, configMode, config, data, sizeKey) {
+  renderPanelType(PanelType, configMode, config, data, sizeKey, panelQuery) {
     if (!data) {
       return <p>Views unavailable until data is ready</p>;
     }
@@ -26,6 +26,7 @@ class Panel extends React.Component {
           config={config}
           updateConfig={this.props.updateConfig}
           sizeKey={sizeKey}
+          panelQuery={panelQuery}
           data={data}
         />
       </div>
@@ -134,6 +135,7 @@ class Panel extends React.Component {
         config,
         data,
         sizeKey,
+        this.props.panelQuery,
       );
     }
     return (

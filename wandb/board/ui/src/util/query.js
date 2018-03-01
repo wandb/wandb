@@ -1,5 +1,6 @@
 import _ from 'lodash';
 import update from 'immutability-helper';
+import {displayFilterKey} from './runhelpers';
 
 export function addFilter(filters, key, op, value) {
   let filter = _.find(
@@ -72,4 +73,19 @@ export function merge(base, apply) {
   result.sort = apply.sort || base.sort;
   result.num_histories = apply.num_histories || base.num_histories;
   return result;
+}
+
+export function summaryString(query) {
+  if (
+    !query ||
+    query.strategy === 'page' ||
+    _.keys(query.filters).length === 0
+  ) {
+    return '';
+  }
+  let filtStrs = _.map(
+    query.filters,
+    filt => displayFilterKey(filt.key) + ' ' + filt.op + ' ' + filt.value,
+  );
+  return filtStrs.join(', ');
 }

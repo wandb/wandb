@@ -9,6 +9,7 @@ import {color} from '../util/colors.js';
 import {registerPanelClass} from '../util/registry.js';
 import {runDisplayName} from '../util/runhelpers.js';
 import {addFilter} from '../actions/run';
+import * as Query from '../util/query';
 
 class RunsLinePlotPanel extends React.Component {
   static type = 'Run History Line Plot';
@@ -86,10 +87,15 @@ class RunsLinePlotPanel extends React.Component {
         };
       })
       .filter(line => line.data.length > 0);
+    let extraTitle = '';
+    let querySummary = Query.summaryString(this.props.panelQuery);
+    if (querySummary) {
+      extraTitle = '(' + querySummary + ')';
+    }
     return (
       <div>
         <h3 style={{display: 'inline'}}>
-          {key + ' '}
+          {key + ' ' + extraTitle}
           {loading &&
             data.length < maxRuns && <Loader active inline size="small" />}
         </h3>
