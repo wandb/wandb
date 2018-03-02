@@ -15,6 +15,7 @@ class ProjectsSelector extends Component {
     console.log('project selector options', options, this.props.defaultModel);
     return (
       <Dropdown
+        style={{zIndex: 20}}
         fluid
         selection
         options={options}
