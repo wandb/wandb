@@ -15,7 +15,7 @@ import {
   sortRuns,
   getColumns,
 } from '../util/runhelpers.js';
-import withHistoryLoader from '../containers/HistoryLoader2';
+import withHistoryLoader from '../containers/HistoryLoader';
 // TODO: read this from query
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import _ from 'lodash';
@@ -153,23 +153,25 @@ function withDerivedHistoryData(WrappedComponent) {
     }
 
     _setup(props) {
-      this.historyKeys = _.uniq(
-        _.flatMap(
-          _.uniq(
-            _.flatMap(
-              props.runHistory,
-              o => (o.history ? o.history.map(row => _.keys(row)) : []),
+      if (props.runHistory) {
+        this.historyKeys = _.uniq(
+          _.flatMap(
+            _.uniq(
+              _.flatMap(
+                props.runHistory,
+                o => (o.history ? o.history.map(row => _.keys(row)) : []),
+              ),
             ),
           ),
-        ),
-      );
-      this.runHistories = {
-        loading: props.runHistory.some(o => !o.history),
-        maxRuns: MAX_HISTORIES_LOADED,
-        totalRuns: _.keys(props.selectedRunsById).length,
-        data: props.runHistory.filter(o => o.history),
-        keys: this.historyKeys,
-      };
+        );
+        this.runHistories = {
+          loading: props.runHistory.some(o => !o.history),
+          maxRuns: MAX_HISTORIES_LOADED,
+          totalRuns: _.keys(props.selectedRunsById).length,
+          data: props.runHistory.filter(o => o.history),
+          keys: this.historyKeys,
+        };
+      }
     }
 
     componentWillMount() {
@@ -181,13 +183,14 @@ function withDerivedHistoryData(WrappedComponent) {
     }
 
     render() {
+      let data = {...this.props.data};
+      if (this.props.runHistory) {
+        data.histories = this.runHistories;
+      }
       return (
         <WrappedComponent
           {...this.props}
-          data={{
-            ...this.props.data,
-            histories: this.runHistories,
-          }}
+          data={data}
           keySuggestions={this.keySuggestions}
           runs={this.runs}
         />

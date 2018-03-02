@@ -146,6 +146,7 @@ export default function withHistoryLoader(WrappedComponent) {
     let prevBuckets = null;
     let runHistory = [];
     return graphql(FAKE_HISTORY_QUERY, {
+      skip: ({query}) => !query.strategy || query.strategy === 'page',
       options: () => {
         return {
           fetchPolicy: 'cache-only',

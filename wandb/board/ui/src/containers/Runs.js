@@ -11,7 +11,6 @@ import {
 import RunFeed from '../components/RunFeed';
 import RunFiltersRedux from './RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
-import withHistoryLoader from '../components/HistoryLoader';
 import ViewModifier from './ViewModifier';
 import HelpIcon from '../components/HelpIcon';
 import {RUNS_QUERY} from '../graphql/runs';
