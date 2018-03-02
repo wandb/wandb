@@ -66,7 +66,7 @@ function withDerivedRunsData(WrappedComponent) {
     _setup(props) {
       let strategy = props.query.strategy || 'page';
       if (strategy === 'page') {
-        this.data = this.props.data;
+        this.data = props.data;
       } else {
         this.runs = parseBuckets(props.buckets);
         this.keySuggestions = setupKeySuggestions(this.runs);

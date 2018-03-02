@@ -22,6 +22,7 @@ import {
 } from '../util/runhelpers.js';
 import {setServerViews, setActiveView} from '../actions/view';
 import {addFilter} from '../actions/run';
+import {updateLocationParams} from '../actions/location';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
 
@@ -31,6 +32,7 @@ class Dashboard extends React.Component {
   }
 
   componentWillMount() {
+    this.props.updateLocationParams(this.props.match.params);
     this.props.addFilter('select', {section: 'run', value: 'id'}, '=', '*');
   }
 
@@ -120,7 +122,7 @@ function mapStateToProps(state, ownProps) {
 
 const mapDispatchToProps = (dispatch, ownProps) => {
   return bindActionCreators(
-    {addFilter, setServerViews, setActiveView},
+    {addFilter, setServerViews, setActiveView, updateLocationParams},
     dispatch,
   );
 };
