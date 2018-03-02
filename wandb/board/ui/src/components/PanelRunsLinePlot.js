@@ -87,15 +87,20 @@ class RunsLinePlotPanel extends React.Component {
         };
       })
       .filter(line => line.data.length > 0);
-    let extraTitle = '';
-    let querySummary = Query.summaryString(this.props.panelQuery);
-    if (querySummary) {
-      extraTitle = '(' + querySummary + ')';
+    let title = key;
+    if (this.props.panelQuery && this.props.panelQuery.strategy === 'merge') {
+      let querySummary = Query.summaryString(this.props.panelQuery);
+      if (querySummary) {
+        title += ' (' + querySummary + ')';
+      }
+      if (this.props.panelQuery.model) {
+        title = this.props.panelQuery.model + ':' + title;
+      }
     }
     return (
       <div>
         <h3 style={{display: 'inline'}}>
-          {key + ' ' + extraTitle}
+          {title}
           {loading &&
             data.length < maxRuns && <Loader active inline size="small" />}
         </h3>
