@@ -21,12 +21,17 @@ import {
   setupKeySuggestions,
 } from '../util/runhelpers.js';
 import {setServerViews, setActiveView} from '../actions/view';
+import {addFilter} from '../actions/run';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
 
 class Dashboard extends React.Component {
   ensureModel() {
     return this.props.loading || (this.props.model && this.props.model.name);
+  }
+
+  componentWillMount() {
+    this.props.addFilter('select', {section: 'run', value: 'id'}, '=', '*');
   }
 
   componentWillReceiveProps(nextProps) {
@@ -114,7 +119,10 @@ function mapStateToProps(state, ownProps) {
 }
 
 const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({setServerViews, setActiveView}, dispatch);
+  return bindActionCreators(
+    {addFilter, setServerViews, setActiveView},
+    dispatch,
+  );
 };
 
 Dashboard = connect(mapStateToProps, mapDispatchToProps)(
