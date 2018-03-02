@@ -20,12 +20,12 @@ class Dashboards extends Component {
     return (
       <div>
         {editMode && (
-          <span style={{position: 'absolute', right: 5, top: 5, zIndex: 102}}>
+          <span style={{position: 'absolute', right: 5, top: 10, zIndex: 102}}>
             <Button
               size="tiny"
               color="green"
               content="Save"
-              //disabled={!this.props.isModified}
+              disabled={!this.props.isModified}
               onClick={() => {
                 this.setState({editMode: false});
                 this.props.updateViews(JSON.stringify(this.props.viewState));

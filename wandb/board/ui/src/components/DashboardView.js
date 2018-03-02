@@ -67,7 +67,7 @@ class DashboardView extends Component {
     return (
       <div>
         {editMode && (
-          <span style={{position: 'absolute', right: 5, top: 5, zIndex: 102}}>
+          <span style={{position: 'absolute', right: 75, top: 10, zIndex: 102}}>
             <Button
               icon
               size="tiny"
