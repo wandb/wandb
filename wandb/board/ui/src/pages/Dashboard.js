@@ -8,7 +8,7 @@ import Dashboards from '../components/Dashboards';
 import DashboardView from '../components/DashboardView';
 import ViewModifier from '../containers/ViewModifier';
 import ErrorPage from '../components/ErrorPage';
-import withHistoryLoader from '../components/HistoryLoader';
+import withHistoryLoader from '../containers/HistoryLoader';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
 import {
   filterRuns,
@@ -20,10 +20,35 @@ import {
   parseBuckets,
   setupKeySuggestions,
 } from '../util/runhelpers.js';
+import {setServerViews, setActiveView} from '../actions/view';
+import withRunsDataLoader from '../containers/RunsDataLoader';
+import withRunsQueryRedux from '../containers/RunsQueryRedux';
 
 class Dashboard extends React.Component {
   ensureModel() {
     return this.props.loading || (this.props.model && this.props.model.name);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    // Setup views loaded from server.
+    if (
+      nextProps.data.base.length > 0 &&
+      (nextProps.views === null || !nextProps.views.runs) &&
+      _.isEmpty(this.props.reduxServerViews.runs.views) &&
+      _.isEmpty(this.props.reduxBrowserViews.runs.views)
+    ) {
+      // no views on server, provide a default
+      this.props.setServerViews(
+        defaultViews((nextProps.buckets.edges[0] || {}).node),
+        true,
+      );
+    } else if (
+      nextProps.views &&
+      nextProps.views.runs &&
+      !_.isEqual(nextProps.views, this.props.reduxServerViews)
+    ) {
+      this.props.setServerViews(nextProps.views);
+    }
   }
 
   render() {
@@ -39,6 +64,8 @@ class Dashboard extends React.Component {
             viewComponent={DashboardView}
             editMode={this.props.user && action === 'edit'}
             viewType="dashboards"
+            data={this.props.data}
+            pageQuery={this.props.query}
             updateViews={views =>
               this.props.updateModel({
                 entityName: this.props.match.params.entity,
@@ -53,35 +80,6 @@ class Dashboard extends React.Component {
     );
   }
 }
-
-const withData = graphql(MODEL_QUERY, {
-  options: ({match: {params, path}, user}) => {
-    return {
-      variables: {
-        entityName: params.entity || 'board',
-        name: params.model || 'default',
-        bucketName: params.bucket || 'latest',
-        detailed: false,
-      },
-    };
-  },
-  props: ({data: {loading, model, viewer}, ownProps}) => {
-    return {
-      loading,
-      model,
-      viewer,
-      data: {
-        base: model && parseBuckets(model.buckets),
-        filtered: [],
-        filteredRunsById: {},
-        keys: ownProps.keySuggestions,
-        axisOptions: this.axisOptions,
-        histories: ownProps.runHistories,
-        sort: ownProps.sort,
-      },
-    };
-  },
-});
 
 const withMutations = graphql(MODEL_UPSERT, {
   props: ({mutate}) => ({
@@ -99,6 +97,46 @@ const withMutations = graphql(MODEL_UPSERT, {
 });
 
 // export dumb component for testing purposes
-export {Dashboard};
+//export {Dashboard};
 
-export default withMutations(withData(Dashboard));
+function mapStateToProps(state, ownProps) {
+  return {
+    jobId: state.runs.currentJob,
+    runFilters: state.runs.filters.filter,
+    runSelections: state.runs.filters.select,
+    user: state.global.user,
+    sort: state.runs.sort,
+    filterModel: state.runs.filterModel,
+    reduxServerViews: state.views.server,
+    reduxBrowserViews: state.views.browser,
+    activeView: state.views.other.runs.activeView,
+  };
+}
+
+const mapDispatchToProps = (dispatch, ownProps) => {
+  return bindActionCreators({setServerViews, setActiveView}, dispatch);
+};
+
+Dashboard = connect(mapStateToProps, mapDispatchToProps)(
+  withMutations(withRunsQueryRedux(withRunsDataLoader(Dashboard))),
+);
+
+class DashboardWrapper extends React.Component {
+  render() {
+    var {match} = this.props;
+    return (
+      <Dashboard
+        {...this.props}
+        histQueryKey="dashboardsPage"
+        match={match}
+        query={{
+          entity: match.params.entity,
+          model: match.params.model,
+          strategy: 'merge',
+        }}
+      />
+    );
+  }
+}
+
+export default DashboardWrapper;

@@ -4,6 +4,7 @@ import Panel from './Panel';
 import {Button, Icon, Modal} from 'semantic-ui-react';
 import _ from 'underscore';
 import './DashboardView.css';
+import * as Query from '../util/query';
 
 export const GRID_WIDTH = 12;
 export const GRID_MARGIN = 6;
@@ -15,18 +16,24 @@ class DashboardView extends Component {
   };
 
   onLayoutChange = layouts => {
-    layouts.forEach(layout =>
-      this.props.updatePanel(parseInt(layout.i), layout),
-    );
+    layouts.forEach(layout => {
+      let i = parseInt(layout.i);
+      this.props.updatePanel(i, {...this.props.config[i], ...layout});
+    });
   };
 
   renderPanel(panelConfig, i, edit) {
+    let query = Query.merge(this.props.pageQuery, panelConfig.query || {});
     return (
       <Panel
+        histQueryKey={i}
         editMode={edit}
         type={panelConfig.viewType}
         size={panelConfig.size}
-        config={panelConfig}
+        pageQuery={this.props.pageQuery}
+        panelQuery={panelConfig.query}
+        query={query}
+        config={panelConfig.config}
         data={this.props.data}
         updateType={newType =>
           this.props.updatePanel(i, {
@@ -39,6 +46,9 @@ class DashboardView extends Component {
             ...panelConfig,
             size: newSize,
           })
+        }
+        updateQuery={newQuery =>
+          this.props.updatePanel(i, {...panelConfig, query: newQuery})
         }
         panelIndex={this.props.id}
         updateConfig={config =>
@@ -63,7 +73,7 @@ class DashboardView extends Component {
               size="tiny"
               onClick={() => {
                 this.props.addPanel({
-                  i: this.props.config.length.toString(),
+                  i: 0,
                   x: 0,
                   y: 0,
                   w: 3,
@@ -74,16 +84,6 @@ class DashboardView extends Component {
               }}>
               <Icon name="plus" />
             </Button>
-            <Button
-              size="tiny"
-              color="green"
-              content="Save"
-              disabled={!this.props.isModified}
-              onClick={() => {
-                this.setState({editMode: false});
-                this.props.updateViews(JSON.stringify(this.props.viewState));
-              }}
-            />
           </span>
         )}
         <Grid

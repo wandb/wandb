@@ -1,4 +1,5 @@
 import React, {Component} from 'react';
+import {Button, Icon, Menu, Tab} from 'semantic-ui-react';
 
 class Dashboards extends Component {
   static defaultProps = {
@@ -17,8 +18,24 @@ class Dashboards extends Component {
     const viewId = tabs && tabs[0];
     //TODO: Add new dashboards
     return (
-      <div className="dashboard">
-        {viewId !== undefined && this.props.renderView(viewId, editMode)}
+      <div>
+        {editMode && (
+          <span style={{position: 'absolute', right: 5, top: 5, zIndex: 102}}>
+            <Button
+              size="tiny"
+              color="green"
+              content="Save"
+              //disabled={!this.props.isModified}
+              onClick={() => {
+                this.setState({editMode: false});
+                this.props.updateViews(JSON.stringify(this.props.viewState));
+              }}
+            />
+          </span>
+        )}
+        <div className="dashboard">
+          {viewId !== undefined && this.props.renderView(viewId, editMode)}
+        </div>
       </div>
     );
   }

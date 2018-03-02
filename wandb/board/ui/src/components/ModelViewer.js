@@ -50,12 +50,12 @@ Visit our [documentation](http://docs.wandb.com/) for more information.
           model.bucket.name !== 'tmp' && (
             <div style={{marginTop: 30, width: '100%'}}>
               <Runs
-                histQueryKey="runsPage"
                 model={model}
                 match={match}
                 embedded={true}
                 jobFilter={this.state.jobId}
                 limit={10}
+                histQueryKey="runsPage"
                 query={{
                   entity: match.params.entity,
                   model: match.params.model,
