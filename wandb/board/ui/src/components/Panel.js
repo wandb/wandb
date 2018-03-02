@@ -116,6 +116,7 @@ class Panel extends React.Component {
                 </p>
                 {this.state.showQuery && (
                   <QueryEditor
+                    pageQuery={this.props.pageQuery}
                     panelQuery={this.props.panelQuery}
                     setQuery={this.props.updateQuery}
                     runs={this.props.data.base}

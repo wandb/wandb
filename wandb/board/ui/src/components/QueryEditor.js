@@ -5,10 +5,15 @@ import {Form} from 'semantic-ui-react';
 import update from 'immutability-helper';
 import * as Query from '../util/query';
 import RunFilters from '../components/RunFilters';
+import ProjectSelector from '../components/ProjectSelector';
 
 class QueryEditor extends React.Component {
   setStrategy(strategy) {
     this.props.setQuery(update(this.query, {strategy: {$set: strategy}}));
+  }
+
+  setProject(project) {
+    this.props.setQuery(update(this.query, {model: {$set: project}}));
   }
 
   setFilters(newFilters) {
@@ -43,6 +48,7 @@ class QueryEditor extends React.Component {
       strategy = 'page';
     }
     this.filters = this.query.filters || {};
+    let project = this.query.model || '';
 
     return (
       <Form>
@@ -59,6 +65,11 @@ class QueryEditor extends React.Component {
           />
           {strategy === 'merge' && (
             <div>
+              <ProjectSelector
+                entity={this.props.pageQuery.entity}
+                value={this.query.model || this.props.pageQuery.model}
+                onChange={project => this.setProject(project)}
+              />
               <RunFilters
                 filters={this.filters}
                 runs={runs}

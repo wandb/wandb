@@ -74,6 +74,7 @@ class TabbedView extends React.Component {
               editMode={this.props.editMode}
               type={panelConfig.viewType}
               size={panelConfig.size}
+              pageQuery={this.props.pageQuery}
               panelQuery={panelConfig.query}
               query={query}
               config={panelConfig.config}
