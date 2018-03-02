@@ -64,7 +64,7 @@ class TabbedView extends React.Component {
         )}
         {this.props.config.map((panelConfig, i) => {
           let query = Query.merge(
-            this.props.data.query,
+            this.props.pageQuery,
             panelConfig.query || {},
           );
           return (

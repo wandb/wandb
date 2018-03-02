@@ -13,6 +13,7 @@ import {
   setupKeySuggestions,
   filterRuns,
   sortRuns,
+  getColumns,
 } from '../util/runhelpers.js';
 import withHistoryLoader from '../containers/HistoryLoader2';
 // TODO: read this from query
@@ -38,10 +39,16 @@ function withRunsData() {
     props: ({data: {loading, model, viewer, refetch}, errors}) => {
       //TODO: For some reason the first poll causes loading to be true
       if (model && model.buckets && loading) loading = false;
+      let views = null;
+      if (model && model.views) {
+        views = JSON.parse(model.views);
+      }
       return {
         loading,
         refetch,
         buckets: model && model.buckets,
+        views,
+        projectID: model && model.id,
       };
     },
   });
@@ -94,6 +101,7 @@ function withDerivedRunsData(WrappedComponent) {
             text: displayKey,
           };
         });
+        this.columnNames = getColumns(this.runs);
 
         this.data = {
           base: this.runs,
@@ -104,6 +112,7 @@ function withDerivedRunsData(WrappedComponent) {
           keys: this.keySuggestions,
           axisOptions: this.axisOptions,
           query: this.query,
+          columnNames: this.columnNames,
         };
       }
     }

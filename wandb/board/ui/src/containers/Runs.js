@@ -35,6 +35,8 @@ import {clearFilters, addFilter, setColumns} from '../actions/run';
 import {setServerViews, setActiveView} from '../actions/view';
 import update from 'immutability-helper';
 import {BOARD} from '../util/board';
+import withRunsDataLoader from '../containers/RunsDataLoader';
+import withRunsQueryRedux from '../containers/RunsQueryRedux';
 
 class Runs extends React.Component {
   state = {showFailed: false, activeTab: 0, showFilters: false};
@@ -46,70 +48,6 @@ class Runs extends React.Component {
   onSort = (column, order = 'descending') => {
     this.props.refetch({order: [column, order].join(' ')});
   };
-
-  _setupViewData(props) {
-    this.viewData = {
-      base: props.runs,
-      filtered: this.filteredRuns,
-      filteredRunsById: this.filteredRunsById,
-      selectedRuns: this.props.selectedRuns,
-      selectedRunsById: this.props.selectedRunsById,
-      keys: props.keySuggestions,
-      axisOptions: this.axisOptions,
-      histories: this.runHistories,
-      sort: props.sort,
-      query: {
-        entity: this.props.model.entityName,
-        model: this.props.model.name,
-        filters: this.props.runFilters,
-        selections: this.props.selectFilters,
-        sort: this.props.sort,
-        num_histories: 10,
-      },
-    };
-  }
-
-  _setupFilteredRuns(props) {
-    this.filteredRuns = sortRuns(
-      props.sort,
-      filterRuns(props.runFilters, props.runs),
-    );
-    this.filteredRunsById = {};
-    for (var run of this.filteredRuns) {
-      this.filteredRunsById[run.name] = run;
-    }
-    let keys = _.flatMap(props.keySuggestions, section => section.suggestions);
-    this.axisOptions = keys.map(key => {
-      let displayKey = displayFilterKey(key);
-      return {
-        key: displayKey,
-        value: displayKey,
-        text: displayKey,
-      };
-    });
-    this._setupViewData(props);
-  }
-
-  _setupRunHistories(props) {
-    this.historyKeys = _.uniq(
-      _.flatMap(
-        _.uniq(
-          _.flatMap(
-            props.runHistory,
-            o => (o.history ? o.history.map(row => _.keys(row)) : []),
-          ),
-        ),
-      ),
-    );
-    this.runHistories = {
-      loading: props.runHistory.some(o => !o.history),
-      maxRuns: MAX_HISTORIES_LOADED,
-      totalRuns: props.selectedRuns.length,
-      data: props.runHistory.filter(o => o.history),
-      keys: this.historyKeys,
-    };
-    this._setupViewData(props);
-  }
 
   _setUrl(props, nextProps) {
     if (
@@ -168,8 +106,6 @@ class Runs extends React.Component {
 
   componentWillMount() {
     this.props.clearFilters();
-    this._setupFilteredRuns(this.props);
-    this._setupRunHistories(this.props);
     this._readUrl(this.props);
   }
 
@@ -180,10 +116,11 @@ class Runs extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
+    console.log('RUNS nextProps', nextProps);
     if (
       !this.doneLoading &&
       nextProps.loading === false &&
-      nextProps.runs.length > 0
+      nextProps.data.base.length > 0
     ) {
       this.doneLoading = true;
       let defaultColumns = {
@@ -191,9 +128,9 @@ class Runs extends React.Component {
         Ran: true,
         Runtime: true,
         _ConfigAuto: true,
-        Sweep: _.indexOf(nextProps.columnNames, 'Sweep') !== -1,
+        Sweep: _.indexOf(nextProps.data.columnNames, 'Sweep') !== -1,
       };
-      let summaryColumns = nextProps.columnNames.filter(col =>
+      let summaryColumns = nextProps.data.columnNames.filter(col =>
         _.startsWith(col, 'summary'),
       );
       for (var col of summaryColumns) {
@@ -203,7 +140,7 @@ class Runs extends React.Component {
     }
     // Setup views loaded from server.
     if (
-      nextProps.buckets &&
+      nextProps.data.base.length > 0 &&
       (nextProps.views === null || !nextProps.views.runs) &&
       _.isEmpty(this.props.reduxServerViews.runs.views) &&
       _.isEmpty(this.props.reduxBrowserViews.runs.views)
@@ -220,18 +157,6 @@ class Runs extends React.Component {
     ) {
       this.props.setServerViews(nextProps.views);
     }
-
-    if (
-      nextProps.runFilters !== this.props.runFilters ||
-      nextProps.runs !== this.props.runs ||
-      nextProps.sort !== this.props.sort
-    ) {
-      this._setupFilteredRuns(nextProps);
-    }
-    if (nextProps.runHistory !== this.props.runHistory) {
-      this._setupRunHistories(nextProps);
-    }
-
     this._setUrl(this.props, nextProps);
   }
 
@@ -239,6 +164,7 @@ class Runs extends React.Component {
     this.setState({activeTab: activeIndex});
 
   render() {
+    console.log('Runs props!', this.props);
     return (
       <Container>
         <Grid>
@@ -262,8 +188,9 @@ class Runs extends React.Component {
                     ' Selections'}
               </p>
               <p>
-                {this.props.runs.length} total runs, {this.filteredRuns.length}{' '}
-                filtered, {this.props.selectedRuns.length} selected
+                {this.props.data.base.length} total runs,{' '}
+                {this.props.data.filtered.length} filtered,{' '}
+                {this.props.data.selectedRuns.length} selected
               </p>
             </Grid.Column>
           </Grid.Row>
@@ -283,8 +210,8 @@ class Runs extends React.Component {
                       <RunFiltersRedux
                         kind="filter"
                         buttonText="Add Filter"
-                        keySuggestions={this.props.keySuggestions}
-                        runs={this.props.runs}
+                        keySuggestions={this.props.data.keys}
+                        runs={this.props.data.base}
                       />
                     </Grid.Column>
                   </Grid.Row>
@@ -299,8 +226,8 @@ class Runs extends React.Component {
                       <RunFiltersRedux
                         kind="select"
                         buttonText="Add Selection"
-                        keySuggestions={this.props.keySuggestions}
-                        runs={this.props.runs}
+                        keySuggestions={this.props.data.keys}
+                        runs={this.props.data.base}
                       />
                     </Grid.Column>
                   </Grid.Row>
@@ -311,7 +238,8 @@ class Runs extends React.Component {
           <Grid.Column width={16}>
             <ViewModifier
               viewType="runs"
-              data={this.viewData}
+              data={this.props.data}
+              pageQuery={this.props.query}
               updateViews={views =>
                 this.props.updateModel({
                   entityName: this.props.match.params.entity,
@@ -338,38 +266,18 @@ class Runs extends React.Component {
         <RunFeed
           admin={this.props.user && this.props.user.admin}
           loading={this.props.loading}
-          runs={this.filteredRuns}
+          runs={this.props.data.filtered}
           project={this.props.model}
           onSort={this.onSort}
           showFailed={this.state.showFailed}
           selectable={true}
-          selectedRuns={this.props.selectedRunsById}
-          columnNames={this.props.columnNames}
+          selectedRuns={this.props.data.selectedRunsById}
+          columnNames={this.props.data.columnNames}
           limit={this.props.limit}
         />
       </Container>
     );
   }
-}
-
-function getColumns(runs) {
-  let configColumns = _.uniq(
-    _.flatMap(runs, run => _.keys(run.config)).sort(),
-  ).map(col => 'config:' + col);
-  let summaryColumns = _.uniq(
-    _.flatMap(runs, run => _.keys(run.summary))
-      .filter(k => !k.startsWith('_') && k !== 'examples')
-      .sort(),
-  ).map(col => 'summary:' + col);
-  let sweepColumns =
-    runs && runs.findIndex(r => r.sweep) > -1 ? ['Sweep', 'Stop'] : [];
-  return ['Description'].concat(
-    sweepColumns,
-    ['Ran', 'Runtime', 'Config'],
-    configColumns,
-    ['Summary'],
-    summaryColumns,
-  );
 }
 
 function withData() {
@@ -463,5 +371,5 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 };
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withData()(withHistoryLoader(withApollo(Runs)))),
+  withMutations(withRunsQueryRedux(withRunsDataLoader(Runs))),
 );

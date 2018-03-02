@@ -44,6 +44,7 @@ class ViewModifier extends React.Component {
         removePanel={panelIndex =>
           this.props.removePanel(this.props.viewType, viewId, panelIndex)
         }
+        pageQuery={this.props.pageQuery}
       />
     );
   };

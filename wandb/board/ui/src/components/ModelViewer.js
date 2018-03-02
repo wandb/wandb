@@ -56,6 +56,11 @@ Visit our [documentation](http://docs.wandb.com/) for more information.
                 embedded={true}
                 jobFilter={this.state.jobId}
                 limit={10}
+                query={{
+                  entity: match.params.entity,
+                  model: match.params.model,
+                  strategy: 'merge',
+                }}
               />
             </div>
           )}
