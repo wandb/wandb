@@ -79,6 +79,7 @@ from wandb import api as wandb_api
 from wandb import config as wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
+from wandb import util
 from wandb.media import Image
 # Three possible modes:
 #     'cli': running from "wandb" command
@@ -264,7 +265,7 @@ def init(job_type='train', config=None):
 
     if not wandb_dir():
         __stage_dir__ = "wandb"
-        os.mkdir(__stage_dir__)
+        util.mkdir_exists_ok(__stage_dir__)
 
     try:
         signal.signal(signal.SIGQUIT, _debugger)
