@@ -47,6 +47,8 @@ export const ENTITY_QUERY = gql`
         username
         name
         email
+        accountType
+        apiKey
       }
     }
   }
@@ -75,11 +77,30 @@ export const CREATE_INVITE = gql`
 `;
 
 export const DELETE_INVITE = gql`
-  mutation DeleteInvite($id: String, $username: String, $entityName: String) {
-    deleteInvite(
-      input: {id: $id, username: $username, entityName: $entityName}
-    ) {
+  mutation DeleteInvite($id: String, $entityName: String) {
+    deleteInvite(input: {id: $id, entityName: $entityName}) {
       success
+    }
+  }
+`;
+
+export const CREATE_SERVICE_ACCOUNT = gql`
+  mutation CreateServiceAccount($entityName: String!, $description: String!) {
+    createServiceAccount(
+      input: {description: $description, entityName: $entityName}
+    ) {
+      user {
+        id
+        name
+        apiKeys {
+          edges {
+            node {
+              id
+              name
+            }
+          }
+        }
+      }
     }
   }
 `;

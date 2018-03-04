@@ -4,3 +4,12 @@
   right: 10px;
   opacity: 0.8;
 }
+
+.description.service {
+  filter: blur(2.5px);
+}
+
+.description.service:hover {
+  filter: blur(0);
+  transition: filter 0.25s;
+}
