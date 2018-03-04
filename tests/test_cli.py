@@ -387,7 +387,7 @@ def test_board_bad_dir(runner, mocker):
     print("E", result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code != 0
-    assert "Directory does not exist" in str(result.exception)
+    assert "Directory does not exist" in str(result.output)
 
 
 def test_board_custom_dir(runner, mocker, monkeypatch):
