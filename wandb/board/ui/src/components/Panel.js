@@ -38,6 +38,14 @@ class Panel extends React.Component {
     if (!data) {
       return <p>Views unavailable until data is ready.</p>;
     }
+    if (data.history.length == 0) {
+      return (
+        <p>
+          No history data collected. You can learn about how to collect history
+          in our <a href="http://docs.wandb.com/#history">documentation</a>.
+        </p>
+      );
+    }
     let options = _.keys(panelClasses)
       .filter(type => panelClasses[type].validForData(data))
       .map(type => ({text: type, value: type}));
