@@ -11,6 +11,7 @@ export const USER_QUERY = gql`
       teams {
         edges {
           node {
+            id
             name
             photoUrl
           }
@@ -37,6 +38,7 @@ export const USERS_QUERY = gql`
 export const ENTITY_QUERY = gql`
   query Entity($name: String) {
     entity(name: $name) {
+      id
       name
       available
       photoUrl
@@ -120,11 +122,16 @@ export const CREATE_ENTITY = gql`
 `;
 
 export const USER_MUTATION = gql`
-  mutation UpdateUser($defaultEntity: String, $defaultFramework: String) {
+  mutation UpdateUser(
+    $defaultEntity: String
+    $defaultFramework: String
+    $photoUrl: String
+  ) {
     updateUser(
       input: {
         defaultEntity: $defaultEntity
         defaultFramework: $defaultFramework
+        photoUrl: $photoUrl
       }
     ) {
       user {
