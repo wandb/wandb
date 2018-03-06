@@ -21,43 +21,44 @@ class ModelViewer extends React.Component {
         <ModelHeader {...this.props} />
         <Markdown content={model.description} />
         {!condensed &&
-        model.bucketCount === 0 && (
-          <Markdown
-            content={`
-### Sync runs to this project with the wandb module:
-~~~bash
-$ pip install wandb
-$ cd training_dir
-$ wandb init
-$ vi train.py
-$ > import wandb
-$ > wandb.init()
-$ wandb run train.py
-~~~
-
-<br/>
-
-Visit our [documentation](http://docs.wandb.com/) for more information.
-        `}
-          />
-        )}
+          model.bucketCount === 0 && (
+            <div>
+              <br />
+              <h4>No runs for this project yet.</h4>
+              <p>New to wandb?</p>
+              <ol>
+                <li>
+                  Visit the getting started{' '}
+                  <a href="http://docs.wandb.com/#getting-started">
+                    documentation.
+                  </a>
+                </li>
+                <li>
+                  Take a look at a few{' '}
+                  <a href="https://github.com/wandb/examples">
+                    example projects.
+                  </a>
+                </li>
+              </ol>
+            </div>
+          )}
         {/*!condensed && (
           <div style={{marginTop: 30, width: '100%'}}>
             <Jobs model={model} match={match} onSelect={this.onJobSelect} />
           </div>
         )*/}
         {!condensed &&
-        model.bucket.name !== 'tmp' && (
-          <div style={{marginTop: 30, width: '100%'}}>
-            <Runs
-              model={model}
-              match={match}
-              embedded={true}
-              jobFilter={this.state.jobId}
-              limit={10}
-            />
-          </div>
-        )}
+          model.bucket.name !== 'tmp' && (
+            <div style={{marginTop: 30, width: '100%'}}>
+              <Runs
+                model={model}
+                match={match}
+                embedded={true}
+                jobFilter={this.state.jobId}
+                limit={10}
+              />
+            </div>
+          )}
       </div>
     );
   }
