@@ -43,9 +43,10 @@ class RunsLinePlotPanel extends React.Component {
       value: key,
       text: key,
     }));
+    let disabled = this.props.data.histories.data.length === 0;
     return (
-      <Form>
-        <Form.Field>
+      <Form style={{marginTop: 10}}>
+        <Form.Field disabled={disabled}>
           <label>Smoothing</label>
           <input
             style={{width: '50%'}}
@@ -63,6 +64,7 @@ class RunsLinePlotPanel extends React.Component {
           />
         </Form.Field>
         <Form.Dropdown
+          disabled={disabled}
           label="Y-Axis"
           placeholder="key"
           fluid
@@ -75,8 +77,9 @@ class RunsLinePlotPanel extends React.Component {
           }
         />
         <Form.Group inline>
-          <label>Y-Scale</label>
+          <label style={{opacity: disabled ? 0.2 : 1}}>Y-Scale</label>
           <Form.Radio
+            disabled={disabled}
             label="Linear"
             checked={
               !this.props.config.yScale || this.props.config.yScale === 'linear'
@@ -89,6 +92,7 @@ class RunsLinePlotPanel extends React.Component {
             }
           />
           <Form.Radio
+            disabled={disabled}
             label="Log"
             checked={this.props.config.yScale === 'log'}
             onChange={() =>

@@ -1,7 +1,7 @@
 import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
-import {Form} from 'semantic-ui-react';
+import {Form, Checkbox} from 'semantic-ui-react';
 import update from 'immutability-helper';
 import * as Query from '../util/query';
 import RunFilters from '../components/RunFilters';
@@ -51,25 +51,30 @@ class QueryEditor extends React.Component {
     let project = this.query.model || '';
 
     return (
-      <Form>
-        <Form.Group inline>
-          <Form.Radio
-            label="Use Page Query"
-            checked={strategy === 'page'}
-            onChange={() => this.setStrategy('page')}
-          />
-          <Form.Radio
-            label="Merge with Page Query"
+      <Form style={{marginBottom: 20}}>
+        <Form.Field style={{marginBottom: 8}}>
+          <Checkbox
+            label="Custom Query"
             checked={strategy === 'merge'}
-            onChange={() => this.setStrategy('merge')}
+            onChange={() =>
+              strategy === 'page'
+                ? this.setStrategy('merge')
+                : this.setStrategy('page')
+            }
           />
-          {strategy === 'merge' && (
-            <div>
+        </Form.Field>
+        {strategy === 'merge' && (
+          <Form.Group style={{marginLeft: 20}}>
+            <Form.Field width={4}>
+              <label>Project</label>
               <ProjectSelector
                 entity={this.props.pageQuery.entity}
                 value={this.query.model || this.props.pageQuery.model}
                 onChange={project => this.setProject(project)}
               />
+            </Form.Field>
+            <Form.Field width={10}>
+              <label>Filters</label>
               <RunFilters
                 filters={this.filters}
                 runs={runs}
@@ -82,10 +87,11 @@ class QueryEditor extends React.Component {
                   this.setFilterComponent(id, component, value)
                 }
                 buttonText="Add Filter"
+                nobox
               />
-            </div>
-          )}
-        </Form.Group>
+            </Form.Field>
+          </Form.Group>
+        )}
       </Form>
     );
   }

@@ -102,28 +102,13 @@ class Panel extends React.Component {
               />
             )}
             {configMode && (
-              <div>
-                <p
-                  style={{cursor: 'pointer'}}
-                  onClick={() =>
-                    this.setState({showQuery: !this.state.showQuery})
-                  }>
-                  <Icon
-                    rotated={this.state.showQuery ? null : 'counterclockwise'}
-                    name="dropdown"
-                  />
-                  Query Settings
-                </p>
-                {this.state.showQuery && (
-                  <QueryEditor
-                    pageQuery={this.props.pageQuery}
-                    panelQuery={this.props.panelQuery}
-                    setQuery={this.props.updateQuery}
-                    runs={this.props.data.base}
-                    keySuggestions={this.props.data.keys}
-                  />
-                )}
-              </div>
+              <QueryEditor
+                pageQuery={this.props.pageQuery}
+                panelQuery={this.props.panelQuery}
+                setQuery={this.props.updateQuery}
+                runs={this.props.data.base}
+                keySuggestions={this.props.data.keys}
+              />
             )}
             {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
           </Card.Content>

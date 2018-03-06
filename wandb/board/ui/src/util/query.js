@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import update from 'immutability-helper';
-import {displayFilterKey} from './runhelpers';
+import {displayFilterKey, displayValue} from './runhelpers';
 
 export function addFilter(filters, key, op, value) {
   let filter = _.find(
@@ -85,7 +85,12 @@ export function summaryString(query) {
   }
   let filtStrs = _.map(
     query.filters,
-    filt => displayFilterKey(filt.key) + ' ' + filt.op + ' ' + filt.value,
+    filt =>
+      displayFilterKey(filt.key) +
+      ' ' +
+      filt.op +
+      ' ' +
+      displayValue(filt.value),
   );
   return filtStrs.join(', ');
 }

@@ -246,7 +246,9 @@ export default class RunFilters extends React.Component {
     let filterIDs = _.keys(filters).sort();
     return (
       <div>
-        <div className="input-style">
+        <div
+          className={this.props.nobox ? '' : 'input-style'}
+          style={{marginTop: -4}}>
           {filterIDs.map(filterID => {
             let filter = filters[filterID];
             return (
