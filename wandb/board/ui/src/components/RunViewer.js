@@ -260,7 +260,7 @@ export default class RunViewer extends React.Component {
                 <p>
                   {' '}
                   Check the{' '}
-                  <a href="http://docs.wandb.com/?python--keras#configurations">
+                  <a href="http://docs.wandb.com/#configurations">
                     configuration documentation
                   </a>{' '}
                   for more information.
@@ -292,7 +292,7 @@ export default class RunViewer extends React.Component {
                 <p>
                   {' '}
                   Check the{' '}
-                  <a href="http://docs.wandb.com/?python--keras#summary">
+                  <a href="http://docs.wandb.com/#summary">
                     summary documentation
                   </a>{' '}
                   for more information.
