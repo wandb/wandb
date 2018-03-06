@@ -8,9 +8,13 @@ import Breadcrumbs from '../components/Breadcrumbs';
 import StreamingLog from '../containers/StreamingLog';
 import Files from '../components/Files';
 import Views from '../components/Views';
+import ConfigList from '../components/ConfigList';
+import SummaryList from '../components/SummaryList';
+import SystemList from '../components/SystemList';
+
 import './Run.css';
 import {JSONparseNaN} from '../util/jsonnan';
-import {displayValue} from '../util/runhelpers';
+
 import _ from 'lodash';
 
 export default class RunViewer extends React.Component {
@@ -62,16 +66,6 @@ export default class RunViewer extends React.Component {
       this._config ||
       (this.props.bucket.config && JSONparseNaN(this.props.bucket.config));
     return this._config;
-  }
-
-  formatMetric(name, metric) {
-    if (name.indexOf('.temp') > -1) {
-      return metric + '°';
-    } else if (parseInt(metric, 10) <= 100) {
-      return metric + '%';
-    } else {
-      return numeral(metric).format('0.0b');
-    }
   }
 
   parseData(rows, type) {
@@ -232,92 +226,16 @@ export default class RunViewer extends React.Component {
         <Grid.Row columns={columns} className="vars">
           <Grid.Column>
             <Header>Configuration</Header>
-            {this.config() && (
-              <List divided size="small">
-                {Object.keys(this.config()).map((key, i) => (
-                  <List.Item key={i}>
-                    {this.config()[key].desc ? (
-                      <Popup
-                        trigger={<List.Header>{key}</List.Header>}
-                        content={this.config()[key].desc}
-                      />
-                    ) : (
-                      <List.Header>{key}</List.Header>
-                    )}
-                    <List.Description>
-                      {'' +
-                        displayValue(
-                          this.config()[key].value || this.config()[key],
-                        )}
-                    </List.Description>
-                  </List.Item>
-                ))}
-              </List>
-            )}
-            {!this.config() && (
-              <div>
-                <p>No configuration saved for this run.</p>
-                <p>
-                  {' '}
-                  Check the{' '}
-                  <a href="http://docs.wandb.com/#configurations">
-                    configuration documentation
-                  </a>{' '}
-                  for more information.
-                </p>
-              </div>
-            )}
+            <ConfigList data={this.config()} />
           </Grid.Column>
           <Grid.Column>
             <Header>Summary</Header>
-            {Object.keys(summaryMetrics).length > 0 && (
-              <List divided>
-                {Object.keys(summaryMetrics)
-                  .filter(key => key.slice(0, 1) !== '_')
-                  .sort()
-                  .map((key, i) => (
-                    <List.Item key={'summary' + i}>
-                      <List.Content>
-                        <List.Header>{key}</List.Header>
-                        <List.Description>
-                          {numeral(summaryMetrics[key]).format('0.[000]')}
-                        </List.Description>
-                      </List.Content>
-                    </List.Item>
-                  ))}
-              </List>
-            )}
-            {Object.keys(summaryMetrics).length == 0 && (
-              <div>
-                <p>No summary saved for this run.</p>
-                <p>
-                  {' '}
-                  Check the{' '}
-                  <a href="http://docs.wandb.com/#summary">
-                    summary documentation
-                  </a>{' '}
-                  for more information.
-                </p>
-              </div>
-            )}
+            <SummaryList data={summaryMetrics} />
           </Grid.Column>
           {columns === 3 && (
             <Grid.Column>
               <Header>Utilization</Header>
-              <List divided size="small">
-                {Object.keys(systemMetrics)
-                  .sort()
-                  .map((key, i) => (
-                    <List.Item key={'system' + i}>
-                      <List.Content>
-                        <List.Header>{key.replace('system.', '')}</List.Header>
-                        <List.Description>
-                          {this.formatMetric(key, systemMetrics[key])}
-                        </List.Description>
-                      </List.Content>
-                    </List.Item>
-                  ))}
-              </List>
+              <SystemList data={systemMetrics} />
             </Grid.Column>
           )}
         </Grid.Row>
