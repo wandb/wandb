@@ -40,9 +40,9 @@ class Dashboard extends React.Component {
     // Setup views loaded from server.
     if (
       nextProps.data.base.length > 0 &&
-      (nextProps.views === null || !nextProps.views.runs) &&
-      _.isEmpty(this.props.reduxServerViews.runs.views) &&
-      _.isEmpty(this.props.reduxBrowserViews.runs.views)
+      (nextProps.views === null || !nextProps.views.dashboards) &&
+      _.isEmpty(this.props.reduxServerViews.dashboards.views) &&
+      _.isEmpty(this.props.reduxBrowserViews.dashboards.views)
     ) {
       // no views on server, provide a default
       this.props.setServerViews(
@@ -51,7 +51,8 @@ class Dashboard extends React.Component {
       );
     } else if (
       nextProps.views &&
-      nextProps.views.runs &&
+      nextProps.views.dashboards &&
+      _.isEqual(this.props.reduxServerViews, this.props.reduxBrowserViews) &&
       !_.isEqual(nextProps.views, this.props.reduxServerViews)
     ) {
       this.props.setServerViews(nextProps.views);
@@ -127,8 +128,10 @@ const mapDispatchToProps = (dispatch, ownProps) => {
   );
 };
 
-Dashboard = connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withRunsQueryRedux(withRunsDataLoader(Dashboard))),
+Dashboard = withMutations(
+  withRunsQueryRedux(
+    withRunsDataLoader(connect(mapStateToProps, mapDispatchToProps)(Dashboard)),
+  ),
 );
 
 class DashboardWrapper extends React.Component {

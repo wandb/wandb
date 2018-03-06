@@ -30,6 +30,12 @@ class DashboardView extends Component {
         editMode={edit}
         type={panelConfig.viewType}
         size={panelConfig.size}
+        sizeKey={JSON.stringify([
+          panelConfig.x,
+          panelConfig.y,
+          panelConfig.w,
+          panelConfig.h,
+        ])}
         pageQuery={this.props.pageQuery}
         panelQuery={panelConfig.query}
         query={query}
@@ -112,7 +118,7 @@ class DashboardView extends Component {
                   {key: 'save', content: 'Save', positive: true},
                 ]}
               />
-              {this.renderPanel(panelConfig, i)}
+              {this.renderPanel(panelConfig, i, false)}
             </div>
           ))}
         </Grid>

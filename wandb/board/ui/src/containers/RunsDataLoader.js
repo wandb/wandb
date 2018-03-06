@@ -67,6 +67,7 @@ function withDerivedRunsData(WrappedComponent) {
           pageQuery: {deep: true},
           config: {deep: true},
           data: {deep: false},
+          sizeKey: {deep: false},
         },
         name: 'RunsDataLoader',
         debug: true,
@@ -218,6 +219,7 @@ function withDerivedHistoryData(WrappedComponent) {
 
     componentWillMount() {
       if (!this.props.historyBuckets) {
+        this.data = this.props.data;
         return;
       }
       this._setup(this.props);

@@ -141,7 +141,7 @@ class Panel extends React.Component {
     }
     return (
       <Grid.Column
-        width={size.width || 8}
+        width={(size && size.width) || 8}
         style={this.props.style}
         className={this.props.className}>
         {panel}
