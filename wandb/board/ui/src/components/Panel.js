@@ -38,7 +38,8 @@ class Panel extends React.Component {
     if (!data) {
       return <p>Views unavailable until data is ready.</p>;
     }
-    if (data.history.length == 0) {
+
+    if (data.hasOwnProperty('history') && data.history.length == 0) {
       return (
         <p>
           No history data collected. You can learn about how to collect history
