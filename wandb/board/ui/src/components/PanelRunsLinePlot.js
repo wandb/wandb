@@ -220,6 +220,29 @@ class RunsLinePlotPanel extends React.Component {
                 </div>
               </div>
             )}
+          {_.isNil(this.props.config.key) && (
+            <div
+              style={{
+                zIndex: 10,
+                position: 'absolute',
+                height: 200,
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <div
+                style={{
+                  maxWidth: 300,
+                  backgroundColor: 'white',
+                  border: '1px solid #999',
+                  padding: 15,
+                  color: '#666',
+                }}>
+                <p>This chart is not yet configured</p>
+              </div>
+            </div>
+          )}
           <LinePlot
             xAxis="index"
             yScale={this.props.config.yScale || 'linear'}
