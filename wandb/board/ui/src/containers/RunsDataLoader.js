@@ -175,6 +175,9 @@ function withDerivedHistoryData(WrappedComponent) {
     }
 
     _setup(props) {
+      if (!props.historyBuckets) {
+        return;
+      }
       let runHistory = props.historyBuckets.edges.map(edge => ({
         name: edge.node.name,
         history: (edge.node.history || [])
@@ -184,8 +187,9 @@ function withDerivedHistoryData(WrappedComponent) {
             } catch (error) {
               // TODO: Uncomment
               console.log(
-                `WARNING: JSON error parsing history (HistoryLoader):${i}:`,
-                error,
+                `WARNING: JSON error parsing history (HistoryLoader):${i}, bucket: ${
+                  edge.node.name
+                }`,
               );
               return null;
             }
