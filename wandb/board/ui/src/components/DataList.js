@@ -21,7 +21,7 @@ class DataList extends React.Component {
       this.formatValue = this.formatValueDefault;
     }
 
-    if (props.data) {
+    if (props.data && Object.keys(props.data).length > 0) {
       this.preppedData = this.prepData(props.data);
       this.flatData = this.flatten(this.preppedData);
     }
