@@ -181,21 +181,21 @@ function withDerivedHistoryData(WrappedComponent) {
       }
       let runHistory = props.historyBuckets.edges.map(edge => ({
         name: edge.node.name,
-        history: (edge.node.history || [])
-          .map((row, i) => {
-            try {
-              return JSONparseNaN(row);
-            } catch (error) {
-              // TODO: Uncomment
-              console.log(
-                `WARNING: JSON error parsing history (HistoryLoader):${i}, bucket: ${
-                  edge.node.name
-                }`,
-              );
-              return null;
-            }
-          })
-          .filter(row => row !== null),
+        history: edge.node.history
+          ? edge.node.history
+              .map((row, i) => {
+                try {
+                  return JSONparseNaN(row);
+                } catch (error) {
+                  console.log(
+                    `WARNING: JSON error parsing history (HistoryLoader):${i}:`,
+                    error,
+                  );
+                  return null;
+                }
+              })
+              .filter(row => row !== null)
+          : null,
       }));
       this.historyKeys = _.uniq(
         _.flatMap(

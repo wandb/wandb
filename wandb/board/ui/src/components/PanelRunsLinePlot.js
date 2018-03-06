@@ -142,7 +142,14 @@ class RunsLinePlotPanel extends React.Component {
         <h3 style={{display: 'inline'}}>
           {title}
           {loading &&
-            data.length < maxRuns && <Loader active inline size="small" />}
+            data.length < maxRuns && (
+              <Loader
+                style={{marginLeft: 6, marginBottom: 2}}
+                active
+                inline
+                size="small"
+              />
+            )}
         </h3>
         <p style={{float: 'right'}}>
           {totalRuns > maxRuns && (
