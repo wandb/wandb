@@ -37,9 +37,7 @@ class Run extends React.Component {
       _.isEmpty(this.props.reduxBrowserViews.runs.views) &&
       !this.props.reduxBrowserViews.run.configured
     ) {
-      this.props.setBrowserViews(
-        defaultViews((nextProps.buckets.edges[0] || {}).node),
-      );
+      this.props.setBrowserViews(defaultViews(nextProps.bucket));
     } else if (
       nextProps.views &&
       nextProps.views.runs &&
