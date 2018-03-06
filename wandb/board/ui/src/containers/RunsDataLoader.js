@@ -40,7 +40,7 @@ function withRunsData() {
     },
     props: ({data: {loading, model, viewer, refetch}, errors}) => {
       //TODO: For some reason the first poll causes loading to be true
-      if (model && model.buckets && loading) loading = false;
+      // if (model && model.buckets && loading) loading = false;
       return {
         loading,
         refetch,
@@ -208,7 +208,7 @@ function withDerivedHistoryData(WrappedComponent) {
         ),
       );
       this.runHistories = {
-        loading: runHistory.some(o => !o.history),
+        loading: this.props.loading || runHistory.some(o => !o.history),
         maxRuns: MAX_HISTORIES_LOADED,
         totalRuns: _.keys(props.selectedRunsById).length,
         data: runHistory.filter(o => o.history),

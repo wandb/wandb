@@ -161,6 +161,7 @@ class RunsLinePlotPanel extends React.Component {
         </p>
         <div style={{clear: 'both'}}>
           {data.length === 0 &&
+            this.props.data.selectedRuns.length === 0 &&
             !loading && (
               <div
                 style={{
