@@ -69,7 +69,7 @@ function withDerivedRunsData(WrappedComponent) {
           data: {deep: false},
         },
         name: 'RunsDataLoader',
-        debug: false,
+        debug: true,
       });
     }
 
@@ -146,6 +146,7 @@ function withDerivedRunsData(WrappedComponent) {
       if (
         this.props.buckets !== nextProps.buckets ||
         this.props.views !== nextProps.views ||
+        this.props.data !== nextProps.data ||
         !_.isEqual(this.props.query, nextProps.query)
       ) {
         this._setup(nextProps);
@@ -216,11 +217,18 @@ function withDerivedHistoryData(WrappedComponent) {
     }
 
     componentWillMount() {
+      if (!this.props.historyBuckets) {
+        return;
+      }
       this._setup(this.props);
       this.data = {...this.props.data, histories: this.runHistories};
     }
 
     componentWillReceiveProps(nextProps) {
+      if (!nextProps.historyBuckets) {
+        this.data = nextProps.data;
+        return;
+      }
       if (this.props.historyBuckets !== nextProps.historyBuckets) {
         this._setup(nextProps);
       }
@@ -233,14 +241,7 @@ function withDerivedHistoryData(WrappedComponent) {
     }
 
     render() {
-      return (
-        <WrappedComponent
-          {...this.props}
-          data={this.data}
-          keySuggestions={this.keySuggestions}
-          runs={this.runs}
-        />
-      );
+      return <WrappedComponent {...this.props} data={this.data} />;
     }
   };
 
