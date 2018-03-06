@@ -7,6 +7,7 @@ import {graphql, withApollo} from 'react-apollo';
 import {RUNS_QUERY} from '../graphql/runs';
 import {fragments, FAKE_HISTORY_QUERY, HISTORY_QUERY} from '../graphql/runs';
 import {BOARD} from '../util/board';
+import {makeShouldUpdate} from '../util/shouldUpdate';
 import {
   displayFilterKey,
   parseBuckets,
@@ -40,15 +41,11 @@ function withRunsData() {
     props: ({data: {loading, model, viewer, refetch}, errors}) => {
       //TODO: For some reason the first poll causes loading to be true
       if (model && model.buckets && loading) loading = false;
-      let views = null;
-      if (model && model.views) {
-        views = JSON.parse(model.views);
-      }
       return {
         loading,
         refetch,
         buckets: model && model.buckets,
-        views,
+        views: model && model.views,
         projectID: model && model.id,
       };
     },
@@ -57,11 +54,23 @@ function withRunsData() {
 
 // Parses buckets into runs/keySuggestions
 function withDerivedRunsData(WrappedComponent) {
-  let RunsDataDerived = class extends React.PureComponent {
+  let RunsDataDerived = class extends React.Component {
     constructor(props) {
       super(props);
       this.runs = [];
       this.keySuggestions = [];
+      self._shouldUpdate = makeShouldUpdate({
+        props: {
+          buckets: {deep: false},
+          views: {deep: false},
+          query: {deep: true},
+          pageQuery: {deep: true},
+          config: {deep: true},
+          data: {deep: false},
+        },
+        name: 'RunsDataLoader',
+        debug: false,
+      });
     }
 
     _setup(props) {
@@ -70,6 +79,7 @@ function withDerivedRunsData(WrappedComponent) {
         this.data = props.data;
       } else {
         this.runs = parseBuckets(props.buckets);
+        this.views = props.views ? JSON.parse(props.views) : null;
         this.keySuggestions = setupKeySuggestions(this.runs);
         this.filteredRuns = sortRuns(
           props.query.sort,
@@ -122,9 +132,20 @@ function withDerivedRunsData(WrappedComponent) {
       this._setup(this.props);
     }
 
+    shouldComponentUpdate(nextProps, nextState) {
+      return self._shouldUpdate(
+        this.props,
+        this.state,
+        nextProps,
+        nextState,
+        this.props.histQueryKey,
+      );
+    }
+
     componentWillReceiveProps(nextProps) {
       if (
         this.props.buckets !== nextProps.buckets ||
+        this.props.views !== nextProps.views ||
         !_.isEqual(this.props.query, nextProps.query)
       ) {
         this._setup(nextProps);
@@ -136,6 +157,7 @@ function withDerivedRunsData(WrappedComponent) {
         <WrappedComponent
           {...this.props}
           data={this.data}
+          views={this.views}
           keySuggestions={this.keySuggestions}
           runs={this.runs}
         />
@@ -191,23 +213,26 @@ function withDerivedHistoryData(WrappedComponent) {
 
     componentWillMount() {
       this._setup(this.props);
+      this.data = {...this.props.data, histories: this.runHistories};
     }
 
     componentWillReceiveProps(nextProps) {
       if (this.props.historyBuckets !== nextProps.historyBuckets) {
         this._setup(nextProps);
       }
+      if (
+        this.props.historyBuckets !== nextProps.historyBuckets ||
+        this.props.data !== nextProps.data
+      ) {
+        this.data = {...this.props.data, histories: this.runHistories};
+      }
     }
 
     render() {
-      let data = {...this.props.data};
-      if (this.runHistories) {
-        data.histories = this.runHistories;
-      }
       return (
         <WrappedComponent
           {...this.props}
-          data={data}
+          data={this.data}
           keySuggestions={this.keySuggestions}
           runs={this.runs}
         />

@@ -18,11 +18,7 @@ class LinePlotPlot extends React.PureComponent {
   render() {
     let {height, sizeKey, xAxis, yScale, lines, disabled} = this.props;
     return (
-      <FlexibleWidthXYPlot
-        key={sizeKey}
-        animation
-        yType={yScale}
-        height={height}>
+      <FlexibleWidthXYPlot key={sizeKey} yType={yScale} height={height}>
         <VerticalGridLines />
         <HorizontalGridLines />
         <XAxis title={xAxis} />
