@@ -273,12 +273,26 @@ export default class RunViewer extends React.Component {
             {Object.keys(summaryMetrics).length > 0 && (
               <List divided>
                 {Object.keys(summaryMetrics)
+                  .filter(key => key.slice(0, 1) !== '_')
                   .sort()
                   .map((key, i) => (
                     <List.Item key={'summary' + i}>
                       <List.Content>
                         <List.Header>{key}</List.Header>
                         <List.Description>
+                          {numeral(summaryMetrics[key]).format('0.[000]')}
+                        </List.Description>
+                      </List.Content>
+                    </List.Item>
+                  ))}
+                {Object.keys(summaryMetrics)
+                  .filter(key => key.slice(0, 1) === '_')
+                  .sort()
+                  .map((key, i) => (
+                    <List.Item key={'summary' + i}>
+                      <List.Content>
+                        <List.Header style={{color: 'grey'}}>{key}</List.Header>
+                        <List.Description style={{color: 'grey'}}>
                           {numeral(summaryMetrics[key]).format('0.[000]')}
                         </List.Description>
                       </List.Content>
