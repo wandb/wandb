@@ -231,23 +231,6 @@ export default class RunViewer extends React.Component {
         )}
         <Grid.Row columns={columns} className="vars">
           <Grid.Column>
-            <Header>Summary</Header>
-            <List divided>
-              {Object.keys(summaryMetrics)
-                .sort()
-                .map((key, i) => (
-                  <List.Item key={'summary' + i}>
-                    <List.Content>
-                      <List.Header>{key}</List.Header>
-                      <List.Description>
-                        {numeral(summaryMetrics[key]).format('0.[000]')}
-                      </List.Description>
-                    </List.Content>
-                  </List.Item>
-                ))}
-            </List>
-          </Grid.Column>
-          <Grid.Column>
             <Header>Configuration</Header>
             {this.config() && (
               <List divided size="small">
@@ -270,6 +253,51 @@ export default class RunViewer extends React.Component {
                   </List.Item>
                 ))}
               </List>
+            )}
+            {!this.config() && (
+              <div>
+                <p>No configuration saved for this run.</p>
+                <p>
+                  {' '}
+                  Check the{' '}
+                  <a href="http://docs.wandb.com/?python--keras#configurations">
+                    configuration documentation
+                  </a>{' '}
+                  for more information.
+                </p>
+              </div>
+            )}
+          </Grid.Column>
+          <Grid.Column>
+            <Header>Summary</Header>
+            {Object.keys(summaryMetrics).length > 0 && (
+              <List divided>
+                {Object.keys(summaryMetrics)
+                  .sort()
+                  .map((key, i) => (
+                    <List.Item key={'summary' + i}>
+                      <List.Content>
+                        <List.Header>{key}</List.Header>
+                        <List.Description>
+                          {numeral(summaryMetrics[key]).format('0.[000]')}
+                        </List.Description>
+                      </List.Content>
+                    </List.Item>
+                  ))}
+              </List>
+            )}
+            {Object.keys(summaryMetrics).length == 0 && (
+              <div>
+                <p>No summary saved for this run.</p>
+                <p>
+                  {' '}
+                  Check the{' '}
+                  <a href="http://docs.wandb.com/?python--keras#summary">
+                    summary documentation
+                  </a>{' '}
+                  for more information.
+                </p>
+              </div>
             )}
           </Grid.Column>
           {columns === 3 && (
