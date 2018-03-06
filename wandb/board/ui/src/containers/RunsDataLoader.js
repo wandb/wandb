@@ -18,6 +18,7 @@ import {
 import withHistoryLoader from '../containers/HistoryLoader';
 // TODO: read this from query
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
+import {JSONparseNaN} from '../util/jsonnan';
 import _ from 'lodash';
 
 // Load the graphql data for this panel, currently loads all data for this project and entity.
@@ -124,8 +125,7 @@ function withDerivedRunsData(WrappedComponent) {
     componentWillReceiveProps(nextProps) {
       if (
         this.props.buckets !== nextProps.buckets ||
-        // TODO: This check won't work very well, it's probably always different
-        this.props.query !== nextProps.query
+        !_.isEqual(this.props.query, nextProps.query)
       ) {
         this._setup(nextProps);
       }
@@ -153,25 +153,40 @@ function withDerivedHistoryData(WrappedComponent) {
     }
 
     _setup(props) {
-      if (props.runHistory) {
-        this.historyKeys = _.uniq(
-          _.flatMap(
-            _.uniq(
-              _.flatMap(
-                props.runHistory,
-                o => (o.history ? o.history.map(row => _.keys(row)) : []),
-              ),
+      let runHistory = props.historyBuckets.edges.map(edge => ({
+        name: edge.node.name,
+        history: (edge.node.history || [])
+          .map((row, i) => {
+            try {
+              return JSONparseNaN(row);
+            } catch (error) {
+              // TODO: Uncomment
+              console.log(
+                `WARNING: JSON error parsing history (HistoryLoader):${i}:`,
+                error,
+              );
+              return null;
+            }
+          })
+          .filter(row => row !== null),
+      }));
+      this.historyKeys = _.uniq(
+        _.flatMap(
+          _.uniq(
+            _.flatMap(
+              runHistory,
+              o => (o.history ? o.history.map(row => _.keys(row)) : []),
             ),
           ),
-        );
-        this.runHistories = {
-          loading: props.runHistory.some(o => !o.history),
-          maxRuns: MAX_HISTORIES_LOADED,
-          totalRuns: _.keys(props.selectedRunsById).length,
-          data: props.runHistory.filter(o => o.history),
-          keys: this.historyKeys,
-        };
-      }
+        ),
+      );
+      this.runHistories = {
+        loading: runHistory.some(o => !o.history),
+        maxRuns: MAX_HISTORIES_LOADED,
+        totalRuns: _.keys(props.selectedRunsById).length,
+        data: runHistory.filter(o => o.history),
+        keys: this.historyKeys,
+      };
     }
 
     componentWillMount() {
@@ -179,12 +194,14 @@ function withDerivedHistoryData(WrappedComponent) {
     }
 
     componentWillReceiveProps(nextProps) {
-      this._setup(nextProps);
+      if (this.props.historyBuckets !== nextProps.historyBuckets) {
+        this._setup(nextProps);
+      }
     }
 
     render() {
       let data = {...this.props.data};
-      if (this.props.runHistory) {
+      if (this.runHistories) {
         data.histories = this.runHistories;
       }
       return (

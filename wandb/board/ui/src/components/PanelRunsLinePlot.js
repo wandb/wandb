@@ -11,6 +11,23 @@ import {runDisplayName} from '../util/runhelpers.js';
 import {addFilter} from '../actions/run';
 import * as Query from '../util/query';
 
+function smooth(data, smoothingWeight) {
+  // data is array of x/y objects
+  // x is always an index as this is used, so x-distance between each
+  // successive point is equal.
+  let last = data.length > 0 ? data[0].y : NaN;
+  data.forEach(d => {
+    if (!_.isFinite(last)) {
+      d.smoothed = d.y;
+    } else {
+      // 1st-order IIR low-pass filter to attenuate the higher-
+      // frequency components of the time-series.
+      d.smoothed = last * smoothingWeight + (1 - smoothingWeight) * d.y;
+    }
+    last = d.smoothed;
+  });
+}
+
 class RunsLinePlotPanel extends React.Component {
   static type = 'Run History Line Plot';
   static options = {};
@@ -28,6 +45,23 @@ class RunsLinePlotPanel extends React.Component {
     }));
     return (
       <Form>
+        <Form.Field>
+          <label>Smoothing</label>
+          <input
+            style={{width: '50%'}}
+            type="range"
+            min={0}
+            max={1}
+            step={0.001}
+            value={this.props.config.smoothingWeight || 0}
+            onChange={e => {
+              this.props.updateConfig({
+                ...this.props.config,
+                smoothingWeight: parseFloat(e.target.value),
+              });
+            }}
+          />
+        </Form.Field>
         <Form.Dropdown
           label="Y-Axis"
           placeholder="key"
@@ -75,9 +109,15 @@ class RunsLinePlotPanel extends React.Component {
     let key = this.props.config.key;
     let lines = data
       .map((runHistory, i) => {
-        let lineData = runHistory.history
-          .map((row, j) => ({x: j, y: row[key]}))
-          .filter(point => !_.isNil(point.y));
+        let lineData = runHistory.history.map((row, j) => ({
+          x: j,
+          y: row[key],
+        }));
+        if (this.props.config.smoothingWeight) {
+          smooth(lineData, this.props.config.smoothingWeight || 0);
+          lineData.forEach(point => (point.y = point.smoothed));
+        }
+        lineData = lineData.filter(point => !_.isNil(point.y));
         return {
           title: runDisplayName(
             this.props.data.filteredRunsById[runHistory.name],

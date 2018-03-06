@@ -140,49 +140,20 @@ export default function withHistoryLoader(WrappedComponent) {
     }
   };
 
-  function withData() {
-    // This is a function so we can keep track of some state variables, and only change child props
-    // when necessary for performance.
-    let prevBuckets = null;
-    let runHistory = [];
-    return graphql(FAKE_HISTORY_QUERY, {
-      skip: ({query}) => !query.strategy || query.strategy === 'page',
-      options: () => {
-        return {
-          fetchPolicy: 'cache-only',
-        };
-      },
-      props: ({data, errors}) => {
-        if (
-          data.model &&
-          data.model.buckets &&
-          prevBuckets !== data.model.buckets
-        ) {
-          runHistory = data.model.buckets.edges.map(edge => ({
-            name: edge.node.name,
-            history: edge.node.history
-              ? edge.node.history
-                  .map((row, i) => {
-                    try {
-                      return JSONparseNaN(row);
-                    } catch (error) {
-                      console.log(
-                        `WARNING: JSON error parsing history (HistoryLoader):${i}:`,
-                        error,
-                      );
-                      return null;
-                    }
-                  })
-                  .filter(row => row !== null)
-              : null,
-          }));
-          prevBuckets = data.model.buckets;
-        }
-        //console.log('runHistory', runHistory);
-        return {runHistory};
-      },
-    });
-  }
+  const withData = graphql(FAKE_HISTORY_QUERY, {
+    skip: ({query}) => !query.strategy || query.strategy === 'page',
+    options: ({histQueryKey}) => {
+      return {
+        fetchPolicy: 'cache-only',
+        variables: {
+          histQueryKey: histQueryKey,
+        },
+      };
+    },
+    props: ({data, errors}) => ({
+      historyBuckets: (data.model && data.model.buckets) || {edges: []},
+    }),
+  });
 
-  return withApollo(withData()(HistoryLoader));
+  return withApollo(withData(HistoryLoader));
 }
