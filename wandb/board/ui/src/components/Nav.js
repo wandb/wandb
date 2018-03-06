@@ -1,12 +1,7 @@
 import React, {Component} from 'react';
 import {connect} from 'react-redux';
-import {NavLink} from 'react-router-dom';
-import {
-  Menu,
-  Container,
-  Message,
-  Transition,
-} from 'semantic-ui-react';
+import {NavLink, withRouter} from 'react-router-dom';
+import {Menu, Container, Message, Transition} from 'semantic-ui-react';
 import logo from '../assets/logo.svg';
 import '../components/Nav.css';
 
@@ -27,18 +22,24 @@ class Nav extends Component {
 
   render() {
     const flash = this.props.flash || {};
-
     return (
       <Menu fixed="top" borderless>
-        <Container style={{position: 'relative'}}>
+        <Container fluid style={{marginLeft: 10, position: 'relative'}}>
           <NavLink exact to="/" className="item">
             <img src={logo} className="logo" alt="Weights & Biases" />
           </NavLink>
-          {
-            <NavLink to={`/`} className="item">
-              Runs
-            </NavLink>
-          }
+          <NavLink
+            to={`/`}
+            isActive={() =>
+              //TODO: very unfortunate
+              this.props.location.pathname.indexOf('dashboards') === -1
+            }
+            className="item">
+            Runs
+          </NavLink>
+          <NavLink to={`/dashboards`} className="item">
+            Dashboards
+          </NavLink>
           <Menu.Menu position="right" />
           <Transition
             animation="fly down"
@@ -75,4 +76,4 @@ function mapStateToProps(state, ownProps) {
   };
 }
 
-export default connect(mapStateToProps)(Nav);
+export default withRouter(connect(mapStateToProps)(Nav));

@@ -1,5 +1,7 @@
 export const SET_SERVER_VIEWS = 'SET_SERVER_VIEWS';
+export const SET_BROWSER_VIEWS = 'SET_BROWSER_VIEWS';
 export const ADD_VIEW = 'ADD_VIEW';
+export const UPDATE_VIEW = 'UPDATE_VIEW';
 export const SET_ACTIVE_VIEW = 'SET_ACTIVE_VIEW';
 export const CHANGE_VIEW_NAME = 'CHANGE_VIEW_NAME';
 export const REMOVE_VIEW = 'REMOVE_VIEW';
@@ -7,11 +9,17 @@ export const ADD_PANEL = 'ADD_PANEL';
 export const REMOVE_PANEL = 'REMOVE_PANEL';
 export const UPDATE_PANEL = 'UPDATE_PANEL';
 
-export const setServerViews = (views, browserOnly) => {
+export const setServerViews = views => {
   return {
     type: SET_SERVER_VIEWS,
     views,
-    browserOnly,
+  };
+};
+
+export const setBrowserViews = views => {
+  return {
+    type: SET_BROWSER_VIEWS,
+    views,
   };
 };
 
@@ -20,6 +28,15 @@ export const addView = (viewType, viewName, panels) => {
     type: ADD_VIEW,
     viewType,
     viewName,
+    panels,
+  };
+};
+
+export const updateView = (viewType, viewId, panels) => {
+  return {
+    type: UPDATE_VIEW,
+    viewType,
+    viewId,
     panels,
   };
 };

@@ -37,7 +37,7 @@ class App extends Component {
       <div>
         <AutoReload setFlash={this.props.setFlash} />
         <Nav user={this.props.user} history={this.props.history} />
-        <Container className="main">
+        <Container className="main" fluid>
           {this.props.error || this.state.error ? (
             <ErrorPage history={this.props.history} error={this.props.error} />
           ) : (
