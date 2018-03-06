@@ -97,7 +97,8 @@ class ModelEditor extends React.Component {
                 this.setState({
                   canSubmit: true,
                   content: e.target.value,
-                })}
+                })
+              }
               placeholder="Provide a description about this project"
               value={this.state.content}
             />
@@ -125,7 +126,8 @@ class ModelEditor extends React.Component {
               this.setState({
                 access: d.value,
                 canSubmit: d.value !== this.state.framework,
-              })}
+              })
+            }
           />
         )}
         <Button.Group>
@@ -160,8 +162,9 @@ class ModelEditor extends React.Component {
                     if (this.props.addModel)
                       this.props.addModel(res.data.upsertModel.model);
                   } else {
-                    window.location.href = `/${this.props.model
-                      .entityName}/${res.data.upsertModel.model.name}`;
+                    window.location.href = `/${this.props.model.entityName}/${
+                      res.data.upsertModel.model.name
+                    }`;
                   }
                 });
             }}
@@ -169,13 +172,12 @@ class ModelEditor extends React.Component {
         </Button.Group>
 
         <Button.Group size="small" floated="right">
-          {this.admin() &&
           this.props.model.id && (
-            <DangerModal
-              button={{negative: true, icon: 'trash'}}
-              yes={() => this.props.delete(this.props.model.id)}
-            />
-          )}
+          <DangerModal
+            button={{negative: true, icon: 'trash'}}
+            yes={() => this.props.delete(this.props.model.id)}
+          />
+          )
         </Button.Group>
       </Form>
     );
