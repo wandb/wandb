@@ -74,7 +74,7 @@ class RunSummary extends Component {
         <Segment attached="bottom">
           <Grid>
             <Grid.Row>
-              <Grid.Column width={10}>
+              <Grid.Column width={8}>
                 {this.props.bucket.state == 'running' ? (
                   <strong>running </strong>
                 ) : (
@@ -107,8 +107,9 @@ class RunSummary extends Component {
                   </span>
                 )}
               </Grid.Column>
-              <Grid.Column width={6} textAlign="right">
-                run{' '}
+              <Grid.Column width={8} textAlign="right">
+                tags {bucket.tags.map(tag => <Label key={tag}>{tag}</Label>)}
+                &nbsp;&nbsp;&nbsp;&nbsp; run{' '}
                 <NavLink
                   to={`/${model.entityName}/${model.name}/runs/${bucket.name}`}>
                   {bucket.name}
