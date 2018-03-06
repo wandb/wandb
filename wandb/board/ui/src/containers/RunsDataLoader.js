@@ -71,6 +71,7 @@ function withDerivedRunsData(WrappedComponent) {
           data: {deep: false},
           sizeKey: {deep: false},
           editMode: {deep: false},
+          loading: {deep: false},
         },
         name: 'RunsDataLoader',
       });
@@ -212,7 +213,7 @@ function withDerivedHistoryData(WrappedComponent) {
         ),
       );
       this.runHistories = {
-        loading: this.props.loading || runHistory.some(o => !o.history),
+        loading: props.loading || runHistory.some(o => !o.history),
         maxRuns: MAX_HISTORIES_LOADED,
         totalRuns: _.keys(props.selectedRunsById).length,
         data: runHistory.filter(o => o.history),
@@ -234,12 +235,16 @@ function withDerivedHistoryData(WrappedComponent) {
         this.data = nextProps.data;
         return;
       }
-      if (this.props.historyBuckets !== nextProps.historyBuckets) {
+      if (
+        this.props.historyBuckets !== nextProps.historyBuckets ||
+        this.props.loading !== nextProps.loading
+      ) {
         this._setup(nextProps);
       }
       if (
         this.props.historyBuckets !== nextProps.historyBuckets ||
-        this.props.data !== nextProps.data
+        this.props.data !== nextProps.data ||
+        this.props.loading !== nextProps.loading
       ) {
         this.data = {...this.props.data, histories: this.runHistories};
       }
