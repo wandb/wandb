@@ -108,6 +108,7 @@ class DashboardView extends Component {
                     w: 3,
                     h: 2,
                   },
+                  query: {strategy: 'merge'},
                 });
               }}>
               <Icon name="plus" />
