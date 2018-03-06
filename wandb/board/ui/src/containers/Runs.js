@@ -31,7 +31,7 @@ import {
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {bindActionCreators} from 'redux';
 import {clearFilters, addFilter, setColumns} from '../actions/run';
-import {setServerViews, setActiveView} from '../actions/view';
+import {setServerViews, setBrowserViews, setActiveView} from '../actions/view';
 import update from 'immutability-helper';
 import {BOARD} from '../util/board';
 import withRunsDataLoader from '../containers/RunsDataLoader';
@@ -145,15 +145,19 @@ class Runs extends React.Component {
       _.isEmpty(this.props.reduxBrowserViews.runs.views)
     ) {
       // no views on server, provide a default
-      this.props.setServerViews(
+      this.props.setBrowserViews(
         defaultViews((nextProps.buckets.edges[0] || {}).node),
-        true,
       );
     } else if (
       nextProps.views &&
       nextProps.views.runs &&
       !_.isEqual(nextProps.views, this.props.reduxServerViews)
     ) {
+      if (
+        _.isEqual(this.props.reduxServerViews, this.props.reduxBrowserViews)
+      ) {
+        this.props.setBrowserViews(nextProps.views);
+      }
       this.props.setServerViews(nextProps.views);
     }
     this._setUrl(this.props, nextProps);
@@ -364,7 +368,14 @@ export {Runs};
 
 const mapDispatchToProps = (dispatch, ownProps) => {
   return bindActionCreators(
-    {setColumns, clearFilters, addFilter, setServerViews, setActiveView},
+    {
+      setColumns,
+      clearFilters,
+      addFilter,
+      setServerViews,
+      setBrowserViews,
+      setActiveView,
+    },
     dispatch,
   );
 };

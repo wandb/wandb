@@ -12,6 +12,7 @@ import {
   addPanel,
   removePanel,
   updatePanel,
+  updateView,
 } from '../actions/view';
 
 class ViewModifier extends React.Component {
@@ -30,6 +31,9 @@ class ViewModifier extends React.Component {
           this.props.changeViewName(this.props.viewType, viewId, viewName)
         }
         removeView={() => this.props.removeView(this.props.viewType, viewId)}
+        updateView={panels =>
+          this.props.updateView(this.props.viewType, viewId, panels)
+        }
         updatePanel={(panelIndex, panelConfig) =>
           this.props.updatePanel(
             this.props.viewType,
@@ -79,6 +83,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       addPanel,
       removePanel,
       updatePanel,
+      updateView,
     },
     dispatch,
   );

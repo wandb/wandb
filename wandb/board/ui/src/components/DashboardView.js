@@ -9,6 +9,15 @@ import * as Query from '../util/query';
 export const GRID_WIDTH = 12;
 export const GRID_MARGIN = 6;
 
+function validConfigLayout(layout) {
+  let requiredKeys = ['x', 'y', 'w', 'h'];
+  let keys = _.keys(layout);
+  return (
+    _.intersection(keys, requiredKeys).length === requiredKeys.length &&
+    _.union(keys, requiredKeys).length === requiredKeys.length
+  );
+}
+
 const Grid = WidthProvider(ReactGridLayout);
 class DashboardView extends Component {
   static defaultProps = {
@@ -18,7 +27,15 @@ class DashboardView extends Component {
   onLayoutChange = layouts => {
     layouts.forEach(layout => {
       let i = parseInt(layout.i);
-      this.props.updatePanel(i, {...this.props.config[i], ...layout});
+      this.props.updatePanel(i, {
+        ...this.props.config[i],
+        layout: {
+          x: layout.x,
+          y: layout.y,
+          w: layout.w,
+          h: layout.h,
+        },
+      });
     });
   };
 
@@ -30,12 +47,7 @@ class DashboardView extends Component {
         editMode={edit}
         type={panelConfig.viewType}
         size={panelConfig.size}
-        sizeKey={JSON.stringify([
-          panelConfig.x,
-          panelConfig.y,
-          panelConfig.w,
-          panelConfig.h,
-        ])}
+        sizeKey={JSON.stringify(panelConfig.layout)}
         pageQuery={this.props.pageQuery}
         panelQuery={panelConfig.query}
         query={query}
@@ -70,6 +82,17 @@ class DashboardView extends Component {
 
   render() {
     const {editMode, width} = this.props;
+
+    // Configs must have a layout key
+    let panelConfigs = this.props.config.filter(
+      config => config.layout && validConfigLayout(config.layout),
+    );
+    if (panelConfigs.length !== this.props.config.length) {
+      // If we found invalid panels, update the browser state so on next save
+      // we'll only save the valid set.
+      this.props.updateView(panelConfigs);
+    }
+
     return (
       <div>
         {editMode && (
@@ -79,13 +102,12 @@ class DashboardView extends Component {
               size="tiny"
               onClick={() => {
                 this.props.addPanel({
-                  i: 0,
-                  x: 0,
-                  y: 0,
-                  w: 3,
-                  h: 2,
-                  minW: 3,
-                  minH: 1,
+                  layout: {
+                    x: 0,
+                    y: 0,
+                    w: 3,
+                    h: 2,
+                  },
                 });
               }}>
               <Icon name="plus" />
@@ -95,15 +117,13 @@ class DashboardView extends Component {
         <Grid
           className={editMode ? 'editing' : 'display'}
           draggableCancel=".edit"
-          layout={this.props.config || []}
-          verticalCompact={false}
           cols={GRID_WIDTH}
           isDraggable={editMode}
           isResizable={editMode}
           margin={[GRID_MARGIN, GRID_MARGIN]}
           onLayoutChange={this.onLayoutChange}>
-          {this.props.config.map((panelConfig, i) => (
-            <div key={i} className="panel">
+          {panelConfigs.map((panelConfig, i) => (
+            <div key={i} className="panel" data-grid={{...panelConfig.layout}}>
               <Modal
                 dimmer={false}
                 trigger={<Icon link name="edit" />}

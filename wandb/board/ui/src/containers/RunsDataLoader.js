@@ -59,6 +59,8 @@ function withDerivedRunsData(WrappedComponent) {
       super(props);
       this.runs = [];
       this.keySuggestions = [];
+      // TODO: This isn't good, because we pass so much through here.
+      // Better to blacklist instead of whitelist.
       self._shouldUpdate = makeShouldUpdate({
         props: {
           buckets: {deep: false},
@@ -68,9 +70,9 @@ function withDerivedRunsData(WrappedComponent) {
           config: {deep: true},
           data: {deep: false},
           sizeKey: {deep: false},
+          editMode: {deep: false},
         },
         name: 'RunsDataLoader',
-        debug: true,
       });
     }
 
@@ -189,8 +191,9 @@ function withDerivedHistoryData(WrappedComponent) {
                   return JSONparseNaN(row);
                 } catch (error) {
                   console.log(
-                    `WARNING: JSON error parsing history (HistoryLoader):${i}:`,
-                    error,
+                    `WARNING: JSON error parsing history (HistoryLoader). Row: ${i}, Bucket: ${
+                      edge.node.name
+                    }`,
                   );
                   return null;
                 }

@@ -20,7 +20,7 @@ import {
   parseBuckets,
   setupKeySuggestions,
 } from '../util/runhelpers.js';
-import {setServerViews, setActiveView} from '../actions/view';
+import {setServerViews, setBrowserViews, setActiveView} from '../actions/view';
 import {addFilter} from '../actions/run';
 import {updateLocationParams} from '../actions/location';
 import withRunsDataLoader from '../containers/RunsDataLoader';
@@ -45,16 +45,19 @@ class Dashboard extends React.Component {
       _.isEmpty(this.props.reduxBrowserViews.dashboards.views)
     ) {
       // no views on server, provide a default
-      this.props.setServerViews(
+      this.props.setBrowserViews(
         defaultViews((nextProps.buckets.edges[0] || {}).node),
-        true,
       );
     } else if (
       nextProps.views &&
       nextProps.views.dashboards &&
-      _.isEqual(this.props.reduxServerViews, this.props.reduxBrowserViews) &&
       !_.isEqual(nextProps.views, this.props.reduxServerViews)
     ) {
+      if (
+        _.isEqual(this.props.reduxServerViews, this.props.reduxBrowserViews)
+      ) {
+        this.props.setBrowserViews(nextProps.views);
+      }
       this.props.setServerViews(nextProps.views);
     }
   }
@@ -117,13 +120,19 @@ function mapStateToProps(state, ownProps) {
     filterModel: state.runs.filterModel,
     reduxServerViews: state.views.server,
     reduxBrowserViews: state.views.browser,
-    activeView: state.views.other.runs.activeView,
+    activeView: state.views.other.dashboards.activeView,
   };
 }
 
 const mapDispatchToProps = (dispatch, ownProps) => {
   return bindActionCreators(
-    {addFilter, setServerViews, setActiveView, updateLocationParams},
+    {
+      addFilter,
+      setServerViews,
+      setBrowserViews,
+      setActiveView,
+      updateLocationParams,
+    },
     dispatch,
   );
 };
