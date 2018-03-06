@@ -57,7 +57,7 @@ function withRunsData() {
 
 // Parses buckets into runs/keySuggestions
 function withDerivedRunsData(WrappedComponent) {
-  let RunsDataDerived = class extends React.Component {
+  let RunsDataDerived = class extends React.PureComponent {
     constructor(props) {
       super(props);
       this.runs = [];
