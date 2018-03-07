@@ -1,9 +1,12 @@
 import React from 'react';
 import {List, Input, Icon} from 'semantic-ui-react';
+import FixedLengthString from '../components/FixedLengthString';
+
 import {
   displayValue,
   fuzzyMatch,
   fuzzyMatchHighlight,
+  truncateString,
 } from '../util/runhelpers';
 import _ from 'lodash';
 
@@ -72,11 +75,13 @@ class DataList extends React.Component {
     return data;
   }
 
-  configItem(key, value, i) {
+  configItem(key, value, i, highlighted = false) {
     return (
       <List.Item key={'config ' + i}>
         <List.Content>
-          <List.Header>{key}</List.Header>
+          <List.Header>
+            {highlighted ? key : <FixedLengthString text={key} />}
+          </List.Header>
           <List.Description>{'' + this.formatValue(value)}</List.Description>
         </List.Content>
       </List.Item>
@@ -92,7 +97,6 @@ class DataList extends React.Component {
   }
 
   renderLongList() {
-    console.log('Rendering Long List');
     return (
       <div>
         <Input
@@ -111,6 +115,7 @@ class DataList extends React.Component {
                       fuzzyMatchHighlight(key, this.state.filter),
                       this.flatData[key],
                       i,
+                      true,
                     ),
                   )
               : _.keys(this.flatData)
@@ -140,7 +145,6 @@ class DataList extends React.Component {
 
   render() {
     if (this.flatData) {
-      console.log('Len', _.size(this.flatData));
       if (_.size(this.flatData) > 10) {
         return this.renderLongList();
       } else {

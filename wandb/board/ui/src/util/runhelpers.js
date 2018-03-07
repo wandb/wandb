@@ -34,6 +34,18 @@ export function sortableValue(value) {
   }
 }
 
+// Truncate string.  Doesn't seem like there's an easy way to do this by pixel length.
+export function truncateString(string, maxLength = 30, rightLength = 6) {
+  if (string.length < maxLength) {
+    return <div>{string}</div>;
+  }
+  let leftLength = maxLength - rightLength - 1;
+  let leftSide = string.substr(0, leftLength);
+  let rightSide = string.substr(-rightLength);
+  let truncString = leftSide + '…' + rightSide;
+  return truncString;
+}
+
 // fuzzyMatch replicates the command-P in vscode matching all the characters in order'
 // but not necessarily sequential
 export function fuzzyMatch(strings, matchStr) {
