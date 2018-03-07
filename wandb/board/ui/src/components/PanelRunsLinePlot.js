@@ -7,7 +7,7 @@ import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {color} from '../util/colors.js';
 import {registerPanelClass} from '../util/registry.js';
-import {runDisplayName} from '../util/runhelpers.js';
+import {runDisplayName, displayValue} from '../util/runhelpers.js';
 import {addFilter} from '../actions/run';
 import * as Query from '../util/query';
 
@@ -15,16 +15,33 @@ function smooth(data, smoothingWeight) {
   // data is array of x/y objects
   // x is always an index as this is used, so x-distance between each
   // successive point is equal.
-  let last = data.length > 0 ? data[0].y : NaN;
-  data.forEach(d => {
+  // 1st-order IIR low-pass filter to attenuate the higher-
+  // frequency components of the time-series.
+  let last = data.length > 0 ? 0 : NaN;
+  let numAccum = 0;
+  data.forEach((d, i) => {
+    let nextVal = d.y;
     if (!_.isFinite(last)) {
-      d.smoothed = d.y;
+      d.smoothed = nextVal;
     } else {
-      // 1st-order IIR low-pass filter to attenuate the higher-
-      // frequency components of the time-series.
-      d.smoothed = last * smoothingWeight + (1 - smoothingWeight) * d.y;
+      last = last * smoothingWeight + (1 - smoothingWeight) * nextVal;
+      numAccum++;
+      // The uncorrected moving average is biased towards the initial value.
+      // For example, if initialized with `0`, with smoothingWeight `s`, where
+      // every data point is `c`, after `t` steps the moving average is
+      // ```
+      //   EMA = 0*s^(t) + c*(1 - s)*s^(t-1) + c*(1 - s)*s^(t-2) + ...
+      //       = c*(1 - s^t)
+      // ```
+      // If initialized with `0`, dividing by (1 - s^t) is enough to debias
+      // the moving average. We count the number of finite data points and
+      // divide appropriately before storing the data.
+      let debiasWeight = 1;
+      if (smoothingWeight !== 1.0) {
+        debiasWeight = 1.0 - Math.pow(smoothingWeight, numAccum);
+      }
+      d.smoothed = last / debiasWeight;
     }
-    last = d.smoothed;
   });
 }
 
@@ -49,7 +66,7 @@ class RunsLinePlotPanel extends React.Component {
         <Form.Field disabled={disabled}>
           <label>Smoothing</label>
           <input
-            style={{width: '50%'}}
+            style={{width: '35%'}}
             type="range"
             min={0}
             max={1}
@@ -62,6 +79,12 @@ class RunsLinePlotPanel extends React.Component {
               });
             }}
           />
+          <span style={{marginLeft: 6}}>
+            {' '}
+            {displayValue(
+              Math.sqrt(this.props.config.smoothingWeight || 0),
+            )}{' '}
+          </span>
         </Form.Field>
         <Form.Dropdown
           disabled={disabled}
@@ -118,7 +141,7 @@ class RunsLinePlotPanel extends React.Component {
           y: row[key],
         }));
         if (this.props.config.smoothingWeight) {
-          smooth(lineData, this.props.config.smoothingWeight || 0);
+          smooth(lineData, Math.sqrt(this.props.config.smoothingWeight) || 0);
           lineData.forEach(point => (point.y = point.smoothed));
         }
         lineData = lineData.filter(point => !_.isNil(point.y));

@@ -131,97 +131,99 @@ export default class RunViewer extends React.Component {
                 events: eventData,
                 match: this.props.match,
               }}
-              blank={histData.length === 0}
+              blank={!histData || histData.length === 0}
               updateViews={this.props.updateViews}
+              loader={true}
             />
           </Grid.Column>
         </Grid.Row>
-        {exampleTable.length !== 0 && (
-          <Grid.Row columns={1}>
-            <Grid.Column>
-              <Header>Examples</Header>
-              <ReactTable
-                style={{width: '100%'}}
-                defaultPageSize={10}
-                columns={exampleTableColumns.map((name, i) => {
-                  let type = exampleTableTypes[name];
-                  return {
-                    Header: name,
-                    accessor: name,
-                    //minWidth: type == 'histogram' ? 400 : undefined,
-                    Cell: row => {
-                      let val = row.value;
-                      if (type === 'image') {
-                        val = (
-                          <Popup
-                            trigger={
+        {exampleTable &&
+          exampleTable.length !== 0 && (
+            <Grid.Row columns={1}>
+              <Grid.Column>
+                <Header>Examples</Header>
+                <ReactTable
+                  style={{width: '100%'}}
+                  defaultPageSize={10}
+                  columns={exampleTableColumns.map((name, i) => {
+                    let type = exampleTableTypes[name];
+                    return {
+                      Header: name,
+                      accessor: name,
+                      //minWidth: type == 'histogram' ? 400 : undefined,
+                      Cell: row => {
+                        let val = row.value;
+                        if (type === 'image') {
+                          val = (
+                            <Popup
+                              trigger={
+                                <img
+                                  style={{'max-width': 128}}
+                                  src={'data:image/png;base64,' + val}
+                                  alt="example"
+                                />
+                              }>
                               <img
-                                style={{'max-width': 128}}
+                                style={{width: 256}}
                                 src={'data:image/png;base64,' + val}
                                 alt="example"
                               />
-                            }>
-                            <img
-                              style={{width: 256}}
-                              src={'data:image/png;base64,' + val}
-                              alt="example"
-                            />
-                          </Popup>
-                        );
-                      } else if (type === 'float' && val) {
-                        // toPrecision converts to exponential notation only
-                        // when abs(exponent) >-= 7, so we get a lot of zeroes
-                        // that make for a long string at exponent==6. We control
-                        // the conversion more carefully here to control the displayed
-                        // string length.
-                        if (Math.abs(val) > 1000 || Math.abs(val) < 0.001) {
-                          val = val.toExponential(4);
-                        } else {
-                          val = val.toPrecision(4);
-                        }
-                      } else if (type === 'percentage' && val) {
-                        let percentage = val * 100;
-                        val = (
-                          <div
-                            style={{
-                              width: '100%',
-                              backgroundColor: '#dadada',
-                              borderRadius: '2px',
-                            }}>
+                            </Popup>
+                          );
+                        } else if (type === 'float' && val) {
+                          // toPrecision converts to exponential notation only
+                          // when abs(exponent) >-= 7, so we get a lot of zeroes
+                          // that make for a long string at exponent==6. We control
+                          // the conversion more carefully here to control the displayed
+                          // string length.
+                          if (Math.abs(val) > 1000 || Math.abs(val) < 0.001) {
+                            val = val.toExponential(4);
+                          } else {
+                            val = val.toPrecision(4);
+                          }
+                        } else if (type === 'percentage' && val) {
+                          let percentage = val * 100;
+                          val = (
                             <div
                               style={{
-                                width: `${percentage}%`,
-                                height: 12,
-                                backgroundColor:
-                                  percentage > 66
-                                    ? '#85cc00'
-                                    : percentage > 33 ? '#ffbf00' : '#ff2e00',
+                                width: '100%',
+                                backgroundColor: '#dadada',
                                 borderRadius: '2px',
-                                transition: 'all .2s ease-out',
-                              }}
-                            />
+                              }}>
+                              <div
+                                style={{
+                                  width: `${percentage}%`,
+                                  height: 12,
+                                  backgroundColor:
+                                    percentage > 66
+                                      ? '#85cc00'
+                                      : percentage > 33 ? '#ffbf00' : '#ff2e00',
+                                  borderRadius: '2px',
+                                  transition: 'all .2s ease-out',
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+                        return (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              width: '100%',
+                              height: '100%',
+                            }}>
+                            {val}
                           </div>
                         );
-                      }
-                      return (
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            width: '100%',
-                            height: '100%',
-                          }}>
-                          {val}
-                        </div>
-                      );
-                    },
-                  };
-                })}
-                data={exampleTable}
-              />
-            </Grid.Column>
-          </Grid.Row>
-        )}
+                      },
+                    };
+                  })}
+                  data={exampleTable}
+                />
+              </Grid.Column>
+            </Grid.Row>
+          )}
         <Grid.Row columns={columns} className="vars">
           <Grid.Column>
             <Header>Configuration</Header>

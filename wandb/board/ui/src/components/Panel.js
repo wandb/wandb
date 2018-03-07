@@ -1,10 +1,11 @@
 import React from 'react';
 import _ from 'lodash';
-import {Button, Card, Dropdown, Grid, Icon} from 'semantic-ui-react';
+import {Button, Card, Dropdown, Grid, Icon, Segment} from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
 import QueryEditor from '../components/QueryEditor';
 import {filterRuns, sortRuns} from '../util/runhelpers.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
+import ContentLoader from 'react-content-loader';
 
 import './PanelRunsLinePlot';
 import './PanelLinePlot';
@@ -14,10 +15,15 @@ import './PanelParallelCoord';
 
 class Panel extends React.Component {
   state = {configMode: false, showQuery: false};
+  static loading = (
+    <Segment basic style={{minHeight: 260}}>
+      <ContentLoader />
+    </Segment>
+  );
 
   renderPanelType(PanelType, configMode, config, data, sizeKey, panelQuery) {
     if (!data) {
-      return <p>Views unavailable until data is ready</p>;
+      return Panel.loading;
     }
     return (
       <div style={{clear: 'both'}}>
@@ -37,7 +43,7 @@ class Panel extends React.Component {
     let {type, size, config, data} = this.props;
     let panel, PanelType, configMode, options, sizeKey;
     if (!data) {
-      panel = <p>Views unavailable until data is ready.</p>;
+      panel = Panel.loading;
     } else if (data.hasOwnProperty('history') && data.history.length == 0) {
       return (
         <p>
@@ -50,7 +56,7 @@ class Panel extends React.Component {
         .filter(type => panelClasses[type].validForData(data))
         .map(type => ({text: type, value: type}));
       if (options.length === 0) {
-        panel = <p>Views unavailable until data is ready.</p>;
+        panel = Panel.loading;
       } else {
         type = type || options[0].value;
         config = config || {};
