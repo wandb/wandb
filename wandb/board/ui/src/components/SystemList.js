@@ -7,7 +7,6 @@ class SystemList extends React.Component {
     if (this.props.data) {
       this.data = this.props.data;
     }
-    this.prepData = this.prepData.bind(this);
   }
 
   formatMetric(name, metric) {
@@ -31,14 +30,22 @@ class SystemList extends React.Component {
     return newData;
   }
 
+  _setup(props) {
+    if (props.data && Object.keys(props.data).length > 0) {
+      this.data = this.prepData(props.data);
+    }
+  }
+
+  componentWillMount() {
+    this._setup(this.props);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    this._setup(nextProps);
+  }
+
   render() {
-    return (
-      <DataList
-        data={this.data}
-        prepData={this.prepData}
-        formatValue={this.formatValue}
-      />
-    );
+    return <DataList data={this.data} formatValue={this.formatValue} />;
   }
 }
 
