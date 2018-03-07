@@ -11,12 +11,18 @@ span.commit a {
 .ui.header {
   opacity: 0.7;
 }
-.vars .ui.list {
-  height: 170px;
+.DataList {
+  height: 200px;
   overflow-y: auto;
 }
+.DataListWithSearch {
+  height: 170px;
+  overflow-y: auto;
+  width: 100%;
+}
+
 .vars .ui.list .item {
-  padding: 15px;
+  padding: 6px;
 }
 .vars .ui.list .header {
   float: left;

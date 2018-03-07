@@ -1,6 +1,11 @@
 import React from 'react';
-import {List} from 'semantic-ui-react';
-import {displayValue} from '../util/runhelpers';
+import {List, Input, Icon} from 'semantic-ui-react';
+import {
+  displayValue,
+  fuzzyMatch,
+  fuzzyMatchHighlight,
+} from '../util/runhelpers';
+import _ from 'lodash';
 
 class DataList extends React.Component {
   constructor(props) {
@@ -10,6 +15,7 @@ class DataList extends React.Component {
   }
 
   _setup(props) {
+    this.state = {};
     if (props.noData) {
       this.noData = props.noData;
     }
@@ -68,7 +74,7 @@ class DataList extends React.Component {
 
   configItem(key, value, i) {
     return (
-      <List.Item key={'config ' + key + i}>
+      <List.Item key={'config ' + i}>
         <List.Content>
           <List.Header>{key}</List.Header>
           <List.Description>{'' + this.formatValue(value)}</List.Description>
@@ -85,20 +91,64 @@ class DataList extends React.Component {
     return displayValue(value);
   }
 
-  render() {
+  renderLongList() {
+    console.log('Rendering Long List');
     return (
       <div>
-        {this.flatData ? (
-          <List divided size="small">
-            {Object.keys(this.flatData)
-              .sort()
-              .map((key, i) => this.configItem(key, this.flatData[key], i))}
+        <Input
+          onChange={(e, {value}) => this.setState({filter: value})}
+          icon={{name: 'search', circular: true, link: true}}
+          placeholder="Search..."
+          size="mini"
+        />
+        <div className="DataListWithSearch">
+          <List divided>
+            {this.state.filter
+              ? fuzzyMatch(Object.keys(this.flatData), this.state.filter)
+                  .sort()
+                  .map((key, i) =>
+                    this.configItem(
+                      fuzzyMatchHighlight(key, this.state.filter),
+                      this.flatData[key],
+                      i,
+                    ),
+                  )
+              : _.keys(this.flatData)
+                  .sort()
+                  .map((key, i) => this.configItem(key, this.flatData[key], i))}
           </List>
-        ) : (
-          this.noData()
-        )}
+        </div>
       </div>
     );
+  }
+
+  renderShortList() {
+    return (
+      <div className="DataList">
+        <List divided>
+          {_.keys(this.flatData)
+            .sort()
+            .map((key, i) => this.configItem(key, this.flatData[key], i))}
+        </List>
+      </div>
+    );
+  }
+
+  renderNoData() {
+    return <div className="DataList">{this.noData}</div>;
+  }
+
+  render() {
+    if (this.flatData) {
+      console.log('Len', _.size(this.flatData));
+      if (_.size(this.flatData) > 10) {
+        return this.renderLongList();
+      } else {
+        return this.renderShortList();
+      }
+    } else {
+      return this.renderNoData();
+    }
   }
 }
 

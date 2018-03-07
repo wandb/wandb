@@ -24,8 +24,9 @@ class SystemList extends React.Component {
     Object.keys(data).map(function(key, index) {
       if (key.startsWith('system.')) {
         newData[key.replace(/^system\./, '')] = data[key];
+      } else {
+        newData[key] = data[key];
       }
-      newData[key] = data[key];
     });
     return newData;
   }
