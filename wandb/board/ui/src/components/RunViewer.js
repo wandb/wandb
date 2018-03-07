@@ -11,7 +11,7 @@ import Views from '../components/Views';
 import ConfigList from '../components/ConfigList';
 import SummaryList from '../components/SummaryList';
 import SystemList from '../components/SystemList';
-
+import ViewModifier from '../containers/ViewModifier';
 import './Run.css';
 import {JSONparseNaN} from '../util/jsonnan';
 
@@ -123,7 +123,7 @@ export default class RunViewer extends React.Component {
         </Grid.Row>
         <Grid.Row columns={1}>
           <Grid.Column>
-            <Views
+            <ViewModifier
               viewType="run"
               data={{
                 historyKeys: histKeys,

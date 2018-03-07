@@ -12,13 +12,44 @@ import {
 } from 'react-vis';
 import {displayValue} from '../../util/runhelpers.js';
 
-export default class LinePlot extends React.Component {
-  state = {disabled: {}, highlightX: null};
+class LinePlotPlot extends React.PureComponent {
+  // Implements the actual plot and data as a PureComponent, so that we don't
+  // re-render every time the crosshair (highlight) changes.
+  render() {
+    let {height, sizeKey, xAxis, yScale, lines, disabled} = this.props;
+    return (
+      <FlexibleWidthXYPlot key={sizeKey} yType={yScale} height={height}>
+        <VerticalGridLines />
+        <HorizontalGridLines />
+        <XAxis title={xAxis} />
+        <YAxis />
+        {lines
+          .map(
+            (line, i) =>
+              !disabled[line.title] ? (
+                <LineSeries key={i} color={line.color} data={line.data} />
+              ) : null,
+          )
+          .filter(o => o)}
+      </FlexibleWidthXYPlot>
+    );
+  }
+}
+
+class LinePlotCrosshair extends React.PureComponent {
+  // This doesn't contain the data, just the react-vis crosshair (the hover popup
+  // that shows y-values at the current x-value).
 
   _setup(props) {
+    // highlights is a map from x-value to list of y-information for each line at
+    // that x-value
     this.highlights = {};
 
-    for (var line of props.lines) {
+    let enabledLines = props.lines.filter(
+      line => !props.disabled[line.title] && line.data.length > 0,
+    );
+
+    for (var line of enabledLines) {
       for (var point of line.data) {
         if (_.isNil(this.highlights[point.x])) {
           this.highlights[point.x] = [];
@@ -26,9 +57,19 @@ export default class LinePlot extends React.Component {
         this.highlights[point.x].push({
           title: line.title,
           color: line.color,
+          x: point.x,
           y: point.y,
         });
       }
+    }
+
+    // False line is a straight line that fits within the chart data. We render
+    // it transparently and just use it for it's onNearestX callback.
+    this.falseLine = [];
+    if (enabledLines.length > 0) {
+      let maxLength = _.max(enabledLines.map(line => line.data.length));
+      let y = enabledLines[0].data[0].y;
+      this.falseLine = _.range(0, maxLength).map(x => ({x: x, y: y}));
     }
   }
 
@@ -37,24 +78,68 @@ export default class LinePlot extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    if (this.props.lines !== nextProps.lines) {
+    if (
+      this.props.lines !== nextProps.lines ||
+      this.props.disabled !== nextProps.disabled
+    ) {
       this._setup(nextProps);
     }
   }
 
   render() {
-    let maxLength = _.max(
-      this.props.lines
-        .filter(line => !this.state.disabled[line.title])
-        .map(line => line.data.length),
-    );
+    let {height, xAxis, highlightX, onMouseLeave, onHighlight} = this.props;
     let crosshairValues = null;
-    if (this.state.highlightX && this.highlights[this.state.highlightX]) {
-      crosshairValues = this.highlights[this.state.highlightX].map(point => ({
-        ...point,
-        x: this.state.highlightX,
-      }));
+    if (highlightX && this.highlights[highlightX]) {
+      crosshairValues = this.highlights[highlightX];
     }
+    return (
+      <FlexibleWidthXYPlot onMouseLeave={() => onMouseLeave()} height={height}>
+        <LineSeries
+          onNearestX={item => onHighlight(item.x)}
+          color="black"
+          opacity={0}
+          data={this.falseLine}
+        />
+        {crosshairValues && (
+          <Crosshair values={crosshairValues}>
+            <div
+              style={{
+                color: '#333',
+                borderRadius: 6,
+                border: '1px solid #bbb',
+                minWidth: 160,
+                padding: 8,
+                background: 'white',
+                whiteSpace: 'nowrap',
+              }}>
+              <b>{this.props.xAxis + ': ' + crosshairValues[0].x}</b>
+              {crosshairValues.sort((a, b) => b.y - a.y).map(point => (
+                <div key={point.title}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      backgroundColor: point.color,
+                      width: 12,
+                      height: 4,
+                    }}
+                  />
+                  <span style={{marginLeft: 6}}>
+                    {point.title + ': ' + displayValue(point.y)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Crosshair>
+        )}
+      </FlexibleWidthXYPlot>
+    );
+  }
+}
+
+export default class LinePlot extends React.PureComponent {
+  state = {disabled: {}, highlightX: null};
+
+  render() {
     return (
       <div
         style={{
@@ -78,66 +163,27 @@ export default class LinePlot extends React.Component {
             color: line.color,
           }))}
         />
-        <FlexibleWidthXYPlot
-          key={this.props.sizeKey}
-          animation
-          onMouseLeave={() => this.setState({...this.state, highlightX: null})}
-          yType={this.props.yScale}
-          height={240}>
-          <VerticalGridLines />
-          <HorizontalGridLines />
-          <XAxis title={this.props.xAxis} />
-          <YAxis />
-          {this.props.lines
-            .map(
-              (line, i) =>
-                !this.state.disabled[line.title] ? (
-                  <LineSeries
-                    key={i}
-                    onNearestX={
-                      line.data.length === maxLength
-                        ? item =>
-                            this.setState({...this.state, highlightX: item.x})
-                        : null
-                    }
-                    color={line.color}
-                    data={line.data}
-                  />
-                ) : null,
-            )
-            .filter(o => o)}
-          {crosshairValues && (
-            <Crosshair values={crosshairValues}>
-              <div
-                style={{
-                  color: '#333',
-                  borderRadius: 6,
-                  border: '1px solid #bbb',
-                  minWidth: 160,
-                  padding: 8,
-                  background: 'white',
-                  whiteSpace: 'nowrap',
-                }}>
-                <b>{this.props.xAxis + ': ' + crosshairValues[0].x}</b>
-                {crosshairValues.sort((a, b) => b.y - a.y).map(point => (
-                  <div key={point.title}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        backgroundColor: point.color,
-                        width: 12,
-                        height: 4,
-                      }}
-                    />
-                    <span style={{marginLeft: 6}}>
-                      {point.title + ': ' + displayValue(point.y)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </Crosshair>
-          )}
-        </FlexibleWidthXYPlot>
+        <div style={{position: 'relative'}}>
+          <LinePlotPlot
+            height={240}
+            sizeKey={this.props.sizeKey}
+            xAxis={this.props.xAxis}
+            yScale={this.props.yScale}
+            lines={this.props.lines}
+            disabled={this.state.disabled}
+          />
+          <div style={{position: 'absolute', top: 0, width: '100%'}}>
+            <LinePlotCrosshair
+              height={240}
+              xAxis={this.props.xAxis}
+              lines={this.props.lines}
+              disabled={this.state.disabled}
+              highlightX={this.state.highlightX}
+              onMouseLeave={() => this.setState({highlightX: null})}
+              onHighlight={xValue => this.setState({highlightX: xValue})}
+            />
+          </div>
+        </div>
       </div>
     );
   }

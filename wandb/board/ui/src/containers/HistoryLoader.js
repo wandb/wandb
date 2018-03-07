@@ -16,29 +16,10 @@ export default function withHistoryLoader(WrappedComponent) {
     }
 
     _setup(props, nextProps) {
-      let selectedRuns = [];
-      if (
-        nextProps.runFilters !== props.runFilters ||
-        nextProps.selectFilters !== props.selectFilters ||
-        nextProps.sort !== props.sort ||
-        nextProps.runs !== props.runs
-      ) {
-        if (_.size(nextProps.selectFilters) !== 0) {
-          selectedRuns = sortRuns(
-            nextProps.sort,
-            filterRuns(
-              nextProps.selectFilters,
-              filterRuns(nextProps.runFilters, nextProps.runs),
-            ),
-          );
-        }
-        this.selectedRuns = _.fromPairs(
-          selectedRuns.map(run => [run.name, run.id]),
-        );
-
+      if (nextProps.data.selectedRuns !== props.data.selectedRuns) {
         //console.log('SelectionQueryThing willReceiveProps', nextProps);
         let selected = _.fromPairs(
-          selectedRuns
+          nextProps.data.selectedRuns
             .slice(0, MAX_HISTORIES_LOADED)
             .map(run => [run.name, run.id]),
         );
@@ -101,8 +82,8 @@ export default function withHistoryLoader(WrappedComponent) {
               .query({
                 query: HISTORY_QUERY,
                 variables: {
-                  entityName: nextProps.match.params.entity,
-                  name: nextProps.match.params.model,
+                  entityName: this.props.query.entity,
+                  name: this.props.query.model,
                   bucketIds: toLoad.map(o => o.name),
                 },
               })
@@ -120,9 +101,10 @@ export default function withHistoryLoader(WrappedComponent) {
         }
         nextProps.client.writeQuery({
           query: FAKE_HISTORY_QUERY,
+          variables: {histQueryKey: nextProps.histQueryKey},
           data: {
             model: {
-              id: 'fake_history_query',
+              id: 'fake_history_query_' + nextProps.histQueryKey,
               __typename: 'ModelType',
               buckets: {
                 __typename: 'BucketConnectionType',
@@ -144,7 +126,7 @@ export default function withHistoryLoader(WrappedComponent) {
 
     componentWillMount() {
       this.historyLoadedRuns = {};
-      this._setup({}, this.props);
+      this._setup({data: {}}, this.props);
     }
 
     componentWillReceiveProps(nextProps) {
@@ -158,62 +140,20 @@ export default function withHistoryLoader(WrappedComponent) {
     }
   };
 
-  function withData() {
-    // This is a function so we can keep track of some state variables, and only change child props
-    // when necessary for performance.
-    let prevBuckets = null;
-    let runHistory = [];
-    return graphql(FAKE_HISTORY_QUERY, {
-      options: ({match: {params, path}}) => {
-        return {
-          fetchPolicy: 'cache-only',
-        };
-      },
-      props: ({data, errors}) => {
-        if (
-          data.model &&
-          data.model.buckets &&
-          prevBuckets !== data.model.buckets
-        ) {
-          runHistory = data.model.buckets.edges.map(edge => ({
-            name: edge.node.name,
-            history: edge.node.history
-              ? edge.node.history
-                  .map((row, i) => {
-                    try {
-                      return JSONparseNaN(row);
-                    } catch (error) {
-                      console.log(
-                        `WARNING: JSON error parsing history (HistoryLoader):${i}:`,
-                        error,
-                      );
-                      return null;
-                    }
-                  })
-                  .filter(row => row !== null)
-              : null,
-          }));
-          prevBuckets = data.model.buckets;
-        }
-        //console.log('runHistory', runHistory);
-        return {runHistory};
-      },
-    });
-  }
+  const withData = graphql(FAKE_HISTORY_QUERY, {
+    skip: ({query}) => !query.strategy || query.strategy === 'page',
+    options: ({histQueryKey}) => {
+      return {
+        fetchPolicy: 'cache-only',
+        variables: {
+          histQueryKey: histQueryKey,
+        },
+      };
+    },
+    props: ({data, errors}) => ({
+      historyBuckets: (data.model && data.model.buckets) || {edges: []},
+    }),
+  });
 
-  function mapStateToProps(state, ownProps) {
-    return {
-      sort: state.runs.sort,
-      runFilters: state.runs.filters.filter,
-      selectFilters: state.runs.filters.select,
-    };
-  }
-
-  function mapDispatchToProps(dispatch) {
-    return bindActionCreators({}, dispatch);
-  }
-
-  return connect(mapStateToProps, mapDispatchToProps)(
-    withApollo(withData()(HistoryLoader)),
-  );
+  return withApollo(withData(HistoryLoader));
 }

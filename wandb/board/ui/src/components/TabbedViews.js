@@ -1,21 +1,14 @@
 import React from 'react';
-import {connect} from 'react-redux';
-import {bindActionCreators} from 'redux';
 import _ from 'lodash';
+import PropTypes from 'prop-types';
 import {Button, Icon, Menu, Tab} from 'semantic-ui-react';
-import View from '../components/View';
-import {
-  addView,
-  setActiveView,
-  changeViewName,
-  removeView,
-  addPanel,
-  removePanel,
-  updatePanel,
-} from '../actions/view';
 
-class Views extends React.Component {
+class TabbedViews extends React.Component {
   state = {editMode: false};
+
+  static propTypes = {
+    renderView: PropTypes.func.isRequired,
+  };
 
   render() {
     let panes = this.props.tabs.map(viewId => ({
@@ -25,32 +18,7 @@ class Views extends React.Component {
       },
       render: () => (
         <Tab.Pane>
-          <View
-            editMode={this.state.editMode}
-            data={this.props.data}
-            name={this.props.views[viewId].name}
-            config={this.props.views[viewId].config}
-            changeViewName={viewName =>
-              this.props.changeViewName(this.props.viewType, viewId, viewName)
-            }
-            removeView={() =>
-              this.props.removeView(this.props.viewType, viewId)
-            }
-            updatePanel={(panelIndex, panelConfig) =>
-              this.props.updatePanel(
-                this.props.viewType,
-                viewId,
-                panelIndex,
-                panelConfig,
-              )
-            }
-            addPanel={panel =>
-              this.props.addPanel(this.props.viewType, viewId, panel)
-            }
-            removePanel={panelIndex =>
-              this.props.removePanel(this.props.viewType, viewId, panelIndex)
-            }
-          />
+          {this.props.renderView(viewId, this.state.editMode)}
         </Tab.Pane>
       ),
     }));
@@ -111,32 +79,4 @@ class Views extends React.Component {
   }
 }
 
-function mapStateToProps(state, ownProps) {
-  return {
-    viewState: state.views.browser,
-    views: state.views.browser[ownProps.viewType].views,
-    tabs: state.views.browser[ownProps.viewType].tabs,
-    activeView: state.views.other[ownProps.viewType].activeView,
-    isModified: !_.isEqual(
-      state.views.server[ownProps.viewType],
-      state.views.browser[ownProps.viewType],
-    ),
-  };
-}
-
-const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators(
-    {
-      addView,
-      setActiveView,
-      changeViewName,
-      removeView,
-      addPanel,
-      removePanel,
-      updatePanel,
-    },
-    dispatch,
-  );
-};
-
-export default connect(mapStateToProps, mapDispatchToProps)(Views);
+export default TabbedViews;

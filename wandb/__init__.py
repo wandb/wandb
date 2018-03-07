@@ -4,7 +4,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.5.5'
+__version__ = '0.5.7'
 
 import atexit
 import click
@@ -299,6 +299,7 @@ def init(job_type='train', config=None):
         termlog(
             'wandb dry run mode. Run `wandb board` from this directory to see results')
         termlog()
+        run.config.set_run_dir(run.dir)
         _init_headless(api, run, job_type, False)
     else:
         termlog(

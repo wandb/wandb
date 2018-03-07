@@ -44,6 +44,7 @@
         "react-copy-to-clipboard": "^4.2.3",
         "react-dom": "^16.1.1",
         "react-easy-chart": "^1.0.0",
+        "react-grid-layout": "^0.16.5",
         "react-redux": "^5.0.3",
         "react-router": "^4.2.0",
         "react-router-dom": "^4.2.0",
