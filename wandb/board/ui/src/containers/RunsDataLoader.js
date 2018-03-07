@@ -61,7 +61,7 @@ function withDerivedRunsData(WrappedComponent) {
       this.keySuggestions = [];
       // TODO: This isn't good, because we pass so much through here.
       // Better to blacklist instead of whitelist.
-      self._shouldUpdate = makeShouldUpdate({
+      this._shouldUpdate = makeShouldUpdate({
         props: {
           buckets: {deep: false},
           views: {deep: false},
@@ -137,7 +137,7 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     shouldComponentUpdate(nextProps, nextState) {
-      return self._shouldUpdate(
+      return this._shouldUpdate(
         this.props,
         this.state,
         nextProps,
