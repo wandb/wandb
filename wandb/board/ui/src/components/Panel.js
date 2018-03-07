@@ -59,8 +59,8 @@ class Panel extends React.Component {
 
     if (!panel && this.props.editMode) {
       panel = (
-        <Card fluid>
-          <Card.Content>
+        <div>
+          {!this.props.noButtons && (
             <Button.Group basic floated="right">
               {/*
                 <Button
@@ -88,32 +88,39 @@ class Panel extends React.Component {
                 onClick={() => this.props.removePanel()}
               />
             </Button.Group>
-            {configMode && (
-              <Dropdown
-                placeholder="Panel Type"
-                selection
-                options={options}
-                value={type}
-                onChange={(e, {value}) => {
-                  console.log('onchange', value);
-                  this.props.updateType(value);
-                }}
-                style={{marginBottom: 12}}
-              />
-            )}
-            {configMode && (
-              <QueryEditor
-                pageQuery={this.props.pageQuery}
-                panelQuery={this.props.panelQuery}
-                setQuery={this.props.updateQuery}
-                runs={this.props.data.base}
-                keySuggestions={this.props.data.keys}
-              />
-            )}
-            {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
-          </Card.Content>
-        </Card>
+          )}
+          {configMode && (
+            <Dropdown
+              placeholder="Panel Type"
+              selection
+              options={options}
+              value={type}
+              onChange={(e, {value}) => {
+                console.log('onchange', value);
+                this.props.updateType(value);
+              }}
+              style={{marginBottom: 12, zIndex: 21}}
+            />
+          )}
+          {configMode && (
+            <QueryEditor
+              pageQuery={this.props.pageQuery}
+              panelQuery={this.props.panelQuery}
+              setQuery={this.props.updateQuery}
+              runs={this.props.data.base}
+              keySuggestions={this.props.data.keys}
+            />
+          )}
+          {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
+        </div>
       );
+      if (!this.props.noCard) {
+        panel = (
+          <Card fluid>
+            <Card.Content>{panel}</Card.Content>
+          </Card>
+        );
+      }
     } else if (!panel) {
       panel = this.renderPanelType(
         PanelType,

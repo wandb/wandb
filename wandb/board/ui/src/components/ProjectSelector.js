@@ -7,12 +7,10 @@ class ProjectsSelector extends Component {
   static defaultProps = {models: {edges: []}};
 
   render() {
-    console.log('proj selector query');
     let options = this.props.models.edges.map(edge => ({
       text: edge.node.name,
       value: edge.node.name,
     }));
-    console.log('project selector options', options, this.props.defaultModel);
     return (
       <Dropdown
         style={{zIndex: 20}}

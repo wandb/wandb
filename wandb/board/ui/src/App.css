@@ -74,17 +74,27 @@ img.logo.inverted {
   margin: 8px 0;
 }
 body .ui.table tr.active {
-  background-color:#e5f9e7 !important;
+  background-color: #e5f9e7 !important;
 }
 body .ui.form .field {
   margin: 0 0 2em;
 }
 body .ui.active.button {
-  background-color:#e5f9e7 !important;
+  background-color: #e5f9e7 !important;
 }
 
 body .input-style {
-  border: 1px solid rgba(34,36,38,.15);
+  border: 1px solid rgba(34, 36, 38, 0.15);
   padding: 0 8px 8px 8px;
-  border-radius: .29rem;
+  border-radius: 0.29rem;
+}
+
+.blurring.dimmed.dimmable > :not(.dimmer) {
+  -webkit-filter: blur(0.7px) grayscale(0.1) !important;
+  transition: filter 4s linear;
+  filter: blur(3px) grayscale(0.1) !important;
+}
+
+body.blurring.dimmable > .dimmer {
+  background-color: rgba(0, 0, 0, 0.1);
 }

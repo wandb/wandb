@@ -20,6 +20,7 @@ function validConfigLayout(layout) {
 
 const Grid = WidthProvider(ReactGridLayout);
 class DashboardView extends Component {
+  state = {editing: null};
   static defaultProps = {
     editMode: true,
   };
@@ -45,6 +46,8 @@ class DashboardView extends Component {
       <Panel
         histQueryKey={i}
         editMode={edit}
+        noCard={edit}
+        noButtons={true}
         type={panelConfig.viewType}
         size={panelConfig.size}
         sizeKey={JSON.stringify(panelConfig.layout)}
@@ -126,19 +129,35 @@ class DashboardView extends Component {
           {panelConfigs.map((panelConfig, i) => (
             <div key={i} className="panel" data-grid={{...panelConfig.layout}}>
               <Modal
-                dimmer={false}
-                trigger={<Icon link name="edit" />}
-                header="Edit panel"
-                content={
-                  <div style={{padding: 10}}>
-                    {this.renderPanel(panelConfig, i, true)}
-                  </div>
-                }
-                actions={[
-                  'Cancel',
-                  {key: 'save', content: 'Save', positive: true},
-                ]}
-              />
+                open={this.state.editing === i}
+                dimmer="blurring"
+                trigger={
+                  <Icon
+                    link
+                    name="edit"
+                    onClick={() => this.setState({editing: i})}
+                  />
+                }>
+                <Modal.Header>Edit Panel</Modal.Header>
+                <Modal.Content style={{padding: 16}}>
+                  {this.renderPanel(panelConfig, i, true)}
+                </Modal.Content>
+                <Modal.Actions>
+                  <Button
+                    floated="left"
+                    negative
+                    icon="trash"
+                    onClick={() => {
+                      this.props.removePanel(i);
+                      this.setState({editing: null});
+                    }}
+                  />
+                  <Button onClick={() => this.setState({editing: null})}>
+                    OK
+                  </Button>
+                </Modal.Actions>
+              </Modal>
+
               {this.renderPanel(panelConfig, i, false)}
             </div>
           ))}
