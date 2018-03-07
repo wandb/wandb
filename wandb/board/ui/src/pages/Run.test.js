@@ -48,31 +48,29 @@ describe('Run page components test', () => {
     };
 
   beforeEach(() => {
-    container = mount(
-      <MockAppWrapper store={store}>
-        <Run
-          match={match}
-          model={model}
-          bucket={model.bucket}
-          loss={loss}
-          user={user}
-          loading={loading}
-        />
-      </MockAppWrapper>,
+    container = shallow(
+      <Run
+        match={match}
+        model={model}
+        bucket={model.bucket}
+        loss={loss}
+        user={user}
+        loading={loading}
+        updateLocationParams={() => {}}
+      />,
     );
   });
 
   it('finds <Loader /> component', () => {
     expect(container.find(Loader)).to.have.length(1);
-    loading = false;
   });
 
   it('finds <RunViewer /> component', () => {
+    window.Prism = {
+      highlightAll: () => {},
+    };
+    expect(container.find(RunViewer)).to.have.length(0);
+    container.setState({model: model, bucket: model.bucket});
     expect(container.find(RunViewer)).to.have.length(1);
-    match.path = '/:entity/:model/runs/:run/edit';
-  });
-
-  it('finds <RunEditor /> component', () => {
-    expect(container.find(RunEditor)).to.have.length(1);
   });
 });

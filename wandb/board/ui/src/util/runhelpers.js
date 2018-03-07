@@ -298,6 +298,13 @@ export function defaultViews(run) {
   return base;
 }
 
+// Generate bucket id
+export function generateBucketId(params) {
+  return btoa(
+    ['BucketType', 'v1', params.run, params.model, params.entity].join(':'),
+  );
+}
+
 export function parseBuckets(buckets) {
   if (!buckets) {
     return [];

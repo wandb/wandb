@@ -62,18 +62,16 @@ class TabbedViews extends React.Component {
           icon={this.state.editMode ? 'unhide' : 'configure'}
           onClick={() => this.setState({editMode: !this.state.editMode})}
         />
-        {(!this.props.blank || this.state.editMode) && (
-          <Tab
-            panes={panes}
-            activeIndex={activeIndex}
-            onTabChange={(event, {activeIndex}) => {
-              this.props.setActiveView(
-                this.props.viewType,
-                this.props.tabs[activeIndex] || activeIndex,
-              );
-            }}
-          />
-        )}
+        <Tab
+          panes={panes}
+          activeIndex={activeIndex}
+          onTabChange={(event, {activeIndex}) => {
+            this.props.setActiveView(
+              this.props.viewType,
+              this.props.tabs[activeIndex] || activeIndex,
+            );
+          }}
+        />
       </div>
     );
   }

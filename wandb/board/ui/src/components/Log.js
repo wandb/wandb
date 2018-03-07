@@ -39,30 +39,47 @@ class Log extends React.Component {
   };
 
   componentDidMount() {
-    this.props.stream(
-      this.props.client,
-      this.props.match.params,
-      this.props.bucket,
-      this.updateCallback,
-    );
     this.scrollToBottom();
   }
 
   componentWillReceiveProps(nextProps) {
-    if (nextProps.logLines && this.props.logLines !== nextProps.logLines) {
-      //TODO: WTF
-      if (this.props.updateLoss) {
-        this.props.updateLoss(
-          this.props.run,
-          this.parseLoss(nextProps.logLines.edges),
+    if (nextProps.logLines) {
+      // Bind stream only when `logLines` is not empty, and only once,
+      // otherwise `readFragment` will break.
+      // As an alternative, we can go with unbinding all events from `StreamingLog`
+      if (!this.bound) {
+        this.props.stream(
+          this.props.client,
+          this.props.match.params,
+          this.props.bucket,
+          this.updateCallback,
         );
+        this.bound = true;
       }
+
+      if (this.props.logLines !== nextProps.logLines) {
+        //TODO: WTF
+        if (this.props.updateLoss) {
+          this.props.updateLoss(
+            this.props.run,
+            this.parseLoss(nextProps.logLines.edges),
+          );
+        }
+      }
+    }
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (
+      this.props.logLines &&
+      !_.isEqual(this.props.logLines, prevProps.logLines)
+    ) {
       this.scrollToBottom();
     }
   }
 
   scrollToBottom = () => {
-    if (this.state.autoScroll) {
+    if (this.props.logLines && this.state.autoScroll) {
       setTimeout(() => {
         if (this.list) this.list.scrollToRow(this.props.logLines.edges.length);
       }, 500);
@@ -101,9 +118,14 @@ class Log extends React.Component {
   };
 
   render() {
-    let rowCount = this.props.logLines.edges.length;
+    let rowCount = this.props.logLines ? this.props.logLines.edges.length : 0;
     return (
-      <Segment inverted className="logs" attached style={{height: 400}}>
+      <Segment
+        inverted
+        loading={!this.props.logLines}
+        className="logs"
+        attached
+        style={{height: 400}}>
         <AutoSizer>
           {({width, height}) => (
             <List ordered inverted size="small">
