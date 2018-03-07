@@ -5,26 +5,29 @@ import {displayValue} from '../util/runhelpers';
 class DataList extends React.Component {
   constructor(props) {
     super(props);
+    this.noData = this.noDataDefault;
+    this.formatValue = this.formatValueDefault;
+  }
+
+  _setup(props) {
     if (props.noData) {
       this.noData = props.noData;
-    } else {
-      this.noData = this.noDataDefault;
-    }
-    if (props.prepData) {
-      this.prepData = props.prepData;
-    } else {
-      this.prepData = this.prepDataDefault;
     }
     if (props.formatValue) {
       this.formatValue = props.formatValue;
-    } else {
-      this.formatValue = this.formatValueDefault;
     }
 
     if (props.data && Object.keys(props.data).length > 0) {
-      this.preppedData = this.prepData(props.data);
-      this.flatData = this.flatten(this.preppedData);
+      this.flatData = this._flatten(props.data);
     }
+  }
+
+  componentWillMount() {
+    this._setup(this.props);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    this._setup(nextProps);
   }
 
   isDict(v) {
@@ -36,7 +39,7 @@ class DataList extends React.Component {
     );
   }
 
-  flattenInternal(prefix, data) {
+  _flattenInternal(prefix, data) {
     var prefixStr = prefix.join('.');
     var retData = {};
     var newPrefix;
@@ -46,7 +49,7 @@ class DataList extends React.Component {
           ? ((newPrefix = prefix.concat([key])),
             (retData = Object.assign(
               retData,
-              this.flattenInternal(newPrefix, data[key]),
+              this._flattenInternal(newPrefix, data[key]),
             )))
           : (retData[prefix.concat([key]).join('.')] = data[key]),
     );
@@ -54,8 +57,8 @@ class DataList extends React.Component {
     return retData;
   }
 
-  flatten(data) {
-    var flatData = this.flattenInternal([], data);
+  _flatten(data) {
+    var flatData = this._flattenInternal([], data);
     return flatData;
   }
 
