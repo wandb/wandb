@@ -25,6 +25,7 @@ import {addFilter} from '../actions/run';
 import {updateLocationParams} from '../actions/location';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
+import _ from 'lodash';
 
 class Dashboard extends React.Component {
   ensureModel() {
