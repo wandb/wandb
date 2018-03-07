@@ -7,7 +7,6 @@ import 'react-table/react-table.css';
 import Breadcrumbs from '../components/Breadcrumbs';
 import StreamingLog from '../containers/StreamingLog';
 import Files from '../components/Files';
-import Views from '../components/Views';
 import ConfigList from '../components/ConfigList';
 import SummaryList from '../components/SummaryList';
 import SystemList from '../components/SystemList';
