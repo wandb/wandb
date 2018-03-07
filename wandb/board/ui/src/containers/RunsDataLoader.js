@@ -59,21 +59,11 @@ function withDerivedRunsData(WrappedComponent) {
       super(props);
       this.runs = [];
       this.keySuggestions = [];
-      // TODO: This isn't good, because we pass so much through here.
-      // Better to blacklist instead of whitelist.
       this._shouldUpdate = makeShouldUpdate({
-        props: {
-          buckets: {deep: false},
-          views: {deep: false},
-          query: {deep: true},
-          pageQuery: {deep: true},
-          config: {deep: true},
-          data: {deep: false},
-          sizeKey: {deep: false},
-          editMode: {deep: false},
-          loading: {deep: false},
-        },
-        name: 'RunsDataLoader',
+        name: 'RunsDataDerived',
+        deep: ['query', 'pageQuery', 'config'],
+        ignoreFunctions: true,
+        debug: true,
       });
     }
 
@@ -137,13 +127,7 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     shouldComponentUpdate(nextProps, nextState) {
-      return this._shouldUpdate(
-        this.props,
-        this.state,
-        nextProps,
-        nextState,
-        this.props.histQueryKey,
-      );
+      return this._shouldUpdate(this.props, nextProps, this.props.histQueryKey);
     }
 
     componentWillReceiveProps(nextProps) {
