@@ -1708,7 +1708,7 @@ class-utils@^0.3.5:
     isobject "^3.0.0"
     static-extend "^0.1.1"
 
-classnames@^2.2.3, classnames@^2.2.5:
+classnames@2.x, classnames@^2.2.3, classnames@^2.2.5:
   version "2.2.5"
   resolved "https://registry.yarnpkg.com/classnames/-/classnames-2.2.5.tgz#fb3801d453467649ef3603c7d61a02bd129bde6d"
 
@@ -6008,6 +6008,10 @@ lodash.isarray@^3.0.0:
   version "3.0.4"
   resolved "https://registry.yarnpkg.com/lodash.isarray/-/lodash.isarray-3.0.4.tgz#79e4eb88c36a8122af86f844aa9bcd851b5fbb55"
 
+lodash.isequal@^4.0.0:
+  version "4.5.0"
+  resolved "https://registry.yarnpkg.com/lodash.isequal/-/lodash.isequal-4.5.0.tgz#415c4478f2bcc30120c22ce10ed3226f7d3e18e0"
+
 lodash.isobject@~2.4.1:
   version "2.4.1"
   resolved "https://registry.yarnpkg.com/lodash.isobject/-/lodash.isobject-2.4.1.tgz#5a2e47fe69953f1ee631a7eba1fe64d2d06558f5"
@@ -7519,6 +7523,14 @@ prompt-sui@^3.2.1:
     event-stream "~3.0.20"
     inquirer "3.2.x"
 
+prop-types@15.x:
+  version "15.6.1"
+  resolved "https://registry.yarnpkg.com/prop-types/-/prop-types-15.6.1.tgz#36644453564255ddda391191fb3a125cbdf654ca"
+  dependencies:
+    fbjs "^0.8.16"
+    loose-envify "^1.3.1"
+    object-assign "^4.1.1"
+
 prop-types@^15.5.10, prop-types@^15.5.4, prop-types@^15.5.8, prop-types@^15.6.0:
   version "15.6.0"
   resolved "https://registry.yarnpkg.com/prop-types/-/prop-types-15.6.0.tgz#ceaf083022fc46b4a35f69e13ef75aed0d639856"
@@ -7766,6 +7778,13 @@ react-dom@^16.1.1:
     object-assign "^4.1.1"
     prop-types "^15.6.0"
 
+react-draggable@3.x, "react-draggable@^2.2.6 || ^3.0.3":
+  version "3.0.5"
+  resolved "https://registry.yarnpkg.com/react-draggable/-/react-draggable-3.0.5.tgz#c031e0ed4313531f9409d6cd84c8ebcec0ddfe2d"
+  dependencies:
+    classnames "^2.2.5"
+    prop-types "^15.6.0"
+
 react-easy-chart@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/react-easy-chart/-/react-easy-chart-1.0.0.tgz#1f30f219ee889dd612ad439892503f880e13a0b8"
@@ -7791,6 +7810,16 @@ react-faux-dom@^4.1.0:
     create-react-class "^15.5.3"
     query-selector "^1.0.9"
     style-attr "^1.0.1"
+
+react-grid-layout@^0.16.5:
+  version "0.16.5"
+  resolved "https://registry.yarnpkg.com/react-grid-layout/-/react-grid-layout-0.16.5.tgz#1ff12d12afa875c11fe05802f7509e52bfe9a2cb"
+  dependencies:
+    classnames "2.x"
+    lodash.isequal "^4.0.0"
+    prop-types "15.x"
+    react-draggable "3.x"
+    react-resizable "1.x"
 
 react-motion@^0.4.8:
   version "0.4.8"
@@ -7820,6 +7849,13 @@ react-redux@^5.0.3:
     lodash-es "^4.2.0"
     loose-envify "^1.1.0"
     prop-types "^15.5.10"
+
+react-resizable@1.x:
+  version "1.7.5"
+  resolved "https://registry.yarnpkg.com/react-resizable/-/react-resizable-1.7.5.tgz#83eb75bb3684da6989bbbf4f826e1470f0af902e"
+  dependencies:
+    prop-types "15.x"
+    react-draggable "^2.2.6 || ^3.0.3"
 
 react-router-dom@^4.2.0:
   version "4.2.2"

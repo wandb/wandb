@@ -7,7 +7,7 @@ import 'react-table/react-table.css';
 import Breadcrumbs from '../components/Breadcrumbs';
 import StreamingLog from '../containers/StreamingLog';
 import Files from '../components/Files';
-import Views from '../components/Views';
+import ViewModifier from '../containers/ViewModifier';
 import './Run.css';
 import {JSONparseNaN} from '../util/jsonnan';
 import {displayValue} from '../util/runhelpers';
@@ -129,7 +129,7 @@ export default class RunViewer extends React.Component {
         </Grid.Row>
         <Grid.Row columns={1}>
           <Grid.Column>
-            <Views
+            <ViewModifier
               viewType="run"
               data={{
                 historyKeys: histKeys,

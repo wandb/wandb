@@ -4,7 +4,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.5.4'
+__version__ = '0.5.7'
 
 import atexit
 import click
@@ -79,6 +79,7 @@ from wandb import api as wandb_api
 from wandb import config as wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
+from wandb import util
 from wandb.media import Image
 # Three possible modes:
 #     'cli': running from "wandb" command
@@ -264,7 +265,7 @@ def init(job_type='train', config=None):
 
     if not wandb_dir():
         __stage_dir__ = "wandb"
-        os.mkdir(__stage_dir__)
+        util.mkdir_exists_ok(__stage_dir__)
 
     try:
         signal.signal(signal.SIGQUIT, _debugger)
@@ -298,6 +299,7 @@ def init(job_type='train', config=None):
         termlog(
             'wandb dry run mode. Run `wandb board` from this directory to see results')
         termlog()
+        run.config.set_run_dir(run.dir)
         _init_headless(api, run, job_type, False)
     else:
         termlog(

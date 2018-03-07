@@ -11,7 +11,7 @@ class ImagesPanel extends React.Component {
   static validForData(data) {
     return (
       !_.isNil(data.history) &&
-      Object.values(data.history[0]).find(v => v._type === 'images')
+      _.values(data.history[0]).find(v => v._type === 'images')
     );
   }
 

@@ -2,8 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import {Button, Form, Grid} from 'semantic-ui-react';
 import Panel from '../components/Panel';
+import * as Query from '../util/query';
 
-class View extends React.Component {
+class TabbedView extends React.Component {
   _makeUpdatePanelMethods(config) {
     // We do this so that child props don't change
     if (config) {
@@ -25,10 +26,12 @@ class View extends React.Component {
       this._makeUpdatePanelMethods(nextProps.config);
     }
     if (nextProps.editMode) {
-      const tab = ReactDOM.findDOMNode(this).querySelector('.tab-name input');
-      if (tab) {
-        tab.focus();
-      }
+      // This tries to focus on the new tabs input field, but it breaks changing panel type
+      // TODO: let's solve this somehow.
+      // const tab = ReactDOM.findDOMNode(this).querySelector('.tab-name input');
+      // if (tab) {
+      //   tab.focus();
+      // }
     }
   }
 
@@ -59,25 +62,38 @@ class View extends React.Component {
             </Form>
           </Grid.Column>
         )}
-        {this.props.config.map((panelConfig, i) => (
-          <Panel
-            key={i}
-            editMode={this.props.editMode}
-            type={panelConfig.viewType}
-            size={panelConfig.size}
-            config={panelConfig.config}
-            data={this.props.data}
-            updateType={newType =>
-              this.props.updatePanel(i, {...panelConfig, viewType: newType})
-            }
-            updateSize={newSize =>
-              this.props.updatePanel(i, {...panelConfig, size: newSize})
-            }
-            panelIndex={i}
-            updateConfig={this.updateConfig[i]}
-            removePanel={() => this.props.removePanel(i)}
-          />
-        ))}
+        {this.props.config.map((panelConfig, i) => {
+          let query = Query.merge(
+            this.props.pageQuery,
+            panelConfig.query || {},
+          );
+          return (
+            <Panel
+              key={i}
+              histQueryKey={i}
+              editMode={this.props.editMode}
+              type={panelConfig.viewType}
+              size={panelConfig.size}
+              pageQuery={this.props.pageQuery}
+              panelQuery={panelConfig.query}
+              query={query}
+              config={panelConfig.config}
+              data={this.props.data}
+              updateType={newType =>
+                this.props.updatePanel(i, {...panelConfig, viewType: newType})
+              }
+              updateSize={newSize =>
+                this.props.updatePanel(i, {...panelConfig, size: newSize})
+              }
+              updateQuery={newQuery =>
+                this.props.updatePanel(i, {...panelConfig, query: newQuery})
+              }
+              panelIndex={i}
+              updateConfig={this.updateConfig[i]}
+              removePanel={() => this.props.removePanel(i)}
+            />
+          );
+        })}
         {this.props.editMode && (
           <Grid.Column width={8}>
             <Button
@@ -92,4 +108,4 @@ class View extends React.Component {
   }
 }
 
-export default View;
+export default TabbedView;

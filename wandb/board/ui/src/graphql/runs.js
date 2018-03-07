@@ -78,7 +78,7 @@ export const RUNS_QUERY = gql`
     $entityName: String
     $jobKey: String
     $order: String
-    $limit: Int = 10000
+    $limit: Int = 1000
     $bucketIds: [String]
     $history: Boolean = false
   ) {
@@ -207,8 +207,8 @@ export const HISTORY_QUERY = gql`
 `;
 
 export const FAKE_HISTORY_QUERY = gql`
-  query FakeRunHistory {
-    model {
+  query FakeRunHistory($histQueryKey: String!) {
+    model(key: $histQueryKey) {
       id
       buckets {
         edges {

@@ -14,7 +14,7 @@ import {
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
-import {setServerViews} from '../actions/view';
+import {setServerViews, setBrowserViews} from '../actions/view';
 import {updateLocationParams} from '../actions/location';
 import _ from 'lodash';
 import {defaultViews, generateBucketId} from '../util/runhelpers';
@@ -62,13 +62,17 @@ class Run extends React.Component {
       _.isEmpty(this.props.reduxBrowserViews.runs.views) &&
       !this.props.reduxBrowserViews.run.configured
     ) {
-      // no views on server, provide a default
-      this.props.setServerViews(defaultViews(nextProps.bucket), true);
+      this.props.setBrowserViews(defaultViews(nextProps.bucket));
     } else if (
       nextProps.views &&
       nextProps.views.runs &&
       !_.isEqual(nextProps.views, this.props.reduxServerViews)
     ) {
+      if (
+        _.isEqual(this.props.reduxServerViews, this.props.reduxBrowserViews)
+      ) {
+        this.props.setBrowserViews(nextProps.views);
+      }
       this.props.setServerViews(nextProps.views);
     }
   }
@@ -204,7 +208,10 @@ function mapStateToProps(state, ownProps) {
 }
 
 function mapDispatchToProps(dispatch) {
-  return bindActionCreators({updateLocationParams, setServerViews}, dispatch);
+  return bindActionCreators(
+    {updateLocationParams, setServerViews, setBrowserViews},
+    dispatch,
+  );
 }
 
 // export dumb component for testing purposes

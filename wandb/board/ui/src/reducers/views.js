@@ -2,7 +2,9 @@ import update from 'immutability-helper';
 import _ from 'lodash';
 import {
   SET_SERVER_VIEWS,
+  SET_BROWSER_VIEWS,
   ADD_VIEW,
+  UPDATE_VIEW,
   SET_ACTIVE_VIEW,
   CHANGE_VIEW_NAME,
   REMOVE_VIEW,
@@ -25,25 +27,30 @@ function viewTypeDefaults() {
 }
 
 function copyDefaults() {
-  return {run: viewTypeDefaults(), runs: viewTypeDefaults()};
+  return {
+    run: viewTypeDefaults(),
+    runs: viewTypeDefaults(),
+    dashboards: viewTypeDefaults(),
+  };
 }
 
 export default function views(
   state = {
     server: copyDefaults(),
     browser: copyDefaults(),
-    other: {run: {activeView: null}, runs: {activeView: null}},
+    other: {
+      run: {activeView: null},
+      runs: {activeView: null},
+      dashboards: {activeView: null},
+    },
   },
   action,
 ) {
   switch (action.type) {
     case SET_SERVER_VIEWS:
-      let updates = {};
-      if (!action.browserOnly) {
-        updates.server = {$set: action.views};
-      }
-      updates.browser = {$set: action.views};
-      return update(state, updates);
+      return update(state, {server: {$set: action.views}});
+    case SET_BROWSER_VIEWS:
+      return update(state, {browser: {$set: action.views}});
     case ADD_VIEW:
       let viewId = getAvailableViewId(state.browser[action.viewType].views);
       return update(state, {
@@ -64,6 +71,18 @@ export default function views(
         other: {
           [action.viewType]: {
             activeView: {$set: viewId},
+          },
+        },
+      });
+    case UPDATE_VIEW:
+      return update(state, {
+        browser: {
+          [action.viewType]: {
+            views: {
+              [action.viewId]: {
+                config: {$set: action.panels},
+              },
+            },
           },
         },
       });

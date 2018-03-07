@@ -94,7 +94,7 @@ class History(object):
 
         To reduce the number of conditionals needed, code can check run.history.compute:
 
-        run.history.step(batch_idx % log_interval == 0):
+        with run.history.step(batch_idx % log_interval == 0):
             run.history.add({"nice": "ok"})
             if run.history.compute:
                 # Something expensive here

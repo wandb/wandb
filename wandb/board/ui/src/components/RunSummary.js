@@ -1,12 +1,5 @@
 import React, {Component} from 'react';
-import {
-  Button,
-  Grid,
-  Header,
-  Modal,
-  Message,
-  Segment,
-} from 'semantic-ui-react';
+import {Button, Grid, Header, Modal, Message, Segment} from 'semantic-ui-react';
 import {NavLink} from 'react-router-dom';
 import Markdown from './Markdown';
 import TimeAgo from 'react-timeago';
@@ -102,18 +95,14 @@ class RunSummary extends Component {
                   to={`/${model.entityName}/${model.name}/runs/${bucket.name}`}>
                   {bucket.name}
                 </NavLink>
+                {bucket.commit && ' commit '}
                 {bucket.commit && (
                   <Modal
                     on="click"
                     trigger={
-                      <span className="commit">
-                        &nbsp;&nbsp;&nbsp;&nbsp; commit{' '}
-                        <a
-                          onClick={e => e.preventDefault()}
-                          href={bucket.github}>
-                          {bucket.commit}
-                        </a>
-                      </span>
+                      <a onClick={e => e.preventDefault()} href={bucket.github}>
+                        {bucket.commit.slice(0, 6)}
+                      </a>
                     }>
                     <Modal.Header>
                       <h1>Git commit</h1>

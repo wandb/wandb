@@ -72,13 +72,6 @@ export const deleteFilter = (kind, id) => {
   };
 };
 
-export const editFilter = (id, key) => {
-  return {
-    type: EDIT_FILTER,
-    id,
-  };
-};
-
 export const setFilterComponent = (kind, id, component, value) => {
   return {
     type: SET_FILTER_COMPONENT,

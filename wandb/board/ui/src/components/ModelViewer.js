@@ -21,9 +21,9 @@ class ModelViewer extends React.Component {
         <ModelHeader {...this.props} />
         <Markdown content={model.description} />
         {!condensed &&
-        model.bucketCount === 0 && (
-          <Markdown
-            content={`
+          model.bucketCount === 0 && (
+            <Markdown
+              content={`
 ### Sync runs to this project with the wandb module:
 ~~~bash
 $ pip install wandb
@@ -39,25 +39,31 @@ $ wandb run train.py
 
 Visit our [documentation](http://docs.wandb.com/) for more information.
         `}
-          />
-        )}
+            />
+          )}
         {/*!condensed && (
           <div style={{marginTop: 30, width: '100%'}}>
             <Jobs model={model} match={match} onSelect={this.onJobSelect} />
           </div>
         )*/}
         {!condensed &&
-        model.bucket.name !== 'tmp' && (
-          <div style={{marginTop: 30, width: '100%'}}>
-            <Runs
-              model={model}
-              match={match}
-              embedded={true}
-              jobFilter={this.state.jobId}
-              limit={10}
-            />
-          </div>
-        )}
+          model.bucket.name !== 'tmp' && (
+            <div style={{marginTop: 30, width: '100%'}}>
+              <Runs
+                model={model}
+                match={match}
+                embedded={true}
+                jobFilter={this.state.jobId}
+                limit={10}
+                histQueryKey="runsPage"
+                query={{
+                  entity: match.params.entity,
+                  model: match.params.model,
+                  strategy: 'merge',
+                }}
+              />
+            </div>
+          )}
       </div>
     );
   }
