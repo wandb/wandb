@@ -44,13 +44,6 @@ class Panel extends React.Component {
     let panel, PanelType, configMode, options, sizeKey;
     if (!data) {
       panel = Panel.loading;
-    } else if (data.hasOwnProperty('history') && data.history.length == 0) {
-      return (
-        <p>
-          No history data collected. You can learn about how to collect history
-          in our <a href="http://docs.wandb.com/#history">documentation</a>.
-        </p>
-      );
     } else {
       options = _.keys(panelClasses)
         .filter(type => panelClasses[type].validForData(data))
