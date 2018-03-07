@@ -283,55 +283,6 @@ class Runs extends React.Component {
   }
 }
 
-function withData() {
-  // This is a function so we can keep track of some state variables, and only change child props
-  // when necessary for performance.
-  let prevRuns = null;
-  let runs = [];
-  let columnNames = [];
-  let keySuggestions = [];
-  return graphql(RUNS_QUERY, {
-    options: ({match: {params, path}, jobId, user, embedded}) => {
-      const defaults = {
-        variables: {
-          jobKey: jobId,
-          entityName: params.entity,
-          name: params.model,
-          order: 'timeline',
-        },
-      };
-      if (BOARD) defaults.pollInterval = 5000;
-      return defaults;
-    },
-    props: ({data: {loading, model, viewer, refetch}, errors}) => {
-      //TODO: renaming extravaganza
-      if (model && prevRuns !== model.buckets) {
-        runs = parseBuckets(model.buckets);
-        columnNames = getColumns(runs);
-        keySuggestions = setupKeySuggestions(runs);
-        prevRuns = model.buckets;
-      }
-      let views = null;
-      if (model && model.views) {
-        views = JSON.parse(model.views);
-      }
-      //TODO: For some reason the first poll causes loading to be true
-      if (model && model.buckets && loading) loading = false;
-      return {
-        loading,
-        refetch,
-        projectID: model && model.id,
-        buckets: model && model.buckets,
-        views,
-        runs,
-        columnNames,
-        keySuggestions,
-        viewer,
-      };
-    },
-  });
-}
-
 const withMutations = compose(
   graphql(MODEL_UPSERT, {
     props: ({mutate}) => ({
