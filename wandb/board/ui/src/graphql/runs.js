@@ -74,7 +74,7 @@ export const RUNS_QUERY = gql`
     $entityName: String
     $jobKey: String
     $order: String
-    $limit: Int = 100
+    $limit: Int = 1000
     $bucketIds: [String]
     $history: Boolean = false
   ) {
