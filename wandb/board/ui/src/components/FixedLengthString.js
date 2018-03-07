@@ -1,7 +1,6 @@
 import React from 'react';
-import ReactTooltip from 'react-tooltip';
 import {truncateString} from '../util/runhelpers';
-
+import {Popup} from 'semantic-ui-react';
 class FixedLengthString extends React.Component {
   constructor(props) {
     super(props);
@@ -32,10 +31,17 @@ class FixedLengthString extends React.Component {
 
   render() {
     return this.text && this.text.length > this.length ? (
-      <span data-tip={this.text}>
-        {truncateString(this.text, this.length, this.rightLength)}
-        <ReactTooltip />
-      </span>
+      <Popup
+        on="hover"
+        inverted
+        size="tiny"
+        trigger={
+          <span data-tip={this.text}>
+            {truncateString(this.text, this.length, this.rightLength)}
+          </span>
+        }
+        content={this.text}
+      />
     ) : (
       <span>{this.text}</span>
     );
