@@ -51,24 +51,25 @@ class Models extends Component {
           ))}
           {!this.props.loading &&
             this.models().length === 0 && (
-              <Markdown
-                content={`
-### Install the client and start tracking runs
-~~~bash
-$ pip install wandb
-$ cd training_dir
-$ wandb init
-$ vi train.py
-$ > import wandb
-$ > wandb.init()
-$ wandb run --show train.py
-~~~
-
-<br/>
-
-Visit our [documentation](http://docs.wandb.com/) for more information.
-        `}
-              />
+              <div>
+                <br />
+                <h4>No runs for this project yet.</h4>
+                <p>New to wandb?</p>
+                <ol>
+                  <li>
+                    Visit the getting started{' '}
+                    <a href="http://docs.wandb.com/#getting-started">
+                      documentation.
+                    </a>
+                  </li>
+                  <li>
+                    Take a look at our{' '}
+                    <a href="https://github.com/wandb/examples">
+                      example projects.
+                    </a>
+                  </li>
+                </ol>
+              </div>
             )}
         </Item.Group>
       </Container>

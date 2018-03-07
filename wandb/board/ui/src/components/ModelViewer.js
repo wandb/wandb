@@ -22,24 +22,26 @@ class ModelViewer extends React.Component {
         <Markdown content={model.description} />
         {!condensed &&
           model.bucketCount === 0 && (
-            <Markdown
-              content={`
-### Sync runs to this project with the wandb module:
-~~~bash
-$ pip install wandb
-$ cd training_dir
-$ wandb init
-$ vi train.py
-$ > import wandb
-$ > wandb.init()
-$ wandb run train.py
-~~~
+            <div>
+              <br />
+              <h4>No runs for this project yet.</h4>
+              <p>New to wandb?</p>
+              <ol>
+                <li>
+                  Visit the getting started{' '}
+                  <a href="http://docs.wandb.com/#getting-started">
+                    documentation.
+                  </a>
+                </li>
+                <li>
+                  Take a look at a few{' '}
+                  <a href="https://github.com/wandb/examples">
+                    example projects.
+                  </a>
+                </li>
+              </ol>
+            </div>
 
-<br/>
-
-Visit our [documentation](http://docs.wandb.com/) for more information.
-        `}
-            />
           )}
         {/*!condensed && (
           <div style={{marginTop: 30, width: '100%'}}>

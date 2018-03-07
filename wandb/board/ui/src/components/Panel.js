@@ -58,7 +58,6 @@ class Panel extends React.Component {
         size = PanelType.options.width
           ? {width: PanelType.options.width}
           : size || {width: 8};
-
         sizeKey = size.width;
       }
     }

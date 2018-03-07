@@ -1,3 +1,5 @@
+import React from 'react';
+
 import _ from 'lodash';
 import numeral from 'numeral';
 import {JSONparseNaN} from '../util/jsonnan';
@@ -32,6 +34,65 @@ export function sortableValue(value) {
   } else {
     return JSON.stringify(value);
   }
+}
+
+// Truncate string.  Doesn't seem like there's an easy way to do this by pixel length.
+export function truncateString(string, maxLength = 30, rightLength = 6) {
+  if (string.length < maxLength) {
+    return string;
+  }
+  let leftLength = maxLength - rightLength - 1;
+  let leftSide = string.substr(0, leftLength);
+  let rightSide = string.substr(-rightLength);
+  let truncString = leftSide + '…' + rightSide;
+  return truncString;
+}
+
+// fuzzyMatch replicates the command-P in vscode matching all the characters in order'
+// but not necessarily sequential
+export function fuzzyMatch(strings, matchStr) {
+  if (!matchStr) {
+    return strings;
+  }
+  var regexpStr = '';
+  for (var i = 0; i < matchStr.length; i++) {
+    regexpStr += matchStr.charAt(i);
+    regexpStr += '.*';
+  }
+  var regexp = new RegExp(regexpStr);
+  return strings.filter(str => str.match(regexp));
+}
+
+// fuzzyMatchHighlight works with fuzzyMatch to highlight the matching substrings
+export function fuzzyMatchHighlight(
+  str,
+  matchStr,
+  matchStyle = {color: 'blue'},
+) {
+  if (!matchStr) {
+    return str;
+  }
+  var regexpStr = '';
+  var matchStrIndex = 0;
+  var matchStrArr = [...matchStr];
+
+  return (
+    <span>
+      {[...str].map(
+        (c, j) =>
+          c == matchStrArr[matchStrIndex] ? (
+            ((matchStrIndex += 1),
+            (
+              <span key={'span' + j + ',' + matchStrIndex} style={matchStyle}>
+                {c.toString()}
+              </span>
+            ))
+          ) : (
+            <span key={'span' + j}>{c.toString()}</span>
+          ),
+      )}
+    </span>
+  );
 }
 
 export function runFilterCompare(op, argValue, value) {
