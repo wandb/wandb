@@ -12,8 +12,10 @@ import TimeAgo from 'react-timeago';
 import {NavLink} from 'react-router-dom';
 import './RunFeed.css';
 import Launcher from '../containers/Launcher';
+import FixedLengthString from '../components/FixedLengthString';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
+
 import {
   addFilter,
   enableColumn,
@@ -27,8 +29,11 @@ import {
   displayValue,
   getRunValue,
   sortableValue,
+  truncateString,
 } from '../util/runhelpers.js';
 import ContentLoader from 'react-content-loader';
+
+const maxColNameLength = 20;
 
 class ValueDisplay extends PureComponent {
   render() {
@@ -291,7 +296,7 @@ class RunFeed extends PureComponent {
             <Table.Header>
               <Table.Row
                 style={{
-                  height: longestColumn.length * 6,
+                  height: Math.min(longestColumn.length, maxColNameLength) * 8,
                 }}>
                 {this.props.selectable && <Table.HeaderCell />}
                 {this.props.columnNames
@@ -307,7 +312,10 @@ class RunFeed extends PureComponent {
                       }
                       style={{textAlign: 'center', verticalAlign: 'bottom'}}
                       onClick={() => {
-                        if (columnName === 'Config' || columnName === 'Summary') {
+                        if (
+                          columnName === 'Config' ||
+                          columnName === 'Summary'
+                        ) {
                           return;
                         }
                         let ascending = true;
@@ -320,7 +328,10 @@ class RunFeed extends PureComponent {
                         <span>
                           {_.startsWith(columnName, 'config:') ||
                           _.startsWith(columnName, 'summary:')
-                            ? columnName.split(':')[1]
+                            ? truncateString(
+                                columnName.split(':')[1],
+                                maxColNameLength,
+                              )
                             : columnName}
                           {this.props.sort.name === columnName &&
                             (this.props.sort.ascending ? (
