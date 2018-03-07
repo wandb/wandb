@@ -8,7 +8,6 @@ class SummaryList extends React.Component {
       this.data = this.props.data;
     }
     this.noData = this.noData.bind(this);
-    this.prepData = this.prepData.bind(this);
   }
 
   prepData(data) {
@@ -37,14 +36,22 @@ class SummaryList extends React.Component {
     return newData;
   }
 
+  _setup(props) {
+    if (props.data && Object.keys(props.data).length > 0) {
+      this.data = this.prepData(props.data);
+    }
+  }
+
+  componentWillMount() {
+    this._setup(this.props);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    this._setup(nextProps);
+  }
+
   render() {
-    return (
-      <DataList
-        data={this.data}
-        prepData={this.prepData}
-        noData={this.noData}
-      />
-    );
+    return <DataList data={this.data} noData={this.noData} />;
   }
 }
 
