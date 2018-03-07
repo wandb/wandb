@@ -148,7 +148,6 @@ export default class LinePlot extends React.PureComponent {
         <DiscreteColorLegend
           orientation="horizontal"
           onItemClick={(item, i) => {
-            console.log('item', item);
             this.setState({
               ...this.state,
               disabled: {

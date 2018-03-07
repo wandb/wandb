@@ -63,7 +63,7 @@ function withDerivedRunsData(WrappedComponent) {
         name: 'RunsDataDerived',
         deep: ['query', 'pageQuery', 'config'],
         ignoreFunctions: true,
-        debug: true,
+        debug: false,
       });
     }
 
