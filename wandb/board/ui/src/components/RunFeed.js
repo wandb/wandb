@@ -325,21 +325,26 @@ class RunFeed extends PureComponent {
                         this.props.setSort(columnName, ascending);
                       }}>
                       <div>
-                        <span>
-                          {_.startsWith(columnName, 'config:') ||
-                          _.startsWith(columnName, 'summary:')
-                            ? truncateString(
-                                columnName.split(':')[1],
-                                maxColNameLength,
-                              )
-                            : columnName}
-                          {this.props.sort.name === columnName &&
-                            (this.props.sort.ascending ? (
-                              <Icon name="caret up" />
-                            ) : (
-                              <Icon name="caret down" />
-                            ))}
-                        </span>
+                        {_.startsWith(columnName, 'config:') ||
+                        _.startsWith(columnName, 'summary:') ? (
+                          ((columnName = columnName.split(':')[1]),
+                          columnName.length > maxColNameLength ? (
+                            <span key={columnName}>
+                              {truncateString(columnName, maxColNameLength)}
+                            </span>
+                          ) : (
+                            <span>{columnName}</span>
+                          ))
+                        ) : (
+                          <span>{columnName}</span>
+                        )}
+
+                        {this.props.sort.name === columnName &&
+                          (this.props.sort.ascending ? (
+                            <Icon name="caret up" />
+                          ) : (
+                            <Icon name="caret down" />
+                          ))}
                       </div>
                     </Table.HeaderCell>
                   ))}

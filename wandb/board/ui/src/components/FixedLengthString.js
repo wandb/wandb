@@ -36,7 +36,7 @@ class FixedLengthString extends React.Component {
         inverted
         size="tiny"
         trigger={
-          <span data-tip={this.text}>
+          <span>
             {truncateString(this.text, this.length, this.rightLength)}
           </span>
         }
