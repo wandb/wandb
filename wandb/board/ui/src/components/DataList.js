@@ -140,11 +140,11 @@ class DataList extends React.Component {
   }
 
   renderNoData() {
-    return <div className="DataList">{this.noData}</div>;
+    return <div className="DataList">{this.noData()}</div>;
   }
 
   render() {
-    if (this.flatData) {
+    if (this.flatData && _.size(this.flatData) > 0) {
       if (_.size(this.flatData) > 10) {
         return this.renderLongList();
       } else {
