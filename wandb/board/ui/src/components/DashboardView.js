@@ -128,35 +128,37 @@ class DashboardView extends Component {
           onLayoutChange={this.onLayoutChange}>
           {panelConfigs.map((panelConfig, i) => (
             <div key={i} className="panel" data-grid={{...panelConfig.layout}}>
-              <Modal
-                open={this.state.editing === i}
-                dimmer="blurring"
-                trigger={
-                  <Icon
-                    link
-                    name="edit"
-                    onClick={() => this.setState({editing: i})}
-                  />
-                }>
-                <Modal.Header>Edit Panel</Modal.Header>
-                <Modal.Content style={{padding: 16}}>
-                  {this.renderPanel(panelConfig, i, true)}
-                </Modal.Content>
-                <Modal.Actions>
-                  <Button
-                    floated="left"
-                    negative
-                    icon="trash"
-                    onClick={() => {
-                      this.props.removePanel(i);
-                      this.setState({editing: null});
-                    }}
-                  />
-                  <Button onClick={() => this.setState({editing: null})}>
-                    OK
-                  </Button>
-                </Modal.Actions>
-              </Modal>
+              {editMode && (
+                <Modal
+                  open={this.state.editing === i}
+                  dimmer={false}
+                  trigger={
+                    <Icon
+                      link
+                      name="edit"
+                      onClick={() => this.setState({editing: i})}
+                    />
+                  }>
+                  <Modal.Header>Edit Panel</Modal.Header>
+                  <Modal.Content style={{padding: 16}}>
+                    {this.renderPanel(panelConfig, i, true)}
+                  </Modal.Content>
+                  <Modal.Actions>
+                    <Button
+                      floated="left"
+                      negative
+                      icon="trash"
+                      onClick={() => {
+                        this.props.removePanel(i);
+                        this.setState({editing: null});
+                      }}
+                    />
+                    <Button onClick={() => this.setState({editing: null})}>
+                      OK
+                    </Button>
+                  </Modal.Actions>
+                </Modal>
+              )}
 
               {this.renderPanel(panelConfig, i, false)}
             </div>
