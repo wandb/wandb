@@ -131,7 +131,7 @@ class GitRepo(object):
                 for ancestor in self.repo.merge_base(head, possible_relative):
                     if most_recent_ancestor is None:
                         most_recent_ancestor = ancestor
-                    elif most_recent_ancestor.is_ancestor(ancestor):
+                    elif self.repo.is_ancestor(most_recent_ancestor, ancestor):
                         most_recent_ancestor = ancestor
             return most_recent_ancestor
         except exc.GitCommandError as e:
