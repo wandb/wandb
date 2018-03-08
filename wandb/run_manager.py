@@ -304,9 +304,6 @@ class RunManager(object):
 
         self._socket = wandb_socket.Client(self._port)
 
-        # Track last time we updated
-        self._last_update = time.time()
-
         if self._cloud:
             self._observer.start()
 
