@@ -124,6 +124,7 @@ class FileEventHandlerSummary(FileEventHandler):
     def on_modified(self):
         if time.time() - self._last_sent >= self.RATE_LIMIT_SECONDS:
             try:
+                self._last_sent = time.time()
                 json.load(open(self.file_path))
                 self._api.upsert_run(id=self._storage_id,
                                      summary_metrics=open(self.file_path).read())
