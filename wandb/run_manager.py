@@ -105,6 +105,30 @@ class FileEventHandlerOverwriteDeferred(FileEventHandler):
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
+class FileEventHandlerSummary(FileEventHandler):
+    """Set the summary instead of uploading the file"""
+    RATE_LIMIT_SECONDS = 5
+
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        self._storage_id = kwargs["storage_id"]
+        del kwargs["storage_id"]
+        super(FileEventHandlerSummary, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._last_sent = time.time() - self.RATE_LIMIT_SECONDS
+        self._file_pusher = file_pusher
+
+    def on_created(self):
+        self.on_modified()
+
+    def on_modified(self):
+        if time.time() - self._last_sent >= self.RATE_LIMIT_SECONDS:
+            self._api.upsert_run(id=self._storage_id,
+                                 summary_metrics=open(self.file_path).read())
+
+    def finish(self):
+        self._file_pusher.file_changed(self.save_name, self.file_path)
+
+
 class FileEventHandlerTextStream(FileEventHandler):
     def __init__(self, *args, **kwargs):
         super(FileEventHandlerTextStream, self).__init__(*args, **kwargs)
@@ -273,6 +297,9 @@ class RunManager(object):
         ]
 
         self._socket = wandb_socket.Client(self._port)
+
+        # Track last time we updated
+        self._last_update = time.time()
 
         if self._cloud:
             self._observer.start()
@@ -489,6 +516,8 @@ class RunManager(object):
 
         # Show run summary/history
         if self._run.has_summary:
+            # TODO: Summary is old here, but was getting updated earlier...
+            self._run.summary.load()
             summary = self._run.summary.summary
             wandb.termlog('Run summary:')
             max_len = max([len(k) for k in summary.keys()])
@@ -622,8 +651,8 @@ class RunManager(object):
             elif save_name == 'wandb-summary.json':
                 # Load the summary into the syncer process for meta etc to work
                 self._run.summary.load()
-                self._event_handlers[save_name] = FileEventHandlerOverwrite(
-                    file_path, save_name, self._api, self._file_pusher)
+                self._event_handlers[save_name] = FileEventHandlerSummary(
+                    file_path, save_name, self._api, self._file_pusher, storage_id=self._run.storage_id)
             else:
                 self._event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
                     file_path, save_name, self._api, self._file_pusher)

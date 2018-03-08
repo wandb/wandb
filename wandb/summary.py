@@ -4,6 +4,7 @@ import os
 import wandb
 from wandb import util
 from wandb.meta import Meta
+import six
 
 SUMMARY_FNAME = 'wandb-summary.json'
 
@@ -44,5 +45,7 @@ class Summary(object):
     def update(self, key_vals):
         if not isinstance(key_vals, dict):
             raise wandb.Error('summary.update expects dict')
-        self.summary.update(key_vals)
+        # TODO: This removes media from the summary, but will silently remove a user provided dict with _type
+        self.summary.update(
+            {k: v for k, v in six.iteritems(key_vals) if not (isinstance(v, dict) and v.get("_type"))})
         self._write()

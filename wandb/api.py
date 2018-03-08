@@ -487,7 +487,7 @@ class Api(object):
     def upsert_run(self, id=None, name=None, project=None, host=None,
                    config=None, description=None, entity=None, state=None,
                    repo=None, job_type=None, program_path=None, commit=None,
-                   sweep_name=None):
+                   sweep_name=None, summary_metrics=None):
         """Update a run
 
         Args:
@@ -502,6 +502,7 @@ class Api(object):
             job_type (str, optional): Type of job, e.g 'train'.
             program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
+            summary_metrics (str, optional): The JSON summary metrics
         """
         mutation = gql('''
         mutation UpsertBucket(
@@ -517,7 +518,8 @@ class Api(object):
             $repo: String,
             $jobType: String,
             $state: String,
-            $sweep: String
+            $sweep: String,
+            $summaryMetrics: JSONString,
         ) {
             upsertBucket(input: {
                 id: $id, name: $name,
@@ -532,7 +534,8 @@ class Api(object):
                 jobRepo: $repo,
                 jobType: $jobType,
                 state: $state,
-                sweep: $sweep
+                sweep: $sweep,
+                summaryMetrics: $summaryMetrics,
             }) {
                 bucket {
                     id
@@ -552,7 +555,7 @@ class Api(object):
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit,
             'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type,
-            'state': state, 'sweep': sweep_name})
+            'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics})
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -1016,8 +1019,7 @@ class FileStreamApi(object):
     Finish = collections.namedtuple('Finish', ('exitcode'))
 
     HTTP_TIMEOUT = 10
-    RATE_LIMIT_SECONDS = 1
-    HEARTBEAT_INTERVAL_SECONDS = 15
+    HEARTBEAT_INTERVAL_SECONDS = 30
     MAX_ITEMS_PER_PUSH = 10000
 
     def __init__(self, api_key, user_agent, base_url, entity, project, run_id):
@@ -1043,9 +1045,18 @@ class FileStreamApi(object):
     def set_file_policy(self, filename, file_policy):
         self._file_policies[filename] = file_policy
 
+    def rate_limit_seconds(self):
+        run_time = time.time() - wandb.START_TIME
+        if run_time < 30:
+            return 1
+        elif run_time < 300:
+            return 5
+        else:
+            return self.HEARTBEAT_INTERVAL_SECONDS
+
     def _read_queue(self):
         # called from the push thread (_thread_body), this does an initial read
-        # that'll block for up to RATE_LIMIT_SECONDS. Then it tries to read
+        # that'll block for up to rate_limit_seconds. Then it tries to read
         # as much out of the queue as it can. We do this because the http post
         # to the server happens within _thread_body, and can take longer than
         # our rate limit. So next time we get a chance to read the queue we want
@@ -1054,7 +1065,7 @@ class FileStreamApi(object):
         # If we have more than MAX_ITEMS_PER_PUSH in the queue then the push thread
         # will get behind and data will buffer up in the queue.
         return util.read_many_from_queue(
-            self._queue, self.MAX_ITEMS_PER_PUSH, self.RATE_LIMIT_SECONDS)
+            self._queue, self.MAX_ITEMS_PER_PUSH, self.rate_limit_seconds())
 
     def _thread_body(self):
         posted_data_time = time.time()
@@ -1072,7 +1083,7 @@ class FileStreamApi(object):
 
             cur_time = time.time()
 
-            if ready_chunks and cur_time - posted_data_time > self.RATE_LIMIT_SECONDS:
+            if ready_chunks and cur_time - posted_data_time > self.rate_limit_seconds():
                 posted_data_time = cur_time
                 posted_anything_time = cur_time
                 self._send(ready_chunks)

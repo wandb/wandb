@@ -52,7 +52,9 @@ class History(object):
         self._add_callback = add_callback
 
     def keys(self):
-        return list(self._keys)
+        media_keys = [k for k, v in six.iteritems(
+            self.rows[-1]) if isinstance(v, dict) and v.get("_type")]
+        return [k for k in self._keys - set(media_keys) if not k.startswith("_")]
 
     def stream(self, name):
         """stream can be used to record different time series:
