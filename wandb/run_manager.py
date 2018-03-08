@@ -516,7 +516,7 @@ class RunManager(object):
 
         # Show run summary/history
         if self._run.has_summary:
-            # TODO: Summary is old here, but was getting updated earlier...
+            #Reload the summary
             self._run.summary.load()
             summary = self._run.summary.summary
             wandb.termlog('Run summary:')
