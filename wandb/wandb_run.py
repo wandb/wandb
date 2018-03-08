@@ -112,7 +112,7 @@ class Run(object):
     def summary(self):
         # If we added summary from history then manually reset before setting again
         if self._user_accessed_summary == False and self._summary is not None:
-            self._summary.summary = {}
+            self._summary._summary = {}
         # We use this to track whether user has accessed summary
         self._user_accessed_summary = True
         if self._summary is None:

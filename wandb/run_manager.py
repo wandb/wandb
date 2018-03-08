@@ -523,7 +523,7 @@ class RunManager(object):
         if self._run.has_summary:
             # Reload the summary
             self._run.summary.load()
-            summary = self._run.summary.summary
+            summary = self._run.summary._summary
             wandb.termlog('Run summary:')
             max_len = max([len(k) for k in summary.keys()])
             format_str = '  {:>%s} {}' % max_len
