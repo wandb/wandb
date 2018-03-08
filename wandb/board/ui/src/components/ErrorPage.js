@@ -19,37 +19,48 @@ const ErrorPage = ({error, history, dispatch}) => {
     exDescription: error.message,
     exFatal: fatal === true,
   });
-  let instructions = 'Click anywhere to go back to the last page you visited.';
-  switch (error.code) {
-    case 400:
-      icon = 'ban';
-      title = 'Invalid Record';
-      message = error.message;
-      instructions = 'Click to refresh.';
-      break;
-    case 403:
-      icon = 'hide';
-      title = 'Permission Denied';
-      //For invite only signups
-      if (error.error_description === 'Signup disabled') {
-        message =
-          'You must signup with the private invitation link provided in the slides.';
-      } else {
-        message =
-          error.message ||
-          'You do not have permission to access this resource.';
-      }
+  let instructions = 'Report the issue at github.com/wandb/client/issues.';
+  if (error.message.match('has been deemed inappropriate')) {
+    // this is a 400 when the name is on our banned list
+    icon = 'frown';
+    title = 'Bad name';
+    message = 'Nice work! You found a name that is not allowed.';
+    instructions = 'Try a different name.';
+  } else {
+    switch (error.code) {
+      case 400:
+        icon = 'ban';
+        title = 'Invalid Record';
+        message = error.message;
+        instructions = 'Click to refresh.';
+        break;
+      case 403:
+        icon = 'hide';
+        title = 'Permission Denied';
+        //For invite only signups
+        if (error.error_description === 'Signup disabled') {
+          message =
+            'You must signup with the private invitation link provided in the slides.';
+        } else {
+          message =
+            error.message ||
+            'You do not have permission to access this resource.';
+        }
+        instructions = '';
 
-      break;
-    case 404:
-      icon = 'stop circle outline';
-      title = 'Not Found';
-      message = "We couldn't find what you're looking for.";
-      break;
-    default:
-      icon = 'bug';
-      title = 'Application Error';
-      message = "You may have found a bug, we've been notified.";
+        break;
+      case 404:
+        icon = 'stop circle outline';
+        title = 'Not Found';
+        message = "We couldn't find what you're looking for.";
+        instructions = '';
+
+        break;
+      default:
+        icon = 'bug';
+        title = 'Application Error';
+        message = 'You may have found a bug.';
+    }
   }
   return (
     <Dimmer
