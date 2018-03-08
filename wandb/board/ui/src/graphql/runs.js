@@ -159,6 +159,21 @@ export const RUN_UPSERT = gql`
   }
 `;
 
+export const MODIFY_RUNS = gql`
+  mutation modifyRuns($ids: [String], $addTags: [String]) {
+    modifyRuns(input: {ids: $ids, addTags: $addTags}) {
+      runs {
+        ...BasicRunFragment
+        user {
+          username
+          photoUrl
+        }
+      }
+    }
+  }
+  ${fragments.basicRun}
+`;
+
 export const RUN_DELETION = gql`
   mutation deleteBucket($id: String!) {
     deleteBucket(input: {id: $id}) {

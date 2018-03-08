@@ -1,5 +1,5 @@
 import React, {Component} from 'react';
-import {Button, Grid, Header, Modal, Message, Segment} from 'semantic-ui-react';
+import {Button, Label, Grid, Header, Modal, Message, Segment} from 'semantic-ui-react';
 import {NavLink} from 'react-router-dom';
 import Markdown from './Markdown';
 import TimeAgo from 'react-timeago';
