@@ -19,7 +19,7 @@ class Summary(object):
     def load(self):
         try:
             self._summary = json.load(open(self._fname))
-        except (IOError, json.decoder.JSONDecodeError):
+        except (IOError, ValueError):
             self._summary = {}
 
     def _write(self):

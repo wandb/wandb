@@ -128,7 +128,7 @@ class FileEventHandlerSummary(FileEventHandler):
                 json.load(open(self.file_path))
                 self._api.upsert_run(id=self._storage_id,
                                      summary_metrics=open(self.file_path).read())
-            except json.decoder.JSONDecodeError:
+            except ValueError:
                 logger.error("Unable to parse summary json")
 
     def finish(self):
