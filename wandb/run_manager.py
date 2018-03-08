@@ -15,6 +15,7 @@ from shortuuid import ShortUUID
 from .config import Config
 import logging
 import threading
+import json
 
 import six
 from six.moves import queue
@@ -122,8 +123,12 @@ class FileEventHandlerSummary(FileEventHandler):
 
     def on_modified(self):
         if time.time() - self._last_sent >= self.RATE_LIMIT_SECONDS:
-            self._api.upsert_run(id=self._storage_id,
-                                 summary_metrics=open(self.file_path).read())
+            try:
+                json.load(open(self.file_path))
+                self._api.upsert_run(id=self._storage_id,
+                                     summary_metrics=open(self.file_path).read())
+            except json.decoder.JSONDecodeError:
+                logger.error("Unable to parse summary json")
 
     def finish(self):
         self._file_pusher.file_changed(self.save_name, self.file_path)
@@ -516,7 +521,7 @@ class RunManager(object):
 
         # Show run summary/history
         if self._run.has_summary:
-            #Reload the summary
+            # Reload the summary
             self._run.summary.load()
             summary = self._run.summary.summary
             wandb.termlog('Run summary:')
