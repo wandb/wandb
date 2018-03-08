@@ -104,6 +104,7 @@ class DataList extends React.Component {
           icon={{name: 'search', circular: true, link: true}}
           placeholder="Search..."
           size="mini"
+          className="DataListSearchBox"
         />
         <div className="DataListWithSearch">
           <List divided>

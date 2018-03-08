@@ -15,6 +15,11 @@ span.commit a {
   height: 200px;
   overflow-y: auto;
 }
+
+.DataListSearchBox {
+  padding-bottom: 6px;
+}
+
 .DataListWithSearch {
   height: 170px;
   overflow-y: auto;
