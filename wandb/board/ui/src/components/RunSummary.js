@@ -4,6 +4,10 @@ import {NavLink} from 'react-router-dom';
 import Markdown from './Markdown';
 import TimeAgo from 'react-timeago';
 
+/**
+ *  This handles the summary on top of a runs page.
+ */
+
 class RunSummary extends Component {
   color() {
     switch (this.props.bucket.state) {
@@ -71,11 +75,21 @@ class RunSummary extends Component {
           <Grid>
             <Grid.Row>
               <Grid.Column width={10}>
-                <strong>
-                  ran {bucket.user && 'by ' + bucket.user.username}{' '}
-                  {bucket.heartbeatAt && (
-                    <span>
-                      for{' '}
+                {this.props.bucket.state == 'running' ? (
+                  <strong>running </strong>
+                ) : (
+                  <strong>ran </strong>
+                )}
+                {bucket.user && this.props.bucket.state == 'running' ? (
+                  <span>for </span>
+                ) : (
+                  <span>by </span>
+                )}
+                {bucket.user && <strong>{bucket.user.username}</strong>}{' '}
+                {bucket.heartbeatAt && (
+                  <span>
+                    for{' '}
+                    <strong>
                       <TimeAgo
                         date={bucket.createdAt + 'Z'}
                         now={() => {
@@ -84,10 +98,14 @@ class RunSummary extends Component {
                         formatter={(v, u, s, d, f) => f().replace(s, '')}
                         live={false}
                       />
-                    </span>
-                  )}
-                </strong>
-                {bucket.host && ' on ' + bucket.host}
+                    </strong>
+                  </span>
+                )}
+                {bucket.host && (
+                  <span>
+                    on <strong>{bucket.host}</strong>
+                  </span>
+                )}
               </Grid.Column>
               <Grid.Column width={6} textAlign="right">
                 run{' '}
