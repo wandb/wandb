@@ -3,6 +3,7 @@ import {List, Segment} from 'semantic-ui-react';
 import './Log.css';
 import {AutoSizer, List as VirtualList} from 'react-virtualized';
 import AU from 'ansi_up';
+import _ from 'lodash';
 
 let unsubscribe;
 try {
