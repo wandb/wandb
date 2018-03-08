@@ -115,7 +115,6 @@ class Runs extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    console.log('RUNS nextProps', nextProps);
     if (
       !this.doneLoading &&
       nextProps.loading === false &&
@@ -167,7 +166,6 @@ class Runs extends React.Component {
     this.setState({activeTab: activeIndex});
 
   render() {
-    console.log('Runs props!', this.props);
     return (
       <Container>
         <Grid>
