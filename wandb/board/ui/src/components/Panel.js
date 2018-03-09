@@ -107,25 +107,19 @@ class Panel extends React.Component {
               style={{marginBottom: 12, zIndex: 21}}
             />
           )}
-          {configMode && (
-            <QueryEditor
-              pageQuery={this.props.pageQuery}
-              panelQuery={this.props.panelQuery}
-              setQuery={this.props.updateQuery}
-              runs={this.props.data.base}
-              keySuggestions={this.props.data.keys}
-            />
-          )}
+          {configMode &&
+            this.props.viewType === 'dashboards' && (
+              <QueryEditor
+                pageQuery={this.props.pageQuery}
+                panelQuery={this.props.panelQuery}
+                setQuery={this.props.updateQuery}
+                runs={this.props.data.base}
+                keySuggestions={this.props.data.keys}
+              />
+            )}
           {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
         </div>
       );
-      if (!this.props.noCard) {
-        panel = (
-          <Card fluid>
-            <Card.Content>{panel}</Card.Content>
-          </Card>
-        );
-      }
     } else if (!panel) {
       panel = this.renderPanelType(
         PanelType,
@@ -136,14 +130,7 @@ class Panel extends React.Component {
         this.props.panelQuery,
       );
     }
-    return (
-      <Grid.Column
-        width={(size && size.width) || 8}
-        style={this.props.style}
-        className={this.props.className}>
-        {panel}
-      </Grid.Column>
-    );
+    return <div className={this.props.className}>{panel}</div>;
   }
 }
 

@@ -4,6 +4,7 @@ import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 import TabbedViews from '../components/TabbedViews';
 import TabbedView from '../components/TabbedView';
+import DashboardView from '../components/DashboardView';
 import {
   addView,
   setActiveView,
@@ -18,9 +19,11 @@ import {
 class ViewModifier extends React.Component {
   renderView = (viewId, editMode) => {
     //TODO: Maybe render panel?
-    const ViewComponent = this.props.viewComponent || TabbedView;
+    const ViewComponent = this.props.viewComponent || DashboardView;
     return (
       <ViewComponent
+        key={viewId}
+        viewType={this.props.viewType}
         editMode={editMode}
         width={this.props.width}
         height={this.props.height}
