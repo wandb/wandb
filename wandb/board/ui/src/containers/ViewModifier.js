@@ -3,7 +3,6 @@ import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 import TabbedViews from '../components/TabbedViews';
-import TabbedView from '../components/TabbedView';
 import DashboardView from '../components/DashboardView';
 import {
   addView,
