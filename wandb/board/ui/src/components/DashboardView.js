@@ -8,6 +8,9 @@ import * as Query from '../util/query';
 
 export const GRID_WIDTH = 12;
 export const GRID_MARGIN = 6;
+// Will be used as a default value for row height
+// and for calculating panel's current height
+export const ROW_HEIGHT = 150;
 
 function findNextPanelLoc(layouts, gridWidth, panelWidth) {
   let columnBottoms = new Array(gridWidth).fill(0);
@@ -75,7 +78,7 @@ let gridKey = 1;
 
 const Grid = WidthProvider(ReactGridLayout);
 class DashboardView extends Component {
-  state = {editing: null};
+  state = {editing: null, panels: {}};
   static defaultProps = {
     editMode: true,
   };
@@ -122,6 +125,7 @@ class DashboardView extends Component {
         query={query}
         config={panelConfig.config}
         data={this.props.data}
+        currentHeight={this.state.panels[i]}
         updateType={newType =>
           this.props.updatePanel(i, {
             ...panelConfig,
@@ -202,10 +206,19 @@ class DashboardView extends Component {
           compactType="vertical"
           draggableCancel=".edit"
           cols={GRID_WIDTH}
+          rowHeight={ROW_HEIGHT}
           isDraggable={editMode}
           isResizable={editMode}
           margin={[GRID_MARGIN, GRID_MARGIN]}
-          onLayoutChange={this.onLayoutChange}>
+          onLayoutChange={this.onLayoutChange}
+          onResizeStop={(size, oldItem, newItem, placeholder, e, element) => {
+            this.setState(prevState => ({
+              panels: {
+                ...prevState.panels,
+                [newItem.i]: newItem.h * ROW_HEIGHT,
+              },
+            }));
+          }}>
           {allPanelConfigs.map(
             (panelConfig, i) =>
               panelConfig === 'addButton' ? (
@@ -234,6 +247,12 @@ class DashboardView extends Component {
                         newPanelParams.query = {strategy: 'merge'};
                       }
                       this.props.addPanel(newPanelParams);
+                      this.setState(prevState => ({
+                        panels: {
+                          ...prevState.panels,
+                          [i]: addPanelLayout.h * ROW_HEIGHT,
+                        },
+                      }));
                     }}>
                     <Icon name="plus" />
                   </Button>

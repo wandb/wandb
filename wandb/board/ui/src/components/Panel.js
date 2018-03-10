@@ -21,7 +21,15 @@ class Panel extends React.Component {
     </Segment>
   );
 
-  renderPanelType(PanelType, configMode, config, data, sizeKey, panelQuery) {
+  renderPanelType(
+    PanelType,
+    configMode,
+    config,
+    data,
+    sizeKey,
+    panelQuery,
+    currentHeight,
+  ) {
     if (!data) {
       return Panel.loading;
     }
@@ -33,6 +41,7 @@ class Panel extends React.Component {
           updateConfig={this.props.updateConfig}
           sizeKey={sizeKey}
           panelQuery={panelQuery}
+          currentHeight={currentHeight}
           data={data}
         />
       </div>
@@ -128,6 +137,7 @@ class Panel extends React.Component {
         data,
         sizeKey,
         this.props.panelQuery,
+        this.props.currentHeight,
       );
     }
     return <div className={this.props.className}>{panel}</div>;

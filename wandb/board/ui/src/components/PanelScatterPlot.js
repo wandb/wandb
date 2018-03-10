@@ -167,7 +167,8 @@ class ScatterPlotPanel extends React.Component {
               </FlexibleWidthXYPlot>
             </div>
           )}
-          <FlexibleWidthXYPlot height={300 - (zAxis ? 55 : 0)}>
+          <FlexibleWidthXYPlot
+            height={(this.props.currentHeight || 240) - (zAxis ? 55 : 0)}>
             <VerticalGridLines />
             <HorizontalGridLines />
             <BoxSelection

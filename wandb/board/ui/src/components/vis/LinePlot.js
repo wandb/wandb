@@ -184,7 +184,7 @@ export default class LinePlot extends React.PureComponent {
         />
         <div style={{position: 'relative'}}>
           <LinePlotPlot
-            height={240}
+            height={this.props.currentHeight - 60 || 240}
             sizeKey={this.props.sizeKey}
             xAxis={this.props.xAxis}
             yScale={this.props.yScale}
