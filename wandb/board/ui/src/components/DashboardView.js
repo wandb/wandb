@@ -262,12 +262,12 @@ class DashboardView extends Component {
                         <Button
                           floated="left"
                           negative
-                          icon="trash"
                           onClick={() => {
                             this.props.removePanel(i);
                             this.setState({editing: null});
-                          }}
-                        />
+                          }}>
+                          <Icon name="trash" />Delete Chart
+                        </Button>
                         <Button onClick={() => this.setState({editing: null})}>
                           OK
                         </Button>

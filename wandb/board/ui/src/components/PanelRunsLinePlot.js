@@ -2,7 +2,7 @@ import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {Button, List, Loader, Form, Grid} from 'semantic-ui-react';
+import {Button, List, Loader, Form, Grid, Icon} from 'semantic-ui-react';
 import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {color} from '../util/colors.js';
@@ -109,9 +109,10 @@ class RunsLinePlotPanel extends React.Component {
       <Form style={{marginTop: 10}}>
         <Grid>
           <Grid.Row>
-            <Grid.Column width={14}>
+            <Grid.Column width={7}>
               <Form.Field>
                 <Form.Dropdown
+                  disabled={!this.props.config.key}
                   label="X-Axis"
                   placeholder="xAxis"
                   fluid
@@ -128,9 +129,8 @@ class RunsLinePlotPanel extends React.Component {
                 />
               </Form.Field>
             </Grid.Column>
-          </Grid.Row>
-          <Grid.Row>
-            <Grid.Column width={14}>
+
+            <Grid.Column width={7}>
               <Form.Field>
                 <Form.Dropdown
                   disabled={disabled}
@@ -152,8 +152,8 @@ class RunsLinePlotPanel extends React.Component {
             </Grid.Column>
             <Grid.Column width={2} verticalAlign="bottom">
               <Button
+                animated="vertical"
                 toggle
-                icon
                 active={this.props.config.yLogScale}
                 onClick={(e, {value}) =>
                   this.props.updateConfig({
@@ -161,18 +161,10 @@ class RunsLinePlotPanel extends React.Component {
                     yLogScale: !this.props.config.yLogScale,
                   })
                 }>
-                <svg
-                  viewBox="0 0 24 24"
-                  preserveAspectRatio="xMidYMid meet"
-                  style={{
-                    display: 'block',
-                    width: '30px',
-                    height: '30px',
-                  }}>
-                  <g>
-                    <path d="M3 17h18v-2H3v2zm0 3h18v-1H3v1zm0-7h18v-3H3v3zm0-9v4h18V4H3z" />
-                  </g>
-                </svg>
+                <Button.Content visible>
+                  <Icon className="natural-log" size="large" align="center" />
+                </Button.Content>
+                <Button.Content hidden>Log</Button.Content>
               </Button>
             </Grid.Column>
           </Grid.Row>
