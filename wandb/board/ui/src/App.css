@@ -98,3 +98,8 @@ body .input-style {
 body.blurring.dimmable > .dimmer {
   background-color: rgba(0, 0, 0, 0.1);
 }
+
+body .ui.grid > .column:not(.row) {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
