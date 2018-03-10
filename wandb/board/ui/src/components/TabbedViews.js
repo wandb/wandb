@@ -17,7 +17,7 @@ class TabbedViews extends React.Component {
         content: <span>{this.props.views[viewId].name + ' '}</span>,
       },
       render: () => (
-        <Tab.Pane>
+        <Tab.Pane as="div">
           {this.props.renderView(viewId, this.state.editMode)}
         </Tab.Pane>
       ),
@@ -64,6 +64,7 @@ class TabbedViews extends React.Component {
         />
         <Tab
           panes={panes}
+          menu={{secondary: true, pointing: true}}
           activeIndex={activeIndex}
           onTabChange={(event, {activeIndex}) => {
             this.props.setActiveView(
