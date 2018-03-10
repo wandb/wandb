@@ -77,7 +77,7 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   scaledSmoothness() {
-    return Math.sqrt(this.props.config.smoothingWeight || 0);
+    return Math.sqrt(this.props.config.smoothingWeight || 0) * 0.999;
   }
 
   _groupByOptions() {
@@ -177,10 +177,13 @@ class RunsLinePlotPanel extends React.Component {
             </Grid.Column>
           </Grid.Row>
           <Grid.Row>
-            <Grid.Column width={4}>
+            <Grid.Column width={6}>
               <Form.Field disabled={disabled}>
                 <label>
-                  Smoothing: {displayValue(this.scaledSmoothness())}
+                  Smoothing:{' '}
+                  {this.scaledSmoothness() > 0
+                    ? displayValue(this.scaledSmoothness())
+                    : 'None'}
                 </label>
                 <input
                   type="range"
@@ -197,7 +200,7 @@ class RunsLinePlotPanel extends React.Component {
                 />
               </Form.Field>
             </Grid.Column>
-            <Grid.Column width={6} verticalAlign="middle">
+            <Grid.Column width={4} verticalAlign="middle">
               <Form.Checkbox
                 toggle
                 label="Aggregate Runs"
@@ -246,41 +249,88 @@ class RunsLinePlotPanel extends React.Component {
     return smoothLineData;
   }
 
-  aggregateLines(lines, name, idx) {
-    let xtoy = {};
-    lines.map(
-      (line, j) => (
-        console.log(line.data),
-        line.data.map(
-          (point, i) =>
-            xtoy[point.x]
-              ? xtoy[point.x].push(point.y)
-              : (xtoy[point.x] = [point.y]),
-        )
-      ),
-    );
-    let line_data = _.map(xtoy, (yvals, xval) => ({
-      x: Number(xval),
-      y: avg(yvals),
-    }));
+  avgPointsByBucket(points, bucketCount, min, max) {
+    /*
+     *  Takes a bunch of points with x and y vals, puts them into fixed width buckets and 
+     *  returns the average y value per bucket
+     */
 
-    let area_data = _.map(xtoy, (yvals, xval) => ({
-      x: Number(xval),
-      y0: arrMin(yvals),
-      y: arrMax(yvals),
-    }));
+    let l = points.length;
+
+    var inc = (max - min) / bucketCount;
+    var buckets = new Array(bucketCount);
+    for (let i = 0; i < bucketCount; i++) {
+      buckets[i] = [];
+    }
+
+    for (let i = 0; i < l; i++) {
+      if (points[i].x === max) buckets[bucketCount - 1].push(points[i]);
+      else buckets[((points[i].x - min) / inc) | 0].push(points[i]);
+    }
+
+    let avgBuckets = buckets.map(
+      (bucket, i) =>
+        bucket.length > 0 ? avg(buckets[i].map((b, j) => b.y)) : NaN,
+    );
+    return avgBuckets;
+  }
+
+  aggregateLines(lines, name, idx) {
+    let maxLengthRun = arrMax(lines.map(line => line.data.length));
+    let bucketCount = Math.ceil(maxLengthRun / 2);
+
+    let xVals = _.flatten(
+      lines.map((line, j) => line.data.map((point, i) => point.x)),
+    );
+
+    let maxX = arrMax(xVals);
+    let minX = arrMin(xVals);
+
+    // get all the data points in aligned buckets
+    let bucketedLines = lines.map((line, j) =>
+      this.avgPointsByBucket(line.data, bucketCount, minX, maxX),
+    );
+
+    // do a manual zip because lodash's zip is not like python
+    let mergedBuckets = [];
+    bucketedLines.map((bucket, i) =>
+      bucket.map((b, j) => {
+        mergedBuckets[j] ? mergedBuckets[j].push(b) : (mergedBuckets[j] = [b]);
+      }),
+    );
+
+    // remove NaNs
+    mergedBuckets = mergedBuckets.map((xBucket, i) =>
+      xBucket.filter(y => isFinite(y)),
+    );
+
+    let inc = (maxX - minX) / bucketCount;
+    let lineData = mergedBuckets
+      .filter(bucket => bucket && bucket.length > 0)
+      .map((bucket, i) => ({
+        x: minX + (i + 0.5) * inc,
+        y: avg(bucket),
+      }));
+
+    let areaData = mergedBuckets
+      .filter(bucket => bucket && bucket.length > 0)
+      .map((bucket, i) => ({
+        x: minX + (i + 0.5) * inc,
+        y0: arrMin(bucket),
+        y: arrMax(bucket),
+      }));
 
     let area = {
       title: '_area ' + name,
       color: color(idx, 0.3),
-      data: area_data,
+      data: areaData,
       area: true,
     };
 
     let line = {
       title: 'Mean ' + name,
       color: color(idx),
-      data: line_data,
+      data: lineData,
     };
     return [line, area];
   }
@@ -315,7 +365,6 @@ class RunsLinePlotPanel extends React.Component {
         _.forOwn(groupIdx, (idxArr, configVal) => {
           let lineGroup = [];
           idxArr.map((idx, j) => {
-            console.log('l', lines[idx], idx);
             lineGroup.push(lines[idx]);
           });
           aggLines = _.concat(
@@ -381,7 +430,6 @@ class RunsLinePlotPanel extends React.Component {
 
     let key = this.props.config.key;
     let lines = this.linesFromData(data, key);
-    console.log('The Lines', lines);
     let title = key;
     if (this.props.panelQuery && this.props.panelQuery.strategy === 'merge') {
       let querySummary = Query.summaryString(this.props.panelQuery);
