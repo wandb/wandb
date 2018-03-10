@@ -17,7 +17,7 @@ class Panel extends React.Component {
   state = {configMode: false, showQuery: false};
   static loading = (
     <Segment basic style={{minHeight: 260}}>
-      <ContentLoader />
+      <ContentLoader height={85} />
     </Segment>
   );
 
