@@ -27,12 +27,13 @@ function withRunsData() {
   return graphql(RUNS_QUERY, {
     skip: ({query}) =>
       !(query.strategy === 'merge' && query.entity && query.model),
-    options: ({query}) => {
+    options: ({query, requestSubscribe}) => {
       const defaults = {
         variables: {
           entityName: query.entity,
           name: query.model,
           order: 'timeline',
+          requestSubscribe: requestSubscribe || false,
         },
       };
       if (BOARD) defaults.pollInterval = 5000;

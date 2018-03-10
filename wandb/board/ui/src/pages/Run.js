@@ -127,6 +127,7 @@ const withData = graphql(MODEL_QUERY, {
         name: params.model,
         bucketName: params.run,
         detailed: false,
+        requestSubscribe: true,
       },
     };
     if (BOARD) defaults.pollInterval = 2000;

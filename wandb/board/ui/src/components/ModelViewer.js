@@ -41,7 +41,6 @@ class ModelViewer extends React.Component {
                 </li>
               </ol>
             </div>
-
           )}
         {/*!condensed && (
           <div style={{marginTop: 30, width: '100%'}}>
@@ -57,6 +56,7 @@ class ModelViewer extends React.Component {
                 embedded={true}
                 jobFilter={this.state.jobId}
                 limit={10}
+                requestSubscribe={true}
                 histQueryKey="runsPage"
                 query={{
                   entity: match.params.entity,
