@@ -175,6 +175,7 @@ class Runs extends React.Component {
     this.setState({activeTab: activeIndex});
 
   render() {
+    let ModelInfo = this.props.ModelInfo;
     return (
       <Container>
         <Confirm
@@ -185,8 +186,9 @@ class Runs extends React.Component {
           confirmButton={this.state.confirmButton}
         />
         <Grid>
-          <Grid.Row>
-            <Grid.Column>
+          <Grid.Row divided columns={2}>
+            <Grid.Column>{ModelInfo}</Grid.Column>
+            <Grid.Column textAlign="right">
               <p
                 style={{cursor: 'pointer'}}
                 onClick={() =>
@@ -287,8 +289,11 @@ class Runs extends React.Component {
 
                 this.setState({
                   showConfirm: true,
-                  confirmText: 'Are you sure you would like to hide these runs? You can reverse this later by removing the "hidden" label.',
-                  confirmButton: `Hide ${this.props.data.selectedRuns.length} run(s)`,
+                  confirmText:
+                    'Are you sure you would like to hide these runs? You can reverse this later by removing the "hidden" label.',
+                  confirmButton: `Hide ${
+                    this.props.data.selectedRuns.length
+                  } run(s)`,
                   handleConfirm: e => {
                     e.preventDefault();
                     this.props.modifyRuns({
@@ -299,7 +304,7 @@ class Runs extends React.Component {
                       showConfirm: false,
                       handleConfirm: null,
                       handleCancel: null,
-                    })
+                    });
                   },
                   handleCancel: e => {
                     e.preventDefault();
@@ -307,11 +312,11 @@ class Runs extends React.Component {
                       showConfirm: false,
                       handleConfirm: null,
                       handleCancel: null,
-                    })
+                    });
                   },
                 });
               }}>
-              <Icon name='trash' />
+              <Icon name="trash" />
               Hide {this.props.data.selectedRuns.length} run(s)
             </Button>
           </Grid.Column>
