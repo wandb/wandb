@@ -13,8 +13,7 @@ import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
 
 import './PlotParCoor.css';
-
-var d3 = window.d3;
+import * as d3 from "d3";
 
 function parcoor(
   node,
@@ -23,6 +22,7 @@ function parcoor(
   brushCallback,
   mouseOverCallback,
   mouseOutCallback,
+  sort,
 ) {
   var select = reactEl.props.select;
 
@@ -36,12 +36,11 @@ function parcoor(
     width = computedWidth - margin.left - margin.right,
     height = 320 - margin.top - margin.bottom;
 
-  var x = d3.scale.ordinal().rangePoints([0, width], 1),
+  var x = d3.scaleBand().rangeRound([0, width]).padding(1),
     y = {},
     dragging = {};
 
-  var line = d3.svg.line(),
-    axis = d3.svg.axis().orient('left'),
+  var line = d3.line(),
     background,
     foreground;
 
@@ -62,8 +61,7 @@ function parcoor(
       .filter(function(d) {
         return (
           _.isFinite(parseFloat(data[0][d])) &&
-          (y[d] = d3.scale
-            .linear()
+          (y[d] = d3.scaleLinear()
             .domain(
               d3.extent(data, function(p) {
                 return +parseFloat(p[d]);
@@ -100,7 +98,8 @@ function parcoor(
 
   function brush(axis) {
     var actives = dimensions.filter(function(p) {
-        return y[p].brush && !y[p].brush.empty();
+        const extnt = y[p].brush && d3.extent(y[p].brush)
+        return extnt && (extnt[0] === undefined || extnt[1] === undefined);
       }),
       extents = actives.map(function(p) {
         return y[p].brush.extent();
@@ -172,12 +171,11 @@ function parcoor(
       return 'translate(' + x(d) + ')';
     })
     .call(
-      d3.behavior
-        .drag()
-        .origin(function(d) {
+      d3.drag()
+        .subject(function(d) {
           return {x: x(d)};
         })
-        .on('dragstart', function(d) {
+        .on('start', function(d) {
           dragging[d] = x(d);
           background.attr('visibility', 'hidden');
         })
@@ -192,7 +190,23 @@ function parcoor(
             return 'translate(' + position(d) + ')';
           });
         })
-        .on('dragend', function(d) {
+        .on('end', function(d, ind, nodes) {
+          // Change state, forcing the re-render of the element
+          sort(dimensions)
+          // Remove invisible hoverable lines and replace them with re-sorted data
+          svg.selectAll('g.hoverable').remove();
+          svg
+            .append('g')
+            .attr('class', 'hoverable')
+            .attr('stroke-width', 5)
+            .selectAll('path')
+            .data(data)
+            .enter()
+            .append('path')
+            .attr('d', path)
+            .on('mouseover', (row, index) => mouseOverCallback(row, index))
+            .on('mouseout', (row, index) => mouseOutCallback());
+
           delete dragging[d];
           transition(d3.select(this)).attr(
             'transform',
@@ -213,7 +227,7 @@ function parcoor(
     .append('g')
     .attr('class', 'axis')
     .each(function(d) {
-      d3.select(this).call(axis.scale(y[d]));
+      d3.select(this).call(d3.axisLeft(y[d]));
     })
     .append('text')
     .style('text-anchor', 'middle')
@@ -228,12 +242,10 @@ function parcoor(
     .attr('class', 'brush')
     .each(function(d) {
       d3.select(this).call(obj => {
-        let ourBrush = d3.svg
-          .brush()
-          .y(y[d])
-          .on('brushstart', brushstart)
+        let ourBrush = d3.brushY(y[d])
+          .on('start', brushstart)
           .on('brush', brush)
-          .on('brushend', brushend);
+          .on('end', brushend);
         y[d].brush = ourBrush;
         if (select[d] && (select[d].low || select[d].high)) {
           ourBrush.extent([
@@ -256,17 +268,18 @@ function parcoor(
     }
     if (!runData) {
       svg.selectAll('g.hover').remove();
+      // FIXME: Why should we need this ?
       //TODO: this calling of self and redefining handleHighlight is gross
-      setTimeout(() => {
-        reactEl.handleHighlight = parcoor(
-          node,
-          data,
-          reactEl,
-          brushCallback,
-          mouseOverCallback,
-          mouseOutCallback,
-        );
-      }, 0);
+      // setTimeout(() => {
+      //   reactEl.handleHighlight = parcoor(
+      //     node,
+      //     data,
+      //     reactEl,
+      //     brushCallback,
+      //     mouseOverCallback,
+      //     mouseOutCallback,
+      //   );
+      // }, 0);
     } else {
       svg
         .insert('g', ':first-child')
@@ -284,6 +297,7 @@ function parcoor(
 }
 
 class PlotParCoor extends React.Component {
+  state = {}
   componentWillReceiveProps(props) {
     if (props.highlight !== this.props.highlight && this.handleHighlight) {
       // Kind of hacky, we're not actually going to re-render the react component when highlight
@@ -321,6 +335,7 @@ class PlotParCoor extends React.Component {
 
   shouldComponentUpdate(nextProps, nextState) {
     if (
+      _.isEqual(nextState.ord, this.state.ord) &&
       _.isEqual(nextProps.runs, this.props.runs) &&
       _.isEqual(nextProps.cols, this.props.cols) &&
       _.isEqual(nextProps.select, this.props.select)
@@ -350,6 +365,7 @@ class PlotParCoor extends React.Component {
             (axis, low, high) => this.props.onBrushEvent(axis, low, high),
             (row, index) => this.props.onMouseOverEvent(data[index].name),
             () => this.props.onMouseOutEvent(),
+            (ord) => {this.setState({ord})},
           );
         }}
       />
