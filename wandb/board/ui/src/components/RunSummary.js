@@ -109,7 +109,7 @@ class RunSummary extends Component {
               </Grid.Column>
               <Grid.Column width={8} textAlign="right">
                 tags {bucket.tags.map(tag => <Label key={tag}>{tag}</Label>)}
-                &nbsp;&nbsp;&nbsp;&nbsp; run{' '}
+                run{' '}
                 <NavLink
                   to={`/${model.entityName}/${model.name}/runs/${bucket.name}`}>
                   {bucket.name}

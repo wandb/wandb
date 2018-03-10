@@ -62,8 +62,8 @@ class RunEditor extends React.Component {
           <Form.Input
             width={3}
             value={this.state.newTag}
-            onChange={e => {
-              this.setState({newTag: e.target.value});
+            onChange={(e, {value}) => {
+              this.setState({newTag: value});
             }}
           />
           <Button

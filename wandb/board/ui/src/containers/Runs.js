@@ -282,6 +282,7 @@ class Runs extends React.Component {
               floated="right"
               disabled={this.props.data.selectedRuns.length === 0}
               onClick={e => {
+                // TODO(adrian): this should probably just be a separate component
                 e.preventDefault();
 
                 this.setState({
