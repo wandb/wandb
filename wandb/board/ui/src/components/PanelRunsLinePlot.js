@@ -279,9 +279,8 @@ class RunsLinePlotPanel extends React.Component {
     return avgBuckets;
   }
 
-  aggregateLines(lines, name, idx) {
+  aggregateLines(lines, name, idx, bucketData = true) {
     let maxLengthRun = arrMax(lines.map(line => line.data.length));
-    let bucketCount = Math.ceil(maxLengthRun / 2);
 
     let xVals = _.flatten(
       lines.map((line, j) => line.data.map((point, i) => point.x)),
@@ -293,37 +292,67 @@ class RunsLinePlotPanel extends React.Component {
 
     let maxX = arrMax(xVals);
     let minX = arrMin(xVals);
-
-    // get all the data points in aligned buckets
-    let bucketedLines = lines.map((line, j) =>
-      this.avgPointsByBucket(line.data, bucketCount, minX, maxX),
-    );
-
-    // do a manual zip because lodash's zip is not like python
+    let bucketXValues = [];
     let mergedBuckets = [];
-    bucketedLines.map((bucket, i) =>
-      bucket.map((b, j) => {
-        mergedBuckets[j] ? mergedBuckets[j].push(b) : (mergedBuckets[j] = [b]);
-      }),
-    );
 
-    // remove NaNs
-    mergedBuckets = mergedBuckets.map((xBucket, i) =>
-      xBucket.filter(y => isFinite(y)),
-    );
+    if (bucketData) {
+      /*
+    * We aggregate lines by first bucketing them.  This is important when there
+    * is sampling or when the x values don't line up.
+    */
+      let bucketCount = Math.ceil(maxLengthRun / 2);
 
-    let inc = (maxX - minX) / bucketCount;
+      // get all the data points in aligned buckets
+      let bucketedLines = lines.map((line, j) =>
+        this.avgPointsByBucket(line.data, bucketCount, minX, maxX),
+      );
+
+      // do a manual zip because lodash's zip is not like python
+      bucketedLines.map((bucket, i) =>
+        bucket.map((b, j) => {
+          mergedBuckets[j]
+            ? mergedBuckets[j].push(b)
+            : (mergedBuckets[j] = [b]);
+        }),
+      );
+
+      // remove NaNs
+      mergedBuckets = mergedBuckets.map((xBucket, i) =>
+        xBucket.filter(y => isFinite(y)),
+      );
+
+      let inc = (maxX - minX) / bucketCount;
+
+      mergedBuckets.map(
+        (xBucket, i) => (bucketXValues[i] = minX + (i + 0.5) * inc),
+      );
+    } else {
+      bucketXValues = _.uniq(xVals).sort((a, b) => a - b);
+      let xValToBucketIndex = {};
+      bucketXValues.map((val, i) => (xValToBucketIndex[val] = i));
+
+      // get all the data points in buckets
+      lines.map((line, j) =>
+        line.data.map((point, j) => {
+          let idx = xValToBucketIndex[point.x];
+          mergedBuckets[idx]
+            ? mergedBuckets[idx].push(point.y)
+            : (mergedBuckets[idx] = [point.y]);
+        }),
+      );
+    }
+
     let lineData = mergedBuckets
       .filter(bucket => bucket && bucket.length > 0)
       .map((bucket, i) => ({
-        x: minX + (i + 0.5) * inc,
+        x: bucketXValues[i],
         y: avg(bucket),
       }));
 
     let areaData = mergedBuckets
       .filter(bucket => bucket && bucket.length > 0)
       .map((bucket, i) => ({
-        x: minX + (i + 0.5) * inc,
+        x: bucketXValues[i],
         y0: arrMin(bucket),
         y: arrMax(bucket),
       }));
@@ -364,6 +393,12 @@ class RunsLinePlotPanel extends React.Component {
     }));
 
     if (this.props.config.aggregate) {
+      let bucketAggregation = true;
+      let maxLength = arrMax(lines.map((line, i) => line.data.length));
+      if (xAxisKey == '_step' && maxLength < 200) {
+        bucketAggregation = false;
+      }
+
       let aggLines = [];
       if (this.props.config.groupBy != 'None') {
         let groupIdx = groupConfigIdx(
@@ -386,11 +421,12 @@ class RunsLinePlotPanel extends React.Component {
                 ':' +
                 displayValue(configVal),
               i++,
+              bucketAggregation,
             ),
           );
         });
       } else {
-        aggLines = this.aggregateLines(lines, key);
+        aggLines = this.aggregateLines(lines, key, 0, bucketAggregation);
       }
       lines = aggLines;
     } else {
