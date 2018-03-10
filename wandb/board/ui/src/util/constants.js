@@ -38,4 +38,4 @@ export const COLORS = [
   '#2185d0', // blue
 ];
 
-export const MAX_HISTORIES_LOADED = 50;
+export const MAX_HISTORIES_LOADED = 10;
