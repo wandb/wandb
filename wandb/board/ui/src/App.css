@@ -1,43 +1,45 @@
 body {
-  overflow-x: auto !important;
+    overflow-x: auto !important;
 }
 
 #root > div {
-  display: flex;
-  min-height: 100vh;
-  flex-direction: column;
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
 }
 #root > div .main {
-  flex: 1;
-  padding-bottom: 50px;
+    flex: 1;
+    padding-bottom: 50px;
 }
-#root .menu .logo {
-  width: 3.8em;
-  padding: -10px 0;
+
+#root .menu .item .logo {
+    width: 3.8em;
+    padding: -10px 0;
 }
 .auth0-lock.auth0-lock .auth0-lock-name {
-  overflow: visible !important;
+    overflow: visible !important;
 }
 .main {
-  margin-top: 5em;
+    margin-top: 5em;
 }
+
 .main .ui.large.breadcrumb {
-  height: 40px;
+    height: 40px;
 }
 pre {
-  max-width: 650px;
-  font-size: 0.85em !important;
+    max-width: 650px;
+    font-size: 0.85em !important;
 }
 pre.instructions {
-  background-color: #555 !important;
-  padding: 9px;
-  margin-right: 8px;
-  border-radius: 5px;
-  margin: 0 !important;
+    background-color: #555 !important;
+    padding: 9px;
+    margin-right: 8px;
+    border-radius: 5px;
+    margin: 0 !important;
 }
 .ui.text.container .ReactTable .rt-table {
-  /* Because it's borked in Safari... */
-  flex: 1 1 auto;
+    /* Because it's borked in Safari... */
+    flex: 1 1 auto;
 }
 /*
 #root .ui.text.container {
@@ -45,61 +47,86 @@ pre.instructions {
 }
 */
 .model_name input {
-  font-weight: bold;
-  color: #4183c4 !important;
+    font-weight: bold;
+    color: #4183c4 !important;
 }
 img.logo.inverted {
-  filter: invert(80%);
+    filter: invert(80%);
 }
 .footer {
-  color: #888 !important;
+    color: #888 !important;
 }
 .model .ui.mini.statistics .statistic > .value,
 .model .ui.mini.statistics .statistic > .label {
-  color: #888;
-  font-size: 1rem !important;
-  font-family: monospace;
+    color: #888;
+    font-size: 1rem !important;
+    font-family: monospace;
 }
 .model .item .content .description {
-  max-height: 250px;
-  overflow: auto;
+    max-height: 250px;
+    overflow: auto;
 }
 .model .item .content .description pre {
-  max-width: none;
+    max-width: none;
 }
 .model .item .content .description.markdown {
-  max-height: none;
+    max-height: none;
 }
 .top.menu .ui.dropdown {
-  margin: 8px 0;
+    margin: 8px 0;
 }
 body .ui.table tr.active {
-  background-color: #e5f9e7 !important;
+    background-color: #e5f9e7 !important;
 }
 body .ui.form .field {
-  margin: 0 0 2em;
+    margin: 0 0 2em;
 }
 body .ui.active.button {
-  background-color: #e5f9e7 !important;
+    background-color: #e5f9e7 !important;
 }
 
 body .input-style {
-  border: 1px solid rgba(34, 36, 38, 0.15);
-  padding: 0 8px 8px 8px;
-  border-radius: 0.29rem;
+    border: 1px solid rgba(34, 36, 38, 0.15);
+    padding: 0 8px 8px 8px;
+    border-radius: 0.29rem;
 }
 
 .blurring.dimmed.dimmable > :not(.dimmer) {
-  -webkit-filter: blur(0.7px) grayscale(0.1) !important;
-  transition: filter 4s linear;
-  filter: blur(3px) grayscale(0.1) !important;
+    -webkit-filter: blur(0.7px) grayscale(0.1) !important;
+    transition: filter 4s linear;
+    filter: blur(3px) grayscale(0.1) !important;
 }
 
 body.blurring.dimmable > .dimmer {
-  background-color: rgba(0, 0, 0, 0.1);
+    background-color: rgba(0, 0, 0, 0.1);
 }
 
 body .ui.grid > .column:not(.row) {
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+.fullScreen .fixed.menu .item:not(.logo) {
+    display: none;
+}
+
+.fullScreen .fixed.menu .dropdown {
+    display: none;
+}
+
+.fullScreen .secondary.menu {
+    display: none;
+}
+
+#root .fullScreen .menu .item .logo {
+    width: 14em;
+    padding: -10px 0;
+}
+
+#root .fullScreen .menu .exitFullScreen {
+    display: none;
+}
+
+#root .fullScreen .menu:hover .exitFullScreen {
+    display: inline;
 }

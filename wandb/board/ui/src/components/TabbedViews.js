@@ -56,12 +56,26 @@ class TabbedViews extends React.Component {
             }}
           />
         )}
-        <Button
-          content={this.state.editMode ? 'View Charts' : 'Edit Charts'}
-          floated="right"
-          icon={this.state.editMode ? 'unhide' : 'configure'}
-          onClick={() => this.setState({editMode: !this.state.editMode})}
-        />
+        {!this.props.fullScreen && (
+          <Button
+            content={
+              this.props.viewType === 'dashboards'
+                ? null
+                : this.state.editMode ? 'View Charts' : 'Edit Charts'
+            }
+            floated="right"
+            icon={this.state.editMode ? 'unhide' : 'configure'}
+            onClick={() => this.setState({editMode: !this.state.editMode})}
+          />
+        )}
+        {this.props.viewType === 'dashboards' &&
+          !this.props.fullScreen && (
+            <Button
+              floated="right"
+              icon="window maximize"
+              onClick={() => this.props.setFullScreen(true)}
+            />
+          )}
         <Tab
           panes={panes}
           menu={{secondary: true, pointing: true}}
