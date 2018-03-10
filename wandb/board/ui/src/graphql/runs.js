@@ -59,7 +59,7 @@ export const fragments = {
   `,
   historyRun: gql`
     fragment HistoryRunFragment on BucketType {
-      history
+      history(samples: 500)
     }
   `,
   // This is not actually stored on the server, we manually write/read from the cache to track

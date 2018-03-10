@@ -5,7 +5,7 @@ import Markdown from './Markdown';
 import TimeAgo from 'react-timeago';
 
 /**
- *  This handles the summary on top of a runs page.
+ *  This component makes the summary on top of a runs page.
  */
 
 class RunSummary extends Component {

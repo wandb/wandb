@@ -13,8 +13,11 @@ import SystemList from '../components/SystemList';
 import ViewModifier from '../containers/ViewModifier';
 import './Run.css';
 import {JSONparseNaN} from '../util/jsonnan';
-
 import _ from 'lodash';
+
+/*
+ * This component shows a big table of runs
+ */
 
 export default class RunViewer extends React.Component {
   state = {};

@@ -446,3 +446,42 @@ export function getColumns(runs) {
     summaryColumns,
   );
 }
+
+export function groupByCandidates(configs) {
+  /* We want to pull out the configurations that a user might want to groupBy
+   * this would be any config that has more than one value that's different
+   * and more than one values that is the same
+   */
+  let config_keys = new Set();
+  // get all the keys from all the configs
+
+  configs.map((c, i) => {
+    _.keys(c).map((key, j) => {
+      config_keys.add(key);
+    });
+  });
+  let k = [...config_keys.keys()];
+  var interesting = k.filter((key, i) => {
+    var uniq = [...new Set(configs.map((c, i) => c[key]))];
+    return uniq.length > 1 && uniq.length < configs.length;
+  });
+  console.log('Figs', interesting);
+  return interesting;
+}
+
+export function groupConfigIdx(configs, key) {
+  /* return a map from unique values of key in configs to array of indexes
+  */
+  console.log('Configs', configs);
+  let values = configs.map((c, i) => c.config[key]);
+  console.log('Values', values);
+  let keyToGroup = {};
+  values.map((key, i) => {
+    if (!keyToGroup[key]) {
+      keyToGroup[key] = [];
+    }
+    keyToGroup[key].push(i);
+  });
+  console.log('ktg', keyToGroup);
+  return keyToGroup;
+}
