@@ -200,37 +200,41 @@ class RunsLinePlotPanel extends React.Component {
                 />
               </Form.Field>
             </Grid.Column>
-            <Grid.Column width={4} verticalAlign="middle">
-              <Form.Checkbox
-                toggle
-                label="Aggregate Runs"
-                name="aggregate"
-                onChange={(e, value) =>
-                  this.props.updateConfig({
-                    ...this.props.config,
-                    aggregate: value.checked,
-                  })
-                }
-              />
-            </Grid.Column>
-            <Grid.Column width={6}>
-              <Form.Dropdown
-                disabled={!this.props.config.aggregate}
-                label="Group By"
-                placeholder="groupBy"
-                fluid
-                search
-                selection
-                options={this._groupByOptions()}
-                value={this.props.config.groupBy}
-                onChange={(e, {value}) =>
-                  this.props.updateConfig({
-                    ...this.props.config,
-                    groupBy: value,
-                  })
-                }
-              />
-            </Grid.Column>
+            {this.props.data.selectedRuns.length > 1 && (
+              <Grid.Column width={4} verticalAlign="middle">
+                <Form.Checkbox
+                  toggle
+                  label="Aggregate Runs"
+                  name="aggregate"
+                  onChange={(e, value) =>
+                    this.props.updateConfig({
+                      ...this.props.config,
+                      aggregate: value.checked,
+                    })
+                  }
+                />
+              </Grid.Column>
+            )}
+            {this.props.config.aggregate && (
+              <Grid.Column width={6}>
+                <Form.Dropdown
+                  disabled={!this.props.config.aggregate}
+                  label="Group By"
+                  placeholder="groupBy"
+                  fluid
+                  search
+                  selection
+                  options={this._groupByOptions()}
+                  value={this.props.config.groupBy}
+                  onChange={(e, {value}) =>
+                    this.props.updateConfig({
+                      ...this.props.config,
+                      groupBy: value,
+                    })
+                  }
+                />
+              </Grid.Column>
+            )}
           </Grid.Row>
         </Grid>
       </Form>
@@ -282,6 +286,10 @@ class RunsLinePlotPanel extends React.Component {
     let xVals = _.flatten(
       lines.map((line, j) => line.data.map((point, i) => point.x)),
     );
+
+    if (xVals.length == 0) {
+      return [];
+    }
 
     let maxX = arrMax(xVals);
     let minX = arrMin(xVals);
@@ -339,6 +347,7 @@ class RunsLinePlotPanel extends React.Component {
     if (!data || data.length == 0) {
       return [];
     }
+
     let xAxisKey = this.props.config.xAxis || '_step';
     let smoothing =
       this.props.config.smoothingWeight &&
