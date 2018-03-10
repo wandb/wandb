@@ -55,7 +55,8 @@ class Run extends React.Component {
     }
     // Setup views loaded from server.
     if (
-      nextProps.bucket & (nextProps.views === null || !nextProps.views.run) &&
+      nextProps.bucket &&
+      (nextProps.views === null || !nextProps.views.run) &&
       _.isEmpty(this.props.reduxServerViews.run.views) &&
       // Prevent infinite loop
       _.isEmpty(this.props.reduxBrowserViews.run.views) &&
