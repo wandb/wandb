@@ -123,6 +123,8 @@ export function _getRunValueFromSectionName(run, section, name) {
     } else {
       return run[name];
     }
+  } else if (section === 'tags') {
+    return _.indexOf(run.tags, name) !== -1;
   } else if (run[section]) {
     return run[section][name];
   }
@@ -403,6 +405,13 @@ export function setupKeySuggestions(runs) {
       suggestions: runSuggestions.map(suggestion => ({
         section: 'run',
         value: suggestion,
+      })),
+    },
+    {
+      title: 'tags',
+      suggestions: _.sortedUniq(_.flatMap(runs, run => run.tags)).map(tag => ({
+        section: 'tags',
+        value: tag,
       })),
     },
     {

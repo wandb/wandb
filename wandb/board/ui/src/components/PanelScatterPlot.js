@@ -81,7 +81,8 @@ class ScatterPlotPanel extends React.Component {
           options={axisOptions}
           value={this.props.config.xAxis}
           onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, xAxis: value})}
+            this.props.updateConfig({...this.props.config, xAxis: value})
+          }
         />
         <Form.Dropdown
           label="Y-Axis"
@@ -92,7 +93,8 @@ class ScatterPlotPanel extends React.Component {
           options={axisOptions}
           value={this.props.config.yAxis}
           onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, yAxis: value})}
+            this.props.updateConfig({...this.props.config, yAxis: value})
+          }
         />
         <Form.Dropdown
           label="Z-Axis (Color)"
@@ -103,7 +105,8 @@ class ScatterPlotPanel extends React.Component {
           options={axisOptions}
           value={this.props.config.zAxis}
           onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, zAxis: value})}
+            this.props.updateConfig({...this.props.config, zAxis: value})
+          }
         />
       </Form>
     );
@@ -164,7 +167,7 @@ class ScatterPlotPanel extends React.Component {
               </FlexibleWidthXYPlot>
             </div>
           )}
-          <FlexibleWidthXYPlot height={300}>
+          <FlexibleWidthXYPlot height={300 - (zAxis ? 55 : 0)}>
             <VerticalGridLines />
             <HorizontalGridLines />
             <BoxSelection
@@ -208,12 +211,12 @@ class ScatterPlotPanel extends React.Component {
               onValueMouseOut={value => this.props.setHighlight(null)}
             />
             {highlight &&
-            highlight.color && (
-              <Hint
-                value={highlight}
-                format={point => [{title: 'ID', value: point.runId}]}
-              />
-            )}
+              highlight.color && (
+                <Hint
+                  value={highlight}
+                  format={point => [{title: 'ID', value: point.runId}]}
+                />
+              )}
           </FlexibleWidthXYPlot>
         </div>
       );

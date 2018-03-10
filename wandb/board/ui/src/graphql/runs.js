@@ -24,6 +24,7 @@ export const fragments = {
         username
         photoUrl
       }
+      tags
     }
   `,
   detailedRun: gql`
@@ -81,6 +82,7 @@ export const RUNS_QUERY = gql`
     $limit: Int = 1000
     $bucketIds: [String]
     $history: Boolean = false
+    $requestSubscribe: Boolean = false
   ) {
     model(name: $name, entityName: $entityName) {
       id
@@ -90,6 +92,7 @@ export const RUNS_QUERY = gql`
       description
       summaryMetrics
       views
+      requestSubscribe @include(if: $requestSubscribe)
       sweeps {
         edges {
           node {
@@ -145,16 +148,32 @@ export const RUNS_QUERY = gql`
 `;
 
 export const RUN_UPSERT = gql`
-  mutation upsertRun($id: String, $description: String) {
-    upsertBucket(input: {id: $id, description: $description}) {
+  mutation upsertRun($id: String, $description: String, $tags: [String!]) {
+    upsertBucket(input: {id: $id, description: $description, tags: $tags}) {
       bucket {
         id
         name
         description
+        tags
       }
       inserted
     }
   }
+`;
+
+export const MODIFY_RUNS = gql`
+  mutation modifyRuns($ids: [String], $addTags: [String]) {
+    modifyRuns(input: {ids: $ids, addTags: $addTags}) {
+      runs {
+        ...BasicRunFragment
+        user {
+          username
+          photoUrl
+        }
+      }
+    }
+  }
+  ${fragments.basicRun}
 `;
 
 export const RUN_DELETION = gql`

@@ -1,7 +1,7 @@
 import React, {Component} from 'react';
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
 import Panel from './Panel';
-import {Button, Icon, Modal} from 'semantic-ui-react';
+import {Button, Form, Icon, Modal} from 'semantic-ui-react';
 import _ from 'lodash';
 import './DashboardView.css';
 import * as Query from '../util/query';
@@ -174,6 +174,28 @@ class DashboardView extends Component {
 
     return (
       <div>
+        {this.props.editMode && (
+          <Form>
+            <Form.Group>
+              <Form.Input
+                placeholder="Tab Name"
+                value={this.props.name}
+                className="tab-name"
+                onChange={(e, {value}) => this.props.changeViewName(value)}
+              />
+              {/* hidden button so the remove button's onClick doesn't fire when the	
+                    user presses enter within the Tab Name input field */}
+              <Form.Button style={{display: 'none'}} />
+              <Form.Button
+                icon="x"
+                content="Remove Tab"
+                onClick={() => {
+                  this.props.removeView();
+                }}
+              />
+            </Form.Group>
+          </Form>
+        )}
         <Grid
           className={editMode ? 'editing' : 'display'}
           layout={panelConfigs.map(c => c.layout)}

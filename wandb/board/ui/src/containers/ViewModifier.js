@@ -3,7 +3,6 @@ import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 import TabbedViews from '../components/TabbedViews';
-import TabbedView from '../components/TabbedView';
 import DashboardView from '../components/DashboardView';
 import {
   addView,
@@ -15,6 +14,7 @@ import {
   updatePanel,
   updateView,
 } from '../actions/view';
+import {setFullScreen} from '../actions';
 
 class ViewModifier extends React.Component {
   renderView = (viewId, editMode) => {
@@ -65,6 +65,7 @@ class ViewModifier extends React.Component {
 function mapStateToProps(state, ownProps) {
   const browser = state.views.browser[ownProps.viewType] || {};
   return {
+    fullScreen: state.global.fullScreen,
     viewState: state.views.browser,
     views: browser.views,
     tabs: browser.tabs,
@@ -87,6 +88,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       removePanel,
       updatePanel,
       updateView,
+      setFullScreen,
     },
     dispatch,
   );

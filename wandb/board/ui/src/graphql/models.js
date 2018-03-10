@@ -9,6 +9,7 @@ export const MODEL_QUERY = gql`
     $bucketName: String!
     $upload: Boolean
     $detailed: Boolean!
+    $requestSubscribe: Boolean = false
   ) {
     model(name: $name, entityName: $entityName) {
       id
@@ -22,6 +23,7 @@ export const MODEL_QUERY = gql`
       bucket(name: $bucketName) {
         ...BasicRunFragment
         ...DetailedRunFragment @include(if: $detailed)
+        requestSubscribe @include(if: $requestSubscribe)
       }
       views
     }
