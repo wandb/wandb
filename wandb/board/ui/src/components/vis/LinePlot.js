@@ -7,27 +7,42 @@ import {
   VerticalGridLines,
   HorizontalGridLines,
   LineSeries,
+  AreaSeries,
   DiscreteColorLegend,
   Crosshair,
 } from 'react-vis';
-import {displayValue} from '../../util/runhelpers.js';
+import {truncateString, displayValue} from '../../util/runhelpers.js';
 
 class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
   // re-render every time the crosshair (highlight) changes.
   render() {
-    let {height, sizeKey, xAxis, yScale, lines, disabled} = this.props;
+    let {height, sizeKey, xAxis, yScale, lines, disabled, xScale} = this.props;
+    let xType = 'linear';
+    if (xAxis == 'Absolute Time') {
+      xType = 'time';
+    } else if (xScale == 'log') {
+      xType = 'log';
+    }
     return (
-      <FlexibleWidthXYPlot key={sizeKey} yType={yScale} height={height}>
+      <FlexibleWidthXYPlot
+        key={sizeKey}
+        yType={yScale}
+        xType={xType}
+        height={height}>
         <VerticalGridLines />
         <HorizontalGridLines />
-        <XAxis title={xAxis} />
+        <XAxis title={xAxis} tickTotal={5} />
         <YAxis />
         {lines
           .map(
             (line, i) =>
               !disabled[line.title] ? (
-                <LineSeries key={i} color={line.color} data={line.data} />
+                line.area ? (
+                  <AreaSeries key={i} color={line.color} data={line.data} />
+                ) : (
+                  <LineSeries key={i} color={line.color} data={line.data} />
+                )
               ) : null,
           )
           .filter(o => o)}
@@ -113,21 +128,24 @@ class LinePlotCrosshair extends React.PureComponent {
                 whiteSpace: 'nowrap',
               }}>
               <b>{this.props.xAxis + ': ' + crosshairValues[0].x}</b>
-              {crosshairValues.sort((a, b) => b.y - a.y).map(point => (
-                <div key={point.title}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      backgroundColor: point.color,
-                      width: 12,
-                      height: 4,
-                    }}
-                  />
-                  <span style={{marginLeft: 6}}>
-                    {point.title + ': ' + displayValue(point.y)}
-                  </span>
-                </div>
-              ))}
+              {crosshairValues
+                .sort((a, b) => b.y - a.y)
+                .filter(point => !point.title.startsWith('_'))
+                .map(point => (
+                  <div key={point.title}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        backgroundColor: point.color,
+                        width: 12,
+                        height: 4,
+                      }}
+                    />
+                    <span style={{marginLeft: 6}}>
+                      {point.title + ': ' + displayValue(point.y)}
+                    </span>
+                  </div>
+                ))}
             </div>
           </Crosshair>
         )}
@@ -148,7 +166,6 @@ export default class LinePlot extends React.PureComponent {
         <DiscreteColorLegend
           orientation="horizontal"
           onItemClick={(item, i) => {
-            console.log('item', item);
             this.setState({
               ...this.state,
               disabled: {
@@ -157,11 +174,13 @@ export default class LinePlot extends React.PureComponent {
               },
             });
           }}
-          items={this.props.lines.map((line, i) => ({
-            title: line.title,
-            disabled: this.state.disabled[line.title],
-            color: line.color,
-          }))}
+          items={this.props.lines
+            .map((line, i) => ({
+              title: truncateString(line.title, 40, 10),
+              disabled: this.state.disabled[line.title],
+              color: line.color,
+            }))
+            .filter(line => !line.title.startsWith('_'))}
         />
         <div style={{position: 'relative'}}>
           <LinePlotPlot

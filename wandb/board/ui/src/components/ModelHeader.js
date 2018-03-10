@@ -33,7 +33,7 @@ class ModelHeader extends React.Component {
         {!condensed && (
           <div style={{color: 'gray'}}>
             Updated{' '}
-            <TimeAgo date={(model.bucket.createdAt || model.createdAt) + 'Z'} />,
+            <TimeAgo date={(model.bucket.createdAt || model.createdAt) + 'Z'} />
             {hasFiles &&
               `Avg Size ${numeral(
                 model.bucket.files.edges

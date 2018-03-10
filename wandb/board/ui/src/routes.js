@@ -12,7 +12,6 @@ export default ({auth}) => (
     <Switch>
       <Redirect exact from="/" to="/board/default" />
       <UserRoute exact path="/dashboards" component={Dashboard} />
-      <UserRoute path="/dashboards/edit" component={Dashboard} />
       <UserRoute path="/:entity/:model/edit" component={Model} />
       <UserRoute exact path="/:entity/:model/runs/:run" component={Run} />
       <UserRoute path="/:entity/:model/runs/:run/edit" component={Run} />

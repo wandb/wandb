@@ -5,7 +5,6 @@ import re
 import glob
 import socket
 import getpass
-import urllib
 import hashlib
 import logging
 from six.moves import urllib

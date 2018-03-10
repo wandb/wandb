@@ -1,10 +1,11 @@
 import React from 'react';
 import _ from 'lodash';
-import {Button, Card, Dropdown, Grid, Icon} from 'semantic-ui-react';
+import {Button, Card, Dropdown, Grid, Icon, Segment} from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
 import QueryEditor from '../components/QueryEditor';
 import {filterRuns, sortRuns} from '../util/runhelpers.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
+import ContentLoader from 'react-content-loader';
 
 import './PanelRunsLinePlot';
 import './PanelLinePlot';
@@ -14,10 +15,15 @@ import './PanelParallelCoord';
 
 class Panel extends React.Component {
   state = {configMode: false, showQuery: false};
+  static loading = (
+    <Segment basic style={{minHeight: 260}}>
+      <ContentLoader />
+    </Segment>
+  );
 
   renderPanelType(PanelType, configMode, config, data, sizeKey, panelQuery) {
     if (!data) {
-      return <p>Views unavailable until data is ready</p>;
+      return Panel.loading;
     }
     return (
       <div style={{clear: 'both'}}>
@@ -37,13 +43,13 @@ class Panel extends React.Component {
     let {type, size, config, data} = this.props;
     let panel, PanelType, configMode, options, sizeKey;
     if (!data) {
-      panel = <p>Views unavailable until data is ready.</p>;
+      panel = Panel.loading;
     } else {
       options = _.keys(panelClasses)
         .filter(type => panelClasses[type].validForData(data))
         .map(type => ({text: type, value: type}));
       if (options.length === 0) {
-        panel = <p>Views unavailable until data is ready.</p>;
+        panel = Panel.loading;
       } else {
         type = type || options[0].value;
         config = config || {};
@@ -52,7 +58,6 @@ class Panel extends React.Component {
         size = PanelType.options.width
           ? {width: PanelType.options.width}
           : size || {width: 8};
-
         sizeKey = size.width;
       }
     }
@@ -102,25 +107,19 @@ class Panel extends React.Component {
               style={{marginBottom: 12, zIndex: 21}}
             />
           )}
-          {configMode && (
-            <QueryEditor
-              pageQuery={this.props.pageQuery}
-              panelQuery={this.props.panelQuery}
-              setQuery={this.props.updateQuery}
-              runs={this.props.data.base}
-              keySuggestions={this.props.data.keys}
-            />
-          )}
+          {configMode &&
+            this.props.viewType === 'dashboards' && (
+              <QueryEditor
+                pageQuery={this.props.pageQuery}
+                panelQuery={this.props.panelQuery}
+                setQuery={this.props.updateQuery}
+                runs={this.props.data.base}
+                keySuggestions={this.props.data.keys}
+              />
+            )}
           {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
         </div>
       );
-      if (!this.props.noCard) {
-        panel = (
-          <Card fluid>
-            <Card.Content>{panel}</Card.Content>
-          </Card>
-        );
-      }
     } else if (!panel) {
       panel = this.renderPanelType(
         PanelType,
@@ -131,14 +130,7 @@ class Panel extends React.Component {
         this.props.panelQuery,
       );
     }
-    return (
-      <Grid.Column
-        width={(size && size.width) || 8}
-        style={this.props.style}
-        className={this.props.className}>
-        {panel}
-      </Grid.Column>
-    );
+    return <div className={this.props.className}>{panel}</div>;
   }
 }
 

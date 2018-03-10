@@ -1,4 +1,11 @@
-import {NETWORK_ERROR, RESET_ERROR, SIGN_IN, SIGN_OUT, FLASH} from '../actions';
+import {
+  NETWORK_ERROR,
+  RESET_ERROR,
+  SIGN_IN,
+  SIGN_OUT,
+  FLASH,
+  FULL_SCREEN,
+} from '../actions';
 import update from 'immutability-helper';
 
 const global = (state = {}, action) => {
@@ -18,6 +25,8 @@ const global = (state = {}, action) => {
       });
     case FLASH:
       return update(state, {$merge: {flash: action.flash}});
+    case FULL_SCREEN:
+      return update(state, {$merge: {fullScreen: action.fullScreen}});
     default:
       return state;
   }

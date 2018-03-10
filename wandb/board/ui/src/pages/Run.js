@@ -1,17 +1,23 @@
 import React from 'react';
-import {graphql, compose} from 'react-apollo';
+import {graphql, compose, withApollo} from 'react-apollo';
 import {Container, Loader} from 'semantic-ui-react';
 import RunEditor from '../components/RunEditor';
 import RunViewer from '../components/RunViewer';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
-import {RUN_UPSERT, RUN_DELETION, RUN_STOP} from '../graphql/runs';
+import {
+  RUN_UPSERT,
+  RUN_DELETION,
+  RUN_STOP,
+  RUNS_QUERY,
+  fragments,
+} from '../graphql/runs';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
 import {setServerViews, setBrowserViews} from '../actions/view';
 import {updateLocationParams} from '../actions/location';
 import _ from 'lodash';
-import {defaultViews} from '../util/runhelpers';
+import {defaultViews, generateBucketId} from '../util/runhelpers';
 import {BOARD} from '../util/board';
 
 class Run extends React.Component {
@@ -25,22 +31,40 @@ class Run extends React.Component {
 
   componentDidUpdate() {
     window.Prism.highlightAll();
+    if (!this.props.loading) {
+      this.props.refetch({detailed: true});
+    }
   }
 
   componentWillReceiveProps(nextProps) {
+    if (nextProps.model && !_.isEqual(nextProps.model, this.props.model)) {
+      this.setState({model: nextProps.model, bucket: nextProps.bucket});
+    } else if (!nextProps.model) {
+      const params = this.props.match.params,
+        id = generateBucketId(params),
+        bucket = nextProps.client.readFragment({
+          id: id,
+          fragment: fragments.basicRun,
+        });
+      if (bucket) {
+        this.setState({
+          bucket: bucket,
+          model: {entityName: params.entity, name: params.model},
+        });
+      }
+    }
     // Setup views loaded from server.
     if (
-      nextProps.bucket &&
-      (nextProps.views === null || !nextProps.views.run) &&
+      nextProps.bucket & (nextProps.views === null || !nextProps.views.run) &&
       _.isEmpty(this.props.reduxServerViews.run.views) &&
       // Prevent infinite loop
-      _.isEmpty(this.props.reduxBrowserViews.runs.views) &&
+      _.isEmpty(this.props.reduxBrowserViews.run.views) &&
       !this.props.reduxBrowserViews.run.configured
     ) {
       this.props.setBrowserViews(defaultViews(nextProps.bucket));
     } else if (
       nextProps.views &&
-      nextProps.views.runs &&
+      nextProps.views.run &&
       !_.isEqual(nextProps.views, this.props.reduxServerViews)
     ) {
       if (
@@ -57,7 +81,7 @@ class Run extends React.Component {
     let action = this.props.match.path.split('/').pop();
     return (
       <Container>
-        {this.props.loading || !this.props.model ? (
+        {!this.state.model ? (
           <Loader size="massive" active={true} />
         ) : this.props.user && action === 'edit' ? (
           // TODO: Don't render button if user can't edit
@@ -75,8 +99,8 @@ class Run extends React.Component {
               this.setState({activeIndex: 1});
             }}
             user={this.props.user}
-            model={this.props.model}
-            bucket={this.props.bucket}
+            model={this.state.model}
+            bucket={this.state.bucket}
             loss={this.props.loss}
             stream={this.props.stream}
             match={this.props.match}
@@ -102,13 +126,14 @@ const withData = graphql(MODEL_QUERY, {
         entityName: params.entity,
         name: params.model,
         bucketName: params.run,
-        detailed: true,
+        detailed: false,
+        requestSubscribe: true,
       },
     };
     if (BOARD) defaults.pollInterval = 2000;
     return defaults;
   },
-  props: ({data, errors}) => {
+  props: ({data, refetch, errors}) => {
     let views = null;
     if (data.model && data.model.views) {
       views = JSON.parse(data.model.views);
@@ -120,6 +145,7 @@ const withData = graphql(MODEL_QUERY, {
       viewer: data.viewer,
       bucket: data.model && data.model.bucket,
       views: views,
+      refetch: data.refetch,
     };
   },
 });
@@ -192,5 +218,5 @@ function mapDispatchToProps(dispatch) {
 export {Run};
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withData(Run)),
+  withMutations(withData(withApollo(Run))),
 );

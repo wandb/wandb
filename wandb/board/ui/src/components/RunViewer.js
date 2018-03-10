@@ -7,11 +7,17 @@ import 'react-table/react-table.css';
 import Breadcrumbs from '../components/Breadcrumbs';
 import StreamingLog from '../containers/StreamingLog';
 import Files from '../components/Files';
+import ConfigList from '../components/ConfigList';
+import SummaryList from '../components/SummaryList';
+import SystemList from '../components/SystemList';
 import ViewModifier from '../containers/ViewModifier';
 import './Run.css';
 import {JSONparseNaN} from '../util/jsonnan';
-import {displayValue} from '../util/runhelpers';
 import _ from 'lodash';
+
+/*
+ * This component shows a big table of runs
+ */
 
 export default class RunViewer extends React.Component {
   state = {};
@@ -62,16 +68,6 @@ export default class RunViewer extends React.Component {
       this._config ||
       (this.props.bucket.config && JSONparseNaN(this.props.bucket.config));
     return this._config;
-  }
-
-  formatMetric(name, metric) {
-    if (name.indexOf('.temp') > -1) {
-      return metric + '°';
-    } else if (parseInt(metric, 10) <= 100) {
-      return metric + '%';
-    } else {
-      return numeral(metric).format('0.0b');
-    }
   }
 
   parseData(rows, type) {
@@ -138,157 +134,112 @@ export default class RunViewer extends React.Component {
                 events: eventData,
                 match: this.props.match,
               }}
-              blank={histData.length === 0}
+              blank={!histData || histData.length === 0}
               updateViews={this.props.updateViews}
+              loader={true}
             />
           </Grid.Column>
         </Grid.Row>
-        {exampleTable.length !== 0 && (
-          <Grid.Row columns={1}>
-            <Grid.Column>
-              <Header>Examples</Header>
-              <ReactTable
-                style={{width: '100%'}}
-                defaultPageSize={10}
-                columns={exampleTableColumns.map((name, i) => {
-                  let type = exampleTableTypes[name];
-                  return {
-                    Header: name,
-                    accessor: name,
-                    //minWidth: type == 'histogram' ? 400 : undefined,
-                    Cell: row => {
-                      let val = row.value;
-                      if (type === 'image') {
-                        val = (
-                          <Popup
-                            trigger={
+        {exampleTable &&
+          exampleTable.length !== 0 && (
+            <Grid.Row columns={1}>
+              <Grid.Column>
+                <Header>Examples</Header>
+                <ReactTable
+                  style={{width: '100%'}}
+                  defaultPageSize={10}
+                  columns={exampleTableColumns.map((name, i) => {
+                    let type = exampleTableTypes[name];
+                    return {
+                      Header: name,
+                      accessor: name,
+                      //minWidth: type == 'histogram' ? 400 : undefined,
+                      Cell: row => {
+                        let val = row.value;
+                        if (type === 'image') {
+                          val = (
+                            <Popup
+                              trigger={
+                                <img
+                                  style={{'max-width': 128}}
+                                  src={'data:image/png;base64,' + val}
+                                  alt="example"
+                                />
+                              }>
                               <img
-                                style={{'max-width': 128}}
+                                style={{width: 256}}
                                 src={'data:image/png;base64,' + val}
                                 alt="example"
                               />
-                            }>
-                            <img
-                              style={{width: 256}}
-                              src={'data:image/png;base64,' + val}
-                              alt="example"
-                            />
-                          </Popup>
-                        );
-                      } else if (type === 'float' && val) {
-                        // toPrecision converts to exponential notation only
-                        // when abs(exponent) >-= 7, so we get a lot of zeroes
-                        // that make for a long string at exponent==6. We control
-                        // the conversion more carefully here to control the displayed
-                        // string length.
-                        if (Math.abs(val) > 1000 || Math.abs(val) < 0.001) {
-                          val = val.toExponential(4);
-                        } else {
-                          val = val.toPrecision(4);
-                        }
-                      } else if (type === 'percentage' && val) {
-                        let percentage = val * 100;
-                        val = (
-                          <div
-                            style={{
-                              width: '100%',
-                              backgroundColor: '#dadada',
-                              borderRadius: '2px',
-                            }}>
+                            </Popup>
+                          );
+                        } else if (type === 'float' && val) {
+                          // toPrecision converts to exponential notation only
+                          // when abs(exponent) >-= 7, so we get a lot of zeroes
+                          // that make for a long string at exponent==6. We control
+                          // the conversion more carefully here to control the displayed
+                          // string length.
+                          if (Math.abs(val) > 1000 || Math.abs(val) < 0.001) {
+                            val = val.toExponential(4);
+                          } else {
+                            val = val.toPrecision(4);
+                          }
+                        } else if (type === 'percentage' && val) {
+                          let percentage = val * 100;
+                          val = (
                             <div
                               style={{
-                                width: `${percentage}%`,
-                                height: 12,
-                                backgroundColor:
-                                  percentage > 66
-                                    ? '#85cc00'
-                                    : percentage > 33 ? '#ffbf00' : '#ff2e00',
+                                width: '100%',
+                                backgroundColor: '#dadada',
                                 borderRadius: '2px',
-                                transition: 'all .2s ease-out',
-                              }}
-                            />
+                              }}>
+                              <div
+                                style={{
+                                  width: `${percentage}%`,
+                                  height: 12,
+                                  backgroundColor:
+                                    percentage > 66
+                                      ? '#85cc00'
+                                      : percentage > 33 ? '#ffbf00' : '#ff2e00',
+                                  borderRadius: '2px',
+                                  transition: 'all .2s ease-out',
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+                        return (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              width: '100%',
+                              height: '100%',
+                            }}>
+                            {val}
                           </div>
                         );
-                      }
-                      return (
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            width: '100%',
-                            height: '100%',
-                          }}>
-                          {val}
-                        </div>
-                      );
-                    },
-                  };
-                })}
-                data={exampleTable}
-              />
-            </Grid.Column>
-          </Grid.Row>
-        )}
+                      },
+                    };
+                  })}
+                  data={exampleTable}
+                />
+              </Grid.Column>
+            </Grid.Row>
+          )}
         <Grid.Row columns={columns} className="vars">
           <Grid.Column>
-            <Header>Summary</Header>
-            <List divided>
-              {Object.keys(summaryMetrics)
-                .sort()
-                .map((key, i) => (
-                  <List.Item key={'summary' + i}>
-                    <List.Content>
-                      <List.Header>{key}</List.Header>
-                      <List.Description>
-                        {numeral(summaryMetrics[key]).format('0.[000]')}
-                      </List.Description>
-                    </List.Content>
-                  </List.Item>
-                ))}
-            </List>
+            <Header>Configuration</Header>
+            <ConfigList data={this.config()} />
           </Grid.Column>
           <Grid.Column>
-            <Header>Configuration</Header>
-            {this.config() && (
-              <List divided size="small">
-                {Object.keys(this.config()).map((key, i) => (
-                  <List.Item key={i}>
-                    {this.config()[key].desc ? (
-                      <Popup
-                        trigger={<List.Header>{key}</List.Header>}
-                        content={this.config()[key].desc}
-                      />
-                    ) : (
-                      <List.Header>{key}</List.Header>
-                    )}
-                    <List.Description>
-                      {'' +
-                        displayValue(
-                          this.config()[key].value || this.config()[key],
-                        )}
-                    </List.Description>
-                  </List.Item>
-                ))}
-              </List>
-            )}
+            <Header>Summary</Header>
+            <SummaryList data={summaryMetrics} />
           </Grid.Column>
           {columns === 3 && (
             <Grid.Column>
               <Header>Utilization</Header>
-              <List divided size="small">
-                {Object.keys(systemMetrics)
-                  .sort()
-                  .map((key, i) => (
-                    <List.Item key={'system' + i}>
-                      <List.Content>
-                        <List.Header>{key.replace('system.', '')}</List.Header>
-                        <List.Description>
-                          {this.formatMetric(key, systemMetrics[key])}
-                        </List.Description>
-                      </List.Content>
-                    </List.Item>
-                  ))}
-              </List>
+              <SystemList data={systemMetrics} />
             </Grid.Column>
           )}
         </Grid.Row>

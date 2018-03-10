@@ -3,6 +3,9 @@
   font-family: monospace;
 }
 
+.logs.ui.loading.segment:before {
+  background: none;
+}
 .logs .ui.ordered.list > .item:before {
   margin-left: -3rem;
 }

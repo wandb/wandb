@@ -1,8 +1,12 @@
 import React, {Component} from 'react';
-import {Button, Grid, Header, Modal, Message, Segment} from 'semantic-ui-react';
+import {Button, Label, Grid, Header, Modal, Message, Segment} from 'semantic-ui-react';
 import {NavLink} from 'react-router-dom';
 import Markdown from './Markdown';
 import TimeAgo from 'react-timeago';
+
+/**
+ *  This component makes the summary on top of a runs page.
+ */
 
 class RunSummary extends Component {
   color() {
@@ -70,12 +74,22 @@ class RunSummary extends Component {
         <Segment attached="bottom">
           <Grid>
             <Grid.Row>
-              <Grid.Column width={10}>
-                <strong>
-                  ran {bucket.user && 'by ' + bucket.user.username}{' '}
-                  {bucket.heartbeatAt && (
-                    <span>
-                      for{' '}
+              <Grid.Column width={8}>
+                {this.props.bucket.state == 'running' ? (
+                  <strong>running </strong>
+                ) : (
+                  <strong>ran </strong>
+                )}
+                {bucket.user && this.props.bucket.state == 'running' ? (
+                  <span>for </span>
+                ) : (
+                  <span>by </span>
+                )}
+                {bucket.user && <strong>{bucket.user.username}</strong>}{' '}
+                {bucket.heartbeatAt && (
+                  <span>
+                    for{' '}
+                    <strong>
                       <TimeAgo
                         date={bucket.createdAt + 'Z'}
                         now={() => {
@@ -84,12 +98,17 @@ class RunSummary extends Component {
                         formatter={(v, u, s, d, f) => f().replace(s, '')}
                         live={false}
                       />
-                    </span>
-                  )}
-                </strong>
-                {bucket.host && ' on ' + bucket.host}
+                    </strong>
+                  </span>
+                )}
+                {bucket.host && (
+                  <span>
+                    on <strong>{bucket.host}</strong>
+                  </span>
+                )}
               </Grid.Column>
-              <Grid.Column width={6} textAlign="right">
+              <Grid.Column width={8} textAlign="right">
+                tags {bucket.tags.map(tag => <Label key={tag}>{tag}</Label>)}
                 run{' '}
                 <NavLink
                   to={`/${model.entityName}/${model.name}/runs/${bucket.name}`}>

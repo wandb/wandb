@@ -17,7 +17,7 @@ class TabbedViews extends React.Component {
         content: <span>{this.props.views[viewId].name + ' '}</span>,
       },
       render: () => (
-        <Tab.Pane>
+        <Tab.Pane as="div">
           {this.props.renderView(viewId, this.state.editMode)}
         </Tab.Pane>
       ),
@@ -56,24 +56,37 @@ class TabbedViews extends React.Component {
             }}
           />
         )}
-        <Button
-          content={this.state.editMode ? 'View Charts' : 'Edit Charts'}
-          floated="right"
-          icon={this.state.editMode ? 'unhide' : 'configure'}
-          onClick={() => this.setState({editMode: !this.state.editMode})}
-        />
-        {(!this.props.blank || this.state.editMode) && (
-          <Tab
-            panes={panes}
-            activeIndex={activeIndex}
-            onTabChange={(event, {activeIndex}) => {
-              this.props.setActiveView(
-                this.props.viewType,
-                this.props.tabs[activeIndex] || activeIndex,
-              );
-            }}
+        {!this.props.fullScreen && (
+          <Button
+            content={
+              this.props.viewType === 'dashboards'
+                ? null
+                : this.state.editMode ? 'View Charts' : 'Edit Charts'
+            }
+            floated="right"
+            icon={this.state.editMode ? 'unhide' : 'configure'}
+            onClick={() => this.setState({editMode: !this.state.editMode})}
           />
         )}
+        {this.props.viewType === 'dashboards' &&
+          !this.props.fullScreen && (
+            <Button
+              floated="right"
+              icon="window maximize"
+              onClick={() => this.props.setFullScreen(true)}
+            />
+          )}
+        <Tab
+          panes={panes}
+          menu={{secondary: true, pointing: true}}
+          activeIndex={activeIndex}
+          onTabChange={(event, {activeIndex}) => {
+            this.props.setActiveView(
+              this.props.viewType,
+              this.props.tabs[activeIndex] || activeIndex,
+            );
+          }}
+        />
       </div>
     );
   }

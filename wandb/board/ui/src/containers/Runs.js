@@ -1,6 +1,7 @@
 import React from 'react';
 import {graphql, compose, withApollo} from 'react-apollo';
 import {
+  Confirm,
   Container,
   Button,
   Grid,
@@ -13,7 +14,7 @@ import RunFiltersRedux from './RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
 import ViewModifier from './ViewModifier';
 import HelpIcon from '../components/HelpIcon';
-import {RUNS_QUERY} from '../graphql/runs';
+import {RUNS_QUERY, MODIFY_RUNS} from '../graphql/runs';
 import {MODEL_UPSERT} from '../graphql/models';
 import {connect} from 'react-redux';
 import queryString from 'query-string';
@@ -93,7 +94,15 @@ class Runs extends React.Component {
       }
       return [];
     };
-    readFilters('filter');
+    let filterFilters = readFilters('filter');
+    if (filterFilters.length === 0) {
+      this.props.addFilter(
+        'filter',
+        {section: 'tags', value: 'hidden'},
+        '=',
+        'false',
+      );
+    }
     let selectFilters = readFilters('select');
     if (selectFilters.length === 0) {
       this.props.addFilter('select', {section: 'run', value: 'id'}, '=', '*');
@@ -115,7 +124,6 @@ class Runs extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    console.log('RUNS nextProps', nextProps);
     if (
       !this.doneLoading &&
       nextProps.loading === false &&
@@ -167,12 +175,20 @@ class Runs extends React.Component {
     this.setState({activeTab: activeIndex});
 
   render() {
-    console.log('Runs props!', this.props);
+    let ModelInfo = this.props.ModelInfo;
     return (
       <Container>
+        <Confirm
+          open={this.state.showConfirm}
+          onCancel={this.state.handleCancel}
+          onConfirm={this.state.handleConfirm}
+          content={this.state.confirmText}
+          confirmButton={this.state.confirmButton}
+        />
         <Grid>
-          <Grid.Row>
-            <Grid.Column>
+          <Grid.Row divided columns={2}>
+            <Grid.Column>{ModelInfo}</Grid.Column>
+            <Grid.Column textAlign="right">
               <p
                 style={{cursor: 'pointer'}}
                 onClick={() =>
@@ -264,6 +280,45 @@ class Runs extends React.Component {
               on="click"
               position="bottom left"
             />
+            <Button
+              floated="right"
+              disabled={this.props.data.selectedRuns.length === 0}
+              onClick={e => {
+                // TODO(adrian): this should probably just be a separate component
+                e.preventDefault();
+
+                this.setState({
+                  showConfirm: true,
+                  confirmText:
+                    'Are you sure you would like to hide these runs? You can reverse this later by removing the "hidden" label.',
+                  confirmButton: `Hide ${
+                    this.props.data.selectedRuns.length
+                  } run(s)`,
+                  handleConfirm: e => {
+                    e.preventDefault();
+                    this.props.modifyRuns({
+                      ids: this.props.data.selectedRuns.map(run => run.id),
+                      addTags: ['hidden'],
+                    });
+                    this.setState({
+                      showConfirm: false,
+                      handleConfirm: null,
+                      handleCancel: null,
+                    });
+                  },
+                  handleCancel: e => {
+                    e.preventDefault();
+                    this.setState({
+                      showConfirm: false,
+                      handleConfirm: null,
+                      handleCancel: null,
+                    });
+                  },
+                });
+              }}>
+              <Icon name="trash" />
+              Hide {this.props.data.selectedRuns.length} run(s)
+            </Button>
           </Grid.Column>
         </Grid>
         <RunFeed
@@ -296,6 +351,15 @@ const withMutations = compose(
             },
           },
         }),
+    }),
+  }),
+  graphql(MODIFY_RUNS, {
+    props: ({mutate}) => ({
+      modifyRuns: variables => {
+        mutate({
+          variables: {...variables},
+        });
+      },
     }),
   }),
 );

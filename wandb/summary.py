@@ -4,6 +4,7 @@ import os
 import wandb
 from wandb import util
 from wandb.meta import Meta
+import six
 
 SUMMARY_FNAME = 'wandb-summary.json'
 
@@ -12,37 +13,55 @@ class Summary(object):
     """Used to store summary metrics during and after a run."""
 
     def __init__(self, out_dir='.'):
-        self.fname = os.path.join(out_dir, SUMMARY_FNAME)
+        self._fname = os.path.join(out_dir, SUMMARY_FNAME)
         self.load()
 
     def load(self):
         try:
-            self.summary = json.load(open(self.fname))
-        except IOError:
-            self.summary = {}
+            self._summary = json.load(open(self._fname))
+        except (IOError, ValueError):
+            self._summary = {}
 
     def _write(self):
-        with open(self.fname, 'w') as f:
-            s = util.json_dumps_safer(self.summary, indent=4)
+        with open(self._fname, 'w') as f:
+            s = util.json_dumps_safer(self._summary, indent=4)
             f.write(s)
             f.write('\n')
 
     def __getitem__(self, k):
-        return self.summary[k]
+        return self._summary[k]
 
     def __setitem__(self, k, v):
-        self.summary[k] = v
+        self._summary[k] = v
         self._write()
+
+    def __setattr__(self, k, v):
+        if k.startswith("_"):
+            super(Summary, self).__setattr__(k, v)
+        else:
+            self._summary[k] = v
+            self._write()
+
+    def __getattr__(self, k):
+        if k.startswith("_"):
+            super(Summary, self).__getattr__(k)
+        else:
+            return self._summary[k]
 
     def __delitem__(self, k):
-        del self.summary[k]
+        del self._summary[k]
         self._write()
 
+    def __repr__(self):
+        return json.dumps(self._summary, indent=4)
+
     def get(self, k, default=None):
-        return self.summary.get(k, default)
+        return self._summary.get(k, default)
 
     def update(self, key_vals):
         if not isinstance(key_vals, dict):
             raise wandb.Error('summary.update expects dict')
-        self.summary.update(key_vals)
+        # TODO: This removes media from the summary, but will silently remove a user provided dict with _type
+        self._summary.update(
+            {k: v for k, v in six.iteritems(key_vals) if not (isinstance(v, dict) and v.get("_type"))})
         self._write()

@@ -4,7 +4,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.5.7'
+__version__ = '0.5.8'
 
 import atexit
 import click
@@ -275,8 +275,7 @@ def init(job_type='train', config=None):
     run = wandb_run.Run.from_environment_or_defaults()
     run.job_type = job_type
     run.set_environment()
-    if config:
-        run.config.update(config)
+
     api = wandb_api.Api()
     api.set_current_run_id(run.id)
     if run.mode == 'run':
@@ -306,6 +305,9 @@ def init(job_type='train', config=None):
             'Invalid run mode "%s". Please unset WANDB_MODE to do a dry run or' % run.mode)
         termlog('run with "wandb run" to do a real run.')
         sys.exit(1)
+
+    if config:
+        run.config.update(config)
 
     atexit.register(run.close_files)
 

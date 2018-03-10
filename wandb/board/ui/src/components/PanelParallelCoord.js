@@ -4,10 +4,7 @@ import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 import {Form} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
-import {
-  filterKeyFromString,
-  filtersForAxis,
-} from '../util/runhelpers.js';
+import {filterKeyFromString, filtersForAxis} from '../util/runhelpers.js';
 import {getRunValue} from '../util/runhelpers.js';
 import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
@@ -34,7 +31,7 @@ function parcoor(
     computedWidth = Math.max(280, d3node.getBoundingClientRect().width);
   var margin = {top: 30, right: 10, bottom: 10, left: 10},
     width = computedWidth - margin.left - margin.right,
-    height = 320 - margin.top - margin.bottom;
+    height = 280 - margin.top - margin.bottom;
 
   var x = d3.scaleBand().rangeRound([0, width]).padding(1),
     y = {},
@@ -426,7 +423,8 @@ class ParCoordPanel extends React.Component {
             this.props.updateConfig({
               ...this.props.config,
               dimensions: value,
-            })}
+            })
+          }
         />
       </Form>
     );

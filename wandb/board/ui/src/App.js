@@ -1,6 +1,7 @@
 import 'whatwg-fetch';
 import React, {Component} from 'react';
 //import Nav from './components/Nav';
+import {connect} from 'react-redux';
 import {Container, Loader} from 'semantic-ui-react';
 import AutoReload from './components/AutoReload';
 import Footer from './components/Footer';
@@ -34,7 +35,7 @@ class App extends Component {
         <Loader size="massive">Initializing...</Loader>
       </div>
     ) : (
-      <div>
+      <div className={this.props.fullScreen ? 'fullScreen' : ''}>
         <AutoReload setFlash={this.props.setFlash} />
         <Nav user={this.props.user} history={this.props.history} />
         <Container className="main" fluid>
@@ -50,4 +51,10 @@ class App extends Component {
   }
 }
 
-export default App;
+function mapStateToProps(state, ownProps) {
+  return {
+    fullScreen: state.global.fullScreen,
+  };
+}
+
+export default connect(mapStateToProps)(App);
