@@ -20,13 +20,13 @@ import withHistoryLoader from '../containers/HistoryLoader';
 // TODO: read this from query
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {JSONparseNaN} from '../util/jsonnan';
+import * as Query from '../util/query';
 import _ from 'lodash';
 
 // Load the graphql data for this panel, currently loads all data for this project and entity.
 function withRunsData() {
   return graphql(RUNS_QUERY, {
-    skip: ({query}) =>
-      !(query.strategy === 'merge' && query.entity && query.model),
+    skip: ({query}) => !Query.needsOwnQuery(query),
     options: ({query, requestSubscribe}) => {
       const defaults = {
         variables: {
@@ -36,7 +36,12 @@ function withRunsData() {
           requestSubscribe: requestSubscribe || false,
         },
       };
-      if (BOARD) defaults.pollInterval = 5000;
+      if (BOARD) {
+        defaults.pollInterval = 5000;
+      }
+      if (Query.shouldPoll(query)) {
+        defaults.pollInterval = 60000;
+      }
       return defaults;
     },
     props: ({data: {loading, model, viewer, refetch}, errors}) => {
@@ -69,7 +74,7 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     _setup(props) {
-      let strategy = props.query.strategy || 'page';
+      let strategy = Query.strategy(props.query);
       if (strategy === 'page') {
         this.data = props.data;
       } else {

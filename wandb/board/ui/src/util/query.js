@@ -46,8 +46,8 @@ export function setFilterComponent(filters, id, component, value) {
 }
 
 export function merge(base, apply) {
-  let strategy = apply.strategy || 'page';
-  if (strategy === 'page') {
+  let strat = strategy(apply);
+  if (strat === 'page') {
     return {...base, strategy: apply.strategy};
   }
   let result = {};
@@ -76,11 +76,7 @@ export function merge(base, apply) {
 }
 
 export function summaryString(query) {
-  if (
-    !query ||
-    query.strategy === 'page' ||
-    _.keys(query.filters).length === 0
-  ) {
+  if (strategy(query) === 'page' || _.keys(query.filters).length === 0) {
     return '';
   }
   let filtStrs = _.map(
@@ -93,4 +89,20 @@ export function summaryString(query) {
       displayValue(filt.value),
   );
   return filtStrs.join(', ');
+}
+
+export function strategy(query) {
+  if (!query || !query.strategy) {
+    // page is the default when not explicity provided
+    return 'page';
+  }
+  return query.strategy;
+}
+
+export function shouldPoll(query) {
+  return strategy(query) === 'merge';
+}
+
+export function needsOwnQuery(query) {
+  return strategy(query) === 'root' || strategy(query) === 'merge';
 }

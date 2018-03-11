@@ -7,6 +7,7 @@ import {filterRuns, sortRuns} from '../util/runhelpers.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import _ from 'lodash';
+import * as Query from '../util/query';
 
 export default function withHistoryLoader(WrappedComponent) {
   let HistoryLoader = class extends React.Component {
@@ -16,6 +17,13 @@ export default function withHistoryLoader(WrappedComponent) {
     }
 
     _setup(props, nextProps) {
+      // In polling mode we always reload all history data. Note the check below
+      // to see if selectedRuns has changed from previous props to now will only
+      // be true when the withRunsData loader upstream from us has polled new data
+      // (or when some other parameters have changed, which doesn't happen on the
+      // dashboard page right now)
+      let pollingMode = Query.shouldPoll(nextProps.query);
+
       if (nextProps.data.selectedRuns !== props.data.selectedRuns) {
         //console.log('SelectionQueryThing willReceiveProps', nextProps);
         let selected = _.fromPairs(
@@ -61,14 +69,11 @@ export default function withHistoryLoader(WrappedComponent) {
         //console.log('selectedInfo', selectedInfo);
         let numLoaded = selectedInfo.filter(o => o.history || o.loadingHistory)
           .length;
-        if (numLoaded >= MAX_HISTORIES_LOADED) {
-          // console.log(
-          //   `Already have ${MAX_HISTORIES_LOADED} run histories loaded/loading. Not loading more.`,
-          // );
-        } else {
-          let toLoad = selectedInfo.filter(
-            o => !(o.history || o.loadingHistory),
-          );
+        if (pollingMode || numLoaded < MAX_HISTORIES_LOADED) {
+          let toLoad = selectedInfo;
+          if (!pollingMode) {
+            toLoad = toLoad.filter(o => !(o.history || o.loadingHistory));
+          }
           //console.log('toLoad', toLoad);
           if (toLoad.length > 0) {
             for (var load of toLoad) {
@@ -80,6 +85,7 @@ export default function withHistoryLoader(WrappedComponent) {
             }
             nextProps.client
               .query({
+                fetchPolicy: pollingMode ? 'network-only' : 'cache-first',
                 query: HISTORY_QUERY,
                 variables: {
                   entityName: this.props.query.entity,
@@ -141,7 +147,7 @@ export default function withHistoryLoader(WrappedComponent) {
   };
 
   const withData = graphql(FAKE_HISTORY_QUERY, {
-    skip: ({query}) => !query.strategy || query.strategy === 'page',
+    skip: ({query}) => !Query.needsOwnQuery(query),
     options: ({histQueryKey}) => {
       return {
         fetchPolicy: 'cache-only',
