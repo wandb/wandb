@@ -323,6 +323,7 @@ export function defaultViews(run) {
                 h: 2,
               },
               config: {},
+              query: {strategy: 'merge'},
             },
           ],
         },
