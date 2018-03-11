@@ -56,7 +56,8 @@ i.icon.wandb:before {
 
 .rv-discrete-color-legend {
     font-size: 9px;
-    height: 60px;
+    min-height: 40px;
+    max-height: 60px;
     overflow: scroll;
     overflow-x: hidden;
     overflow-y: hidden;

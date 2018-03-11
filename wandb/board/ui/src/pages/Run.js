@@ -42,7 +42,7 @@ class Run extends React.Component {
   };
 
   componentDidUpdate(prevProps) {
-    if (prevProps.loading && !this.props.loading) {
+    if (!this.props.loading && this.state.detailsFetched === false) {
       //TODO: for reasons not clear to me this needs to be in a setTimeout
       setTimeout(this.fetchDetails);
     }
@@ -73,7 +73,6 @@ class Run extends React.Component {
     }
   }
 
-  //TODO: why NOT this.props.model?
   render() {
     let action = this.props.match.path.split('/').pop();
     return (

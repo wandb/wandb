@@ -52,7 +52,13 @@ function updateRunsQuery(store, client, queryVars, payloads) {
       }
     }
 
-    let node = Object.assign({}, edges[0].node, payload);
+    let node;
+    if (edges[0]) {
+      node = Object.assign({}, edges[0].node, payload);
+    } else {
+      //TODO: Because I couldn't figure out how to modify the store, we just reload on the first run
+      window.location.reload(true);
+    }
     let idx = edges.findIndex(e => e.node.id === node.id);
     let del = 0;
     if (idx >= 0) del = 1;
@@ -62,14 +68,14 @@ function updateRunsQuery(store, client, queryVars, payloads) {
         store.dispatch(setFlash({message: 'New run started', color: 'blue'}));
       }
     }
-    edges.splice(idx, del, {node, __typename: edges[0].__typename});
+    edges.splice(idx, del, {node, __typename: node.__typename});
   }
 
   stats.preWrite = new Date().getTime();
   client.writeQuery({
     query: RUNS_QUERY,
     variables: queryVars,
-    data: data,
+    data,
   });
   stats.writeDone = new Date().getTime();
 
