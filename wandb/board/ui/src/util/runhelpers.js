@@ -273,8 +273,11 @@ export function defaultViews(run) {
           name: 'Charts',
           config: [
             {
-              size: {
-                width: 16,
+              layout: {
+                x: 0,
+                y: 0,
+                w: 12,
+                h: 2,
               },
               config: {
                 source: 'history',
@@ -293,8 +296,11 @@ export function defaultViews(run) {
           name: 'Charts',
           config: [
             {
-              size: {
-                width: 16,
+              layout: {
+                x: 0,
+                y: 0,
+                w: 12,
+                h: 2,
               },
               config: {},
             },
@@ -303,7 +309,26 @@ export function defaultViews(run) {
       },
       tabs: [0],
     },
-    dashboards: [{views: {}}],
+    dashboards: {
+      views: {
+        '0': {
+          defaults: [],
+          name: 'Dashboard',
+          config: [
+            {
+              layout: {
+                x: 0,
+                y: 0,
+                w: 12,
+                h: 2,
+              },
+              config: {},
+            },
+          ],
+        },
+      },
+      tabs: [0],
+    },
   };
   if (run.events && run.events.length > 0) {
     const event = JSON.parse(run.events[0]);
@@ -313,8 +338,11 @@ export function defaultViews(run) {
       defaults: [],
       config: [
         {
-          size: {
-            width: 8,
+          layout: {
+            x: 0,
+            y: 0,
+            w: 6,
+            h: 2,
           },
           config: {
             source: 'events',
@@ -325,8 +353,11 @@ export function defaultViews(run) {
     };
     if (Object.keys(event).indexOf('system.gpu.0.gpu') > -1) {
       base.run.views.system.config.push({
-        size: {
-          width: 8,
+        layout: {
+          x: 6,
+          y: 0,
+          w: 6,
+          h: 2,
         },
         config: {
           source: 'events',
@@ -334,7 +365,7 @@ export function defaultViews(run) {
         },
       });
     } else {
-      base.run.views.system.config[0].size.width = 16;
+      base.run.views.system.config[0].layout.w = 6;
     }
     base.run.tabs.push('system');
   }
@@ -348,8 +379,11 @@ export function defaultViews(run) {
         defaults: [],
         config: [
           {
-            size: {
-              width: 16,
+            layout: {
+              x: 0,
+              y: 0,
+              w: 12,
+              h: 2,
             },
             viewType: 'Images',
           },
