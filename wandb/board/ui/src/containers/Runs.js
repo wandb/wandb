@@ -275,7 +275,7 @@ class Runs extends React.Component {
                 <Button floated="right" icon="columns" content="Columns" />
               }
               content={
-                <RunColumnsSelector columnNames={this.props.columnNames} />
+                <RunColumnsSelector columnNames={this.props.data.columnNames} />
               }
               on="click"
               position="bottom left"
