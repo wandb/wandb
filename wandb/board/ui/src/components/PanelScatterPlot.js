@@ -98,10 +98,13 @@ class ScatterPlotPanel extends React.Component {
             </div>
           ) : (
             <div class="ui negative message">
-              <div class="header">No config/summary metrics for plotting.</div>
-              Your set of filtered runs doesn't have varying config and summary
-              metrics to plot. To learn more about collecting summary metrics
-              check out our documentation at
+              <div class="header">
+                No useful configuration or summary metrics for Scatter Plot.
+              </div>
+              Scatter plot needs numeric configuration or summary metrics with
+              more than one value. You don't have any of those yet. To learn
+              more about collecting summary metrics check out our documentation
+              at
               <a href="http://docs.wandb.com/#summary">
                 http://docs.wandb.com/#summary
               </a>.
