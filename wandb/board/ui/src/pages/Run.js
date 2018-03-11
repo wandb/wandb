@@ -138,7 +138,9 @@ const withData = graphql(MODEL_QUERY, {
       views = JSON.parse(data.model.views);
       if (BOARD && data.model.state === 'finished') data.stopPolling();
     }
-
+    if (data.variables.detailed && !data.model.bucket.history) {
+      console.warn('WTF', data);
+    }
     return {
       loading: data.loading,
       model: data.model,

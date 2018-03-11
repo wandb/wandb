@@ -107,17 +107,18 @@ class RunsLinePlotPanel extends React.Component {
     let disabled = this.props.data.histories.data.length === 0;
     return (
       <div>
-        {(!yAxisOptions || yAxisOptions.length == 0) && (
-          <div class="ui negative message">
-            <div class="header">No history data.</div>
-            This project doesn't have any runs with history data, so you can't
-            make a history line chart. For more information on how to collect
-            history, check out our documentation at{' '}
-            <a href="http://docs.wandb.com/#history">
-              http://docs.wandb.com/#history
-            </a>.
-          </div>
-        )}
+        {!this.props.data.loading &&
+          (!yAxisOptions || yAxisOptions.length == 0) && (
+            <div className="ui negative message">
+              <div className="header">No history data.</div>
+              This project doesn't have any runs with history data, so you can't
+              make a history line chart. For more information on how to collect
+              history, check out our documentation at{' '}
+              <a href="http://docs.wandb.com/#history">
+                http://docs.wandb.com/#history
+              </a>.
+            </div>
+          )}
         <Form style={{marginTop: 10}}>
           <Grid>
             <Grid.Row>
@@ -190,6 +191,7 @@ class RunsLinePlotPanel extends React.Component {
                       : 'None'}
                   </label>
                   <input
+                    disabled={!this.props.config.key}
                     type="range"
                     min={0}
                     max={1}
@@ -208,6 +210,7 @@ class RunsLinePlotPanel extends React.Component {
                 <Grid.Column width={4} verticalAlign="middle">
                   <Form.Checkbox
                     toggle
+                    disabled={!this.props.config.key}
                     checked={this.props.config.aggregate}
                     label="Aggregate Runs"
                     name="aggregate"

@@ -88,8 +88,8 @@ export default function withHistoryLoader(WrappedComponent) {
                 fetchPolicy: pollingMode ? 'network-only' : 'cache-first',
                 query: HISTORY_QUERY,
                 variables: {
-                  entityName: this.props.query.entity,
-                  name: this.props.query.model,
+                  entityName: nextProps.query.entity,
+                  name: nextProps.query.model,
                   bucketIds: toLoad.map(o => o.name),
                 },
               })
