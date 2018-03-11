@@ -52,9 +52,8 @@ i.icon.natural-log:before {
   height: 60px;
   overflow: scroll;
   overflow-x: hidden;
+  overflow-y: hidden;
 }
-
-
 
 @font-face {
   font-family: "fontello";
