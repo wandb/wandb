@@ -589,6 +589,7 @@ class RunsLinePlotPanel extends React.Component {
             xScale={this.props.config.xLogScale ? 'log' : 'linear'}
             lines={lines}
             sizeKey={this.props.sizeKey}
+            currentHeight={this.props.currentHeight}
           />
         </div>
       </div>
