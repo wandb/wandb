@@ -34,6 +34,21 @@ function copyDefaults() {
   };
 }
 
+function fixupViews(views) {
+  if (_.isArray(views.dashboards)) {
+    // This fixes some data that was added during early dashboard
+    // development. Should be very uncommon and not affect customer
+    // data.
+    return update(views, {
+      dashboards: {
+        views: {$set: views.dashboards},
+        tabs: {$set: _.keys(views.dashboards.views)},
+      },
+    });
+  }
+  return views;
+}
+
 export default function views(
   state = {
     server: copyDefaults(),
@@ -48,9 +63,9 @@ export default function views(
 ) {
   switch (action.type) {
     case SET_SERVER_VIEWS:
-      return update(state, {server: {$set: action.views}});
+      return update(state, {server: {$set: fixupViews(action.views)}});
     case SET_BROWSER_VIEWS:
-      return update(state, {browser: {$set: action.views}});
+      return update(state, {browser: {$set: fixupViews(action.views)}});
     case ADD_VIEW:
       let viewId = getAvailableViewId(state.browser[action.viewType].views);
       return update(state, {

@@ -9,8 +9,6 @@ import {getRunValue, scatterPlotCandidates} from '../util/runhelpers.js';
 import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
 
-import './PlotParCoor.css';
-
 var d3 = window.d3;
 
 function parcoor(
@@ -403,25 +401,53 @@ class ParCoordPanel extends React.Component {
   }
 
   renderConfig() {
+    let axisOptions = this._plotOptions();
     return (
-      <Form>
-        <Form.Dropdown
-          label="Dimensions"
-          placeholder="Dimensions"
-          fluid
-          multiple
-          search
-          selection
-          options={this._plotOptions()}
-          value={this.props.config.dimensions}
-          onChange={(e, {value}) =>
-            this.props.updateConfig({
-              ...this.props.config,
-              dimensions: value,
-            })
-          }
-        />
-      </Form>
+      <div>
+        {(!axisOptions || axisOptions.length == 0) &&
+          (this.props.data.filtered.length == 0 ? (
+            <div class="ui negative message">
+              <div class="header">No Runs</div>
+              This project doesn't have any runs yet, or you have filtered all
+              of the runs. To create a run, check out the getting started
+              documentation.
+              <a href="http://docs.wandb.com/#getting-started">
+                http://docs.wandb.com/#getting-started
+              </a>.
+            </div>
+          ) : (
+            <div class="ui negative message">
+              <div class="header">
+                No useful configuration or summary metrics for plotting.
+              </div>
+              Parallel coordinates plot needs numeric configuration or summary
+              metrics with more than one value. You don't have any of those yet.
+              To learn more about collecting summary metrics check out our
+              documentation at
+              <a href="http://docs.wandb.com/#summary">
+                http://docs.wandb.com/#summary
+              </a>.
+            </div>
+          ))}
+        <Form>
+          <Form.Dropdown
+            label="Dimensions"
+            placeholder="Dimensions"
+            fluid
+            multiple
+            search
+            selection
+            options={this.axisOptions}
+            value={this.props.config.dimensions}
+            onChange={(e, {value}) =>
+              this.props.updateConfig({
+                ...this.props.config,
+                dimensions: value,
+              })
+            }
+          />
+        </Form>
+      </div>
     );
   }
 
