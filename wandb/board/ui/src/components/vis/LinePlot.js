@@ -161,8 +161,8 @@ class LinePlotCrosshair extends React.PureComponent {
               {crosshairValues
                 .sort((a, b) => b.y - a.y)
                 .filter(point => !point.title.startsWith('_'))
-                .map(point => (
-                  <div key={point.title}>
+                .map((point, i) => (
+                  <div key={point.title + ' ' + i}>
                     <span
                       style={{
                         display: 'inline-block',
