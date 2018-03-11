@@ -24,6 +24,23 @@ class LinePlotPlot extends React.PureComponent {
     } else if (xScale == 'log') {
       xType = 'log';
     }
+
+    let nullGraph = false;
+    let smallGraph = false;
+
+    let maxDataLength = _.max(lines.map((line, i) => line.data.length) < 20);
+    if (
+      maxDataLength < 20 &&
+      _.max(lines.map((line, i) => _.max(line.data)) < 20)
+    ) {
+      if (maxDataLength < 2) {
+        nullGraph = true;
+      }
+      console.log('HERE');
+      smallGraph = true;
+    }
+    console.log('HAR');
+
     return (
       <FlexibleWidthXYPlot
         key={sizeKey}
@@ -32,16 +49,31 @@ class LinePlotPlot extends React.PureComponent {
         height={height}>
         <VerticalGridLines />
         <HorizontalGridLines />
-        <XAxis title={xAxis} tickTotal={5} />
-        <YAxis />
+        <XAxis
+          title={xAxis}
+          tickTotal={5}
+          tickValues={smallGraph ? _.range(0, 20) : null}
+        />
+        <YAxis tickValues={nullGraph ? [0, 1, 2] : null} />
+
         {lines
           .map(
             (line, i) =>
               !disabled[line.title] ? (
                 line.area ? (
-                  <AreaSeries key={i} color={line.color} data={line.data} />
+                  <AreaSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    curve={smallGraph ? 'curveMonotoneX' : null}
+                  />
                 ) : (
-                  <LineSeries key={i} color={line.color} data={line.data} />
+                  <LineSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    curve={smallGraph ? 'curveMonotoneX' : null}
+                  />
                 )
               ) : null,
           )
