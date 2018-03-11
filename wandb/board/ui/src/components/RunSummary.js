@@ -108,7 +108,10 @@ class RunSummary extends Component {
                 )}
               </Grid.Column>
               <Grid.Column width={8} textAlign="right">
-                tags {bucket.tags.map(tag => <Label key={tag}>{tag}</Label>)}
+                {bucket.tags && bucket.tags.length > 0 &&
+                  tags {bucket.tags.map(tag => <Label key={tag}>{tag}</Label>)}
+                }
+
                 run{' '}
                 <NavLink
                   to={`/${model.entityName}/${model.name}/runs/${bucket.name}`}>
