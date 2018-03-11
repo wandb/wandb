@@ -11,6 +11,7 @@ import {
 import _ from 'lodash';
 
 class DataList extends React.Component {
+  state = {};
   constructor(props) {
     super(props);
     this.noData = this.noDataDefault;
@@ -18,7 +19,6 @@ class DataList extends React.Component {
   }
 
   _setup(props) {
-    this.state = {};
     if (props.noData) {
       this.noData = props.noData;
     }

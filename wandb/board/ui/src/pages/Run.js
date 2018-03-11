@@ -20,9 +20,17 @@ import _ from 'lodash';
 import {defaultViews, generateBucketId} from '../util/runhelpers';
 import {BOARD} from '../util/board';
 
+function bucketFromCache(params, client) {
+  return client.readFragment({
+    id: generateBucketId(params),
+    fragment: fragments.basicRun,
+  });
+}
+
 class Run extends React.Component {
   state = {
     activeIndex: 0,
+    detailsFetched: false,
   };
 
   componentWillMount() {
@@ -31,28 +39,23 @@ class Run extends React.Component {
 
   componentDidUpdate() {
     window.Prism.highlightAll();
-    if (!this.props.loading) {
+  }
+
+  fetchDetails = force => {
+    if (force || this.state.detailsFetched === false) {
+      this.setState({detailsFetched: true});
       this.props.refetch({detailed: true});
+    }
+  };
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.loading && !this.props.loading) {
+      //TODO: for reasons not clear to me this needs to be in a setTimeout
+      setTimeout(this.fetchDetails);
     }
   }
 
   componentWillReceiveProps(nextProps) {
-    if (nextProps.model && !_.isEqual(nextProps.model, this.props.model)) {
-      this.setState({model: nextProps.model, bucket: nextProps.bucket});
-    } else if (!nextProps.model) {
-      const params = this.props.match.params,
-        id = generateBucketId(params),
-        bucket = nextProps.client.readFragment({
-          id: id,
-          fragment: fragments.basicRun,
-        });
-      if (bucket) {
-        this.setState({
-          bucket: bucket,
-          model: {entityName: params.entity, name: params.model},
-        });
-      }
-    }
     // Setup views loaded from server.
     if (
       nextProps.bucket &&
@@ -82,13 +85,13 @@ class Run extends React.Component {
     let action = this.props.match.path.split('/').pop();
     return (
       <Container>
-        {!this.state.model ? (
+        {!this.props.model ? (
           <Loader size="massive" active={true} />
         ) : this.props.user && action === 'edit' ? (
           // TODO: Don't render button if user can't edit
           <RunEditor
             model={this.props.model}
-            bucket={this.props.bucket}
+            bucket={this.state.bucket}
             submit={this.props.submit}
           />
         ) : (
@@ -100,8 +103,8 @@ class Run extends React.Component {
               this.setState({activeIndex: 1});
             }}
             user={this.props.user}
-            model={this.state.model}
-            bucket={this.state.bucket}
+            model={this.props.model}
+            bucket={this.props.bucket}
             loss={this.props.loss}
             stream={this.props.stream}
             match={this.props.match}
@@ -120,6 +123,7 @@ class Run extends React.Component {
   }
 }
 
+//TODO: Changing this query to use ids will enable lots of magical caching to just work.
 const withData = graphql(MODEL_QUERY, {
   options: ({match: {params, path}}) => {
     const defaults = {
@@ -127,15 +131,15 @@ const withData = graphql(MODEL_QUERY, {
         entityName: params.entity,
         name: params.model,
         bucketName: params.run,
+        upload: false,
         detailed: false,
-        requestSubscribe: true,
       },
     };
     if (BOARD) defaults.pollInterval = 2000;
     return defaults;
   },
-  props: ({data, refetch, errors}) => {
-    let views = null;
+  props: ({data, refetch, errors, ownProps}) => {
+    let views;
     if (data.model && data.model.views) {
       views = JSON.parse(data.model.views);
       if (BOARD && data.model.state === 'finished') data.stopPolling();
@@ -219,5 +223,5 @@ function mapDispatchToProps(dispatch) {
 export {Run};
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withData(withApollo(Run))),
+  withMutations(withApollo(withData(Run))),
 );
