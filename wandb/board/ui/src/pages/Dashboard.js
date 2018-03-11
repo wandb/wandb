@@ -40,7 +40,8 @@ class Dashboard extends React.Component {
   componentWillReceiveProps(nextProps) {
     // Setup views loaded from server.
     if (
-      (nextProps.views === null || !nextProps.views.dashboards) &&
+      !nextProps.loading &&
+      nextProps.views === null &&
       _.isEmpty(this.props.reduxServerViews.dashboards.views) &&
       _.isEmpty(this.props.reduxBrowserViews.dashboards.views)
     ) {
