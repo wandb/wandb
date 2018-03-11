@@ -1,5 +1,13 @@
 import React, {Component} from 'react';
-import {Button, Label, Grid, Header, Modal, Message, Segment} from 'semantic-ui-react';
+import {
+  Button,
+  Label,
+  Grid,
+  Header,
+  Modal,
+  Message,
+  Segment,
+} from 'semantic-ui-react';
 import {NavLink} from 'react-router-dom';
 import Markdown from './Markdown';
 import TimeAgo from 'react-timeago';
@@ -108,10 +116,13 @@ class RunSummary extends Component {
                 )}
               </Grid.Column>
               <Grid.Column width={8} textAlign="right">
-                {bucket.tags && bucket.tags.length > 0 &&
-                  tags {bucket.tags.map(tag => <Label key={tag}>{tag}</Label>)}
-                }
-
+                {bucket.tags &&
+                  bucket.tags.length > 0 && (
+                    <span>
+                      tags{' '}
+                      {bucket.tags.map(tag => <Label key={tag}>{tag}</Label>)}{' '}
+                    </span>
+                  )}
                 run{' '}
                 <NavLink
                   to={`/${model.entityName}/${model.name}/runs/${bucket.name}`}>
