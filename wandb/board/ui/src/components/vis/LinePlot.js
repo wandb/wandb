@@ -17,6 +17,8 @@ class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
   // re-render every time the crosshair (highlight) changes.
   render() {
+    const smallSizeThresh = 50;
+
     let {height, sizeKey, xAxis, yScale, lines, disabled, xScale} = this.props;
     let xType = 'linear';
     if (xAxis == 'Absolute Time') {
@@ -31,14 +33,14 @@ class LinePlotPlot extends React.PureComponent {
     let maxDataLength = _.max(lines.map((line, i) => line.data.length));
 
     if (
-      maxDataLength < 20 &&
+      maxDataLength < smallSizeThresh &&
       lines &&
       _.max(
         lines.map(
           (line, i) =>
             line ? _.max(line.data.map((points, i) => points.x)) : 0,
         ),
-      ) < 20
+      ) < smallSizeThresh
     ) {
       if (maxDataLength < 2) {
         nullGraph = true;
@@ -48,6 +50,7 @@ class LinePlotPlot extends React.PureComponent {
 
     return (
       <FlexibleWidthXYPlot
+        animation={smallGraph}
         key={sizeKey}
         yType={yScale}
         xType={xType}
@@ -57,7 +60,7 @@ class LinePlotPlot extends React.PureComponent {
         <XAxis
           title={xAxis}
           tickTotal={5}
-          tickValues={smallGraph ? _.range(0, 20) : null}
+          tickValues={smallGraph ? _.range(0, smallSizeThresh) : null}
         />
         <YAxis tickValues={nullGraph ? [0, 1, 2] : null} />
 
@@ -66,19 +69,9 @@ class LinePlotPlot extends React.PureComponent {
             (line, i) =>
               !disabled[line.title] ? (
                 line.area ? (
-                  <AreaSeries
-                    key={i}
-                    color={line.color}
-                    data={line.data}
-                    curve={smallGraph ? 'curveMonotoneX' : null}
-                  />
+                  <AreaSeries key={i} color={line.color} data={line.data} />
                 ) : (
-                  <LineSeries
-                    key={i}
-                    color={line.color}
-                    data={line.data}
-                    curve={smallGraph ? 'curveMonotoneX' : null}
-                  />
+                  <LineSeries key={i} color={line.color} data={line.data} />
                 )
               ) : null,
           )
