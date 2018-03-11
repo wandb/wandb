@@ -19,6 +19,17 @@ import Panel from '../components/Panel';
 class EditablePanel extends React.Component {
   state = {editing: false};
 
+  componenWillMount() {
+    this.externalOpened = false;
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (!this.externalOpened && nextProps.openEdit) {
+      this.setState({editing: true});
+      this.externalOpened = true;
+    }
+  }
+
   render() {
     return (
       <div>

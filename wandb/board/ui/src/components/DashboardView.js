@@ -110,13 +110,14 @@ class DashboardView extends Component {
     });
   };
 
-  renderPanel(panelConfig, i) {
+  renderPanel(panelConfig, i, openEdit) {
     let query = Query.merge(this.props.pageQuery, panelConfig.query || {});
     return (
       <EditablePanel
         viewType={this.props.viewType}
         histQueryKey={i}
         editMode={this.props.editMode}
+        openEdit={openEdit}
         noButtons={true}
         type={panelConfig.viewType}
         size={panelConfig.size}
@@ -268,7 +269,7 @@ class DashboardView extends Component {
                     isDraggable: true,
                     isResizable: true,
                   }}>
-                  {this.renderPanel(panelConfig, i)}
+                  {this.renderPanel(panelConfig, i, this.state.editing === i)}
                 </div>
               ),
           )}
