@@ -13,7 +13,7 @@ import './PanelImages';
 import './PanelScatterPlot';
 import './PanelParallelCoord';
 
-class Panel extends React.Component {
+export default class Panel extends React.Component {
   state = {configMode: false, showQuery: false};
   static loading = (
     <Segment basic style={{minHeight: 260}}>
@@ -143,5 +143,3 @@ class Panel extends React.Component {
     return <div className={this.props.className}>{panel}</div>;
   }
 }
-
-export default withRunsDataLoader(Panel);

@@ -41,7 +41,7 @@ class EditablePanel extends React.Component {
               floated="left"
               negative
               onClick={() => {
-                this.props.removePanel(i);
+                this.props.removePanel();
                 this.setState({editing: false});
               }}>
               <Icon name="trash" />Delete Chart
