@@ -403,6 +403,13 @@ export function generateBucketId(params) {
   );
 }
 
+export function bucketFromCache(params, client) {
+  return client.readFragment({
+    id: generateBucketId(params),
+    fragment: fragments.basicRun,
+  });
+}
+
 export function parseBuckets(buckets) {
   if (!buckets) {
     return [];

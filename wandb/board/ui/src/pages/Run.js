@@ -20,13 +20,6 @@ import _ from 'lodash';
 import {defaultViews, generateBucketId} from '../util/runhelpers';
 import {BOARD} from '../util/board';
 
-function bucketFromCache(params, client) {
-  return client.readFragment({
-    id: generateBucketId(params),
-    fragment: fragments.basicRun,
-  });
-}
-
 class Run extends React.Component {
   state = {
     activeIndex: 0,
@@ -138,7 +131,7 @@ const withData = graphql(MODEL_QUERY, {
     if (BOARD) defaults.pollInterval = 2000;
     return defaults;
   },
-  props: ({data, refetch, errors, ownProps}) => {
+  props: ({data}) => {
     let views;
     if (data.model && data.model.views) {
       views = JSON.parse(data.model.views);
