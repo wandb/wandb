@@ -468,7 +468,7 @@ class RunsLinePlotPanel extends React.Component {
     let key = this.props.config.key;
     let lines = this.linesFromData(data, key);
     let title = key;
-    if (this.props.panelQuery && this.props.panelQuery.strategy === 'merge') {
+    if (Query.strategy(this.props.panelQuery) === 'merge') {
       let querySummary = Query.summaryString(this.props.panelQuery);
       if (querySummary) {
         title += ' (' + querySummary + ')';

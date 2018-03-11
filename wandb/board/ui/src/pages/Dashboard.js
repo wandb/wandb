@@ -155,7 +155,7 @@ class DashboardWrapper extends React.Component {
         query={{
           entity: match.params.entity,
           model: match.params.model,
-          strategy: 'merge',
+          strategy: 'root',
         }}
       />
     );
