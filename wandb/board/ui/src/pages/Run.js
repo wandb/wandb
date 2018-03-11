@@ -84,7 +84,7 @@ class Run extends React.Component {
           // TODO: Don't render button if user can't edit
           <RunEditor
             model={this.props.model}
-            bucket={this.state.bucket}
+            bucket={this.props.bucket}
             submit={this.props.submit}
           />
         ) : (
@@ -124,19 +124,20 @@ const withData = graphql(MODEL_QUERY, {
         entityName: params.entity,
         name: params.model,
         bucketName: params.run,
-        upload: false,
         detailed: false,
+        requestSubscribe: true,
       },
     };
     if (BOARD) defaults.pollInterval = 2000;
     return defaults;
   },
-  props: ({data}) => {
+  props: ({data, ownProps}) => {
     let views;
     if (data.model && data.model.views) {
       views = JSON.parse(data.model.views);
       if (BOARD && data.model.state === 'finished') data.stopPolling();
     }
+
     return {
       loading: data.loading,
       model: data.model,
@@ -216,5 +217,5 @@ function mapDispatchToProps(dispatch) {
 export {Run};
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withApollo(withData(Run))),
+  withMutations(withData(withApollo(Run))),
 );
