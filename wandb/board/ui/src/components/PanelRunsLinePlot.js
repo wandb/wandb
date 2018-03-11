@@ -208,6 +208,7 @@ class RunsLinePlotPanel extends React.Component {
                 <Grid.Column width={4} verticalAlign="middle">
                   <Form.Checkbox
                     toggle
+                    checked={this.props.config.aggregate}
                     label="Aggregate Runs"
                     name="aggregate"
                     onChange={(e, value) =>
