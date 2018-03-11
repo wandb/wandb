@@ -131,8 +131,10 @@ const withData = graphql(MODEL_QUERY, {
     if (BOARD) defaults.pollInterval = 2000;
     return defaults;
   },
-  props: ({data, ownProps}) => {
-    let views;
+  props: ({data}) => {
+    // null is important here, componentWillReceiveProps checks for it specifically.
+    // We could refactor it.
+    let views = null;
     if (data.model && data.model.views) {
       views = JSON.parse(data.model.views);
       if (BOARD && data.model.state === 'finished') data.stopPolling();
