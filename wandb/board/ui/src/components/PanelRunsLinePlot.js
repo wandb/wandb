@@ -15,7 +15,6 @@ import {
 } from '../util/runhelpers.js';
 import {addFilter} from '../actions/run';
 import * as Query from '../util/query';
-
 const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
 const arrMax = arr => arr.reduce((a, b) => Math.max(a, b));
 const arrMin = arr => arr.reduce((a, b) => Math.min(a, b));
@@ -98,6 +97,7 @@ class RunsLinePlotPanel extends React.Component {
       value: key,
       text: key,
     }));
+
     let xAxisOptions = [
       {text: xAxisLabels['_step'], key: '_step', value: '_step'},
       {text: xAxisLabels['_runtime'], key: '_runtime', value: '_runtime'},
@@ -106,130 +106,143 @@ class RunsLinePlotPanel extends React.Component {
     let groupByOptions = {};
     let disabled = this.props.data.histories.data.length === 0;
     return (
-      <Form style={{marginTop: 10}}>
-        <Grid>
-          <Grid.Row>
-            <Grid.Column width={7}>
-              <Form.Field>
-                <Form.Dropdown
-                  disabled={!this.props.config.key}
-                  label="X-Axis"
-                  placeholder="xAxis"
-                  fluid
-                  search
-                  selection
-                  options={xAxisOptions}
-                  value={this.props.config.xAxis}
-                  onChange={(e, {value}) =>
-                    this.props.updateConfig({
-                      ...this.props.config,
-                      xAxis: value,
-                    })
-                  }
-                />
-              </Form.Field>
-            </Grid.Column>
+      <div>
+        {(!yAxisOptions || yAxisOptions.length == 0) && (
+          <div class="ui negative message">
+            <div class="header">No history data.</div>
+            This project doesn't have any runs with history data, so you can't
+            make a history line chart. For more information on how to collect
+            history, check out our documentation at{' '}
+            <a href="http://docs.wandb.com/#history">
+              http://docs.wandb.com/#history
+            </a>.
+          </div>
+        )}
+        <Form style={{marginTop: 10}}>
+          <Grid>
+            <Grid.Row>
+              <Grid.Column width={7}>
+                <Form.Field>
+                  <Form.Dropdown
+                    disabled={!this.props.config.key}
+                    label="X-Axis"
+                    placeholder="xAxis"
+                    fluid
+                    search
+                    selection
+                    options={xAxisOptions}
+                    value={this.props.config.xAxis}
+                    onChange={(e, {value}) =>
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        xAxis: value,
+                      })
+                    }
+                  />
+                </Form.Field>
+              </Grid.Column>
 
-            <Grid.Column width={7}>
-              <Form.Field>
-                <Form.Dropdown
-                  disabled={disabled}
-                  label="Y-Axis"
-                  placeholder="key"
-                  fluid
-                  search
-                  selection
-                  options={yAxisOptions}
-                  value={this.props.config.key}
-                  onChange={(e, {value}) =>
-                    this.props.updateConfig({
-                      ...this.props.config,
-                      key: value,
-                    })
-                  }
-                />
-              </Form.Field>
-            </Grid.Column>
-            <Grid.Column width={2} verticalAlign="bottom">
-              <Button
-                animated="vertical"
-                toggle
-                active={this.props.config.yLogScale}
-                onClick={(e, {value}) =>
-                  this.props.updateConfig({
-                    ...this.props.config,
-                    yLogScale: !this.props.config.yLogScale,
-                  })
-                }>
-                <Button.Content visible>
-                  <Icon className="natural-log" size="large" align="center" />
-                </Button.Content>
-                <Button.Content hidden>Log</Button.Content>
-              </Button>
-            </Grid.Column>
-          </Grid.Row>
-          <Grid.Row>
-            <Grid.Column width={6}>
-              <Form.Field disabled={disabled}>
-                <label>
-                  Smoothing:{' '}
-                  {this.scaledSmoothness() > 0
-                    ? displayValue(this.scaledSmoothness())
-                    : 'None'}
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.001}
-                  value={this.props.config.smoothingWeight || 0}
-                  onChange={e => {
-                    this.props.updateConfig({
-                      ...this.props.config,
-                      smoothingWeight: parseFloat(e.target.value),
-                    });
-                  }}
-                />
-              </Form.Field>
-            </Grid.Column>
-            {this.props.data.selectedRuns.length > 1 && (
-              <Grid.Column width={4} verticalAlign="middle">
-                <Form.Checkbox
+              <Grid.Column width={7}>
+                <Form.Field>
+                  <Form.Dropdown
+                    disabled={disabled}
+                    label="Y-Axis"
+                    placeholder="key"
+                    fluid
+                    search
+                    selection
+                    options={yAxisOptions}
+                    value={this.props.config.key}
+                    onChange={(e, {value}) =>
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        key: value,
+                      })
+                    }
+                  />
+                </Form.Field>
+              </Grid.Column>
+              <Grid.Column width={2} verticalAlign="bottom">
+                <Button
+                  animated="vertical"
                   toggle
-                  label="Aggregate Runs"
-                  name="aggregate"
-                  onChange={(e, value) =>
+                  active={this.props.config.yLogScale}
+                  onClick={(e, {value}) =>
                     this.props.updateConfig({
                       ...this.props.config,
-                      aggregate: value.checked,
+                      yLogScale: !this.props.config.yLogScale,
                     })
-                  }
-                />
+                  }>
+                  <Button.Content visible>
+                    <Icon className="natural-log" size="large" align="center" />
+                  </Button.Content>
+                  <Button.Content hidden>Log</Button.Content>
+                </Button>
               </Grid.Column>
-            )}
-            {this.props.config.aggregate && (
+            </Grid.Row>
+            <Grid.Row>
               <Grid.Column width={6}>
-                <Form.Dropdown
-                  disabled={!this.props.config.aggregate}
-                  label="Group By"
-                  placeholder="groupBy"
-                  fluid
-                  search
-                  selection
-                  options={this._groupByOptions()}
-                  value={this.props.config.groupBy}
-                  onChange={(e, {value}) =>
-                    this.props.updateConfig({
-                      ...this.props.config,
-                      groupBy: value,
-                    })
-                  }
-                />
+                <Form.Field disabled={disabled}>
+                  <label>
+                    Smoothing:{' '}
+                    {this.scaledSmoothness() > 0
+                      ? displayValue(this.scaledSmoothness())
+                      : 'None'}
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.001}
+                    value={this.props.config.smoothingWeight || 0}
+                    onChange={e => {
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        smoothingWeight: parseFloat(e.target.value),
+                      });
+                    }}
+                  />
+                </Form.Field>
               </Grid.Column>
-            )}
-          </Grid.Row>
-        </Grid>
-      </Form>
+              {this.props.data.selectedRuns.length > 1 && (
+                <Grid.Column width={4} verticalAlign="middle">
+                  <Form.Checkbox
+                    toggle
+                    label="Aggregate Runs"
+                    name="aggregate"
+                    onChange={(e, value) =>
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        aggregate: value.checked,
+                      })
+                    }
+                  />
+                </Grid.Column>
+              )}
+              {this.props.config.aggregate && (
+                <Grid.Column width={6}>
+                  <Form.Dropdown
+                    disabled={!this.props.config.aggregate}
+                    label="Group By"
+                    placeholder="groupBy"
+                    fluid
+                    search
+                    selection
+                    options={this._groupByOptions()}
+                    value={this.props.config.groupBy}
+                    onChange={(e, {value}) =>
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        groupBy: value,
+                      })
+                    }
+                  />
+                </Grid.Column>
+              )}
+            </Grid.Row>
+          </Grid>
+        </Form>
+      </div>
     );
   }
 
