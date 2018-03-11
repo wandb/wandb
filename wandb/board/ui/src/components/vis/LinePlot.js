@@ -28,18 +28,23 @@ class LinePlotPlot extends React.PureComponent {
     let nullGraph = false;
     let smallGraph = false;
 
-    let maxDataLength = _.max(lines.map((line, i) => line.data.length) < 20);
+    let maxDataLength = _.max(lines.map((line, i) => line.data.length));
+
     if (
       maxDataLength < 20 &&
-      _.max(lines.map((line, i) => _.max(line.data)) < 20)
+      lines &&
+      _.max(
+        lines.map(
+          (line, i) =>
+            line ? _.max(line.data.map((points, i) => points.x)) : 0,
+        ),
+      ) < 20
     ) {
       if (maxDataLength < 2) {
         nullGraph = true;
       }
-      console.log('HERE');
       smallGraph = true;
     }
-    console.log('HAR');
 
     return (
       <FlexibleWidthXYPlot
