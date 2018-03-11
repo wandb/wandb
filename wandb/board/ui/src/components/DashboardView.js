@@ -252,6 +252,7 @@ class DashboardView extends Component {
                           ...prevState.panels,
                           [i]: addPanelLayout.h * ROW_HEIGHT,
                         },
+                        editing: i,
                       }));
                     }}>
                     <Icon name="plus" />
