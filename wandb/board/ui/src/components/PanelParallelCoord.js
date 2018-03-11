@@ -9,7 +9,6 @@ import {getRunValue, scatterPlotCandidates} from '../util/runhelpers.js';
 import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
 
-
 var d3 = window.d3;
 
 function parcoor(

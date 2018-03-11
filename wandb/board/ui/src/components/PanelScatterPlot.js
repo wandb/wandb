@@ -84,44 +84,68 @@ class ScatterPlotPanel extends React.Component {
   renderConfig() {
     let axisOptions = this._scatterPlotOptions(); //this.props.data;
     return (
-      <Form>
-        <Form.Dropdown
-          label="X-Axis"
-          placeholder="X-Axis"
-          fluid
-          search
-          selection
-          options={axisOptions}
-          value={this.props.config.xAxis}
-          onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, xAxis: value})
-          }
-        />
-        <Form.Dropdown
-          label="Y-Axis"
-          placeholder="Y-Axis"
-          fluid
-          search
-          selection
-          options={axisOptions}
-          value={this.props.config.yAxis}
-          onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, yAxis: value})
-          }
-        />
-        <Form.Dropdown
-          label="Z-Axis (Color)"
-          placeholder="Z-Axis"
-          fluid
-          search
-          selection
-          options={axisOptions}
-          value={this.props.config.zAxis}
-          onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, zAxis: value})
-          }
-        />
-      </Form>
+      <div>
+        {(!axisOptions || axisOptions.length == 0) &&
+          (this.props.data.filtered.length == 0 ? (
+            <div class="ui negative message">
+              <div class="header">No Runs</div>
+              This project doesn't have any runs yet, or you have filtered all
+              of the runs. To create a run, check out the getting started
+              documentation.
+              <a href="http://docs.wandb.com/#getting-started">
+                http://docs.wandb.com/#getting-started
+              </a>.
+            </div>
+          ) : (
+            <div class="ui negative message">
+              <div class="header">No config/summary metrics for plotting.</div>
+              Your set of filtered runs doesn't have varying config and summary
+              metrics to plot. To learn more about collecting summary metrics
+              check out our documentation at
+              <a href="http://docs.wandb.com/#summary">
+                http://docs.wandb.com/#summary
+              </a>.
+            </div>
+          ))}
+        <Form>
+          <Form.Dropdown
+            label="X-Axis"
+            placeholder="X-Axis"
+            fluid
+            search
+            selection
+            options={axisOptions}
+            value={this.props.config.xAxis}
+            onChange={(e, {value}) =>
+              this.props.updateConfig({...this.props.config, xAxis: value})
+            }
+          />
+          <Form.Dropdown
+            label="Y-Axis"
+            placeholder="Y-Axis"
+            fluid
+            search
+            selection
+            options={axisOptions}
+            value={this.props.config.yAxis}
+            onChange={(e, {value}) =>
+              this.props.updateConfig({...this.props.config, yAxis: value})
+            }
+          />
+          <Form.Dropdown
+            label="Z-Axis (Color)"
+            placeholder="Z-Axis"
+            fluid
+            search
+            selection
+            options={axisOptions}
+            value={this.props.config.zAxis}
+            onChange={(e, {value}) =>
+              this.props.updateConfig({...this.props.config, zAxis: value})
+            }
+          />
+        </Form>
+      </div>
     );
   }
 
