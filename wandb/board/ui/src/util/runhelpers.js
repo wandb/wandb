@@ -456,6 +456,43 @@ export function getColumns(runs) {
   );
 }
 
+export function scatterPlotCandidates(configs, summaryMetrics) {
+  /* We want to pull out configurations that a user might want to put in a scatterplot
+   * For now that means configurations with more than two distinct numeric values
+   */
+  let configKeys = [];
+  // get all the keys from all the configs
+
+  configs.map((c, i) => {
+    _.keys(c).map((key, j) => {
+      configKeys.push(key);
+    });
+  });
+  let k = _.uniq(configKeys);
+  configKeys = k.filter((key, i) => {
+    let vals = configs.map((c, i) => c[key]).filter(i => _.isFinite(i));
+    return _.uniq(vals).length > 1;
+  });
+  configKeys = configKeys.map((key, i) => 'config:' + key);
+
+  let summaryMetricKeys = [];
+  summaryMetrics.map((c, i) => {
+    _.keys(c).map((key, j) => {
+      summaryMetricKeys.push(key);
+    });
+  });
+
+  k = _.uniq(summaryMetricKeys);
+
+  summaryMetricKeys = k.filter((key, i) => {
+    let vals = summaryMetrics.map((c, i) => c[key]).filter(i => _.isFinite(i));
+    return _.uniq(vals).length > 1;
+  });
+  summaryMetricKeys = summaryMetricKeys.map((key, i) => 'summary:' + key);
+
+  return _.concat(configKeys, summaryMetricKeys);
+}
+
 export function groupByCandidates(configs) {
   /* We want to pull out the configurations that a user might want to groupBy
    * this would be any config that has more than one value that's different
@@ -474,16 +511,13 @@ export function groupByCandidates(configs) {
     var uniq = [...new Set(configs.map((c, i) => c[key]))];
     return uniq.length > 1 && uniq.length < configs.length;
   });
-  console.log('Figs', interesting);
   return interesting;
 }
 
 export function groupConfigIdx(configs, key) {
   /* return a map from unique values of key in configs to array of indexes
   */
-  console.log('Configs', configs);
   let values = configs.map((c, i) => c.config[key]);
-  console.log('Values', values);
   let keyToGroup = {};
   values.map((key, i) => {
     if (!keyToGroup[key]) {
@@ -491,6 +525,5 @@ export function groupConfigIdx(configs, key) {
     }
     keyToGroup[key].push(i);
   });
-  console.log('ktg', keyToGroup);
   return keyToGroup;
 }

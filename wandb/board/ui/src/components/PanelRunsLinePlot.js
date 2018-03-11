@@ -575,11 +575,15 @@ class RunsLinePlotPanel extends React.Component {
                 style={{
                   maxWidth: 300,
                   backgroundColor: 'white',
-                  border: '1px solid #999',
+                  border: '1px dashed #999',
                   padding: 15,
                   color: '#666',
                 }}>
-                <p>This chart is not yet configured</p>
+                <p>
+                  {' '}
+                  <Icon name="line chart" />
+                  This chart isn't configured yet.
+                </p>
               </div>
             </div>
           )}

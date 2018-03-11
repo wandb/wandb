@@ -9,6 +9,7 @@ import {
   getRunValue,
   filterKeyFromString,
   filtersForAxis,
+  scatterPlotCandidates,
 } from '../util/runhelpers.js';
 import {
   XAxis,
@@ -26,7 +27,7 @@ import BoxSelection from './vis/BoxSelection';
 import {addFilter, setHighlight} from '../actions/run';
 
 class ScatterPlotPanel extends React.Component {
-  static type = 'ScatterPlot';
+  static type = 'Scatter Plot';
   static options = {
     width: 8,
   };
@@ -57,6 +58,18 @@ class ScatterPlotPanel extends React.Component {
     }
   }
 
+  _scatterPlotOptions() {
+    let configs = this.props.data.filtered.map((run, i) => run.config);
+    let summaryMetrics = this.props.data.filtered.map((run, i) => run.summary);
+
+    let names = scatterPlotCandidates(configs, summaryMetrics);
+    return names.map((name, i) => ({
+      text: name,
+      key: name,
+      value: name,
+    }));
+  }
+
   componentWillMount() {
     this._setup({}, this.props);
   }
@@ -69,7 +82,7 @@ class ScatterPlotPanel extends React.Component {
   }
 
   renderConfig() {
-    let {axisOptions} = this.props.data;
+    let axisOptions = this._scatterPlotOptions(); //this.props.data;
     return (
       <Form>
         <Form.Dropdown
