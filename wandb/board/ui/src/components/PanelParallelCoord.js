@@ -5,7 +5,7 @@ import _ from 'lodash';
 import {Form} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {filterKeyFromString, filtersForAxis} from '../util/runhelpers.js';
-import {getRunValue} from '../util/runhelpers.js';
+import {getRunValue, scatterPlotCandidates} from '../util/runhelpers.js';
 import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
 
@@ -390,8 +390,19 @@ class ParCoordPanel extends React.Component {
     this._setup(this.props, nextProps);
   }
 
+  _plotOptions() {
+    let configs = this.props.data.filtered.map((run, i) => run.config);
+    let summaryMetrics = this.props.data.filtered.map((run, i) => run.summary);
+
+    let names = scatterPlotCandidates(configs, summaryMetrics);
+    return names.map((name, i) => ({
+      text: name,
+      key: name,
+      value: name,
+    }));
+  }
+
   renderConfig() {
-    let {axisOptions} = this.props.data;
     return (
       <Form>
         <Form.Dropdown
@@ -401,7 +412,7 @@ class ParCoordPanel extends React.Component {
           multiple
           search
           selection
-          options={axisOptions}
+          options={this._plotOptions()}
           value={this.props.config.dimensions}
           onChange={(e, {value}) =>
             this.props.updateConfig({
