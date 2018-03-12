@@ -36,6 +36,9 @@ describe('Run page components test', () => {
         summaryMetrics: '{}',
       },
     },
+    views = {
+      run: {},
+    },
     loss = [],
     user = {};
   let container,
@@ -51,12 +54,13 @@ describe('Run page components test', () => {
     container = shallow(
       <Run
         match={match}
-        model={model}
-        bucket={model.bucket}
+        views={views}
         loss={loss}
         user={user}
         loading={loading}
         updateLocationParams={() => {}}
+        setBrowserViews={() => {}}
+        setServerViews={() => {}}
       />,
     );
   });
@@ -66,11 +70,8 @@ describe('Run page components test', () => {
   });
 
   it('finds <RunViewer /> component', () => {
-    window.Prism = {
-      highlightAll: () => {},
-    };
     expect(container.find(RunViewer)).to.have.length(0);
-    container.setState({model: model, bucket: model.bucket});
+    container.setProps({model: model, bucket: model.bucket});
     expect(container.find(RunViewer)).to.have.length(1);
   });
 });
