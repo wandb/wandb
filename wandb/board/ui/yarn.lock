@@ -14,6 +14,10 @@
   version "9.4.0"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-9.4.0.tgz#b85a0bcf1e1cc84eb4901b7e96966aedc6f078d1"
 
+"@types/node@^9.4.6":
+  version "9.4.7"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-9.4.7.tgz#57d81cd98719df2c9de118f2d5f3b1120dcd7275"
+
 "@types/zen-observable@0.5.3", "@types/zen-observable@^0.5.3":
   version "0.5.3"
   resolved "https://registry.yarnpkg.com/@types/zen-observable/-/zen-observable-0.5.3.tgz#91b728599544efbb7386d8b6633693a3c2e7ade5"
@@ -237,6 +241,12 @@ apollo-client@^2.0.4:
   optionalDependencies:
     "@types/async" "2.0.47"
 
+apollo-link-context@^1.0.7:
+  version "1.0.7"
+  resolved "https://registry.yarnpkg.com/apollo-link-context/-/apollo-link-context-1.0.7.tgz#3719697a677d3af5de500b7e4cbb6c0d0bf3bef3"
+  dependencies:
+    apollo-link "^1.2.1"
+
 apollo-link-dedup@^1.0.0:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/apollo-link-dedup/-/apollo-link-dedup-1.0.5.tgz#1c213d7ebbe48e74b016fffacd7e6a53dc309e32"
@@ -262,6 +272,14 @@ apollo-link@^1.0.0, apollo-link@^1.0.6, apollo-link@^1.0.7:
     "@types/zen-observable" "0.5.3"
     apollo-utilities "^1.0.0"
     zen-observable "^0.6.0"
+
+apollo-link@^1.2.1:
+  version "1.2.1"
+  resolved "https://registry.yarnpkg.com/apollo-link/-/apollo-link-1.2.1.tgz#c120b16059f9bd93401b9f72b94d2f80f3f305d2"
+  dependencies:
+    "@types/node" "^9.4.6"
+    apollo-utilities "^1.0.0"
+    zen-observable-ts "^0.8.6"
 
 apollo-test-utils@^0.3.2:
   version "0.3.2"
@@ -10166,6 +10184,12 @@ yargs@~3.10.0:
     cliui "^2.1.0"
     decamelize "^1.0.0"
     window-size "0.1.0"
+
+zen-observable-ts@^0.8.6:
+  version "0.8.8"
+  resolved "https://registry.yarnpkg.com/zen-observable-ts/-/zen-observable-ts-0.8.8.tgz#1a586dc204fa5632a88057f879500e0d2ba06869"
+  dependencies:
+    zen-observable "^0.7.0"
 
 zen-observable@^0.6.0:
   version "0.6.1"
