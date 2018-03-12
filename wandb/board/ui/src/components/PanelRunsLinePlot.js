@@ -401,6 +401,14 @@ class RunsLinePlotPanel extends React.Component {
         .filter(point => !_.isNil(point.y)),
     }));
 
+    if (xAxisKey == '_timestamp') {
+      lines.map((line, i) => {
+        line.data.map((points, j) => {
+          points.x = points.x * 1000;
+        });
+      });
+    }
+
     if (this.props.config.aggregate) {
       let bucketAggregation = true;
       let maxLength = arrMax(lines.map((line, i) => line.data.length));
