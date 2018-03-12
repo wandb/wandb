@@ -25,6 +25,7 @@
         "ansi_up": "^2.0.2",
         "apollo-cache-inmemory": "^1.1.1",
         "apollo-client": "^2.0.4",
+        "apollo-link-context": "^1.0.7",
         "apollo-link-error": "^1.0.1",
         "apollo-link-http": "^1.2.0",
         "battery-friendly-timer": "^1.0.1",

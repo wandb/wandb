@@ -2,11 +2,13 @@ import ApolloClient from 'apollo-client';
 import {ApolloLink} from 'apollo-link';
 import {InMemoryCache} from 'apollo-cache-inmemory';
 import {createHttpLink} from 'apollo-link-http';
+import {setContext} from 'apollo-link-context';
 import {onError} from 'apollo-link-error';
 import {displayError, setFlash} from '../actions';
 import {push} from 'react-router-redux';
 import queryString from 'query-string';
 import {BOARD} from './board';
+import Observable from 'zen-observable';
 
 let dispatch = null;
 
@@ -25,21 +27,22 @@ export const SERVER =
   SERVERS[process.env.REACT_APP_SERVER || process.env.NODE_ENV];
 const httpLink = createHttpLink({uri: SERVER});
 
-const authMiddleware = new ApolloLink((operation, forward) => {
+const authMiddleware = setContext((request, context) => {
   //The signup flow accepts a token
+  let auth = this.c._auth;
   let qs = queryString.parse(document.location.search);
-  let token = qs.token || localStorage.getItem('id_token');
-
-  if (token) {
-    operation.setContext(({headers = {}}) => ({
-      headers: {
-        ...headers,
-        authorization: `Bearer ${token}`,
-      },
-    }));
+  let token = qs.token || auth.getToken();
+  if (!token) {
+    return context;
   }
 
-  return forward(operation);
+  return auth.ensureLoggedIn().then(() => {
+    context.headers = {
+      ...context.headers,
+      authorization: `Bearer ${auth.getToken()}`,
+    }
+    return context;
+  });
 });
 
 const stackdriverMiddleware = new ApolloLink((operation, forward) => {
