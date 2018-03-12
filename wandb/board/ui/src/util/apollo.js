@@ -46,6 +46,7 @@ const stackdriverMiddleware = new ApolloLink((operation, forward) => {
   let qs = queryString.parse(document.location.search);
 
   if (qs.trace) {
+    console.log('DOING TRACE');
     let count = parseInt(localStorage.getItem('request_count'), 10);
     operation.setContext(({headers = {}}) => ({
       headers: {

@@ -2,7 +2,7 @@ import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {Button, List, Loader, Form, Grid} from 'semantic-ui-react';
+import {Button, List, Loader, Form, Grid, Icon} from 'semantic-ui-react';
 import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {color} from '../util/colors.js';
@@ -15,7 +15,6 @@ import {
 } from '../util/runhelpers.js';
 import {addFilter} from '../actions/run';
 import * as Query from '../util/query';
-
 const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
 const arrMax = arr => arr.reduce((a, b) => Math.max(a, b));
 const arrMin = arr => arr.reduce((a, b) => Math.min(a, b));
@@ -77,7 +76,7 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   scaledSmoothness() {
-    return Math.sqrt(this.props.config.smoothingWeight || 0);
+    return Math.sqrt(this.props.config.smoothingWeight || 0) * 0.999;
   }
 
   _groupByOptions() {
@@ -98,6 +97,7 @@ class RunsLinePlotPanel extends React.Component {
       value: key,
       text: key,
     }));
+
     let xAxisOptions = [
       {text: xAxisLabels['_step'], key: '_step', value: '_step'},
       {text: xAxisLabels['_runtime'], key: '_runtime', value: '_runtime'},
@@ -106,131 +106,147 @@ class RunsLinePlotPanel extends React.Component {
     let groupByOptions = {};
     let disabled = this.props.data.histories.data.length === 0;
     return (
-      <Form style={{marginTop: 10}}>
-        <Grid>
-          <Grid.Row>
-            <Grid.Column width={14}>
-              <Form.Field>
-                <Form.Dropdown
-                  label="X-Axis"
-                  placeholder="xAxis"
-                  fluid
-                  search
-                  selection
-                  options={xAxisOptions}
-                  value={this.props.config.xAxis}
-                  onChange={(e, {value}) =>
+      <div>
+        {!this.props.data.loading &&
+          (!yAxisOptions || yAxisOptions.length == 0) && (
+            <div className="ui negative message">
+              <div className="header">No history data.</div>
+              This project doesn't have any runs with history data, so you can't
+              make a history line chart. For more information on how to collect
+              history, check out our documentation at{' '}
+              <a href="http://docs.wandb.com/#history">
+                http://docs.wandb.com/#history
+              </a>.
+            </div>
+          )}
+        <Form style={{marginTop: 10}}>
+          <Grid>
+            <Grid.Row>
+              <Grid.Column width={7}>
+                <Form.Field>
+                  <Form.Dropdown
+                    disabled={!this.props.config.key}
+                    label="X-Axis"
+                    placeholder="xAxis"
+                    fluid
+                    search
+                    selection
+                    options={xAxisOptions}
+                    value={this.props.config.xAxis}
+                    onChange={(e, {value}) =>
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        xAxis: value,
+                      })
+                    }
+                  />
+                </Form.Field>
+              </Grid.Column>
+
+              <Grid.Column width={7}>
+                <Form.Field>
+                  <Form.Dropdown
+                    disabled={disabled}
+                    label="Y-Axis"
+                    placeholder="key"
+                    fluid
+                    search
+                    selection
+                    options={yAxisOptions}
+                    value={this.props.config.key}
+                    onChange={(e, {value}) =>
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        key: value,
+                      })
+                    }
+                  />
+                </Form.Field>
+              </Grid.Column>
+              <Grid.Column width={2} verticalAlign="bottom">
+                <Button
+                  animated="vertical"
+                  toggle
+                  active={this.props.config.yLogScale}
+                  onClick={(e, {value}) =>
                     this.props.updateConfig({
                       ...this.props.config,
-                      xAxis: value,
+                      yLogScale: !this.props.config.yLogScale,
                     })
-                  }
-                />
-              </Form.Field>
-            </Grid.Column>
-          </Grid.Row>
-          <Grid.Row>
-            <Grid.Column width={14}>
-              <Form.Field>
-                <Form.Dropdown
-                  disabled={disabled}
-                  label="Y-Axis"
-                  placeholder="key"
-                  fluid
-                  search
-                  selection
-                  options={yAxisOptions}
-                  value={this.props.config.key}
-                  onChange={(e, {value}) =>
-                    this.props.updateConfig({
-                      ...this.props.config,
-                      key: value,
-                    })
-                  }
-                />
-              </Form.Field>
-            </Grid.Column>
-            <Grid.Column width={2} verticalAlign="bottom">
-              <Button
-                toggle
-                icon
-                active={this.props.config.yLogScale}
-                onClick={(e, {value}) =>
-                  this.props.updateConfig({
-                    ...this.props.config,
-                    yLogScale: !this.props.config.yLogScale,
-                  })
-                }>
-                <svg
-                  viewBox="0 0 24 24"
-                  preserveAspectRatio="xMidYMid meet"
-                  style={{
-                    display: 'block',
-                    width: '30px',
-                    height: '30px',
-                  }}>
-                  <g>
-                    <path d="M3 17h18v-2H3v2zm0 3h18v-1H3v1zm0-7h18v-3H3v3zm0-9v4h18V4H3z" />
-                  </g>
-                </svg>
-              </Button>
-            </Grid.Column>
-          </Grid.Row>
-          <Grid.Row>
-            <Grid.Column width={4}>
-              <Form.Field disabled={disabled}>
-                <label>
-                  Smoothing: {displayValue(this.scaledSmoothness())}
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.001}
-                  value={this.props.config.smoothingWeight || 0}
-                  onChange={e => {
-                    this.props.updateConfig({
-                      ...this.props.config,
-                      smoothingWeight: parseFloat(e.target.value),
-                    });
-                  }}
-                />
-              </Form.Field>
-            </Grid.Column>
-            <Grid.Column width={6} verticalAlign="middle">
-              <Form.Checkbox
-                toggle
-                label="Aggregate Runs"
-                name="aggregate"
-                onChange={(e, value) =>
-                  this.props.updateConfig({
-                    ...this.props.config,
-                    aggregate: value.checked,
-                  })
-                }
-              />
-            </Grid.Column>
-            <Grid.Column width={6}>
-              <Form.Dropdown
-                disabled={!this.props.config.aggregate}
-                label="Group By"
-                placeholder="groupBy"
-                fluid
-                search
-                selection
-                options={this._groupByOptions()}
-                value={this.props.config.groupBy}
-                onChange={(e, {value}) =>
-                  this.props.updateConfig({
-                    ...this.props.config,
-                    groupBy: value,
-                  })
-                }
-              />
-            </Grid.Column>
-          </Grid.Row>
-        </Grid>
-      </Form>
+                  }>
+                  <Button.Content visible>
+                    <Icon className="natural-log" size="large" align="center" />
+                  </Button.Content>
+                  <Button.Content hidden>Log</Button.Content>
+                </Button>
+              </Grid.Column>
+            </Grid.Row>
+            <Grid.Row>
+              <Grid.Column width={6}>
+                <Form.Field disabled={disabled}>
+                  <label>
+                    Smoothing:{' '}
+                    {this.scaledSmoothness() > 0
+                      ? displayValue(this.scaledSmoothness())
+                      : 'None'}
+                  </label>
+                  <input
+                    disabled={!this.props.config.key}
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.001}
+                    value={this.props.config.smoothingWeight || 0}
+                    onChange={e => {
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        smoothingWeight: parseFloat(e.target.value),
+                      });
+                    }}
+                  />
+                </Form.Field>
+              </Grid.Column>
+              {this.props.data.selectedRuns.length > 1 && (
+                <Grid.Column width={4} verticalAlign="middle">
+                  <Form.Checkbox
+                    toggle
+                    disabled={!this.props.config.key}
+                    checked={this.props.config.aggregate}
+                    label="Aggregate Runs"
+                    name="aggregate"
+                    onChange={(e, value) =>
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        aggregate: value.checked,
+                      })
+                    }
+                  />
+                </Grid.Column>
+              )}
+              {this.props.config.aggregate && (
+                <Grid.Column width={6}>
+                  <Form.Dropdown
+                    disabled={!this.props.config.aggregate}
+                    label="Group By"
+                    placeholder="groupBy"
+                    fluid
+                    search
+                    selection
+                    options={this._groupByOptions()}
+                    value={this.props.config.groupBy}
+                    onChange={(e, {value}) =>
+                      this.props.updateConfig({
+                        ...this.props.config,
+                        groupBy: value,
+                      })
+                    }
+                  />
+                </Grid.Column>
+              )}
+            </Grid.Row>
+          </Grid>
+        </Form>
+      </div>
     );
   }
 
@@ -246,41 +262,121 @@ class RunsLinePlotPanel extends React.Component {
     return smoothLineData;
   }
 
-  aggregateLines(lines, name, idx) {
-    let xtoy = {};
-    lines.map(
-      (line, j) => (
-        console.log(line.data),
-        line.data.map(
-          (point, i) =>
-            xtoy[point.x]
-              ? xtoy[point.x].push(point.y)
-              : (xtoy[point.x] = [point.y]),
-        )
-      ),
-    );
-    let line_data = _.map(xtoy, (yvals, xval) => ({
-      x: Number(xval),
-      y: avg(yvals),
-    }));
+  avgPointsByBucket(points, bucketCount, min, max) {
+    /*
+     *  Takes a bunch of points with x and y vals, puts them into fixed width buckets and 
+     *  returns the average y value per bucket
+     */
 
-    let area_data = _.map(xtoy, (yvals, xval) => ({
-      x: Number(xval),
-      y0: arrMin(yvals),
-      y: arrMax(yvals),
-    }));
+    let l = points.length;
+
+    var inc = (max - min) / bucketCount;
+    var buckets = new Array(bucketCount);
+    for (let i = 0; i < bucketCount; i++) {
+      buckets[i] = [];
+    }
+
+    for (let i = 0; i < l; i++) {
+      if (points[i].x === max) buckets[bucketCount - 1].push(points[i]);
+      else buckets[((points[i].x - min) / inc) | 0].push(points[i]);
+    }
+
+    let avgBuckets = buckets.map(
+      (bucket, i) =>
+        bucket.length > 0 ? avg(buckets[i].map((b, j) => b.y)) : NaN,
+    );
+    return avgBuckets;
+  }
+
+  aggregateLines(lines, name, idx, bucketData = true) {
+    let maxLengthRun = arrMax(lines.map(line => line.data.length));
+
+    let xVals = _.flatten(
+      lines.map((line, j) => line.data.map((point, i) => point.x)),
+    );
+
+    if (xVals.length == 0) {
+      return [];
+    }
+
+    let maxX = arrMax(xVals);
+    let minX = arrMin(xVals);
+    let bucketXValues = [];
+    let mergedBuckets = [];
+
+    if (bucketData) {
+      /*
+    * We aggregate lines by first bucketing them.  This is important when there
+    * is sampling or when the x values don't line up.
+    */
+      let bucketCount = Math.ceil(maxLengthRun / 2);
+
+      // get all the data points in aligned buckets
+      let bucketedLines = lines.map((line, j) =>
+        this.avgPointsByBucket(line.data, bucketCount, minX, maxX),
+      );
+
+      // do a manual zip because lodash's zip is not like python
+      bucketedLines.map((bucket, i) =>
+        bucket.map((b, j) => {
+          mergedBuckets[j]
+            ? mergedBuckets[j].push(b)
+            : (mergedBuckets[j] = [b]);
+        }),
+      );
+
+      // remove NaNs
+      mergedBuckets = mergedBuckets.map((xBucket, i) =>
+        xBucket.filter(y => isFinite(y)),
+      );
+
+      let inc = (maxX - minX) / bucketCount;
+
+      mergedBuckets.map(
+        (xBucket, i) => (bucketXValues[i] = minX + (i + 0.5) * inc),
+      );
+    } else {
+      bucketXValues = _.uniq(xVals).sort((a, b) => a - b);
+      let xValToBucketIndex = {};
+      bucketXValues.map((val, i) => (xValToBucketIndex[val] = i));
+
+      // get all the data points in buckets
+      lines.map((line, j) =>
+        line.data.map((point, j) => {
+          let idx = xValToBucketIndex[point.x];
+          mergedBuckets[idx]
+            ? mergedBuckets[idx].push(point.y)
+            : (mergedBuckets[idx] = [point.y]);
+        }),
+      );
+    }
+
+    let lineData = mergedBuckets
+      .filter(bucket => bucket && bucket.length > 0)
+      .map((bucket, i) => ({
+        x: bucketXValues[i],
+        y: avg(bucket),
+      }));
+
+    let areaData = mergedBuckets
+      .filter(bucket => bucket && bucket.length > 0)
+      .map((bucket, i) => ({
+        x: bucketXValues[i],
+        y0: arrMin(bucket),
+        y: arrMax(bucket),
+      }));
 
     let area = {
       title: '_area ' + name,
       color: color(idx, 0.3),
-      data: area_data,
+      data: areaData,
       area: true,
     };
 
     let line = {
       title: 'Mean ' + name,
       color: color(idx),
-      data: line_data,
+      data: lineData,
     };
     return [line, area];
   }
@@ -289,6 +385,7 @@ class RunsLinePlotPanel extends React.Component {
     if (!data || data.length == 0) {
       return [];
     }
+
     let xAxisKey = this.props.config.xAxis || '_step';
     let smoothing =
       this.props.config.smoothingWeight &&
@@ -305,6 +402,12 @@ class RunsLinePlotPanel extends React.Component {
     }));
 
     if (this.props.config.aggregate) {
+      let bucketAggregation = true;
+      let maxLength = arrMax(lines.map((line, i) => line.data.length));
+      if (xAxisKey == '_step' && maxLength < 200) {
+        bucketAggregation = false;
+      }
+
       let aggLines = [];
       if (this.props.config.groupBy != 'None') {
         let groupIdx = groupConfigIdx(
@@ -315,7 +418,6 @@ class RunsLinePlotPanel extends React.Component {
         _.forOwn(groupIdx, (idxArr, configVal) => {
           let lineGroup = [];
           idxArr.map((idx, j) => {
-            console.log('l', lines[idx], idx);
             lineGroup.push(lines[idx]);
           });
           aggLines = _.concat(
@@ -328,11 +430,12 @@ class RunsLinePlotPanel extends React.Component {
                 ':' +
                 displayValue(configVal),
               i++,
+              bucketAggregation,
             ),
           );
         });
       } else {
-        aggLines = this.aggregateLines(lines, key);
+        aggLines = this.aggregateLines(lines, key, 0, bucketAggregation);
       }
       lines = aggLines;
     } else {
@@ -381,9 +484,8 @@ class RunsLinePlotPanel extends React.Component {
 
     let key = this.props.config.key;
     let lines = this.linesFromData(data, key);
-    console.log('The Lines', lines);
     let title = key;
-    if (this.props.panelQuery && this.props.panelQuery.strategy === 'merge') {
+    if (Query.strategy(this.props.panelQuery) === 'merge') {
       let querySummary = Query.summaryString(this.props.panelQuery);
       if (querySummary) {
         title += ' (' + querySummary + ')';
@@ -490,11 +592,15 @@ class RunsLinePlotPanel extends React.Component {
                 style={{
                   maxWidth: 300,
                   backgroundColor: 'white',
-                  border: '1px solid #999',
+                  border: '1px dashed #999',
                   padding: 15,
                   color: '#666',
                 }}>
-                <p>This chart is not yet configured</p>
+                <p>
+                  {' '}
+                  <Icon name="line chart" />
+                  This chart isn't configured yet.
+                </p>
               </div>
             </div>
           )}
@@ -504,6 +610,7 @@ class RunsLinePlotPanel extends React.Component {
             xScale={this.props.config.xLogScale ? 'log' : 'linear'}
             lines={lines}
             sizeKey={this.props.sizeKey}
+            currentHeight={this.props.currentHeight}
           />
         </div>
       </div>

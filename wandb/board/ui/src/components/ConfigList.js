@@ -1,5 +1,6 @@
 import React from 'react';
 import DataList from '../components/DataList';
+import {Icon} from 'semantic-ui-react';
 
 class ConfigList extends React.Component {
   constructor(props) {
@@ -26,6 +27,9 @@ class ConfigList extends React.Component {
           </a>{' '}
           for more information.
         </p>
+        <div align="center">
+          <Icon className="wandb" size="large" />
+        </div>
       </div>
     );
   }

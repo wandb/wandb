@@ -17,6 +17,8 @@ class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
   // re-render every time the crosshair (highlight) changes.
   render() {
+    const smallSizeThresh = 50;
+
     let {height, sizeKey, xAxis, yScale, lines, disabled, xScale} = this.props;
     let xType = 'linear';
     if (xAxis == 'Absolute Time') {
@@ -24,16 +26,44 @@ class LinePlotPlot extends React.PureComponent {
     } else if (xScale == 'log') {
       xType = 'log';
     }
+
+    let nullGraph = false;
+    let smallGraph = false;
+
+    let maxDataLength = _.max(lines.map((line, i) => line.data.length));
+
+    if (
+      maxDataLength < smallSizeThresh &&
+      lines &&
+      _.max(
+        lines.map(
+          (line, i) =>
+            line ? _.max(line.data.map((points, i) => points.x)) : 0,
+        ),
+      ) < smallSizeThresh
+    ) {
+      if (maxDataLength < 2) {
+        nullGraph = true;
+      }
+      smallGraph = true;
+    }
+
     return (
       <FlexibleWidthXYPlot
+        animation={smallGraph}
         key={sizeKey}
         yType={yScale}
         xType={xType}
         height={height}>
         <VerticalGridLines />
         <HorizontalGridLines />
-        <XAxis title={xAxis} tickTotal={5} />
-        <YAxis />
+        <XAxis
+          title={xAxis}
+          tickTotal={5}
+          tickValues={smallGraph ? _.range(0, smallSizeThresh) : null}
+        />
+        <YAxis tickValues={nullGraph ? [0, 1, 2] : null} />
+
         {lines
           .map(
             (line, i) =>
@@ -131,8 +161,8 @@ class LinePlotCrosshair extends React.PureComponent {
               {crosshairValues
                 .sort((a, b) => b.y - a.y)
                 .filter(point => !point.title.startsWith('_'))
-                .map(point => (
-                  <div key={point.title}>
+                .map((point, i) => (
+                  <div key={point.title + ' ' + i}>
                     <span
                       style={{
                         display: 'inline-block',
@@ -184,7 +214,7 @@ export default class LinePlot extends React.PureComponent {
         />
         <div style={{position: 'relative'}}>
           <LinePlotPlot
-            height={240}
+            height={this.props.currentHeight - 70 || 220}
             sizeKey={this.props.sizeKey}
             xAxis={this.props.xAxis}
             yScale={this.props.yScale}

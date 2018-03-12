@@ -5,20 +5,28 @@ import _ from 'lodash';
 import {Form} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {filterKeyFromString, filtersForAxis} from '../util/runhelpers.js';
-import {getRunValue} from '../util/runhelpers.js';
+import {getRunValue, scatterPlotCandidates} from '../util/runhelpers.js';
 import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
 
 import './PlotParCoor.css';
 import * as d3 from 'd3';
 
-function parcoor(node, data, reactEl, brushCallback, mouseOverCallback, mouseOutCallback) {
+function parcoor(
+  node,
+  data,
+  reactEl,
+  brushCallback,
+  mouseOverCallback,
+  mouseOutCallback,
+) {
   const isBrushing = false;
   let computedWidth = 1070;
 
   const d3node = d3.select(node).node();
 
-  if (d3node) computedWidth = Math.max(280, d3node.getBoundingClientRect().width);
+  if (d3node)
+    computedWidth = Math.max(280, d3node.getBoundingClientRect().width);
   const margin = {top: 30, right: 10, bottom: 10, left: 10},
     width = computedWidth - margin.left - margin.right,
     height = 280 - margin.top - margin.bottom;
@@ -184,7 +192,10 @@ function parcoor(node, data, reactEl, brushCallback, mouseOverCallback, mouseOut
   function brush() {
     for (let i = 0; i < dimensions.length; ++i) {
       if (d3.event.target == y[dimensions[i]].brush) {
-        extents[i] = d3.event.selection.map(y[dimensions[i]].invert, y[dimensions[i]]);
+        extents[i] = d3.event.selection.map(
+          y[dimensions[i]].invert,
+          y[dimensions[i]],
+        );
       }
     }
 
@@ -343,27 +354,66 @@ class ParCoordPanel extends React.Component {
     this._setup(this.props, nextProps);
   }
 
+  _plotOptions() {
+    let configs = this.props.data.filtered.map((run, i) => run.config);
+    let summaryMetrics = this.props.data.filtered.map((run, i) => run.summary);
+
+    let names = scatterPlotCandidates(configs, summaryMetrics);
+    return names.map((name, i) => ({
+      text: name,
+      key: name,
+      value: name,
+    }));
+  }
+
   renderConfig() {
-    const {axisOptions} = this.props.data;
+    let axisOptions = this._plotOptions();
     return (
-      <Form>
-        <Form.Dropdown
-          label="Dimensions"
-          placeholder="Dimensions"
-          fluid
-          multiple
-          search
-          selection
-          options={axisOptions}
-          value={this.props.config.dimensions}
-          onChange={(e, {value}) =>
-            this.props.updateConfig({
-              ...this.props.config,
-              dimensions: value,
-            })
-          }
-        />
-      </Form>
+      <div>
+        {(!axisOptions || axisOptions.length == 0) &&
+          (this.props.data.filtered.length == 0 ? (
+            <div class="ui negative message">
+              <div class="header">No Runs</div>
+              This project doesn't have any runs yet, or you have filtered all
+              of the runs. To create a run, check out the getting started
+              documentation.
+              <a href="http://docs.wandb.com/#getting-started">
+                http://docs.wandb.com/#getting-started
+              </a>.
+            </div>
+          ) : (
+            <div class="ui negative message">
+              <div class="header">
+                No useful configuration or summary metrics for plotting.
+              </div>
+              Parallel coordinates plot needs numeric configuration or summary
+              metrics with more than one value. You don't have any of those yet.
+              To learn more about collecting summary metrics check out our
+              documentation at
+              <a href="http://docs.wandb.com/#summary">
+                http://docs.wandb.com/#summary
+              </a>.
+            </div>
+          ))}
+        <Form>
+          <Form.Dropdown
+            label="Dimensions"
+            placeholder="Dimensions"
+            fluid
+            multiple
+            search
+            selection
+            options={axisOptions}
+            value={this.props.config.dimensions}
+            onChange={(e, {value}) =>
+              this.props.updateConfig({
+                ...this.props.config,
+                dimensions: value,
+              })
+            }
+          />
+        </Form>
+      </div>
     );
   }
 
@@ -417,7 +467,9 @@ function mapStateToProps(state, ownProps) {
 const mapDispatchToProps = (dispatch, ownProps) =>
   bindActionCreators({batchActions, setHighlight}, dispatch);
 
-const ConnectParCoordPanel = connect(mapStateToProps, mapDispatchToProps)(ParCoordPanel);
+const ConnectParCoordPanel = connect(mapStateToProps, mapDispatchToProps)(
+  ParCoordPanel,
+);
 ConnectParCoordPanel.type = ParCoordPanel.type;
 ConnectParCoordPanel.options = ParCoordPanel.options;
 ConnectParCoordPanel.validForData = ParCoordPanel.validForData;

@@ -22,7 +22,6 @@ class ModelViewer extends React.Component {
         <Markdown content={model.description} />
       </div>
     );
-
     return (
       <div>
         {!condensed && model.bucketCount === 0 ? (
@@ -59,7 +58,7 @@ class ModelViewer extends React.Component {
             query={{
               entity: match.params.entity,
               model: match.params.model,
-              strategy: 'merge',
+              strategy: 'root',
             }}
           />
         )}

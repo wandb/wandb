@@ -273,8 +273,11 @@ export function defaultViews(run) {
           name: 'Charts',
           config: [
             {
-              size: {
-                width: 16,
+              layout: {
+                x: 0,
+                y: 0,
+                w: 12,
+                h: 2,
               },
               config: {
                 source: 'history',
@@ -293,8 +296,11 @@ export function defaultViews(run) {
           name: 'Charts',
           config: [
             {
-              size: {
-                width: 16,
+              layout: {
+                x: 0,
+                y: 0,
+                w: 12,
+                h: 2,
               },
               config: {},
             },
@@ -303,7 +309,27 @@ export function defaultViews(run) {
       },
       tabs: [0],
     },
-    dashboards: [{views: {}}],
+    dashboards: {
+      views: {
+        '0': {
+          defaults: [],
+          name: 'Dashboard',
+          config: [
+            {
+              layout: {
+                x: 0,
+                y: 0,
+                w: 12,
+                h: 2,
+              },
+              config: {},
+              query: {strategy: 'merge'},
+            },
+          ],
+        },
+      },
+      tabs: [0],
+    },
   };
   if (run.events && run.events.length > 0) {
     const event = JSON.parse(run.events[0]);
@@ -313,8 +339,11 @@ export function defaultViews(run) {
       defaults: [],
       config: [
         {
-          size: {
-            width: 8,
+          layout: {
+            x: 0,
+            y: 0,
+            w: 6,
+            h: 2,
           },
           config: {
             source: 'events',
@@ -325,8 +354,11 @@ export function defaultViews(run) {
     };
     if (Object.keys(event).indexOf('system.gpu.0.gpu') > -1) {
       base.run.views.system.config.push({
-        size: {
-          width: 8,
+        layout: {
+          x: 6,
+          y: 0,
+          w: 6,
+          h: 2,
         },
         config: {
           source: 'events',
@@ -334,7 +366,7 @@ export function defaultViews(run) {
         },
       });
     } else {
-      base.run.views.system.config[0].size.width = 16;
+      base.run.views.system.config[0].layout.w = 6;
     }
     base.run.tabs.push('system');
   }
@@ -348,8 +380,11 @@ export function defaultViews(run) {
         defaults: [],
         config: [
           {
-            size: {
-              width: 16,
+            layout: {
+              x: 0,
+              y: 0,
+              w: 12,
+              h: 2,
             },
             viewType: 'Images',
           },
@@ -366,6 +401,13 @@ export function generateBucketId(params) {
   return btoa(
     ['BucketType', 'v1', params.run, params.model, params.entity].join(':'),
   );
+}
+
+export function bucketFromCache(params, client) {
+  return client.readFragment({
+    id: generateBucketId(params),
+    fragment: fragments.basicRun,
+  });
 }
 
 export function parseBuckets(buckets) {
@@ -456,6 +498,43 @@ export function getColumns(runs) {
   );
 }
 
+export function scatterPlotCandidates(configs, summaryMetrics) {
+  /* We want to pull out configurations that a user might want to put in a scatterplot
+   * For now that means configurations with more than two distinct numeric values
+   */
+  let configKeys = [];
+  // get all the keys from all the configs
+
+  configs.map((c, i) => {
+    _.keys(c).map((key, j) => {
+      configKeys.push(key);
+    });
+  });
+  let k = _.uniq(configKeys);
+  configKeys = k.filter((key, i) => {
+    let vals = configs.map((c, i) => c[key]).filter(i => _.isFinite(i));
+    return _.uniq(vals).length > 1;
+  });
+  configKeys = configKeys.map((key, i) => 'config:' + key);
+
+  let summaryMetricKeys = [];
+  summaryMetrics.map((c, i) => {
+    _.keys(c).map((key, j) => {
+      summaryMetricKeys.push(key);
+    });
+  });
+
+  k = _.uniq(summaryMetricKeys);
+
+  summaryMetricKeys = k.filter((key, i) => {
+    let vals = summaryMetrics.map((c, i) => c[key]).filter(i => _.isFinite(i));
+    return _.uniq(vals).length > 1;
+  });
+  summaryMetricKeys = summaryMetricKeys.map((key, i) => 'summary:' + key);
+
+  return _.concat(configKeys, summaryMetricKeys);
+}
+
 export function groupByCandidates(configs) {
   /* We want to pull out the configurations that a user might want to groupBy
    * this would be any config that has more than one value that's different
@@ -474,16 +553,13 @@ export function groupByCandidates(configs) {
     var uniq = [...new Set(configs.map((c, i) => c[key]))];
     return uniq.length > 1 && uniq.length < configs.length;
   });
-  console.log('Figs', interesting);
   return interesting;
 }
 
 export function groupConfigIdx(configs, key) {
   /* return a map from unique values of key in configs to array of indexes
   */
-  console.log('Configs', configs);
   let values = configs.map((c, i) => c.config[key]);
-  console.log('Values', values);
   let keyToGroup = {};
   values.map((key, i) => {
     if (!keyToGroup[key]) {
@@ -491,6 +567,5 @@ export function groupConfigIdx(configs, key) {
     }
     keyToGroup[key].push(i);
   });
-  console.log('ktg', keyToGroup);
   return keyToGroup;
 }

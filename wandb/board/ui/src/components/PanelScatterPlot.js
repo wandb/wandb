@@ -9,6 +9,7 @@ import {
   getRunValue,
   filterKeyFromString,
   filtersForAxis,
+  scatterPlotCandidates,
 } from '../util/runhelpers.js';
 import {
   XAxis,
@@ -26,7 +27,7 @@ import BoxSelection from './vis/BoxSelection';
 import {addFilter, setHighlight} from '../actions/run';
 
 class ScatterPlotPanel extends React.Component {
-  static type = 'ScatterPlot';
+  static type = 'Scatter Plot';
   static options = {
     width: 8,
   };
@@ -57,6 +58,18 @@ class ScatterPlotPanel extends React.Component {
     }
   }
 
+  _scatterPlotOptions() {
+    let configs = this.props.data.filtered.map((run, i) => run.config);
+    let summaryMetrics = this.props.data.filtered.map((run, i) => run.summary);
+
+    let names = scatterPlotCandidates(configs, summaryMetrics);
+    return names.map((name, i) => ({
+      text: name,
+      key: name,
+      value: name,
+    }));
+  }
+
   componentWillMount() {
     this._setup({}, this.props);
   }
@@ -69,46 +82,73 @@ class ScatterPlotPanel extends React.Component {
   }
 
   renderConfig() {
-    let {axisOptions} = this.props.data;
+    let axisOptions = this._scatterPlotOptions(); //this.props.data;
     return (
-      <Form>
-        <Form.Dropdown
-          label="X-Axis"
-          placeholder="X-Axis"
-          fluid
-          search
-          selection
-          options={axisOptions}
-          value={this.props.config.xAxis}
-          onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, xAxis: value})
-          }
-        />
-        <Form.Dropdown
-          label="Y-Axis"
-          placeholder="Y-Axis"
-          fluid
-          search
-          selection
-          options={axisOptions}
-          value={this.props.config.yAxis}
-          onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, yAxis: value})
-          }
-        />
-        <Form.Dropdown
-          label="Z-Axis (Color)"
-          placeholder="Z-Axis"
-          fluid
-          search
-          selection
-          options={axisOptions}
-          value={this.props.config.zAxis}
-          onChange={(e, {value}) =>
-            this.props.updateConfig({...this.props.config, zAxis: value})
-          }
-        />
-      </Form>
+      <div>
+        {(!axisOptions || axisOptions.length == 0) &&
+          (this.props.data.filtered.length == 0 ? (
+            <div class="ui negative message">
+              <div class="header">No Runs</div>
+              This project doesn't have any runs yet, or you have filtered all
+              of the runs. To create a run, check out the getting started
+              documentation.
+              <a href="http://docs.wandb.com/#getting-started">
+                http://docs.wandb.com/#getting-started
+              </a>.
+            </div>
+          ) : (
+            <div class="ui negative message">
+              <div class="header">
+                No useful configuration or summary metrics for Scatter Plot.
+              </div>
+              Scatter plot needs numeric configuration or summary metrics with
+              more than one value. You don't have any of those yet. To learn
+              more about collecting summary metrics check out our documentation
+              at
+              <a href="http://docs.wandb.com/#summary">
+                http://docs.wandb.com/#summary
+              </a>.
+            </div>
+          ))}
+        <Form>
+          <Form.Dropdown
+            label="X-Axis"
+            placeholder="X-Axis"
+            fluid
+            search
+            selection
+            options={axisOptions}
+            value={this.props.config.xAxis}
+            onChange={(e, {value}) =>
+              this.props.updateConfig({...this.props.config, xAxis: value})
+            }
+          />
+          <Form.Dropdown
+            label="Y-Axis"
+            placeholder="Y-Axis"
+            fluid
+            search
+            selection
+            options={axisOptions}
+            value={this.props.config.yAxis}
+            onChange={(e, {value}) =>
+              this.props.updateConfig({...this.props.config, yAxis: value})
+            }
+          />
+          <Form.Dropdown
+            label="Z-Axis (Color)"
+            placeholder="Z-Axis"
+            fluid
+            search
+            selection
+            options={axisOptions}
+            value={this.props.config.zAxis}
+            onChange={(e, {value}) =>
+              this.props.updateConfig({...this.props.config, zAxis: value})
+            }
+          />
+        </Form>
+      </div>
     );
   }
 
@@ -167,7 +207,8 @@ class ScatterPlotPanel extends React.Component {
               </FlexibleWidthXYPlot>
             </div>
           )}
-          <FlexibleWidthXYPlot height={300 - (zAxis ? 55 : 0)}>
+          <FlexibleWidthXYPlot
+            height={(this.props.currentHeight || 240) - (zAxis ? 55 : 0)}>
             <VerticalGridLines />
             <HorizontalGridLines />
             <BoxSelection

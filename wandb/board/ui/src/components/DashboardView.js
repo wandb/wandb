@@ -4,10 +4,14 @@ import Panel from './Panel';
 import {Button, Form, Icon, Modal} from 'semantic-ui-react';
 import _ from 'lodash';
 import './DashboardView.css';
+import EditablePanel from '../components/EditablePanel';
 import * as Query from '../util/query';
 
 export const GRID_WIDTH = 12;
 export const GRID_MARGIN = 6;
+// Will be used as a default value for row height
+// and for calculating panel's current height
+export const ROW_HEIGHT = 150;
 
 function findNextPanelLoc(layouts, gridWidth, panelWidth) {
   let columnBottoms = new Array(gridWidth).fill(0);
@@ -75,7 +79,7 @@ let gridKey = 1;
 
 const Grid = WidthProvider(ReactGridLayout);
 class DashboardView extends Component {
-  state = {editing: null};
+  state = {editing: null, panels: {}};
   static defaultProps = {
     editMode: true,
   };
@@ -106,13 +110,14 @@ class DashboardView extends Component {
     });
   };
 
-  renderPanel(panelConfig, i, edit) {
+  renderPanel(panelConfig, i, openEdit) {
     let query = Query.merge(this.props.pageQuery, panelConfig.query || {});
     return (
-      <Panel
+      <EditablePanel
         viewType={this.props.viewType}
         histQueryKey={i}
-        editMode={edit}
+        editMode={this.props.editMode}
+        openEdit={openEdit}
         noButtons={true}
         type={panelConfig.viewType}
         size={panelConfig.size}
@@ -122,6 +127,7 @@ class DashboardView extends Component {
         query={query}
         config={panelConfig.config}
         data={this.props.data}
+        currentHeight={this.state.panels[i]}
         updateType={newType =>
           this.props.updatePanel(i, {
             ...panelConfig,
@@ -198,14 +204,23 @@ class DashboardView extends Component {
         )}
         <Grid
           className={editMode ? 'editing' : 'display'}
-          layout={panelConfigs.map(c => c.layout)}
+          layout={panelConfigs.map(c => ({...c.layout}))}
           compactType="vertical"
           draggableCancel=".edit"
           cols={GRID_WIDTH}
-          isDraggable={editMode}
-          isResizable={editMode}
+          rowHeight={ROW_HEIGHT}
+          isDraggable={true}
+          isResizable={true}
           margin={[GRID_MARGIN, GRID_MARGIN]}
-          onLayoutChange={this.onLayoutChange}>
+          onLayoutChange={this.onLayoutChange}
+          onResizeStop={(size, oldItem, newItem, placeholder, e, element) => {
+            this.setState(prevState => ({
+              panels: {
+                ...prevState.panels,
+                [newItem.i]: newItem.h * ROW_HEIGHT,
+              },
+            }));
+          }}>
           {allPanelConfigs.map(
             (panelConfig, i) =>
               panelConfig === 'addButton' ? (
@@ -234,6 +249,13 @@ class DashboardView extends Component {
                         newPanelParams.query = {strategy: 'merge'};
                       }
                       this.props.addPanel(newPanelParams);
+                      this.setState(prevState => ({
+                        panels: {
+                          ...prevState.panels,
+                          [i]: addPanelLayout.h * ROW_HEIGHT,
+                        },
+                        editing: i,
+                      }));
                     }}>
                     <Icon name="plus" />
                   </Button>
@@ -242,40 +264,12 @@ class DashboardView extends Component {
                 <div
                   key={i}
                   className="panel"
-                  data-grid={{...panelConfig.layout}}>
-                  {editMode && (
-                    <Modal
-                      open={this.state.editing === i}
-                      dimmer={false}
-                      trigger={
-                        <Icon
-                          link
-                          name="edit"
-                          onClick={() => this.setState({editing: i})}
-                        />
-                      }>
-                      <Modal.Header>Edit Panel</Modal.Header>
-                      <Modal.Content style={{padding: 16}}>
-                        {this.renderPanel(panelConfig, i, true)}
-                      </Modal.Content>
-                      <Modal.Actions>
-                        <Button
-                          floated="left"
-                          negative
-                          icon="trash"
-                          onClick={() => {
-                            this.props.removePanel(i);
-                            this.setState({editing: null});
-                          }}
-                        />
-                        <Button onClick={() => this.setState({editing: null})}>
-                          OK
-                        </Button>
-                      </Modal.Actions>
-                    </Modal>
-                  )}
-
-                  {this.renderPanel(panelConfig, i, false)}
+                  data-grid={{
+                    ...panelConfig.layout,
+                    isDraggable: true,
+                    isResizable: true,
+                  }}>
+                  {this.renderPanel(panelConfig, i, this.state.editing === i)}
                 </div>
               ),
           )}
