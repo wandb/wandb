@@ -10,122 +10,54 @@ import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
 
 import './PlotParCoor.css';
-import * as d3 from "d3";
+import * as d3 from 'd3';
 
-function parcoor(
-  node,
-  data,
-  reactEl,
-  brushCallback,
-  mouseOverCallback,
-  mouseOutCallback,
-  sort,
-) {
-  var select = reactEl.props.select;
+function parcoor(node, data, reactEl, brushCallback, mouseOverCallback, mouseOutCallback) {
+  const isBrushing = false;
+  let computedWidth = 1070;
 
-  let isBrushing = false;
+  const d3node = d3.select(node).node();
 
-  var d3node = d3.select(node).node(),
-    computedWidth = 1070;
-  if (d3node)
-    computedWidth = Math.max(280, d3node.getBoundingClientRect().width);
-  var margin = {top: 30, right: 10, bottom: 10, left: 10},
+  if (d3node) computedWidth = Math.max(280, d3node.getBoundingClientRect().width);
+  const margin = {top: 30, right: 10, bottom: 10, left: 10},
     width = computedWidth - margin.left - margin.right,
     height = 280 - margin.top - margin.bottom;
 
-  var x = d3.scaleBand().rangeRound([0, width]).padding(1),
+  const x = d3
+      .scaleBand()
+      .rangeRound([0, width])
+      .padding(1),
     y = {},
     dragging = {};
 
-  var line = d3.line(),
-    background,
-    foreground;
+  const line = d3.line();
 
-  var svg = d3
+  const svg = d3
     .select(node)
     .html('')
     .append('svg')
     .attr('width', width + margin.left + margin.right)
     .attr('height', height + margin.top + margin.bottom)
     .append('g')
-    .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+    .attr('transform', `translate(${margin.left},${margin.top})`);
 
-  var dimensions;
-  x.domain(
-    (dimensions = d3
-      .keys(data[0])
-      .filter(d => d !== 'name')
-      .filter(function(d) {
-        return (
-          _.isFinite(parseFloat(data[0][d])) &&
-          (y[d] = d3.scaleLinear()
-            .domain(
-              d3.extent(data, function(p) {
-                return +parseFloat(p[d]);
-              }),
-            )
-            .range([height, 0]))
-        );
-      })),
-  );
-  function position(d) {
-    var v = dragging[d];
-    return v == null ? x(d) : v;
-  }
-
-  function transition(g) {
-    return g.transition().duration(500);
-  }
-
-  // Returns the path for a given data point.
-  function path(d) {
-    return line(
-      dimensions.map(function(p) {
-        return [position(p), y[p](d[p])];
-      }),
+  const dimensions = d3
+    .keys(data[0])
+    .filter(d => d !== 'name')
+    .filter(
+      d =>
+        _.isFinite(parseFloat(data[0][d])) &&
+        (y[d] = d3
+          .scaleLinear()
+          .domain(d3.extent(data, p => +parseFloat(p[d])))
+          .range([height, 0])),
     );
-  }
+  x.domain(dimensions);
 
-  function brushstart() {
-    isBrushing = true;
-    if (d3.event.sourceEvent) {
-      d3.event.sourceEvent.stopPropagation();
-    }
-  }
-
-  function brush(axis) {
-    var actives = dimensions.filter(function(p) {
-        const extnt = y[p].brush && d3.extent(y[p].brush)
-        return extnt && (extnt[0] === undefined || extnt[1] === undefined);
-      }),
-      extents = actives.map(function(p) {
-        return y[p].brush.extent();
-      });
-    foreground.style('display', function(d) {
-      return actives.every(function(p, i) {
-        return extents[i][0] <= d[p] && d[p] <= extents[i][1];
-      })
-        ? null
-        : 'none';
-    });
-  }
-
-  function brushend(axis) {
-    isBrushing = false;
-    // This doesn't work well if we do it in brush, probably a feedback loop.
-    // Doing it here for now, we can fix later.
-    if (axis) {
-      let [low, high] = y[axis].brush.extent();
-      if (low === high) {
-        low = null;
-        high = null;
-      }
-      brushCallback(axis, low, high);
-    }
-  }
+  const extents = dimensions.map(p => [0, 0]);
 
   // Add grey background lines for context.
-  background = svg
+  const background = svg
     .append('g')
     .attr('class', 'background')
     .selectAll('path')
@@ -135,7 +67,7 @@ function parcoor(
     .attr('d', path);
 
   // Add blue foreground lines for focus.
-  foreground = svg
+  const foreground = svg
     .append('g')
     .attr('class', 'foreground')
     .selectAll('path')
@@ -144,71 +76,32 @@ function parcoor(
     .append('path')
     .attr('d', path);
 
-  // Add wider transparent lines for hovering
-  svg
-    .append('g')
-    .attr('class', 'hoverable')
-    .attr('stroke-width', 5)
-    .selectAll('path')
-    .data(data)
-    .enter()
-    .append('path')
-    .attr('d', path)
-    .on('mouseover', (row, index) => mouseOverCallback(row, index))
-    .on('mouseout', (row, index) => mouseOutCallback());
-
   // Add a group element for each dimension.
-  var g = svg
+  const g = svg
     .selectAll('.dimension')
     .data(dimensions)
     .enter()
     .append('g')
     .attr('class', 'dimension')
-    .attr('transform', function(d) {
-      return 'translate(' + x(d) + ')';
-    })
+    .attr('transform', d => `translate(${x(d)})`)
     .call(
-      d3.drag()
-        .subject(function(d) {
-          return {x: x(d)};
-        })
-        .on('start', function(d) {
+      d3
+        .drag()
+        .subject(d => ({x: x(d)}))
+        .on('start', d => {
           dragging[d] = x(d);
           background.attr('visibility', 'hidden');
         })
-        .on('drag', function(d) {
+        .on('drag', d => {
           dragging[d] = Math.min(width, Math.max(0, d3.event.x));
           foreground.attr('d', path);
-          dimensions.sort(function(a, b) {
-            return position(a) - position(b);
-          });
+          dimensions.sort((a, b) => position(a) - position(b));
           x.domain(dimensions);
-          g.attr('transform', function(d) {
-            return 'translate(' + position(d) + ')';
-          });
+          g.attr('transform', d => `translate(${position(d)})`);
         })
-        .on('end', function(d, ind, nodes) {
-          // Change state, forcing the re-render of the element
-          sort(dimensions)
-          // Remove invisible hoverable lines and replace them with re-sorted data
-          svg.selectAll('g.hoverable').remove();
-          svg
-            .append('g')
-            .attr('class', 'hoverable')
-            .attr('stroke-width', 5)
-            .selectAll('path')
-            .data(data)
-            .enter()
-            .append('path')
-            .attr('d', path)
-            .on('mouseover', (row, index) => mouseOverCallback(row, index))
-            .on('mouseout', (row, index) => mouseOutCallback());
-
+        .on('end', function(d) {
           delete dragging[d];
-          transition(d3.select(this)).attr(
-            'transform',
-            'translate(' + x(d) + ')',
-          );
+          transition(d3.select(this)).attr('transform', `translate(${x(d)})`);
           transition(foreground).attr('d', path);
           background
             .attr('d', path)
@@ -216,9 +109,9 @@ function parcoor(
             .delay(500)
             .duration(0)
             .attr('visibility', null);
+          addHover();
         }),
     );
-
   // Add an axis and title.
   g
     .append('g')
@@ -226,38 +119,88 @@ function parcoor(
     .each(function(d) {
       d3.select(this).call(d3.axisLeft(y[d]));
     })
+    //text does not show up because previous line breaks somehow
     .append('text')
+    .attr('fill', 'black')
     .style('text-anchor', 'middle')
     .attr('y', -9)
-    .text(function(d) {
-      return d;
-    });
+    .text(d => d);
 
   // Add and store a brush for each axis.
   g
     .append('g')
     .attr('class', 'brush')
     .each(function(d) {
-      d3.select(this).call(obj => {
-        let ourBrush = d3.brushY(y[d])
-          .on('start', brushstart)
-          .on('brush', brush)
-          .on('end', brushend);
-        y[d].brush = ourBrush;
-        if (select[d] && (select[d].low || select[d].high)) {
-          ourBrush.extent([
-            select[d].low || y[d].domain()[0],
-            select[d].high || y[d].domain()[1],
-          ]);
-        }
-        ourBrush(obj);
-      });
+      d3.select(this).call(
+        (y[d].brush = d3
+          .brushY()
+          .extent([[-8, 0], [8, height]])
+          .on('brush start', brushstart)
+          .on('brush', brush)),
+      );
     })
     .selectAll('rect')
     .attr('x', -8)
     .attr('width', 16);
 
-  brush();
+  // Add wider transparent lines for hovering (reusable function)
+  function addHover() {
+    // Remove any previously added lines
+    svg.selectAll('g.hoverable').remove();
+    // Add new lines based on latest data
+    svg
+      .append('g')
+      .attr('class', 'hoverable')
+      .attr('stroke-width', 5)
+      .selectAll('path')
+      .data(data)
+      .enter()
+      .append('path')
+      .attr('d', path)
+      .on('mouseover', (row, index) => mouseOverCallback(row, index))
+      .on('mouseout', (row, index) => mouseOutCallback());
+  }
+  addHover();
+
+  function position(d) {
+    const v = dragging[d];
+    return v == null ? x(d) : v;
+  }
+
+  function transition(g) {
+    return g.transition().duration(500);
+  }
+
+  // Returns the path for a given data point.
+  function path(d) {
+    return line(dimensions.map(p => [position(p), y[p](d[p])]));
+  }
+
+  function brushstart() {
+    d3.event.sourceEvent.stopPropagation();
+  }
+
+  // Handles a brush event, toggling the display of foreground lines.
+  function brush() {
+    for (let i = 0; i < dimensions.length; ++i) {
+      if (d3.event.target == y[dimensions[i]].brush) {
+        extents[i] = d3.event.selection.map(y[dimensions[i]].invert, y[dimensions[i]]);
+      }
+    }
+
+    foreground.style(
+      'display',
+      d =>
+        dimensions.every((p, i) => {
+          if (extents[i][0] == 0 && extents[i][0] == 0) {
+            return true;
+          }
+          return extents[i][1] <= d[p] && d[p] <= extents[i][0];
+        })
+          ? null
+          : 'none',
+    );
+  }
 
   function handleHighlight(runData) {
     if (isBrushing) {
@@ -294,7 +237,6 @@ function parcoor(
 }
 
 class PlotParCoor extends React.Component {
-  state = {}
   componentWillReceiveProps(props) {
     if (props.highlight !== this.props.highlight && this.handleHighlight) {
       // Kind of hacky, we're not actually going to re-render the react component when highlight
@@ -306,12 +248,12 @@ class PlotParCoor extends React.Component {
       if (props.highlight === null) {
         this.handleHighlight(null);
       } else {
-        let run = _.find(props.runs, run => run.name === props.highlight);
+        const run = _.find(props.runs, run => run.name === props.highlight);
         if (!run) {
           this.handleHighlight(null);
         } else {
-          let row = {};
-          for (var col of this.props.cols) {
+          const row = {};
+          for (const col of this.props.cols) {
             row[col] = getRunValue(run, col);
           }
           this.handleHighlight([row]);
@@ -332,7 +274,6 @@ class PlotParCoor extends React.Component {
 
   shouldComponentUpdate(nextProps, nextState) {
     if (
-      _.isEqual(nextState.ord, this.state.ord) &&
       _.isEqual(nextProps.runs, this.props.runs) &&
       _.isEqual(nextProps.cols, this.props.cols) &&
       _.isEqual(nextProps.select, this.props.select)
@@ -343,10 +284,10 @@ class PlotParCoor extends React.Component {
   }
 
   render() {
-    let cols = this.props.cols;
+    const cols = this.props.cols;
     let data = this.props.runs.map(run => {
-      let row = {name: run.name};
-      for (var col of cols) {
+      const row = {name: run.name};
+      for (const col of cols) {
         row[col] = getRunValue(run, col);
       }
       return row;
@@ -362,7 +303,6 @@ class PlotParCoor extends React.Component {
             (axis, low, high) => this.props.onBrushEvent(axis, low, high),
             (row, index) => this.props.onMouseOverEvent(data[index].name),
             () => this.props.onMouseOutEvent(),
-            (ord) => {this.setState({ord})},
           );
         }}
       />
@@ -386,10 +326,10 @@ class ParCoordPanel extends React.Component {
   }
 
   _setup(props, nextProps) {
-    let {dimensions} = nextProps.config;
+    const {dimensions} = nextProps.config;
     if (dimensions && nextProps.selections !== props.selections) {
       this.select = {};
-      for (var dim of dimensions) {
+      for (const dim of dimensions) {
         this.select[dim] = filtersForAxis(nextProps.selections, dim);
       }
     }
@@ -400,14 +340,11 @@ class ParCoordPanel extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    //for (var prop of _.keys(nextProps)) {
-    //  console.log('prop equal?', prop, this.props[prop] === nextProps[prop]);
-    //}
     this._setup(this.props, nextProps);
   }
 
   renderConfig() {
-    let {axisOptions} = this.props.data;
+    const {axisOptions} = this.props.data;
     return (
       <Form>
         <Form.Dropdown
@@ -431,7 +368,7 @@ class ParCoordPanel extends React.Component {
   }
 
   renderNormal() {
-    let {dimensions} = this.props.config;
+    const {dimensions} = this.props.config;
     if (this.props.data.filtered && dimensions) {
       return (
         <PlotParCoor
@@ -477,13 +414,10 @@ function mapStateToProps(state, ownProps) {
   };
 }
 
-const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({batchActions, setHighlight}, dispatch);
-};
+const mapDispatchToProps = (dispatch, ownProps) =>
+  bindActionCreators({batchActions, setHighlight}, dispatch);
 
-let ConnectParCoordPanel = connect(mapStateToProps, mapDispatchToProps)(
-  ParCoordPanel,
-);
+const ConnectParCoordPanel = connect(mapStateToProps, mapDispatchToProps)(ParCoordPanel);
 ConnectParCoordPanel.type = ParCoordPanel.type;
 ConnectParCoordPanel.options = ParCoordPanel.options;
 ConnectParCoordPanel.validForData = ParCoordPanel.validForData;
