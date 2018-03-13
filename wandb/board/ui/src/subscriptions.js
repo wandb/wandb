@@ -11,7 +11,7 @@ try {
 } catch (e) {
   const p = require('./util/pusher');
   unsubscribe = p.unsubscribe;
-  runsChannel = p.runsChannel;
+  runsChannel = p.dummyChannel;
 }
 
 const SUBSCRIPTION_COOLDOWN = 5000;

@@ -396,16 +396,25 @@ export function defaultViews(run) {
   return base;
 }
 
-// Generate bucket id
-export function generateBucketId(params) {
+// Generates relay compatible bucket id
+export function relayBucketId(params) {
   return btoa(
     ['BucketType', 'v1', params.run, params.model, params.entity].join(':'),
   );
 }
 
+export function pusherProjectSlug(params) {
+  return `${params.entity}@${params.model}`;
+}
+
+// Generates pusher identifier for logs
+export function pusherRunSlug(params) {
+  return `${pusherProjectSlug(params)}.${params.run}`;
+}
+
 export function bucketFromCache(params, client) {
   return client.readFragment({
-    id: generateBucketId(params),
+    id: relayBucketId(params),
     fragment: fragments.basicRun,
   });
 }

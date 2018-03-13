@@ -17,7 +17,7 @@ import update from 'immutability-helper';
 import {setServerViews, setBrowserViews} from '../actions/view';
 import {updateLocationParams} from '../actions/location';
 import _ from 'lodash';
-import {defaultViews, generateBucketId} from '../util/runhelpers';
+import {defaultViews} from '../util/runhelpers';
 import {BOARD} from '../util/board';
 
 class Run extends React.Component {

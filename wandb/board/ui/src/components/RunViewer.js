@@ -85,7 +85,7 @@ export default class RunViewer extends React.Component {
       })
       .filter(row => row !== null);
     let keys = _.flatMap(data, row =>
-      _.keys(row).filter(key => !row[key]._type),
+      _.keys(row).filter(key => !row[key] || !row[key]._type),
     );
     keys = _.uniq(keys);
     keys = _.sortBy(keys);

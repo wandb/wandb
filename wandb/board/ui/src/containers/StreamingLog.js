@@ -2,16 +2,19 @@ import {withApollo} from 'react-apollo';
 import {connect} from 'react-redux';
 import Log from '../components/Log';
 import {fragments} from '../graphql/runs';
+import {pusherRunSlug, pusherProjectSlug} from '../util/runhelpers';
 
-let logsChannel, runsChannel;
+let logsChannel, runsChannel, privateLogsChannel;
 try {
   const p = require('Cloud/util/pusher');
   logsChannel = p.logsChannel;
   runsChannel = p.runsChannel;
+  privateLogsChannel = p.privateLogsChannel;
 } catch (e) {
   const p = require('../util/pusher');
-  logsChannel = p.logsChannel;
-  runsChannel = p.runsChannel;
+  logsChannel = p.dummyChannel;
+  runsChannel = p.dummyChannel;
+  privateLogsChannel = p.dummyChannel;
 }
 
 function gidToIdx(gid) {
@@ -49,6 +52,10 @@ function stream(client, params, bucket, callback) {
       fragment: fragments.detailedRun,
       data: data,
     });
+  });
+
+  privateLogsChannel(pusherRunSlug(params)).bind('lines', payload => {
+    console.log('private lines: ', payload.length);
   });
 
   //TODO: performance
@@ -92,7 +99,7 @@ function stream(client, params, bucket, callback) {
     if (changed) callback();
   });
 
-  runsChannel(`${params.entity}@${params.model}`).bind('updated', payload => {
+  runsChannel(pusherProjectSlug(params)).bind('updated', payload => {
     // Overwrite files data only if payload belongs to particular run
     if (bucket.id === payload.id) {
       //Update files
