@@ -17,6 +17,11 @@ export default function withHistoryLoader(WrappedComponent) {
     }
 
     _setup(props, nextProps) {
+      if (!Query.needsOwnQuery(nextProps.query)) {
+        // Don't load any history at all, and withData below will also skip.
+        return;
+      }
+
       // In polling mode we always reload all history data. Note the check below
       // to see if selectedRuns has changed from previous props to now will only
       // be true when the withRunsData loader upstream from us has polled new data
@@ -104,29 +109,29 @@ export default function withHistoryLoader(WrappedComponent) {
                 }
               });
           }
-        }
-        nextProps.client.writeQuery({
-          query: FAKE_HISTORY_QUERY,
-          variables: {histQueryKey: nextProps.histQueryKey},
-          data: {
-            model: {
-              id: 'fake_history_query_' + nextProps.histQueryKey,
-              __typename: 'ModelType',
-              buckets: {
-                __typename: 'BucketConnectionType',
-                edges: selectedInfo.map(o => ({
-                  node: {
-                    id: o.id,
-                    name: o.name,
-                    history: o.history,
-                    __typename: 'BucketType',
-                  },
-                  __typename: 'BucketTypeEdge',
-                })),
+          nextProps.client.writeQuery({
+            query: FAKE_HISTORY_QUERY,
+            variables: {histQueryKey: nextProps.histQueryKey},
+            data: {
+              model: {
+                id: 'fake_history_query_' + nextProps.histQueryKey,
+                __typename: 'ModelType',
+                buckets: {
+                  __typename: 'BucketConnectionType',
+                  edges: selectedInfo.map(o => ({
+                    node: {
+                      id: o.id,
+                      name: o.name,
+                      history: o.history,
+                      __typename: 'BucketType',
+                    },
+                    __typename: 'BucketTypeEdge',
+                  })),
+                },
               },
             },
-          },
-        });
+          });
+        }
       }
     }
 

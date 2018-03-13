@@ -72,6 +72,10 @@ export function merge(base, apply) {
 
   result.sort = apply.sort || base.sort;
   result.num_histories = apply.num_histories || base.num_histories;
+
+  result.baseQuery = base;
+  result.applyQuery = apply;
+
   return result;
 }
 
@@ -100,7 +104,7 @@ export function strategy(query) {
 }
 
 export function shouldPoll(query) {
-  return strategy(query) === 'merge';
+  return strategy(query) === 'merge' && query.model !== query.baseQuery.model;
 }
 
 export function needsOwnQuery(query) {
