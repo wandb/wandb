@@ -55,11 +55,7 @@ function stream(client, params, bucket, callback) {
   });
 
   runChannel(pusherRunSlug(params)).bind('log', payload => {
-    console.log('run log lines: ', payload.length);
-  });
-
-  //TODO: performance
-  logsChannel(bucket.name).bind('lines', payload => {
+    //console.time('log lines', payload.length);
     const data = client.readFragment({
         id: bucket.id,
         fragment: fragments.detailedRun,
@@ -97,6 +93,7 @@ function stream(client, params, bucket, callback) {
       data: data,
     });
     if (changed) callback();
+    //console.timeEnd('log lines', payload.length);
   });
 
   runsChannel(pusherProjectSlug(params)).bind('updated', payload => {
