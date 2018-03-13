@@ -85,6 +85,8 @@ class Run(graphene.ObjectType):
     systemMetrics = graphene.types.json.JSONString()
     heartbeatAt = graphene.String()
     events = graphene.List(graphene.String)
+    tags = graphene.List(graphene.String)
+    requestSubscribe = graphene.Boolean()
     history = graphene.List(graphene.String)
     logLines = relay.ConnectionField(
         LogLineConnection)
@@ -101,6 +103,9 @@ class Run(graphene.ObjectType):
     user = graphene.Field(UserType)
 
     def resolve_files(self, info, **args):
+        return []
+
+    def resolve_tags(self, info, **args):
         return []
 
     def resolve_fileCount(self, info, **args):
@@ -196,8 +201,18 @@ class Project(graphene.ObjectType):
         return settings.get_project("views")
 
 
+class ProjectConnection(relay.Connection):
+    class Meta:
+        node = Project
+
+
 class ModelType(Project):
     pass
+
+
+class ModelConnection(relay.Connection):
+    class Meta:
+        node = ModelType
 
 
 class Query(graphene.ObjectType):
@@ -205,6 +220,8 @@ class Query(graphene.ObjectType):
         Project, name=graphene.String(), entityName=graphene.String())
     model = graphene.Field(
         ModelType, name=graphene.String(), entityName=graphene.String())
+    models = relay.ConnectionField(
+        ModelConnection, entityName=graphene.String())
     viewer = graphene.Field(
         UserType
     )
@@ -214,6 +231,9 @@ class Query(graphene.ObjectType):
 
     def resolve_model(self, info, **args):
         return ModelType()
+
+    def resolve_models(self, info, **args):
+        return [ModelType()]
 
     def resolve_viewer(self, info, **args):
         return UserType()
