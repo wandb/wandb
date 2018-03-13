@@ -4,17 +4,17 @@ import Log from '../components/Log';
 import {fragments} from '../graphql/runs';
 import {pusherRunSlug, pusherProjectSlug} from '../util/runhelpers';
 
-let logsChannel, runsChannel, privateLogsChannel;
+let logsChannel, runsChannel, runChannel;
 try {
   const p = require('Cloud/util/pusher');
   logsChannel = p.logsChannel;
   runsChannel = p.runsChannel;
-  privateLogsChannel = p.privateLogsChannel;
+  runChannel = p.runChannel;
 } catch (e) {
   const p = require('../util/pusher');
   logsChannel = p.dummyChannel;
   runsChannel = p.dummyChannel;
-  privateLogsChannel = p.dummyChannel;
+  runChannel = p.dummyChannel;
 }
 
 function gidToIdx(gid) {
@@ -54,8 +54,8 @@ function stream(client, params, bucket, callback) {
     });
   });
 
-  privateLogsChannel(pusherRunSlug(params)).bind('lines', payload => {
-    console.log('private lines: ', payload.length);
+  runChannel(pusherRunSlug(params)).bind('log', payload => {
+    console.log('run log lines: ', payload.length);
   });
 
   //TODO: performance
