@@ -17,6 +17,11 @@ export default function withHistoryLoader(WrappedComponent) {
     }
 
     _setup(props, nextProps) {
+      if (!Query.needsOwnQuery(nextProps.query)) {
+        // Don't load any history at all, and withData below will also skip.
+        return;
+      }
+
       // In polling mode we always reload all history data. Note the check below
       // to see if selectedRuns has changed from previous props to now will only
       // be true when the withRunsData loader upstream from us has polled new data
