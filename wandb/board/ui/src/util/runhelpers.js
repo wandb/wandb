@@ -440,6 +440,40 @@ export function parseBuckets(buckets) {
   });
 }
 
+// Given a set of bucket edges (as returned by graphql), compute runs,
+// which have the bucket JSON data parsed and flattened.
+// This expects the previous version of buckets, and the previous
+// result that updateRuns returned. It re-uses parsed data from the
+// previous result for buckets that have not changed.
+export function updateRuns(oldBuckets, newBuckets, prevResult) {
+  if (!newBuckets) {
+    return [];
+  }
+  oldBuckets = oldBuckets || {edges: []};
+  let oldBucketsMap = _.fromPairs(
+    oldBuckets.edges.map(edge => [edge.node.name, edge.node]),
+  );
+  let prevResultMap = _.fromPairs(prevResult.map(row => [row.name, row]));
+  return newBuckets.edges.map(edge => {
+    let node = {...edge.node};
+    let oldNode = oldBucketsMap[node.name];
+    if (edge.node === oldNode) {
+      node.config = prevResultMap[node.name].config;
+      node.summary = prevResultMap[node.name].config;
+    } else {
+      node.config = node.config ? JSONparseNaN(node.config) : {};
+      node.config = flatten(
+        _.mapValues(node.config, confObj => confObj.value || confObj),
+      );
+      node.summary = flatten(node.summaryMetrics)
+        ? JSONparseNaN(node.summaryMetrics)
+        : {};
+    }
+    delete node.summaryMetrics;
+    return node;
+  });
+}
+
 export function setupKeySuggestions(runs) {
   if (runs.length === 0) {
     return [];
