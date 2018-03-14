@@ -78,7 +78,11 @@ class TabbedViews extends React.Component {
           )}
         {this.props.viewType === 'dashboards' &&
           !this.props.fullScreen && (
-            <Button floated="right" icon="print" onClick={() => print()} />
+            <Button
+              floated="right"
+              icon="print"
+              onClick={() => window.print()}
+            />
           )}
         <Tab
           panes={panes}

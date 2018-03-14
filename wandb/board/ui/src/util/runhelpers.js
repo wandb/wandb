@@ -4,6 +4,7 @@ import _ from 'lodash';
 import numeral from 'numeral';
 import {JSONparseNaN} from '../util/jsonnan';
 import flatten from 'flat';
+import {fragments} from '../graphql/runs';
 
 export function convertValue(string) {
   let val = Number.parseFloat(string);
