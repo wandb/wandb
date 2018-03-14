@@ -19,7 +19,7 @@ class LinePlotPlot extends React.PureComponent {
   render() {
     const smallSizeThresh = 50;
 
-    let {height, sizeKey, xAxis, yScale, lines, disabled, xScale} = this.props;
+    let {height, xAxis, yScale, lines, disabled, xScale} = this.props;
     let xType = 'linear';
     if (xAxis == 'Absolute Time') {
       xType = 'time';
@@ -51,7 +51,6 @@ class LinePlotPlot extends React.PureComponent {
     return (
       <FlexibleWidthXYPlot
         animation={smallGraph}
-        key={sizeKey}
         yType={yScale}
         xType={xType}
         height={height}>
@@ -215,7 +214,6 @@ export default class LinePlot extends React.PureComponent {
         <div style={{position: 'relative'}}>
           <LinePlotPlot
             height={this.props.currentHeight - 70 || 220}
-            sizeKey={this.props.sizeKey}
             xAxis={this.props.xAxis}
             yScale={this.props.yScale}
             lines={this.props.lines}
