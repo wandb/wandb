@@ -4,7 +4,6 @@ import {
   TOGGLE_RUN_SELECTION,
   UPDATE_RUN_SELECTIONS,
   UPDATE_JOB,
-  UPDATE_LOSS,
   ADD_FILTER,
   DELETE_FILTER,
   EDIT_FILTER,
@@ -50,8 +49,6 @@ export default function runs(
         selected[run] = true;
       });
       return {...state, selected: selected};
-    case UPDATE_LOSS:
-      return {...state, [action.id]: action.loss};
     case UPDATE_JOB:
       return {...state, currentJob: action.id};
     case ADD_FILTER:

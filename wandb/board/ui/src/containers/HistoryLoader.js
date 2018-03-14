@@ -104,29 +104,29 @@ export default function withHistoryLoader(WrappedComponent) {
                 }
               });
           }
-        }
-        nextProps.client.writeQuery({
-          query: FAKE_HISTORY_QUERY,
-          variables: {histQueryKey: nextProps.histQueryKey},
-          data: {
-            model: {
-              id: 'fake_history_query_' + nextProps.histQueryKey,
-              __typename: 'ModelType',
-              buckets: {
-                __typename: 'BucketConnectionType',
-                edges: selectedInfo.map(o => ({
-                  node: {
-                    id: o.id,
-                    name: o.name,
-                    history: o.history,
-                    __typename: 'BucketType',
-                  },
-                  __typename: 'BucketTypeEdge',
-                })),
+          nextProps.client.writeQuery({
+            query: FAKE_HISTORY_QUERY,
+            variables: {histQueryKey: nextProps.histQueryKey},
+            data: {
+              model: {
+                id: 'fake_history_query_' + nextProps.histQueryKey,
+                __typename: 'ModelType',
+                buckets: {
+                  __typename: 'BucketConnectionType',
+                  edges: selectedInfo.map(o => ({
+                    node: {
+                      id: o.id,
+                      name: o.name,
+                      history: o.history,
+                      __typename: 'BucketType',
+                    },
+                    __typename: 'BucketTypeEdge',
+                  })),
+                },
               },
             },
-          },
-        });
+          });
+        }
       }
     }
 

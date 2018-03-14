@@ -78,7 +78,11 @@ function withDerivedRunsData(WrappedComponent) {
       if (strategy === 'page') {
         this.data = props.data;
       } else {
-        this.runs = parseBuckets(props.buckets);
+        if (Query.canReuseBaseData(props.query)) {
+          this.runs = props.data.base;
+        } else {
+          this.runs = parseBuckets(props.buckets);
+        }
         this.views = props.views ? JSON.parse(props.views) : null;
         this.keySuggestions = setupKeySuggestions(this.runs);
         this.filteredRuns = sortRuns(

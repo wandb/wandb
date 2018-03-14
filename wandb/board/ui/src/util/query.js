@@ -72,6 +72,10 @@ export function merge(base, apply) {
 
   result.sort = apply.sort || base.sort;
   result.num_histories = apply.num_histories || base.num_histories;
+
+  result.baseQuery = base;
+  result.applyQuery = apply;
+
   return result;
 }
 
@@ -99,10 +103,24 @@ export function strategy(query) {
   return query.strategy;
 }
 
+///// Control Flow stuff:
+// The logic in these functions is kind of gnarly because we're conflating
+// a few concepts with query.
+// TODO: rework.
+
+export function sameModel(q1, q2) {
+  return q1.entity === q2.entity && q1.model === q2.model;
+}
+
+export function canReuseBaseData(query) {
+  return strategy(query) === 'merge' && sameModel(query, query.baseQuery);
+}
+
 export function shouldPoll(query) {
-  return strategy(query) === 'merge';
+  return strategy(query) === 'merge' && !sameModel(query, query.baseQuery);
 }
 
 export function needsOwnQuery(query) {
   return strategy(query) === 'root' || strategy(query) === 'merge';
 }
+///// End control flow stuff

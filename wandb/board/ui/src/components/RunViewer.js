@@ -39,7 +39,6 @@ export default class RunViewer extends React.Component {
         render: () => (
           <Tab.Pane>
             <StreamingLog
-              updateLoss={this.props.updateLoss}
               match={this.props.match}
               bucket={this.props.bucket}
               logLines={this.props.bucket.logLines}
