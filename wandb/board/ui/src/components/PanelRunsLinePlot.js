@@ -21,9 +21,6 @@ class RunsLinePlotPanel extends React.Component {
 
   constructor(props) {
     super(props);
-
-    this.props.config.groupBy = 'None';
-    this.props.config.xAxis = '_step';
   }
 
   static validForData(data) {
@@ -87,7 +84,7 @@ class RunsLinePlotPanel extends React.Component {
                     search
                     selection
                     options={xAxisOptions}
-                    value={this.props.config.xAxis}
+                    value={this.props.config.xAxis || '_step'}
                     onChange={(e, {value}) =>
                       this.props.updateConfig({
                         ...this.props.config,
@@ -188,7 +185,7 @@ class RunsLinePlotPanel extends React.Component {
                     search
                     selection
                     options={this._groupByOptions()}
-                    value={this.props.config.groupBy}
+                    value={this.props.config.groupBy || 'None'}
                     onChange={(e, {value}) =>
                       this.props.updateConfig({
                         ...this.props.config,
@@ -212,10 +209,10 @@ class RunsLinePlotPanel extends React.Component {
     let lines = linesFromData(
       data,
       key,
-      this.props.config.xAxis,
+      this.props.config.xAxis || '_step',
       this.scaledSmoothness(),
       this.props.config.aggregate,
-      this.props.config.groupBy,
+      this.props.config.groupBy || 'None',
       this.props.data,
     );
     let title = key;
@@ -339,7 +336,7 @@ class RunsLinePlotPanel extends React.Component {
             </div>
           )}
           <LinePlot
-            xAxis={xAxisLabels[this.props.config.xAxis]}
+            xAxis={xAxisLabels[this.props.config.xAxis || '_step']}
             yScale={this.props.config.yLogScale ? 'log' : 'linear'}
             xScale={this.props.config.xLogScale ? 'log' : 'linear'}
             lines={lines}
