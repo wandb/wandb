@@ -1,3 +1,4 @@
+export const RESET_VIEWS = 'RESET_VIEWS';
 export const SET_SERVER_VIEWS = 'SET_SERVER_VIEWS';
 export const SET_BROWSER_VIEWS = 'SET_BROWSER_VIEWS';
 export const ADD_VIEW = 'ADD_VIEW';
@@ -8,6 +9,12 @@ export const REMOVE_VIEW = 'REMOVE_VIEW';
 export const ADD_PANEL = 'ADD_PANEL';
 export const REMOVE_PANEL = 'REMOVE_PANEL';
 export const UPDATE_PANEL = 'UPDATE_PANEL';
+
+export const resetViews = () => {
+  return {
+    type: RESET_VIEWS,
+  };
+};
 
 export const setServerViews = views => {
   return {

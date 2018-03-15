@@ -32,7 +32,12 @@ import {
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {bindActionCreators} from 'redux';
 import {clearFilters, addFilter, setColumns} from '../actions/run';
-import {setServerViews, setBrowserViews, setActiveView} from '../actions/view';
+import {
+  resetViews,
+  setServerViews,
+  setBrowserViews,
+  setActiveView,
+} from '../actions/view';
 import update from 'immutability-helper';
 import {BOARD} from '../util/board';
 import withRunsDataLoader from '../containers/RunsDataLoader';
@@ -114,6 +119,7 @@ class Runs extends React.Component {
 
   componentWillMount() {
     this.props.clearFilters();
+    this.props.resetViews();
     this._readUrl(this.props);
   }
 
@@ -390,6 +396,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       setServerViews,
       setBrowserViews,
       setActiveView,
+      resetViews,
     },
     dispatch,
   );
