@@ -11,16 +11,17 @@ const ErrorPage = ({error, history, dispatch}) => {
   //TODO: not sure what the null error case is...
   error = error || {message: 'Unknown error'};
   const fatal = error.fatal;
+  message = error.message || 'Fatal error';
   if (error.graphQLErrors && error.graphQLErrors.length > 0)
     error = error.graphQLErrors[0];
   //TODO: Temporary fix
-  if (!error.code && error.message.indexOf('not found') >= 0) error.code = 404;
+  if (!error.code && message.indexOf('not found') >= 0) error.code = 404;
   window.ga('send', 'exception', {
     exDescription: error.message,
     exFatal: fatal === true,
   });
   let instructions = 'Report the issue at github.com/wandb/client/issues.';
-  if (error.message.match('has been deemed inappropriate')) {
+  if (message.match('has been deemed inappropriate')) {
     // this is a 400 when the name is on our banned list
     icon = 'frown';
     title = 'Bad name';
@@ -31,7 +32,7 @@ const ErrorPage = ({error, history, dispatch}) => {
       case 400:
         icon = 'ban';
         title = 'Invalid Record';
-        message = error.message;
+        message = message;
         instructions = 'Click to refresh.';
         break;
       case 403:

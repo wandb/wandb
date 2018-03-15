@@ -174,8 +174,8 @@ const withMutations = compose(
   }),
   graphql(RUN_UPSERT, {
     props: ({mutate}) => ({
-      submit: variables =>
-        mutate({
+      submit: variables => {
+        return mutate({
           variables: {...variables},
           updateQueries: {
             Model: (prev, {mutationResult}) => {
@@ -183,7 +183,8 @@ const withMutations = compose(
               return update(prev, {model: {bucket: {$set: bucket}}});
             },
           },
-        }),
+        });
+      },
     }),
   }),
   graphql(MODEL_UPSERT, {

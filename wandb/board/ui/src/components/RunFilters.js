@@ -178,12 +178,6 @@ class RunFilter extends React.Component {
           //console.log(r[s.section])
           return r[s.section] ? r[s.section][s.value] : undefined;
         });
-        console.log('Vals', vals);
-        if (_.uniq(vals).length > 1) {
-          console.log('Interesting: ', s);
-        } else {
-          console.log('not interesting: ', s);
-        }
       }),
     );
   }
