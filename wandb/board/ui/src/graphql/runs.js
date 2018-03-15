@@ -82,7 +82,7 @@ export const RUNS_QUERY = gql`
     $limit: Int = 1000
     $bucketIds: [String]
     $history: Boolean = false
-    $requestSubscribe: Boolean = false
+    $requestSubscribe: Boolean!
   ) {
     model(name: $name, entityName: $entityName) {
       id

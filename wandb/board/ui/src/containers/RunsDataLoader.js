@@ -26,7 +26,8 @@ import _ from 'lodash';
 // Load the graphql data for this panel, currently loads all data for this project and entity.
 function withRunsData() {
   return graphql(RUNS_QUERY, {
-    skip: ({query}) => !Query.needsOwnQuery(query),
+    alias: 'withRunsData',
+    skip: ({query}) => !Query.needsOwnRunsQuery(query),
     options: ({query, requestSubscribe}) => {
       const defaults = {
         variables: {

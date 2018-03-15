@@ -14,7 +14,7 @@ import RunFiltersRedux from './RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
 import ViewModifier from './ViewModifier';
 import HelpIcon from '../components/HelpIcon';
-import {RUNS_QUERY, MODIFY_RUNS} from '../graphql/runs';
+import {MODIFY_RUNS} from '../graphql/runs';
 import {MODEL_UPSERT} from '../graphql/models';
 import {connect} from 'react-redux';
 import queryString from 'query-string';
