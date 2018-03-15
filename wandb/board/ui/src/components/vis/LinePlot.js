@@ -215,7 +215,9 @@ export default class LinePlot extends React.PureComponent {
               disabled: this.state.disabled[line.title],
               color: line.color,
             }))
-            .filter(line => !line.title.startsWith('_'))}
+            .filter(
+              line => line.title.length > 0 && !line.title.startsWith('_'),
+            )}
         />
         <div style={{position: 'relative'}}>
           <LinePlotPlot
