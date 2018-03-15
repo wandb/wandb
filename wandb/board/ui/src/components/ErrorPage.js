@@ -2,8 +2,14 @@ import React from 'react';
 import {Dimmer, Header, Icon} from 'semantic-ui-react';
 import {connect} from 'react-redux';
 import {resetError} from '../actions';
+import _ from 'lodash';
 
 const ErrorPage = ({error, history, dispatch}) => {
+  // If production, auto-reload after 20s
+  if (process.env.NODE_ENV === 'production') {
+    setTimeout(() => window.location.reload(true), 20000);
+  }
+
   let icon, title, message;
   //For now let's grab the first error from the GQL server
   //TODO: why is this sometimes an array?
