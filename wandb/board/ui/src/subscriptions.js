@@ -95,6 +95,7 @@ export default (store, client) => {
           entityName: newParams.entity,
           name: newParams.project,
           order: 'timeline',
+          requestSubscribe: true,
         };
       if (oldParams.project) {
         unsubscribe('runs-' + slug(oldParams));
