@@ -343,7 +343,7 @@ export function defaultViews(run) {
           layout: {
             x: 0,
             y: 0,
-            w: 6,
+            w: 12,
             h: 2,
           },
           config: {
@@ -366,7 +366,6 @@ export function defaultViews(run) {
           lines: Object.keys(event).filter(k => k.match(/system\.gpu/)),
         },
       });
-    } else {
       base.run.views.system.config[0].layout.w = 6;
     }
     base.run.tabs.push('system');

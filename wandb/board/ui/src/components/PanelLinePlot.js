@@ -6,6 +6,7 @@ import {registerPanelClass} from '../util/registry.js';
 import LinePlot from '../components/vis/LinePlot';
 import {linesFromLineData, xAxisLabels} from '../util/plotHelpers.js';
 import {displayValue} from '../util/runhelpers.js';
+
 class LinePlotPanel extends React.Component {
   static type = 'LinePlot';
   static options = {};
@@ -16,7 +17,6 @@ class LinePlotPanel extends React.Component {
 
   constructor(props) {
     super(props);
-    this.props.config.xAxis = '_step';
   }
 
   scaledSmoothness() {
@@ -31,16 +31,21 @@ class LinePlotPanel extends React.Component {
     // L.B question: When does a historyKey have a key named examples?  Can we remove this?
     let historyKeys = this.props.data.historyKeys.filter(k => k !== 'examples');
 
+    // When not yet configured show the first 8 historyKeys;
+    if (
+      historyKeys &&
+      (_.isNil(this.props.config.lines) || this.props.config.lines.length === 0)
+    ) {
+      return this.props.data.historyKeys.slice(0, 8);
+    }
+
     if (!this.props.config.lines) {
       return [];
     }
 
-    let selectedHistoryKeys = [];
-    this.props.config.lines.map((key, i) => {
-      if (_.includes(historyKeys, key)) {
-        selectedHistoryKeys.push(key);
-      }
-    });
+    let selectedHistoryKeys = this.props.config.lines.filter(
+      key => !_.startsWith(key, '_') && _.includes(historyKeys, key),
+    );
     return selectedHistoryKeys;
   }
 
@@ -67,6 +72,15 @@ class LinePlotPanel extends React.Component {
     return selectedEventKeys;
   }
 
+  _xAxis() {
+    // Return the xAxis to use.
+    let xAxis = this.props.config.xAxis || '_runtime';
+    if (this._selectedEventKeys().length > 0) {
+      xAxis = '_runtime';
+    }
+    return xAxis;
+  }
+
   renderConfig() {
     let {historyKeys, eventKeys} = this.props.data;
 
@@ -76,9 +90,7 @@ class LinePlotPanel extends React.Component {
       {text: xAxisLabels['_step'], key: '_step', value: '_step'},
       {text: 'Time', key: '_runtime', value: '_runtime'},
     ];
-    if (this._selectedEventKeys().length > 0) {
-      this.props.config.xAxis = '_runtime';
-    }
+
     let yAxisOptions = yAxisKeys
       .filter(key => !key.startsWith('_'))
       .map(key => ({
@@ -86,6 +98,11 @@ class LinePlotPanel extends React.Component {
         value: key,
         text: key,
       }));
+
+    let selectedHistoryKeys = this._selectedHistoryKeys();
+    let selectedEventKeys = this._selectedEventKeys();
+    let selectedMetrics = _.concat(selectedHistoryKeys, selectedEventKeys);
+
     return (
       <Form>
         <Grid>
@@ -93,14 +110,14 @@ class LinePlotPanel extends React.Component {
             <Grid.Column width={4}>
               <Form.Field>
                 <Form.Dropdown
-                  disabled={this._selectedEventKeys().length > 0}
+                  disabled={selectedEventKeys.length > 0}
                   label="X-Axis"
                   placeholder="X-Axis"
                   fluid
                   search
                   selection
                   options={xAxisOptions}
-                  value={this.props.config.xAxis}
+                  value={this._xAxis()}
                   onChange={(e, {value}) =>
                     this.props.updateConfig({
                       ...this.props.config,
@@ -121,7 +138,7 @@ class LinePlotPanel extends React.Component {
                   search
                   selection
                   options={yAxisOptions}
-                  value={this.props.config.lines}
+                  value={selectedMetrics}
                   onChange={(e, {value}) =>
                     this.props.updateConfig({
                       ...this.props.config,
@@ -186,26 +203,23 @@ class LinePlotPanel extends React.Component {
   renderNormal() {
     let data = this.props.data;
 
-    // By default show the first eight histories in the graph
-    if (this.props.data.historyKeys && !this.props.config.lines) {
-      this.props.config.lines = this.props.data.historyKeys.slice(0, 8);
-    }
-
     if (!data) {
       // I'm not sure this ever happens?  Can we remove?
       return <p>This plot type is not supported on this page.</p>;
     }
 
     let eventKeys = this.props.data.eventKeys;
-    let xAxis = this.props.config.xAxis;
-    if (!xAxis) {
-      xAxis = '_runtime';
-    }
+
+    let xAxis = this._xAxis();
+
+    let selectedHistoryKeys = this._selectedHistoryKeys();
+    let selectedEventKeys = this._selectedEventKeys();
+    let selectedMetrics = _.concat(selectedHistoryKeys, selectedEventKeys);
 
     let lines = linesFromLineData(
       data,
-      this._selectedHistoryKeys(),
-      this._selectedEventKeys(),
+      selectedHistoryKeys,
+      selectedEventKeys,
       xAxis,
       this.scaledSmoothness(),
     );
@@ -216,9 +230,8 @@ class LinePlotPanel extends React.Component {
           (!this.props.data.events || this.props.data.events.length == 0) && (
             <div
               style={{
-                zIndex: 10,
                 position: 'absolute',
-                height: 200,
+                height: 100,
                 width: '100%',
                 display: 'flex',
                 alignItems: 'center',
@@ -226,6 +239,7 @@ class LinePlotPanel extends React.Component {
               }}>
               <div
                 style={{
+                  zIndex: 10,
                   maxWidth: 300,
                   backgroundColor: 'white',
                   border: '1px dashed #999',
@@ -244,10 +258,9 @@ class LinePlotPanel extends React.Component {
               </div>
             </div>
           )}
-        {_.isNil(this.props.config.lines) && (
+        {selectedMetrics.length === 0 && (
           <div
             style={{
-              zIndex: 10,
               position: 'absolute',
               height: 200,
               width: '100%',
@@ -257,6 +270,7 @@ class LinePlotPanel extends React.Component {
             }}>
             <div
               style={{
+                zIndex: 10,
                 maxWidth: 300,
                 backgroundColor: 'white',
                 border: '1px dashed #999',
@@ -273,7 +287,7 @@ class LinePlotPanel extends React.Component {
         )}
         <LinePlot
           lines={lines}
-          xAxis={xAxisLabels[this.props.config.xAxis]}
+          xAxis={xAxisLabels[xAxis]}
           yScale={this.props.config.yLogScale ? 'log' : 'linear'}
           xScale={this.props.config.xLogScale ? 'log' : 'linear'}
         />
