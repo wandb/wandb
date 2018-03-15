@@ -124,16 +124,12 @@ class RunFeedHeader extends React.Component {
       name: 'RunFeedHeader',
       deep: ['columnNames'],
       ignoreFunctions: true,
-      debug: true,
+      debug: false,
     });
   }
 
   shouldComponentUpdate(nextProps, nextState) {
-    let should = this._shouldUpdate(this.props, nextProps);
-    if (should) {
-      console.log(this.props.columnNames.length, nextProps.columnNames.length);
-    }
-    return should;
+    return this._shouldUpdate(this.props, nextProps);
   }
 
   render() {
@@ -206,7 +202,7 @@ class RunFeedRow extends React.Component {
       name: 'RunRow',
       deep: ['run', 'selectedRuns', 'columnNames'],
       ignoreFunctions: true,
-      debug: true,
+      debug: false,
     });
   }
 
