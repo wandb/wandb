@@ -348,43 +348,6 @@ class RunFeedRow extends React.Component {
                 )}
               </Table.Cell>
             );
-          } else if (columnName === 'Config') {
-            return (
-              <Table.Cell className="config" key={columnName} collapsing>
-                <div>
-                  {config &&
-                    this.bestConfig(config)
-                      .slice(0, 20)
-                      .map(k => (
-                        <ValueDisplay
-                          section="config"
-                          key={k}
-                          valKey={k}
-                          value={config[k]}
-                          enablePopout
-                        />
-                      ))}
-                </div>
-              </Table.Cell>
-            );
-          } else if (columnName === 'Summary') {
-            return (
-              <Table.Cell className="config" key={columnName} collapsing>
-                <div>
-                  {_.keys(summary)
-                    .slice(0, 20)
-                    .map(k => (
-                      <ValueDisplay
-                        section="summary"
-                        key={k}
-                        valKey={k}
-                        value={summary[k]}
-                        enablePopout
-                      />
-                    ))}
-                </div>
-              </Table.Cell>
-            );
           } else if (columnName === 'Stop') {
             return (
               <Table.Cell key="stop" collapsing>
@@ -422,7 +385,7 @@ class RunFeed extends PureComponent {
   static defaultProps = {
     currentPage: 1,
   };
-  state = {sort: 'timeline', dir: 'descending', best: {}, confCounts: {}};
+  state = {sort: 'timeline', dir: 'descending'};
 
   sortedClass(type) {
     return this.state.sort === type ? `sorted ${this.state.dir}` : '';
@@ -437,59 +400,6 @@ class RunFeed extends PureComponent {
       this.setState({sort: name});
     }
     this.props.onSort(name, dir);
-  }
-
-  componentWillReceiveProps(nextProps) {
-    //for (var prop of _.keys(nextProps)) {
-    //  console.log('prop equal?', prop, this.props[prop] === nextProps[prop]);
-    //}
-    if (nextProps.runs) {
-      let best = {};
-      let confCounts = {};
-      let total = 0;
-      nextProps.runs.forEach((run, i) => {
-        const summaryMetrics = run.summaryMetrics || {},
-          config = run.config || {};
-        Object.keys(config).forEach(key => {
-          confCounts[key] = confCounts[key] || {};
-          confCounts[key][config[key]] =
-            (confCounts[key][config[key]] || 0) + 1;
-        });
-        best = {...summaryMetrics};
-        total += 1;
-        Object.keys(summaryMetrics).forEach(key => {
-          best[key] = best[key] || {val: summaryMetrics[key], i};
-          let better =
-            this.state.dir === 'ascending'
-              ? best[key].val <= summaryMetrics[key]
-              : best[key].val > summaryMetrics[key];
-          if (better) {
-            best[key] = {val: summaryMetrics[key], i};
-          }
-        });
-      });
-      //Ignore things that change every time
-      Object.keys(confCounts).forEach(key => {
-        Object.keys(confCounts[key]).forEach(val => {
-          if (confCounts[key][val] >= total) {
-            confCounts[key][val] = 1;
-          }
-        });
-      });
-      this.setState({best, confCounts});
-    }
-  }
-
-  bestConfig(config) {
-    const best = Object.keys(config)
-      .sort()
-      .sort((a, b) => {
-        return (
-          Object.keys(this.state.confCounts[b] || {}).length -
-          Object.keys(this.state.confCounts[a] || {}).length
-        );
-      });
-    return best; //.slice(0, 3);
   }
 
   tablePlaceholders(limit, length) {
@@ -619,7 +529,10 @@ function mapStateToProps() {
         // (i.e. the user is performing a filtering operation). This could
         // cause us to be incorrect if individual runs config columns are
         // being updated by subscriptions.
-        if (ownProps.runs.length < prevRuns.length) {
+        if (
+          _.keys(autoCols).length < 10 ||
+          ownProps.runs.length < prevRuns.length
+        ) {
           autoCols = autoConfigCols(ownProps.runs);
         }
         cols = {...state.runs.columns, ...autoCols};
