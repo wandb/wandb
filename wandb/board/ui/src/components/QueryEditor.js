@@ -65,14 +65,16 @@ class QueryEditor extends React.Component {
         </Form.Field>
         {strategy === 'merge' && (
           <Form.Group style={{marginLeft: 20}}>
-            <Form.Field width={4}>
-              <label>Project</label>
-              <ProjectSelector
-                entity={this.props.pageQuery.entity}
-                value={this.query.model || this.props.pageQuery.model}
-                onChange={project => this.setProject(project)}
-              />
-            </Form.Field>
+            {this.props.allowProjectChange && (
+              <Form.Field width={4}>
+                <label>Project</label>
+                <ProjectSelector
+                  entity={this.props.pageQuery.entity}
+                  value={this.query.model || this.props.pageQuery.model}
+                  onChange={project => this.setProject(project)}
+                />
+              </Form.Field>
+            )}
             <Form.Field width={10}>
               <label>Filters</label>
               <RunFilters

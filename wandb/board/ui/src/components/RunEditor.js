@@ -81,9 +81,9 @@ class RunEditor extends React.Component {
                 />
 
                 <Button
-                  labeled
                   icon="plus"
                   content="Add"
+                  className="labeled"
                   onClick={e => {
                     e.preventDefault();
                     if (this.state.newTag.length) {

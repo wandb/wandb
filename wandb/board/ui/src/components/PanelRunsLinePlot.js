@@ -207,7 +207,6 @@ class RunsLinePlotPanel extends React.Component {
 
   renderNormal() {
     let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
-    data = data.filter(run => this.props.data.filteredRunsById[run.name]);
 
     let key = this.props.config.key;
     let lines = linesFromData(
