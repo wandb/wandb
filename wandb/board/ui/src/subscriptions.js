@@ -14,7 +14,7 @@ try {
   runsChannel = p.dummyChannel;
 }
 
-const SUBSCRIPTION_COOLDOWN = 5000;
+const SUBSCRIPTION_COOLDOWN = 20000;
 
 function matchProject(path) {
   return matchPath(path, '/:entity/:project') || {params: {}};

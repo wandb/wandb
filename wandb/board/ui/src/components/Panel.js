@@ -117,10 +117,12 @@ export default class Panel extends React.Component {
             />
           )}
           {configMode &&
-            this.props.viewType === 'dashboards' && (
+            (this.props.viewType === 'dashboards' ||
+              this.props.viewType === 'runs') && (
               <QueryEditor
                 pageQuery={this.props.pageQuery}
                 panelQuery={this.props.panelQuery}
+                allowProjectChange={this.props.viewType === 'dashboards'}
                 setQuery={this.props.updateQuery}
                 runs={this.props.data.base}
                 keySuggestions={this.props.data.keys}

@@ -10,7 +10,7 @@ import {BOARD} from '../util/board';
 import {makeShouldUpdate} from '../util/shouldUpdate';
 import {
   displayFilterKey,
-  parseBuckets,
+  updateRuns,
   setupKeySuggestions,
   filterRuns,
   sortRuns,
@@ -73,7 +73,7 @@ function withDerivedRunsData(WrappedComponent) {
       });
     }
 
-    _setup(props) {
+    _setup(prevProps, props) {
       let strategy = Query.strategy(props.query);
       if (strategy === 'page') {
         this.data = props.data;
@@ -81,7 +81,7 @@ function withDerivedRunsData(WrappedComponent) {
         if (Query.canReuseBaseData(props.query)) {
           this.runs = props.data.base;
         } else {
-          this.runs = parseBuckets(props.buckets);
+          this.runs = updateRuns(prevProps.buckets, props.buckets, this.runs);
         }
         this.views = props.views ? JSON.parse(props.views) : null;
         this.keySuggestions = setupKeySuggestions(this.runs);
@@ -133,7 +133,7 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     componentWillMount() {
-      this._setup(this.props);
+      this._setup({}, this.props);
     }
 
     shouldComponentUpdate(nextProps, nextState) {
@@ -147,7 +147,7 @@ function withDerivedRunsData(WrappedComponent) {
         this.props.data !== nextProps.data ||
         !_.isEqual(this.props.query, nextProps.query)
       ) {
-        this._setup(nextProps);
+        this._setup(this.props, nextProps);
       }
     }
 

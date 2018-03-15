@@ -183,8 +183,8 @@ class RunFilter extends React.Component {
   }
 
   render() {
-    this._interestingKeys(this.props.keySuggestions);
-    console.log('Key Suggestions', this.props.keySuggestions);
+    //this._interestingKeys(this.props.keySuggestions);
+    //console.log('Key Suggestions', this.props.keySuggestions);
     return (
       <Popup
         trigger={

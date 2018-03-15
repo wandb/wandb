@@ -343,7 +343,7 @@ export function defaultViews(run) {
           layout: {
             x: 0,
             y: 0,
-            w: 6,
+            w: 12,
             h: 2,
           },
           config: {
@@ -366,7 +366,6 @@ export function defaultViews(run) {
           lines: Object.keys(event).filter(k => k.match(/system\.gpu/)),
         },
       });
-    } else {
       base.run.views.system.config[0].layout.w = 6;
     }
     base.run.tabs.push('system');
@@ -440,6 +439,40 @@ export function parseBuckets(buckets) {
   });
 }
 
+// Given a set of bucket edges (as returned by graphql), compute runs,
+// which have the bucket JSON data parsed and flattened.
+// This expects the previous version of buckets, and the previous
+// result that updateRuns returned. It re-uses parsed data from the
+// previous result for buckets that have not changed.
+export function updateRuns(oldBuckets, newBuckets, prevResult) {
+  if (!newBuckets) {
+    return [];
+  }
+  oldBuckets = oldBuckets || {edges: []};
+  let oldBucketsMap = _.fromPairs(
+    oldBuckets.edges.map(edge => [edge.node.name, edge.node]),
+  );
+  let prevResultMap = _.fromPairs(prevResult.map(row => [row.name, row]));
+  return newBuckets.edges.map(edge => {
+    let node = {...edge.node};
+    let oldNode = oldBucketsMap[node.name];
+    if (edge.node === oldNode) {
+      node.config = prevResultMap[node.name].config;
+      node.summary = prevResultMap[node.name].summary;
+    } else {
+      node.config = node.config ? JSONparseNaN(node.config) : {};
+      node.config = flatten(
+        _.mapValues(node.config, confObj => confObj.value || confObj),
+      );
+      node.summary = flatten(node.summaryMetrics)
+        ? JSONparseNaN(node.summaryMetrics)
+        : {};
+    }
+    delete node.summaryMetrics;
+    return node;
+  });
+}
+
 export function setupKeySuggestions(runs) {
   if (runs.length === 0) {
     return [];
@@ -489,14 +522,13 @@ export function setupKeySuggestions(runs) {
 }
 
 export function getColumns(runs) {
-  let configColumns = _.uniq(
-    _.flatMap(runs, run => _.keys(run.config)).sort(),
-  ).map(col => 'config:' + col);
-  let summaryColumns = _.uniq(
-    _.flatMap(runs, run => _.keys(run.summary))
-      .filter(k => !k.startsWith('_') && k !== 'examples')
-      .sort(),
-  ).map(col => 'summary:' + col);
+  let configColumns = _.uniq(_.flatMap(runs, run => _.keys(run.config)))
+    .sort()
+    .map(col => 'config:' + col);
+  let summaryColumns = _.uniq(_.flatMap(runs, run => _.keys(run.summary)))
+    .filter(k => !k.startsWith('_') && k !== 'examples')
+    .sort()
+    .map(col => 'summary:' + col);
   let sweepColumns =
     runs && runs.findIndex(r => r.sweep) > -1 ? ['Sweep', 'Stop'] : [];
   return ['Description'].concat(

@@ -111,9 +111,13 @@ class LinePlotCrosshair extends React.PureComponent {
     // it transparently and just use it for it's onNearestX callback.
     this.falseLine = [];
     if (enabledLines.length > 0) {
-      let maxLength = _.max(enabledLines.map(line => line.data.length));
       let y = enabledLines[0].data[0].y;
-      this.falseLine = _.range(0, maxLength).map(x => ({x: x, y: y}));
+      let xs = _.sortBy(
+        _.uniq(
+          _.flatMap(enabledLines, line => line.data.map(point => point.x)),
+        ),
+      );
+      this.falseLine = xs.map(x => ({x: x, y: y}));
     }
   }
 
@@ -156,7 +160,9 @@ class LinePlotCrosshair extends React.PureComponent {
                 background: 'white',
                 whiteSpace: 'nowrap',
               }}>
-              <b>{this.props.xAxis + ': ' + crosshairValues[0].x}</b>
+              <b>
+                {this.props.xAxis + ': ' + displayValue(crosshairValues[0].x)}
+              </b>
               {crosshairValues
                 .sort((a, b) => b.y - a.y)
                 .filter(point => !point.title.startsWith('_'))
