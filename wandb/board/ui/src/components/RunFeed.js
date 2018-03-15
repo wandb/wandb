@@ -116,7 +116,89 @@ const mapValueDisplayDispatchToProps = (dispatch, ownProps) => {
 
 ValueDisplay = connect(null, mapValueDisplayDispatchToProps)(ValueDisplay);
 
-class RunRow extends React.Component {
+class RunFeedHeader extends React.Component {
+  constructor(props) {
+    super(props);
+    // This seems like it would be expensive but it's not (.5ms on a row with ~100 columns)
+    this._shouldUpdate = makeShouldUpdate({
+      name: 'RunFeedHeader',
+      deep: ['columnNames'],
+      ignoreFunctions: true,
+      debug: true,
+    });
+  }
+
+  shouldComponentUpdate(nextProps, nextState) {
+    let should = this._shouldUpdate(this.props, nextProps);
+    if (should) {
+      console.log(this.props.columnNames.length, nextProps.columnNames.length);
+    }
+    return should;
+  }
+
+  render() {
+    let {selectable, sort, columnNames} = this.props;
+    let longestColumn =
+      Object.assign([], columnNames).sort((a, b) => b.length - a.length)[0] ||
+      '';
+    return (
+      <Table.Header>
+        <Table.Row
+          style={{
+            height: Math.min(longestColumn.length, maxColNameLength) * 8,
+          }}>
+          {selectable && <Table.HeaderCell />}
+          {columnNames.map(columnName => (
+            <Table.HeaderCell
+              key={columnName}
+              className={
+                _.startsWith(columnName, 'config:') ||
+                _.startsWith(columnName, 'summary:')
+                  ? 'rotate'
+                  : ''
+              }
+              style={{textAlign: 'center', verticalAlign: 'bottom'}}
+              onClick={() => {
+                if (columnName === 'Config' || columnName === 'Summary') {
+                  return;
+                }
+                let ascending = true;
+                if (sort.name === columnName) {
+                  ascending = !sort.ascending;
+                }
+                this.props.setSort(columnName, ascending);
+              }}>
+              <div>
+                {_.startsWith(columnName, 'config:') ||
+                _.startsWith(columnName, 'summary:') ? (
+                  ((columnName = columnName.split(':')[1]),
+                  columnName.length > maxColNameLength ? (
+                    <span key={columnName}>
+                      {truncateString(columnName, maxColNameLength)}
+                    </span>
+                  ) : (
+                    <span>{columnName}</span>
+                  ))
+                ) : (
+                  <span>{columnName}</span>
+                )}
+
+                {sort.name === columnName &&
+                  (sort.ascending ? (
+                    <Icon name="caret up" />
+                  ) : (
+                    <Icon name="caret down" />
+                  ))}
+              </div>
+            </Table.HeaderCell>
+          ))}
+        </Table.Row>
+      </Table.Header>
+    );
+  }
+}
+
+class RunFeedRow extends React.Component {
   constructor(props) {
     super(props);
     // This seems like it would be expensive but it's not (.5ms on a row with ~100 columns)
@@ -424,10 +506,6 @@ class RunFeed extends PureComponent {
       runsLength = this.props.runs && this.props.runs.length,
       startIndex = (this.props.currentPage - 1) * this.props.limit,
       endIndex = Math.min(startIndex + this.props.limit, runsLength),
-      longestColumn =
-        Object.assign([], this.props.columnNames).sort(
-          (a, b) => b.length - a.length,
-        )[0] || '',
       runs =
         this.props.runs && this.props.runs.length > 0 && !this.props.loading
           ? this.props.runs.slice(startIndex, endIndex)
@@ -450,62 +528,15 @@ class RunFeed extends PureComponent {
             compact
             unstackable
             size="small">
-            <Table.Header>
-              <Table.Row
-                style={{
-                  height: Math.min(longestColumn.length, maxColNameLength) * 8,
-                }}>
-                {this.props.selectable && <Table.HeaderCell />}
-                {columnNames.map(columnName => (
-                  <Table.HeaderCell
-                    key={columnName}
-                    className={
-                      _.startsWith(columnName, 'config:') ||
-                      _.startsWith(columnName, 'summary:')
-                        ? 'rotate'
-                        : ''
-                    }
-                    style={{textAlign: 'center', verticalAlign: 'bottom'}}
-                    onClick={() => {
-                      if (columnName === 'Config' || columnName === 'Summary') {
-                        return;
-                      }
-                      let ascending = true;
-                      if (this.props.sort.name === columnName) {
-                        ascending = !this.props.sort.ascending;
-                      }
-                      this.props.setSort(columnName, ascending);
-                    }}>
-                    <div>
-                      {_.startsWith(columnName, 'config:') ||
-                      _.startsWith(columnName, 'summary:') ? (
-                        ((columnName = columnName.split(':')[1]),
-                        columnName.length > maxColNameLength ? (
-                          <span key={columnName}>
-                            {truncateString(columnName, maxColNameLength)}
-                          </span>
-                        ) : (
-                          <span>{columnName}</span>
-                        ))
-                      ) : (
-                        <span>{columnName}</span>
-                      )}
-
-                      {this.props.sort.name === columnName &&
-                        (this.props.sort.ascending ? (
-                          <Icon name="caret up" />
-                        ) : (
-                          <Icon name="caret down" />
-                        ))}
-                    </div>
-                  </Table.HeaderCell>
-                ))}
-              </Table.Row>
-            </Table.Header>
+            <RunFeedHeader
+              selectable={this.props.selectable}
+              sort={this.props.sort}
+              columnNames={columnNames}
+            />
             <Table.Body>
               {runs &&
                 runs.map((run, i) => (
-                  <RunRow
+                  <RunFeedRow
                     key={i}
                     run={run}
                     selectable={this.props.selectable}
@@ -576,6 +607,7 @@ function mapStateToProps() {
   let prevColumns = null;
   let prevRuns = null;
   let cols = {};
+  let autoCols = {};
 
   return function(state, ownProps) {
     const id = ownProps.project.id;
@@ -583,7 +615,13 @@ function mapStateToProps() {
       prevColumns = state.runs.columns;
       prevRuns = ownProps.runs;
       if (state.runs.columns['_ConfigAuto']) {
-        let autoCols = autoConfigCols(ownProps.runs);
+        // Only update the autoCols when the total amount of runs goes down
+        // (i.e. the user is performing a filtering operation). This could
+        // cause us to be incorrect if individual runs config columns are
+        // being updated by subscriptions.
+        if (ownProps.runs.length < prevRuns.length) {
+          autoCols = autoConfigCols(ownProps.runs);
+        }
         cols = {...state.runs.columns, ...autoCols};
       } else {
         cols = state.runs.columns;

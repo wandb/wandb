@@ -459,7 +459,7 @@ export function updateRuns(oldBuckets, newBuckets, prevResult) {
     let oldNode = oldBucketsMap[node.name];
     if (edge.node === oldNode) {
       node.config = prevResultMap[node.name].config;
-      node.summary = prevResultMap[node.name].config;
+      node.summary = prevResultMap[node.name].summary;
     } else {
       node.config = node.config ? JSONparseNaN(node.config) : {};
       node.config = flatten(
@@ -526,11 +526,8 @@ export function getColumns(runs) {
   let configColumns = _.uniq(_.flatMap(runs, run => _.keys(run.config)))
     .sort()
     .map(col => 'config:' + col);
-  let summaryColumns = _.uniq(
-    _.flatMap(runs, run => _.keys(run.summary)).filter(
-      k => !k.startsWith('_') && k !== 'examples',
-    ),
-  )
+  let summaryColumns = _.uniq(_.flatMap(runs, run => _.keys(run.summary)))
+    .filter(k => !k.startsWith('_') && k !== 'examples')
     .sort()
     .map(col => 'summary:' + col);
   let sweepColumns =
