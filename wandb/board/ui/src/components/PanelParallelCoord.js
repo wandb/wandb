@@ -439,7 +439,7 @@ class ParCoordPanel extends React.Component {
             multiple
             search
             selection
-            options={this.axisOptions}
+            options={axisOptions}
             value={this.props.config.dimensions}
             onChange={(e, {value}) =>
               this.props.updateConfig({

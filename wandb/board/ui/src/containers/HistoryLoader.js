@@ -147,7 +147,7 @@ export default function withHistoryLoader(WrappedComponent) {
   };
 
   const withData = graphql(FAKE_HISTORY_QUERY, {
-    skip: ({query}) => !Query.needsOwnQuery(query),
+    skip: ({query}) => !Query.needsOwnHistoryQuery(query),
     options: ({histQueryKey}) => {
       return {
         fetchPolicy: 'cache-only',

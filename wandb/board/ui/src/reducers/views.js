@@ -1,6 +1,7 @@
 import update from 'immutability-helper';
 import _ from 'lodash';
 import {
+  RESET_VIEWS,
   SET_SERVER_VIEWS,
   SET_BROWSER_VIEWS,
   ADD_VIEW,
@@ -49,8 +50,8 @@ function fixupViews(views) {
   return views;
 }
 
-export default function views(
-  state = {
+function defaultViews() {
+  return {
     server: copyDefaults(),
     browser: copyDefaults(),
     other: {
@@ -58,10 +59,13 @@ export default function views(
       runs: {activeView: null},
       dashboards: {activeView: null},
     },
-  },
-  action,
-) {
+  };
+}
+
+export default function views(state = defaultViews(), action) {
   switch (action.type) {
+    case RESET_VIEWS:
+      return update(state, {$set: defaultViews()});
     case SET_SERVER_VIEWS:
       return update(state, {server: {$set: fixupViews(action.views)}});
     case SET_BROWSER_VIEWS:
