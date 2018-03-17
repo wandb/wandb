@@ -297,7 +297,7 @@ def restore(run, branch, project, entity):
                     "Can't find commit from which to restore code")
         else:
             if patch_content:
-                patch_path = os.path.join(wandb.__stage_dir__, 'diff.patch')
+                patch_path = os.path.join(wandb.wandb_dir(), 'diff.patch')
                 with open(patch_path, "w") as f:
                     f.write(patch_content)
             else:
@@ -392,11 +392,10 @@ def login():
 @click.pass_context
 @display_error
 def init(ctx):
-    from wandb import _set_stage_dir, wandb_dir
-    if wandb_dir() is None:
+    from wandb import _set_stage_dir, __stage_dir__, wandb_dir
+    if __stage_dir__ is None:
         _set_stage_dir('wandb')
-    wandb_path = os.path.join(os.getcwd(), wandb_dir())
-    if os.path.isdir(wandb_path):
+    if os.path.isdir(wandb_dir()):
         click.confirm(click.style(
             "This directory has been configured previously, should we re-configure it?", bold=True), abort=True)
     else:
@@ -433,8 +432,8 @@ def init(ctx):
     except wandb.cli.ClickWandbException:
         raise ClickException('Could not find team: %s' % entity)
 
-    if not os.path.isdir(wandb_path):
-        os.mkdir(wandb_path)
+    if not os.path.isdir(wandb_dir()):
+        os.mkdir(wandb_dir())
 
     with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
         print('[default]', file=file)

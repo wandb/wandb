@@ -1,4 +1,4 @@
-from wandb import __stage_dir__
+from wandb import wandb_dir
 import glob
 import os
 import json
@@ -11,7 +11,7 @@ from wandb.board.app.models import Dir, Settings, RunMutator
 from wandb.board.app.util.errors import NotFoundError
 from wandb import Error
 
-base_path = os.getenv("WANDB_LOGDIR", __stage_dir__) or "."
+base_path = wandb_dir()
 data = {
     'Runs': []
 }

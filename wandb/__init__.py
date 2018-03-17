@@ -31,10 +31,12 @@ import webbrowser
 
 from . import io_wrap
 
+__root_dir__ = os.getenv("WANDB_DIR", "./")
+
 # We use the hidden version if it already exists, otherwise non-hidden.
-if os.path.exists('.wandb'):
+if os.path.exists(os.path.join(__root_dir__, '.wandb')):
     __stage_dir__ = '.wandb/'
-elif os.path.exists('wandb'):
+elif os.path.exists(os.path.join(__root_dir__, 'wandb')):
     __stage_dir__ = "wandb/"
 else:
     __stage_dir__ = None
@@ -44,7 +46,7 @@ START_TIME = time.time()
 
 
 def wandb_dir():
-    return __stage_dir__
+    return os.path.join(__root_dir__, __stage_dir__ or "wandb/")
 
 
 def _set_stage_dir(stage_dir):
@@ -54,7 +56,7 @@ def _set_stage_dir(stage_dir):
 
 
 if __stage_dir__ is not None:
-    log_fname = __stage_dir__ + 'debug.log'
+    log_fname = wandb_dir() + 'debug.log'
 else:
     log_fname = './wandb-debug.log'
 logging.basicConfig(
@@ -263,9 +265,9 @@ def init(job_type='train', config=None):
     if run or os.getenv('WANDB_INITED'):
         return run
 
-    if not wandb_dir():
+    if __stage_dir__ is None:
         __stage_dir__ = "wandb"
-        util.mkdir_exists_ok(__stage_dir__)
+        util.mkdir_exists_ok(wandb_dir())
 
     try:
         signal.signal(signal.SIGQUIT, _debugger)
