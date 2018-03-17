@@ -37,7 +37,7 @@ class Nav extends Component {
             className="item">
             Runs
           </NavLink>
-          <NavLink to={`/dashboards`} className="item">
+          <NavLink to={`/dashboards/edit`} className="item">
             Dashboards
           </NavLink>
           <Menu.Menu position="right" />

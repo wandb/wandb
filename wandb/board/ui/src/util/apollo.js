@@ -26,6 +26,7 @@ export const SERVER =
 const httpLink = createHttpLink({uri: SERVER});
 
 const authMiddleware = new ApolloLink((operation, forward) => {
+  if (BOARD) return forward(operation);
   return new Observable(observable => {
     let sub = null;
     this.c._auth.jwt().then(t => {
