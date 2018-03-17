@@ -27,27 +27,19 @@ const httpLink = createHttpLink({uri: SERVER});
 
 const authMiddleware = new ApolloLink((operation, forward) => {
   if (BOARD) return forward(operation);
-  return new Observable(observable => {
-    let sub = null;
-    this.c._auth.jwt().then(t => {
-      //The signup flow accepts a token
-      let qs = queryString.parse(document.location.search);
-      let token = qs.token || t;
+  let qs = queryString.parse(document.location.search);
+  let token = qs.token || localStorage.getItem('id_token');
 
-      if (token) {
-        operation.setContext(({headers = {}}) => ({
-          headers: {
-            ...headers,
-            authorization: `Bearer ${token}`,
-          },
-        }));
-      }
+  if (token) {
+    operation.setContext(({headers = {}}) => ({
+      headers: {
+        ...headers,
+        authorization: `Bearer ${token}`,
+      },
+    }));
+  }
 
-      sub = forward(operation).subscribe(observable);
-    });
-    //TODO: I think this is always null...
-    return () => (sub ? sub.unsubscribe() : null);
-  });
+  return forward(operation);
 });
 
 const stackdriverMiddleware = new ApolloLink((operation, forward) => {
