@@ -1,7 +1,7 @@
 import React, {Component} from 'react';
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
 import Panel from './Panel';
-import {Button, Form, Icon, Modal} from 'semantic-ui-react';
+import {Button, Divider, Form, Icon, Modal} from 'semantic-ui-react';
 import _ from 'lodash';
 import './DashboardView.css';
 import EditablePanel from '../components/EditablePanel';
@@ -182,6 +182,7 @@ class DashboardView extends Component {
       <div>
         {this.props.editMode && (
           <Form>
+            <h5>Tab Settings</h5>
             <Form.Group>
               <Form.Input
                 placeholder="Tab Name"
@@ -193,13 +194,28 @@ class DashboardView extends Component {
                     user presses enter within the Tab Name input field */}
               <Form.Button style={{display: 'none'}} />
               <Form.Button
+                icon="chevron left"
+                disabled={!this.props.canMoveLeft}
+                onClick={() => {
+                  this.props.moveViewLeft();
+                }}
+              />
+              <Form.Button
+                icon="chevron right"
+                disabled={!this.props.canMoveRight}
+                onClick={() => {
+                  this.props.moveViewRight();
+                }}
+              />
+              <Form.Button
                 icon="x"
-                content="Remove Tab"
+                content="Remove"
                 onClick={() => {
                   this.props.removeView();
                 }}
               />
             </Form.Group>
+            <Divider />
           </Form>
         )}
         <Grid

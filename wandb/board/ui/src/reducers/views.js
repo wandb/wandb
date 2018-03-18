@@ -7,6 +7,8 @@ import {
   ADD_VIEW,
   UPDATE_VIEW,
   SET_ACTIVE_VIEW,
+  MOVE_ACTIVE_VIEW_LEFT,
+  MOVE_ACTIVE_VIEW_RIGHT,
   CHANGE_VIEW_NAME,
   REMOVE_VIEW,
   ADD_PANEL,
@@ -113,6 +115,55 @@ export default function views(state = defaultViews(), action) {
           },
         },
       });
+    case MOVE_ACTIVE_VIEW_LEFT: {
+      let activeViewId = state.other[action.viewType].activeView;
+      if (_.isNil(activeViewId)) {
+        return state;
+      }
+      let tabs = state.browser[action.viewType].tabs;
+      let curPos = _.indexOf(tabs, activeViewId);
+      if (curPos === 0) {
+        // I can't go left anymore!
+        return state;
+      }
+      let swapPos = curPos - 1;
+      let swapViewId = tabs[swapPos];
+      return update(state, {
+        browser: {
+          [action.viewType]: {
+            tabs: {
+              [swapPos]: {$set: activeViewId},
+              [curPos]: {$set: swapViewId},
+            },
+          },
+        },
+      });
+    }
+    case MOVE_ACTIVE_VIEW_RIGHT: {
+      let activeViewId = state.other[action.viewType].activeView;
+      if (_.isNil(activeViewId)) {
+        return state;
+      }
+      let tabs = state.browser[action.viewType].tabs;
+      let curPos = _.indexOf(tabs, activeViewId);
+      if (curPos === tabs.length - 1) {
+        // I can't go right anymore!
+        return state;
+      }
+      let swapPos = curPos + 1;
+      let swapViewId = tabs[swapPos];
+      return update(state, {
+        browser: {
+          [action.viewType]: {
+            tabs: {
+              [swapPos]: {$set: activeViewId},
+              [curPos]: {$set: swapViewId},
+            },
+          },
+        },
+      });
+    }
+
     case CHANGE_VIEW_NAME:
       return update(state, {
         browser: {

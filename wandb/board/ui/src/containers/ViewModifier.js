@@ -13,11 +13,13 @@ import {
   removePanel,
   updatePanel,
   updateView,
+  moveActiveViewLeft,
+  moveActiveViewRight,
 } from '../actions/view';
 import {setFullScreen} from '../actions';
 
 class ViewModifier extends React.Component {
-  renderView = (viewId, editMode) => {
+  renderView = (viewId, editMode, canMoveLeft, canMoveRight) => {
     //TODO: Maybe render panel?
     const ViewComponent = this.props.viewComponent || DashboardView;
     return (
@@ -25,6 +27,8 @@ class ViewModifier extends React.Component {
         key={viewId}
         viewType={this.props.viewType}
         editMode={editMode}
+        canMoveLeft={canMoveLeft}
+        canMoveRight={canMoveRight}
         width={this.props.width}
         height={this.props.height}
         data={this.props.data}
@@ -34,6 +38,10 @@ class ViewModifier extends React.Component {
           this.props.changeViewName(this.props.viewType, viewId, viewName)
         }
         removeView={() => this.props.removeView(this.props.viewType, viewId)}
+        moveViewLeft={() => this.props.moveActiveViewLeft(this.props.viewType)}
+        moveViewRight={() =>
+          this.props.moveActiveViewRight(this.props.viewType)
+        }
         updateView={panels =>
           this.props.updateView(this.props.viewType, viewId, panels)
         }
@@ -89,6 +97,8 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       updatePanel,
       updateView,
       setFullScreen,
+      moveActiveViewLeft,
+      moveActiveViewRight,
     },
     dispatch,
   );
