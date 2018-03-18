@@ -65,7 +65,7 @@ export default function withHistoryLoader(WrappedComponent) {
             loadingHistory: loadingHistory,
           };
         });
-        console.log('selectedInfo', selectedInfo);
+        //console.log('selectedInfo', selectedInfo);
         let numLoaded = selectedInfo.filter(o => o.history || o.loadingHistory)
           .length;
         if (pollingMode || numLoaded < MAX_HISTORIES_LOADED) {

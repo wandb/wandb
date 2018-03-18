@@ -11,7 +11,8 @@ import {linesFromData, xAxisLabels} from '../util/plotHelpers.js';
 
 import {addFilter} from '../actions/run';
 import * as Query from '../util/query';
-import {displayValue, groupByCandidates} from '../util/runhelpers.js';
+import * as Run from '../util/runhelpers.js';
+import * as UI from '../util/uihelpers.js';
 
 class RunsLinePlotPanel extends React.Component {
   static type = 'Run History Line Plot';
@@ -34,7 +35,7 @@ class RunsLinePlotPanel extends React.Component {
   _groupByOptions() {
     let configs = this.props.data.selectedRuns.map((run, i) => run.config);
 
-    let names = _.concat('None', groupByCandidates(configs));
+    let names = _.concat('None', Run.groupByCandidates(configs));
     return names.map((name, i) => ({
       text: name,
       key: name,
@@ -57,6 +58,7 @@ class RunsLinePlotPanel extends React.Component {
     ];
     let groupByOptions = {};
     let disabled = this.props.data.histories.data.length === 0;
+
     return (
       <div>
         {!this.props.data.loading &&
@@ -73,6 +75,29 @@ class RunsLinePlotPanel extends React.Component {
           )}
         <Form style={{marginTop: 10}}>
           <Grid>
+            <Grid.Row verticalAlign="middle">
+              <Grid.Column width={7}>
+                <Form.Dropdown
+                  disabled={disabled}
+                  label="Legend Fields"
+                  placeholder="Legend Fields"
+                  fluid
+                  search
+                  multiple
+                  selection
+                  options={UI.makeOptions(
+                    Run.flatKeySuggestions(this.props.data.keys),
+                  )}
+                  value={this.props.config.legendFields || ['name']}
+                  onChange={(e, {value}) =>
+                    this.props.updateConfig({
+                      ...this.props.config,
+                      legendFields: value,
+                    })
+                  }
+                />
+              </Grid.Column>
+            </Grid.Row>
             <Grid.Row>
               <Grid.Column width={7}>
                 <Form.Field>
@@ -139,7 +164,7 @@ class RunsLinePlotPanel extends React.Component {
                   <label>
                     Smoothing:{' '}
                     {this.scaledSmoothness() > 0
-                      ? displayValue(this.scaledSmoothness())
+                      ? Run.displayValue(this.scaledSmoothness())
                       : 'None'}
                   </label>
                   <input
@@ -206,6 +231,10 @@ class RunsLinePlotPanel extends React.Component {
     let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
 
     let key = this.props.config.key;
+    // Always show running Icon in legend.
+    let legendSpec = (this.props.config.legendFields || ['name']).concat([
+      'runningIcon',
+    ]);
     let lines = linesFromData(
       data,
       key,
@@ -213,6 +242,7 @@ class RunsLinePlotPanel extends React.Component {
       this.scaledSmoothness(),
       this.props.config.aggregate,
       this.props.config.groupBy || 'None',
+      legendSpec,
       this.props.data,
     );
     let title = key;

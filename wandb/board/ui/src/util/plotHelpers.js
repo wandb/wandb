@@ -5,6 +5,7 @@ import {color} from '../util/colors.js';
 import {
   displayValue,
   runDisplayName,
+  RunFancyName,
   groupConfigIdx,
 } from '../util/runhelpers.js';
 
@@ -84,29 +85,21 @@ export function smoothLines(lines, smoothingWeight) {
     return lines;
   }
 
-  // we want to leave alone the lines starting with _
-  let specialLines = lines.filter(line => line.title.startsWith('_'));
+  // we want to leave alone the auxiliary lines
+  let specialLines = lines.filter(line => line.aux);
 
-  let smoothedLines = lines
-    .filter(line => !line.title.startsWith('_'))
-    .map((line, i) => {
-      return {
-        data: smoothLine(line.data, smoothingWeight),
-        title: line.title,
-        color: color(i, 0.8),
-        name: line.name,
-      };
-    });
+  let smoothedLines = lines.filter(line => !line.aux).map((line, i) => ({
+    ...line,
+    data: smoothLine(line.data, smoothingWeight),
+    color: color(i, 0.8),
+  }));
 
-  // we want to leave a light trace of the original lines (except those starting with _)
-  let origLines = lines
-    .filter(line => !line.title.startsWith('_'))
-    .map((line, i) => {
-      let newLine = line;
-      newLine.title = '_' + newLine.title;
-      newLine.color = color(i, 0.1);
-      return newLine;
-    });
+  // we want to leave a light trace of the original lines (except aux lines)
+  let origLines = lines.filter(line => !line.aux).map((line, i) => ({
+    ...line,
+    aux: true,
+    color: color(i, 0.1),
+  }));
   return _.concat(specialLines, origLines, smoothedLines);
 }
 
@@ -220,7 +213,8 @@ export function aggregateLines(lines, name, idx, bucketData = true) {
     }));
 
   let area = {
-    title: '_area ' + name,
+    title: 'area ' + name,
+    aux: true,
     color: color(idx, 0.3),
     data: areaData,
     area: true,
@@ -308,6 +302,7 @@ export function linesFromData(
   smoothingWeight,
   aggregate,
   groupBy,
+  nameSpec,
   rawData,
 ) {
   /** Takes in data points and returns lines ready for passing
@@ -319,6 +314,7 @@ export function linesFromData(
    * smoothingWeight - (number [0,1])
    * aggregate - (Boolean) should we aggregate
    * groupBy - (String or null) what config parameter should we aggregate by
+   * nameSpec - (String or null) controls line titles (see runFancyName)
    * rawData - The data from this.props.data TODO: Why do we need this??
    */
 
@@ -381,9 +377,7 @@ export function linesFromData(
     lines = aggLines;
   } else {
     lines = lines.filter(line => line.data.length > 0).map((line, i) => ({
-      title: runDisplayName(
-        rawData ? rawData.filteredRunsById[line.name] : line.name,
-      ),
+      title: new RunFancyName(rawData.filteredRunsById[line.name], nameSpec),
       color: color(i, 0.8),
       data: line.data,
     }));
@@ -393,3 +387,48 @@ export function linesFromData(
 
   return lines;
 }
+
+// Replace the longest common run in a set of strings.
+function replaceLongestRun(names, minRunSize, replaceStr) {
+  if (names.length <= 1) {
+    return null;
+  }
+  let name0 = names[0];
+  for (let runLen = name0.length; runLen >= minRunSize; runLen--) {
+    for (let startPos = 0; startPos < name0.length - runLen + 1; startPos++) {
+      let sub = name0.substring(startPos, startPos + runLen);
+      if (sub.indexOf(replaceStr) >= 0) {
+        continue;
+      }
+      let containsCount = 0;
+      for (let checkName of names.slice(1)) {
+        if (checkName.indexOf(sub) >= 0) {
+          containsCount++;
+        }
+      }
+      if (containsCount === names.length - 1) {
+        return names.map(n => n.replace(sub, replaceStr));
+      }
+    }
+  }
+  return null;
+}
+
+// Given a set of names, return truncated versions that remove
+// commonality
+export function smartNames(names, minRunSize, replaceStr) {
+  let i = 0;
+  while (true) {
+    let result = replaceLongestRun(names, minRunSize, '..');
+    if (i > 5) {
+      return names;
+    }
+    i++;
+    if (result === null) {
+      return names;
+    }
+    names = result;
+  }
+}
+
+export function runToLegendLabels(run, fields) {}

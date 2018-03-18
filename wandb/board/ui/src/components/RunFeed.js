@@ -30,6 +30,7 @@ import {
   displayValue,
   getRunValue,
   sortableValue,
+  stateToIcon,
   truncateString,
 } from '../util/runhelpers.js';
 import ContentLoader from 'react-content-loader';
@@ -212,22 +213,6 @@ class RunFeedRow extends React.Component {
     return this._shouldUpdate(this.props, nextProps, this.props.run.name);
   }
 
-  stateToIcon(state) {
-    let icon = 'check',
-      color = 'green';
-    if (state === 'failed' || state === 'crashed') {
-      icon = 'remove';
-      color = 'red';
-    } else if (state === 'killed') {
-      icon = 'remove user';
-      color = 'orange';
-    } else if (state === 'running') {
-      icon = 'spinner';
-      color = 'blue';
-    }
-    return <Icon name={icon} color={color} loading={state === 'running'} />;
-  }
-
   descriptionCell(edge) {
     let {loading, project, admin} = this.props;
     return (
@@ -264,7 +249,7 @@ class RunFeedRow extends React.Component {
                     {edge.description || edge.name
                       ? (edge.description || edge.name).split('\n')[0]
                       : ''}{' '}
-                    {this.stateToIcon(edge.state)}
+                    {stateToIcon(edge.state)}
                   </NavLink>
                 </Item.Header>
                 <Item.Extra style={{marginTop: 0}}>
