@@ -2,6 +2,7 @@ import React from 'react';
 import _ from 'lodash';
 import {Form} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
+import {BOARD} from '../util/board';
 
 class ImagesPanel extends React.Component {
   state = {epoch: 0};
@@ -71,24 +72,27 @@ class ImagesPanel extends React.Component {
 
   renderNormal() {
     let {history} = this.props.data;
-    //TODO: performance / support multiple image keys
-    let imageKey = null;
-    let images = history.map(h => {
-      for (let key in h) {
-        if (!imageKey) imageKey = key;
-        if (h[key]._type === 'images') return h[key];
-      }
-    });
+    //TODO: performance / don't hard code imageKey
+    let imageKey = 'examples';
+    let images = history.map(h => h[imageKey]);
     let captions =
       images[this.state.epoch].captions ||
       new Array(images[this.state.epoch].count);
     let {width, height} = images[0];
-    let sprite =
-      'http://localhost:7177' +
-      this.props.data.match.url +
-      `/${imageKey}_` +
-      this.state.epoch +
-      '.jpg';
+    let sprite;
+    if (BOARD) {
+      sprite =
+        'http://localhost:7177' +
+        this.props.data.match.url +
+        `/${imageKey}_` +
+        this.state.epoch +
+        '.jpg';
+    } else {
+      let {entity, model, run} = this.props.data.match.params;
+      sprite = `https://api.wandb.ai/${entity}/${model}/${run}/media/images/${imageKey}_${
+        this.state.epoch
+      }.jpg`;
+    }
     let ticks = Math.min(8, history.length);
     let tickMarks = [];
     for (let i = 0; i < ticks; i++) {
