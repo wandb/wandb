@@ -16,6 +16,10 @@
     z-index: 1;
 }
 
+.react-grid-layout {
+    position: relative;
+}
+
 .react-grid-item.panel > div {
     position: absolute;
     top: 0;
