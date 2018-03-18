@@ -42,6 +42,16 @@
     border: none !important;
 }
 
+.react-resizable-handle {
+    display: none;
+    pointer-events: none;
+}
+
+.editing .react-resizable-handle {
+    display: inline;
+    pointer-events: all;
+}
+
 /* .editing .panel > div {
     pointer-events: none;
     user-select: none;
