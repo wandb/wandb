@@ -341,7 +341,7 @@ export class RunFancyName {
 export function defaultViews(run) {
   //TODO: do we need to handle this case?
   if (!run) run = {summaryMetrics: '{}'};
-  const scalars = Object.keys(JSON.parse(run.summaryMetrics));
+  const scalars = Object.keys(JSONparseNaN(run.summaryMetrics));
   let lossy = scalars.find(s => s.match(/loss/));
   if (!lossy) {
     lossy = scalars[0];
@@ -414,7 +414,7 @@ export function defaultViews(run) {
     },
   };
   if (run.events && run.events.length > 0) {
-    const event = JSON.parse(run.events[0]);
+    const event = JSONparseNaN(run.events[0]);
     base.run.configured = true;
     base.run.views['system'] = {
       name: 'System Metrics',
@@ -452,7 +452,7 @@ export function defaultViews(run) {
     base.run.tabs.push('system');
   }
   if (run.history && run.history.length > 0) {
-    const history = JSON.parse(run.history[0]);
+    const history = JSONparseNaN(run.history[0]);
     base.run.configured = true;
     //TODO: support multi media
     if (history._media && history._media[0]._type === 'images') {
