@@ -13,7 +13,6 @@ export default function withHistoryLoader(WrappedComponent) {
   let HistoryLoader = class extends React.Component {
     constructor(props) {
       super(props);
-      this.selectedRuns = {};
     }
 
     _setup(props, nextProps) {
@@ -66,7 +65,7 @@ export default function withHistoryLoader(WrappedComponent) {
             loadingHistory: loadingHistory,
           };
         });
-        //console.log('selectedInfo', selectedInfo);
+        console.log('selectedInfo', selectedInfo);
         let numLoaded = selectedInfo.filter(o => o.history || o.loadingHistory)
           .length;
         if (pollingMode || numLoaded < MAX_HISTORIES_LOADED) {
@@ -74,7 +73,6 @@ export default function withHistoryLoader(WrappedComponent) {
           if (!pollingMode) {
             toLoad = toLoad.filter(o => !(o.history || o.loadingHistory));
           }
-          //console.log('toLoad', toLoad);
           if (toLoad.length > 0) {
             for (var load of toLoad) {
               nextProps.client.writeFragment({
@@ -104,29 +102,29 @@ export default function withHistoryLoader(WrappedComponent) {
                 }
               });
           }
-          nextProps.client.writeQuery({
-            query: FAKE_HISTORY_QUERY,
-            variables: {histQueryKey: nextProps.histQueryKey},
-            data: {
-              model: {
-                id: 'fake_history_query_' + nextProps.histQueryKey,
-                __typename: 'ModelType',
-                buckets: {
-                  __typename: 'BucketConnectionType',
-                  edges: selectedInfo.map(o => ({
-                    node: {
-                      id: o.id,
-                      name: o.name,
-                      history: o.history,
-                      __typename: 'BucketType',
-                    },
-                    __typename: 'BucketTypeEdge',
-                  })),
-                },
+        }
+        nextProps.client.writeQuery({
+          query: FAKE_HISTORY_QUERY,
+          variables: {histQueryKey: nextProps.histQueryKey},
+          data: {
+            model: {
+              id: 'fake_history_query_' + nextProps.histQueryKey,
+              __typename: 'ModelType',
+              buckets: {
+                __typename: 'BucketConnectionType',
+                edges: selectedInfo.map(o => ({
+                  node: {
+                    id: o.id,
+                    name: o.name,
+                    history: o.history,
+                    __typename: 'BucketType',
+                  },
+                  __typename: 'BucketTypeEdge',
+                })),
               },
             },
-          });
-        }
+          },
+        });
       }
     }
 
@@ -140,9 +138,7 @@ export default function withHistoryLoader(WrappedComponent) {
     }
 
     render() {
-      return (
-        <WrappedComponent {...this.props} selectedRuns={this.selectedRuns} />
-      );
+      return <WrappedComponent {...this.props} />;
     }
   };
 
