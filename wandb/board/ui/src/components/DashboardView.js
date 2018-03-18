@@ -240,7 +240,6 @@ class DashboardView extends Component {
                       fontSize: 20,
                     }}
                     icon
-                    size="small"
                     onClick={() => {
                       let newPanelParams = {
                         layout: addPanelLayout,

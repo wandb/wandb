@@ -41,7 +41,7 @@
     display: block;
     position: absolute;
     z-index: 1;
-    top: 3px;
+    top: 6px;
     right: 0;
     border: none !important;
 }

@@ -48,6 +48,7 @@ class EditablePanel extends React.Component {
             <Icon
               link
               name="edit"
+              size="large"
               onClick={() => this.setState({editing: true})}
             />
           }>
