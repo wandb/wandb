@@ -57,7 +57,8 @@
         "redux": "^3.7.2",
         "redux-batched-actions": "^0.2.1",
         "redux-watch": "^1.1.1",
-        "semantic-ui-react": "^0.77.1"
+        "semantic-ui-react": "^0.77.1",
+        "worker-loader": "^1.1.1"
     },
     "scripts": {
         "postinstall": "ln -sf ../semantic node_modules",
