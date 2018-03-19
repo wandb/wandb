@@ -115,8 +115,9 @@ def _debugger(*args):
 class Callbacks():
     @property
     def Keras(self):
-        from .wandb_keras import WandbKerasCallback
-        return WandbKerasCallback
+        print("DEPRECATED: wandb.callbacks is deprecated, use `from wandb.keras import WandbCallback`")
+        from wandb.keras import WandbCallback
+        return WandbCallback
 
 
 callbacks = Callbacks()
@@ -245,9 +246,9 @@ def _init_headless(api, run, job_type, cloud=True):
 
 
 # Will be set to the run object for the current run, as returned by
-# wandb.init(). We may want to get rid of this, but WandbKerasCallback
+# wandb.init(). We may want to get rid of this, but WandbCallback
 # relies on it, and it improves the API a bit (user doesn't have to
-# pass the run into WandbKerasCallback)
+# pass the run into WandbCallback)
 run = None
 
 

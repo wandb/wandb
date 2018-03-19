@@ -1,5 +1,6 @@
 import wandb
 from wandb import wandb_run
+from wandb.keras import WandbCallback
 import pytest
 from click.testing import CliRunner
 import os
@@ -32,5 +33,5 @@ def dummy_data():
 def test_basic_keras(dummy_model, dummy_data, git_repo):
     wandb.run = wandb_run.Run.from_environment_or_defaults()
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36,
-                    callbacks=[wandb.callbacks.Keras()])
+                    callbacks=[WandbCallback()])
     assert wandb.run.summary["epoch"] == 1
