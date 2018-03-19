@@ -9,6 +9,9 @@ import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import _ from 'lodash';
 import * as Query from '../util/query';
 
+// We track which histories are in the process of loading globally.
+let loadingHistories = {};
+
 export default function withHistoryLoader(WrappedComponent) {
   let HistoryLoader = class extends React.Component {
     constructor(props) {
@@ -47,17 +50,7 @@ export default function withHistoryLoader(WrappedComponent) {
           } catch (err) {
             //console.log("name doesn't have history", name);
           }
-          let loadingHistory = false;
-          try {
-            let result = nextProps.client.readFragment({
-              id,
-              fragment: fragments.historyRunLoading,
-            });
-            //console.log('readFragment historyRunLoading result', result);
-            loadingHistory = result.historyLoading;
-          } catch (err) {
-            //console.log("name doesn't have historyLoading", name);
-          }
+          let loadingHistory = loadingHistories[id];
           return {
             id: id,
             name: name,
@@ -75,11 +68,7 @@ export default function withHistoryLoader(WrappedComponent) {
           }
           if (toLoad.length > 0) {
             for (var load of toLoad) {
-              nextProps.client.writeFragment({
-                id: load.id,
-                fragment: fragments.historyRunLoading,
-                data: {historyLoading: true, __typename: 'BucketType'},
-              });
+              loadingHistories[load.id] = true;
             }
             nextProps.client
               .query({
@@ -94,11 +83,7 @@ export default function withHistoryLoader(WrappedComponent) {
               .then(result => {
                 //console.log('result', result);
                 for (var load of toLoad) {
-                  nextProps.client.writeFragment({
-                    id: load.id,
-                    fragment: fragments.historyRunLoading,
-                    data: {historyLoading: false, __typename: 'BucketType'},
-                  });
+                  loadingHistories[load.id] = false;
                 }
               });
           }

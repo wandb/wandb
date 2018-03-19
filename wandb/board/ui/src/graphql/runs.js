@@ -63,13 +63,6 @@ export const fragments = {
       history(samples: 500)
     }
   `,
-  // This is not actually stored on the server, we manually write/read from the cache to track
-  // it's loading state.
-  historyRunLoading: gql`
-    fragment HistoryRunLoadingFragment on BucketType {
-      historyLoading
-    }
-  `,
 };
 
 export const RUNS_QUERY = gql`
