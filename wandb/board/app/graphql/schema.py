@@ -83,11 +83,11 @@ class Run(graphene.ObjectType):
     config = graphene.types.json.JSONString()
     summaryMetrics = graphene.types.json.JSONString()
     systemMetrics = graphene.types.json.JSONString()
+    requestSubscribe = graphene.Boolean()
     heartbeatAt = graphene.String()
     events = graphene.List(graphene.String)
     tags = graphene.List(graphene.String)
-    requestSubscribe = graphene.Boolean()
-    history = graphene.List(graphene.String)
+    history = graphene.List(graphene.String, samples=graphene.Int())
     logLines = relay.ConnectionField(
         LogLineConnection)
 
@@ -155,6 +155,7 @@ class Project(graphene.ObjectType):
     views = graphene.JSONString()
     runCount = graphene.Int()
     bucketCount = graphene.Int()
+    requestSubscribe = graphene.Boolean()
 
     runs = relay.ConnectionField(
         RunConnection, entityName=graphene.String(), names=graphene.List(graphene.String),

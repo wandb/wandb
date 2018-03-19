@@ -23,10 +23,13 @@ import {JSONparseNaN} from '../util/jsonnan';
 import * as Query from '../util/query';
 import _ from 'lodash';
 
+let RunsDataWorker = require('worker-loader!./workers/RunsDataDerived.js');
+
 // Load the graphql data for this panel, currently loads all data for this project and entity.
 function withRunsData() {
   return graphql(RUNS_QUERY, {
-    skip: ({query}) => !Query.needsOwnQuery(query),
+    alias: 'withRunsData',
+    skip: ({query}) => !Query.needsOwnRunsQuery(query),
     options: ({query, requestSubscribe}) => {
       const defaults = {
         variables: {
@@ -61,6 +64,18 @@ function withRunsData() {
 // Parses buckets into runs/keySuggestions
 function withDerivedRunsData(WrappedComponent) {
   let RunsDataDerived = class extends React.Component {
+    state = {
+      data: {
+        base: [],
+        filtered: [],
+        filteredRunsById: {},
+        selectedRuns: [],
+        selectedRunsById: {},
+        keys: [],
+        axisOptions: [],
+        columnNames: [],
+      },
+    };
     constructor(props) {
       super(props);
       this.runs = [];
@@ -69,75 +84,39 @@ function withDerivedRunsData(WrappedComponent) {
         name: 'RunsDataDerived',
         deep: ['query', 'pageQuery', 'config'],
         ignoreFunctions: true,
-        debug: false,
+        debug: true,
       });
     }
 
     _setup(prevProps, props) {
       let strategy = Query.strategy(props.query);
       if (strategy === 'page') {
-        this.data = props.data;
+        this.setState({data: props.data});
       } else {
-        if (Query.canReuseBaseData(props.query)) {
-          this.runs = props.data.base;
-        } else {
-          this.runs = updateRuns(prevProps.buckets, props.buckets, this.runs);
-        }
-        this.views = props.views ? JSON.parse(props.views) : null;
-        this.keySuggestions = setupKeySuggestions(this.runs);
-        this.filteredRuns = sortRuns(
-          props.query.sort,
-          filterRuns(props.query.filters, this.runs),
-        );
-        this.filteredRunsById = {};
-        for (var run of this.filteredRuns) {
-          this.filteredRunsById[run.name] = run;
-        }
-        this.selectedRuns = [];
-        if (_.size(props.query.selections) !== 0) {
-          this.selectedRuns = filterRuns(
-            props.query.selections,
-            this.filteredRuns,
-          );
-        }
-        this.selectedRunsById = _.fromPairs(
-          this.selectedRuns.map(run => [run.name, run.id]),
-        );
-
-        let keys = _.flatMap(
-          this.keySuggestions,
-          section => section.suggestions,
-        );
-        this.axisOptions = keys.map(key => {
-          let displayKey = displayFilterKey(key);
-          return {
-            key: displayKey,
-            value: displayKey,
-            text: displayKey,
-          };
-        });
-        this.columnNames = getColumns(this.runs);
-
-        this.data = {
-          base: this.runs,
-          filtered: this.filteredRuns,
-          filteredRunsById: this.filteredRunsById,
-          selectedRuns: this.selectedRuns,
-          selectedRunsById: this.selectedRunsById,
-          keys: this.keySuggestions,
-          axisOptions: this.axisOptions,
-          query: this.query,
-          columnNames: this.columnNames,
+        let messageData = {
+          base: props.data && props.data.base,
+          prevBuckets: prevProps.buckets,
+          buckets: props.buckets,
+          query: props.query,
         };
+        this.worker.postMessage(messageData);
       }
+      this.views = props.views ? JSON.parse(props.views) : null;
     }
 
     componentWillMount() {
+      this.worker = new RunsDataWorker();
+      this.worker.onmessage = m => {
+        this.setState({data: m.data});
+      };
       this._setup({}, this.props);
     }
 
     shouldComponentUpdate(nextProps, nextState) {
-      return this._shouldUpdate(this.props, nextProps, this.props.histQueryKey);
+      return (
+        this._shouldUpdate(this.props, nextProps, this.props.histQueryKey) ||
+        this.state.data !== nextState.data
+      );
     }
 
     componentWillReceiveProps(nextProps) {
@@ -155,7 +134,7 @@ function withDerivedRunsData(WrappedComponent) {
       return (
         <WrappedComponent
           {...this.props}
-          data={this.data}
+          data={this.state.data}
           views={this.views}
           keySuggestions={this.keySuggestions}
           runs={this.runs}

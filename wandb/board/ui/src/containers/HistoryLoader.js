@@ -9,11 +9,13 @@ import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import _ from 'lodash';
 import * as Query from '../util/query';
 
+// We track which histories are in the process of loading globally.
+let loadingHistories = {};
+
 export default function withHistoryLoader(WrappedComponent) {
   let HistoryLoader = class extends React.Component {
     constructor(props) {
       super(props);
-      this.selectedRuns = {};
     }
 
     _setup(props, nextProps) {
@@ -48,17 +50,7 @@ export default function withHistoryLoader(WrappedComponent) {
           } catch (err) {
             //console.log("name doesn't have history", name);
           }
-          let loadingHistory = false;
-          try {
-            let result = nextProps.client.readFragment({
-              id,
-              fragment: fragments.historyRunLoading,
-            });
-            //console.log('readFragment historyRunLoading result', result);
-            loadingHistory = result.historyLoading;
-          } catch (err) {
-            //console.log("name doesn't have historyLoading", name);
-          }
+          let loadingHistory = loadingHistories[id];
           return {
             id: id,
             name: name,
@@ -74,14 +66,9 @@ export default function withHistoryLoader(WrappedComponent) {
           if (!pollingMode) {
             toLoad = toLoad.filter(o => !(o.history || o.loadingHistory));
           }
-          //console.log('toLoad', toLoad);
           if (toLoad.length > 0) {
             for (var load of toLoad) {
-              nextProps.client.writeFragment({
-                id: load.id,
-                fragment: fragments.historyRunLoading,
-                data: {historyLoading: true, __typename: 'BucketType'},
-              });
+              loadingHistories[load.id] = true;
             }
             nextProps.client
               .query({
@@ -96,37 +83,33 @@ export default function withHistoryLoader(WrappedComponent) {
               .then(result => {
                 //console.log('result', result);
                 for (var load of toLoad) {
-                  nextProps.client.writeFragment({
-                    id: load.id,
-                    fragment: fragments.historyRunLoading,
-                    data: {historyLoading: false, __typename: 'BucketType'},
-                  });
+                  loadingHistories[load.id] = false;
                 }
               });
           }
-          nextProps.client.writeQuery({
-            query: FAKE_HISTORY_QUERY,
-            variables: {histQueryKey: nextProps.histQueryKey},
-            data: {
-              model: {
-                id: 'fake_history_query_' + nextProps.histQueryKey,
-                __typename: 'ModelType',
-                buckets: {
-                  __typename: 'BucketConnectionType',
-                  edges: selectedInfo.map(o => ({
-                    node: {
-                      id: o.id,
-                      name: o.name,
-                      history: o.history,
-                      __typename: 'BucketType',
-                    },
-                    __typename: 'BucketTypeEdge',
-                  })),
-                },
+        }
+        nextProps.client.writeQuery({
+          query: FAKE_HISTORY_QUERY,
+          variables: {histQueryKey: nextProps.histQueryKey},
+          data: {
+            model: {
+              id: 'fake_history_query_' + nextProps.histQueryKey,
+              __typename: 'ModelType',
+              buckets: {
+                __typename: 'BucketConnectionType',
+                edges: selectedInfo.map(o => ({
+                  node: {
+                    id: o.id,
+                    name: o.name,
+                    history: o.history,
+                    __typename: 'BucketType',
+                  },
+                  __typename: 'BucketTypeEdge',
+                })),
               },
             },
-          });
-        }
+          },
+        });
       }
     }
 
@@ -140,14 +123,12 @@ export default function withHistoryLoader(WrappedComponent) {
     }
 
     render() {
-      return (
-        <WrappedComponent {...this.props} selectedRuns={this.selectedRuns} />
-      );
+      return <WrappedComponent {...this.props} />;
     }
   };
 
   const withData = graphql(FAKE_HISTORY_QUERY, {
-    skip: ({query}) => !Query.needsOwnQuery(query),
+    skip: ({query}) => !Query.needsOwnHistoryQuery(query),
     options: ({histQueryKey}) => {
       return {
         fetchPolicy: 'cache-only',

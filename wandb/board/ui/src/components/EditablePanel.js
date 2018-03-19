@@ -32,7 +32,15 @@ class EditablePanel extends React.Component {
 
   render() {
     return (
-      <div>
+      <div
+        onMouseDown={e => {
+          if (!this.props.editMode) {
+            // Stop propagation to prevent react-grid-layout from receiving it.
+            // This stops the panel from being draggable / resizeable when not
+            // in edit mode.
+            e.stopPropagation();
+          }
+        }}>
         <Modal
           open={this.state.editing}
           dimmer={false}
@@ -40,6 +48,7 @@ class EditablePanel extends React.Component {
             <Icon
               link
               name="edit"
+              size="large"
               onClick={() => this.setState({editing: true})}
             />
           }>

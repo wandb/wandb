@@ -40,6 +40,7 @@ import os
 try:
     import pty
     import tty
+    import termios
 except ImportError:  # windows
     pass
 
@@ -47,7 +48,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import termios
 
 import six
 from six.moves import queue, shlex_quote

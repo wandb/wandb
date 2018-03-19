@@ -30,6 +30,7 @@ import {
   displayValue,
   getRunValue,
   sortableValue,
+  stateToIcon,
   truncateString,
 } from '../util/runhelpers.js';
 import ContentLoader from 'react-content-loader';
@@ -144,50 +145,52 @@ class RunFeedHeader extends React.Component {
             height: Math.min(longestColumn.length, maxColNameLength) * 8,
           }}>
           {selectable && <Table.HeaderCell />}
-          {columnNames.map(columnName => (
-            <Table.HeaderCell
-              key={columnName}
-              className={
-                _.startsWith(columnName, 'config:') ||
-                _.startsWith(columnName, 'summary:')
-                  ? 'rotate'
-                  : ''
-              }
-              style={{textAlign: 'center', verticalAlign: 'bottom'}}
-              onClick={() => {
-                if (columnName === 'Config' || columnName === 'Summary') {
-                  return;
+          {columnNames.map(columnName => {
+            let columnKey = columnName.split(':')[1];
+            return (
+              <Table.HeaderCell
+                key={columnName}
+                className={
+                  _.startsWith(columnName, 'config:') ||
+                  _.startsWith(columnName, 'summary:')
+                    ? 'rotate'
+                    : ''
                 }
-                let ascending = true;
-                if (sort.name === columnName) {
-                  ascending = !sort.ascending;
-                }
-                this.props.setSort(columnName, ascending);
-              }}>
-              <div>
-                {_.startsWith(columnName, 'config:') ||
-                _.startsWith(columnName, 'summary:') ? (
-                  ((columnName = columnName.split(':')[1]),
-                  columnName.length > maxColNameLength ? (
-                    <span key={columnName}>
-                      {truncateString(columnName, maxColNameLength)}
-                    </span>
+                style={{textAlign: 'center', verticalAlign: 'bottom'}}
+                onClick={() => {
+                  if (columnName === 'Config' || columnName === 'Summary') {
+                    return;
+                  }
+                  let ascending = true;
+                  if (sort.name === columnName) {
+                    ascending = !sort.ascending;
+                  }
+                  this.props.setSort(columnName, ascending);
+                }}>
+                <div>
+                  {_.startsWith(columnName, 'config:') ||
+                  _.startsWith(columnName, 'summary:') ? (
+                    columnKey.length > maxColNameLength ? (
+                      <span key={columnName}>
+                        {truncateString(columnKey, maxColNameLength)}
+                      </span>
+                    ) : (
+                      <span>{columnKey}</span>
+                    )
                   ) : (
                     <span>{columnName}</span>
-                  ))
-                ) : (
-                  <span>{columnName}</span>
-                )}
+                  )}
 
-                {sort.name === columnName &&
-                  (sort.ascending ? (
-                    <Icon name="caret up" />
-                  ) : (
-                    <Icon name="caret down" />
-                  ))}
-              </div>
-            </Table.HeaderCell>
-          ))}
+                  {sort.name === columnName &&
+                    (sort.ascending ? (
+                      <Icon name="caret up" />
+                    ) : (
+                      <Icon name="caret down" />
+                    ))}
+                </div>
+              </Table.HeaderCell>
+            );
+          })}
         </Table.Row>
       </Table.Header>
     );
@@ -208,22 +211,6 @@ class RunFeedRow extends React.Component {
 
   shouldComponentUpdate(nextProps, nextState) {
     return this._shouldUpdate(this.props, nextProps, this.props.run.name);
-  }
-
-  stateToIcon(state) {
-    let icon = 'check',
-      color = 'green';
-    if (state === 'failed' || state === 'crashed') {
-      icon = 'remove';
-      color = 'red';
-    } else if (state === 'killed') {
-      icon = 'remove user';
-      color = 'orange';
-    } else if (state === 'running') {
-      icon = 'spinner';
-      color = 'blue';
-    }
-    return <Icon name={icon} color={color} loading={state === 'running'} />;
   }
 
   descriptionCell(edge) {
@@ -262,7 +249,7 @@ class RunFeedRow extends React.Component {
                     {edge.description || edge.name
                       ? (edge.description || edge.name).split('\n')[0]
                       : ''}{' '}
-                    {this.stateToIcon(edge.state)}
+                    {stateToIcon(edge.state)}
                   </NavLink>
                 </Item.Header>
                 <Item.Extra style={{marginTop: 0}}>
@@ -437,6 +424,7 @@ class RunFeed extends PureComponent {
             <RunFeedHeader
               selectable={this.props.selectable}
               sort={this.props.sort}
+              setSort={this.props.setSort}
               columnNames={columnNames}
             />
             <Table.Body>

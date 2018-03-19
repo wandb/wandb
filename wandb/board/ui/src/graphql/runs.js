@@ -63,13 +63,6 @@ export const fragments = {
       history(samples: 500)
     }
   `,
-  // This is not actually stored on the server, we manually write/read from the cache to track
-  // it's loading state.
-  historyRunLoading: gql`
-    fragment HistoryRunLoadingFragment on BucketType {
-      historyLoading
-    }
-  `,
 };
 
 export const RUNS_QUERY = gql`
@@ -79,10 +72,10 @@ export const RUNS_QUERY = gql`
     $entityName: String
     $jobKey: String
     $order: String
-    $limit: Int = 1000
+    $limit: Int = 500
     $bucketIds: [String]
     $history: Boolean = false
-    $requestSubscribe: Boolean = false
+    $requestSubscribe: Boolean!
   ) {
     model(name: $name, entityName: $entityName) {
       id

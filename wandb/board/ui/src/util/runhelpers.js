@@ -5,6 +5,8 @@ import numeral from 'numeral';
 import {JSONparseNaN} from '../util/jsonnan';
 import flatten from 'flat';
 import {fragments} from '../graphql/runs';
+import TimeAgo from 'react-timeago';
+import {Icon} from 'semantic-ui-react';
 
 export function convertValue(string) {
   let val = Number.parseFloat(string);
@@ -22,6 +24,8 @@ export function displayValue(value) {
     } else {
       return value.toString();
     }
+  } else if (_.isString(value)) {
+    return value;
   } else {
     return JSON.stringify(value);
   }
@@ -38,10 +42,12 @@ export function sortableValue(value) {
 }
 
 // Truncate string.  Doesn't seem like there's an easy way to do this by pixel length.
-export function truncateString(string, maxLength = 30, rightLength = 6) {
+// Splits the string in the middle.
+export function truncateString(string, maxLength = 30) {
   if (string.length < maxLength) {
     return string;
   }
+  let rightLength = Math.floor(maxLength / 2) - 1;
   let leftLength = maxLength - rightLength - 1;
   let leftSide = string.substr(0, leftLength);
   let rightSide = string.substr(-rightLength);
@@ -121,6 +127,10 @@ export function _getRunValueFromSectionName(run, section, name) {
     if (name === 'id') {
       // Alias 'id' to 'name'.
       return run.name;
+    } else if (name === 'name') {
+      return runDisplayName(run);
+    } else if (name === 'userName') {
+      return run.user.username;
     } else {
       return run[name];
     }
@@ -138,11 +148,12 @@ export function getRunValueFromFilterKey(run, filterKey) {
 
 export function getRunValue(run, key) {
   let [section, name] = key.split(':', 2);
-  if (name) {
-    return _getRunValueFromSectionName(run, section, name);
-  } else {
-    return run[key];
+  if (!name) {
+    // No colon to split on, so run section is implied.
+    name = key;
+    section = 'run';
   }
+  return _getRunValueFromSectionName(run, section, name);
 }
 
 export function displayFilterKey(filterKey) {
@@ -257,10 +268,80 @@ export function runDisplayName(run) {
   return run.name || '';
 }
 
+export function stateToIcon(state, key) {
+  let icon = 'check',
+    color = 'green';
+  if (state === 'failed' || state === 'crashed') {
+    icon = 'remove';
+    color = 'red';
+  } else if (state === 'killed') {
+    icon = 'remove user';
+    color = 'orange';
+  } else if (state === 'running') {
+    icon = 'spinner';
+    color = 'blue';
+  }
+  return (
+    <Icon key={key} name={icon} color={color} loading={state === 'running'} />
+  );
+}
+
+export class RunFancyName {
+  constructor(run, spec) {
+    this._run = run;
+    this._spec = spec;
+  }
+
+  special = {
+    createdAt: value => (
+      <span key="createdAt">
+        (started <TimeAgo date={value + 'z'} />){' '}
+      </span>
+    ),
+    stateIcon: () => stateToIcon(this._run.state, 'stateIcon'),
+    runningIcon: () =>
+      this._run.state === 'running'
+        ? stateToIcon(this._run.state, 'runningIcon')
+        : null,
+  };
+
+  toComponent() {
+    if (!this._spec) {
+      return runDisplayName(this._run);
+    }
+    return (
+      <span>
+        {this._spec
+          .map(key => {
+            let value = getRunValue(this._run, key);
+            let specialFn = this.special[key];
+            if (specialFn) {
+              return specialFn(value);
+            } else {
+              if (_.isString(value)) {
+                value = truncateString(value, 24);
+              }
+              return <span key={key}>{displayValue(value)} </span>;
+            }
+          })
+          .filter(o => o)}
+      </span>
+    );
+  }
+
+  toString() {
+    return this._spec
+      .map(key => (this.special[key] ? null : getRunValue(this._run, key)))
+      .filter(o => o)
+      .map(val => displayValue(val))
+      .join(' ');
+  }
+}
+
 export function defaultViews(run) {
   //TODO: do we need to handle this case?
   if (!run) run = {summaryMetrics: '{}'};
-  const scalars = Object.keys(JSON.parse(run.summaryMetrics));
+  const scalars = Object.keys(JSONparseNaN(run.summaryMetrics));
   let lossy = scalars.find(s => s.match(/loss/));
   if (!lossy) {
     lossy = scalars[0];
@@ -333,7 +414,7 @@ export function defaultViews(run) {
     },
   };
   if (run.events && run.events.length > 0) {
-    const event = JSON.parse(run.events[0]);
+    const event = JSONparseNaN(run.events[0]);
     base.run.configured = true;
     base.run.views['system'] = {
       name: 'System Metrics',
@@ -371,7 +452,7 @@ export function defaultViews(run) {
     base.run.tabs.push('system');
   }
   if (run.history && run.history.length > 0) {
-    const history = JSON.parse(run.history[0]);
+    const history = JSONparseNaN(run.history[0]);
     base.run.configured = true;
     //TODO: support multi media
     if (history._media && history._media[0]._type === 'images') {
@@ -483,7 +564,7 @@ export function setupKeySuggestions(runs) {
     suggestions.sort();
     return suggestions;
   };
-  let runSuggestions = ['state', 'id'];
+  let runSuggestions = ['state', 'id', 'name', 'createdAt'];
   let keySuggestions = [
     {
       title: 'run',
@@ -519,6 +600,17 @@ export function setupKeySuggestions(runs) {
     },
   ];
   return keySuggestions;
+}
+
+export function flatKeySuggestions(keySuggestions) {
+  return _.flatMap(keySuggestions, section =>
+    section.suggestions.map(
+      suggestion =>
+        suggestion.section === 'run'
+          ? suggestion.value
+          : suggestion.section + ':' + suggestion.value,
+    ),
+  );
 }
 
 export function getColumns(runs) {

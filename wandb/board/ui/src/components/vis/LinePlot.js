@@ -12,6 +12,7 @@ import {
   Crosshair,
 } from 'react-vis';
 import {truncateString, displayValue} from '../../util/runhelpers.js';
+import {smartNames} from '../../util/plotHelpers.js';
 
 class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
@@ -101,7 +102,7 @@ class LinePlotCrosshair extends React.PureComponent {
     this.highlights = {};
 
     let enabledLines = props.lines.filter(
-      line => !props.disabled[line.title] && line.data.length > 0,
+      line => !props.disabled[line.title] && line.data.length > 0 && !line.aux,
     );
 
     for (var line of enabledLines) {
@@ -110,7 +111,7 @@ class LinePlotCrosshair extends React.PureComponent {
           this.highlights[point.x] = [];
         }
         this.highlights[point.x].push({
-          title: line.title,
+          title: line.title.toString ? line.title.toString() : line.title,
           color: line.color,
           x: point.x,
           y: point.y,
@@ -174,24 +175,21 @@ class LinePlotCrosshair extends React.PureComponent {
               <b>
                 {this.props.xAxis + ': ' + displayValue(crosshairValues[0].x)}
               </b>
-              {crosshairValues
-                .sort((a, b) => b.y - a.y)
-                .filter(point => !point.title.startsWith('_'))
-                .map((point, i) => (
-                  <div key={point.title + ' ' + i}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        backgroundColor: point.color,
-                        width: 12,
-                        height: 4,
-                      }}
-                    />
-                    <span style={{marginLeft: 6}}>
-                      {point.title + ': ' + displayValue(point.y)}
-                    </span>
-                  </div>
-                ))}
+              {crosshairValues.sort((a, b) => b.y - a.y).map((point, i) => (
+                <div key={point.title + ' ' + i}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      backgroundColor: point.color,
+                      width: 12,
+                      height: 4,
+                    }}
+                  />
+                  <span style={{marginLeft: 6}}>
+                    {point.title + ': ' + displayValue(point.y)}
+                  </span>
+                </div>
+              ))}
             </div>
           </Crosshair>
         )}
@@ -204,30 +202,54 @@ export default class LinePlot extends React.PureComponent {
   state = {disabled: {}, highlightX: null};
 
   render() {
+    let filteredLines = this.props.lines.filter(line => !line.aux);
+    let lines = [];
+    lines = filteredLines;
     return (
       <div
         style={{
           border: this.props.lines.length === 0 ? '1px solid #ccc' : '',
         }}>
-        <DiscreteColorLegend
-          orientation="horizontal"
-          onItemClick={(item, i) => {
-            this.setState({
-              ...this.state,
-              disabled: {
-                ...this.state.disabled,
-                [item.title]: !this.state.disabled[item.title],
-              },
-            });
-          }}
-          items={this.props.lines
-            .map((line, i) => ({
-              title: truncateString(line.title, 40, 10),
-              disabled: this.state.disabled[line.title],
-              color: line.color,
-            }))
-            .filter(line => !line.title.startsWith('_'))}
-        />
+        <div
+          className="line-plot-legend"
+          style={{
+            fontSize: 11,
+            minHeight: 40,
+            maxHeight: 60,
+            overflow: 'scroll',
+            overflowX: 'hidden',
+            overflowY: 'hidden',
+          }}>
+          {lines.map((line, i) => (
+            <span
+              key={i}
+              style={{display: 'inline-block', marginRight: 16}}
+              onClick={(item, i) => {
+                this.setState({
+                  ...this.state,
+                  disabled: {
+                    ...this.state.disabled,
+                    [item.title]: !this.state.disabled[item.title],
+                  },
+                });
+              }}>
+              <span
+                className="line-plot-color"
+                style={{
+                  display: 'inline-block',
+                  marginBottom: 2,
+                  marginRight: 6,
+                  backgroundColor: line.color,
+                  width: 16,
+                  height: 4,
+                }}
+              />
+              <span className="line-plot-title">
+                {line.title.toComponent ? line.title.toComponent() : line.title}
+              </span>
+            </span>
+          ))}
+        </div>
         <div style={{position: 'relative'}}>
           <LinePlotPlot
             height={this.props.currentHeight - 70 || 220}

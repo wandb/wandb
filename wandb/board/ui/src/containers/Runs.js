@@ -14,7 +14,7 @@ import RunFiltersRedux from './RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
 import ViewModifier from './ViewModifier';
 import HelpIcon from '../components/HelpIcon';
-import {RUNS_QUERY, MODIFY_RUNS} from '../graphql/runs';
+import {MODIFY_RUNS} from '../graphql/runs';
 import {MODEL_UPSERT} from '../graphql/models';
 import {connect} from 'react-redux';
 import queryString from 'query-string';
@@ -32,7 +32,13 @@ import {
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {bindActionCreators} from 'redux';
 import {clearFilters, addFilter, setColumns} from '../actions/run';
-import {setServerViews, setBrowserViews, setActiveView} from '../actions/view';
+import {
+  resetViews,
+  setServerViews,
+  setBrowserViews,
+  setActiveView,
+  addView,
+} from '../actions/view';
 import update from 'immutability-helper';
 import {BOARD} from '../util/board';
 import withRunsDataLoader from '../containers/RunsDataLoader';
@@ -114,6 +120,7 @@ class Runs extends React.Component {
 
   componentWillMount() {
     this.props.clearFilters();
+    this.props.resetViews();
     this._readUrl(this.props);
   }
 
@@ -255,19 +262,21 @@ class Runs extends React.Component {
             </Grid.Column>
           </Grid.Row>
           <Grid.Column width={16}>
-            <ViewModifier
-              viewType="runs"
-              data={this.props.data}
-              pageQuery={this.props.query}
-              updateViews={views =>
-                this.props.updateModel({
-                  entityName: this.props.match.params.entity,
-                  name: this.props.match.params.model,
-                  id: this.props.projectID,
-                  views: views,
-                })
-              }
-            />
+            {this.props.haveViews && (
+              <ViewModifier
+                viewType="runs"
+                data={this.props.data}
+                pageQuery={this.props.query}
+                updateViews={views =>
+                  this.props.updateModel({
+                    entityName: this.props.match.params.entity,
+                    name: this.props.match.params.model,
+                    id: this.props.projectID,
+                    views: views,
+                  })
+                }
+              />
+            )}
           </Grid.Column>
           <Grid.Column width={16} style={{zIndex: 2}}>
             <Popup
@@ -280,6 +289,14 @@ class Runs extends React.Component {
               on="click"
               position="bottom left"
             />
+            {!this.props.haveViews && (
+              <Button
+                floated="right"
+                content="Add Charts"
+                icon="area chart"
+                onClick={() => this.props.addView('runs', 'New View', [])}
+              />
+            )}
             <Button
               floated="right"
               disabled={this.props.data.selectedRuns.length === 0}
@@ -375,6 +392,9 @@ function mapStateToProps(state, ownProps) {
     reduxServerViews: state.views.server,
     reduxBrowserViews: state.views.browser,
     activeView: state.views.other.runs.activeView,
+    haveViews:
+      !_.isEqual(state.views.browser, state.views.server) ||
+      state.views.browser.runs.tabs.length > 0,
   };
 }
 
@@ -390,6 +410,8 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       setServerViews,
       setBrowserViews,
       setActiveView,
+      resetViews,
+      addView,
     },
     dispatch,
   );

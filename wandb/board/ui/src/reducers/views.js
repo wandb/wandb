@@ -1,11 +1,14 @@
 import update from 'immutability-helper';
 import _ from 'lodash';
 import {
+  RESET_VIEWS,
   SET_SERVER_VIEWS,
   SET_BROWSER_VIEWS,
   ADD_VIEW,
   UPDATE_VIEW,
   SET_ACTIVE_VIEW,
+  MOVE_ACTIVE_VIEW_LEFT,
+  MOVE_ACTIVE_VIEW_RIGHT,
   CHANGE_VIEW_NAME,
   REMOVE_VIEW,
   ADD_PANEL,
@@ -49,8 +52,8 @@ function fixupViews(views) {
   return views;
 }
 
-export default function views(
-  state = {
+function defaultViews() {
+  return {
     server: copyDefaults(),
     browser: copyDefaults(),
     other: {
@@ -58,10 +61,13 @@ export default function views(
       runs: {activeView: null},
       dashboards: {activeView: null},
     },
-  },
-  action,
-) {
+  };
+}
+
+export default function views(state = defaultViews(), action) {
   switch (action.type) {
+    case RESET_VIEWS:
+      return update(state, {$set: defaultViews()});
     case SET_SERVER_VIEWS:
       return update(state, {server: {$set: fixupViews(action.views)}});
     case SET_BROWSER_VIEWS:
@@ -109,6 +115,55 @@ export default function views(
           },
         },
       });
+    case MOVE_ACTIVE_VIEW_LEFT: {
+      let activeViewId = state.other[action.viewType].activeView;
+      if (_.isNil(activeViewId)) {
+        return state;
+      }
+      let tabs = state.browser[action.viewType].tabs;
+      let curPos = _.indexOf(tabs, activeViewId);
+      if (curPos === 0) {
+        // I can't go left anymore!
+        return state;
+      }
+      let swapPos = curPos - 1;
+      let swapViewId = tabs[swapPos];
+      return update(state, {
+        browser: {
+          [action.viewType]: {
+            tabs: {
+              [swapPos]: {$set: activeViewId},
+              [curPos]: {$set: swapViewId},
+            },
+          },
+        },
+      });
+    }
+    case MOVE_ACTIVE_VIEW_RIGHT: {
+      let activeViewId = state.other[action.viewType].activeView;
+      if (_.isNil(activeViewId)) {
+        return state;
+      }
+      let tabs = state.browser[action.viewType].tabs;
+      let curPos = _.indexOf(tabs, activeViewId);
+      if (curPos === tabs.length - 1) {
+        // I can't go right anymore!
+        return state;
+      }
+      let swapPos = curPos + 1;
+      let swapViewId = tabs[swapPos];
+      return update(state, {
+        browser: {
+          [action.viewType]: {
+            tabs: {
+              [swapPos]: {$set: activeViewId},
+              [curPos]: {$set: swapViewId},
+            },
+          },
+        },
+      });
+    }
+
     case CHANGE_VIEW_NAME:
       return update(state, {
         browser: {

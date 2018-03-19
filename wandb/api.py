@@ -13,7 +13,7 @@ import json
 import yaml
 import re
 import wandb
-from wandb import __version__, __stage_dir__, Error
+from wandb import __version__, wandb_dir, Error
 from wandb.git_repo import GitRepo
 from wandb import retry
 from wandb import util
@@ -140,9 +140,8 @@ class Api(object):
             potential_settings_paths = [
                 os.path.expanduser('~/.wandb/settings')
             ]
-            if __stage_dir__ is not None:
-                potential_settings_paths.append(
-                    os.path.join(os.getcwd(), __stage_dir__, 'settings'))
+            potential_settings_paths.append(
+                os.path.join(wandb_dir(), 'settings'))
             files = self._settings_parser.read(potential_settings_paths)
             self.settings_file = files[0] if len(files) > 0 else "Not found"
         else:
@@ -673,7 +672,7 @@ class Api(object):
             A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
         """
         fileName = metadata['name']
-        path = os.path.join(__stage_dir__, fileName)
+        path = os.path.join(wandb_dir(), fileName)
         if self.file_current(fileName, metadata['md5']):
             return path, None
 
@@ -934,9 +933,9 @@ class Api(object):
             if not force and self.git.dirty:
                 raise CommError(
                     "You have un-committed changes. Use the force flag or commit your changes.")
-            elif self.git.dirty and os.path.exists(__stage_dir__):
+            elif self.git.dirty and os.path.exists(wandb_dir()):
                 self.git.repo.git.execute(['git', 'diff'], output_stream=open(
-                    os.path.join(__stage_dir__, 'diff.patch'), 'wb'))
+                    os.path.join(wandb_dir(), 'diff.patch'), 'wb'))
             self.git.tag(name, description)
             result = self.git.push(name)
             if(result is None or len(result) is None):

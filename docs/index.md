@@ -41,6 +41,7 @@ wandb run --show <train.py>
 The simplest way to use Weights & Biases is to call `wandb.init()` from your script, and then launch it with `wandb run <script.py>`. We'll collect and store your job's output, and other metadata. For more advanced usage, like saving produced files, configuration, and statistics, you interact with the `Run` object returned by wandb.init(). Read on!
 
 In the following sections, `run` is the return value of `wandb.init()`:
+
 ```python
 import wandb
 run = wandb.init()
@@ -60,15 +61,14 @@ You can use `wandb run --dir=. <script.py>` to make wandb sync _all_ files (in t
 
 If you launch your script directly (`python <script.py>` or `./script.py`) instead of using `wandb run <script.py>`, it will be launched in dry run mode, wherein nothing is persisted to wandb. We still create a run directory and other `run` members, so your script will function normally. We recommend using dry run mode while developing your script.
 
-
 ### Saving and loading configuration
 
 During your run, `run.config` is a dict-like that serves two purposes: 1) whatever you put into it will be persisted as the configuration for this run, 2) `wandb run` can optionally read in values from yaml files, and pass them to your script via `run.config`.
 
-
 #### Saving parameters from argparse / tensorflow / other
 
 If you are using argparse you can easily persist your arguments:
+
 ```python
 parser = argparse.ArgumentParser()
 parser.add_argument('--epochs', type=int, default=10)
@@ -78,6 +78,7 @@ run.config.update(args)
 ```
 
 If you're using tensorflow's flags, you can easily persist those:
+
 ```python
 flags = tf.app.flags
 flags.DEFINE_integer('epochs', 10, 'Number of epochs')
@@ -111,7 +112,6 @@ This is a dict-like object used to summarize the results of your run. We recomme
 
 Weights & Biases shows these values in the runs page for your project.
 
-
 #### Automatically generating history & summary with Keras
 
-You can use `wandb_keras.WandbKerasCallback()` to automatically generate summary and history data. It will also save the best model, like `keras.ModelCheckpoint`. Just instantiate it and pass it in to Keras' `model.fit` as a callback.
+You can use `wandb.keras.WandbCallback()` to automatically generate summary and history data. It will also save the best model, like `keras.ModelCheckpoint`. Just instantiate it and pass it in to Keras' `model.fit` as a callback.
