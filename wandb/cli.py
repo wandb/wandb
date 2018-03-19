@@ -444,23 +444,6 @@ def init(ctx):
     with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
 
-    config_defaults_path = 'config-defaults.yaml'
-    if not os.path.exists(config_defaults_path):
-        with open(config_defaults_path, 'w') as file:
-            file.write(textwrap.dedent("""\
-                wandb_version: 1
-
-                # Example variables below. Uncomment (remove leading '# ') to use them, or just
-                # delete and create your own.
-
-                # epochs:
-                #   desc: Number of epochs to train over
-                #   value: 100
-                # batch_size:
-                #   desc: Size of each mini-batch
-                #   value: 32
-                """))
-
     click.echo(click.style("This directory is configured!  Next, track a run:\n", fg="green") +
                textwrap.dedent("""\
         * In your training script:
@@ -480,6 +463,35 @@ def init(ctx):
         # push=click.style("wandb push run_id weights.h5", bold=True),
         # pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
+
+
+@cli.group()
+def config():
+    """Manage this projects configuration."""
+    pass
+
+
+@config.command("init", help="Initialize a directory with wandb configuration")
+@display_error
+def config_init():
+    config_defaults_path = 'config-defaults.yaml'
+    if not os.path.exists(config_defaults_path):
+        with open(config_defaults_path, 'w') as file:
+            file.write(textwrap.dedent("""\
+                wandb_version: 1
+
+                # Example variables below. Uncomment (remove leading '# ') to use them, or just
+                # delete and create your own.
+
+                # epochs:
+                #   desc: Number of epochs to train over
+                #   value: 100
+                # batch_size:
+                #   desc: Size of each mini-batch
+                #   value: 32
+                """))
+    click.echo(
+        "Edit config-defaults.yaml with your default configuration parameters.")
 
 
 @cli.command(context_settings=CONTEXT, help="Open documentation in a browser")
