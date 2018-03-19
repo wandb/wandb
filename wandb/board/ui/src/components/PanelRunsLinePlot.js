@@ -214,6 +214,7 @@ class RunsLinePlotPanel extends React.Component {
       this.props.config.aggregate,
       this.props.config.groupBy || 'None',
       this.props.data,
+      this.props.config.yLogScale,
     );
     let title = key;
     if (Query.strategy(this.props.panelQuery) === 'merge') {

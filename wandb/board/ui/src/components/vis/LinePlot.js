@@ -24,6 +24,7 @@ class LinePlotPlot extends React.PureComponent {
     if (xAxis == 'Absolute Time') {
       xType = 'time';
     } else if (xScale == 'log') {
+      // this is not actually implemented
       xType = 'log';
     }
 
@@ -68,9 +69,19 @@ class LinePlotPlot extends React.PureComponent {
             (line, i) =>
               !disabled[line.title] ? (
                 line.area ? (
-                  <AreaSeries key={i} color={line.color} data={line.data} />
+                  <AreaSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    nullAccessor={d => d.y !== null}
+                  />
                 ) : (
-                  <LineSeries key={i} color={line.color} data={line.data} />
+                  <LineSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    nullAccessor={d => d.y !== null}
+                  />
                 )
               ) : null,
           )

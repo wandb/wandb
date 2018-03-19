@@ -222,6 +222,7 @@ class LinePlotPanel extends React.Component {
       selectedEventKeys,
       xAxis,
       this.scaledSmoothness(),
+      this.props.config.yLogScale,
     );
 
     return (

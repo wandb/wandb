@@ -18,8 +18,26 @@ export const xAxisLabels = {
   _timestamp: 'Absolute Time',
 };
 
+function filterNegative(lines) {
+  /**
+   * Iterate over all the lines and remove non-positive values for log scale
+   */
+
+  //TODO: This doesn't handle area graphs
+  return lines.map((line, i) => {
+    let newLine = line;
+    newLine.data = line.data.map(point => {
+      if (point.y <= 0) {
+        point.y = null;
+      }
+      return point;
+    });
+    return newLine;
+  });
+}
+
 export function smooth(data, smoothingWeight) {
-  /* data is array of x/y objects
+  /** data is array of x/y objects
    * x is always an index as this is used, so x-distance between each
    * successive point is equal.
    * 1st-order IIR low-pass filter to attenuate the higher-
@@ -54,14 +72,14 @@ export function smooth(data, smoothingWeight) {
 }
 
 export function smoothLine(lineData, smoothingWeight) {
-  /*
-     * Scale lines by smoothingWeight
-     * smoothingWeight should be between 0 and 1
-     * uses tensorboard's smoothing algorithm
-     * 
-     * Keeps the original lines passed in and adds a new line
-     * with the name of the original line plus -smooth.
-     */
+  /**
+   * Scale lines by smoothingWeight
+   * smoothingWeight should be between 0 and 1
+   * uses tensorboard's smoothing algorithm
+   *
+   * Keeps the original lines passed in and adds a new line
+   * with the name of the original line plus -smooth.
+   */
 
   let smoothLineData = {name: lineData.name + '-smooth', data: []};
   if (smoothingWeight) {
@@ -240,12 +258,16 @@ export function linesFromLineData(
   eventKeys,
   xAxis,
   smoothingWeight,
+  yAxisLog = false,
 ) {
   /**
    * This is to plot data for PanelLinePlot.
    * The object data has data.history (for most metrics) and data.events (for system metrics)
-   * historyKey - list of keys to find in history data structure.
+   * historyKeys - list of keys to find in history data structure.
    * eventKets - list of keys for find in events data structure.
+   * xAxis - (String) - xAxis value
+   * smoothingWeight - (number [0,1])
+   * yAxisLog - is the yaxis log scale - this is to remove non-positive values pre-plot
    */
 
   const maxHistoryKeyCount = 8;
@@ -297,7 +319,11 @@ export function linesFromLineData(
 
   let lines = _.concat(historyLines, eventLines);
 
+  // TODO: The smoothing should probably happen differently if we're in log scale
   lines = smoothLines(lines, smoothingWeight);
+  if (yAxisLog) {
+    lines = filterNegative(lines);
+  }
   return lines;
 }
 
@@ -309,6 +335,7 @@ export function linesFromData(
   aggregate,
   groupBy,
   rawData,
+  yAxisLog = false,
 ) {
   /** Takes in data points and returns lines ready for passing
    * in to react-vis.
@@ -320,6 +347,7 @@ export function linesFromData(
    * aggregate - (Boolean) should we aggregate
    * groupBy - (String or null) what config parameter should we aggregate by
    * rawData - The data from this.props.data TODO: Why do we need this??
+   * yAxisLog - is the yaxis log scale - this is to remove non-positive values pre-plot
    */
 
   if (!data || data.length == 0) {
@@ -390,6 +418,10 @@ export function linesFromData(
   }
 
   lines = smoothLines(lines, smoothingWeight);
+
+  if (yAxisLog) {
+    lines = filterNegative(lines);
+  }
 
   return lines;
 }
