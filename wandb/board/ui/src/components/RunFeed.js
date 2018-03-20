@@ -4,6 +4,7 @@ import {
   Checkbox,
   Icon,
   Image,
+  Label,
   Table,
   Item,
   Popup,
@@ -13,6 +14,7 @@ import {NavLink} from 'react-router-dom';
 import './RunFeed.css';
 import Launcher from '../containers/Launcher';
 import FixedLengthString from '../components/FixedLengthString';
+import Tags from '../components/Tags';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {makeShouldUpdate} from '../util/shouldUpdate';
@@ -256,6 +258,7 @@ class RunFeedRow extends React.Component {
                   <strong>{edge.user && edge.user.username}</strong>
                   {/* edge.host && `on ${edge.host} ` */}
                   {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
+                  <Tags tags={edge.tags}/>
                 </Item.Extra>
                 {admin && <Launcher runId={edge.id} runName={edge.name} />}
               </Item.Content>
@@ -412,7 +415,7 @@ class RunFeed extends PureComponent {
             columnName => this.props.columns[columnName],
           );
     if (!this.props.loading && runsLength === 0) {
-      return <div>No runs match the chosen filters.</div>
+      return <div>No runs match the chosen filters.</div>;
     }
     return (
       <div>

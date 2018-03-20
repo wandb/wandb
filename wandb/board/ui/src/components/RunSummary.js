@@ -10,6 +10,7 @@ import {
 } from 'semantic-ui-react';
 import {NavLink} from 'react-router-dom';
 import Markdown from './Markdown';
+import Tags from './Tags';
 import TimeAgo from 'react-timeago';
 
 /**
@@ -119,8 +120,7 @@ class RunSummary extends Component {
                 {bucket.tags &&
                   bucket.tags.length > 0 && (
                     <span>
-                      tags{' '}
-                      {bucket.tags.map(tag => <Label key={tag}>{tag}</Label>)}{' '}
+                      tags <Tags tags={bucket.tags} />{' '}
                     </span>
                   )}
                 run{' '}
