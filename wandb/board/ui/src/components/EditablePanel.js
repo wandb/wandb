@@ -60,14 +60,15 @@ class EditablePanel extends React.Component {
           <Modal.Actions>
             <Button
               floated="left"
-              negative
               onClick={() => {
                 this.props.removePanel();
                 this.setState({editing: false});
               }}>
               <Icon name="trash" />Delete Chart
             </Button>
-            <Button onClick={() => this.setState({editing: false})}>OK</Button>
+            <Button positive onClick={() => this.setState({editing: false})}>
+              OK
+            </Button>
           </Modal.Actions>
         </Modal>
         <Panel {...this.props} editMode={false} />
