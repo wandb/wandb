@@ -145,6 +145,7 @@ class RunFeedHeader extends React.Component {
         <Table.Row
           style={{
             height: Math.min(longestColumn.length, maxColNameLength) * 8,
+            borderLeft: '1px solid rgba(34,36,38,.15)',
           }}>
           {selectable && <Table.HeaderCell />}
           {columnNames.map(columnName => {
@@ -258,7 +259,7 @@ class RunFeedRow extends React.Component {
                   <strong>{edge.user && edge.user.username}</strong>
                   {/* edge.host && `on ${edge.host} ` */}
                   {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
-                  <Tags tags={edge.tags}/>
+                  <Tags tags={edge.tags} />
                 </Item.Extra>
                 {admin && <Launcher runId={edge.id} runName={edge.name} />}
               </Item.Content>
@@ -422,6 +423,7 @@ class RunFeed extends PureComponent {
         <div className="runsTable">
           <Table
             definition={this.props.selectable}
+            style={{borderLeft: null}}
             celled
             sortable
             compact
