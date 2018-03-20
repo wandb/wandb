@@ -32,10 +32,7 @@ class LinePlotPanel extends React.Component {
     let historyKeys = this.props.data.historyKeys.filter(k => k !== 'examples');
 
     // When not yet configured show the first 8 historyKeys;
-    if (
-      historyKeys &&
-      (_.isNil(this.props.config.lines) || this.props.config.lines.length === 0)
-    ) {
+    if (historyKeys && _.isNil(this.props.config.lines)) {
       return this.props.data.historyKeys.slice(0, 8);
     }
 
@@ -200,6 +197,36 @@ class LinePlotPanel extends React.Component {
     );
   }
 
+  renderErrorChart(message) {
+    return (
+      <div>
+        <div
+          style={{
+            zIndex: 10,
+            position: 'absolute',
+            height: 200,
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <div
+            style={{
+              maxWidth: 300,
+              backgroundColor: 'white',
+              border: '1px dashed #999',
+              padding: 15,
+              color: '#666',
+            }}>
+            <Icon name="line chart" />
+            {message}
+          </div>
+        </div>
+        <LinePlot lines={[]} />
+      </div>
+    );
+  }
+
   renderNormal() {
     let data = this.props.data;
 
@@ -225,74 +252,36 @@ class LinePlotPanel extends React.Component {
       this.props.config.yLogScale,
     );
 
+    if (
+      (!this.props.data.history || this.props.data.history.length == 0) &&
+      (!this.props.data.events || this.props.data.events.length == 0)
+    ) {
+      return this.renderErrorChart(
+        <p>
+          This run doesn't have any history data, so you can't make a history
+          line chart. For more information on how to collect history, check out
+          our documentation at{' '}
+          <a href="http://docs.wandb.com/#history">
+            http://docs.wandb.com/#history
+          </a>.
+        </p>,
+      );
+    }
+    if (selectedMetrics.length == 0) {
+      return this.renderErrorChart(<div>This chart isn't configured yet.</div>);
+    }
+
+    if (lines.every(l => l.data.length == 0)) {
+      return this.renderErrorChart(<div>This chart has no data.</div>);
+    }
+
     return (
-      <div>
-        {(!this.props.data.history || this.props.data.history.length == 0) &&
-          (!this.props.data.events || this.props.data.events.length == 0) && (
-            <div
-              style={{
-                position: 'absolute',
-                height: 100,
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-              <div
-                style={{
-                  zIndex: 10,
-                  maxWidth: 300,
-                  backgroundColor: 'white',
-                  border: '1px dashed #999',
-                  padding: 15,
-                  color: '#666',
-                }}>
-                <Icon name="line chart" />
-                <p>
-                  This run doesn't have any history data, so you can't make a
-                  history line chart. For more information on how to collect
-                  history, check out our documentation at{' '}
-                  <a href="http://docs.wandb.com/#history">
-                    http://docs.wandb.com/#history
-                  </a>.
-                </p>
-              </div>
-            </div>
-          )}
-        {selectedMetrics.length === 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              height: 200,
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <div
-              style={{
-                zIndex: 10,
-                maxWidth: 300,
-                backgroundColor: 'white',
-                border: '1px dashed #999',
-                padding: 15,
-                color: '#666',
-              }}>
-              <p>
-                {' '}
-                <Icon name="line chart" />
-                This chart isn't configured yet.
-              </p>
-            </div>
-          </div>
-        )}
-        <LinePlot
-          lines={lines}
-          xAxis={xAxisLabels[xAxis]}
-          yScale={this.props.config.yLogScale ? 'log' : 'linear'}
-          xScale={this.props.config.xLogScale ? 'log' : 'linear'}
-        />
-      </div>
+      <LinePlot
+        lines={lines}
+        xAxis={xAxisLabels[xAxis]}
+        yScale={this.props.config.yLogScale ? 'log' : 'linear'}
+        xScale={this.props.config.xLogScale ? 'log' : 'linear'}
+      />
     );
   }
 
