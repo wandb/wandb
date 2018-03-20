@@ -24,15 +24,20 @@ class RunFilterEditor extends React.Component {
   }
 
   getValueSuggestions(props) {
-    let options = _.uniq(
-      props.runs.map(run =>
-        sortableValue(getRunValueFromFilterKey(run, props.filterKey)),
-      ),
-    )
-      .filter(v => v)
-      .sort();
-    if (!_.isNil(this.props.filterKey) && this.props.op === '=') {
-      options.unshift('*');
+    let options;
+    if (props.filterKey.section === 'tags') {
+      options = ['true', 'false'];
+    } else {
+      options = _.uniq(
+        props.runs.map(run =>
+          sortableValue(getRunValueFromFilterKey(run, props.filterKey)),
+        ),
+      )
+        .filter(v => v)
+        .sort();
+      if (!_.isNil(this.props.filterKey) && this.props.op === '=') {
+        options.unshift('*');
+      }
     }
     return options.map(option => ({
       key: option,

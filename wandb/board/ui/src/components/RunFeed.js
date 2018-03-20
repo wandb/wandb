@@ -396,7 +396,7 @@ class RunFeed extends PureComponent {
     let /*stats =
         this.props.project &&
         Object.keys(JSONparseNaN(this.props.project.summaryMetrics)).sort(),*/
-      runsLength = this.props.runs && this.props.runs.length,
+      runsLength = this.props.runs ? this.props.runs.length : 0,
       startIndex = (this.props.currentPage - 1) * this.props.limit,
       endIndex = Math.min(startIndex + this.props.limit, runsLength),
       runs =
@@ -411,6 +411,9 @@ class RunFeed extends PureComponent {
         : this.props.columnNames.filter(
             columnName => this.props.columns[columnName],
           );
+    if (!this.props.loading && runsLength === 0) {
+      return <div>No runs match the chosen filters.</div>
+    }
     return (
       <div>
         <div className="runsTable">

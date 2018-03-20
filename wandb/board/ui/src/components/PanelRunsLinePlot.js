@@ -258,7 +258,7 @@ class RunsLinePlotPanel extends React.Component {
     }
     return (
       <div>
-        <h3 style={{display: 'inline'}}>
+        <h4 style={{display: 'inline'}}>
           {title}
           {loading &&
             data.length < maxRuns && (
@@ -269,15 +269,15 @@ class RunsLinePlotPanel extends React.Component {
                 size="small"
               />
             )}
-        </h3>
-        <p style={{float: 'right'}}>
+        </h4>
+        <div style={{float: 'right', marginRight: 10}}>
           {totalRuns > maxRuns && (
             <span>
-              Limited to {maxRuns} of {totalRuns} selected runs{' '}
-              <HelpIcon text="Run history plots are currently limited in the amount of data they can display. You can control runs displayed here by changing your selections." />
+              {/* <HelpIcon text="Run history plots are currently limited in the amount of data they can display. You can control runs displayed here by changing your selections." /> */}
+              Showing {maxRuns} of {totalRuns} selected runs{' '}
             </span>
           )}
-        </p>
+        </div>
         <div style={{clear: 'both'}}>
           {this.props.data.base.length !== 0 &&
             data.length === 0 &&

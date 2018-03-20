@@ -84,7 +84,7 @@ function withDerivedRunsData(WrappedComponent) {
         name: 'RunsDataDerived',
         deep: ['query', 'pageQuery', 'config'],
         ignoreFunctions: true,
-        debug: true,
+        debug: false,
       });
     }
 
@@ -152,75 +152,72 @@ function withDerivedHistoryData(WrappedComponent) {
       super(props);
     }
 
-    _setup(props) {
-      if (!props.historyBuckets) {
-        return;
-      }
-      let runHistory = props.historyBuckets.edges.map(edge => ({
-        name: edge.node.name,
-        history: edge.node.history
-          ? edge.node.history
-              .map((row, i) => {
-                try {
-                  return JSONparseNaN(row);
-                } catch (error) {
-                  console.log(
-                    `WARNING: JSON error parsing history (HistoryLoader). Row: ${i}, Bucket: ${
-                      edge.node.name
-                    }`,
-                  );
-                  return null;
-                }
-              })
-              .filter(row => row !== null)
-          : null,
-      }));
-      this.historyKeys = _.uniq(
-        _.flatMap(
-          _.uniq(
-            _.flatMap(
-              runHistory,
-              o => (o.history ? o.history.map(row => _.keys(row)) : []),
-            ),
-          ),
-        ),
-      );
-      this.runHistories = {
-        loading: props.loading || runHistory.some(o => !o.history),
-        maxRuns: MAX_HISTORIES_LOADED,
-        totalRuns: _.keys(props.selectedRunsById).length,
-        data: runHistory.filter(o => o.history),
-        keys: this.historyKeys,
-      };
-    }
-
-    componentWillMount() {
-      if (!this.props.historyBuckets) {
-        this.data = this.props.data;
-        return;
-      }
-      this._setup(this.props);
-      this.data = {...this.props.data, histories: this.runHistories};
-    }
-
-    componentWillReceiveProps(nextProps) {
-      if (!nextProps.historyBuckets) {
-        this.data = nextProps.data;
-        return;
-      }
-      if (
-        this.props.historyBuckets !== nextProps.historyBuckets ||
-        this.props.loading !== nextProps.loading
-      ) {
-        this._setup(nextProps);
-      }
+    _setup(props, nextProps) {
       if (
         this.props.historyBuckets !== nextProps.historyBuckets ||
         this.props.data !== nextProps.data ||
         this.props.loading !== nextProps.loading
       ) {
-        this.data = {...this.props.data, histories: this.runHistories};
+        if (
+          (nextProps.historyBuckets &&
+            props.historyBuckets !== nextProps.historyBuckets) ||
+          props.loading !== nextProps.loading
+        ) {
+          this.runHistory = nextProps.historyBuckets.edges.map(edge => ({
+            name: edge.node.name,
+            history: edge.node.history
+              ? edge.node.history
+                  .map((row, i) => {
+                    try {
+                      return JSONparseNaN(row);
+                    } catch (error) {
+                      console.log(
+                        `WARNING: JSON error parsing history (HistoryLoader). Row: ${i}, Bucket: ${
+                          edge.node.name
+                        }`,
+                      );
+                      return null;
+                    }
+                  })
+                  .filter(row => row !== null)
+              : null,
+          }));
+          this.historyKeys = _.uniq(
+            _.flatMap(
+              _.uniq(
+                _.flatMap(
+                  this.runHistory,
+                  o => (o.history ? o.history.map(row => _.keys(row)) : []),
+                ),
+              ),
+            ),
+          );
+        }
+        this.runHistories = {
+          loading: nextProps.loading || this.runHistory.some(o => !o.history),
+          maxRuns: MAX_HISTORIES_LOADED,
+          totalRuns: _.keys(nextProps.data.selectedRunsById).length,
+          data: this.runHistory.filter(
+            o => o.history && nextProps.data.selectedRunsById[o.name],
+          ),
+          keys: this.historyKeys,
+        };
+        this.data = {...nextProps.data, histories: this.runHistories};
       }
+    }
+
+    componentWillMount() {
+      this.data = this.props.data;
+      this.runHistory = [];
+      this._setup({}, this.props);
+    }
+
+    componentWillReceiveProps(nextProps) {
+      if (!this.props.historyBuckets) {
+        this.data = nextProps.data;
+        return;
+      }
+      this._setup(this.props, nextProps);
     }
 
     render() {
