@@ -74,14 +74,14 @@ class LinePlotPlot extends React.PureComponent {
                     key={i}
                     color={line.color}
                     data={line.data}
-                    nullAccessor={d => d.y !== null}
+                    getNull={d => d.y !== null}
                   />
                 ) : (
                   <LineSeries
                     key={i}
                     color={line.color}
                     data={line.data}
-                    nullAccessor={d => d.y !== null}
+                    getNull={d => d.y !== null}
                   />
                 )
               ) : null,

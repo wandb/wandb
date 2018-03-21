@@ -15,9 +15,78 @@ const arrMin = arr => arr.reduce((a, b) => Math.min(a, b));
 
 export const xAxisLabels = {
   _step: 'Step',
-  _runtime: 'Relative Time (sec)',
+  _runtime: 'Relative Time',
   _timestamp: 'Absolute Time',
 };
+
+export function xAxisLabel(xAxis, lines) {
+  if (!xAxis) {
+    return 'Step';
+  }
+  if (!lines || lines.length == 0) {
+    return 'Time';
+  }
+  // all timesteps should be the same so we can just look at the first one
+  let timestep = lines[0].timestep;
+  let xAxisLabel = xAxisLabels[xAxis];
+  if (xAxis === '_runtime') {
+    xAxisLabel = 'Time' + (timestep ? ' (' + timestep + ')' : '');
+  }
+
+  return xAxisLabel;
+}
+
+export function appropriateTimestep(lines) {
+  /**
+   * Returns "seconds", "minutes", "hours", "days" depending on the
+   * max values of lines.  Only appropriate if the x axis is relative time.
+   */
+
+  if (!lines || lines.length == 0) {
+    return 'seconds';
+  }
+  let maxTime = 0;
+  lines.map(l => {
+    if (_.last(l.data).x > maxTime) {
+      maxTime = _.last(l.data).x;
+    }
+  });
+
+  if (maxTime < 60 * 3) {
+    return 'seconds';
+  } else if (maxTime < 60 * 60 * 3) {
+    return 'minutes';
+  } else if (maxTime < 60 * 60 * 24 * 3) {
+    return 'hours';
+  } else {
+    return 'days';
+  }
+}
+
+export function convertSecondsToTimestep(
+  lines,
+  timestep = appropriateTimestep(lines),
+) {
+  /**
+   * Converts all ther xAxis values to minutes hors or days by dividing by "factor"
+   */
+  let factor;
+  if (timestep == 'seconds') {
+    return;
+  } else if (timestep == 'minutes') {
+    factor = 60.0;
+  } else if (timestep == 'hours') {
+    factor = 60.0 * 60;
+  } else if (timestep == 'days') {
+    factor = 60.0 * 60 * 24;
+  }
+  lines.map(l => {
+    l.data.map(p => {
+      p.x = p.x / factor;
+    });
+    l.timestep = timestep;
+  });
+}
 
 function filterNegative(lines) {
   /**
@@ -318,6 +387,9 @@ export function linesFromLineData(
   if (yAxisLog) {
     lines = filterNegative(lines);
   }
+  if (xAxis == '_runtime') {
+    convertSecondsToTimestep(lines);
+  }
   return lines;
 }
 
@@ -415,6 +487,10 @@ export function linesFromData(
 
   if (yAxisLog) {
     lines = filterNegative(lines);
+  }
+
+  if (xAxis == '_runtime') {
+    convertSecondsToTimestep(lines);
   }
 
   return lines;

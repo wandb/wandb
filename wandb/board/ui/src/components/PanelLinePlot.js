@@ -4,7 +4,11 @@ import {Form, Grid, Icon, Button} from 'semantic-ui-react';
 import {color} from '../util/colors.js';
 import {registerPanelClass} from '../util/registry.js';
 import LinePlot from '../components/vis/LinePlot';
-import {linesFromLineData, xAxisLabels} from '../util/plotHelpers.js';
+import {
+  linesFromLineData,
+  xAxisLabels,
+  xAxisLabel,
+} from '../util/plotHelpers.js';
 import {displayValue} from '../util/runhelpers.js';
 
 class LinePlotPanel extends React.Component {
@@ -278,7 +282,7 @@ class LinePlotPanel extends React.Component {
     return (
       <LinePlot
         lines={lines}
-        xAxis={xAxisLabels[xAxis]}
+        xAxis={xAxisLabel(xAxis, lines)}
         yScale={this.props.config.yLogScale ? 'log' : 'linear'}
         xScale={this.props.config.xLogScale ? 'log' : 'linear'}
       />

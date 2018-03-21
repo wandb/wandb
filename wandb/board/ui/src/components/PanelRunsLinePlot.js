@@ -7,7 +7,11 @@ import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {registerPanelClass} from '../util/registry.js';
 
-import {linesFromData, xAxisLabels} from '../util/plotHelpers.js';
+import {
+  linesFromData,
+  xAxisLabels,
+  xAxisLabel,
+} from '../util/plotHelpers.js';
 
 import {addFilter} from '../actions/run';
 import * as Query from '../util/query';
@@ -235,6 +239,7 @@ class RunsLinePlotPanel extends React.Component {
     let legendSpec = (this.props.config.legendFields || ['name']).concat([
       'runningIcon',
     ]);
+
     let lines = linesFromData(
       data,
       key,
@@ -367,7 +372,7 @@ class RunsLinePlotPanel extends React.Component {
             </div>
           )}
           <LinePlot
-            xAxis={xAxisLabels[this.props.config.xAxis || '_step']}
+            xAxis={xAxisLabel(this.props.config.xAxis, lines)}
             yScale={this.props.config.yLogScale ? 'log' : 'linear'}
             xScale={this.props.config.xLogScale ? 'log' : 'linear'}
             lines={lines}
