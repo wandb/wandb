@@ -29,16 +29,13 @@ describe('App components test', () => {
   });
 
   // dispatch flash message
-  it('check action before dispatching ', () => {
+  it('check action on dispatching ', () => {
     expect(store.getActions())
       .to.be.an('array')
       .that.not.includes(expectedPayload);
 
     store.dispatch(setFlash(message));
-  });
 
-  // after dispatching
-  it('check action after dispatching ', () => {
     expect(store.getActions())
       .to.be.an('array')
       .that.deep.includes(expectedPayload);
