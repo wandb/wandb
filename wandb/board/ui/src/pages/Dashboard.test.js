@@ -1,7 +1,8 @@
 import React from 'react';
 import MockAppWrapper from '../util/test/mockAppWrapper';
-import {Dashboard} from './Dashboard';
+import DashboardWrapper, {Dashboard} from './Dashboard';
 import {Loader} from 'semantic-ui-react';
+import ViewModifier from '../containers/ViewModifier';
 
 describe('Dashboard page components test', () => {
   const store = mockStore({
@@ -12,13 +13,20 @@ describe('Dashboard page components test', () => {
         },
       },
       views: {
+        browser: {
+          dashboards: {
+            tabs: [],
+          },
+        },
+        server: {
+          dashboards: {},
+        },
         other: {
           dashboards: {},
         },
       },
     }),
     props = {
-      loading: true,
       data: {
         selectedRuns: [],
       },
@@ -32,9 +40,14 @@ describe('Dashboard page components test', () => {
   it('finds <Loader /> component', () => {
     container = mount(
       <MockAppWrapper store={store}>
-        <Dashboard {...props} />
+        <DashboardWrapper {...props} />
       </MockAppWrapper>,
     );
     expect(container.find(Loader)).to.have.length(1);
+  });
+
+  it('shallow Dashboard wrapper component', () => {
+    container = shallow(<DashboardWrapper {...props} />);
+    expect(container.find(Dashboard)).to.have.length(1);
   });
 });
