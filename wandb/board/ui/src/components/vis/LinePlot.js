@@ -68,7 +68,7 @@ class LinePlotPlot extends React.PureComponent {
         />
         <YAxis
           tickValues={nullGraph ? [0, 1, 2] : null}
-          tickFormat={tick => format('.2s')(tick)}
+          tickFormat={tick => format('.2r')(tick)}
         />
 
         {lines
