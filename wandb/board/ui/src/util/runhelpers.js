@@ -158,7 +158,11 @@ export function getRunValue(run, key) {
 
 export function displayFilterKey(filterKey) {
   if (filterKey.section && filterKey.value) {
-    return filterKey.section + ':' + filterKey.value;
+    if (filterKey.section === 'run') {
+      return filterKey.value;
+    } else {
+      return filterKey.section + ':' + filterKey.value;
+    }
   } else {
     return null;
   }
@@ -166,6 +170,9 @@ export function displayFilterKey(filterKey) {
 
 export function filterKeyFromString(s) {
   let [section, name] = s.split(':', 2);
+  if (_.isNil(name)) {
+    return {section: 'run', value: section};
+  }
   return {section: section, value: name};
 }
 
@@ -613,7 +620,12 @@ export function setupKeySuggestions(runs) {
 
 export function flatKeySuggestions(keySuggestions) {
   return _.flatMap(keySuggestions, section =>
-    section.suggestions.map(suggestion => displayFilterKey(suggestion)),
+    section.suggestions.map(
+      suggestion =>
+        section.title === 'run'
+          ? suggestion.value
+          : displayFilterKey(suggestion),
+    ),
   );
 }
 

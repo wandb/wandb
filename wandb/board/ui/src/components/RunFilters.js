@@ -218,9 +218,7 @@ class RunFilter extends React.Component {
                   <span>
                     <span>
                       {this.props.filterKey.section
-                        ? this.props.filterKey.section +
-                          ':' +
-                          this.props.filterKey.value
+                        ? Run.displayFilterKey(this.props.filterKey)
                         : '_'}
                     </span>{' '}
                     <span>{this.props.op ? this.props.op : '_'}</span>{' '}
