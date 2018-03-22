@@ -259,7 +259,17 @@ class RunFeedRow extends React.Component {
                   <strong>{edge.user && edge.user.username}</strong>
                   {/* edge.host && `on ${edge.host} ` */}
                   {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
-                  <Tags tags={edge.tags} />
+                  <Tags
+                    tags={edge.tags}
+                    addFilter={tag =>
+                      this.props.addFilter(
+                        'filter',
+                        {section: 'tags', value: tag},
+                        '=',
+                        'true',
+                      )
+                    }
+                  />
                 </Item.Extra>
                 {admin && <Launcher runId={edge.id} runName={edge.name} />}
               </Item.Content>
@@ -446,6 +456,7 @@ class RunFeed extends PureComponent {
                     loading={this.props.loading}
                     columnNames={columnNames}
                     project={this.props.project}
+                    addFilter={this.props.addFilter}
                   />
                 ))}
             </Table.Body>
@@ -541,7 +552,7 @@ function mapStateToProps() {
 }
 
 const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({toggleRunSelection, setSort}, dispatch);
+  return bindActionCreators({addFilter, toggleRunSelection, setSort}, dispatch);
 };
 
 export default connect(mapStateToProps(), mapDispatchToProps)(RunFeed);
