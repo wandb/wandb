@@ -19,6 +19,95 @@ export const xAxisLabels = {
   _timestamp: 'Absolute Time',
 };
 
+function monotonicIncreasing(arr) {
+  if (arr.length == 0) {
+    return true;
+  }
+  let lastV = arr[0];
+  for (let i = 1; i < arr.length; i++) {
+    if (arr[i] < arr[i - 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function numericKeysFromHistories(histories) {
+  /**
+   * Removed image and other media types from histories object that looks like:
+   * data Array(10)
+   * - history Array(5)
+   * - (0) {_runtime: 17.2080440521, _step: 0, _timestamp: 1521260275.848821, acc: 0.1971153846, epoch: 0, …}
+   * - (1) {_runtime: 30.314109087, _step: 1, _timestamp: 1521260288.954887, acc: 0.3313301282, epoch: 1, …}
+   * ...
+   */
+  let keys = histories.data.map(d => numericKeysFromHistory(d.history));
+  return _.union(...keys);
+}
+
+export function numericKeysFromHistory(history) {
+  /**
+   * Removes the image and other media values from a history object
+   */
+  if (!history || history.length == 0) {
+    return [];
+  }
+  return _.keys(history[0]).filter(k => !history[0][k]._type); // remove images and media
+}
+
+export function xAxisChoices(data) {
+  return monotonicIncreasingNames(data, data.historyKeys);
+}
+
+export function xAxisChoicesRunsPlot(data, keys) {
+  if (!data) {
+    return [];
+  }
+
+  data = data.filter(runData => runData.history && runData.history.length > 2);
+
+  if (data.length == 0) {
+    return [];
+  }
+
+  let monotonicKeys = data.map(runData => {
+    if (!runData.history || runData.history.length == 0) {
+      return [];
+    }
+    let keys = _.keys(runData.history[0]); // we only consider the keys in the first record
+    return monotonicIncreasingNames(runData, keys);
+  });
+
+  return _.intersection(...monotonicKeys);
+}
+
+export function monotonicIncreasingNames(data, historyKeys) {
+  if (!historyKeys) {
+    return [];
+  }
+
+  // ignore images and other media
+  historyKeys = historyKeys.filter(k => !data.history[0][k]._type);
+
+  if (historyKeys.length == 0) {
+    return [];
+  }
+
+  let keysToData = {};
+  historyKeys.map(k => (keysToData[k] = []));
+  data.history.map(h => {
+    _.keys(h).map(k => {
+      if (_.includes(historyKeys, k)) {
+        keysToData[k].push(h[k]);
+      }
+    });
+  });
+
+  return _.keys(keysToData)
+    .filter(k => monotonicIncreasing(keysToData[k]))
+    .filter(k => keysToData[k].length > 2);
+}
+
 export function xAxisLabel(xAxis, lines) {
   if (!xAxis) {
     return 'Step';
@@ -315,7 +404,7 @@ export function aggregateLines(lines, name, idx, bucketData = true) {
   return [line, area];
 }
 
-export function linesFromLineData(
+export function linesFromDataRunPlot(
   data,
   historyKeys,
   eventKeys,
@@ -393,7 +482,7 @@ export function linesFromLineData(
   return lines;
 }
 
-export function linesFromData(
+export function linesFromDataRunsPlot(
   data,
   key,
   xAxis,

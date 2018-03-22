@@ -5,9 +5,10 @@ import {color} from '../util/colors.js';
 import {registerPanelClass} from '../util/registry.js';
 import LinePlot from '../components/vis/LinePlot';
 import {
-  linesFromLineData,
+  linesFromDataRunPlot,
   xAxisLabels,
   xAxisLabel,
+  xAxisChoices,
 } from '../util/plotHelpers.js';
 import {displayValue} from '../util/runhelpers.js';
 
@@ -91,6 +92,18 @@ class LinePlotPanel extends React.Component {
       {text: xAxisLabels['_step'], key: '_step', value: '_step'},
       {text: 'Time', key: '_runtime', value: '_runtime'},
     ];
+
+    let data = this.props.data;
+
+    let newXAxisChoices = xAxisChoices(data);
+
+    newXAxisChoices.filter(key => !key.startsWith('_')).map(xAxisChoice =>
+      xAxisOptions.push({
+        text: xAxisChoice,
+        key: xAxisChoice,
+        value: xAxisChoice,
+      }),
+    );
 
     let yAxisOptions = yAxisKeys
       .filter(key => !key.startsWith('_'))
@@ -247,7 +260,7 @@ class LinePlotPanel extends React.Component {
     let selectedEventKeys = this._selectedEventKeys();
     let selectedMetrics = _.concat(selectedHistoryKeys, selectedEventKeys);
 
-    let lines = linesFromLineData(
+    let lines = linesFromDataRunPlot(
       data,
       selectedHistoryKeys,
       selectedEventKeys,
