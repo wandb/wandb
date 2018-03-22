@@ -21,7 +21,7 @@ onmessage = function(m) {
     runs = updateRuns(prevBuckets, buckets, runs);
   }
   let filteredRuns = sortRuns(query.sort, filterRuns(query.filters, runs));
-  let keySuggestions = setupKeySuggestions(filteredRuns);
+  let keySuggestions = setupKeySuggestions(runs);
   let filteredRunsById = {};
   for (var run of filteredRuns) {
     filteredRunsById[run.name] = run;

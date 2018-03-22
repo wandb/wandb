@@ -25,51 +25,65 @@ class RunFilterEditor extends React.Component {
     this.setupValueSuggestions(this.props);
   }
 
+  displayValue(value) {
+    if (this.props.filterKey.section === 'tags') {
+      return value === 'true' ? 'Set' : 'Unset';
+    } else {
+      return Run.displayValue(value);
+    }
+  }
+
   setupValueSuggestions(props) {
     let valueCounts = this.keyValueCounts[
       Run.displayFilterKey(this.props.filterKey)
     ];
     if (valueCounts) {
-      if (props.op === '=') {
+      if (this.props.filterKey.section === 'tags') {
+        // We want true before false
+        valueCounts = [...valueCounts].reverse();
+      } else if (props.op === '=') {
         valueCounts = [{value: '*'}, ...valueCounts];
       }
-      this.valueSuggestions = valueCounts.map(({value, count}) => ({
-        key: value,
-        text: value,
-        content: (
-          <span
-            style={{
-              display: 'inline-block',
-              width: '100%',
-            }}
-            key={{value}}>
+      this.valueSuggestions = valueCounts.map(({value, count}) => {
+        let displayVal = this.displayValue(value);
+        return {
+          key: value,
+          text: displayVal,
+          content: (
             <span
               style={{
                 display: 'inline-block',
-                whitespace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
-              {Run.displayValue(value)}
-            </span>
-            {!_.isNil(count) && (
+                width: '100%',
+              }}
+              key={{value}}>
               <span
                 style={{
-                  width: 60,
-                  fontStyle: 'italic',
                   display: 'inline-block',
-                  float: 'right',
                   whitespace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}>
-                ({count} {count === 1 ? 'run' : 'runs'})
+                {displayVal}
               </span>
-            )}
-          </span>
-        ),
-        value: value,
-      }));
+              {!_.isNil(count) && (
+                <span
+                  style={{
+                    width: 60,
+                    fontStyle: 'italic',
+                    display: 'inline-block',
+                    float: 'right',
+                    whitespace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                  ({count} {count === 1 ? 'run' : 'runs'})
+                </span>
+              )}
+            </span>
+          ),
+          value: value,
+        };
+      });
       if (!this.props.value && this.valueSuggestions.length > 0) {
         this.props.setFilterComponent(
           this.props.kind,
@@ -108,21 +122,23 @@ class RunFilterEditor extends React.Component {
             }}
           />
         </Form.Field>
-        <Form.Field>
-          <Select
-            options={operators}
-            placeholder={'operator'}
-            value={this.props.op}
-            onChange={(e, {value}) => {
-              this.props.setFilterComponent(
-                this.props.kind,
-                this.props.id,
-                'op',
-                value,
-              );
-            }}
-          />
-        </Form.Field>
+        {this.props.filterKey.section !== 'tags' && (
+          <Form.Field>
+            <Select
+              options={operators}
+              placeholder={'operator'}
+              value={this.props.op}
+              onChange={(e, {value}) => {
+                this.props.setFilterComponent(
+                  this.props.kind,
+                  this.props.id,
+                  'op',
+                  value,
+                );
+              }}
+            />
+          </Form.Field>
+        )}
         {this.props.op === '=' || this.props.op === '!=' ? (
           <Form.Field>
             <Dropdown
@@ -194,17 +210,28 @@ class RunFilter extends React.Component {
               style={{marginRight: 12, marginTop: 8}}
               size="tiny">
               <Button className="filter" id={'runFilterViewer' + this.props.id}>
-                <span>
-                  {this.props.filterKey.section
-                    ? this.props.filterKey.section +
-                      ':' +
-                      this.props.filterKey.value
-                    : '_'}
-                </span>{' '}
-                <span>{this.props.op ? this.props.op : '_'}</span>{' '}
-                <span>
-                  {this.props.value ? Run.displayValue(this.props.value) : '_'}
-                </span>
+                {this.props.filterKey.section === 'tags' ? (
+                  <span>
+                    tags:{this.props.filterKey.value} is{' '}
+                    {this.props.value === 'true' ? 'Set' : 'Unset'}
+                  </span>
+                ) : (
+                  <span>
+                    <span>
+                      {this.props.filterKey.section
+                        ? this.props.filterKey.section +
+                          ':' +
+                          this.props.filterKey.value
+                        : '_'}
+                    </span>{' '}
+                    <span>{this.props.op ? this.props.op : '_'}</span>{' '}
+                    <span>
+                      {this.props.value
+                        ? Run.displayValue(this.props.value)
+                        : '_'}
+                    </span>
+                  </span>
+                )}
               </Button>
               <Button
                 negative

@@ -61,7 +61,7 @@ class Runs extends React.Component {
       props.runSelections !== nextProps.runSelections ||
       props.activeView !== nextProps.activeView
     ) {
-      let query = queryString.parse(window.location.search) || {};
+      let query = {};
       if (!_.isEmpty(nextProps.runFilters)) {
         query.filter = _.values(nextProps.runFilters)
           .filter(filter => filter.key.section)
