@@ -50,7 +50,9 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   renderConfig() {
-    // LB note this probably be moved to RunsDataLoader
+    // LB note this maybe should move to RunsDataLoader?
+    // the point of this is to remove histories that aren't numerical (images)
+    // and special histories that start with _
     let keys = numericKeysFromHistories(this.props.data.histories).filter(
       key => !key.startsWith('_'),
     );
@@ -69,13 +71,16 @@ class RunsLinePlotPanel extends React.Component {
     let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
 
     let newXAxisChoices = xAxisChoicesRunsPlot(data);
-    newXAxisChoices.filter(key => !key.startsWith('_')).map(xAxisChoice =>
-      xAxisOptions.push({
-        text: xAxisChoice,
-        key: xAxisChoice,
-        value: xAxisChoice,
-      }),
-    );
+    newXAxisChoices
+      .filter(key => !key.startsWith('_'))
+      .filter(key => !(key === 'epoch'))
+      .map(xAxisChoice =>
+        xAxisOptions.push({
+          text: xAxisChoice,
+          key: xAxisChoice,
+          value: xAxisChoice,
+        }),
+      );
 
     let groupByOptions = {};
     let disabled = this.props.data.histories.data.length === 0;

@@ -76,7 +76,7 @@ class LinePlotPanel extends React.Component {
 
   _xAxis() {
     // Return the xAxis to use.
-    let xAxis = this.props.config.xAxis || '_runtime';
+    let xAxis = this.props.config.xAxis || '_step';
     if (this._selectedEventKeys().length > 0) {
       xAxis = '_runtime';
     }
@@ -95,7 +95,9 @@ class LinePlotPanel extends React.Component {
 
     let data = this.props.data;
 
-    let newXAxisChoices = xAxisChoices(data);
+    // LB I manually filter the keyword "epoch" from the xAxis options
+    // How does it get in there?
+    let newXAxisChoices = xAxisChoices(data).filter(key => !key === 'epoch');
 
     newXAxisChoices.filter(key => !key.startsWith('_')).map(xAxisChoice =>
       xAxisOptions.push({
@@ -105,8 +107,11 @@ class LinePlotPanel extends React.Component {
       }),
     );
 
+    // LB I manually filter the keyword "epoch" from the yAxis options
+    // How does it get in there?
     let yAxisOptions = yAxisKeys
       .filter(key => !key.startsWith('_'))
+      .filter(key => !(key === 'epoch'))
       .map(key => ({
         key: key,
         value: key,
@@ -219,7 +224,6 @@ class LinePlotPanel extends React.Component {
       <div>
         <div
           style={{
-            zIndex: 10,
             position: 'absolute',
             height: 200,
             width: '100%',
@@ -260,6 +264,7 @@ class LinePlotPanel extends React.Component {
     let selectedEventKeys = this._selectedEventKeys();
     let selectedMetrics = _.concat(selectedHistoryKeys, selectedEventKeys);
 
+    // TODO: Pick better defaults
     let lines = linesFromDataRunPlot(
       data,
       selectedHistoryKeys,
