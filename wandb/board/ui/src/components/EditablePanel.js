@@ -54,7 +54,7 @@ class EditablePanel extends React.Component {
             />
           }>
           <Modal.Header>Edit Panel</Modal.Header>
-          <Modal.Content style={{padding: 16}} scrolling>
+          <Modal.Content style={{padding: 16}}>
             <Panel {...this.props} editMode={true} />
           </Modal.Content>
           <Modal.Actions>
