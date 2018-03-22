@@ -15,6 +15,11 @@ const localStorageMock = {
   clear: jest.fn(),
 };
 
+const RunsDataWorkerMock = function() {
+  this.onmessage = jest.fn();
+  this.postMessage = jest.fn();
+};
+
 global.sinon = sinon;
 global.shallow = shallow;
 global.render = render;
@@ -22,3 +27,4 @@ global.mount = mount;
 global.expect = expect;
 global.mockStore = configureStore();
 global.localStorage = localStorageMock;
+global.RunsDataWorkerMock = RunsDataWorkerMock;
