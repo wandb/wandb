@@ -200,7 +200,6 @@ class RunFilter extends React.Component {
   }
 
   render() {
-    console.log('render runfilter with keys', this.props.keys);
     return (
       <Popup
         trigger={
@@ -286,7 +285,6 @@ export default class RunFilters extends React.Component {
     } = this.props;
     let filterIDs = _.keys(filters).sort();
     let filterKeys = Run.flatKeySuggestions(this.props.keySuggestions);
-    console.log('RunFilters keys', filterKeys);
     return (
       <div>
         <div

@@ -184,7 +184,6 @@ class Runs extends React.Component {
     this.setState({activeTab: activeIndex});
 
   render() {
-    console.log('render Runs', this.props.data.keys);
     let ModelInfo = this.props.ModelInfo;
     return (
       <Container>

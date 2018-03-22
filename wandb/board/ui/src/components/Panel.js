@@ -126,6 +126,7 @@ export default class Panel extends React.Component {
                 setQuery={this.props.updateQuery}
                 runs={this.props.data.base}
                 keySuggestions={this.props.data.keys}
+                filteredRuns={this.props.data.filtered}
               />
             )}
           {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
