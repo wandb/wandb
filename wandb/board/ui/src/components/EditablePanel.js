@@ -43,7 +43,7 @@ class EditablePanel extends React.Component {
         }}>
         <Modal
           open={this.state.editing}
-          dimmer={false}
+          dimmer="blurring"
           trigger={
             <Icon
               style={{backgroundColor: 'white'}}
@@ -54,7 +54,7 @@ class EditablePanel extends React.Component {
             />
           }>
           <Modal.Header>Edit Panel</Modal.Header>
-          <Modal.Content style={{padding: 16}}>
+          <Modal.Content style={{padding: 16}} scrolling>
             <Panel {...this.props} editMode={true} />
           </Modal.Content>
           <Modal.Actions>
