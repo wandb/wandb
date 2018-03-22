@@ -23,7 +23,13 @@ import {JSONparseNaN} from '../util/jsonnan';
 import * as Query from '../util/query';
 import _ from 'lodash';
 
-let RunsDataWorker = require('worker-loader!./workers/RunsDataDerived.js');
+// TODO: imporve this hack
+let RunsDataWorker;
+try {
+  let RunsDataWorker = require('worker-loader!./workers/RunsDataDerived.js');
+} catch (e) {
+  RunsDataWorker = RunsDataWorkerMock;
+}
 
 // Load the graphql data for this panel, currently loads all data for this project and entity.
 function withRunsData() {
