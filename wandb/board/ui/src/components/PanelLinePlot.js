@@ -9,6 +9,7 @@ import {
   xAxisLabels,
   xAxisLabel,
   xAxisChoices,
+  friendlyMetricDefaults,
 } from '../util/plotHelpers.js';
 import {displayValue} from '../util/runhelpers.js';
 
@@ -33,12 +34,11 @@ class LinePlotPanel extends React.Component {
      * Return the currently selected keys with values in data.history
      */
 
-    // L.B question: When does a historyKey have a key named examples?  Can we remove this?
-    let historyKeys = this.props.data.historyKeys.filter(k => k !== 'examples');
+    let historyKeys = this.props.data.historyKeys;
 
-    // When not yet configured show the first 8 historyKeys;
+    // When not yet configured show friendly defaults
     if (historyKeys && _.isNil(this.props.config.lines)) {
-      return this.props.data.historyKeys.slice(0, 8);
+      return friendlyMetricDefaults(historyKeys);
     }
 
     if (!this.props.config.lines) {

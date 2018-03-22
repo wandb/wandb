@@ -32,6 +32,38 @@ function monotonicIncreasing(arr) {
   return true;
 }
 
+export function friendlyMetricDefaults(metricNames) {
+  /**
+   * Friendly logic
+   * 1) If there is a metric named acc use that along with metric val_acc if there.  This makes it work nicely with keras defaults.
+   * 2) Otherwise, if there are metrics with the name "loss" use the first four of them
+   * 3) Otherwise, if there is a metric with the name "accuracy" use that
+   * 4) Otherwise pick the first four not named epoch or starting with _
+   */
+  let metrics = [];
+  if (metricNames.filter(m => m === 'acc').length > 0) {
+    metrics.push('acc');
+    if (metricNames.filter(m => m === 'val_acc').length > 0) {
+      metrics.push('val_acc');
+    }
+    return metrics;
+  }
+
+  if (metricNames.filter(m => /loss/i.test(m)).length > 0) {
+    return metricNames.filter(m => /loss/i.test(m)).slice(0, 4);
+  }
+
+  if (metricNames.filter(m => /accuracy/i.test(m)).length > 0) {
+    return metricNames.filter(m => /accuracy/i.test(m)).slice(0, 4);
+  }
+
+  return metricNames
+    .filter(m => !m.startsWith('_'))
+    .filter(m => m !== 'examples')
+    .filter(m => m !== 'epoch')
+    .slice(0, 4);
+}
+
 export function numericKeysFromHistories(histories) {
   /**
    * Removed image and other media types from histories object that looks like:
