@@ -8,9 +8,11 @@ import LinePlot from '../components/vis/LinePlot';
 import {registerPanelClass} from '../util/registry.js';
 
 import {
-  linesFromData,
+  linesFromDataRunsPlot,
   xAxisLabels,
   xAxisLabel,
+  xAxisChoicesRunsPlot,
+  numericKeysFromHistories,
 } from '../util/plotHelpers.js';
 
 import {addFilter} from '../actions/run';
@@ -48,7 +50,10 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   renderConfig() {
-    let {keys} = this.props.data.histories;
+    // LB note this probably be moved to RunsDataLoader
+    let keys = numericKeysFromHistories(this.props.data.histories).filter(
+      key => !key.startsWith('_'),
+    );
     let yAxisOptions = keys.map(key => ({
       key: key,
       value: key,
@@ -60,6 +65,18 @@ class RunsLinePlotPanel extends React.Component {
       {text: xAxisLabels['_runtime'], key: '_runtime', value: '_runtime'},
       {text: xAxisLabels['_timestamp'], key: '_timestamp', value: '_timestamp'},
     ];
+
+    let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
+
+    let newXAxisChoices = xAxisChoicesRunsPlot(data);
+    newXAxisChoices.filter(key => !key.startsWith('_')).map(xAxisChoice =>
+      xAxisOptions.push({
+        text: xAxisChoice,
+        key: xAxisChoice,
+        value: xAxisChoice,
+      }),
+    );
+
     let groupByOptions = {};
     let disabled = this.props.data.histories.data.length === 0;
 
@@ -240,7 +257,7 @@ class RunsLinePlotPanel extends React.Component {
       'runningIcon',
     ]);
 
-    let lines = linesFromData(
+    let lines = linesFromDataRunsPlot(
       data,
       key,
       this.props.config.xAxis || '_step',

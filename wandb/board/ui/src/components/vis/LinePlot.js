@@ -13,6 +13,7 @@ import {
 } from 'react-vis';
 import {truncateString, displayValue} from '../../util/runhelpers.js';
 import {smartNames} from '../../util/plotHelpers.js';
+import {format} from 'd3-format';
 
 class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
@@ -52,6 +53,7 @@ class LinePlotPlot extends React.PureComponent {
 
     return (
       <FlexibleWidthXYPlot
+        margin={{left: 50}}
         animation={smallGraph}
         yType={yScale}
         xType={xType}
@@ -61,9 +63,13 @@ class LinePlotPlot extends React.PureComponent {
         <XAxis
           title={xAxis}
           tickTotal={5}
-          tickValues={smallGraph ? _.range(0, smallSizeThresh) : null}
+          tickValues={smallGraph ? _.range(1, smallSizeThresh) : null}
+          tickFormat={tick => format('.2s')(tick)}
         />
-        <YAxis tickValues={nullGraph ? [0, 1, 2] : null} />
+        <YAxis
+          tickValues={nullGraph ? [0, 1, 2] : null}
+          tickFormat={tick => format('.2s')(tick)}
+        />
 
         {lines
           .map(
@@ -81,7 +87,7 @@ class LinePlotPlot extends React.PureComponent {
                     key={i}
                     color={line.color}
                     data={line.data}
-                    getNull={d => d.y !== null}
+                    nullAccessor={d => d.y !== null}
                   />
                 )
               ) : null,
