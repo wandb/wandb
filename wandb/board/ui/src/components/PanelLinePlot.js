@@ -195,10 +195,6 @@ class LinePlotPanel extends React.Component {
                     : 'None'}
                 </label>
                 <input
-                  disabled={
-                    !this.props.config.lines ||
-                    this.props.config.lines.length == 0
-                  }
                   type="range"
                   min={0}
                   max={1}
@@ -264,7 +260,6 @@ class LinePlotPanel extends React.Component {
     let selectedEventKeys = this._selectedEventKeys();
     let selectedMetrics = _.concat(selectedHistoryKeys, selectedEventKeys);
 
-    // TODO: Pick better defaults
     let lines = linesFromDataRunPlot(
       data,
       selectedHistoryKeys,
