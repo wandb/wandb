@@ -213,7 +213,7 @@ function withDerivedHistoryData(WrappedComponent) {
     }
 
     componentWillReceiveProps(nextProps) {
-      if (!this.props.historyBuckets) {
+      if (!nextProps.historyBuckets) {
         this.data = nextProps.data;
         return;
       }
