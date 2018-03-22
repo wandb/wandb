@@ -63,7 +63,9 @@ class Runs extends React.Component {
     ) {
       let query = queryString.parse(window.location.search) || {};
       if (!_.isEmpty(nextProps.runFilters)) {
-        query.filter = _.values(nextProps.runFilters).map(filterToString);
+        query.filter = _.values(nextProps.runFilters)
+          .filter(filter => filter.key.section)
+          .map(filterToString);
       }
       if (!_.isEmpty(nextProps.runSelections)) {
         query.select = _.values(nextProps.runSelections).map(filterToString);
@@ -182,6 +184,7 @@ class Runs extends React.Component {
     this.setState({activeTab: activeIndex});
 
   render() {
+    console.log('render Runs', this.props.data.keys);
     let ModelInfo = this.props.ModelInfo;
     return (
       <Container>
@@ -238,6 +241,7 @@ class Runs extends React.Component {
                         buttonText="Add Filter"
                         keySuggestions={this.props.data.keys}
                         runs={this.props.data.base}
+                        filteredRuns={this.props.data.filtered}
                       />
                     </Grid.Column>
                   </Grid.Row>
@@ -254,6 +258,7 @@ class Runs extends React.Component {
                         buttonText="Add Selection"
                         keySuggestions={this.props.data.keys}
                         runs={this.props.data.base}
+                        filteredRuns={this.props.data.filtered}
                       />
                     </Grid.Column>
                   </Grid.Row>
@@ -281,7 +286,12 @@ class Runs extends React.Component {
           <Grid.Column width={16} style={{zIndex: 2}}>
             <Popup
               trigger={
-                <Button floated="right" icon="columns" content="Columns" />
+                <Button
+                  disabled={this.props.loading}
+                  floated="right"
+                  icon="columns"
+                  content="Columns"
+                />
               }
               content={
                 <RunColumnsSelector columnNames={this.props.data.columnNames} />
@@ -293,6 +303,7 @@ class Runs extends React.Component {
               <Button
                 floated="right"
                 content="Add Charts"
+                disabled={this.props.loading}
                 icon="area chart"
                 onClick={() => this.props.addView('runs', 'New View', [])}
               />

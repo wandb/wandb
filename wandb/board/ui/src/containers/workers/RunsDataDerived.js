@@ -1,6 +1,7 @@
 import {
   displayFilterKey,
   updateRuns,
+  flatKeySuggestions,
   setupKeySuggestions,
   filterRuns,
   sortRuns,
@@ -19,8 +20,8 @@ onmessage = function(m) {
   } else {
     runs = updateRuns(prevBuckets, buckets, runs);
   }
-  let keySuggestions = setupKeySuggestions(runs);
   let filteredRuns = sortRuns(query.sort, filterRuns(query.filters, runs));
+  let keySuggestions = setupKeySuggestions(filteredRuns);
   let filteredRunsById = {};
   for (var run of filteredRuns) {
     filteredRunsById[run.name] = run;
@@ -44,14 +45,15 @@ onmessage = function(m) {
   });
 
   let columnNames = getColumns(runs);
-  postMessage({
+  let data = {
     base: runs,
     filtered: filteredRuns,
-    filteredRunsById: filteredRunsById,
-    selectedRuns: selectedRuns,
-    selectedRunsById: selectedRunsById,
+    filteredRunsById,
+    selectedRuns,
+    selectedRunsById,
     keys: keySuggestions,
-    axisOptions: axisOptions,
-    columnNames: columnNames,
-  });
+    axisOptions,
+    columnNames,
+  };
+  postMessage(data);
 };

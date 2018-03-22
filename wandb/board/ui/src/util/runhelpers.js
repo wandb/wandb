@@ -66,7 +66,7 @@ export function fuzzyMatch(strings, matchStr) {
     regexpStr += matchStr.charAt(i);
     regexpStr += '.*';
   }
-  var regexp = new RegExp(regexpStr);
+  var regexp = new RegExp(regexpStr, 'i');
   return strings.filter(str => str.match(regexp));
 }
 
@@ -74,7 +74,7 @@ export function fuzzyMatch(strings, matchStr) {
 export function fuzzyMatchHighlight(
   str,
   matchStr,
-  matchStyle = {color: 'blue'},
+  matchStyle = {backgroundColor: 'yellow'},
 ) {
   if (!matchStr) {
     return str;
@@ -157,7 +157,11 @@ export function getRunValue(run, key) {
 }
 
 export function displayFilterKey(filterKey) {
-  return filterKey.section + ':' + filterKey.value;
+  if (filterKey.section && filterKey.value) {
+    return filterKey.section + ':' + filterKey.value;
+  } else {
+    return null;
+  }
 }
 
 export function filterKeyFromString(s) {
@@ -207,6 +211,9 @@ export function filtersForAxis(filters, axis) {
 export function filterRuns(filters, runs) {
   for (var filterID of _.keys(filters)) {
     let filter = filters[filterID];
+    if (!filter.key.section) {
+      continue;
+    }
     runs = runs.filter(run =>
       runFilterCompare(
         filter.op,
@@ -575,10 +582,12 @@ export function setupKeySuggestions(runs) {
     },
     {
       title: 'tags',
-      suggestions: _.sortedUniq(_.flatMap(runs, run => run.tags)).map(tag => ({
-        section: 'tags',
-        value: tag,
-      })),
+      suggestions: _.uniq(_.flatMap(runs, run => run.tags))
+        .sort()
+        .map(tag => ({
+          section: 'tags',
+          value: tag,
+        })),
     },
     {
       title: 'sweep',
@@ -604,12 +613,29 @@ export function setupKeySuggestions(runs) {
 
 export function flatKeySuggestions(keySuggestions) {
   return _.flatMap(keySuggestions, section =>
-    section.suggestions.map(
-      suggestion =>
-        suggestion.section === 'run'
-          ? suggestion.value
-          : suggestion.section + ':' + suggestion.value,
-    ),
+    section.suggestions.map(suggestion => displayFilterKey(suggestion)),
+  );
+}
+
+export function setupKeyValueCounts(runs, keys, filters) {
+  runs = filterRuns(filters, runs);
+  let result = {};
+  for (let key of keys) {
+    let keyResult = {};
+    for (let run of runs) {
+      let value = getRunValue(run, key);
+      let valueKey = sortableValue(value);
+      if (_.isNil(keyResult[valueKey])) {
+        keyResult[valueKey] = {value: valueKey, count: 0};
+      }
+      keyResult[valueKey].count++;
+    }
+    result[key] = keyResult;
+  }
+  return _.mapValues(result, valCounts =>
+    _.sortBy(_.map(valCounts, val => val).filter(val => !_.isNil(val.value)), [
+      'value',
+    ]),
   );
 }
 
