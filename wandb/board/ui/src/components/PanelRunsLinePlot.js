@@ -369,7 +369,6 @@ class RunsLinePlotPanel extends React.Component {
           {_.isNil(this.props.config.key) && (
             <div
               style={{
-                zIndex: 10,
                 position: 'absolute',
                 height: 200,
                 width: '100%',
