@@ -26,7 +26,7 @@ import _ from 'lodash';
 // TODO: imporve this hack
 let RunsDataWorker;
 try {
-  let RunsDataWorker = require('worker-loader!./workers/RunsDataDerived.js');
+  RunsDataWorker = require('worker-loader!./workers/RunsDataDerived.js');
 } catch (e) {
   RunsDataWorker = RunsDataWorkerMock;
 }
