@@ -110,7 +110,6 @@ export default class Panel extends React.Component {
               options={options}
               value={type}
               onChange={(e, {value}) => {
-                console.log('onchange', value);
                 this.props.updateType(value);
               }}
               style={{marginBottom: 12, zIndex: 21}}
