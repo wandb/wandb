@@ -122,6 +122,7 @@ export default class Panel extends React.Component {
               <QueryEditor
                 pageQuery={this.props.pageQuery}
                 panelQuery={this.props.panelQuery}
+                allFilters={this.props.query.filters}
                 allowProjectChange={this.props.viewType === 'dashboards'}
                 setQuery={this.props.updateQuery}
                 runs={this.props.data.base}

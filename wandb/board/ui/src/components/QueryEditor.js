@@ -79,6 +79,7 @@ class QueryEditor extends React.Component {
               <label>Filters</label>
               <RunFilters
                 filters={this.filters}
+                allFilters={this.props.allFilters}
                 runs={runs}
                 filteredRuns={this.props.filteredRuns}
                 keySuggestions={keySuggestions}

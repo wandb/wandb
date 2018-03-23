@@ -52,9 +52,11 @@ class LinePlotPlot extends React.PureComponent {
     }
 
     return (
+      // SML: I turned off animation, it was making stuff uncomfortably slow even
+      // with the smallGraph detection.
       <FlexibleWidthXYPlot
         margin={{left: 50}}
-        animation={smallGraph}
+        animation={false}
         yType={yScale}
         xType={xType}
         height={height}>

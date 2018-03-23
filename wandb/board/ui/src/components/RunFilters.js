@@ -92,6 +92,8 @@ class RunFilterEditor extends React.Component {
           this.valueSuggestions[0].value,
         );
       }
+    } else {
+      this.valueSuggestions = [];
     }
   }
 
@@ -194,14 +196,44 @@ class RunFilter extends React.Component {
         1,
       );
     }
+    this.fixupDimmer();
   }
   componentWillUnmount() {
     this.props.editFilter(null);
   }
 
+  innerDivRef = ref => {
+    console.log('INNER DIV REF', ref);
+    this._innerDiv = ref;
+    this.fixupDimmer();
+  };
+
+  fixupDimmer() {
+    // The Edit Panel Modal uses a Semantic React UI Dimmer,
+    // which blurs everything that is a direct descendent of body, except
+    // elements that have a 'dimmer' class. Popup is created inside of a Portal,
+    // but we don't get access to the Portal's dom node. We have to go two
+    // levels down and create a div that we can get access to. Something seems
+    // to clear the class if we add it on this pass of the event loop, so we
+    // use setTimeout.
+    console.log('Fixing up dimmer', this._innerDiv);
+    setTimeout(() => {
+      if (this._innerDiv && this._innerDiv.parentElement) {
+        this._portal = this._innerDiv.parentElement.parentElement;
+        this._portal.className = 'dimmer';
+        this._portal.style = 'position: static';
+      }
+    }, 0);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    this.fixupDimmer();
+  }
+
   render() {
     return (
       <Popup
+        onMount={this.fixupDimmer}
         trigger={
           <span>
             <Button.Group
@@ -245,18 +277,20 @@ class RunFilter extends React.Component {
         }
         on="click"
         content={
-          <RunFilterEditor
-            runs={this.props.runs}
-            kind={this.props.kind}
-            id={this.props.id}
-            filterKey={this.props.filterKey}
-            op={this.props.op}
-            value={this.props.value}
-            keys={this.props.keys}
-            otherFilters={this.props.otherFilters}
-            editFilter={this.props.editFilter}
-            setFilterComponent={this.props.setFilterComponent}
-          />
+          <div ref={this.innerDivRef}>
+            <RunFilterEditor
+              runs={this.props.runs}
+              kind={this.props.kind}
+              id={this.props.id}
+              filterKey={this.props.filterKey}
+              op={this.props.op}
+              value={this.props.value}
+              keys={this.props.keys}
+              otherFilters={this.props.otherFilters}
+              editFilter={this.props.editFilter}
+              setFilterComponent={this.props.setFilterComponent}
+            />
+          </div>
         }
         open={this.props.editing}
         onOpen={() => this.props.editFilter(this.props.id)}
@@ -274,6 +308,7 @@ export default class RunFilters extends React.Component {
   render() {
     let {
       filters,
+      allFilters,
       kind,
       runs,
       addFilter,
@@ -281,6 +316,9 @@ export default class RunFilters extends React.Component {
       setFilterComponent,
       buttonText,
     } = this.props;
+    if (!allFilters) {
+      allFilters = filters;
+    }
     let filterIDs = _.keys(filters).sort();
     let filterKeys = Run.flatKeySuggestions(this.props.keySuggestions);
     return (
@@ -300,7 +338,7 @@ export default class RunFilters extends React.Component {
                 op={filter.op}
                 value={filter.value}
                 keys={filterKeys}
-                otherFilters={update(filters, {$unset: [filterID]})}
+                otherFilters={update(allFilters, {$unset: [filterID]})}
                 editing={this.state.editingFilter === filter.id}
                 editFilter={id => this.setState({editingFilter: id})}
                 deleteFilter={deleteFilter}

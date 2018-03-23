@@ -10,7 +10,6 @@ import {
   Modal,
 } from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
-import QueryEditor from '../components/QueryEditor';
 import {filterRuns, sortRuns} from '../util/runhelpers.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';

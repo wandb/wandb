@@ -56,16 +56,17 @@ export function merge(base, apply) {
   result.entity = apply.entity || base.entity;
   result.model = apply.model || base.model;
 
-  // base and apply may share keys, so we rekey
+  // base and apply may share keys, so we rekey.
+  // RunFilters needs to be able to remove individual
+  // filters (to compute keyValCounts) for the filters that
+  // it's managing, so it's important to leave the keys alone
+  // for the apply.filters.
   result.filters = {};
-  let filterIndex = 0;
   for (var key of _.keys(base.filters)) {
-    result.filters[filterIndex] = base.filters[key];
-    filterIndex++;
+    result.filters['base' + key] = base.filters[key];
   }
   for (var key of _.keys(apply.filters)) {
-    result.filters[filterIndex] = apply.filters[key];
-    filterIndex++;
+    result.filters[key] = apply.filters[key];
   }
 
   // TODO: probably not the right thing to do
