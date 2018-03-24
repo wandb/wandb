@@ -525,16 +525,12 @@ function mapStateToProps() {
   return function(state, ownProps) {
     const id = ownProps.project.id;
     if (state.runs.columns !== prevColumns || ownProps.runs !== prevRuns) {
-      prevColumns = state.runs.columns;
-      prevRuns = ownProps.runs;
       if (state.runs.columns['_ConfigAuto']) {
-        // Only update the autoCols when the total amount of runs goes down
-        // (i.e. the user is performing a filtering operation). This could
-        // cause us to be incorrect if individual runs config columns are
-        // being updated by subscriptions.
+        // We only update auto columns if runs length changes, as a performance
+        // optimization. TODO: do a better check here.
         if (
           _.keys(autoCols).length < 10 ||
-          ownProps.runs.length < prevRuns.length
+          ownProps.runs.length !== prevRuns.length
         ) {
           autoCols = autoConfigCols(ownProps.runs);
         }
@@ -542,6 +538,8 @@ function mapStateToProps() {
       } else {
         cols = state.runs.columns;
       }
+      prevColumns = state.runs.columns;
+      prevRuns = ownProps.runs;
     }
     return {
       columns: cols,
