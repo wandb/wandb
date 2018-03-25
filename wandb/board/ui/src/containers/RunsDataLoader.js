@@ -1,3 +1,9 @@
+/*eslint-disable import/no-webpack-loader-syntax*/
+// The above is required for client, but not core... we seem to have stricter build settings
+// in client.
+// TODO:
+//   - use strict build settings in core
+//   - fixup webpack so that we don't need the worker-loader! syntax
 // Loads Runs data, potentially including histories, based on a Query (see util/query.js)
 
 import React from 'react';

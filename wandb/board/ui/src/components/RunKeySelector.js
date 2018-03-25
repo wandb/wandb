@@ -2,6 +2,7 @@ import React from 'react';
 import {Dropdown} from 'semantic-ui-react';
 import * as UI from '../util/uihelpers';
 import * as Run from '../util/runhelpers';
+import _ from 'lodash';
 
 export default class RunKeySelector extends React.Component {
   state = {value: ''};

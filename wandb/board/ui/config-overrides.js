@@ -3,6 +3,7 @@ const AutoDllPlugin = require('autodll-webpack-plugin');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer')
   .BundleAnalyzerPlugin;
 const webpack = require('webpack');
+const rewireTypescript = require('react-app-rewire-typescript');
 
 const fs = require('fs');
 const appDirectory = fs.realpathSync(process.cwd());
@@ -61,6 +62,8 @@ function rewire(config, env) {
       }),
     );
   }
+
+  config = rewireTypescript(config, env);
 
   return config;
 }
