@@ -25,22 +25,18 @@ describe('App components test', () => {
   });
 
   it('finds footer text', () => {
-    expect(container.text()).to.contain('Weights & Biases');
+    expect(container.text()).toContain('Weights & Biases');
   });
 
   // dispatch flash message
   it('check action before dispatching ', () => {
-    expect(store.getActions())
-      .to.be.an('array')
-      .that.not.includes(expectedPayload);
+    expect(store.getActions()).not.toContain(expectedPayload);
 
     store.dispatch(setFlash(message));
   });
 
   // after dispatching
   it('check action after dispatching ', () => {
-    expect(store.getActions())
-      .to.be.an('array')
-      .that.deep.includes(expectedPayload);
+    expect(store.getActions()).toContainEqual(expectedPayload);
   });
 });

@@ -17,12 +17,13 @@ import update from 'immutability-helper';
 import {setServerViews, setBrowserViews} from '../actions/view';
 import {updateLocationParams} from '../actions/location';
 import _ from 'lodash';
-import {defaultViews, generateBucketId} from '../util/runhelpers';
+import {defaultViews} from '../util/runhelpers';
 import {BOARD} from '../util/board';
 
 class Run extends React.Component {
   state = {
     activeIndex: 0,
+    detailsFetched: false,
   };
 
   componentWillMount() {
@@ -31,41 +32,38 @@ class Run extends React.Component {
 
   componentDidUpdate() {
     window.Prism.highlightAll();
-    if (!this.props.loading) {
-      this.props.refetch({detailed: true});
-    }
+  }
+
+  // Not working
+  // fetchDetails = force => {
+  //   if (force || this.state.detailsFetched === false) {
+  //     this.setState({detailsFetched: true});
+  //     this.props.refetch({detailed: true});
+  //   }
+  // };
+
+  componentDidUpdate(prevProps) {
+    // this is not working.
+    // if (!this.props.loading && this.state.detailsFetched === false) {
+    //   //TODO: for reasons not clear to me this needs to be in a setTimeout
+    //   setTimeout(this.fetchDetails);
+    // }
   }
 
   componentWillReceiveProps(nextProps) {
-    if (nextProps.model && !_.isEqual(nextProps.model, this.props.model)) {
-      this.setState({model: nextProps.model, bucket: nextProps.bucket});
-    } else if (!nextProps.model) {
-      const params = this.props.match.params,
-        id = generateBucketId(params),
-        bucket = nextProps.client.readFragment({
-          id: id,
-          fragment: fragments.basicRun,
-        });
-      if (bucket) {
-        this.setState({
-          bucket: bucket,
-          model: {entityName: params.entity, name: params.model},
-        });
-      }
-    }
     // Setup views loaded from server.
     if (
       nextProps.bucket &&
       (nextProps.views === null || !nextProps.views.run) &&
       _.isEmpty(this.props.reduxServerViews.run.views) &&
       // Prevent infinite loop
-      _.isEmpty(this.props.reduxBrowserViews.runs.views) &&
+      _.isEmpty(this.props.reduxBrowserViews.run.views) &&
       !this.props.reduxBrowserViews.run.configured
     ) {
       this.props.setBrowserViews(defaultViews(nextProps.bucket));
     } else if (
       nextProps.views &&
-      nextProps.views.runs &&
+      nextProps.views.run &&
       !_.isEqual(nextProps.views, this.props.reduxServerViews)
     ) {
       if (
@@ -77,12 +75,11 @@ class Run extends React.Component {
     }
   }
 
-  //TODO: why NOT this.props.model?
   render() {
     let action = this.props.match.path.split('/').pop();
     return (
       <Container>
-        {!this.state.model ? (
+        {!this.props.model ? (
           <Loader size="massive" active={true} />
         ) : this.props.user && action === 'edit' ? (
           // TODO: Don't render button if user can't edit
@@ -100,8 +97,8 @@ class Run extends React.Component {
               this.setState({activeIndex: 1});
             }}
             user={this.props.user}
-            model={this.state.model}
-            bucket={this.state.bucket}
+            model={this.props.model}
+            bucket={this.props.bucket}
             loss={this.props.loss}
             stream={this.props.stream}
             match={this.props.match}
@@ -120,6 +117,7 @@ class Run extends React.Component {
   }
 }
 
+//TODO: Changing this query to use ids will enable lots of magical caching to just work.
 const withData = graphql(MODEL_QUERY, {
   options: ({match: {params, path}}) => {
     const defaults = {
@@ -127,18 +125,24 @@ const withData = graphql(MODEL_QUERY, {
         entityName: params.entity,
         name: params.model,
         bucketName: params.run,
-        detailed: false,
+        detailed: true,
+        requestSubscribe: true,
       },
     };
     if (BOARD) defaults.pollInterval = 2000;
     return defaults;
   },
-  props: ({data, refetch, errors}) => {
+  props: ({data}) => {
+    // null is important here, componentWillReceiveProps checks for it specifically.
+    // We could refactor it.
     let views = null;
     if (data.model && data.model.views) {
       views = JSON.parse(data.model.views);
       if (BOARD && data.model.state === 'finished') data.stopPolling();
     }
+    // if (data.variables.detailed && !data.model.bucket.history) {
+    //   console.warn('WTF', data);
+    // }
     return {
       loading: data.loading,
       model: data.model,
@@ -170,8 +174,8 @@ const withMutations = compose(
   }),
   graphql(RUN_UPSERT, {
     props: ({mutate}) => ({
-      submit: variables =>
-        mutate({
+      submit: variables => {
+        return mutate({
           variables: {...variables},
           updateQueries: {
             Model: (prev, {mutationResult}) => {
@@ -179,7 +183,8 @@ const withMutations = compose(
               return update(prev, {model: {bucket: {$set: bucket}}});
             },
           },
-        }),
+        });
+      },
     }),
   }),
   graphql(MODEL_UPSERT, {

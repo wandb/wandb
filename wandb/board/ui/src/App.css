@@ -11,7 +11,8 @@ body {
   flex: 1;
   padding-bottom: 50px;
 }
-#root .menu .logo {
+
+#root .menu .item .logo {
   width: 3.8em;
   padding: -10px 0;
 }
@@ -21,6 +22,7 @@ body {
 .main {
   margin-top: 5em;
 }
+
 .main .ui.large.breadcrumb {
   height: 40px;
 }
@@ -97,4 +99,39 @@ body .input-style {
 
 body.blurring.dimmable > .dimmer {
   background-color: rgba(0, 0, 0, 0.1);
+}
+
+body .ui.grid > .column:not(.row) {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.fullScreen .fixed.menu .item:not(.logo) {
+  display: none;
+}
+
+.fullScreen .fixed.menu .dropdown {
+  display: none;
+}
+
+.fullScreen .secondary.menu {
+  display: none;
+}
+
+#root .fullScreen .menu .item .logo {
+  width: 14em;
+  padding: -10px 0;
+}
+
+#root .fullScreen .menu .exitFullScreen {
+  display: none;
+}
+
+#root .fullScreen .menu:hover .exitFullScreen {
+  display: inline;
+}
+
+body .ui.dropdown .menu .selected.item,
+.ui.dropdown.selected {
+  background: rgba(0, 0, 0, 0.1);
 }

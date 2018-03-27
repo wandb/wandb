@@ -1,5 +1,5 @@
 import ApolloClient from 'apollo-client';
-import {ApolloLink} from 'apollo-link';
+import {ApolloLink, Observable} from 'apollo-link';
 import {InMemoryCache} from 'apollo-cache-inmemory';
 import {createHttpLink} from 'apollo-link-http';
 import {onError} from 'apollo-link-error';
@@ -26,26 +26,35 @@ export const SERVER =
 const httpLink = createHttpLink({uri: SERVER});
 
 const authMiddleware = new ApolloLink((operation, forward) => {
-  //The signup flow accepts a token
-  let qs = queryString.parse(document.location.search);
-  let token = qs.token || localStorage.getItem('id_token');
+  if (BOARD) return forward(operation);
+  return new Observable(observable => {
+    let sub = null;
+    this.c._auth.jwt().then(t => {
+      //The signup flow accepts a token
+      let qs = queryString.parse(document.location.search);
+      let token = qs.token || t;
 
-  if (token) {
-    operation.setContext(({headers = {}}) => ({
-      headers: {
-        ...headers,
-        authorization: `Bearer ${token}`,
-      },
-    }));
-  }
+      if (token) {
+        operation.setContext(({headers = {}}) => ({
+          headers: {
+            ...headers,
+            authorization: `Bearer ${token}`,
+          },
+        }));
+      }
 
-  return forward(operation);
+      sub = forward(operation).subscribe(observable);
+    });
+    //TODO: I think this is always null...
+    return () => (sub ? sub.unsubscribe() : null);
+  });
 });
 
 const stackdriverMiddleware = new ApolloLink((operation, forward) => {
   let qs = queryString.parse(document.location.search);
 
   if (qs.trace) {
+    console.log('DOING TRACE');
     let count = parseInt(localStorage.getItem('request_count'), 10);
     operation.setContext(({headers = {}}) => ({
       headers: {

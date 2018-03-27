@@ -4,7 +4,7 @@ import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import {Container, Loader} from 'semantic-ui-react';
 import update from 'immutability-helper';
-import Dashboards from '../components/Dashboards';
+import TabbedViews from '../components/TabbedViews';
 import DashboardView from '../components/DashboardView';
 import ViewModifier from '../containers/ViewModifier';
 import ErrorPage from '../components/ErrorPage';
@@ -39,16 +39,15 @@ class Dashboard extends React.Component {
 
   componentWillReceiveProps(nextProps) {
     // Setup views loaded from server.
-    // if (
-    //   nextProps.data.base.length > 0 &&
-    //   (nextProps.views === null || !nextProps.views.dashboards) &&
-    //   _.isEmpty(this.props.reduxServerViews.dashboards.views) &&
-    //   _.isEmpty(this.props.reduxBrowserViews.dashboards.views)
-    // ) {
-    //   // no views on server, provide a default
-    //   this.props.setBrowserViews(
-    //     defaultViews((nextProps.buckets.edges[0] || {}).node),
-    //   );
+    if (
+      !nextProps.loading &&
+      nextProps.views === null &&
+      _.isEmpty(this.props.reduxServerViews.dashboards.views) &&
+      _.isEmpty(this.props.reduxBrowserViews.dashboards.views)
+    ) {
+      // no views on server, provide a default
+      this.props.setBrowserViews(defaultViews());
+    }
     if (
       nextProps.views &&
       nextProps.views.dashboards &&
@@ -72,7 +71,7 @@ class Dashboard extends React.Component {
         ) : (
           <ViewModifier
             {...this.props}
-            component={Dashboards}
+            component={TabbedViews}
             viewComponent={DashboardView}
             editMode={this.props.user && action === 'edit'}
             viewType="dashboards"
@@ -155,7 +154,7 @@ class DashboardWrapper extends React.Component {
         query={{
           entity: match.params.entity,
           model: match.params.model,
-          strategy: 'merge',
+          strategy: 'root',
         }}
       />
     );

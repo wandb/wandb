@@ -24,6 +24,7 @@ export const fragments = {
         username
         photoUrl
       }
+      tags
     }
   `,
   detailedRun: gql`
@@ -59,14 +60,7 @@ export const fragments = {
   `,
   historyRun: gql`
     fragment HistoryRunFragment on BucketType {
-      history
-    }
-  `,
-  // This is not actually stored on the server, we manually write/read from the cache to track
-  // it's loading state.
-  historyRunLoading: gql`
-    fragment HistoryRunLoadingFragment on BucketType {
-      historyLoading
+      history(samples: 500)
     }
   `,
 };
@@ -78,9 +72,10 @@ export const RUNS_QUERY = gql`
     $entityName: String
     $jobKey: String
     $order: String
-    $limit: Int = 1000
+    $limit: Int = 500
     $bucketIds: [String]
     $history: Boolean = false
+    $requestSubscribe: Boolean!
   ) {
     model(name: $name, entityName: $entityName) {
       id
@@ -90,6 +85,7 @@ export const RUNS_QUERY = gql`
       description
       summaryMetrics
       views
+      requestSubscribe @include(if: $requestSubscribe)
       sweeps {
         edges {
           node {
@@ -145,16 +141,32 @@ export const RUNS_QUERY = gql`
 `;
 
 export const RUN_UPSERT = gql`
-  mutation upsertRun($id: String, $description: String) {
-    upsertBucket(input: {id: $id, description: $description}) {
+  mutation upsertRun($id: String, $description: String, $tags: [String!]) {
+    upsertBucket(input: {id: $id, description: $description, tags: $tags}) {
       bucket {
         id
         name
         description
+        tags
       }
       inserted
     }
   }
+`;
+
+export const MODIFY_RUNS = gql`
+  mutation modifyRuns($ids: [String], $addTags: [String]) {
+    modifyRuns(input: {ids: $ids, addTags: $addTags}) {
+      runs {
+        ...BasicRunFragment
+        user {
+          username
+          photoUrl
+        }
+      }
+    }
+  }
+  ${fragments.basicRun}
 `;
 
 export const RUN_DELETION = gql`

@@ -344,6 +344,7 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo):
     assert result.exit_code == -1
 
 
+# TODO: this is hitting production
 def test_run_simple(runner, monkeypatch, request_mocker, upsert_run, query_project, git_repo, upload_logs, upload_url):
     run_id = "abc123"
     upsert_run(request_mocker)
@@ -372,7 +373,7 @@ def test_sweep_no_config(runner):
     assert result.exit_code == 0
 
 
-def test_board_error(runner, mocker):
+def test_board_error(runner, mocker, git_repo):
     result = runner.invoke(cli.board)
     print(result.output)
     print(result.exception)

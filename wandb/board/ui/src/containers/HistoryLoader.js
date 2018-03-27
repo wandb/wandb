@@ -7,15 +7,25 @@ import {filterRuns, sortRuns} from '../util/runhelpers.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import _ from 'lodash';
+import * as Query from '../util/query';
+
+// We track which histories are in the process of loading globally.
+let loadingHistories = {};
 
 export default function withHistoryLoader(WrappedComponent) {
   let HistoryLoader = class extends React.Component {
     constructor(props) {
       super(props);
-      this.selectedRuns = {};
     }
 
     _setup(props, nextProps) {
+      // In polling mode we always reload all history data. Note the check below
+      // to see if selectedRuns has changed from previous props to now will only
+      // be true when the withRunsData loader upstream from us has polled new data
+      // (or when some other parameters have changed, which doesn't happen on the
+      // dashboard page right now)
+      let pollingMode = Query.shouldPoll(nextProps.query);
+
       if (nextProps.data.selectedRuns !== props.data.selectedRuns) {
         //console.log('SelectionQueryThing willReceiveProps', nextProps);
         let selected = _.fromPairs(
@@ -40,17 +50,7 @@ export default function withHistoryLoader(WrappedComponent) {
           } catch (err) {
             //console.log("name doesn't have history", name);
           }
-          let loadingHistory = false;
-          try {
-            let result = nextProps.client.readFragment({
-              id,
-              fragment: fragments.historyRunLoading,
-            });
-            //console.log('readFragment historyRunLoading result', result);
-            loadingHistory = result.historyLoading;
-          } catch (err) {
-            //console.log("name doesn't have historyLoading", name);
-          }
+          let loadingHistory = loadingHistories[id];
           return {
             id: id,
             name: name,
@@ -61,40 +61,29 @@ export default function withHistoryLoader(WrappedComponent) {
         //console.log('selectedInfo', selectedInfo);
         let numLoaded = selectedInfo.filter(o => o.history || o.loadingHistory)
           .length;
-        if (numLoaded >= MAX_HISTORIES_LOADED) {
-          // console.log(
-          //   `Already have ${MAX_HISTORIES_LOADED} run histories loaded/loading. Not loading more.`,
-          // );
-        } else {
-          let toLoad = selectedInfo.filter(
-            o => !(o.history || o.loadingHistory),
-          );
-          //console.log('toLoad', toLoad);
+        if (pollingMode || numLoaded < MAX_HISTORIES_LOADED) {
+          let toLoad = selectedInfo;
+          if (!pollingMode) {
+            toLoad = toLoad.filter(o => !(o.history || o.loadingHistory));
+          }
           if (toLoad.length > 0) {
             for (var load of toLoad) {
-              nextProps.client.writeFragment({
-                id: load.id,
-                fragment: fragments.historyRunLoading,
-                data: {historyLoading: true, __typename: 'BucketType'},
-              });
+              loadingHistories[load.id] = true;
             }
             nextProps.client
               .query({
+                fetchPolicy: pollingMode ? 'network-only' : 'cache-first',
                 query: HISTORY_QUERY,
                 variables: {
-                  entityName: this.props.query.entity,
-                  name: this.props.query.model,
+                  entityName: nextProps.query.entity,
+                  name: nextProps.query.model,
                   bucketIds: toLoad.map(o => o.name),
                 },
               })
               .then(result => {
                 //console.log('result', result);
                 for (var load of toLoad) {
-                  nextProps.client.writeFragment({
-                    id: load.id,
-                    fragment: fragments.historyRunLoading,
-                    data: {historyLoading: false, __typename: 'BucketType'},
-                  });
+                  loadingHistories[load.id] = false;
                 }
               });
           }
@@ -134,14 +123,12 @@ export default function withHistoryLoader(WrappedComponent) {
     }
 
     render() {
-      return (
-        <WrappedComponent {...this.props} selectedRuns={this.selectedRuns} />
-      );
+      return <WrappedComponent {...this.props} />;
     }
   };
 
   const withData = graphql(FAKE_HISTORY_QUERY, {
-    skip: ({query}) => !query.strategy || query.strategy === 'page',
+    skip: ({query}) => !Query.needsOwnHistoryQuery(query),
     options: ({histQueryKey}) => {
       return {
         fetchPolicy: 'cache-only',

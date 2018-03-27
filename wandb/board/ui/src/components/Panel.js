@@ -13,15 +13,23 @@ import './PanelImages';
 import './PanelScatterPlot';
 import './PanelParallelCoord';
 
-class Panel extends React.Component {
+export default class Panel extends React.Component {
   state = {configMode: false, showQuery: false};
   static loading = (
     <Segment basic style={{minHeight: 260}}>
-      <ContentLoader />
+      <ContentLoader height={85} />
     </Segment>
   );
 
-  renderPanelType(PanelType, configMode, config, data, sizeKey, panelQuery) {
+  renderPanelType(
+    PanelType,
+    configMode,
+    config,
+    data,
+    sizeKey,
+    panelQuery,
+    currentHeight,
+  ) {
     if (!data) {
       return Panel.loading;
     }
@@ -33,6 +41,7 @@ class Panel extends React.Component {
           updateConfig={this.props.updateConfig}
           sizeKey={sizeKey}
           panelQuery={panelQuery}
+          currentHeight={currentHeight}
           data={data}
         />
       </div>
@@ -107,25 +116,23 @@ class Panel extends React.Component {
               style={{marginBottom: 12, zIndex: 21}}
             />
           )}
-          {configMode && (
-            <QueryEditor
-              pageQuery={this.props.pageQuery}
-              panelQuery={this.props.panelQuery}
-              setQuery={this.props.updateQuery}
-              runs={this.props.data.base}
-              keySuggestions={this.props.data.keys}
-            />
-          )}
+          {configMode &&
+            (this.props.viewType === 'dashboards' ||
+              this.props.viewType === 'runs') && (
+              <QueryEditor
+                pageQuery={this.props.pageQuery}
+                panelQuery={this.props.panelQuery}
+                allFilters={this.props.query.filters}
+                allowProjectChange={this.props.viewType === 'dashboards'}
+                setQuery={this.props.updateQuery}
+                runs={this.props.data.base}
+                keySuggestions={this.props.data.keys}
+                filteredRuns={this.props.data.filtered}
+              />
+            )}
           {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
         </div>
       );
-      if (!this.props.noCard) {
-        panel = (
-          <Card fluid>
-            <Card.Content>{panel}</Card.Content>
-          </Card>
-        );
-      }
     } else if (!panel) {
       panel = this.renderPanelType(
         PanelType,
@@ -134,17 +141,9 @@ class Panel extends React.Component {
         data,
         sizeKey,
         this.props.panelQuery,
+        this.props.currentHeight,
       );
     }
-    return (
-      <Grid.Column
-        width={(size && size.width) || 8}
-        style={this.props.style}
-        className={this.props.className}>
-        {panel}
-      </Grid.Column>
-    );
+    return <div className={this.props.className}>{panel}</div>;
   }
 }
-
-export default withRunsDataLoader(Panel);

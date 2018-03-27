@@ -1,3 +1,9 @@
+/*eslint-disable import/no-webpack-loader-syntax*/
+// The above is required for client, but not core... we seem to have stricter build settings
+// in client.
+// TODO:
+//   - use strict build settings in core
+//   - fixup webpack so that we don't need the worker-loader! syntax
 // Loads Runs data, potentially including histories, based on a Query (see util/query.js)
 
 import React from 'react';
@@ -10,7 +16,7 @@ import {BOARD} from '../util/board';
 import {makeShouldUpdate} from '../util/shouldUpdate';
 import {
   displayFilterKey,
-  parseBuckets,
+  updateRuns,
   setupKeySuggestions,
   filterRuns,
   sortRuns,
@@ -20,22 +26,30 @@ import withHistoryLoader from '../containers/HistoryLoader';
 // TODO: read this from query
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {JSONparseNaN} from '../util/jsonnan';
+import * as Query from '../util/query';
 import _ from 'lodash';
+import RunsDataWorker from './workers/RunsDataDerived.worker.js';
 
 // Load the graphql data for this panel, currently loads all data for this project and entity.
 function withRunsData() {
   return graphql(RUNS_QUERY, {
-    skip: ({query}) =>
-      !(query.strategy === 'merge' && query.entity && query.model),
-    options: ({query}) => {
+    alias: 'withRunsData',
+    skip: ({query}) => !Query.needsOwnRunsQuery(query),
+    options: ({query, requestSubscribe}) => {
       const defaults = {
         variables: {
           entityName: query.entity,
           name: query.model,
           order: 'timeline',
+          requestSubscribe: requestSubscribe || false,
         },
       };
-      if (BOARD) defaults.pollInterval = 5000;
+      if (BOARD) {
+        defaults.pollInterval = 5000;
+      }
+      if (Query.shouldPoll(query)) {
+        defaults.pollInterval = 60000;
+      }
       return defaults;
     },
     props: ({data: {loading, model, viewer, refetch}, errors}) => {
@@ -55,6 +69,18 @@ function withRunsData() {
 // Parses buckets into runs/keySuggestions
 function withDerivedRunsData(WrappedComponent) {
   let RunsDataDerived = class extends React.Component {
+    state = {
+      data: {
+        base: [],
+        filtered: [],
+        filteredRunsById: {},
+        selectedRuns: [],
+        selectedRunsById: {},
+        keys: [],
+        axisOptions: [],
+        columnNames: [],
+      },
+    };
     constructor(props) {
       super(props);
       this.runs = [];
@@ -67,67 +93,35 @@ function withDerivedRunsData(WrappedComponent) {
       });
     }
 
-    _setup(props) {
-      let strategy = props.query.strategy || 'page';
+    _setup(prevProps, props) {
+      let strategy = Query.strategy(props.query);
       if (strategy === 'page') {
-        this.data = props.data;
+        this.setState({data: props.data});
       } else {
-        this.runs = parseBuckets(props.buckets);
-        this.views = props.views ? JSON.parse(props.views) : null;
-        this.keySuggestions = setupKeySuggestions(this.runs);
-        this.filteredRuns = sortRuns(
-          props.query.sort,
-          filterRuns(props.query.filters, this.runs),
-        );
-        this.filteredRunsById = {};
-        for (var run of this.filteredRuns) {
-          this.filteredRunsById[run.name] = run;
-        }
-        this.selectedRuns = [];
-        if (_.size(props.query.selections) !== 0) {
-          this.selectedRuns = filterRuns(
-            props.query.selections,
-            this.filteredRuns,
-          );
-        }
-        this.selectedRunsById = _.fromPairs(
-          this.selectedRuns.map(run => [run.name, run.id]),
-        );
-
-        let keys = _.flatMap(
-          this.keySuggestions,
-          section => section.suggestions,
-        );
-        this.axisOptions = keys.map(key => {
-          let displayKey = displayFilterKey(key);
-          return {
-            key: displayKey,
-            value: displayKey,
-            text: displayKey,
-          };
-        });
-        this.columnNames = getColumns(this.runs);
-
-        this.data = {
-          base: this.runs,
-          filtered: this.filteredRuns,
-          filteredRunsById: this.filteredRunsById,
-          selectedRuns: this.selectedRuns,
-          selectedRunsById: this.selectedRunsById,
-          keys: this.keySuggestions,
-          axisOptions: this.axisOptions,
-          query: this.query,
-          columnNames: this.columnNames,
+        let messageData = {
+          base: props.data && props.data.base,
+          prevBuckets: prevProps.buckets,
+          buckets: props.buckets,
+          query: props.query,
         };
+        this.worker.postMessage(messageData);
       }
+      this.views = props.views ? JSON.parse(props.views) : null;
     }
 
     componentWillMount() {
-      this._setup(this.props);
+      this.worker = new RunsDataWorker();
+      this.worker.onmessage = m => {
+        this.setState({data: m.data});
+      };
+      this._setup({}, this.props);
     }
 
     shouldComponentUpdate(nextProps, nextState) {
-      return this._shouldUpdate(this.props, nextProps, this.props.histQueryKey);
+      return (
+        this._shouldUpdate(this.props, nextProps, this.props.histQueryKey) ||
+        this.state.data !== nextState.data
+      );
     }
 
     componentWillReceiveProps(nextProps) {
@@ -137,7 +131,7 @@ function withDerivedRunsData(WrappedComponent) {
         this.props.data !== nextProps.data ||
         !_.isEqual(this.props.query, nextProps.query)
       ) {
-        this._setup(nextProps);
+        this._setup(this.props, nextProps);
       }
     }
 
@@ -145,7 +139,7 @@ function withDerivedRunsData(WrappedComponent) {
       return (
         <WrappedComponent
           {...this.props}
-          data={this.data}
+          data={this.state.data}
           views={this.views}
           keySuggestions={this.keySuggestions}
           runs={this.runs}
@@ -163,55 +157,64 @@ function withDerivedHistoryData(WrappedComponent) {
       super(props);
     }
 
-    _setup(props) {
-      if (!props.historyBuckets) {
-        return;
-      }
-      let runHistory = props.historyBuckets.edges.map(edge => ({
-        name: edge.node.name,
-        history: edge.node.history
-          ? edge.node.history
-              .map((row, i) => {
-                try {
-                  return JSONparseNaN(row);
-                } catch (error) {
-                  console.log(
-                    `WARNING: JSON error parsing history (HistoryLoader). Row: ${i}, Bucket: ${
-                      edge.node.name
-                    }`,
-                  );
-                  return null;
-                }
-              })
-              .filter(row => row !== null)
-          : null,
-      }));
-      this.historyKeys = _.uniq(
-        _.flatMap(
-          _.uniq(
+    _setup(props, nextProps) {
+      if (
+        this.props.historyBuckets !== nextProps.historyBuckets ||
+        this.props.data !== nextProps.data ||
+        this.props.loading !== nextProps.loading
+      ) {
+        if (
+          (nextProps.historyBuckets &&
+            props.historyBuckets !== nextProps.historyBuckets) ||
+          props.loading !== nextProps.loading
+        ) {
+          this.runHistory = nextProps.historyBuckets.edges.map(edge => ({
+            name: edge.node.name,
+            history: edge.node.history
+              ? edge.node.history
+                  .map((row, i) => {
+                    try {
+                      return JSONparseNaN(row);
+                    } catch (error) {
+                      console.log(
+                        `WARNING: JSON error parsing history (HistoryLoader). Row: ${i}, Bucket: ${
+                          edge.node.name
+                        }`,
+                      );
+                      return null;
+                    }
+                  })
+                  .filter(row => row !== null)
+              : null,
+          }));
+          this.historyKeys = _.uniq(
             _.flatMap(
-              runHistory,
-              o => (o.history ? o.history.map(row => _.keys(row)) : []),
+              _.uniq(
+                _.flatMap(
+                  this.runHistory,
+                  o => (o.history ? o.history.map(row => _.keys(row)) : []),
+                ),
+              ),
             ),
+          );
+        }
+        this.runHistories = {
+          loading: nextProps.loading || this.runHistory.some(o => !o.history),
+          maxRuns: MAX_HISTORIES_LOADED,
+          totalRuns: _.keys(nextProps.data.selectedRunsById).length,
+          data: this.runHistory.filter(
+            o => o.history && nextProps.data.selectedRunsById[o.name],
           ),
-        ),
-      );
-      this.runHistories = {
-        loading: props.loading || runHistory.some(o => !o.history),
-        maxRuns: MAX_HISTORIES_LOADED,
-        totalRuns: _.keys(props.selectedRunsById).length,
-        data: runHistory.filter(o => o.history),
-        keys: this.historyKeys,
-      };
+          keys: this.historyKeys,
+        };
+        this.data = {...nextProps.data, histories: this.runHistories};
+      }
     }
 
     componentWillMount() {
-      if (!this.props.historyBuckets) {
-        this.data = this.props.data;
-        return;
-      }
-      this._setup(this.props);
-      this.data = {...this.props.data, histories: this.runHistories};
+      this.data = this.props.data;
+      this.runHistory = [];
+      this._setup({}, this.props);
     }
 
     componentWillReceiveProps(nextProps) {
@@ -219,19 +222,7 @@ function withDerivedHistoryData(WrappedComponent) {
         this.data = nextProps.data;
         return;
       }
-      if (
-        this.props.historyBuckets !== nextProps.historyBuckets ||
-        this.props.loading !== nextProps.loading
-      ) {
-        this._setup(nextProps);
-      }
-      if (
-        this.props.historyBuckets !== nextProps.historyBuckets ||
-        this.props.data !== nextProps.data ||
-        this.props.loading !== nextProps.loading
-      ) {
-        this.data = {...this.props.data, histories: this.runHistories};
-      }
+      this._setup(this.props, nextProps);
     }
 
     render() {

@@ -11,14 +11,19 @@ class TabbedViews extends React.Component {
   };
 
   render() {
-    let panes = this.props.tabs.map(viewId => ({
+    let panes = this.props.tabs.map((viewId, i) => ({
       menuItem: {
         key: viewId,
         content: <span>{this.props.views[viewId].name + ' '}</span>,
       },
       render: () => (
-        <Tab.Pane>
-          {this.props.renderView(viewId, this.state.editMode)}
+        <Tab.Pane as="div">
+          {this.props.renderView(
+            viewId,
+            this.state.editMode,
+            i !== 0,
+            i !== this.props.tabs.length - 1,
+          )}
         </Tab.Pane>
       ),
     }));
@@ -56,19 +61,42 @@ class TabbedViews extends React.Component {
             }}
           />
         )}
-        <Button
-          content={this.state.editMode ? 'View Charts' : 'Edit Charts'}
-          floated="right"
-          icon={this.state.editMode ? 'unhide' : 'configure'}
-          onClick={() => this.setState({editMode: !this.state.editMode})}
-        />
+        {!this.props.fullScreen && (
+          <Button
+            content={
+              this.props.viewType === 'dashboards'
+                ? null
+                : this.state.editMode ? 'View Charts' : 'Edit Charts'
+            }
+            floated="right"
+            icon={this.state.editMode ? 'unhide' : 'configure'}
+            onClick={() => this.setState({editMode: !this.state.editMode})}
+          />
+        )}
+        {this.props.viewType === 'dashboards' &&
+          !this.props.fullScreen && (
+            <Button
+              floated="right"
+              icon="window maximize"
+              onClick={() => this.props.setFullScreen(true)}
+            />
+          )}
+        {this.props.viewType === 'dashboards' &&
+          !this.props.fullScreen && (
+            <Button
+              floated="right"
+              icon="print"
+              onClick={() => window.print()}
+            />
+          )}
         <Tab
           panes={panes}
+          menu={{secondary: true, pointing: true}}
           activeIndex={activeIndex}
           onTabChange={(event, {activeIndex}) => {
             this.props.setActiveView(
               this.props.viewType,
-              this.props.tabs[activeIndex] || activeIndex,
+              this.props.tabs[activeIndex],
             );
           }}
         />

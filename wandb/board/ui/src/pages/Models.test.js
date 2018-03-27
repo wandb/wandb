@@ -19,6 +19,6 @@ describe('Models page components test', () => {
   });
 
   it('finds <Header /> component', () => {
-    expect(container.find(Header).text()).to.be.a('string');
+    expect(container.find(Header).text()).toBe('Projects');
   });
 });

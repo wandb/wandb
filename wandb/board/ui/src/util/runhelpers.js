@@ -4,6 +4,9 @@ import _ from 'lodash';
 import numeral from 'numeral';
 import {JSONparseNaN} from '../util/jsonnan';
 import flatten from 'flat';
+import {fragments} from '../graphql/runs';
+import TimeAgo from 'react-timeago';
+import {Icon} from 'semantic-ui-react';
 
 export function convertValue(string) {
   let val = Number.parseFloat(string);
@@ -21,6 +24,8 @@ export function displayValue(value) {
     } else {
       return value.toString();
     }
+  } else if (_.isString(value)) {
+    return value;
   } else {
     return JSON.stringify(value);
   }
@@ -37,10 +42,12 @@ export function sortableValue(value) {
 }
 
 // Truncate string.  Doesn't seem like there's an easy way to do this by pixel length.
-export function truncateString(string, maxLength = 30, rightLength = 6) {
+// Splits the string in the middle.
+export function truncateString(string, maxLength = 30) {
   if (string.length < maxLength) {
     return string;
   }
+  let rightLength = Math.floor(maxLength / 2) - 1;
   let leftLength = maxLength - rightLength - 1;
   let leftSide = string.substr(0, leftLength);
   let rightSide = string.substr(-rightLength);
@@ -59,7 +66,7 @@ export function fuzzyMatch(strings, matchStr) {
     regexpStr += matchStr.charAt(i);
     regexpStr += '.*';
   }
-  var regexp = new RegExp(regexpStr);
+  var regexp = new RegExp(regexpStr, 'i');
   return strings.filter(str => str.match(regexp));
 }
 
@@ -67,7 +74,7 @@ export function fuzzyMatch(strings, matchStr) {
 export function fuzzyMatchHighlight(
   str,
   matchStr,
-  matchStyle = {color: 'blue'},
+  matchStyle = {backgroundColor: 'yellow'},
 ) {
   if (!matchStr) {
     return str;
@@ -120,9 +127,15 @@ export function _getRunValueFromSectionName(run, section, name) {
     if (name === 'id') {
       // Alias 'id' to 'name'.
       return run.name;
+    } else if (name === 'name') {
+      return runDisplayName(run);
+    } else if (name === 'userName') {
+      return run.user.username;
     } else {
       return run[name];
     }
+  } else if (section === 'tags') {
+    return _.indexOf(run.tags, name) !== -1;
   } else if (run[section]) {
     return run[section][name];
   }
@@ -135,19 +148,31 @@ export function getRunValueFromFilterKey(run, filterKey) {
 
 export function getRunValue(run, key) {
   let [section, name] = key.split(':', 2);
-  if (name) {
-    return _getRunValueFromSectionName(run, section, name);
-  } else {
-    return run[key];
+  if (!name) {
+    // No colon to split on, so run section is implied.
+    name = key;
+    section = 'run';
   }
+  return _getRunValueFromSectionName(run, section, name);
 }
 
 export function displayFilterKey(filterKey) {
-  return filterKey.section + ':' + filterKey.value;
+  if (filterKey.section && filterKey.value) {
+    if (filterKey.section === 'run') {
+      return filterKey.value;
+    } else {
+      return filterKey.section + ':' + filterKey.value;
+    }
+  } else {
+    return null;
+  }
 }
 
 export function filterKeyFromString(s) {
   let [section, name] = s.split(':', 2);
+  if (_.isNil(name)) {
+    return {section: 'run', value: section};
+  }
   return {section: section, value: name};
 }
 
@@ -193,6 +218,9 @@ export function filtersForAxis(filters, axis) {
 export function filterRuns(filters, runs) {
   for (var filterID of _.keys(filters)) {
     let filter = filters[filterID];
+    if (!filter.key.section) {
+      continue;
+    }
     runs = runs.filter(run =>
       runFilterCompare(
         filter.op,
@@ -254,10 +282,80 @@ export function runDisplayName(run) {
   return run.name || '';
 }
 
+export function stateToIcon(state, key) {
+  let icon = 'check',
+    color = 'green';
+  if (state === 'failed' || state === 'crashed') {
+    icon = 'remove';
+    color = 'red';
+  } else if (state === 'killed') {
+    icon = 'remove user';
+    color = 'orange';
+  } else if (state === 'running') {
+    icon = 'spinner';
+    color = 'blue';
+  }
+  return (
+    <Icon key={key} name={icon} color={color} loading={state === 'running'} />
+  );
+}
+
+export class RunFancyName {
+  constructor(run, spec) {
+    this._run = run;
+    this._spec = spec;
+  }
+
+  special = {
+    createdAt: value => (
+      <span key="createdAt">
+        (started <TimeAgo date={value + 'z'} />){' '}
+      </span>
+    ),
+    stateIcon: () => stateToIcon(this._run.state, 'stateIcon'),
+    runningIcon: () =>
+      this._run.state === 'running'
+        ? stateToIcon(this._run.state, 'runningIcon')
+        : null,
+  };
+
+  toComponent() {
+    if (!this._spec) {
+      return runDisplayName(this._run);
+    }
+    return (
+      <span>
+        {this._spec
+          .map(key => {
+            let value = getRunValue(this._run, key);
+            let specialFn = this.special[key];
+            if (specialFn) {
+              return specialFn(value);
+            } else {
+              if (_.isString(value)) {
+                value = truncateString(value, 24);
+              }
+              return <span key={key}>{displayValue(value)} </span>;
+            }
+          })
+          .filter(o => o)}
+      </span>
+    );
+  }
+
+  toString() {
+    return this._spec
+      .map(key => (this.special[key] ? null : getRunValue(this._run, key)))
+      .filter(o => o)
+      .map(val => displayValue(val))
+      .join(' ');
+  }
+}
+
 export function defaultViews(run) {
   //TODO: do we need to handle this case?
   if (!run) run = {summaryMetrics: '{}'};
-  const scalars = Object.keys(JSON.parse(run.summaryMetrics));
+  const scalars = Object.keys(JSONparseNaN(run.summaryMetrics));
   let lossy = scalars.find(s => s.match(/loss/));
   if (!lossy) {
     lossy = scalars[0];
@@ -271,8 +369,11 @@ export function defaultViews(run) {
           name: 'Charts',
           config: [
             {
-              size: {
-                width: 16,
+              layout: {
+                x: 0,
+                y: 0,
+                w: 12,
+                h: 2,
               },
               config: {
                 source: 'history',
@@ -291,8 +392,11 @@ export function defaultViews(run) {
           name: 'Charts',
           config: [
             {
-              size: {
-                width: 16,
+              layout: {
+                x: 0,
+                y: 0,
+                w: 12,
+                h: 2,
               },
               config: {},
             },
@@ -301,18 +405,41 @@ export function defaultViews(run) {
       },
       tabs: [0],
     },
-    dashboards: [{views: {}}],
+    dashboards: {
+      views: {
+        '0': {
+          defaults: [],
+          name: 'Dashboard',
+          config: [
+            {
+              layout: {
+                x: 0,
+                y: 0,
+                w: 12,
+                h: 2,
+              },
+              config: {},
+              query: {strategy: 'merge'},
+            },
+          ],
+        },
+      },
+      tabs: [0],
+    },
   };
   if (run.events && run.events.length > 0) {
-    const event = JSON.parse(run.events[0]);
+    const event = JSONparseNaN(run.events[0]);
     base.run.configured = true;
     base.run.views['system'] = {
       name: 'System Metrics',
       defaults: [],
       config: [
         {
-          size: {
-            width: 8,
+          layout: {
+            x: 0,
+            y: 0,
+            w: 12,
+            h: 2,
           },
           config: {
             source: 'events',
@@ -323,21 +450,23 @@ export function defaultViews(run) {
     };
     if (Object.keys(event).indexOf('system.gpu.0.gpu') > -1) {
       base.run.views.system.config.push({
-        size: {
-          width: 8,
+        layout: {
+          x: 6,
+          y: 0,
+          w: 6,
+          h: 2,
         },
         config: {
           source: 'events',
           lines: Object.keys(event).filter(k => k.match(/system\.gpu/)),
         },
       });
-    } else {
-      base.run.views.system.config[0].size.width = 16;
+      base.run.views.system.config[0].layout.w = 6;
     }
     base.run.tabs.push('system');
   }
   if (run.history && run.history.length > 0) {
-    const history = JSON.parse(run.history[0]);
+    const history = JSONparseNaN(run.history[0]);
     base.run.configured = true;
     //TODO: support multi media
     if (history._media && history._media[0]._type === 'images') {
@@ -346,8 +475,11 @@ export function defaultViews(run) {
         defaults: [],
         config: [
           {
-            size: {
-              width: 16,
+            layout: {
+              x: 0,
+              y: 0,
+              w: 12,
+              h: 2,
             },
             viewType: 'Images',
           },
@@ -359,11 +491,27 @@ export function defaultViews(run) {
   return base;
 }
 
-// Generate bucket id
-export function generateBucketId(params) {
+// Generates relay compatible bucket id
+export function relayBucketId(params) {
   return btoa(
     ['BucketType', 'v1', params.run, params.model, params.entity].join(':'),
   );
+}
+
+export function pusherProjectSlug(params) {
+  return `${params.entity}@${params.model}`;
+}
+
+// Generates pusher identifier for logs
+export function pusherRunSlug(params) {
+  return `${pusherProjectSlug(params)}.${params.run}`;
+}
+
+export function bucketFromCache(params, client) {
+  return client.readFragment({
+    id: relayBucketId(params),
+    fragment: fragments.basicRun,
+  });
 }
 
 export function parseBuckets(buckets) {
@@ -386,6 +534,40 @@ export function parseBuckets(buckets) {
   });
 }
 
+// Given a set of bucket edges (as returned by graphql), compute runs,
+// which have the bucket JSON data parsed and flattened.
+// This expects the previous version of buckets, and the previous
+// result that updateRuns returned. It re-uses parsed data from the
+// previous result for buckets that have not changed.
+export function updateRuns(oldBuckets, newBuckets, prevResult) {
+  if (!newBuckets) {
+    return [];
+  }
+  oldBuckets = oldBuckets || {edges: []};
+  let oldBucketsMap = _.fromPairs(
+    oldBuckets.edges.map(edge => [edge.node.name, edge.node]),
+  );
+  let prevResultMap = _.fromPairs(prevResult.map(row => [row.name, row]));
+  return newBuckets.edges.map(edge => {
+    let node = {...edge.node};
+    let oldNode = oldBucketsMap[node.name];
+    if (edge.node === oldNode) {
+      node.config = prevResultMap[node.name].config;
+      node.summary = prevResultMap[node.name].summary;
+    } else {
+      node.config = node.config ? JSONparseNaN(node.config) : {};
+      node.config = flatten(
+        _.mapValues(node.config, confObj => confObj.value || confObj),
+      );
+      node.summary = flatten(node.summaryMetrics)
+        ? JSONparseNaN(node.summaryMetrics)
+        : {};
+    }
+    delete node.summaryMetrics;
+    return node;
+  });
+}
+
 export function setupKeySuggestions(runs) {
   if (runs.length === 0) {
     return [];
@@ -396,7 +578,7 @@ export function setupKeySuggestions(runs) {
     suggestions.sort();
     return suggestions;
   };
-  let runSuggestions = ['state', 'id'];
+  let runSuggestions = ['state', 'id', 'name', 'createdAt'];
   let keySuggestions = [
     {
       title: 'run',
@@ -404,6 +586,15 @@ export function setupKeySuggestions(runs) {
         section: 'run',
         value: suggestion,
       })),
+    },
+    {
+      title: 'tags',
+      suggestions: _.uniq(_.flatMap(runs, run => run.tags))
+        .sort()
+        .map(tag => ({
+          section: 'tags',
+          value: tag,
+        })),
     },
     {
       title: 'sweep',
@@ -427,15 +618,47 @@ export function setupKeySuggestions(runs) {
   return keySuggestions;
 }
 
+export function flatKeySuggestions(keySuggestions) {
+  return _.flatMap(keySuggestions, section =>
+    section.suggestions.map(
+      suggestion =>
+        section.title === 'run'
+          ? suggestion.value
+          : displayFilterKey(suggestion),
+    ),
+  );
+}
+
+export function setupKeyValueCounts(runs, keys, filters) {
+  runs = filterRuns(filters, runs);
+  let result = {};
+  for (let key of keys) {
+    let keyResult = {};
+    for (let run of runs) {
+      let value = getRunValue(run, key);
+      let valueKey = sortableValue(value);
+      if (_.isNil(keyResult[valueKey])) {
+        keyResult[valueKey] = {value: valueKey, count: 0};
+      }
+      keyResult[valueKey].count++;
+    }
+    result[key] = keyResult;
+  }
+  return _.mapValues(result, valCounts =>
+    _.sortBy(_.map(valCounts, val => val).filter(val => !_.isNil(val.value)), [
+      'value',
+    ]),
+  );
+}
+
 export function getColumns(runs) {
-  let configColumns = _.uniq(
-    _.flatMap(runs, run => _.keys(run.config)).sort(),
-  ).map(col => 'config:' + col);
-  let summaryColumns = _.uniq(
-    _.flatMap(runs, run => _.keys(run.summary))
-      .filter(k => !k.startsWith('_') && k !== 'examples')
-      .sort(),
-  ).map(col => 'summary:' + col);
+  let configColumns = _.uniq(_.flatMap(runs, run => _.keys(run.config)))
+    .sort()
+    .map(col => 'config:' + col);
+  let summaryColumns = _.uniq(_.flatMap(runs, run => _.keys(run.summary)))
+    .filter(k => !k.startsWith('_') && k !== 'examples')
+    .sort()
+    .map(col => 'summary:' + col);
   let sweepColumns =
     runs && runs.findIndex(r => r.sweep) > -1 ? ['Sweep', 'Stop'] : [];
   return ['Description'].concat(
@@ -445,4 +668,76 @@ export function getColumns(runs) {
     ['Summary'],
     summaryColumns,
   );
+}
+
+export function scatterPlotCandidates(configs, summaryMetrics) {
+  /* We want to pull out configurations that a user might want to put in a scatterplot
+   * For now that means configurations with more than two distinct numeric values
+   */
+  let configKeys = [];
+  // get all the keys from all the configs
+
+  configs.map((c, i) => {
+    _.keys(c).map((key, j) => {
+      configKeys.push(key);
+    });
+  });
+  let k = _.uniq(configKeys);
+  configKeys = k.filter((key, i) => {
+    let vals = configs.map((c, i) => c[key]).filter(i => _.isFinite(i));
+    return _.uniq(vals).length > 1;
+  });
+  configKeys = configKeys.map((key, i) => 'config:' + key);
+
+  let summaryMetricKeys = [];
+  summaryMetrics.map((c, i) => {
+    _.keys(c).map((key, j) => {
+      summaryMetricKeys.push(key);
+    });
+  });
+
+  k = _.uniq(summaryMetricKeys);
+
+  summaryMetricKeys = k.filter((key, i) => {
+    let vals = summaryMetrics.map((c, i) => c[key]).filter(i => _.isFinite(i));
+    return _.uniq(vals).length > 1;
+  });
+  summaryMetricKeys = summaryMetricKeys.map((key, i) => 'summary:' + key);
+
+  return _.concat(configKeys, summaryMetricKeys);
+}
+
+export function groupByCandidates(configs) {
+  /* We want to pull out the configurations that a user might want to groupBy
+   * this would be any config that has more than one value that's different
+   * and more than one values that is the same
+   */
+  let config_keys = new Set();
+  // get all the keys from all the configs
+
+  configs.map((c, i) => {
+    _.keys(c).map((key, j) => {
+      config_keys.add(key);
+    });
+  });
+  let k = [...config_keys.keys()];
+  var interesting = k.filter((key, i) => {
+    var uniq = [...new Set(configs.map((c, i) => c[key]))];
+    return uniq.length > 1 && uniq.length < configs.length;
+  });
+  return interesting;
+}
+
+export function groupConfigIdx(configs, key) {
+  /* return a map from unique values of key in configs to array of indexes
+  */
+  let values = configs.map((c, i) => c.config[key]);
+  let keyToGroup = {};
+  values.map((key, i) => {
+    if (!keyToGroup[key]) {
+      keyToGroup[key] = [];
+    }
+    keyToGroup[key].push(i);
+  });
+  return keyToGroup;
 }

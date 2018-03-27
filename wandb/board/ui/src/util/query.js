@@ -23,7 +23,7 @@ export function addFilter(filters, key, op, value) {
     filterID = filter.id;
   } else {
     let keys = _.keys(filters);
-    filterID = keys.length > 0 ? _.max(keys) + 1 : 0;
+    filterID = keys.length > 0 ? _.max(keys.map(Number)) + 1 : 0;
   }
   return update(filters, {
     [filterID]: {
@@ -46,8 +46,8 @@ export function setFilterComponent(filters, id, component, value) {
 }
 
 export function merge(base, apply) {
-  let strategy = apply.strategy || 'page';
-  if (strategy === 'page') {
+  let strat = strategy(apply);
+  if (strat === 'page') {
     return {...base, strategy: apply.strategy};
   }
   let result = {};
@@ -55,16 +55,17 @@ export function merge(base, apply) {
   result.entity = apply.entity || base.entity;
   result.model = apply.model || base.model;
 
-  // base and apply may share keys, so we rekey
+  // base and apply may share keys, so we rekey.
+  // RunFilters needs to be able to remove individual
+  // filters (to compute keyValCounts) for the filters that
+  // it's managing, so it's important to leave the keys alone
+  // for the apply.filters.
   result.filters = {};
-  let filterIndex = 0;
   for (var key of _.keys(base.filters)) {
-    result.filters[filterIndex] = base.filters[key];
-    filterIndex++;
+    result.filters['base' + key] = base.filters[key];
   }
   for (var key of _.keys(apply.filters)) {
-    result.filters[filterIndex] = apply.filters[key];
-    filterIndex++;
+    result.filters[key] = apply.filters[key];
   }
 
   // TODO: probably not the right thing to do
@@ -72,15 +73,15 @@ export function merge(base, apply) {
 
   result.sort = apply.sort || base.sort;
   result.num_histories = apply.num_histories || base.num_histories;
+
+  result.baseQuery = base;
+  result.applyQuery = apply;
+
   return result;
 }
 
 export function summaryString(query) {
-  if (
-    !query ||
-    query.strategy === 'page' ||
-    _.keys(query.filters).length === 0
-  ) {
+  if (strategy(query) === 'page' || _.keys(query.filters).length === 0) {
     return '';
   }
   let filtStrs = _.map(
@@ -94,3 +95,40 @@ export function summaryString(query) {
   );
   return filtStrs.join(', ');
 }
+
+export function strategy(query) {
+  if (!query || !query.strategy) {
+    // page is the default when not explicity provided
+    return 'page';
+  }
+  return query.strategy;
+}
+
+///// Control Flow stuff:
+// The logic in these functions is kind of gnarly because we're conflating
+// a few concepts with query.
+// TODO: rework.
+
+export function sameModel(q1, q2) {
+  return q1.entity === q2.entity && q1.model === q2.model;
+}
+
+export function canReuseBaseData(query) {
+  return strategy(query) === 'merge' && sameModel(query, query.baseQuery);
+}
+
+export function shouldPoll(query) {
+  return strategy(query) === 'merge' && !sameModel(query, query.baseQuery);
+}
+
+export function needsOwnRunsQuery(query) {
+  return (
+    strategy(query) === 'root' ||
+    (strategy(query) === 'merge' && !sameModel(query, query.baseQuery))
+  );
+}
+
+export function needsOwnHistoryQuery(query) {
+  return strategy(query) === 'root' || strategy(query) === 'merge';
+}
+///// End control flow stuff

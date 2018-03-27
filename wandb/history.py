@@ -35,6 +35,7 @@ class History(object):
         self.batched = False
         # not all rows have the same keys. this is the union of them all.
         self._keys = set()
+        self._process = "user" if os.getenv("WANDB_INITED") else "wandb"
         self._streams = {}
         self._steps = 0
         self._lock = Lock()
@@ -52,7 +53,9 @@ class History(object):
         self._add_callback = add_callback
 
     def keys(self):
-        return list(self._keys)
+        media_keys = [k for k, v in six.iteritems(
+            self.row) if isinstance(v, dict) and v.get("_type")]
+        return [k for k in self._keys - set(media_keys) if not k.startswith("_")]
 
     def stream(self, name):
         """stream can be used to record different time series:
@@ -114,8 +117,9 @@ class History(object):
 
     def _index(self, row):
         """Internal row adding method that updates step, and keys"""
-        # TODO: store a downsampled representation in memory
-        self.rows.append(row)
+        if self._process == "wandb":
+            self.row = row
+            self.rows.append(row)
         self._keys.update(row.keys())
         self._steps += 1
 

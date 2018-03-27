@@ -13,8 +13,11 @@ import SystemList from '../components/SystemList';
 import ViewModifier from '../containers/ViewModifier';
 import './Run.css';
 import {JSONparseNaN} from '../util/jsonnan';
-
 import _ from 'lodash';
+
+/*
+ * This component shows a big table of runs
+ */
 
 export default class RunViewer extends React.Component {
   state = {};
@@ -36,7 +39,6 @@ export default class RunViewer extends React.Component {
         render: () => (
           <Tab.Pane>
             <StreamingLog
-              updateLoss={this.props.updateLoss}
               match={this.props.match}
               bucket={this.props.bucket}
               logLines={this.props.bucket.logLines}
@@ -82,7 +84,7 @@ export default class RunViewer extends React.Component {
       })
       .filter(row => row !== null);
     let keys = _.flatMap(data, row =>
-      _.keys(row).filter(key => !row[key]._type),
+      _.keys(row).filter(key => !row[key] || !row[key]._type),
     );
     keys = _.uniq(keys);
     keys = _.sortBy(keys);

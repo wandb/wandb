@@ -3,7 +3,7 @@ import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 import TabbedViews from '../components/TabbedViews';
-import TabbedView from '../components/TabbedView';
+import DashboardView from '../components/DashboardView';
 import {
   addView,
   setActiveView,
@@ -13,15 +13,22 @@ import {
   removePanel,
   updatePanel,
   updateView,
+  moveActiveViewLeft,
+  moveActiveViewRight,
 } from '../actions/view';
+import {setFullScreen} from '../actions';
 
 class ViewModifier extends React.Component {
-  renderView = (viewId, editMode) => {
+  renderView = (viewId, editMode, canMoveLeft, canMoveRight) => {
     //TODO: Maybe render panel?
-    const ViewComponent = this.props.viewComponent || TabbedView;
+    const ViewComponent = this.props.viewComponent || DashboardView;
     return (
       <ViewComponent
+        key={viewId}
+        viewType={this.props.viewType}
         editMode={editMode}
+        canMoveLeft={canMoveLeft}
+        canMoveRight={canMoveRight}
         width={this.props.width}
         height={this.props.height}
         data={this.props.data}
@@ -31,6 +38,10 @@ class ViewModifier extends React.Component {
           this.props.changeViewName(this.props.viewType, viewId, viewName)
         }
         removeView={() => this.props.removeView(this.props.viewType, viewId)}
+        moveViewLeft={() => this.props.moveActiveViewLeft(this.props.viewType)}
+        moveViewRight={() =>
+          this.props.moveActiveViewRight(this.props.viewType)
+        }
         updateView={panels =>
           this.props.updateView(this.props.viewType, viewId, panels)
         }
@@ -62,6 +73,7 @@ class ViewModifier extends React.Component {
 function mapStateToProps(state, ownProps) {
   const browser = state.views.browser[ownProps.viewType] || {};
   return {
+    fullScreen: state.global.fullScreen,
     viewState: state.views.browser,
     views: browser.views,
     tabs: browser.tabs,
@@ -84,6 +96,9 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       removePanel,
       updatePanel,
       updateView,
+      setFullScreen,
+      moveActiveViewLeft,
+      moveActiveViewRight,
     },
     dispatch,
   );

@@ -3,8 +3,21 @@ import {Route, Redirect} from 'react-router-dom';
 import {connect} from 'react-redux';
 const authed = state => ({user: state.global.user, auth: state.global.auth});
 
-function PrivateRoute({component: Component, user, auth, ...rest}) {
-  let AuthComponent = connect(authed)(Component);
+let authComponents = {};
+
+function PrivateRoute({component: Component, user, auth, routeCache, ...rest}) {
+  let AuthComponent;
+  if (routeCache) {
+    // This could really fuck you.
+    AuthComponent = authComponents[Component.name];
+    if (!AuthComponent) {
+      AuthComponent = connect(authed)(Component);
+      authComponents[Component.name] = AuthComponent;
+    }
+  } else {
+    AuthComponent = connect(authed)(Component);
+  }
+
   return (
     <Route
       {...rest}
@@ -13,7 +26,8 @@ function PrivateRoute({component: Component, user, auth, ...rest}) {
           <AuthComponent {...props} />
         ) : (
           <Redirect to={{pathname: '/login', state: {from: props.location}}} />
-        )}
+        )
+      }
     />
   );
 }

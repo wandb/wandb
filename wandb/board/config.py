@@ -1,5 +1,4 @@
 import os
-from wandb import __stage_dir__
 
 
 class Config:

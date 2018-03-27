@@ -9,6 +9,23 @@ describe('Model page components test', () => {
       global: {},
       runs: {
         currentJob: 'test',
+        filters: {
+          filter: [],
+        },
+        sort: {},
+        columns: {},
+        pages: {},
+      },
+      views: {
+        server: {},
+        browser: {
+          runs: {
+            tabs: [],
+          },
+        },
+        other: {
+          runs: [],
+        },
       },
     }),
     match = {
@@ -25,6 +42,10 @@ describe('Model page components test', () => {
   let container;
 
   beforeEach(() => {
+    window.Prism = {
+      highlightAll: () => {},
+    };
+
     container = mount(
       <MockAppWrapper store={store}>
         <Model match={match} model={model} />
@@ -33,6 +54,6 @@ describe('Model page components test', () => {
   });
 
   it('finds <ModelViewer /> inside component', () => {
-    expect(container.find(ModelViewer)).to.have.length(1);
+    expect(container.find(ModelViewer)).toHaveLength(1);
   });
 });

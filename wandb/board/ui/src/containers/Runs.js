@@ -1,6 +1,7 @@
 import React from 'react';
 import {graphql, compose, withApollo} from 'react-apollo';
 import {
+  Confirm,
   Container,
   Button,
   Grid,
@@ -13,7 +14,7 @@ import RunFiltersRedux from './RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
 import ViewModifier from './ViewModifier';
 import HelpIcon from '../components/HelpIcon';
-import {RUNS_QUERY} from '../graphql/runs';
+import {MODIFY_RUNS} from '../graphql/runs';
 import {MODEL_UPSERT} from '../graphql/models';
 import {connect} from 'react-redux';
 import queryString from 'query-string';
@@ -31,11 +32,18 @@ import {
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {bindActionCreators} from 'redux';
 import {clearFilters, addFilter, setColumns} from '../actions/run';
-import {setServerViews, setBrowserViews, setActiveView} from '../actions/view';
+import {
+  resetViews,
+  setServerViews,
+  setBrowserViews,
+  setActiveView,
+  addView,
+} from '../actions/view';
 import update from 'immutability-helper';
 import {BOARD} from '../util/board';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
+import {greetShawn} from '../util/filters';
 
 class Runs extends React.Component {
   state = {showFailed: false, activeTab: 0, showFilters: false};
@@ -54,9 +62,11 @@ class Runs extends React.Component {
       props.runSelections !== nextProps.runSelections ||
       props.activeView !== nextProps.activeView
     ) {
-      let query = queryString.parse(window.location.search) || {};
+      let query = {};
       if (!_.isEmpty(nextProps.runFilters)) {
-        query.filter = _.values(nextProps.runFilters).map(filterToString);
+        query.filter = _.values(nextProps.runFilters)
+          .filter(filter => filter.key.section)
+          .map(filterToString);
       }
       if (!_.isEmpty(nextProps.runSelections)) {
         query.select = _.values(nextProps.runSelections).map(filterToString);
@@ -93,7 +103,15 @@ class Runs extends React.Component {
       }
       return [];
     };
-    readFilters('filter');
+    let filterFilters = readFilters('filter');
+    if (filterFilters.length === 0) {
+      this.props.addFilter(
+        'filter',
+        {section: 'tags', value: 'hidden'},
+        '=',
+        'false',
+      );
+    }
     let selectFilters = readFilters('select');
     if (selectFilters.length === 0) {
       this.props.addFilter('select', {section: 'run', value: 'id'}, '=', '*');
@@ -105,6 +123,7 @@ class Runs extends React.Component {
 
   componentWillMount() {
     this.props.clearFilters();
+    this.props.resetViews();
     this._readUrl(this.props);
   }
 
@@ -166,11 +185,20 @@ class Runs extends React.Component {
     this.setState({activeTab: activeIndex});
 
   render() {
+    let ModelInfo = this.props.ModelInfo;
     return (
       <Container>
+        <Confirm
+          open={this.state.showConfirm}
+          onCancel={this.state.handleCancel}
+          onConfirm={this.state.handleConfirm}
+          content={this.state.confirmText}
+          confirmButton={this.state.confirmButton}
+        />
         <Grid>
-          <Grid.Row>
-            <Grid.Column>
+          <Grid.Row divided columns={2}>
+            <Grid.Column>{ModelInfo}</Grid.Column>
+            <Grid.Column textAlign="right">
               <p
                 style={{cursor: 'pointer'}}
                 onClick={() =>
@@ -213,6 +241,7 @@ class Runs extends React.Component {
                         buttonText="Add Filter"
                         keySuggestions={this.props.data.keys}
                         runs={this.props.data.base}
+                        filteredRuns={this.props.data.filtered}
                       />
                     </Grid.Column>
                   </Grid.Row>
@@ -229,6 +258,7 @@ class Runs extends React.Component {
                         buttonText="Add Selection"
                         keySuggestions={this.props.data.keys}
                         runs={this.props.data.base}
+                        filteredRuns={this.props.data.filtered}
                       />
                     </Grid.Column>
                   </Grid.Row>
@@ -237,31 +267,86 @@ class Runs extends React.Component {
             </Grid.Column>
           </Grid.Row>
           <Grid.Column width={16}>
-            <ViewModifier
-              viewType="runs"
-              data={this.props.data}
-              pageQuery={this.props.query}
-              updateViews={views =>
-                this.props.updateModel({
-                  entityName: this.props.match.params.entity,
-                  name: this.props.match.params.model,
-                  id: this.props.projectID,
-                  views: views,
-                })
-              }
-            />
+            {this.props.haveViews && (
+              <ViewModifier
+                viewType="runs"
+                data={this.props.data}
+                pageQuery={this.props.query}
+                updateViews={views =>
+                  this.props.updateModel({
+                    entityName: this.props.match.params.entity,
+                    name: this.props.match.params.model,
+                    id: this.props.projectID,
+                    views: views,
+                  })
+                }
+              />
+            )}
           </Grid.Column>
           <Grid.Column width={16} style={{zIndex: 2}}>
             <Popup
               trigger={
-                <Button floated="right" icon="columns" content="Columns" />
+                <Button
+                  disabled={this.props.loading}
+                  floated="right"
+                  icon="columns"
+                  content="Columns"
+                />
               }
               content={
-                <RunColumnsSelector columnNames={this.props.columnNames} />
+                <RunColumnsSelector columnNames={this.props.data.columnNames} />
               }
               on="click"
               position="bottom left"
             />
+            {!this.props.haveViews && (
+              <Button
+                floated="right"
+                content="Add Charts"
+                disabled={this.props.loading}
+                icon="area chart"
+                onClick={() => this.props.addView('runs', 'New View', [])}
+              />
+            )}
+            <Button
+              floated="right"
+              disabled={this.props.data.selectedRuns.length === 0}
+              onClick={e => {
+                // TODO(adrian): this should probably just be a separate component
+                e.preventDefault();
+
+                this.setState({
+                  showConfirm: true,
+                  confirmText:
+                    'Are you sure you would like to hide these runs? You can reverse this later by removing the "hidden" label.',
+                  confirmButton: `Hide ${
+                    this.props.data.selectedRuns.length
+                  } run(s)`,
+                  handleConfirm: e => {
+                    e.preventDefault();
+                    this.props.modifyRuns({
+                      ids: this.props.data.selectedRuns.map(run => run.id),
+                      addTags: ['hidden'],
+                    });
+                    this.setState({
+                      showConfirm: false,
+                      handleConfirm: null,
+                      handleCancel: null,
+                    });
+                  },
+                  handleCancel: e => {
+                    e.preventDefault();
+                    this.setState({
+                      showConfirm: false,
+                      handleConfirm: null,
+                      handleCancel: null,
+                    });
+                  },
+                });
+              }}>
+              <Icon name="trash" />
+              Hide {this.props.data.selectedRuns.length} run(s)
+            </Button>
           </Grid.Column>
         </Grid>
         <RunFeed
@@ -296,6 +381,15 @@ const withMutations = compose(
         }),
     }),
   }),
+  graphql(MODIFY_RUNS, {
+    props: ({mutate}) => ({
+      modifyRuns: variables => {
+        mutate({
+          variables: {...variables},
+        });
+      },
+    }),
+  }),
 );
 
 function mapStateToProps(state, ownProps) {
@@ -309,6 +403,9 @@ function mapStateToProps(state, ownProps) {
     reduxServerViews: state.views.server,
     reduxBrowserViews: state.views.browser,
     activeView: state.views.other.runs.activeView,
+    haveViews:
+      !_.isEqual(state.views.browser, state.views.server) ||
+      state.views.browser.runs.tabs.length > 0,
   };
 }
 
@@ -324,6 +421,8 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       setServerViews,
       setBrowserViews,
       setActiveView,
+      resetViews,
+      addView,
     },
     dispatch,
   );

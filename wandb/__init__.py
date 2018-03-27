@@ -4,7 +4,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.5.7'
+__version__ = '0.5.11'
 
 import atexit
 import click
@@ -31,10 +31,12 @@ import webbrowser
 
 from . import io_wrap
 
+__root_dir__ = os.getenv("WANDB_DIR", "./")
+
 # We use the hidden version if it already exists, otherwise non-hidden.
-if os.path.exists('.wandb'):
+if os.path.exists(os.path.join(__root_dir__, '.wandb')):
     __stage_dir__ = '.wandb/'
-elif os.path.exists('wandb'):
+elif os.path.exists(os.path.join(__root_dir__, 'wandb')):
     __stage_dir__ = "wandb/"
 else:
     __stage_dir__ = None
@@ -44,7 +46,7 @@ START_TIME = time.time()
 
 
 def wandb_dir():
-    return __stage_dir__
+    return os.path.join(__root_dir__, __stage_dir__ or "wandb/")
 
 
 def _set_stage_dir(stage_dir):
@@ -54,7 +56,7 @@ def _set_stage_dir(stage_dir):
 
 
 if __stage_dir__ is not None:
-    log_fname = __stage_dir__ + 'debug.log'
+    log_fname = wandb_dir() + 'debug.log'
 else:
     log_fname = './wandb-debug.log'
 logging.basicConfig(
@@ -113,8 +115,9 @@ def _debugger(*args):
 class Callbacks():
     @property
     def Keras(self):
-        from .wandb_keras import WandbKerasCallback
-        return WandbKerasCallback
+        print("DEPRECATED: wandb.callbacks is deprecated, use `from wandb.keras import WandbCallback`")
+        from wandb.keras import WandbCallback
+        return WandbCallback
 
 
 callbacks = Callbacks()
@@ -243,9 +246,9 @@ def _init_headless(api, run, job_type, cloud=True):
 
 
 # Will be set to the run object for the current run, as returned by
-# wandb.init(). We may want to get rid of this, but WandbKerasCallback
+# wandb.init(). We may want to get rid of this, but WandbCallback
 # relies on it, and it improves the API a bit (user doesn't have to
-# pass the run into WandbKerasCallback)
+# pass the run into WandbCallback)
 run = None
 
 
@@ -263,9 +266,9 @@ def init(job_type='train', config=None):
     if run or os.getenv('WANDB_INITED'):
         return run
 
-    if not wandb_dir():
+    if __stage_dir__ is None:
         __stage_dir__ = "wandb"
-        util.mkdir_exists_ok(__stage_dir__)
+        util.mkdir_exists_ok(wandb_dir())
 
     try:
         signal.signal(signal.SIGQUIT, _debugger)
@@ -275,8 +278,7 @@ def init(job_type='train', config=None):
     run = wandb_run.Run.from_environment_or_defaults()
     run.job_type = job_type
     run.set_environment()
-    if config:
-        run.config.update(config)
+
     api = wandb_api.Api()
     api.set_current_run_id(run.id)
     if run.mode == 'run':
@@ -306,6 +308,9 @@ def init(job_type='train', config=None):
             'Invalid run mode "%s". Please unset WANDB_MODE to do a dry run or' % run.mode)
         termlog('run with "wandb run" to do a real run.')
         sys.exit(1)
+
+    if config:
+        run.config.update(config)
 
     atexit.register(run.close_files)
 

@@ -4,11 +4,8 @@ import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 import {Form} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
-import {
-  filterKeyFromString,
-  filtersForAxis,
-} from '../util/runhelpers.js';
-import {getRunValue} from '../util/runhelpers.js';
+import {filterKeyFromString, filtersForAxis} from '../util/runhelpers.js';
+import {getRunValue, scatterPlotCandidates} from '../util/runhelpers.js';
 import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
 
@@ -34,7 +31,7 @@ function parcoor(
     computedWidth = Math.max(280, d3node.getBoundingClientRect().width);
   var margin = {top: 30, right: 10, bottom: 10, left: 10},
     width = computedWidth - margin.left - margin.right,
-    height = 320 - margin.top - margin.bottom;
+    height = 280 - margin.top - margin.bottom;
 
   var x = d3.scale.ordinal().rangePoints([0, width], 1),
     y = {},
@@ -393,26 +390,66 @@ class ParCoordPanel extends React.Component {
     this._setup(this.props, nextProps);
   }
 
+  _plotOptions() {
+    let configs = this.props.data.filtered.map((run, i) => run.config);
+    let summaryMetrics = this.props.data.filtered.map((run, i) => run.summary);
+
+    let names = scatterPlotCandidates(configs, summaryMetrics);
+    return names.map((name, i) => ({
+      text: name,
+      key: name,
+      value: name,
+    }));
+  }
+
   renderConfig() {
-    let {axisOptions} = this.props.data;
+    let axisOptions = this._plotOptions();
     return (
-      <Form>
-        <Form.Dropdown
-          label="Dimensions"
-          placeholder="Dimensions"
-          fluid
-          multiple
-          search
-          selection
-          options={axisOptions}
-          value={this.props.config.dimensions}
-          onChange={(e, {value}) =>
-            this.props.updateConfig({
-              ...this.props.config,
-              dimensions: value,
-            })}
-        />
-      </Form>
+      <div>
+        {(!axisOptions || axisOptions.length == 0) &&
+          (this.props.data.filtered.length == 0 ? (
+            <div class="ui negative message">
+              <div class="header">No Runs</div>
+              This project doesn't have any runs yet, or you have filtered all
+              of the runs. To create a run, check out the getting started
+              documentation.
+              <a href="http://docs.wandb.com/#getting-started">
+                http://docs.wandb.com/#getting-started
+              </a>.
+            </div>
+          ) : (
+            <div class="ui negative message">
+              <div class="header">
+                No useful configuration or summary metrics for plotting.
+              </div>
+              Parallel coordinates plot needs numeric configuration or summary
+              metrics with more than one value. You don't have any of those yet.
+              To learn more about collecting summary metrics check out our
+              documentation at
+              <a href="http://docs.wandb.com/#summary">
+                http://docs.wandb.com/#summary
+              </a>.
+            </div>
+          ))}
+        <Form>
+          <Form.Dropdown
+            label="Dimensions"
+            placeholder="Dimensions"
+            fluid
+            multiple
+            search
+            selection
+            options={axisOptions}
+            value={this.props.config.dimensions}
+            onChange={(e, {value}) =>
+              this.props.updateConfig({
+                ...this.props.config,
+                dimensions: value,
+              })
+            }
+          />
+        </Form>
+      </div>
     );
   }
 
