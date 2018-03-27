@@ -119,7 +119,13 @@ export function monotonicIncreasingNames(data, historyKeys) {
   }
 
   // ignore images and other media
-  historyKeys = historyKeys.filter(k => !data.history[0][k]._type);
+  historyKeys = historyKeys.filter(k => {
+    for (var i = 0; i < data.history.length; i++) {
+      var row = data.history[i];
+      if (row[k])
+        return Boolean(row[k]._type);
+    }
+  });
 
   if (historyKeys.length == 0) {
     return [];
