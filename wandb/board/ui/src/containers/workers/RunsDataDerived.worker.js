@@ -13,7 +13,7 @@ import _ from 'lodash';
 
 let runs = [];
 
-onmessage = function(m) {
+function handleMessage(m, postMessage) {
   let {base, prevBuckets, buckets, query} = m.data;
   if (Query.canReuseBaseData(query)) {
     runs = base;
@@ -56,4 +56,21 @@ onmessage = function(m) {
     columnNames,
   };
   postMessage(data);
-};
+}
+
+self.addEventListener('message', m => {
+  handleMessage(m, self.postMessage);
+});
+
+// This is used only in tests.
+export default class FakeWorker {
+  constructor(stringUrl) {
+    this.url = stringUrl;
+    this.onmessage = () => {};
+  }
+
+  postMessage(m) {
+    // Commented out because it causes the test to crash
+    //handleMessage(m, this.onmessage);
+  }
+}

@@ -23,6 +23,6 @@ describe('NewModel page components test', () => {
   });
 
   it('finds <ModelEditor /> component', () => {
-    expect(container.find(ModelEditor)).to.have.length(1);
+    expect(container.find(ModelEditor)).toHaveLength(1);
   });
 });

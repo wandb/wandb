@@ -28,8 +28,7 @@ import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import * as Query from '../util/query';
 import _ from 'lodash';
-
-let RunsDataWorker = require('worker-loader!./workers/RunsDataDerived.js');
+import RunsDataWorker from './workers/RunsDataDerived.worker.js';
 
 // Load the graphql data for this panel, currently loads all data for this project and entity.
 function withRunsData() {

@@ -54,6 +54,6 @@ describe('Model page components test', () => {
   });
 
   it('finds <ModelViewer /> inside component', () => {
-    expect(container.find(ModelViewer)).to.have.length(1);
+    expect(container.find(ModelViewer)).toHaveLength(1);
   });
 });
