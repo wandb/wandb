@@ -481,9 +481,11 @@ function autoConfigCols(runs) {
   let allKeys = _.uniq(_.flatMap(runs, run => _.keys(run.config)));
   let result = {};
   for (let key of allKeys) {
-    let vals = runs.map(run => run.config[key]);
+    let vals = runs.map(run => run.config[key]).filter(o => o != null);
     let types = _.uniq(vals.map(val => typeof val));
-    if (types.length !== 1) {
+    if (vals.length === 0) {
+      result[key] = false;
+    } else if (types.length !== 1) {
       // Show columns that have different types
       result[key] = true;
     } else {
@@ -501,6 +503,11 @@ function autoConfigCols(runs) {
           // Special case for empty arrays, we don't get non-empty arrays
           // as config values because of the flattening that happens at a higher
           // layer.
+          result[key] = false;
+        } else if (
+          vals.every(val => _.isObject(val) && _.keys(val).length === 0)
+        ) {
+          // Special case for empty objects.
           result[key] = false;
         } else {
           // Show columns that have differing values even if all values differ
