@@ -103,7 +103,15 @@ class ImagesPanel extends React.Component {
     let images = history.map(h => h[imageKey]);
 
     if (images.length == 0) {
-      return this.renderError('There are no images');
+      return this.renderError(
+        <p>
+          There are no images. For more information on how to collect history,
+          check out our documentation at{' '}
+          <a href="http://docs.wandb.com/#media">
+            http://docs.wandb.com/#media
+          </a>
+        </p>,
+      );
     }
 
     let captions = images[this.state.epoch]
