@@ -1,10 +1,7 @@
 import Enzyme, {shallow, render, mount} from 'enzyme';
 import Adapter from 'enzyme-adapter-react-16';
-import chai, {expect} from 'chai';
 import sinon from 'sinon';
-import sinonChai from 'sinon-chai';
 import configureStore from 'redux-mock-store';
-chai.use(sinonChai);
 
 Enzyme.configure({adapter: new Adapter()});
 
@@ -24,7 +21,6 @@ global.sinon = sinon;
 global.shallow = shallow;
 global.render = render;
 global.mount = mount;
-global.expect = expect;
 global.mockStore = configureStore();
 global.localStorage = localStorageMock;
 global.RunsDataWorkerMock = RunsDataWorkerMock;

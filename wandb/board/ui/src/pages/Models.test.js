@@ -30,17 +30,16 @@ describe('Models page components test', () => {
     container = shallow(<Models {...props} />);
 
     // test ErrorPage component
-    expect(container.find(ErrorPage)).to.have.length(0);
+    expect(container.find(ErrorPage)).toHaveLength(0);
     container.setProps({error: {}});
-    expect(container.find(ErrorPage)).to.have.length(1);
+    expect(container.find(ErrorPage)).toHaveLength(1);
 
     // finds Create new project button
     container.setProps({error: null, user: {}});
-    expect(container.find(Button)).to.have.length(1);
+    expect(container.find(Button)).toHaveLength(1);
 
-    // finds Create new project button
+    // finds helper links
     container.setProps({loading: false, models: {}});
-    expect(container.find('a')).to.have.length(2);
-    expect(container.find(Header).text()).toBe('Projects');
+    expect(container.find('a')).toHaveLength(2);
   });
 });

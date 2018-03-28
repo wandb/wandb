@@ -65,16 +65,16 @@ describe('Model page components test', () => {
     container = shallow(<Model {...props} />);
 
     // test ErrorPage component
-    expect(container.find(ErrorPage)).to.have.length(0);
+    expect(container.find(ErrorPage)).toHaveLength(0);
     container.setProps({error: {}});
-    expect(container.find(ErrorPage)).to.have.length(1);
+    expect(container.find(ErrorPage)).toHaveLength(1);
 
     // test Loader component
     container.setProps({loading: true, error: null});
-    expect(container.find(Loader)).to.have.length(1);
+    expect(container.find(Loader)).toHaveLength(1);
 
     // test ModelEditor component
     container.setProps({loading: false, user: {}});
-    expect(container.find(ModelEditor)).to.have.length(1);
+    expect(container.find(ModelEditor)).toHaveLength(1);
   });
 });

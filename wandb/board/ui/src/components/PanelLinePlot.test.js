@@ -49,12 +49,12 @@ describe('Panel components test', () => {
   });
 
   it('checks if panel is rendered without config', () => {
-    expect(container.text()).to.contain(
+    expect(container.text()).toContain(
       'This plot type is not supported on this page',
     );
 
     container.setProps({data: {}});
-    expect(container.text()).to.contain(
+    expect(container.text()).toContain(
       "This run doesn't have any history data",
     );
 
@@ -65,7 +65,7 @@ describe('Panel components test', () => {
     container.setProps({
       data: data,
     });
-    expect(container.text()).to.contain("This chart isn't configured yet");
+    expect(container.text()).toContain("This chart isn't configured yet");
 
     data = {
       ...data,
@@ -75,8 +75,8 @@ describe('Panel components test', () => {
     container.setProps({
       data: data,
     });
-    expect(container.text()).to.contain('This chart has no data');
-    expect(container.find('LinePlot').prop('xAxis')).to.be.undefined;
+    expect(container.text()).toContain('This chart has no data');
+    expect(container.find('LinePlot').prop('xAxis')).toBeUndefined();
 
     data = {
       ...data,
@@ -89,7 +89,7 @@ describe('Panel components test', () => {
         lines: lines,
       },
     });
-    expect(container.find('LinePlot').prop('xAxis')).to.be.not.undefined;
+    expect(container.find('LinePlot').prop('xAxis')).toBeDefined();
   });
 
   it('checks if config panel is rendered', () => {
@@ -110,14 +110,16 @@ describe('Panel components test', () => {
     value = 'test';
     dropdown = container.find('FormDropdown[placeholder="X-Axis"]');
     dropdown.simulate('change', null, {value: value});
-    expect(props.updateConfig.calledWith(sinon.match({xAxis: value}))).to.be
-      .true;
+    expect(
+      props.updateConfig.calledWith(sinon.match({xAxis: value})),
+    ).toBeTruthy();
 
     // trigger Lines dropdown change event with exact param
     dropdown = container.find('FormDropdown[placeholder="metrics"]');
     dropdown.simulate('change', null, {value: value});
-    expect(props.updateConfig.calledWith(sinon.match({lines: value}))).to.be
-      .true;
+    expect(
+      props.updateConfig.calledWith(sinon.match({lines: value})),
+    ).toBeTruthy();
 
     // trigger Button log click event to switch flag
     button = container.find('Button');
@@ -126,13 +128,14 @@ describe('Panel components test', () => {
       props.updateConfig.calledWith(
         sinon.match({yLogScale: !props.config.yLogScale}),
       ),
-    ).to.be.true;
+    ).toBeTruthy();
 
     // trigger Smoothness range input change event
     value = 1;
     range = container.find('input[type="range"]');
     range.simulate('change', {target: {value: value}});
-    expect(props.updateConfig.calledWith(sinon.match({smoothingWeight: value})))
-      .to.be.true;
+    expect(
+      props.updateConfig.calledWith(sinon.match({smoothingWeight: value})),
+    ).toBeTruthy();
   });
 });

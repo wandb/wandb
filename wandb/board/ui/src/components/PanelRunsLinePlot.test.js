@@ -43,17 +43,17 @@ describe('Panel components test', () => {
       </MockAppWrapper>,
     );
 
-    expect(container.find('LinePlot')).to.have.length(1);
-    expect(container.find('HelpIcon')).to.have.length(1);
+    expect(container.find('LinePlot')).toHaveLength(1);
+    expect(container.find('HelpIcon')).toHaveLength(1);
     // header from config is not rendered
-    expect(container.find('div.header')).to.have.length(0);
+    expect(container.find('div.header')).toHaveLength(0);
 
     // trigger button click event
     button = container.find(Button);
     button.at(1).simulate('click');
     // TODO: mock `addFilter` method
 
-    expect(container.text()).to.have.string("This chart isn't configured yet");
+    expect(container.text()).toContain("This chart isn't configured yet");
   });
 
   it('checks if config panel is rendered', () => {
@@ -75,11 +75,11 @@ describe('Panel components test', () => {
       </MockAppWrapper>,
     );
 
-    expect(container.find('div.header').text()).to.contain('No history data');
+    expect(container.find('div.header').text()).toContain('No history data');
 
     // all dropdown controls are present
     dropdown = container.find(Dropdown);
-    expect(dropdown).to.have.length(4);
+    expect(dropdown).toHaveLength(4);
 
     // simple validation for `updateConfig` method on all elements
     dropdown.forEach(node => {
@@ -99,6 +99,6 @@ describe('Panel components test', () => {
     button = container.find(Button);
     button.simulate('click');
 
-    expect(props.updateConfig.callCount).to.be.equal(7);
+    expect(props.updateConfig.callCount).toEqual(7);
   });
 });

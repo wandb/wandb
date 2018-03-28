@@ -43,11 +43,11 @@ describe('Dashboard page components test', () => {
         <DashboardWrapper {...props} />
       </MockAppWrapper>,
     );
-    expect(container.find(Loader)).to.have.length(1);
+    expect(container.find(Loader)).toHaveLength(1);
   });
 
   it('shallow Dashboard wrapper component', () => {
     container = shallow(<DashboardWrapper {...props} />);
-    expect(container.find(Dashboard)).to.have.length(1);
+    expect(container.find(Dashboard)).toHaveLength(1);
   });
 });

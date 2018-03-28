@@ -39,9 +39,9 @@ describe('NewModel page components test', () => {
       .bind({props: props});
 
     container.setProps({loading: false});
-    expect(container.find(ModelEditor)).to.have.length(1);
+    expect(container.find(ModelEditor)).toHaveLength(1);
 
     addModel({entityName: 'test', name: 'model'});
-    expect(props.dispatch.calledOnce).to.be.true;
+    expect(props.dispatch.calledOnce).toBeTruthy();
   });
 });
