@@ -43,7 +43,6 @@ import update from 'immutability-helper';
 import {BOARD} from '../util/board';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
-import {greetShawn} from '../util/filters';
 
 class Runs extends React.Component {
   state = {showFailed: false, activeTab: 0, showFilters: false};

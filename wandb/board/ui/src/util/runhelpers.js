@@ -7,6 +7,8 @@ import flatten from 'flat';
 import {fragments} from '../graphql/runs';
 import TimeAgo from 'react-timeago';
 import {Icon} from 'semantic-ui-react';
+import {Run} from './runs';
+import * as Filters from './filters';
 
 export function convertValue(string) {
   let val = Number.parseFloat(string);
@@ -514,26 +516,6 @@ export function bucketFromCache(params, client) {
   });
 }
 
-export function parseBuckets(buckets) {
-  if (!buckets) {
-    return [];
-  }
-  return buckets.edges.map(edge => {
-    {
-      let node = {...edge.node};
-      node.config = node.config ? JSONparseNaN(node.config) : {};
-      node.config = flatten(
-        _.mapValues(node.config, confObj => confObj.value || confObj),
-      );
-      node.summary = flatten(node.summaryMetrics)
-        ? JSONparseNaN(node.summaryMetrics)
-        : {};
-      delete node.summaryMetrics;
-      return node;
-    }
-  });
-}
-
 // Given a set of bucket edges (as returned by graphql), compute runs,
 // which have the bucket JSON data parsed and flattened.
 // This expects the previous version of buckets, and the previous
@@ -548,24 +530,16 @@ export function updateRuns(oldBuckets, newBuckets, prevResult) {
     oldBuckets.edges.map(edge => [edge.node.name, edge.node]),
   );
   let prevResultMap = _.fromPairs(prevResult.map(row => [row.name, row]));
-  return newBuckets.edges.map(edge => {
-    let node = {...edge.node};
-    let oldNode = oldBucketsMap[node.name];
-    if (edge.node === oldNode) {
-      node.config = prevResultMap[node.name].config;
-      node.summary = prevResultMap[node.name].summary;
-    } else {
-      node.config = node.config ? JSONparseNaN(node.config) : {};
-      node.config = flatten(
-        _.mapValues(node.config, confObj => confObj.value || confObj),
-      );
-      node.summary = flatten(node.summaryMetrics)
-        ? JSONparseNaN(node.summaryMetrics)
-        : {};
-    }
-    delete node.summaryMetrics;
-    return node;
-  });
+  return newBuckets.edges
+    .map(edge => {
+      let node = edge.node;
+      let run = prevResultMap[node.name];
+      if (!run || node !== oldBucketsMap[node.name]) {
+        run = Run.fromJson(edge.node);
+      }
+      return run;
+    })
+    .filter(o => o);
 }
 
 export function setupKeySuggestions(runs) {
