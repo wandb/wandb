@@ -24,7 +24,7 @@ describe('NewModel page components test', () => {
       </MockAppWrapper>,
     );
 
-    expect(container.find(ModelEditor)).to.have.length(1);
+    expect(container.find(ModelEditor)).toHaveLength(1);
   });
 
   it('renders without crashing', () => {

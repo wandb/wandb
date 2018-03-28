@@ -140,16 +140,24 @@ export default function views(state = defaultViews(), action) {
       });
     }
     case MOVE_ACTIVE_VIEW_RIGHT: {
+      console.log('Hello everyone');
+      console.log(state);
+      console.log(action.viewType);
       let activeViewId = state.other[action.viewType].activeView;
       if (_.isNil(activeViewId)) {
+        console.log('B1');
         return state;
       }
       let tabs = state.browser[action.viewType].tabs;
       let curPos = _.indexOf(tabs, activeViewId);
       if (curPos === tabs.length - 1) {
+        console.log('B2');
+
         // I can't go right anymore!
         return state;
       }
+      console.log('B3');
+
       let swapPos = curPos + 1;
       let swapViewId = tabs[swapPos];
       return update(state, {

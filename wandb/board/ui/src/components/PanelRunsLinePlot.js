@@ -254,6 +254,11 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   renderNormal() {
+    if (!this.props.data.histories) {
+      // Not sure why this condition is happening.
+      // TODO: fix.
+      return <p>No Histories</p>;
+    }
     let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
 
     let key = this.props.config.key;

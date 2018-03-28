@@ -1,11 +1,10 @@
 // Place your settings in this file to overwrite default and user settings.
 {
-    "python.pythonPath": "~/.pyenv/shims/python",
-    "editor.formatOnSave": true,
-    "prettier.eslintIntegration": true,
-    "files.exclude": {
-        "**/*.pyc": true,
-        "docs/_build": true,
-        "build": true
-    }
+  "python.pythonPath": "~/.pyenv/shims/python",
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/*.pyc": true,
+    "docs/_build": true,
+    "build": true
+  }
 }

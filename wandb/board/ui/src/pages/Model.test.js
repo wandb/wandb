@@ -58,7 +58,7 @@ describe('Model page components test', () => {
         <Model {...props} />
       </MockAppWrapper>,
     );
-    expect(container.find(ModelViewer)).to.have.length(1);
+    expect(container.find(ModelViewer)).toHaveLength(1);
   });
 
   it('finds several key components', () => {

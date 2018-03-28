@@ -1,6 +1,6 @@
 import React from 'react';
 import _ from 'lodash';
-import {Form} from 'semantic-ui-react';
+import {Form, Icon} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {BOARD} from '../util/board';
 
@@ -70,14 +70,54 @@ class ImagesPanel extends React.Component {
     );
   }
 
+  renderError(message) {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          height: 200,
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <div
+          style={{
+            maxWidth: 300,
+            backgroundColor: 'white',
+            border: '1px dashed #999',
+            padding: 15,
+            color: '#666',
+          }}>
+          <Icon name="file image outline" />
+          {message}
+        </div>
+      </div>
+    );
+  }
+
   renderNormal() {
     let {history} = this.props.data;
     //TODO: performance / don't hard code imageKey
     let imageKey = 'examples';
     let images = history.map(h => h[imageKey]);
-    let captions =
-      images[this.state.epoch].captions ||
-      new Array(images[this.state.epoch].count);
+
+    if (images.length == 0) {
+      return this.renderError(
+        <p>
+          There are no images. For more information on how to collect history,
+          check out our documentation at{' '}
+          <a href="http://docs.wandb.com/#media">
+            http://docs.wandb.com/#media
+          </a>
+        </p>,
+      );
+    }
+
+    let captions = images[this.state.epoch]
+      ? images[this.state.epoch].captions ||
+        new Array(images[this.state.epoch].count)
+      : '';
     let {width, height} = images[0];
     let sprite;
     if (BOARD) {
