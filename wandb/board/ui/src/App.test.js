@@ -29,14 +29,10 @@ describe('App components test', () => {
   });
 
   // dispatch flash message
-  it('check action before dispatching ', () => {
+  it('check action on dispatching ', () => {
     expect(store.getActions()).not.toContain(expectedPayload);
 
     store.dispatch(setFlash(message));
-  });
-
-  // after dispatching
-  it('check action after dispatching ', () => {
     expect(store.getActions()).toContainEqual(expectedPayload);
   });
 });
