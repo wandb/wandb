@@ -27,9 +27,6 @@ class ConfigList extends React.Component {
           </a>{' '}
           for more information.
         </p>
-        <div align="center">
-          <Icon className="wandb" size="large" />
-        </div>
       </div>
     );
   }
