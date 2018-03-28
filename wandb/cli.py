@@ -89,7 +89,6 @@ def require_init(func):
         return func(*args, **kwargs)
     return wrapper
 
-
 def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
@@ -200,7 +199,7 @@ def cli(ctx):
 
 @cli.command(context_settings=CONTEXT, help="List projects")
 @require_init
-@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--entity", "-e", default=None, envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
 def projects(entity, display=True):
     projects = api.list_projects(entity=entity)
@@ -222,7 +221,7 @@ def projects(entity, display=True):
 @cli.command(context_settings=CONTEXT, help="List runs in a project")
 @click.pass_context
 @click.option("--project", "-p", default=None, envvar='WANDB_PROJECT', help="The project you wish to list runs from.")
-@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--entity", "-e", default=None, envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
 @require_init
 def runs(ctx, project, entity):
