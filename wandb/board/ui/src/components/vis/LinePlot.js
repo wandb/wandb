@@ -33,9 +33,13 @@ class LinePlotPlot extends React.PureComponent {
     let nullGraph = false;
     let smallGraph = false;
 
-    let maxDataLength = _.max(lines.map((line, i) => line.data.length));
+    let maxDataLength = _.max(
+      lines.filter(line => line.data.length).map((line, i) => line.data.length),
+    );
 
-    if (
+    if (!maxDataLength) {
+      nullGraph = true;
+    } else if (
       maxDataLength < smallSizeThresh &&
       lines &&
       _.max(
@@ -47,8 +51,9 @@ class LinePlotPlot extends React.PureComponent {
     ) {
       if (maxDataLength < 2) {
         nullGraph = true;
+      } else {
+        smallGraph = true;
       }
-      smallGraph = true;
     }
 
     return (
@@ -66,12 +71,9 @@ class LinePlotPlot extends React.PureComponent {
           title={xAxis}
           tickTotal={5}
           tickValues={smallGraph ? _.range(1, smallSizeThresh) : null}
-          tickFormat={tick => format('.2s')(tick)}
+          tickFormat={xType != 'time' ? tick => format('.2s')(tick) : null}
         />
-        <YAxis
-          tickValues={nullGraph ? [0, 1, 2] : null}
-          tickFormat={tick => format('.2r')(tick)}
-        />
+        <YAxis tickValues={null} tickFormat={tick => format('.2r')(tick)} />
 
         {lines
           .map(
