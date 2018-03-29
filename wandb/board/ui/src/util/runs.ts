@@ -3,13 +3,18 @@ import * as _ from 'lodash';
 import {JSONparseNaN} from './jsonnan';
 import * as Parse from './parse';
 
-interface RunKey {
-  section: string;
+type RunKeySection = 'run' | 'tags' | 'config' | 'summary';
+// TODO: Is there a way to constrain name when section is run?
+export interface RunKey {
+  section: RunKeySection;
   name: string;
 }
 
-// Matches JSON types
-type RunValue = string | number | boolean | null;
+export function runKey(section: RunKeySection, name: string) {
+  return {section, name};
+}
+
+export type RunValue = string | number | boolean | null;
 
 // config and summary are stored as KeyVal
 interface KeyVal {
@@ -124,7 +129,9 @@ export class Run {
       console.warn(`Invalid config for run ${runName}:`, confJson);
       return null;
     }
-    config = flatten(_.mapValues(config, Run.extractConfigValue));
+    config = this.removeEmptyListsAndObject(
+      flatten(_.mapValues(config, Run.extractConfigValue)),
+    );
     return config;
   }
 
@@ -143,13 +150,27 @@ export class Run {
       console.warn(`Invalid summary for run ${runName}:`, confSummary);
       return null;
     }
+    summary = this.removeEmptyListsAndObject(flatten(summary));
     return summary;
+  }
+
+  private static removeEmptyListsAndObject(obj: any) {
+    // Flatten will return [] or {} as values. We keys with those values
+    // to simplify typing and behavior everywhere else.
+    return _.pickBy(
+      obj,
+      o =>
+        !(
+          (_.isArray(o) && o.length === 0) ||
+          (_.isObject(o) && _.keys(o).length === 0)
+        ),
+    );
   }
 
   constructor(
     public readonly id: string,
     public readonly name: string,
-    public readonly state: string,
+    public readonly state: string, // TODO: narrow this type
     public readonly user: User,
     public readonly host: string,
     public readonly createdAt: Date,
@@ -177,6 +198,10 @@ export class Run {
         return this.displayName();
       } else if (name === 'userName') {
         return this.user.username;
+      } else if (name === 'state') {
+        return this.state;
+      } else if (name === 'host') {
+        return this.host;
       } else {
         return null;
       }
