@@ -5,20 +5,20 @@ import * as Parse from './parse';
 
 type RunKeySection = 'run' | 'tags' | 'config' | 'summary';
 // TODO: Is there a way to constrain name when section is run?
-export interface RunKey {
+export interface Key {
   section: RunKeySection;
   name: string;
 }
 
-export function runKey(section: RunKeySection, name: string) {
+export function key(section: RunKeySection, name: string) {
   return {section, name};
 }
 
-export type RunValue = string | number | boolean | null;
+export type Value = string | number | boolean | null;
 
 // config and summary are stored as KeyVal
 interface KeyVal {
-  readonly [key: string]: RunValue;
+  readonly [key: string]: Value;
 }
 
 interface User {
@@ -26,192 +26,186 @@ interface User {
   photoUrl: string;
 }
 
-export class Run {
-  // Holds summary data from a single run, as returned by the ModelRuns query.
-  static fromJson(json: any): Run | null {
-    // Safely parse a json object as returned from the server into a validly typed Run
-    if (typeof json !== 'object') {
-      return null;
-    }
-    const id = json.id;
-    if (typeof id !== 'string' || id.length === 0) {
-      console.warn(`Invalid run id: ${json.id}`);
-      return null;
-    }
+export interface Run {
+  readonly id: string;
+  readonly name: string;
+  readonly state: string; // TODO: narrow this type
+  readonly user: User;
+  readonly host: string;
+  readonly createdAt: Date;
+  readonly heartbeatAt: Date;
+  readonly tags: string[];
+  readonly description: string;
+  readonly config: KeyVal;
+  readonly summary: KeyVal;
+}
 
-    const name = json.name;
-    if (typeof name !== 'string' || name.length === 0) {
-      console.warn(`Invalid run name: ${json.name}`);
-      return null;
-    }
-
-    const state = json.state;
-    if (typeof name !== 'string' || name.length === 0) {
-      console.warn(`Invalid run state: ${json.state}`);
-      return null;
-    }
-
-    const user = json.user;
-    if (user == null || user.username == null || user.photoUrl == null) {
-      console.warn(`Invalid user for run ${name}:`, json.user);
-      return null;
-    }
-
-    const host = json.host;
-    if (typeof host !== 'string') {
-      console.warn(`Invalid run host: ${json.host}`);
-      return null;
-    }
-
-    const createdAt = Parse.parseDate(json.createdAt);
-    if (createdAt == null) {
-      console.warn(`Invalid createdAt for run ${name}:`, json.createdAt);
-      return null;
-    }
-
-    const heartbeatAt = Parse.parseDate(json.heartbeatAt);
-    if (heartbeatAt == null) {
-      console.warn(`Invalid heartbeatAt for run ${name}:`, json.heartbeatAt);
-      return null;
-    }
-
-    const tags = json.tags;
-    if (
-      !(tags instanceof Array) ||
-      !tags.every((tag: any) => typeof tag === 'string')
-    ) {
-      console.warn(`Invalid tags for run ${name}:`, json.tags);
-      return null;
-    }
-
-    const config = Run.parseConfig(json.config, name);
-    if (config == null) {
-      return null;
-    }
-
-    const summary = Run.parseSummary(json.summaryMetrics, name);
-    if (summary == null) {
-      return null;
-    }
-
-    return new Run(
-      id,
-      name,
-      state,
-      user,
-      host,
-      createdAt,
-      heartbeatAt,
-      tags,
-      typeof json.description === 'string' ? json.description : '',
-      config,
-      summary,
-    );
-  }
-
-  private static extractConfigValue(confVal: any) {
-    // Config values are supposed to be of the shape {value: <value>, desc: <description>}
-    if (confVal == null || confVal.value == null) {
-      return null;
-    }
-    return confVal.value;
-  }
-
-  private static parseConfig(confJson: any, runName: string): KeyVal | null {
-    let config: any;
-    try {
-      config = JSONparseNaN(confJson);
-    } catch {
-      console.warn(`Couldn\'t parse config for run ${runName}:`, confJson);
-      return null;
-    }
-    if (typeof config !== 'object') {
-      console.warn(`Invalid config for run ${runName}:`, confJson);
-      return null;
-    }
-    config = this.removeEmptyListsAndObject(
-      flatten(_.mapValues(config, Run.extractConfigValue)),
-    );
-    return config;
-  }
-
-  private static parseSummary(
-    confSummary: any,
-    runName: string,
-  ): KeyVal | null {
-    let summary: any;
-    try {
-      summary = JSONparseNaN(confSummary);
-    } catch {
-      console.warn(`Couldn\'t parse summary for run ${runName}:`, confSummary);
-      return null;
-    }
-    if (typeof summary !== 'object') {
-      console.warn(`Invalid summary for run ${runName}:`, confSummary);
-      return null;
-    }
-    summary = this.removeEmptyListsAndObject(flatten(summary));
-    return summary;
-  }
-
-  private static removeEmptyListsAndObject(obj: any) {
-    // Flatten will return [] or {} as values. We keys with those values
-    // to simplify typing and behavior everywhere else.
-    return _.pickBy(
-      obj,
-      o =>
-        !(
-          (_.isArray(o) && o.length === 0) ||
-          (_.isObject(o) && _.keys(o).length === 0)
-        ),
-    );
-  }
-
-  constructor(
-    public readonly id: string,
-    public readonly name: string,
-    public readonly state: string, // TODO: narrow this type
-    public readonly user: User,
-    public readonly host: string,
-    public readonly createdAt: Date,
-    public readonly heartbeatAt: Date,
-    public readonly tags: string[],
-    public readonly description: string,
-    public readonly config: KeyVal,
-    public readonly summary: KeyVal,
-  ) {}
-
-  displayName() {
-    if (this.description.length > 0) {
-      return this.description.split('\n')[0];
-    }
-    return this.name || '';
-  }
-
-  getValue(key: RunKey): RunValue {
-    const {section, name} = key;
-    if (section === 'run') {
-      if (name === 'id') {
-        // Alias 'id' to 'name'.
-        return this.name;
-      } else if (name === 'name') {
-        return this.displayName();
-      } else if (name === 'userName') {
-        return this.user.username;
-      } else if (name === 'state') {
-        return this.state;
-      } else if (name === 'host') {
-        return this.host;
-      } else {
-        return null;
-      }
-    } else if (section === 'tags') {
-      return _.indexOf(this.tags, name) !== -1;
-    } else if (section === 'config') {
-      return this.config[name];
-    } else if (section === 'summary') {
-      return this.summary[name];
-    }
+export function fromJson(json: any): Run | null {
+  // Safely parse a json object as returned from the server into a validly typed Run
+  if (typeof json !== 'object') {
     return null;
   }
+  const id = json.id;
+  if (typeof id !== 'string' || id.length === 0) {
+    console.warn(`Invalid run id: ${json.id}`);
+    return null;
+  }
+
+  const name = json.name;
+  if (typeof name !== 'string' || name.length === 0) {
+    console.warn(`Invalid run name: ${json.name}`);
+    return null;
+  }
+
+  const state = json.state;
+  if (typeof name !== 'string' || name.length === 0) {
+    console.warn(`Invalid run state: ${json.state}`);
+    return null;
+  }
+
+  const user = json.user;
+  if (user == null || user.username == null || user.photoUrl == null) {
+    console.warn(`Invalid user for run ${name}:`, json.user);
+    return null;
+  }
+
+  const host = json.host;
+  if (typeof host !== 'string') {
+    console.warn(`Invalid run host: ${json.host}`);
+    return null;
+  }
+
+  const createdAt = Parse.parseDate(json.createdAt);
+  if (createdAt == null) {
+    console.warn(`Invalid createdAt for run ${name}:`, json.createdAt);
+    return null;
+  }
+
+  const heartbeatAt = Parse.parseDate(json.heartbeatAt);
+  if (heartbeatAt == null) {
+    console.warn(`Invalid heartbeatAt for run ${name}:`, json.heartbeatAt);
+    return null;
+  }
+
+  const tags = json.tags;
+  if (
+    !(tags instanceof Array) ||
+    !tags.every((tag: any) => typeof tag === 'string')
+  ) {
+    console.warn(`Invalid tags for run ${name}:`, json.tags);
+    return null;
+  }
+
+  const config = parseConfig(json.config, name);
+  if (config == null) {
+    return null;
+  }
+
+  const summary = parseSummary(json.summaryMetrics, name);
+  if (summary == null) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    state,
+    user,
+    host,
+    createdAt,
+    heartbeatAt,
+    tags,
+    description: typeof json.description === 'string' ? json.description : '',
+    config,
+    summary,
+  };
+}
+
+function extractConfigValue(confVal: any) {
+  // Config values are supposed to be of the shape {value: <value>, desc: <description>}
+  if (confVal == null || confVal.value == null) {
+    return null;
+  }
+  return confVal.value;
+}
+
+function parseConfig(confJson: any, runName: string): KeyVal | null {
+  let config: any;
+  try {
+    config = JSONparseNaN(confJson);
+  } catch {
+    console.warn(`Couldn\'t parse config for run ${runName}:`, confJson);
+    return null;
+  }
+  if (typeof config !== 'object') {
+    console.warn(`Invalid config for run ${runName}:`, confJson);
+    return null;
+  }
+  config = removeEmptyListsAndObjects(
+    flatten(_.mapValues(config, extractConfigValue)),
+  );
+  return config;
+}
+
+function parseSummary(confSummary: any, runName: string): KeyVal | null {
+  let summary: any;
+  try {
+    summary = JSONparseNaN(confSummary);
+  } catch {
+    console.warn(`Couldn\'t parse summary for run ${runName}:`, confSummary);
+    return null;
+  }
+  if (typeof summary !== 'object') {
+    console.warn(`Invalid summary for run ${runName}:`, confSummary);
+    return null;
+  }
+  summary = removeEmptyListsAndObjects(flatten(summary));
+  return summary;
+}
+
+function removeEmptyListsAndObjects(obj: any) {
+  // Flatten will return [] or {} as values. We keys with those values
+  // to simplify typing and behavior everywhere else.
+  return _.pickBy(
+    obj,
+    o =>
+      !(
+        (_.isArray(o) && o.length === 0) ||
+        (_.isObject(o) && _.keys(o).length === 0)
+      ),
+  );
+}
+
+export function displayName(run: Run) {
+  if (run.description.length > 0) {
+    return run.description.split('\n')[0];
+  }
+  return run.name || '';
+}
+
+export function getValue(run: Run, runKey: Key): Value {
+  const {section, name} = runKey;
+  if (section === 'run') {
+    if (name === 'id') {
+      // Alias 'id' to 'name'.
+      return run.name;
+    } else if (name === 'name') {
+      return displayName(run);
+    } else if (name === 'userName') {
+      return run.user.username;
+    } else if (name === 'state') {
+      return run.state;
+    } else if (name === 'host') {
+      return run.host;
+    } else {
+      return null;
+    }
+  } else if (section === 'tags') {
+    return _.indexOf(run.tags, name) !== -1;
+  } else if (section === 'config') {
+    return run.config[name];
+  } else if (section === 'summary') {
+    return run.summary[name];
+  }
+  return null;
 }

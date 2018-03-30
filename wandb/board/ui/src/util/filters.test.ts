@@ -1,98 +1,118 @@
-import {filterRuns, GroupFilter, IndividualFilter} from './filters';
-import {Run, runKey} from './runs';
+import * as Filter from './filters';
+import * as Run from './runs';
 
-let runs: Run[];
+let runs: Run.Run[];
 
 beforeAll(() => {
   runs = [
-    new Run(
-      'id-shawn',
-      'name0',
-      'running',
-      {username: 'shawn', photoUrl: 'aphoto.com'},
-      'angry.local',
-      new Date(2018, 2, 22),
-      new Date(2018, 2, 22, 1),
-      ['good', 'baseline'],
-      'shawn-run\nSome interesting info',
-      {lr: 0.9, momentum: 0.95},
-      {acc: 0.72, loss: 0.12},
-    ),
-    new Run(
-      'id-brian',
-      'name1',
-      'running',
-      {username: 'brian', photoUrl: 'bphoto.com'},
-      'brian.local',
-      new Date(2018, 2, 23),
-      new Date(2018, 2, 23, 1),
-      [],
-      'fancy',
-      {lr: 0.6, momentum: 0.95},
-      {acc: 0.8, loss: 0.05},
-    ),
-    new Run(
-      'id-lindsay',
-      'name2',
-      'failed',
-      {username: 'lindsay', photoUrl: 'lphoto.com'},
-      'linsday.local',
-      new Date(2018, 2, 24),
-      new Date(2018, 2, 24, 1),
-      ['hidden'],
-      'testrun\nJust testing some stuff',
-      {lr: 0.7, momentum: 0.94, testparam: 'yes'},
-      {acc: 0.85},
-    ),
+    {
+      id: 'id-shawn',
+      name: 'name0',
+      state: 'running',
+      user: {username: 'shawn', photoUrl: 'aphoto.com'},
+      host: 'angry.local',
+      createdAt: new Date(2018, 2, 22),
+      heartbeatAt: new Date(2018, 2, 22, 1),
+      tags: ['good', 'baseline'],
+      description: 'shawn-run\nSome interesting info',
+      config: {lr: 0.9, momentum: 0.95},
+      summary: {acc: 0.72, loss: 0.12},
+    },
+    {
+      id: 'id-brian',
+      name: 'name1',
+      state: 'running',
+      user: {username: 'brian', photoUrl: 'bphoto.com'},
+      host: 'brian.local',
+      createdAt: new Date(2018, 2, 23),
+      heartbeatAt: new Date(2018, 2, 23, 1),
+      tags: [],
+      description: 'fancy',
+      config: {lr: 0.6, momentum: 0.95},
+      summary: {acc: 0.8, loss: 0.05},
+    },
+    {
+      id: 'id-lindsay',
+      name: 'name2',
+      state: 'failed',
+      user: {username: 'lindsay', photoUrl: 'lphoto.com'},
+      host: 'linsday.local',
+      createdAt: new Date(2018, 2, 24),
+      heartbeatAt: new Date(2018, 2, 24, 1),
+      tags: ['hidden'],
+      description: 'testrun\nJust testing some stuff',
+      config: {lr: 0.7, momentum: 0.94, testparam: 'yes'},
+      summary: {acc: 0.85},
+    },
   ];
 });
 
 describe('Individual Filter', () => {
   it('name =', () => {
-    const filter = new IndividualFilter(
-      runKey('run', 'name'),
-      '=',
-      'shawn-run',
-    );
-    const result = filterRuns(filter, runs);
+    const filter: Filter.Filter = {
+      key: Run.key('run', 'name'),
+      op: '=',
+      value: 'shawn-run',
+    };
+    const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({id: 'id-shawn'});
   });
 
   it('state !=', () => {
-    const filter = new IndividualFilter(runKey('run', 'state'), '!=', 'failed');
-    const result = filterRuns(filter, runs);
+    const filter: Filter.Filter = {
+      key: Run.key('run', 'state'),
+      op: '!=',
+      value: 'failed',
+    };
+    const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({id: 'id-shawn'});
     expect(result[1]).toMatchObject({id: 'id-brian'});
   });
 
   it('config >=', () => {
-    const filter = new IndividualFilter(runKey('config', 'lr'), '>=', 0.7);
-    const result = filterRuns(filter, runs);
+    const filter: Filter.Filter = {
+      key: Run.key('config', 'lr'),
+      op: '>=',
+      value: 0.7,
+    };
+    const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({id: 'id-brian'});
     expect(result[1]).toMatchObject({id: 'id-lindsay'});
   });
 
   it('config <=', () => {
-    const filter = new IndividualFilter(runKey('config', 'lr'), '<=', 0.7);
-    const result = filterRuns(filter, runs);
+    const filter: Filter.Filter = {
+      key: Run.key('config', 'lr'),
+      op: '<=',
+      value: 0.7,
+    };
+    const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({id: 'id-shawn'});
     expect(result[1]).toMatchObject({id: 'id-lindsay'});
   });
 
   it('summary <', () => {
-    const filter = new IndividualFilter(runKey('summary', 'loss'), '<', 0.1);
-    const result = filterRuns(filter, runs);
+    const filter: Filter.Filter = {
+      key: Run.key('summary', 'loss'),
+      op: '<',
+      value: 0.1,
+    };
+    const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({id: 'id-shawn'});
   });
 
   it('summary >', () => {
-    const filter = new IndividualFilter(runKey('summary', 'loss'), '>', 0.1);
-    const result = filterRuns(filter, runs);
+    const filter: Filter.Filter = {
+      key: Run.key('summary', 'loss'),
+      op: '>',
+      value: 0.1,
+    };
+    const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({id: 'id-brian'});
   });
@@ -100,35 +120,47 @@ describe('Individual Filter', () => {
 
 describe('Group Filter', () => {
   it('AND', () => {
-    const filter = new GroupFilter('AND', [
-      new IndividualFilter(runKey('run', 'state'), '=', 'running'),
-      new IndividualFilter(runKey('run', 'host'), '=', 'brian.local'),
-    ]);
-    const result = filterRuns(filter, runs);
+    const filter: Filter.Filter = {
+      op: 'AND',
+      filters: [
+        {key: Run.key('run', 'state'), op: '=', value: 'running'},
+        {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
+      ],
+    };
+    const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({id: 'id-brian'});
   });
 
   it('OR', () => {
-    const filter = new GroupFilter('OR', [
-      new IndividualFilter(runKey('run', 'host'), '=', 'angry.local'),
-      new IndividualFilter(runKey('run', 'host'), '=', 'brian.local'),
-    ]);
-    const result = filterRuns(filter, runs);
+    const filter: Filter.Filter = {
+      op: 'OR',
+      filters: [
+        {key: Run.key('run', 'host'), op: '=', value: 'angry.local'},
+        {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
+      ],
+    };
+    const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({id: 'id-shawn'});
     expect(result[1]).toMatchObject({id: 'id-brian'});
   });
 
   it('OR of AND', () => {
-    const filter = new GroupFilter('OR', [
-      new IndividualFilter(runKey('run', 'host'), '=', 'angry.local'),
-      new GroupFilter('AND', [
-        new IndividualFilter(runKey('run', 'state'), '=', 'running'),
-        new IndividualFilter(runKey('run', 'host'), '=', 'brian.local'),
-      ]),
-    ]);
-    const result = filterRuns(filter, runs);
+    const filter: Filter.Filter = {
+      op: 'OR',
+      filters: [
+        {key: Run.key('run', 'host'), op: '=', value: 'angry.local'},
+        {
+          op: 'AND',
+          filters: [
+            {key: Run.key('run', 'state'), op: '=', value: 'running'},
+            {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
+          ],
+        },
+      ],
+    };
+    const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({id: 'id-shawn'});
     expect(result[1]).toMatchObject({id: 'id-brian'});
