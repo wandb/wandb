@@ -3,6 +3,8 @@ import * as _ from 'lodash';
 import {JSONparseNaN} from './jsonnan';
 import * as Parse from './parse';
 
+// These two must match
+const runKeySections = ['run', 'tags', 'config', 'summary'];
 type RunKeySection = 'run' | 'tags' | 'config' | 'summary';
 // TODO: Is there a way to constrain name when section is run?
 export interface Key {
@@ -10,8 +12,20 @@ export interface Key {
   name: string;
 }
 
-export function key(section: RunKeySection, name: string) {
-  return {section, name};
+export function key(section: string, name: string): Key | null {
+  if (_.indexOf(runKeySections, section) === -1) {
+    return null;
+  }
+  return {section: section as RunKeySection, name};
+}
+
+export function keyFromString(keyString: string): Key | null {
+  let [section, name] = keyString.split(':', 2);
+  if (name == null) {
+    name = section;
+    section = 'run';
+  }
+  return key(section, name);
 }
 
 export type Value = string | number | boolean | null;

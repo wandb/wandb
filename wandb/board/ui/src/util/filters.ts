@@ -79,44 +79,59 @@ export function filterRuns(filter: Filter, runs: Run.Run[]) {
 ///// check* functions and fromJson are used for making sure server data is
 // in the format we expect. We convert it to safely typed TypeScript data.
 
-function checkIndividualFilter(filter: any) {
-  // Not extremely thorough.
+function checkIndividualFilter(filter: any): IndividualFilter | null {
   if (_.indexOf(ops, filter.op) === -1) {
-    return false;
+    return null;
   }
-  if (
-    typeof filter.key !== 'object' ||
-    filter.key.section == null ||
-    filter.key.name == null
-  ) {
-    return false;
+  let filterKey: Run.Key | null;
+  // We allow both colon-separate string or object formats.
+  if (typeof filter.key === 'string') {
+    filterKey = Run.keyFromString(filter.key);
+  } else if (typeof filter.key === 'object') {
+    filterKey = Run.key(filter.key.section, filter.key.name);
+  } else {
+    return null;
+  }
+  if (filterKey == null) {
+    return null;
   }
   if (filter.value == null) {
-    return false;
+    return null;
   }
-  return true;
+  return {
+    key: filterKey,
+    op: filter.op,
+    value: filter.value,
+  };
 }
 
-function checkGroupFilter(filter: any): boolean {
+function checkGroupFilter(filter: any): GroupFilter | null {
   if (filter.op !== 'AND' && filter.op !== 'OR') {
-    return false;
+    return null;
   }
-  return checkGroupFilterSet(filter.filters);
+  const filters = checkGroupFilterSet(filter.filters);
+  if (!filters) {
+    return null;
+  }
+  return {
+    op: filter.op,
+    filters,
+  };
 }
 
-function checkGroupFilterSet(filters: any): boolean {
+function checkGroupFilterSet(filters: any): Filter[] | null {
   if (!(filters instanceof Array)) {
-    return false;
+    return null;
   }
-  for (const filter of filters) {
-    if (!checkFilter(filter)) {
-      return false;
-    }
+  const result = filters.map(checkFilter);
+  if (result.some(o => o == null)) {
+    return null;
   }
-  return true;
+  // We know none of them are null after the check above.
+  return result as Filter[];
 }
 
-function checkFilter(filter: any): boolean {
+function checkFilter(filter: any): Filter | null {
   if (filter.op === 'AND' || filter.op === 'OR') {
     return checkGroupFilter(filter);
   } else {
@@ -128,12 +143,9 @@ export function fromJson(json: any): Filter | null {
   if (checkGroupFilterSet(json)) {
     // This is the old format, a top-level array of individual filters to be
     // AND'd together.
+    // TODO: Fix
     return {op: 'AND', filters: json};
   } else {
-    if (checkFilter(json)) {
-      return json;
-    } else {
-      return null;
-    }
+    return checkFilter(json);
   }
 }

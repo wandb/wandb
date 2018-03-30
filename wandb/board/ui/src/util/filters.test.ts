@@ -50,7 +50,7 @@ beforeAll(() => {
 describe('Individual Filter', () => {
   it('name =', () => {
     const filter: Filter.Filter = {
-      key: Run.key('run', 'name'),
+      key: Run.key('run', 'name')!,
       op: '=',
       value: 'shawn-run',
     };
@@ -61,7 +61,7 @@ describe('Individual Filter', () => {
 
   it('state !=', () => {
     const filter: Filter.Filter = {
-      key: Run.key('run', 'state'),
+      key: Run.key('run', 'state')!,
       op: '!=',
       value: 'failed',
     };
@@ -73,7 +73,7 @@ describe('Individual Filter', () => {
 
   it('config >=', () => {
     const filter: Filter.Filter = {
-      key: Run.key('config', 'lr'),
+      key: Run.key('config', 'lr')!,
       op: '>=',
       value: 0.7,
     };
@@ -85,7 +85,7 @@ describe('Individual Filter', () => {
 
   it('config <=', () => {
     const filter: Filter.Filter = {
-      key: Run.key('config', 'lr'),
+      key: Run.key('config', 'lr')!,
       op: '<=',
       value: 0.7,
     };
@@ -97,7 +97,7 @@ describe('Individual Filter', () => {
 
   it('summary <', () => {
     const filter: Filter.Filter = {
-      key: Run.key('summary', 'loss'),
+      key: Run.key('summary', 'loss')!,
       op: '<',
       value: 0.1,
     };
@@ -108,7 +108,7 @@ describe('Individual Filter', () => {
 
   it('summary >', () => {
     const filter: Filter.Filter = {
-      key: Run.key('summary', 'loss'),
+      key: Run.key('summary', 'loss')!,
       op: '>',
       value: 0.1,
     };
@@ -123,8 +123,8 @@ describe('Group Filter', () => {
     const filter: Filter.Filter = {
       op: 'AND',
       filters: [
-        {key: Run.key('run', 'state'), op: '=', value: 'running'},
-        {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
+        {key: Run.key('run', 'state')!, op: '=', value: 'running'},
+        {key: Run.key('run', 'host')!, op: '=', value: 'brian.local'},
       ],
     };
     const result = Filter.filterRuns(filter, runs);
@@ -136,8 +136,8 @@ describe('Group Filter', () => {
     const filter: Filter.Filter = {
       op: 'OR',
       filters: [
-        {key: Run.key('run', 'host'), op: '=', value: 'angry.local'},
-        {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
+        {key: Run.key('run', 'host')!, op: '=', value: 'angry.local'},
+        {key: Run.key('run', 'host')!, op: '=', value: 'brian.local'},
       ],
     };
     const result = Filter.filterRuns(filter, runs);
@@ -150,12 +150,12 @@ describe('Group Filter', () => {
     const filter: Filter.Filter = {
       op: 'OR',
       filters: [
-        {key: Run.key('run', 'host'), op: '=', value: 'angry.local'},
+        {key: Run.key('run', 'host')!, op: '=', value: 'angry.local'},
         {
           op: 'AND',
           filters: [
-            {key: Run.key('run', 'state'), op: '=', value: 'running'},
-            {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
+            {key: Run.key('run', 'state')!, op: '=', value: 'running'},
+            {key: Run.key('run', 'host')!, op: '=', value: 'brian.local'},
           ],
         },
       ],
@@ -185,6 +185,14 @@ describe('fromJson', () => {
     expect(Filter.fromJson(goodFilters)).toEqual(goodFilters);
   });
 
+  it('string-keyed filter', () => {
+    expect(Filter.fromJson({key: 'config:lr', op: '>=', value: 0.9})).toEqual({
+      key: Run.key('config', 'lr'),
+      op: '>=',
+      value: 0.9,
+    });
+  });
+
   it('bad filter op', () => {
     expect(
       Filter.fromJson({
@@ -197,7 +205,7 @@ describe('fromJson', () => {
   it('bad filter key', () => {
     expect(
       Filter.fromJson({
-        key: 'key',
+        key: {section: 'none'},
         op: '=',
         value: 14,
       }),
