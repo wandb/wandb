@@ -1,55 +1,12 @@
+import * as _ from 'lodash';
 import * as Run from './runs';
-
-// type FilterOp = '=' | '!=' | '<' | '>' | '<=' | '>=';
-
-// // filter has a filter method, which takes a list of runs and returns runs
-// interface Filter {
-//   match(run: Run.Run): boolean;
-// }
-
-// export class IndividualFilter {
-//   constructor(
-//     public key: Run.Key,
-//     public op: FilterOp,
-//     public value: Run.Value,
-//   ) {
-//     this.match = this.match.bind(this);
-//   }
-
-//   match(run: Run.Run): boolean {
-//     const value = Run.getValue(run, this.key);
-//     if (this.op === '=') {
-//       if (this.value === '*') {
-//         return value != null;
-//       } else {
-//         return this.value === value;
-//       }
-//     } else if (this.op === '!=') {
-//       if (this.value === '*') {
-//         return value === null;
-//       }
-//       return this.value !== value;
-//     }
-//     if (this.value && value != null) {
-//       if (this.op === '<') {
-//         return this.value < value;
-//       } else if (this.op === '>') {
-//         return this.value > value;
-//       } else if (this.op === '<=') {
-//         return this.value <= value;
-//       } else if (this.op === '>=') {
-//         return this.value >= value;
-//       }
-//     }
-
-//     return false;
-//   }
-// }
 
 type GroupFilterOp = 'AND' | 'OR';
 
 export type Filter = IndividualFilter | GroupFilter;
 
+// needs to match IndividualFilter.op
+const ops = ['=', '!=', '<', '>', '<=', '>='];
 export interface IndividualFilter {
   op: '=' | '!=' | '<' | '>' | '<=' | '>=';
   key: Run.Key;
@@ -117,4 +74,66 @@ export function match(filter: Filter, run: Run.Run): boolean {
 
 export function filterRuns(filter: Filter, runs: Run.Run[]) {
   return runs.filter(run => match(filter, run));
+}
+
+///// check* functions and fromJson are used for making sure server data is
+// in the format we expect. We convert it to safely typed TypeScript data.
+
+function checkIndividualFilter(filter: any) {
+  // Not extremely thorough.
+  if (_.indexOf(ops, filter.op) === -1) {
+    return false;
+  }
+  if (
+    typeof filter.key !== 'object' ||
+    filter.key.section == null ||
+    filter.key.name == null
+  ) {
+    return false;
+  }
+  if (filter.value == null) {
+    return false;
+  }
+  return true;
+}
+
+function checkGroupFilter(filter: any): boolean {
+  if (filter.op !== 'AND' && filter.op !== 'OR') {
+    return false;
+  }
+  return checkGroupFilterSet(filter.filters);
+}
+
+function checkGroupFilterSet(filters: any): boolean {
+  if (!(filters instanceof Array)) {
+    return false;
+  }
+  for (const filter of filters) {
+    if (!checkFilter(filter)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function checkFilter(filter: any): boolean {
+  if (filter.op === 'AND' || filter.op === 'OR') {
+    return checkGroupFilter(filter);
+  } else {
+    return checkIndividualFilter(filter);
+  }
+}
+
+export function fromJson(json: any): Filter | null {
+  if (checkGroupFilterSet(json)) {
+    // This is the old format, a top-level array of individual filters to be
+    // AND'd together.
+    return {op: 'AND', filters: json};
+  } else {
+    if (checkFilter(json)) {
+      return json;
+    } else {
+      return null;
+    }
+  }
 }

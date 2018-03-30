@@ -166,3 +166,48 @@ describe('Group Filter', () => {
     expect(result[1]).toMatchObject({id: 'id-brian'});
   });
 });
+
+describe('fromJson', () => {
+  it('good filters', () => {
+    const goodFilters = {
+      op: 'OR',
+      filters: [
+        {key: Run.key('run', 'host'), op: '=', value: 'angry.local'},
+        {
+          op: 'AND',
+          filters: [
+            {key: Run.key('run', 'state'), op: '=', value: 'running'},
+            {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
+          ],
+        },
+      ],
+    };
+    expect(Filter.fromJson(goodFilters)).toEqual(goodFilters);
+  });
+
+  it('bad filter op', () => {
+    expect(
+      Filter.fromJson({
+        op: 'And',
+        filters: [],
+      }),
+    ).toBe(null);
+  });
+
+  it('bad filter key', () => {
+    expect(
+      Filter.fromJson({
+        key: 'key',
+        op: '=',
+        value: 14,
+      }),
+    ).toBe(null);
+  });
+
+  it('old format', () => {
+    const filters = [
+      {key: {section: 'run', name: 'host'}, op: '!=', value: 'shawn.local'},
+    ];
+    expect(Filter.fromJson(filters)).toEqual({op: 'AND', filters});
+  });
+});
