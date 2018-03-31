@@ -327,7 +327,7 @@ class RunFeedRow extends React.Component {
           } else if (columnName === 'Ran') {
             return (
               <Table.Cell key={columnName} collapsing>
-                <TimeAgo date={run.createdAt + 'Z'} />
+                <TimeAgo date={run.createdAt} />
               </Table.Cell>
             );
           } else if (columnName === 'Runtime') {
@@ -335,10 +335,8 @@ class RunFeedRow extends React.Component {
               <Table.Cell key={columnName} collapsing>
                 {run.heartbeatAt && (
                   <TimeAgo
-                    date={run.createdAt + 'Z'}
-                    now={() => {
-                      return Date.parse(run.heartbeatAt + 'Z');
-                    }}
+                    date={run.createdAt}
+                    now={() => run.heartbeatAt}
                     formatter={(v, u, s, d, f) => f().replace(s, '')}
                     live={false}
                   />

@@ -7,7 +7,7 @@ import flatten from 'flat';
 import {fragments} from '../graphql/runs';
 import TimeAgo from 'react-timeago';
 import {Icon} from 'semantic-ui-react';
-import {Run} from './runs';
+import * as Run from './runs';
 import * as Filters from './filters';
 
 export function convertValue(string) {
@@ -311,7 +311,7 @@ export class RunFancyName {
   special = {
     createdAt: value => (
       <span key="createdAt">
-        (started <TimeAgo date={value + 'z'} />){' '}
+        (started <TimeAgo date={value} />){' '}
       </span>
     ),
     stateIcon: () => stateToIcon(this._run.state, 'stateIcon'),
