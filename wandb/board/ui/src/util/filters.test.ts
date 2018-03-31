@@ -3,7 +3,7 @@ import * as Run from './runs';
 
 let runs: Run.Run[];
 
-const goodFilters = {
+const goodFilters: Filter.Filter = {
   op: 'OR',
   filters: [
     {key: Run.key('run', 'host'), op: '=', value: 'angry.local'},
@@ -242,8 +242,8 @@ describe('fromOldURL', () => {
   });
 });
 
-describe('fromURL', () => {
+describe('to and fromURL', () => {
   it('good', () => {
-    expect(Filter.fromURL(JSON.stringify(goodFilters))).toEqual(goodFilters);
+    expect(Filter.fromURL(Filter.toURL(goodFilters))).toEqual(goodFilters);
   });
 });

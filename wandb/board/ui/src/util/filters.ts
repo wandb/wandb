@@ -185,3 +185,7 @@ export function fromURL(filterString: string): Filter | null {
   }
   return fromJson(result);
 }
+
+export function toURL(filter: Filter): string {
+  return JSON.stringify(filter);
+}
