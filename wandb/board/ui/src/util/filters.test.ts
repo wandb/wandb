@@ -6,12 +6,12 @@ let runs: Run.Run[];
 const goodFilters: Filter.Filter = {
   op: 'OR',
   filters: [
-    {key: Run.key('run', 'host'), op: '=', value: 'angry.local'},
+    {key: Run.key('run', 'host')!, op: '=', value: 'angry.local'},
     {
       op: 'AND',
       filters: [
-        {key: Run.key('run', 'state'), op: '=', value: 'running'},
-        {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
+        {key: Run.key('run', 'state')!, op: '=', value: 'running'},
+        {key: Run.key('run', 'host')!, op: '=', value: 'brian.local'},
       ],
     },
   ],
