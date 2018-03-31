@@ -149,3 +149,39 @@ export function fromJson(json: any): Filter | null {
     return checkFilter(json);
   }
 }
+
+export function fromOldURL(filterStrings: string[]): Filter | null {
+  /* Read filters from the old URL format */
+  const result = filterStrings.map(filterString => {
+    let parsed;
+    try {
+      parsed = JSON.parse(filterString);
+    } catch (e) {
+      return null;
+    }
+    if (!_.isArray(parsed) || parsed.length !== 3) {
+      return null;
+    }
+    const [keyString, op, valueAny] = parsed;
+    const value: Run.Value = valueAny;
+    const key = Run.keyFromString(keyString);
+    if (key == null || _.isEmpty(key.section) || _.isEmpty(key.name)) {
+      return null;
+    }
+    return {key, op, value};
+  });
+  if (result.some(f => !f)) {
+    return null;
+  }
+  return fromJson(result);
+}
+
+export function fromURL(filterString: string): Filter | null {
+  let result;
+  try {
+    result = JSON.parse(filterString);
+  } catch {
+    return null;
+  }
+  return fromJson(result);
+}

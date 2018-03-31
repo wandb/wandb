@@ -3,6 +3,20 @@ import * as Run from './runs';
 
 let runs: Run.Run[];
 
+const goodFilters = {
+  op: 'OR',
+  filters: [
+    {key: Run.key('run', 'host'), op: '=', value: 'angry.local'},
+    {
+      op: 'AND',
+      filters: [
+        {key: Run.key('run', 'state'), op: '=', value: 'running'},
+        {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
+      ],
+    },
+  ],
+};
+
 beforeAll(() => {
   runs = [
     {
@@ -169,19 +183,6 @@ describe('Group Filter', () => {
 
 describe('fromJson', () => {
   it('good filters', () => {
-    const goodFilters = {
-      op: 'OR',
-      filters: [
-        {key: Run.key('run', 'host'), op: '=', value: 'angry.local'},
-        {
-          op: 'AND',
-          filters: [
-            {key: Run.key('run', 'state'), op: '=', value: 'running'},
-            {key: Run.key('run', 'host'), op: '=', value: 'brian.local'},
-          ],
-        },
-      ],
-    };
     expect(Filter.fromJson(goodFilters)).toEqual(goodFilters);
   });
 
@@ -217,5 +218,32 @@ describe('fromJson', () => {
       {key: {section: 'run', name: 'host'}, op: '!=', value: 'shawn.local'},
     ];
     expect(Filter.fromJson(filters)).toEqual({op: 'AND', filters});
+  });
+});
+
+describe('fromOldURL', () => {
+  it('good', () => {
+    expect(
+      Filter.fromOldURL([JSON.stringify(['run:host', '=', 'shawn.local'])]),
+    ).toEqual({
+      op: 'AND',
+      filters: [
+        {
+          key: {section: 'run', name: 'host'},
+          op: '=',
+          value: 'shawn.local',
+        },
+      ],
+    });
+  });
+
+  it('bad', () => {
+    expect(Filter.fromOldURL(['run:host=shawn.local'])).toBe(null);
+  });
+});
+
+describe('fromURL', () => {
+  it('good', () => {
+    expect(Filter.fromURL(JSON.stringify(goodFilters))).toEqual(goodFilters);
   });
 });
