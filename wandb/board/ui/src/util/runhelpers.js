@@ -311,7 +311,7 @@ export class RunFancyName {
   special = {
     createdAt: value => (
       <span key="createdAt">
-        (started <TimeAgo date={value + 'z'} />){' '}
+        (started <TimeAgo date={value} />){' '}
       </span>
     ),
     stateIcon: () => stateToIcon(this._run.state, 'stateIcon'),
