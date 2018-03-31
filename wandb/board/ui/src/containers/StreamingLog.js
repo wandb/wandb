@@ -23,32 +23,32 @@ function gidToIdx(gid) {
 }
 
 //This likely belongs in the Run page
-function stream(client, params, bucket, callback) {
-  logsChannel(bucket.name).bind('history', payload => {
+function stream(client, params, run, callback) {
+  logsChannel(run.name).bind('history', payload => {
     const data = client.readFragment({
-      id: bucket.id,
+      id: run.id,
       fragment: fragments.detailedRun,
-      variables: {bucketName: bucket.name},
+      variables: {bucketName: run.name},
     });
     //TODO: this has duplicates sometimes
     data.history = Array.from(new Set(data.history.concat(payload)));
     client.writeFragment({
-      id: bucket.id,
+      id: run.id,
       fragment: fragments.detailedRun,
       data: data,
     });
   });
 
-  logsChannel(bucket.name).bind('events', payload => {
+  logsChannel(run.name).bind('events', payload => {
     const data = client.readFragment({
-      id: bucket.id,
+      id: run.id,
       fragment: fragments.detailedRun,
-      variables: {bucketName: bucket.name},
+      variables: {bucketName: run.name},
     });
     //TODO: this has duplicates sometimes
     data.events = Array.from(new Set(data.events.concat(payload)));
     client.writeFragment({
-      id: bucket.id,
+      id: run.id,
       fragment: fragments.detailedRun,
       data: data,
     });
@@ -57,9 +57,9 @@ function stream(client, params, bucket, callback) {
   runChannel(pusherRunSlug(params)).bind('log', payload => {
     //console.time('log lines', payload.length);
     const data = client.readFragment({
-        id: bucket.id,
+        id: run.id,
         fragment: fragments.detailedRun,
-        variables: {bucketName: bucket.name},
+        variables: {bucketName: run.name},
       }),
       edges = data.logLines.edges;
 
@@ -88,7 +88,7 @@ function stream(client, params, bucket, callback) {
       }
     });
     client.writeFragment({
-      id: bucket.id,
+      id: run.id,
       fragment: fragments.detailedRun,
       data: data,
     });
@@ -98,17 +98,17 @@ function stream(client, params, bucket, callback) {
 
   runsChannel(pusherProjectSlug(params)).bind('updated', payload => {
     // Overwrite files data only if payload belongs to particular run
-    if (bucket.id === payload.id) {
+    if (run.id === payload.id) {
       //Update files
       const data = client.readFragment({
-        id: bucket.id,
+        id: run.id,
         fragment: fragments.detailedRun,
       });
 
       data.files = payload.files;
       data.fileCount = payload.fileCount;
       client.writeFragment({
-        id: bucket.id,
+        id: run.id,
         fragment: fragments.detailedRun,
         data: data,
       });

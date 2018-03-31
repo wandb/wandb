@@ -2,7 +2,7 @@ import gql from 'graphql-tag';
 
 export const fragments = {
   basicRun: gql`
-    fragment BasicRunFragment on BucketType {
+    fragment BasicRunFragment on Run {
       id
       name
       config
@@ -28,7 +28,7 @@ export const fragments = {
     }
   `,
   detailedRun: gql`
-    fragment DetailedRunFragment on BucketType {
+    fragment DetailedRunFragment on Run {
       id
       history
       events
@@ -59,7 +59,7 @@ export const fragments = {
     }
   `,
   historyRun: gql`
-    fragment HistoryRunFragment on BucketType {
+    fragment HistoryRunFragment on Run {
       history(samples: 500)
     }
   `,
@@ -77,7 +77,7 @@ export const RUNS_QUERY = gql`
     $history: Boolean = false
     $requestSubscribe: Boolean!
   ) {
-    model(name: $name, entityName: $entityName) {
+    project(name: $name, entityName: $entityName) {
       id
       name
       createdAt
@@ -104,7 +104,7 @@ export const RUNS_QUERY = gql`
           }
         }
       }
-      buckets(
+      runs(
         first: $limit
         after: $cursor
         jobKey: $jobKey
@@ -203,9 +203,9 @@ export const LAUNCH_RUN = gql`
 
 export const HISTORY_QUERY = gql`
   query RunHistory($name: String!, $entityName: String, $bucketIds: [String]) {
-    model(name: $name, entityName: $entityName) {
+    project(name: $name, entityName: $entityName) {
       id
-      buckets(first: 10000, names: $bucketIds) {
+      runs(first: 10000, names: $bucketIds) {
         edges {
           node {
             id
@@ -220,9 +220,9 @@ export const HISTORY_QUERY = gql`
 
 export const FAKE_HISTORY_QUERY = gql`
   query FakeRunHistory($histQueryKey: String!) {
-    model(key: $histQueryKey) {
+    project(key: $histQueryKey) {
       id
-      buckets {
+      runs {
         edges {
           node {
             id

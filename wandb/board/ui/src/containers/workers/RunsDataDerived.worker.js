@@ -14,11 +14,12 @@ import _ from 'lodash';
 let runs = [];
 
 function handleMessage(m, postMessage) {
-  let {base, prevBuckets, buckets, query} = m.data;
+  let {base, prevRuns, query} = m.data;
+  let curRuns = m.data.runs;
   if (Query.canReuseBaseData(query)) {
     runs = base;
   } else {
-    runs = updateRuns(prevBuckets, buckets, runs);
+    runs = updateRuns(prevRuns, curRuns, []);
   }
   let filteredRuns = sortRuns(query.sort, filterRuns(query.filters, runs));
   let keySuggestions = setupKeySuggestions(runs);

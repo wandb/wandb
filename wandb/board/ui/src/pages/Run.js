@@ -79,13 +79,13 @@ class Run extends React.Component {
     let action = this.props.match.path.split('/').pop();
     return (
       <Container>
-        {!this.props.model ? (
+        {!this.props.project ? (
           <Loader size="massive" active={true} />
         ) : this.props.user && action === 'edit' ? (
           // TODO: Don't render button if user can't edit
           <RunEditor
-            model={this.props.model}
-            bucket={this.props.bucket}
+            project={this.props.project}
+            run={this.props.run}
             submit={this.props.submit}
           />
         ) : (
@@ -97,8 +97,8 @@ class Run extends React.Component {
               this.setState({activeIndex: 1});
             }}
             user={this.props.user}
-            model={this.props.model}
-            bucket={this.props.bucket}
+            project={this.props.project}
+            run={this.props.run}
             loss={this.props.loss}
             stream={this.props.stream}
             match={this.props.match}
@@ -106,7 +106,7 @@ class Run extends React.Component {
               this.props.updateModel({
                 entityName: this.props.match.params.entity,
                 name: this.props.match.params.model,
-                id: this.props.model.id,
+                id: this.props.project.id,
                 views: views,
               })
             }
@@ -136,18 +136,18 @@ const withData = graphql(MODEL_QUERY, {
     // null is important here, componentWillReceiveProps checks for it specifically.
     // We could refactor it.
     let views = null;
-    if (data.model && data.model.views) {
-      views = JSON.parse(data.model.views);
-      if (BOARD && data.model.state === 'finished') data.stopPolling();
+    if (data.project && data.project.views) {
+      views = JSON.parse(data.project.views);
+      if (BOARD && data.project.state === 'finished') data.stopPolling();
     }
     // if (data.variables.detailed && !data.model.bucket.history) {
     //   console.warn('WTF', data);
     // }
     return {
       loading: data.loading,
-      model: data.model,
+      project: data.project,
       viewer: data.viewer,
-      bucket: data.model && data.model.bucket,
+      run: data.project && data.project.run,
       views: views,
       refetch: data.refetch,
     };

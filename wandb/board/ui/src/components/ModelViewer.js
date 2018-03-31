@@ -14,17 +14,17 @@ class ModelViewer extends React.Component {
   };
 
   render() {
-    var {model, condensed, match} = this.props;
+    var {project, condensed, match} = this.props;
 
     let ModelInfo = (
       <div>
         <ModelHeader {...this.props} />
-        <Markdown content={model.description} />
+        <Markdown content={project.description} />
       </div>
     );
     return (
       <div>
-        {!condensed && model.bucketCount === 0 ? (
+        {!condensed && project.bucketCount === 0 ? (
           <div>
             {ModelInfo}
             <br />
@@ -48,7 +48,7 @@ class ModelViewer extends React.Component {
         ) : (
           <Runs
             ModelInfo={ModelInfo}
-            model={model}
+            project={project}
             match={match}
             embedded={true}
             jobFilter={this.state.jobId}

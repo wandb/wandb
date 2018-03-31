@@ -11,7 +11,7 @@ export const MODEL_QUERY = gql`
     $detailed: Boolean!
     $requestSubscribe: Boolean = false
   ) {
-    model(name: $name, entityName: $entityName) {
+    project(name: $name, entityName: $entityName) {
       id
       name
       entityName
@@ -20,7 +20,7 @@ export const MODEL_QUERY = gql`
       bucketCount
       access
       summaryMetrics
-      bucket(name: $bucketName) {
+      run(name: $bucketName) {
         ...BasicRunFragment
         ...DetailedRunFragment @include(if: $detailed)
         requestSubscribe @include(if: $requestSubscribe)

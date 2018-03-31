@@ -60,10 +60,10 @@ const withData = graphql(MODEL_QUERY, {
       },
     };
   },
-  props: ({data: {loading, model, viewer, error}, errors}) => {
+  props: ({data: {loading, project, viewer, error}, errors}) => {
     return {
       loading,
-      model,
+      project,
       error,
       viewer,
     };

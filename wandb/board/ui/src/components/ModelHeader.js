@@ -7,21 +7,21 @@ import Breadcrumbs from '../components/Breadcrumbs';
 
 class ModelHeader extends React.Component {
   render() {
-    var {model, user, condensed} = this.props;
+    var {project, user, condensed} = this.props;
     const hasFiles =
-      model.bucket && model.bucket.files && model.bucket.files.edges.length > 0;
+      project.run && project.run.files && project.run.files.edges.length > 0;
     return (
       <div>
         <Header>
           <Breadcrumbs
             style={{marginRight: 12}}
-            entity={model.entityName}
-            model={model.name}
+            entity={project.entityName}
+            model={project.name}
           />
           <Button.Group basic size="small">
             {!condensed &&
               user && (
-                <NavLink to={`/${model.entityName}/${model.name}/edit`}>
+                <NavLink to={`/${project.entityName}/${project.name}/edit`}>
                   <Button icon="edit" />
                   {/* Empty span so that Button doesn't match an :only-child css rule
                   that screws up rendering in the header */}
@@ -33,10 +33,15 @@ class ModelHeader extends React.Component {
         {!condensed && (
           <div style={{color: 'gray'}}>
             Updated{' '}
-            <TimeAgo date={(model.bucket.createdAt || model.createdAt) + 'Z'} />
+            <TimeAgo
+              date={
+                ((project.run && project.run.createdAt) || project.createdAt) +
+                'Z'
+              }
+            />
             {hasFiles &&
               `Avg Size ${numeral(
-                model.bucket.files.edges
+                project.run.files.edges
                   .map(e => parseInt(e.node.sizeBytes, 10))
                   .reduce((a, b) => a + b, 0),
               ).format('0.0b')} `}{' '}

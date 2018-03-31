@@ -47,7 +47,7 @@ class Log extends React.Component {
     this.props.stream(
       this.props.client,
       this.props.match.params,
-      this.props.bucket,
+      this.props.run,
       this.updateCallback,
     );
   }

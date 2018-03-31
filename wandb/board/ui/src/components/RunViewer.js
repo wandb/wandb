@@ -31,7 +31,7 @@ export default class RunViewer extends React.Component {
 
   panes() {
     // NOTE as an alternative, fc value can be extracted directly from files length
-    const fc = this.props.bucket.fileCount,
+    const fc = this.props.run.fileCount,
       files = fc === 1 ? '1 File' : fc + ' Files';
     const panes = [
       {
@@ -40,8 +40,8 @@ export default class RunViewer extends React.Component {
           <Tab.Pane>
             <StreamingLog
               match={this.props.match}
-              bucket={this.props.bucket}
-              logLines={this.props.bucket.logLines}
+              run={this.props.run}
+              logLines={this.props.run.logLines}
             />
           </Tab.Pane>
         ),
@@ -53,7 +53,7 @@ export default class RunViewer extends React.Component {
         render: () => (
           <Tab.Pane>
             <Segment inverted>
-              <Files files={this.props.bucket.files} />
+              <Files files={this.props.run.files} />
             </Segment>
           </Tab.Pane>
         ),
@@ -65,7 +65,7 @@ export default class RunViewer extends React.Component {
   config() {
     this._config =
       this._config ||
-      (this.props.bucket.config && JSONparseNaN(this.props.bucket.config));
+      (this.props.run.config && JSONparseNaN(this.props.run.config));
     return this._config;
   }
 
@@ -92,23 +92,23 @@ export default class RunViewer extends React.Component {
   }
 
   render() {
-    const {model, bucket, condensed} = this.props;
-    let [histKeys, histData] = this.parseData(bucket.history, 'history');
-    let [eventKeys, eventData] = this.parseData(bucket.events, 'events');
-    const summaryMetrics = JSONparseNaN(bucket.summaryMetrics),
-      systemMetrics = JSONparseNaN(bucket.systemMetrics);
+    const {project, run, condensed} = this.props;
+    let [histKeys, histData] = this.parseData(run.history, 'history');
+    let [eventKeys, eventData] = this.parseData(run.events, 'events');
+    const summaryMetrics = JSONparseNaN(run.summaryMetrics),
+      systemMetrics = JSONparseNaN(run.systemMetrics);
     const columns = Object.keys(systemMetrics || {}).length > 0 ? 3 : 2;
 
-    let exampleTableTypes = JSONparseNaN(bucket.exampleTableTypes);
-    let exampleTable = JSONparseNaN(bucket.exampleTable);
-    let exampleTableColumns = JSONparseNaN(bucket.exampleTableColumns);
+    let exampleTableTypes = JSONparseNaN(run.exampleTableTypes);
+    let exampleTable = JSONparseNaN(run.exampleTable);
+    let exampleTableColumns = JSONparseNaN(run.exampleTableColumns);
     return (
       <Grid stackable className="run">
         <Grid.Row>
           <Grid.Column>
             <Breadcrumbs
-              entity={this.props.model.entityName}
-              model={this.props.model.name}
+              entity={this.props.project.entityName}
+              model={this.props.project.name}
             />
           </Grid.Column>
         </Grid.Row>
@@ -116,8 +116,8 @@ export default class RunViewer extends React.Component {
           <Grid.Column>
             <RunSummary
               onStop={this.props.onStop}
-              model={model}
-              bucket={bucket}
+              project={project}
+              run={run}
               condensed={condensed}
             />
           </Grid.Column>

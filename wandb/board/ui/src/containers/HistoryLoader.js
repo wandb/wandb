@@ -92,19 +92,19 @@ export default function withHistoryLoader(WrappedComponent) {
           query: FAKE_HISTORY_QUERY,
           variables: {histQueryKey: nextProps.histQueryKey},
           data: {
-            model: {
+            project: {
               id: 'fake_history_query_' + nextProps.histQueryKey,
-              __typename: 'ModelType',
-              buckets: {
-                __typename: 'BucketConnectionType',
+              __typename: 'Project',
+              runs: {
+                __typename: 'RunConnectionType',
                 edges: selectedInfo.map(o => ({
                   node: {
                     id: o.id,
                     name: o.name,
                     history: o.history,
-                    __typename: 'BucketType',
+                    __typename: 'Run',
                   },
-                  __typename: 'BucketTypeEdge',
+                  __typename: 'RunEdge',
                 })),
               },
             },
@@ -138,7 +138,7 @@ export default function withHistoryLoader(WrappedComponent) {
       };
     },
     props: ({data, errors}) => ({
-      historyBuckets: (data.model && data.model.buckets) || {edges: []},
+      historyBuckets: (data.project && data.project.runs) || {edges: []},
     }),
   });
 

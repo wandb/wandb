@@ -52,21 +52,21 @@ function withRunsData() {
       }
       return defaults;
     },
-    props: ({data: {loading, model, viewer, refetch}, errors}) => {
+    props: ({data: {loading, project, viewer, refetch}, errors}) => {
       //TODO: For some reason the first poll causes loading to be true
-      // if (model && model.buckets && loading) loading = false;
+      // if (project && projects.runs && loading) loading = false;
       return {
         loading,
         refetch,
-        buckets: model && model.buckets,
-        views: model && model.views,
-        projectID: model && model.id,
+        runs: project && project.runs,
+        views: project && project.views,
+        projectID: project && project.id,
       };
     },
   });
 }
 
-// Parses buckets into runs/keySuggestions
+// Parses runs into runs/keySuggestions
 function withDerivedRunsData(WrappedComponent) {
   let RunsDataDerived = class extends React.Component {
     state = {
@@ -83,7 +83,6 @@ function withDerivedRunsData(WrappedComponent) {
     };
     constructor(props) {
       super(props);
-      this.runs = [];
       this.keySuggestions = [];
       this._shouldUpdate = makeShouldUpdate({
         name: 'RunsDataDerived',
@@ -100,8 +99,8 @@ function withDerivedRunsData(WrappedComponent) {
       } else {
         let messageData = {
           base: props.data && props.data.base,
-          prevBuckets: prevProps.buckets,
-          buckets: props.buckets,
+          prevBuckets: prevProps.runs,
+          runs: props.runs,
           query: props.query,
         };
         this.worker.postMessage(messageData);
@@ -126,7 +125,7 @@ function withDerivedRunsData(WrappedComponent) {
 
     componentWillReceiveProps(nextProps) {
       if (
-        this.props.buckets !== nextProps.buckets ||
+        this.props.runs !== nextProps.runs ||
         this.props.views !== nextProps.views ||
         this.props.data !== nextProps.data ||
         !_.isEqual(this.props.query, nextProps.query)
@@ -142,7 +141,6 @@ function withDerivedRunsData(WrappedComponent) {
           data={this.state.data}
           views={this.views}
           keySuggestions={this.keySuggestions}
-          runs={this.runs}
         />
       );
     }

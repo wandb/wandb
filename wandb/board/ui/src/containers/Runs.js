@@ -163,7 +163,7 @@ class Runs extends React.Component {
     ) {
       // no views on server, provide a default
       this.props.setBrowserViews(
-        defaultViews((nextProps.buckets.edges[0] || {}).node),
+        defaultViews((nextProps.runs.edges[0] || {}).node),
       );
     } else if (
       nextProps.views &&
@@ -352,7 +352,7 @@ class Runs extends React.Component {
           admin={this.props.user && this.props.user.admin}
           loading={this.props.loading}
           runs={this.props.data.filtered}
-          project={this.props.model}
+          project={this.props.project}
           onSort={this.onSort}
           showFailed={this.state.showFailed}
           selectable={true}

@@ -44,7 +44,7 @@ class Models extends Component {
         <Item.Group divided relaxed>
           {this.models().map(edge => (
             <Item style={{display: 'block'}} key={edge.node.id}>
-              <ModelHeader condensed={true} model={edge.node} />
+              <ModelHeader condensed={true} project={edge.node} />
               <div style={{marginTop: 16}} />
               <Markdown content={edge.node.description} />
             </Item>

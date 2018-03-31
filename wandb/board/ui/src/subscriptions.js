@@ -33,7 +33,7 @@ function updateRunsQuery(store, client, queryVars, payloads) {
       query: RUNS_QUERY,
       variables: queryVars,
     }),
-    edges = data.model.buckets.edges;
+    edges = data.project.runs.edges;
 
   for (var payload of payloads) {
     const sameUser = payload.user.username === state.global.user.entity;

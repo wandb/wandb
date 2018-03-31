@@ -12,23 +12,23 @@ class RunEditor extends React.Component {
       newTag: '',
       tags: [],
       preview: false,
-      name: props.bucket.name || '',
-      content: props.bucket.description || '',
+      name: props.run.name || '',
+      content: props.run.description || '',
       canSubmit: false,
     };
   }
 
   static defaultProps = {
-    model: {},
+    project: {},
   };
 
   componentWillReceiveProps(props) {
     if (!this.state.canSubmit) {
       this.setState({
-        tags: _.sortedUniq(props.bucket.tags),
+        tags: _.sortedUniq(props.run.tags),
         preview: props.preview,
-        name: props.bucket.name || '',
-        content: props.bucket.description,
+        name: props.run.name || '',
+        content: props.run.description,
       });
     }
   }
@@ -40,9 +40,9 @@ class RunEditor extends React.Component {
           <Grid.Row>
             <Grid.Column>
               <Breadcrumbs
-                entity={this.props.model.entityName}
-                model={this.props.model.name}
-                run={this.props.bucket.name}
+                entity={this.props.project.entityName}
+                model={this.props.project.name}
+                run={this.props.run.name}
               />
             </Grid.Column>
           </Grid.Row>
@@ -133,7 +133,7 @@ class RunEditor extends React.Component {
                 <Button.Or />
                 <Button
                   disabled={!this.state.canSubmit}
-                  content={this.props.model.id ? 'Update' : 'Create'}
+                  content={this.props.project.id ? 'Update' : 'Create'}
                   color="blue"
                   onClick={e => {
                     e.preventDefault();
@@ -142,12 +142,12 @@ class RunEditor extends React.Component {
                       .submit({
                         tags: this.state.tags,
                         description: this.state.content,
-                        id: this.props.bucket.id,
+                        id: this.props.run.id,
                       })
                       .then(res => {
                         window.location.href = `/${
-                          this.props.model.entityName
-                        }/${this.props.model.name}/runs/${
+                          this.props.project.entityName
+                        }/${this.props.project.name}/runs/${
                           res.data.upsertBucket.bucket.name
                         }`;
                       });
