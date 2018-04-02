@@ -1,7 +1,8 @@
 import React from 'react';
 import _ from 'lodash';
-import {Form} from 'semantic-ui-react';
+import {Form, Icon} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
+import {BOARD} from '../util/board';
 
 class ImagesPanel extends React.Component {
   state = {epoch: 0};
@@ -11,7 +12,7 @@ class ImagesPanel extends React.Component {
   static validForData(data) {
     return (
       !_.isNil(data.history) &&
-      _.values(data.history[0]).find(v => v._type === 'images')
+      _.values(data.history[0]).find(v => v && v._type === 'images')
     );
   }
 
@@ -69,26 +70,69 @@ class ImagesPanel extends React.Component {
     );
   }
 
+  renderError(message) {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          height: 200,
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <div
+          style={{
+            maxWidth: 300,
+            backgroundColor: 'white',
+            border: '1px dashed #999',
+            padding: 15,
+            color: '#666',
+          }}>
+          <Icon name="file image outline" />
+          {message}
+        </div>
+      </div>
+    );
+  }
+
   renderNormal() {
     let {history} = this.props.data;
-    //TODO: performance / support multiple image keys
-    let imageKey = null;
-    let images = history.map(h => {
-      for (let key in h) {
-        if (!imageKey) imageKey = key;
-        if (h[key]._type === 'images') return h[key];
-      }
-    });
-    let captions =
-      images[this.state.epoch].captions ||
-      new Array(images[this.state.epoch].count);
+    //TODO: performance / don't hard code imageKey
+    let imageKey = 'examples';
+    let images = history.map(h => h[imageKey]);
+
+    if (images.length == 0) {
+      return this.renderError(
+        <p>
+          There are no images. For more information on how to collect history,
+          check out our documentation at{' '}
+          <a href="http://docs.wandb.com/#media">
+            http://docs.wandb.com/#media
+          </a>
+        </p>,
+      );
+    }
+
+    let captions = images[this.state.epoch]
+      ? images[this.state.epoch].captions ||
+        new Array(images[this.state.epoch].count)
+      : '';
     let {width, height} = images[0];
-    let sprite =
-      'http://localhost:7177' +
-      this.props.data.match.url +
-      `/${imageKey}_` +
-      this.state.epoch +
-      '.jpg';
+    let sprite;
+    if (BOARD) {
+      sprite =
+        'http://localhost:7177' +
+        this.props.data.match.url +
+        `/${imageKey}_` +
+        this.state.epoch +
+        '.jpg';
+    } else {
+      let {entity, model, run} = this.props.data.match.params;
+      sprite = `https://api.wandb.ai/${entity}/${model}/${run}/media/images/${imageKey}_${
+        this.state.epoch
+      }.jpg`;
+    }
     let ticks = Math.min(8, history.length);
     let tickMarks = [];
     for (let i = 0; i < ticks; i++) {

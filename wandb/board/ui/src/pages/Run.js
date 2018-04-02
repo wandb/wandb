@@ -17,7 +17,7 @@ import update from 'immutability-helper';
 import {setServerViews, setBrowserViews} from '../actions/view';
 import {updateLocationParams} from '../actions/location';
 import _ from 'lodash';
-import {defaultViews, generateBucketId} from '../util/runhelpers';
+import {defaultViews} from '../util/runhelpers';
 import {BOARD} from '../util/board';
 
 class Run extends React.Component {
@@ -34,18 +34,20 @@ class Run extends React.Component {
     window.Prism.highlightAll();
   }
 
-  fetchDetails = force => {
-    if (force || this.state.detailsFetched === false) {
-      this.setState({detailsFetched: true});
-      this.props.refetch({detailed: true});
-    }
-  };
+  // Not working
+  // fetchDetails = force => {
+  //   if (force || this.state.detailsFetched === false) {
+  //     this.setState({detailsFetched: true});
+  //     this.props.refetch({detailed: true});
+  //   }
+  // };
 
   componentDidUpdate(prevProps) {
-    if (!this.props.loading && this.state.detailsFetched === false) {
-      //TODO: for reasons not clear to me this needs to be in a setTimeout
-      setTimeout(this.fetchDetails);
-    }
+    // this is not working.
+    // if (!this.props.loading && this.state.detailsFetched === false) {
+    //   //TODO: for reasons not clear to me this needs to be in a setTimeout
+    //   setTimeout(this.fetchDetails);
+    // }
   }
 
   componentWillReceiveProps(nextProps) {
@@ -123,7 +125,7 @@ const withData = graphql(MODEL_QUERY, {
         entityName: params.entity,
         name: params.model,
         bucketName: params.run,
-        detailed: false,
+        detailed: true,
         requestSubscribe: true,
       },
     };
@@ -138,9 +140,9 @@ const withData = graphql(MODEL_QUERY, {
       views = JSON.parse(data.model.views);
       if (BOARD && data.model.state === 'finished') data.stopPolling();
     }
-    if (data.variables.detailed && !data.model.bucket.history) {
-      console.warn('WTF', data);
-    }
+    // if (data.variables.detailed && !data.model.bucket.history) {
+    //   console.warn('WTF', data);
+    // }
     return {
       loading: data.loading,
       model: data.model,
@@ -172,8 +174,8 @@ const withMutations = compose(
   }),
   graphql(RUN_UPSERT, {
     props: ({mutate}) => ({
-      submit: variables =>
-        mutate({
+      submit: variables => {
+        return mutate({
           variables: {...variables},
           updateQueries: {
             Model: (prev, {mutationResult}) => {
@@ -181,7 +183,8 @@ const withMutations = compose(
               return update(prev, {model: {bucket: {$set: bucket}}});
             },
           },
-        }),
+        });
+      },
     }),
   }),
   graphql(MODEL_UPSERT, {

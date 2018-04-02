@@ -99,9 +99,11 @@ const modelMapDispatchToProps = (dispatch, ownProps) => {
   return bindActionCreators({updateLocationParams}, dispatch);
 };
 
-Model = connect(null, modelMapDispatchToProps)(Model);
+// Model = connect(null, modelMapDispatchToProps)(Model);
 
 // export dumb component for testing purposes
 export {Model};
 
-export default withMutations(withData(Model));
+export default withMutations(
+  withData(connect(null, modelMapDispatchToProps)(Model)),
+);

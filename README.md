@@ -8,16 +8,16 @@ The **Weights and Biases** client is an open source library, CLI (wandb), and lo
 
 ## Local Features
 
-* Store config parameters used in a training run
-* Associate version control with your training runs
-* Search, compare, and visualize training runs
-* Analyze system usage metrics alongside runs
+*   Store config parameters used in a training run
+*   Associate version control with your training runs
+*   Search, compare, and visualize training runs
+*   Analyze system usage metrics alongside runs
 
 ## Cloud Features
 
-* Collaborate with team members
-* Run parameter sweeps
-* Persist runs forever
+*   Collaborate with team members
+*   Run parameter sweeps
+*   Persist runs forever
 
 ## Quickstart
 
@@ -29,6 +29,7 @@ In your training script:
 
 ```python
 import wandb
+from wandb.keras import WandbCallback
 # Your custom arguments defined here
 args = ...
 
@@ -42,7 +43,7 @@ def training_loop():
         # Framework agnostic / custom metrics
         run.history.add({"epoch": epoch, "loss": loss, "val_loss": val_loss})
         # Keras metrics
-        model.fit(..., callbacks=[wandb.callbacks.Keras()])
+        model.fit(..., callbacks=[WandbCallback()])
 ```
 
 Running your training script will save data in a directory named _wandb_ relative to your training script. To view your runs, call `wandb board` from the same directory as your training script.

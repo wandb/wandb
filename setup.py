@@ -19,7 +19,8 @@ requirements = [
     'nvidia-ml-py3>=7.352.0',
     'flask-cors>=3.0.3',
     'flask-graphql>=1.4.0',
-    'graphene>=2.0.0'
+    'graphene>=2.0.0',
+    'python-dateutil>=2.7.2'
 ]
 
 test_requirements = [
@@ -29,7 +30,7 @@ test_requirements = [
 
 setup(
     name='wandb',
-    version='0.5.8',
+    version='0.5.12',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     author="Weights & Biases",

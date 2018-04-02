@@ -10,7 +10,6 @@ import {
   Modal,
 } from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
-import QueryEditor from '../components/QueryEditor';
 import {filterRuns, sortRuns} from '../util/runhelpers.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
@@ -32,14 +31,24 @@ class EditablePanel extends React.Component {
 
   render() {
     return (
-      <div>
+      <div
+        onMouseDown={e => {
+          if (!this.props.editMode) {
+            // Stop propagation to prevent react-grid-layout from receiving it.
+            // This stops the panel from being draggable / resizeable when not
+            // in edit mode.
+            e.stopPropagation();
+          }
+        }}>
         <Modal
           open={this.state.editing}
-          dimmer={false}
+          dimmer="blurring"
           trigger={
             <Icon
+              style={{backgroundColor: 'white'}}
               link
               name="edit"
+              size="large"
               onClick={() => this.setState({editing: true})}
             />
           }>
@@ -50,14 +59,15 @@ class EditablePanel extends React.Component {
           <Modal.Actions>
             <Button
               floated="left"
-              negative
               onClick={() => {
                 this.props.removePanel();
                 this.setState({editing: false});
               }}>
               <Icon name="trash" />Delete Chart
             </Button>
-            <Button onClick={() => this.setState({editing: false})}>OK</Button>
+            <Button positive onClick={() => this.setState({editing: false})}>
+              OK
+            </Button>
           </Modal.Actions>
         </Modal>
         <Panel {...this.props} editMode={false} />

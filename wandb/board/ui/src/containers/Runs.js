@@ -14,7 +14,7 @@ import RunFiltersRedux from './RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
 import ViewModifier from './ViewModifier';
 import HelpIcon from '../components/HelpIcon';
-import {RUNS_QUERY, MODIFY_RUNS} from '../graphql/runs';
+import {MODIFY_RUNS} from '../graphql/runs';
 import {MODEL_UPSERT} from '../graphql/models';
 import {connect} from 'react-redux';
 import queryString from 'query-string';
@@ -32,7 +32,13 @@ import {
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {bindActionCreators} from 'redux';
 import {clearFilters, addFilter, setColumns} from '../actions/run';
-import {setServerViews, setBrowserViews, setActiveView} from '../actions/view';
+import {
+  resetViews,
+  setServerViews,
+  setBrowserViews,
+  setActiveView,
+  addView,
+} from '../actions/view';
 import update from 'immutability-helper';
 import {BOARD} from '../util/board';
 import withRunsDataLoader from '../containers/RunsDataLoader';
@@ -55,9 +61,11 @@ class Runs extends React.Component {
       props.runSelections !== nextProps.runSelections ||
       props.activeView !== nextProps.activeView
     ) {
-      let query = queryString.parse(window.location.search) || {};
+      let query = {};
       if (!_.isEmpty(nextProps.runFilters)) {
-        query.filter = _.values(nextProps.runFilters).map(filterToString);
+        query.filter = _.values(nextProps.runFilters)
+          .filter(filter => filter.key.section)
+          .map(filterToString);
       }
       if (!_.isEmpty(nextProps.runSelections)) {
         query.select = _.values(nextProps.runSelections).map(filterToString);
@@ -114,6 +122,7 @@ class Runs extends React.Component {
 
   componentWillMount() {
     this.props.clearFilters();
+    this.props.resetViews();
     this._readUrl(this.props);
   }
 
@@ -231,6 +240,7 @@ class Runs extends React.Component {
                         buttonText="Add Filter"
                         keySuggestions={this.props.data.keys}
                         runs={this.props.data.base}
+                        filteredRuns={this.props.data.filtered}
                       />
                     </Grid.Column>
                   </Grid.Row>
@@ -247,6 +257,7 @@ class Runs extends React.Component {
                         buttonText="Add Selection"
                         keySuggestions={this.props.data.keys}
                         runs={this.props.data.base}
+                        filteredRuns={this.props.data.filtered}
                       />
                     </Grid.Column>
                   </Grid.Row>
@@ -255,31 +266,47 @@ class Runs extends React.Component {
             </Grid.Column>
           </Grid.Row>
           <Grid.Column width={16}>
-            <ViewModifier
-              viewType="runs"
-              data={this.props.data}
-              pageQuery={this.props.query}
-              updateViews={views =>
-                this.props.updateModel({
-                  entityName: this.props.match.params.entity,
-                  name: this.props.match.params.model,
-                  id: this.props.projectID,
-                  views: views,
-                })
-              }
-            />
+            {this.props.haveViews && (
+              <ViewModifier
+                viewType="runs"
+                data={this.props.data}
+                pageQuery={this.props.query}
+                updateViews={views =>
+                  this.props.updateModel({
+                    entityName: this.props.match.params.entity,
+                    name: this.props.match.params.model,
+                    id: this.props.projectID,
+                    views: views,
+                  })
+                }
+              />
+            )}
           </Grid.Column>
           <Grid.Column width={16} style={{zIndex: 2}}>
             <Popup
               trigger={
-                <Button floated="right" icon="columns" content="Columns" />
+                <Button
+                  disabled={this.props.loading}
+                  floated="right"
+                  icon="columns"
+                  content="Columns"
+                />
               }
               content={
-                <RunColumnsSelector columnNames={this.props.columnNames} />
+                <RunColumnsSelector columnNames={this.props.data.columnNames} />
               }
               on="click"
               position="bottom left"
             />
+            {!this.props.haveViews && (
+              <Button
+                floated="right"
+                content="Add Charts"
+                disabled={this.props.loading}
+                icon="area chart"
+                onClick={() => this.props.addView('runs', 'New View', [])}
+              />
+            )}
             <Button
               floated="right"
               disabled={this.props.data.selectedRuns.length === 0}
@@ -375,6 +402,9 @@ function mapStateToProps(state, ownProps) {
     reduxServerViews: state.views.server,
     reduxBrowserViews: state.views.browser,
     activeView: state.views.other.runs.activeView,
+    haveViews:
+      !_.isEqual(state.views.browser, state.views.server) ||
+      state.views.browser.runs.tabs.length > 0,
   };
 }
 
@@ -390,6 +420,8 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       setServerViews,
       setBrowserViews,
       setActiveView,
+      resetViews,
+      addView,
     },
     dispatch,
   );

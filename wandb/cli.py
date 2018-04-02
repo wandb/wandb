@@ -89,7 +89,6 @@ def require_init(func):
         return func(*args, **kwargs)
     return wrapper
 
-
 def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
@@ -200,7 +199,7 @@ def cli(ctx):
 
 @cli.command(context_settings=CONTEXT, help="List projects")
 @require_init
-@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--entity", "-e", default=None, envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
 def projects(entity, display=True):
     projects = api.list_projects(entity=entity)
@@ -222,7 +221,7 @@ def projects(entity, display=True):
 @cli.command(context_settings=CONTEXT, help="List runs in a project")
 @click.pass_context
 @click.option("--project", "-p", default=None, envvar='WANDB_PROJECT', help="The project you wish to list runs from.")
-@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--entity", "-e", default=None, envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
 @display_error
 @require_init
 def runs(ctx, project, entity):
@@ -297,7 +296,7 @@ def restore(run, branch, project, entity):
                     "Can't find commit from which to restore code")
         else:
             if patch_content:
-                patch_path = os.path.join(wandb.__stage_dir__, 'diff.patch')
+                patch_path = os.path.join(wandb.wandb_dir(), 'diff.patch')
                 with open(patch_path, "w") as f:
                     f.write(patch_content)
             else:
@@ -392,11 +391,10 @@ def login():
 @click.pass_context
 @display_error
 def init(ctx):
-    from wandb import _set_stage_dir, wandb_dir
-    if wandb_dir() is None:
+    from wandb import _set_stage_dir, __stage_dir__, wandb_dir
+    if __stage_dir__ is None:
         _set_stage_dir('wandb')
-    wandb_path = os.path.join(os.getcwd(), wandb_dir())
-    if os.path.isdir(wandb_path):
+    if os.path.isdir(wandb_dir()):
         click.confirm(click.style(
             "This directory has been configured previously, should we re-configure it?", bold=True), abort=True)
     else:
@@ -433,8 +431,8 @@ def init(ctx):
     except wandb.cli.ClickWandbException:
         raise ClickException('Could not find team: %s' % entity)
 
-    if not os.path.isdir(wandb_path):
-        os.mkdir(wandb_path)
+    if not os.path.isdir(wandb_dir()):
+        os.mkdir(wandb_dir())
 
     with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
         print('[default]', file=file)
@@ -444,23 +442,6 @@ def init(ctx):
 
     with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
-
-    config_defaults_path = 'config-defaults.yaml'
-    if not os.path.exists(config_defaults_path):
-        with open(config_defaults_path, 'w') as file:
-            file.write(textwrap.dedent("""\
-                wandb_version: 1
-
-                # Example variables below. Uncomment (remove leading '# ') to use them, or just
-                # delete and create your own.
-
-                # epochs:
-                #   desc: Number of epochs to train over
-                #   value: 100
-                # batch_size:
-                #   desc: Size of each mini-batch
-                #   value: 32
-                """))
 
     click.echo(click.style("This directory is configured!  Next, track a run:\n", fg="green") +
                textwrap.dedent("""\
@@ -481,6 +462,35 @@ def init(ctx):
         # push=click.style("wandb push run_id weights.h5", bold=True),
         # pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
+
+
+@cli.group()
+def config():
+    """Manage this projects configuration."""
+    pass
+
+
+@config.command("init", help="Initialize a directory with wandb configuration")
+@display_error
+def config_init():
+    config_defaults_path = 'config-defaults.yaml'
+    if not os.path.exists(config_defaults_path):
+        with open(config_defaults_path, 'w') as file:
+            file.write(textwrap.dedent("""\
+                wandb_version: 1
+
+                # Example variables below. Uncomment (remove leading '# ') to use them, or just
+                # delete and create your own.
+
+                # epochs:
+                #   desc: Number of epochs to train over
+                #   value: 100
+                # batch_size:
+                #   desc: Size of each mini-batch
+                #   value: 32
+                """))
+    click.echo(
+        "Edit config-defaults.yaml with your default configuration parameters.")
 
 
 @cli.command(context_settings=CONTEXT, help="Open documentation in a browser")

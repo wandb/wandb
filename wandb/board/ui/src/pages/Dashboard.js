@@ -161,4 +161,7 @@ class DashboardWrapper extends React.Component {
   }
 }
 
+// export dumb component for testing purposes
+export {Dashboard};
+
 export default DashboardWrapper;

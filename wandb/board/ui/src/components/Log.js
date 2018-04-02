@@ -4,6 +4,7 @@ import './Log.css';
 import {AutoSizer, List as VirtualList} from 'react-virtualized';
 import AU from 'ansi_up';
 import _ from 'lodash';
+import {pusherRunSlug} from '../util/runhelpers';
 
 let unsubscribe;
 try {
@@ -30,7 +31,8 @@ class Log extends React.Component {
     return losses;
   }
 
-  componentWillUnMunt() {
+  componentWillUnmount() {
+    unsubscribe(pusherRunSlug(this.props.match.params));
     unsubscribe('logs-' + this.props.match.params.run);
   }
 
@@ -41,33 +43,13 @@ class Log extends React.Component {
 
   componentDidMount() {
     this.scrollToBottom();
-  }
-
-  componentWillReceiveProps(nextProps) {
-    if (nextProps.logLines) {
-      // Bind stream only when `logLines` is not empty, and only once,
-      // otherwise `readFragment` will break.
-      // As an alternative, we can go with unbinding all events from `StreamingLog`
-      if (!this.bound) {
-        this.props.stream(
-          this.props.client,
-          this.props.match.params,
-          this.props.bucket,
-          this.updateCallback,
-        );
-        this.bound = true;
-      }
-
-      if (this.props.logLines !== nextProps.logLines) {
-        //TODO: WTF
-        if (this.props.updateLoss) {
-          this.props.updateLoss(
-            this.props.run,
-            this.parseLoss(nextProps.logLines.edges),
-          );
-        }
-      }
-    }
+    //TODO: this likely belongs higher up in the chain
+    this.props.stream(
+      this.props.client,
+      this.props.match.params,
+      this.props.bucket,
+      this.updateCallback,
+    );
   }
 
   componentDidUpdate(prevProps, prevState) {

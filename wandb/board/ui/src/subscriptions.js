@@ -11,10 +11,10 @@ try {
 } catch (e) {
   const p = require('./util/pusher');
   unsubscribe = p.unsubscribe;
-  runsChannel = p.runsChannel;
+  runsChannel = p.dummyChannel;
 }
 
-const SUBSCRIPTION_COOLDOWN = 5000;
+const SUBSCRIPTION_COOLDOWN = 20000;
 
 function matchProject(path) {
   return matchPath(path, '/:entity/:project') || {params: {}};
@@ -25,10 +25,7 @@ function project(path) {
 }
 
 function updateRunsQuery(store, client, queryVars, payloads) {
-  let stats = {};
-  stats.start = new Date().getTime();
-  let timeStart = 0;
-
+  //console.time('updating runs');
   const state = store.getState();
 
   //Ensure we do the initial query
@@ -70,21 +67,12 @@ function updateRunsQuery(store, client, queryVars, payloads) {
     }
     edges.splice(idx, del, {node, __typename: node.__typename});
   }
-
-  stats.preWrite = new Date().getTime();
   client.writeQuery({
     query: RUNS_QUERY,
     variables: queryVars,
     data,
   });
-  stats.writeDone = new Date().getTime();
-
-  // console.log();
-  // console.log('STATS');
-  // console.log('  submitted payloads', payloads.length);
-  // console.log('  next_stuff:', stats.preWrite - stats.start);
-  // console.log('  query_write:', stats.writeDone - stats.preWrite);
-  // console.log();
+  //console.timeEnd('updating runs');
 }
 
 export default (store, client) => {
@@ -107,6 +95,7 @@ export default (store, client) => {
           entityName: newParams.entity,
           name: newParams.project,
           order: 'timeline',
+          requestSubscribe: true,
         };
       if (oldParams.project) {
         unsubscribe('runs-' + slug(oldParams));

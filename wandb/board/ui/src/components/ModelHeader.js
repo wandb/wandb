@@ -3,6 +3,7 @@ import {NavLink} from 'react-router-dom';
 import {Button, Header} from 'semantic-ui-react';
 import TimeAgo from 'react-timeago';
 import numeral from 'numeral';
+import Breadcrumbs from '../components/Breadcrumbs';
 
 class ModelHeader extends React.Component {
   render() {
@@ -12,12 +13,11 @@ class ModelHeader extends React.Component {
     return (
       <div>
         <Header>
-          <NavLink
+          <Breadcrumbs
             style={{marginRight: 12}}
-            to={`/${model.entityName}/${model.name}/runs`}>
-            {user && user.entity !== model.entityName && model.entityName + '/'}
-            {model.name}
-          </NavLink>
+            entity={model.entityName}
+            model={model.name}
+          />
           <Button.Group basic size="small">
             {!condensed &&
               user && (

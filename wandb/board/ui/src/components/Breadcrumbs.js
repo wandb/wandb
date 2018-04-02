@@ -2,10 +2,10 @@ import React from 'react';
 import {Breadcrumb} from 'semantic-ui-react';
 import {NavLink} from 'react-router-dom';
 
-const Breadcrumbs = ({model, entity, runs, run, sweep, extra}) => {
+const Breadcrumbs = ({model, entity, runs, run, sweep, extra, style}) => {
   const slug = '/' + entity + '/' + model;
   return (
-    <Breadcrumb size="large">
+    <Breadcrumb style={style} size="big">
       <Breadcrumb.Section>
         <NavLink to={'/' + entity}>{entity}</NavLink>
       </Breadcrumb.Section>

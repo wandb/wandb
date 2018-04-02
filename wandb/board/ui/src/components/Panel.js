@@ -110,20 +110,23 @@ export default class Panel extends React.Component {
               options={options}
               value={type}
               onChange={(e, {value}) => {
-                console.log('onchange', value);
                 this.props.updateType(value);
               }}
               style={{marginBottom: 12, zIndex: 21}}
             />
           )}
           {configMode &&
-            this.props.viewType === 'dashboards' && (
+            (this.props.viewType === 'dashboards' ||
+              this.props.viewType === 'runs') && (
               <QueryEditor
                 pageQuery={this.props.pageQuery}
                 panelQuery={this.props.panelQuery}
+                allFilters={this.props.query.filters}
+                allowProjectChange={this.props.viewType === 'dashboards'}
                 setQuery={this.props.updateQuery}
                 runs={this.props.data.base}
                 keySuggestions={this.props.data.keys}
+                filteredRuns={this.props.data.filtered}
               />
             )}
           {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}

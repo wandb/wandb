@@ -4,6 +4,7 @@ import {
   Checkbox,
   Icon,
   Image,
+  Label,
   Table,
   Item,
   Popup,
@@ -13,8 +14,10 @@ import {NavLink} from 'react-router-dom';
 import './RunFeed.css';
 import Launcher from '../containers/Launcher';
 import FixedLengthString from '../components/FixedLengthString';
+import Tags from '../components/Tags';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
+import {makeShouldUpdate} from '../util/shouldUpdate';
 
 import {
   addFilter,
@@ -29,6 +32,7 @@ import {
   displayValue,
   getRunValue,
   sortableValue,
+  stateToIcon,
   truncateString,
 } from '../util/runhelpers.js';
 import ContentLoader from 'react-content-loader';
@@ -115,26 +119,268 @@ const mapValueDisplayDispatchToProps = (dispatch, ownProps) => {
 
 ValueDisplay = connect(null, mapValueDisplayDispatchToProps)(ValueDisplay);
 
+class RunFeedHeader extends React.Component {
+  constructor(props) {
+    super(props);
+    // This seems like it would be expensive but it's not (.5ms on a row with ~100 columns)
+    this._shouldUpdate = makeShouldUpdate({
+      name: 'RunFeedHeader',
+      deep: ['columnNames'],
+      ignoreFunctions: true,
+      debug: false,
+    });
+  }
+
+  shouldComponentUpdate(nextProps, nextState) {
+    return this._shouldUpdate(this.props, nextProps);
+  }
+
+  render() {
+    let {selectable, sort, columnNames} = this.props;
+    let longestColumn =
+      Object.assign([], columnNames).sort((a, b) => b.length - a.length)[0] ||
+      '';
+    return (
+      <Table.Header>
+        <Table.Row
+          style={{
+            height: Math.min(longestColumn.length, maxColNameLength) * 8,
+            borderLeft: '1px solid rgba(34,36,38,.15)',
+          }}>
+          {selectable && <Table.HeaderCell />}
+          {columnNames.map(columnName => {
+            let columnKey = columnName.split(':')[1];
+            return (
+              <Table.HeaderCell
+                key={columnName}
+                className={
+                  _.startsWith(columnName, 'config:') ||
+                  _.startsWith(columnName, 'summary:')
+                    ? 'rotate'
+                    : ''
+                }
+                style={{textAlign: 'center', verticalAlign: 'bottom'}}
+                onClick={() => {
+                  if (columnName === 'Config' || columnName === 'Summary') {
+                    return;
+                  }
+                  let ascending = true;
+                  if (sort.name === columnName) {
+                    ascending = !sort.ascending;
+                  }
+                  this.props.setSort(columnName, ascending);
+                }}>
+                <div>
+                  {_.startsWith(columnName, 'config:') ||
+                  _.startsWith(columnName, 'summary:') ? (
+                    columnKey.length > maxColNameLength ? (
+                      <span key={columnName}>
+                        {truncateString(columnKey, maxColNameLength)}
+                      </span>
+                    ) : (
+                      <span>{columnKey}</span>
+                    )
+                  ) : (
+                    <span>{columnName}</span>
+                  )}
+
+                  {sort.name === columnName &&
+                    (sort.ascending ? (
+                      <Icon name="caret up" />
+                    ) : (
+                      <Icon name="caret down" />
+                    ))}
+                </div>
+              </Table.HeaderCell>
+            );
+          })}
+        </Table.Row>
+      </Table.Header>
+    );
+  }
+}
+
+class RunFeedRow extends React.Component {
+  constructor(props) {
+    super(props);
+    // This seems like it would be expensive but it's not (.5ms on a row with ~100 columns)
+    this._shouldUpdate = makeShouldUpdate({
+      name: 'RunRow',
+      deep: ['run', 'selectedRuns', 'columnNames'],
+      ignoreFunctions: true,
+      debug: false,
+    });
+  }
+
+  shouldComponentUpdate(nextProps, nextState) {
+    return this._shouldUpdate(this.props, nextProps, this.props.run.name);
+  }
+
+  descriptionCell(edge) {
+    let {loading, project, admin} = this.props;
+    return (
+      <Table.Cell className="overview" key="Description">
+        {loading && (
+          <ContentLoader
+            style={{height: 43}}
+            height={63}
+            width={350}
+            speed={2}
+            primaryColor={'#f3f3f3'}
+            secondaryColor={'#e3e3e3'}>
+            <circle cx="32" cy="32" r="30" />
+            <rect x="75" y="13" rx="4" ry="4" width="270" height="13" />
+            <rect x="75" y="40" rx="4" ry="4" width="50" height="8" />
+          </ContentLoader>
+        )}
+        {!loading && (
+          <Item.Group>
+            <Item>
+              <Item.Image size="tiny" style={{width: 40}}>
+                <Image
+                  src={edge.user && edge.user.photoUrl}
+                  size="mini"
+                  style={{borderRadius: '500rem'}}
+                />
+              </Item.Image>
+              <Item.Content>
+                <Item.Header>
+                  <NavLink
+                    to={`/${project.entityName}/${project.name}/runs/${
+                      edge.name
+                    }`}>
+                    {edge.description || edge.name
+                      ? (edge.description || edge.name).split('\n')[0]
+                      : ''}{' '}
+                    {stateToIcon(edge.state)}
+                  </NavLink>
+                </Item.Header>
+                <Item.Extra style={{marginTop: 0}}>
+                  <strong>{edge.user && edge.user.username}</strong>
+                  {/* edge.host && `on ${edge.host} ` */}
+                  {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
+                  <Tags
+                    tags={edge.tags}
+                    addFilter={tag =>
+                      this.props.addFilter(
+                        'filter',
+                        {section: 'tags', value: tag},
+                        '=',
+                        'true',
+                      )
+                    }
+                  />
+                </Item.Extra>
+                {admin && <Launcher runId={edge.id} runName={edge.name} />}
+              </Item.Content>
+            </Item>
+          </Item.Group>
+        )}
+      </Table.Cell>
+    );
+  }
+
+  render() {
+    let {
+      run,
+      selectable,
+      selectedRuns,
+      loading,
+      columnNames,
+      project,
+    } = this.props;
+    const summary = run.summary;
+    const config = run.config;
+    return (
+      <Table.Row key={run.id}>
+        {selectable && (
+          <Table.Cell collapsing>
+            <Checkbox
+              checked={!!selectedRuns[run.name]}
+              onChange={() => this.props.toggleRunSelection(run.name, run.id)}
+            />
+          </Table.Cell>
+        )}
+        {columnNames.map(columnName => {
+          if (columnName === 'Description') {
+            return this.descriptionCell(run);
+          } else if (columnName === 'Sweep') {
+            return (
+              <Table.Cell key="stop" collapsing>
+                {run.sweep && (
+                  <ValueDisplay
+                    section="sweep"
+                    valKey="name"
+                    value={run.sweep.name}
+                    content={
+                      <NavLink
+                        to={`/${project.entityName}/${project.name}/sweeps/${
+                          run.sweep.name
+                        }`}>
+                        {run.sweep.name}
+                      </NavLink>
+                    }
+                  />
+                )}
+              </Table.Cell>
+            );
+          } else if (columnName === 'Ran') {
+            return (
+              <Table.Cell key={columnName} collapsing>
+                <TimeAgo date={run.createdAt} />
+              </Table.Cell>
+            );
+          } else if (columnName === 'Runtime') {
+            return (
+              <Table.Cell key={columnName} collapsing>
+                {run.heartbeatAt && (
+                  <TimeAgo
+                    date={run.createdAt}
+                    now={() => run.heartbeatAt}
+                    formatter={(v, u, s, d, f) => f().replace(s, '')}
+                    live={false}
+                  />
+                )}
+              </Table.Cell>
+            );
+          } else if (columnName === 'Stop') {
+            return (
+              <Table.Cell key="stop" collapsing>
+                {run.shouldStop}
+              </Table.Cell>
+            );
+          } else {
+            let key = columnName.split(':')[1];
+            return (
+              <Table.Cell
+                key={columnName}
+                style={{
+                  maxWidth: 200,
+                  direction: 'rtl',
+                  textOverflow: 'ellipsis',
+                  overflow: 'hidden',
+                }}
+                collapsing>
+                <ValueDisplay
+                  section="config"
+                  valKey={key}
+                  value={getRunValue(run, columnName)}
+                  justValue
+                />
+              </Table.Cell>
+            );
+          }
+        })}
+      </Table.Row>
+    );
+  }
+}
+
 class RunFeed extends PureComponent {
   static defaultProps = {
     currentPage: 1,
   };
-  state = {sort: 'timeline', dir: 'descending', best: {}, confCounts: {}};
-  stateToIcon(state) {
-    let icon = 'check',
-      color = 'green';
-    if (state === 'failed' || state === 'crashed') {
-      icon = 'remove';
-      color = 'red';
-    } else if (state === 'killed') {
-      icon = 'remove user';
-      color = 'orange';
-    } else if (state === 'running') {
-      icon = 'spinner';
-      color = 'blue';
-    }
-    return <Icon name={icon} color={color} loading={state === 'running'} />;
-  }
+  state = {sort: 'timeline', dir: 'descending'};
 
   sortedClass(type) {
     return this.state.sort === type ? `sorted ${this.state.dir}` : '';
@@ -151,59 +397,6 @@ class RunFeed extends PureComponent {
     this.props.onSort(name, dir);
   }
 
-  componentWillReceiveProps(nextProps) {
-    //for (var prop of _.keys(nextProps)) {
-    //  console.log('prop equal?', prop, this.props[prop] === nextProps[prop]);
-    //}
-    if (nextProps.runs) {
-      let best = {};
-      let confCounts = {};
-      let total = 0;
-      nextProps.runs.forEach((run, i) => {
-        const summaryMetrics = run.summaryMetrics || {},
-          config = run.config || {};
-        Object.keys(config).forEach(key => {
-          confCounts[key] = confCounts[key] || {};
-          confCounts[key][config[key]] =
-            (confCounts[key][config[key]] || 0) + 1;
-        });
-        best = {...summaryMetrics};
-        total += 1;
-        Object.keys(summaryMetrics).forEach(key => {
-          best[key] = best[key] || {val: summaryMetrics[key], i};
-          let better =
-            this.state.dir === 'ascending'
-              ? best[key].val <= summaryMetrics[key]
-              : best[key].val > summaryMetrics[key];
-          if (better) {
-            best[key] = {val: summaryMetrics[key], i};
-          }
-        });
-      });
-      //Ignore things that change every time
-      Object.keys(confCounts).forEach(key => {
-        Object.keys(confCounts[key]).forEach(val => {
-          if (confCounts[key][val] >= total) {
-            confCounts[key][val] = 1;
-          }
-        });
-      });
-      this.setState({best, confCounts});
-    }
-  }
-
-  bestConfig(config) {
-    const best = Object.keys(config)
-      .sort()
-      .sort((a, b) => {
-        return (
-          Object.keys(this.state.confCounts[b] || {}).length -
-          Object.keys(this.state.confCounts[a] || {}).length
-        );
-      });
-    return best; //.slice(0, 3);
-  }
-
   tablePlaceholders(limit, length) {
     let pageLength = !length || length > limit ? limit : length;
     return Array.from({length: pageLength}).map((x, i) => {
@@ -211,296 +404,59 @@ class RunFeed extends PureComponent {
     });
   }
 
-  descriptionCell(edge, props) {
-    return (
-      <Table.Cell className="overview" key="Description">
-        {this.props.loading && (
-          <ContentLoader
-            style={{height: 43}}
-            height={63}
-            width={350}
-            speed={2}
-            primaryColor={'#f3f3f3'}
-            secondaryColor={'#e3e3e3'}>
-            <circle cx="32" cy="32" r="30" />
-            <rect x="75" y="13" rx="4" ry="4" width="270" height="13" />
-            <rect x="75" y="40" rx="4" ry="4" width="50" height="8" />
-          </ContentLoader>
-        )}
-        {!this.props.loading && (
-          <Item.Group>
-            <Item>
-              <Item.Image size="tiny" style={{width: 40}}>
-                <Image
-                  src={edge.user && edge.user.photoUrl}
-                  size="mini"
-                  style={{borderRadius: '500rem'}}
-                />
-              </Item.Image>
-              <Item.Content>
-                <Item.Header>
-                  <NavLink
-                    to={`/${props.project.entityName}/${
-                      props.project.name
-                    }/runs/${edge.name}`}>
-                    {edge.description || edge.name
-                      ? (edge.description || edge.name).split('\n')[0]
-                      : ''}{' '}
-                    {this.stateToIcon(edge.state)}
-                  </NavLink>
-                </Item.Header>
-                <Item.Extra style={{marginTop: 0}}>
-                  <strong>{edge.user && edge.user.username}</strong>
-                  {/* edge.host && `on ${edge.host} ` */}
-                  {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
-                </Item.Extra>
-                {props.admin && (
-                  <Launcher runId={edge.id} runName={edge.name} />
-                )}
-              </Item.Content>
-            </Item>
-          </Item.Group>
-        )}
-      </Table.Cell>
-    );
-  }
-
   render() {
     let /*stats =
         this.props.project &&
         Object.keys(JSONparseNaN(this.props.project.summaryMetrics)).sort(),*/
-      runsLength = this.props.runs && this.props.runs.length,
+      runsLength = this.props.runs ? this.props.runs.length : 0,
       startIndex = (this.props.currentPage - 1) * this.props.limit,
       endIndex = Math.min(startIndex + this.props.limit, runsLength),
-      longestColumn =
-        Object.assign([], this.props.columnNames).sort(
-          (a, b) => b.length - a.length,
-        )[0] || '',
       runs =
         this.props.runs && this.props.runs.length > 0 && !this.props.loading
           ? this.props.runs.slice(startIndex, endIndex)
           : this.tablePlaceholders(
               this.props.limit,
               this.props.project.bucketCount,
-            );
+            ),
+      columnNames = this.props.loading
+        ? ['Description']
+        : this.props.columnNames.filter(
+            columnName => this.props.columns[columnName],
+          );
+    if (!this.props.loading && runsLength === 0) {
+      return <div>No runs match the chosen filters.</div>;
+    }
     return (
       <div>
         <div className="runsTable">
           <Table
             definition={this.props.selectable}
+            style={{borderLeft: null}}
             celled
             sortable
             compact
             unstackable
             size="small">
-            <Table.Header>
-              <Table.Row
-                style={{
-                  height: Math.min(longestColumn.length, maxColNameLength) * 8,
-                }}>
-                {this.props.selectable && <Table.HeaderCell />}
-                {this.props.columnNames
-                  .filter(columnName => this.props.columns[columnName])
-                  .map(columnName => (
-                    <Table.HeaderCell
-                      key={columnName}
-                      className={
-                        _.startsWith(columnName, 'config:') ||
-                        _.startsWith(columnName, 'summary:')
-                          ? 'rotate'
-                          : ''
-                      }
-                      style={{textAlign: 'center', verticalAlign: 'bottom'}}
-                      onClick={() => {
-                        if (
-                          columnName === 'Config' ||
-                          columnName === 'Summary'
-                        ) {
-                          return;
-                        }
-                        let ascending = true;
-                        if (this.props.sort.name === columnName) {
-                          ascending = !this.props.sort.ascending;
-                        }
-                        this.props.setSort(columnName, ascending);
-                      }}>
-                      <div>
-                        {_.startsWith(columnName, 'config:') ||
-                        _.startsWith(columnName, 'summary:') ? (
-                          ((columnName = columnName.split(':')[1]),
-                          columnName.length > maxColNameLength ? (
-                            <span key={columnName}>
-                              {truncateString(columnName, maxColNameLength)}
-                            </span>
-                          ) : (
-                            <span>{columnName}</span>
-                          ))
-                        ) : (
-                          <span>{columnName}</span>
-                        )}
-
-                        {this.props.sort.name === columnName &&
-                          (this.props.sort.ascending ? (
-                            <Icon name="caret up" />
-                          ) : (
-                            <Icon name="caret down" />
-                          ))}
-                      </div>
-                    </Table.HeaderCell>
-                  ))}
-              </Table.Row>
-            </Table.Header>
+            <RunFeedHeader
+              selectable={this.props.selectable}
+              sort={this.props.sort}
+              setSort={this.props.setSort}
+              columnNames={columnNames}
+            />
             <Table.Body>
               {runs &&
-                runs.map((run, i) => {
-                  //TODO: this should always be an object
-                  const summary = run.summary;
-                  const config = run.config;
-                  let event = (
-                    <Table.Row key={run.id}>
-                      {this.props.selectable && (
-                        <Table.Cell collapsing>
-                          <Checkbox
-                            checked={!!this.props.selectedRuns[run.name]}
-                            onChange={() =>
-                              this.props.toggleRunSelection(run.name, run.id)
-                            }
-                          />
-                        </Table.Cell>
-                      )}
-                      {(this.props.loading
-                        ? ['Description']
-                        : this.props.columnNames
-                      )
-                        .filter(
-                          columnName =>
-                            this.props.loading
-                              ? true
-                              : this.props.columns[columnName],
-                        )
-                        .map(columnName => {
-                          if (columnName === 'Description') {
-                            return this.descriptionCell(run, this.props);
-                          } else if (columnName === 'Sweep') {
-                            return (
-                              <Table.Cell key="stop" collapsing>
-                                {run.sweep && (
-                                  <ValueDisplay
-                                    section="sweep"
-                                    valKey="name"
-                                    value={run.sweep.name}
-                                    content={
-                                      <NavLink
-                                        to={`/${
-                                          this.props.project.entityName
-                                        }/${this.props.project.name}/sweeps/${
-                                          run.sweep.name
-                                        }`}>
-                                        {run.sweep.name}
-                                      </NavLink>
-                                    }
-                                  />
-                                )}
-                              </Table.Cell>
-                            );
-                          } else if (columnName === 'Ran') {
-                            return (
-                              <Table.Cell key={columnName} collapsing>
-                                <TimeAgo date={run.createdAt + 'Z'} />
-                              </Table.Cell>
-                            );
-                          } else if (columnName === 'Runtime') {
-                            return (
-                              <Table.Cell key={columnName} collapsing>
-                                {run.heartbeatAt && (
-                                  <TimeAgo
-                                    date={run.createdAt + 'Z'}
-                                    now={() => {
-                                      return Date.parse(run.heartbeatAt + 'Z');
-                                    }}
-                                    formatter={(v, u, s, d, f) =>
-                                      f().replace(s, '')
-                                    }
-                                    live={false}
-                                  />
-                                )}
-                              </Table.Cell>
-                            );
-                          } else if (columnName === 'Config') {
-                            return (
-                              <Table.Cell
-                                className="config"
-                                key={columnName}
-                                collapsing>
-                                <div>
-                                  {config &&
-                                    this.bestConfig(config)
-                                      .slice(0, 20)
-                                      .map(k => (
-                                        <ValueDisplay
-                                          section="config"
-                                          key={k}
-                                          valKey={k}
-                                          value={config[k]}
-                                          enablePopout
-                                        />
-                                      ))}
-                                </div>
-                              </Table.Cell>
-                            );
-                          } else if (columnName === 'Summary') {
-                            return (
-                              <Table.Cell
-                                className="config"
-                                key={columnName}
-                                collapsing>
-                                <div>
-                                  {_.keys(summary)
-                                    .slice(0, 20)
-                                    .map(k => (
-                                      <ValueDisplay
-                                        section="summary"
-                                        key={k}
-                                        valKey={k}
-                                        value={summary[k]}
-                                        enablePopout
-                                      />
-                                    ))}
-                                </div>
-                              </Table.Cell>
-                            );
-                          } else if (columnName === 'Stop') {
-                            return (
-                              <Table.Cell key="stop" collapsing>
-                                {run.shouldStop}
-                              </Table.Cell>
-                            );
-                          } else {
-                            let key = columnName.split(':')[1];
-                            return (
-                              <Table.Cell
-                                key={columnName}
-                                style={{
-                                  maxWidth: 200,
-                                  direction: 'rtl',
-                                  textOverflow: 'ellipsis',
-                                  overflow: 'hidden',
-                                }}
-                                collapsing>
-                                <ValueDisplay
-                                  section="config"
-                                  valKey={key}
-                                  value={getRunValue(run, columnName)}
-                                  justValue
-                                />
-                              </Table.Cell>
-                            );
-                          }
-                        })}
-                    </Table.Row>
-                  );
-                  return event;
-                })}
+                runs.map((run, i) => (
+                  <RunFeedRow
+                    key={i}
+                    run={run}
+                    selectable={this.props.selectable}
+                    selectedRuns={this.props.selectedRuns}
+                    loading={this.props.loading}
+                    columnNames={columnNames}
+                    project={this.props.project}
+                    addFilter={this.props.addFilter}
+                  />
+                ))}
             </Table.Body>
           </Table>
         </div>
@@ -523,9 +479,11 @@ function autoConfigCols(runs) {
   let allKeys = _.uniq(_.flatMap(runs, run => _.keys(run.config)));
   let result = {};
   for (let key of allKeys) {
-    let vals = runs.map(run => run.config[key]);
+    let vals = runs.map(run => run.config[key]).filter(o => o != null);
     let types = _.uniq(vals.map(val => typeof val));
-    if (types.length !== 1) {
+    if (vals.length === 0) {
+      result[key] = false;
+    } else if (types.length !== 1) {
       // Show columns that have different types
       result[key] = true;
     } else {
@@ -543,6 +501,11 @@ function autoConfigCols(runs) {
           // Special case for empty arrays, we don't get non-empty arrays
           // as config values because of the flattening that happens at a higher
           // layer.
+          result[key] = false;
+        } else if (
+          vals.every(val => _.isObject(val) && _.keys(val).length === 0)
+        ) {
+          // Special case for empty objects.
           result[key] = false;
         } else {
           // Show columns that have differing values even if all values differ
@@ -562,18 +525,26 @@ function mapStateToProps() {
   let prevColumns = null;
   let prevRuns = null;
   let cols = {};
+  let autoCols = {};
 
   return function(state, ownProps) {
     const id = ownProps.project.id;
     if (state.runs.columns !== prevColumns || ownProps.runs !== prevRuns) {
-      prevColumns = state.runs.columns;
-      prevRuns = ownProps.runs;
       if (state.runs.columns['_ConfigAuto']) {
-        let autoCols = autoConfigCols(ownProps.runs);
+        // We only update auto columns if runs length changes, as a performance
+        // optimization. TODO: do a better check here.
+        if (
+          _.keys(autoCols).length < 10 ||
+          ownProps.runs.length !== prevRuns.length
+        ) {
+          autoCols = autoConfigCols(ownProps.runs);
+        }
         cols = {...state.runs.columns, ...autoCols};
       } else {
         cols = state.runs.columns;
       }
+      prevColumns = state.runs.columns;
+      prevRuns = ownProps.runs;
     }
     return {
       columns: cols,
@@ -584,7 +555,7 @@ function mapStateToProps() {
 }
 
 const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({toggleRunSelection, setSort}, dispatch);
+  return bindActionCreators({addFilter, toggleRunSelection, setSort}, dispatch);
 };
 
 export default connect(mapStateToProps(), mapDispatchToProps)(RunFeed);

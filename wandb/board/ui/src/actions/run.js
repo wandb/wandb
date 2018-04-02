@@ -1,6 +1,5 @@
 export const TOGGLE_RUN_SELECTION = 'TOGGLE_RUN_SELECTION';
 export const UPDATE_RUN_SELECTIONS = 'UPDATE_RUN_SELECTIONS';
-export const UPDATE_LOSS = 'UPDATE_LOSS';
 export const UPDATE_JOB = 'UPDATE_JOB';
 export const ADD_FILTER = 'ADD_FILTER';
 export const DELETE_FILTER = 'DELETE_FILTER';
@@ -29,14 +28,6 @@ export const updateRunSelection = selects => {
   return {
     type: UPDATE_RUN_SELECTIONS,
     selects,
-  };
-};
-
-export const updateLoss = (id, loss) => {
-  return {
-    type: UPDATE_LOSS,
-    loss,
-    id,
   };
 };
 

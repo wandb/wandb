@@ -12,6 +12,8 @@ import {
   Crosshair,
 } from 'react-vis';
 import {truncateString, displayValue} from '../../util/runhelpers.js';
+import {smartNames} from '../../util/plotHelpers.js';
+import {format} from 'd3-format';
 
 class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
@@ -19,20 +21,25 @@ class LinePlotPlot extends React.PureComponent {
   render() {
     const smallSizeThresh = 50;
 
-    let {height, sizeKey, xAxis, yScale, lines, disabled, xScale} = this.props;
+    let {height, xAxis, yScale, lines, disabled, xScale} = this.props;
     let xType = 'linear';
     if (xAxis == 'Absolute Time') {
       xType = 'time';
     } else if (xScale == 'log') {
+      // this is not actually implemented
       xType = 'log';
     }
 
     let nullGraph = false;
     let smallGraph = false;
 
-    let maxDataLength = _.max(lines.map((line, i) => line.data.length));
+    let maxDataLength = _.max(
+      lines.filter(line => line.data.length).map((line, i) => line.data.length),
+    );
 
-    if (
+    if (!maxDataLength) {
+      nullGraph = true;
+    } else if (
       maxDataLength < smallSizeThresh &&
       lines &&
       _.max(
@@ -44,14 +51,17 @@ class LinePlotPlot extends React.PureComponent {
     ) {
       if (maxDataLength < 2) {
         nullGraph = true;
+      } else {
+        smallGraph = true;
       }
-      smallGraph = true;
     }
 
     return (
+      // SML: I turned off animation, it was making stuff uncomfortably slow even
+      // with the smallGraph detection.
       <FlexibleWidthXYPlot
-        animation={smallGraph}
-        key={sizeKey}
+        margin={{left: 50}}
+        animation={false}
         yType={yScale}
         xType={xType}
         height={height}>
@@ -60,18 +70,29 @@ class LinePlotPlot extends React.PureComponent {
         <XAxis
           title={xAxis}
           tickTotal={5}
-          tickValues={smallGraph ? _.range(0, smallSizeThresh) : null}
+          tickValues={smallGraph ? _.range(1, smallSizeThresh) : null}
+          tickFormat={xType != 'time' ? tick => format('.2s')(tick) : null}
         />
-        <YAxis tickValues={nullGraph ? [0, 1, 2] : null} />
+        <YAxis tickValues={null} tickFormat={tick => format('.2r')(tick)} />
 
         {lines
           .map(
             (line, i) =>
               !disabled[line.title] ? (
                 line.area ? (
-                  <AreaSeries key={i} color={line.color} data={line.data} />
+                  <AreaSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    getNull={d => d.y !== null}
+                  />
                 ) : (
-                  <LineSeries key={i} color={line.color} data={line.data} />
+                  <LineSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    nullAccessor={d => d.y !== null}
+                  />
                 )
               ) : null,
           )
@@ -91,7 +112,7 @@ class LinePlotCrosshair extends React.PureComponent {
     this.highlights = {};
 
     let enabledLines = props.lines.filter(
-      line => !props.disabled[line.title] && line.data.length > 0,
+      line => !props.disabled[line.title] && line.data.length > 0 && !line.aux,
     );
 
     for (var line of enabledLines) {
@@ -100,7 +121,7 @@ class LinePlotCrosshair extends React.PureComponent {
           this.highlights[point.x] = [];
         }
         this.highlights[point.x].push({
-          title: line.title,
+          title: line.title.toString ? line.title.toString() : line.title,
           color: line.color,
           x: point.x,
           y: point.y,
@@ -112,9 +133,13 @@ class LinePlotCrosshair extends React.PureComponent {
     // it transparently and just use it for it's onNearestX callback.
     this.falseLine = [];
     if (enabledLines.length > 0) {
-      let maxLength = _.max(enabledLines.map(line => line.data.length));
       let y = enabledLines[0].data[0].y;
-      this.falseLine = _.range(0, maxLength).map(x => ({x: x, y: y}));
+      let xs = _.sortBy(
+        _.uniq(
+          _.flatMap(enabledLines, line => line.data.map(point => point.x)),
+        ),
+      );
+      this.falseLine = xs.map(x => ({x: x, y: y}));
     }
   }
 
@@ -157,25 +182,24 @@ class LinePlotCrosshair extends React.PureComponent {
                 background: 'white',
                 whiteSpace: 'nowrap',
               }}>
-              <b>{this.props.xAxis + ': ' + crosshairValues[0].x}</b>
-              {crosshairValues
-                .sort((a, b) => b.y - a.y)
-                .filter(point => !point.title.startsWith('_'))
-                .map((point, i) => (
-                  <div key={point.title + ' ' + i}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        backgroundColor: point.color,
-                        width: 12,
-                        height: 4,
-                      }}
-                    />
-                    <span style={{marginLeft: 6}}>
-                      {point.title + ': ' + displayValue(point.y)}
-                    </span>
-                  </div>
-                ))}
+              <b>
+                {this.props.xAxis + ': ' + displayValue(crosshairValues[0].x)}
+              </b>
+              {crosshairValues.sort((a, b) => b.y - a.y).map((point, i) => (
+                <div key={point.title + ' ' + i}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      backgroundColor: point.color,
+                      width: 12,
+                      height: 4,
+                    }}
+                  />
+                  <span style={{marginLeft: 6}}>
+                    {point.title + ': ' + displayValue(point.y)}
+                  </span>
+                </div>
+              ))}
             </div>
           </Crosshair>
         )}
@@ -188,34 +212,57 @@ export default class LinePlot extends React.PureComponent {
   state = {disabled: {}, highlightX: null};
 
   render() {
+    let filteredLines = this.props.lines.filter(line => !line.aux);
+    let lines = [];
+    lines = filteredLines;
     return (
       <div
         style={{
           border: this.props.lines.length === 0 ? '1px solid #ccc' : '',
         }}>
-        <DiscreteColorLegend
-          orientation="horizontal"
-          onItemClick={(item, i) => {
-            this.setState({
-              ...this.state,
-              disabled: {
-                ...this.state.disabled,
-                [item.title]: !this.state.disabled[item.title],
-              },
-            });
-          }}
-          items={this.props.lines
-            .map((line, i) => ({
-              title: truncateString(line.title, 40, 10),
-              disabled: this.state.disabled[line.title],
-              color: line.color,
-            }))
-            .filter(line => !line.title.startsWith('_'))}
-        />
+        <div
+          className="line-plot-legend"
+          style={{
+            fontSize: 11,
+            minHeight: 40,
+            maxHeight: 60,
+            overflow: 'scroll',
+            overflowX: 'hidden',
+            overflowY: 'hidden',
+          }}>
+          {lines.map((line, i) => (
+            <span
+              key={i}
+              style={{display: 'inline-block', marginRight: 16}}
+              onClick={(item, i) => {
+                this.setState({
+                  ...this.state,
+                  disabled: {
+                    ...this.state.disabled,
+                    [item.title]: !this.state.disabled[item.title],
+                  },
+                });
+              }}>
+              <span
+                className="line-plot-color"
+                style={{
+                  display: 'inline-block',
+                  marginBottom: 2,
+                  marginRight: 6,
+                  backgroundColor: line.color,
+                  width: 16,
+                  height: 4,
+                }}
+              />
+              <span className="line-plot-title">
+                {line.title.toComponent ? line.title.toComponent() : line.title}
+              </span>
+            </span>
+          ))}
+        </div>
         <div style={{position: 'relative'}}>
           <LinePlotPlot
             height={this.props.currentHeight - 70 || 220}
-            sizeKey={this.props.sizeKey}
             xAxis={this.props.xAxis}
             yScale={this.props.yScale}
             lines={this.props.lines}

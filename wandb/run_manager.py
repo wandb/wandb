@@ -656,6 +656,10 @@ class RunManager(object):
                 self._run.summary.load()
                 self._event_handlers[save_name] = FileEventHandlerSummary(
                     file_path, save_name, self._api, self._file_pusher, storage_id=self._run.storage_id)
+            elif save_name.startswith('media/'):
+                # Save media files immediately
+                self._event_handlers[save_name] = FileEventHandlerOverwrite(
+                    file_path, save_name, self._api, self._file_pusher)
             else:
                 self._event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
                     file_path, save_name, self._api, self._file_pusher)
