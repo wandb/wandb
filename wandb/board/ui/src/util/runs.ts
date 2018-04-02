@@ -45,7 +45,7 @@ export interface Run {
   readonly name: string;
   readonly state: string; // TODO: narrow this type
   readonly user: User;
-  readonly host: string;
+  readonly host: string | null;
   readonly createdAt: Date;
   readonly heartbeatAt: Date;
   readonly tags: string[];
