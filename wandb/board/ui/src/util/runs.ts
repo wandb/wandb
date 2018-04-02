@@ -84,7 +84,7 @@ export function fromJson(json: any): Run | null {
   }
 
   const host = json.host;
-  if (typeof host !== 'string') {
+  if (typeof host !== 'string' && host !== null) {
     console.warn(`Invalid run host: ${json.host}`);
     return null;
   }
