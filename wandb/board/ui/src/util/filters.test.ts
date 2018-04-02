@@ -1,3 +1,4 @@
+import update from 'immutability-helper';
 import * as Filter from './filters';
 import * as Run from './runs';
 
@@ -245,5 +246,78 @@ describe('fromOldURL', () => {
 describe('to and fromURL', () => {
   it('good', () => {
     expect(Filter.fromURL(Filter.toURL(goodFilters))).toEqual(goodFilters);
+  });
+});
+
+describe('filter modifiers', () => {
+  it('groupPush works', () => {
+    const result = Filter.Update.groupPush(['1'], {
+      key: {section: 'run', name: 'host'},
+      op: '=',
+      value: 'brian.local',
+    });
+    expect(result).toEqual({
+      filters: {
+        '1': {
+          filters: {
+            $push: [
+              {
+                key: {
+                  section: 'run',
+                  name: 'host',
+                },
+                op: '=',
+                value: 'brian.local',
+              },
+            ],
+          },
+        },
+      },
+    });
+    update(goodFilters, result);
+  });
+
+  it('groupRemove works', () => {
+    const result = Filter.Update.groupRemove(['1'], 1);
+    expect(result).toEqual({
+      filters: {
+        '1': {
+          filters: {
+            $splice: [[1, 1]],
+          },
+        },
+      },
+    });
+    update(goodFilters, result);
+  });
+
+  it('setKey works', () => {
+    const result = Filter.Update.setFilter(['1', '0'], {
+      key: {
+        section: 'config',
+        name: 'lr',
+      },
+      op: '>=',
+      value: 0.9,
+    });
+    expect(result).toEqual({
+      filters: {
+        '1': {
+          filters: {
+            '0': {
+              $set: {
+                key: {
+                  section: 'config',
+                  name: 'lr',
+                },
+                op: '>=',
+                value: 0.9,
+              },
+            },
+          },
+        },
+      },
+    });
+    update(goodFilters, result);
   });
 });

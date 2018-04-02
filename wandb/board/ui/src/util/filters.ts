@@ -1,3 +1,4 @@
+import update, {Query} from 'immutability-helper';
 import * as _ from 'lodash';
 import * as Run from './runs';
 
@@ -6,26 +7,18 @@ type GroupFilterOp = 'AND' | 'OR';
 export type Filter = IndividualFilter | GroupFilter;
 
 // needs to match IndividualFilter.op
+// TODO: using enum may allow us to get rid of the duplication.
 const ops = ['=', '!=', '<', '>', '<=', '>='];
 export interface IndividualFilter {
-  op: '=' | '!=' | '<' | '>' | '<=' | '>=';
-  key: Run.Key;
-  value: Run.Value;
+  readonly op: '=' | '!=' | '<' | '>' | '<=' | '>=';
+  readonly key: Run.Key;
+  readonly value: Run.Value;
 }
 
 export interface GroupFilter {
-  op: 'AND' | 'OR';
-  filters: Filter[];
+  readonly op: 'AND' | 'OR';
+  readonly filters: Filter[];
 }
-
-const filt: Filter = {
-  key: {
-    section: 'run',
-    name: 'n',
-  },
-  op: '=',
-  value: null,
-};
 
 function isGroup(filter: Filter): filter is GroupFilter {
   return (filter as GroupFilter).filters !== undefined;
@@ -74,6 +67,38 @@ export function match(filter: Filter, run: Run.Run): boolean {
 
 export function filterRuns(filter: Filter, runs: Run.Run[]) {
   return runs.filter(run => match(filter, run));
+}
+
+export class Update {
+  static groupPush(path: string[], filter: Filter): Query<GroupFilter> {
+    return genUpdate(path, {filters: {$push: [filter]}});
+  }
+
+  static groupRemove(path: string[], index: number): Query<GroupFilter> {
+    return genUpdate(path, {filters: {$splice: [[index, 1]]}});
+  }
+
+  static setFilter(path: string[], filter: Filter): Query<GroupFilter> {
+    return genUpdate(path, {$set: filter});
+  }
+}
+
+// Can't build this up as query directly, so we take the Tree type from
+// immutability-helper and use it.
+type Tree<T> = {[K in keyof T]?: Query<T[K]>};
+function genUpdate(path: string[], updateQuery: Query<any>): Query<any> {
+  const result: Tree<any> = {};
+  let node = result;
+  path.forEach((pathItem, i) => {
+    node.filters = {};
+    if (i === path.length - 1) {
+      node.filters[pathItem] = updateQuery;
+    } else {
+      node.filters[pathItem] = {};
+      node = node.filters[pathItem] as Tree<any>;
+    }
+  });
+  return result;
 }
 
 ///// check* functions and fromJson are used for making sure server data is
