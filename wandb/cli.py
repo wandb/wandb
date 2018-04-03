@@ -89,6 +89,7 @@ def require_init(func):
         return func(*args, **kwargs)
     return wrapper
 
+
 def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
@@ -536,26 +537,12 @@ def run(ctx, program, args, id, dir, configs, message, show):
         config_paths = []
     config = Config(config_paths=config_paths,
                     wandb_dir=dir or wandb.wandb_dir())
-    run = wandb_run.Run(run_id=id, mode='run',
-                        config=config, description=message)
+    run = wandb_run.Run(run_id=id, mode='clirun',
+                        config=config, description=message,
+                        program=program)
 
     api.set_current_run_id(run.id)
 
-    # TODO: better failure handling
-    root = api.git.root
-    remote_url = api.git.remote_url
-    host = socket.gethostname()
-    # handle non-git directories
-    if not root:
-        root = os.path.abspath(os.getcwd())
-        remote_url = 'file://%s%s' % (host, root)
-
-    upsert_result = api.upsert_run(name=run.id,
-                                   project=api.settings("project"),
-                                   entity=api.settings("entity"),
-                                   config=run.config.as_dict(), description=run.description, host=host,
-                                   program_path=program, repo=remote_url, sweep_name=run.sweep_id)
-    run.storage_id = upsert_result['id']
     env = dict(os.environ)
     run.set_environment(env)
     if configs:
@@ -564,7 +551,7 @@ def run(ctx, program, args, id, dir, configs, message, show):
         env['WANDB_SHOW_RUN'] = 'True'
 
     try:
-        rm = run_manager.RunManager(api, run, program=program)
+        rm = run_manager.RunManager(api, run)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %

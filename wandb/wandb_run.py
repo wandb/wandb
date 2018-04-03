@@ -1,6 +1,7 @@
 import datetime
 import os
 import shortuuid
+import socket
 
 import wandb
 from wandb import history
@@ -20,10 +21,21 @@ DESCRIPTION_FNAME = 'description.md'
 
 
 class Run(object):
-    def __init__(self, run_id=None, mode=None, dir=None, config=None, sweep_id=None, storage_id=None, description=None):
+    def __init__(self, run_id=None, mode=None, dir=None, config=None, sweep_id=None, storage_id=None, description=None, resume='never', program=None, wandb_dir=None):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else generate_id()
+        self.resume = resume
         self.mode = mode if mode else 'dryrun'
+
+        self.program = program
+        if not self.program:
+            try:
+                import __main__
+                self.program = __main__.__file__
+            except (ImportError, AttributeError):
+                # probably `python -c`, an embedded interpreter or something
+                self.program = '<python with no main file>'
+        self.wandb_dir = wandb_dir
 
         if dir is None:
             self._dir = run_dir_path(self.id, dry=self.mode == 'dryrun')
@@ -75,8 +87,12 @@ class Run(object):
         mode = environment.get('WANDB_MODE')
         run_dir = environment.get('WANDB_RUN_DIR')
         sweep_id = environment.get('WANDB_SWEEP_ID')
+        program = environment.get('WANDB_PROGRAM')
+        wandb_dir = environment.get('WANDB_DIR')
         config = Config.from_environment_or_defaults()
-        run = cls(run_id, mode, run_dir, config, sweep_id, storage_id)
+        run = cls(run_id, mode, run_dir, config,
+                  sweep_id, storage_id, program=program,
+                  wandb_dir=wandb_dir)
         return run
 
     def set_environment(self, environment=None):
@@ -90,8 +106,12 @@ class Run(object):
             environment['WANDB_RUN_STORAGE_ID'] = self.storage_id
         environment['WANDB_MODE'] = self.mode
         environment['WANDB_RUN_DIR'] = self.dir
+        if self.wandb_dir:
+            environment['WANDB_DIR'] = self.wandb_dir
         if self.sweep_id is not None:
             environment['WANDB_SWEEP_ID'] = self.sweep_id
+        if self.program is not None:
+            environment['WANDB_PROGRAM'] = self.program
 
     def _mkdir(self):
         util.mkdir_exists_ok(self._dir)
@@ -103,6 +123,10 @@ class Run(object):
             project=api.settings('project'),
             run=self.id
         )
+
+    @property
+    def host(self):
+        return socket.gethostname()
 
     @property
     def dir(self):
