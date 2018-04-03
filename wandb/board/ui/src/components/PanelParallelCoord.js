@@ -20,7 +20,7 @@ function parcoor(
   mouseOverCallback,
   mouseOutCallback,
 ) {
-  const isBrushing = false;
+  let isBrushing = false;
   let computedWidth = 1070;
 
   const d3node = d3.select(node).node();
@@ -144,8 +144,19 @@ function parcoor(
           .brushY()
           .extent([[-8, 0], [8, height]])
           .on('brush start', brushstart)
-          .on('brush', brush)),
+          .on('brush', brush)
+          .on('end', axis => {
+            let selection = d3.event.selection;
+            if (!selection) return;
+            let [high, low] = selection.map(y[d].invert);
+            brushend(axis, low, high);
+          })),
       );
+      let select = reactEl.props.select[d];
+      if (select && select.low && select.high) {
+        let [high, low] = [select.low, select.high].map(y[d]);
+        y[d].brush.move(d3.select(this), [low, high]);
+      }
     })
     .selectAll('rect')
     .attr('x', -8)
@@ -185,7 +196,7 @@ function parcoor(
   }
 
   function brushstart() {
-    d3.event.sourceEvent.stopPropagation();
+    isBrushing = true;
   }
 
   // Handles a brush event, toggling the display of foreground lines.
@@ -211,6 +222,15 @@ function parcoor(
           ? null
           : 'none',
     );
+  }
+
+  function brushend(axis, low, high) {
+    isBrushing = false;
+    if (low === high) {
+      low = null;
+      high = null;
+    }
+    brushCallback(axis, low, high);
   }
 
   function handleHighlight(runData) {
@@ -338,7 +358,10 @@ class ParCoordPanel extends React.Component {
 
   _setup(props, nextProps) {
     const {dimensions} = nextProps.config;
-    if (dimensions && nextProps.selections !== props.selections) {
+    if (
+      dimensions &&
+      (nextProps.selections !== props.selections || _.isEmpty(this.select))
+    ) {
       this.select = {};
       for (const dim of dimensions) {
         this.select[dim] = filtersForAxis(nextProps.selections, dim);
