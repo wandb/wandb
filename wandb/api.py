@@ -209,6 +209,17 @@ class Api(object):
                             ['git', 'diff', sha], stdout=upstream_patch, cwd=root)
         except subprocess.CalledProcessError:
             logger.error('Error generating diff')
+    
+    def repo_remote_url(self):
+        #TODO: better failure handling
+        root = self.git.root
+        remote_url = self.git.remote_url
+        host = socket.gethostname()
+        # handle non-git directories
+        if not root:
+            root = os.path.abspath(os.getcwd())
+            remote_url = 'file://%s%s' % (host, root)
+        return remote_url
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id

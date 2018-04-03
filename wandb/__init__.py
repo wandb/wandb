@@ -153,32 +153,6 @@ def _init_headless(api, run, job_type, cloud=True):
     if 'WANDB_DESCRIPTION' in os.environ:
         run.description = os.environ['WANDB_DESCRIPTION']
 
-    # TODO: better failure handling
-    root = api.git.root
-    remote_url = api.git.remote_url
-    host = socket.gethostname()
-    # handle non-git directories
-    if not root:
-        root = os.path.abspath(os.getcwd())
-        remote_url = 'file://%s%s' % (host, root)
-
-    try:
-        import __main__
-        program = __main__.__file__
-    except (ImportError, AttributeError):
-        # probably `python -c`, an embedded interpreter or something
-        program = '<python with no main file>'
-
-    # we need to create the run first of all so history and summary syncing
-    # work even if the syncer process is slow to start.
-    if cloud:
-        upsert_result = api.upsert_run(name=run.id,
-                                       project=api.settings("project"),
-                                       entity=api.settings("entity"),
-                                       config=run.config.as_dict(), description=run.description, host=host,
-                                       program_path=program, repo=remote_url, sweep_name=run.sweep_id,
-                                       job_type=job_type)
-        run.storage_id = upsert_result['id']
     env = dict(os.environ)
     run.set_environment(env)
 
@@ -201,7 +175,6 @@ def _init_headless(api, run, job_type, cloud=True):
         'stderr_master_fd': stderr_master_fd,
         'cloud': cloud,
         'job_type': job_type,
-        'program': program,
         'port': server.port
     }
     internal_cli_path = os.path.join(
@@ -281,16 +254,16 @@ def init(job_type='train', config=None):
 
     api = wandb_api.Api()
     api.set_current_run_id(run.id)
-    if run.mode == 'run':
+    if run.mode == 'clirun' or run.mode == 'run':
         api.ensure_configured()
-        if run.storage_id:
-            # we have to write job_type here because we don't know it before init()
-            api.upsert_run(id=run.storage_id, job_type=job_type)
-        else:
+
+        if run.mode == 'run':
             _init_headless(api, run, job_type)
 
         def config_persist_callback():
-            api.upsert_run(id=run.storage_id, config=run.config.as_dict())
+            api.upsert_run(name=run.id, project=api.settings(
+                'project'), entity=api.settings('entity'),
+                config=run.config.as_dict())
         # set the run directory in the config so it actually gets persisted
         run.config.set_run_dir(run.dir)
         run.config.set_persist_callback(config_persist_callback)

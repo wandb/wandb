@@ -255,7 +255,7 @@ class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train", port=None, program=None):
+    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train", port=None):
         self._api = api
         self._run = run
         self._cloud = cloud
@@ -282,8 +282,8 @@ class RunManager(object):
         self._system_stats = stats.SystemStats(run)
         self._meta = meta.Meta(api, self._run.dir)
         self._meta.data["jobType"] = job_type
-        if program:
-            self._meta.data["program"] = program
+        if self._run.program:
+            self._meta.data["program"] = self._run.program
 
         def push_function(save_name, path):
             with open(path, 'rb') as f:
@@ -373,12 +373,28 @@ class RunManager(object):
             self._stderr_stream.close()
             self._api.get_file_stream_api().finish(exitcode)
 
+    def _init_run(self):
+        if self._cloud:
+            upsert_result = self._api.upsert_run(name=self._run.id,
+                                                 project=self._api.settings(
+                                                     "project"),
+                                                 entity=self._api.settings(
+                                                     "entity"),
+                                                 config=self._run.config.as_dict(),
+                                                 description=self._run.description,
+                                                 host=self._run.host,
+                                                 program_path=self._run.program,
+                                                 repo=self._api.repo_remote_url(),
+                                                 sweep_name=self._run.sweep_id)
+            self._run.storage_id = upsert_result['id']
+
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
 
         This returns after the process has ended and syncing is done.
         Captures ctrl-c's, signals, etc.
         """
+        self._init_run()
 
         stdout_streams, stderr_streams = self._get_stdout_stderr_streams()
 
@@ -421,6 +437,8 @@ class RunManager(object):
         This returns after the process has ended and syncing is done.
         Captures ctrl-c's, signals, etc.
         """
+        self._init_run()
+
         stdout_read_file = os.fdopen(stdout_read_fd, 'rb')
         stderr_read_file = os.fdopen(stderr_read_fd, 'rb')
         stdout_streams, stderr_streams = self._get_stdout_stderr_streams()
