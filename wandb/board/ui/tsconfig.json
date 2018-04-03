@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "outDir": "./dist/",
     "sourceMap": true,
     "lib": ["es6", "dom", "scripthost"],
     "module": "es6",
