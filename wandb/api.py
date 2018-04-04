@@ -209,9 +209,9 @@ class Api(object):
                             ['git', 'diff', sha], stdout=upstream_patch, cwd=root)
         except subprocess.CalledProcessError:
             logger.error('Error generating diff')
-    
+
     def repo_remote_url(self):
-        #TODO: better failure handling
+        # TODO: better failure handling
         root = self.git.root
         remote_url = self.git.remote_url
         host = socket.gethostname()
@@ -465,6 +465,41 @@ class Api(object):
         patch = run['patch']
         config = json.loads(run['config'] or '{}')
         return (commit, config, patch)
+
+    @normalize_exceptions
+    def run_resume_status(self, entity, project, name):
+        """Check if a run exists and get resume information.
+
+        Args:
+            project (str): The project to download, (can include bucket)
+            run (str, optional): The run to download
+            entity (str, optional): The entity to scope this project to.
+        """
+        query = gql('''
+        query Model($project: String!, $entity: String!, $name: String!) {
+            model(name: $project, entityName: $entity) {
+                bucket(name: $name) {
+                    name
+                    logLineCount
+                    historyLineCount
+                    eventsLineCount
+                    historyTail
+                    eventsTail
+                }
+            }
+        }
+        ''')
+
+        try:
+            response = self.gql(query, variable_values={
+                'entity': entity, 'project': project, 'name': name,
+            })
+        except Exception as e:
+            if '404' in str(e):
+                return None
+            raise
+        run = response['model']['bucket']
+        return run
 
     def format_project(self, project):
         return re.sub(r'\W+', '-', project.lower()).strip("-_")
@@ -969,8 +1004,8 @@ Chunk = collections.namedtuple('Chunk', ('filename', 'data'))
 
 
 class DefaultFilePolicy(object):
-    def __init__(self):
-        self._chunk_id = 0
+    def __init__(self, start_chunk_id=0):
+        self._chunk_id = start_chunk_id
 
     def process_chunks(self, chunks):
         chunk_id = self._chunk_id
@@ -982,8 +1017,8 @@ class DefaultFilePolicy(object):
 
 
 class CRDedupeFilePolicy(object):
-    def __init__(self):
-        self._chunk_id = 0
+    def __init__(self, start_chunk_id=0):
+        self._chunk_id = start_chunk_id
 
     def process_chunks(self, chunks):
         content = []

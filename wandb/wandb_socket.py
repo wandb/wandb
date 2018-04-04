@@ -12,6 +12,11 @@ def ints2bytes(ints):
     return six.b('').join([six.int2byte(i) for i in ints])
 
 
+CODE_READY = 1
+CODE_DONE = 2
+CODE_LAUNCH_ERROR = 100
+
+
 class Server(object):
     """A simple socket server started in the user process.  It binds to a port
     assigned by the OS.  It must receive a message from the wandb process within
@@ -20,6 +25,7 @@ class Server(object):
     Wire Protocol:
     1 => ready
     2 => done, followed by optional exitcode byte
+    100 => launch error
     """
 
     def __init__(self):
@@ -43,8 +49,10 @@ class Server(object):
                               self.connection], max_seconds)
         try:
             res = bytearray(self.connection.recv(2))
-            if res[0] in [1, 2]:
+            if res[0] in [CODE_READY, CODE_DONE]:
                 return True
+            elif res[0] in [CODE_LAUNCH_ERROR]:
+                return False
             else:
                 raise socket.error()
         except socket.error as e:
@@ -92,10 +100,13 @@ class Client(object):
 
     def done(self):
         try:
-            self.send([2])
+            self.send([CODE_DONE])
         except socket.error:
             logger.warn(
                 "Wandb took longer than 30 seconds and the user process finished")
 
     def ready(self):
-        self.send([1])
+        self.send([CODE_READY])
+
+    def launch_error(self):
+        self.send([CODE_LAUNCH_ERROR])

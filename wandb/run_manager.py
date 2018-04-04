@@ -32,21 +32,28 @@ from wandb import util
 from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import meta
+from wandb import jsonlfile
 import wandb.api
-from .api import BinaryFilePolicy, CRDedupeFilePolicy
+from .api import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy
 logger = logging.getLogger(__name__)
 
 
 OUTPUT_FNAME = 'output.log'
 
 
+class LaunchError(Exception):
+    """Raised when there's an error starting up."""
+
+
 class FileTailer(object):
-    def __init__(self, path, on_read_fn, binary=False):
+    def __init__(self, path, on_read_fn, binary=False, seek_end=False):
         self._path = path
         mode = 'r'
         if binary:
             mode = 'rb'
         self._file = open(path, mode)
+        if seek_end:
+            self._file.seek(0, 2)  # seek to 0 bytes from end (2 means end)
         self._on_read_fn = on_read_fn
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.start()
@@ -137,6 +144,7 @@ class FileEventHandlerSummary(FileEventHandler):
 
 class FileEventHandlerTextStream(FileEventHandler):
     def __init__(self, *args, **kwargs):
+        self._seek_end = kwargs.pop('seek_end', None)
         super(FileEventHandlerTextStream, self).__init__(*args, **kwargs)
         self._tailer = None
 
@@ -159,7 +167,8 @@ class FileEventHandlerTextStream(FileEventHandler):
         def on_read(data):
             pusher.write_string(data)
 
-        self._tailer = FileTailer(self.file_path, on_read)
+        self._tailer = FileTailer(
+            self.file_path, on_read, seek_end=self._seek_end)
 
 
 class FileEventHandlerBinaryStream(FileEventHandler):
@@ -373,8 +382,61 @@ class RunManager(object):
             self._stderr_stream.close()
             self._api.get_file_stream_api().finish(exitcode)
 
+    def _setup_resume(self, resume_status):
+        # write the tail of the history file
+        try:
+            history_tail = json.loads(resume_status['historyTail'])
+            jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.HISTORY_FNAME),
+                                       history_tail)
+        except ValueError:
+            print("warning: couldn't load recent history")
+
+        # write the tail of the events file
+        try:
+            events_tail = json.loads(resume_status['eventsTail'])
+            jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.EVENTS_FNAME),
+                                       events_tail)
+        except ValueError:
+            print("warning: couldn't load recent events")
+
+        # Note: these calls need to happen after writing the files above. Because the access
+        # to self._run.events below triggers events to initialize, but we need the previous
+        # events to be written before that happens.
+
+        # output.log
+        self._api.get_file_stream_api().set_file_policy(
+            OUTPUT_FNAME, CRDedupeFilePolicy(resume_status['logLineCount']))
+
+        # history
+        self._api.get_file_stream_api().set_file_policy(
+            wandb_run.HISTORY_FNAME, DefaultFilePolicy(
+                start_chunk_id=resume_status['historyLineCount']))
+        self._event_handlers[wandb_run.HISTORY_FNAME] = FileEventHandlerTextStream(
+            self._run.history.fname, wandb_run.HISTORY_FNAME, self._api, seek_end=True)
+
+        # events
+        self._api.get_file_stream_api().set_file_policy(
+            wandb_run.EVENTS_FNAME, DefaultFilePolicy(
+                start_chunk_id=resume_status['eventsLineCount']))
+        self._event_handlers[wandb_run.EVENTS_FNAME] = FileEventHandlerTextStream(
+            self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=True)
+
     def _init_run(self):
         if self._cloud:
+            resume_status = self._api.run_resume_status(project=self._api.settings("project"),
+                                                        entity=self._api.settings(
+                                                            "entity"),
+                                                        name=self._run.id)
+            if resume_status == None and self._run.resume == 'must':
+                raise LaunchError(
+                    "resume='must' but run (%s) doesn't exist" % self._run.id)
+            elif resume_status != None and self._run.resume == 'never':
+                raise LaunchError(
+                    "resume='never' but run (%s) exists" % self._run.id)
+            if resume_status:
+                print('Resuming run: %s' % self._run.id)
+                self._setup_resume(resume_status)
+
             upsert_result = self._api.upsert_run(name=self._run.id,
                                                  project=self._api.settings(
                                                      "project"),
@@ -437,7 +499,11 @@ class RunManager(object):
         This returns after the process has ended and syncing is done.
         Captures ctrl-c's, signals, etc.
         """
-        self._init_run()
+        try:
+            self._init_run()
+        except LaunchError as e:
+            print(str(e))
+            self._socket.launch_error()
 
         stdout_read_file = os.fdopen(stdout_read_fd, 'rb')
         stderr_read_file = os.fdopen(stderr_read_fd, 'rb')
@@ -536,17 +602,18 @@ class RunManager(object):
             return None
 
         # Show run summary/history
-        if self._run.has_summary:
-            # Reload the summary
-            self._run.summary.load()
-            summary = self._run.summary._summary
+        self._run.summary.load()
+        summary = self._run.summary._summary
+        if len(summary):
             wandb.termlog('Run summary:')
             max_len = max([len(k) for k in summary.keys()])
             format_str = '  {:>%s} {}' % max_len
             for k, v in summary.items():
                 wandb.termlog(format_str.format(k, v))
-        if self._run.has_history:
-            history_keys = self._run.history.keys()
+            self._run.history.load()
+
+        history_keys = self._run.history.keys()
+        if len(history_keys):
             wandb.termlog('Run history:')
             max_len = max([len(k) for k in history_keys])
             for key in history_keys:
@@ -554,6 +621,7 @@ class RunManager(object):
                 line = sparkline.sparkify(vals)
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
+
         if self._run.has_examples:
             wandb.termlog('Saved %s examples' % self._run.examples.count())
 

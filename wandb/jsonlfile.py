@@ -16,9 +16,26 @@ class JsonlEventsFile(object):
     def __init__(self, fname, out_dir='.'):
         self._start_time = wandb.START_TIME
         self.fname = os.path.join(out_dir, fname)
-        self._file = open(self.fname, 'w')
         self.buffer = []
         self.lock = Lock()
+        self._file = open(self.fname, 'a')
+        self.load()
+
+    def load(self):
+        try:
+            last_row = {}
+            with open(self.fname) as f:
+                for line in f:
+                    try:
+                        last_row = json.loads(line)
+                    except TypeError:
+                        print('warning: malformed history line: %s...' %
+                              line[:40])
+            # fudge the start_time to compensate for previous run length
+            if '_runtime' in last_row:
+                self._start_time = wandb.START_TIME - last_row['_runtime']
+        except IOError:
+            pass
 
     def flatten(self, dictionary):
         if type(dictionary) == dict:
@@ -54,3 +71,17 @@ class JsonlEventsFile(object):
             self._file = None
         finally:
             self.lock.release()
+
+
+def write_jsonl_file(fname, data):
+    """Writes a jsonl file.
+
+    Args:
+        data: list of json encoded data
+    """
+    if not isinstance(data, list):
+        print('warning: malformed json data for file', fname)
+        return
+    with open(fname, 'w') as of:
+        for row in data:
+            of.write('%s\n' % row.strip())
