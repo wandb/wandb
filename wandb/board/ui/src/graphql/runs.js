@@ -72,6 +72,7 @@ export const RUNS_QUERY = gql`
     $entityName: String
     $jobKey: String
     $order: String
+    $filters: JSONString
     $limit: Int = 500
     $bucketIds: [String]
     $history: Boolean = false
@@ -110,7 +111,9 @@ export const RUNS_QUERY = gql`
         jobKey: $jobKey
         order: $order
         names: $bucketIds
+        filters: $filters
       ) {
+        paths
         edges {
           node {
             ...BasicRunFragment
