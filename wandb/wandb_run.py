@@ -83,6 +83,7 @@ class Run(object):
         if environment is None:
             environment = os.environ
         run_id = environment.get('WANDB_RUN_ID')
+        resume = environment.get('WANDB_RESUME')
         storage_id = environment.get('WANDB_RUN_STORAGE_ID')
         mode = environment.get('WANDB_MODE')
         run_dir = environment.get('WANDB_RUN_DIR')
@@ -92,7 +93,8 @@ class Run(object):
         config = Config.from_environment_or_defaults()
         run = cls(run_id, mode, run_dir, config,
                   sweep_id, storage_id, program=program,
-                  wandb_dir=wandb_dir)
+                  wandb_dir=wandb_dir,
+                  resume=resume)
         return run
 
     def set_environment(self, environment=None):
@@ -102,6 +104,7 @@ class Run(object):
         if environment is None:
             environment = os.environ
         environment['WANDB_RUN_ID'] = self.id
+        environment['WANDB_RESUME'] = self.resume
         if self.storage_id:
             environment['WANDB_RUN_STORAGE_ID'] = self.storage_id
         environment['WANDB_MODE'] = self.mode

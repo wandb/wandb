@@ -520,6 +520,8 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.argument('args', nargs=-1)
 @click.option('--id', default=None,
               help='Run id to use, default is to generate.')
+@click.option('--resume', default='never', type=click.Choice(['never', 'must', 'allow']),
+              help='Resume startegy, default is never')
 @click.option('--dir', default=None,
               help='Files in this directory will be saved to wandb, defaults to wandb')
 @click.option('--configs', default=None,
@@ -529,7 +531,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
 @display_error
-def run(ctx, program, args, id, dir, configs, message, show):
+def run(ctx, program, args, id, resume, dir, configs, message, show):
     api.ensure_configured()
     if configs:
         config_paths = configs.split(',')
@@ -539,7 +541,8 @@ def run(ctx, program, args, id, dir, configs, message, show):
                     wandb_dir=dir or wandb.wandb_dir())
     run = wandb_run.Run(run_id=id, mode='clirun',
                         config=config, description=message,
-                        program=program)
+                        program=program,
+                        resume=resume)
 
     api.set_current_run_id(run.id)
 
@@ -565,7 +568,10 @@ def run(ctx, program, args, id, dir, configs, message, show):
         logger.error('\n'.join(lines))
         return
 
-    rm.run_user_process(program, args, env)
+    try:
+        rm.run_user_process(program, args, env)
+    except run_manager.LaunchError as e:
+        raise ClickException(str(e))
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")

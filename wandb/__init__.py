@@ -207,7 +207,10 @@ def _init_headless(api, run, job_type, cloud=True):
         stderr_redirector.redirect()
 
     # Listen on the socket waiting for the wandb process to be ready
-    server.listen(5)
+    success = server.listen(30)
+    if not success:
+        print('wandb Error: Failed to start')
+        sys.exit(1)
 
     def done():
         server.done(hooks.exit_code)
