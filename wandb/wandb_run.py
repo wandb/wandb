@@ -21,10 +21,10 @@ DESCRIPTION_FNAME = 'description.md'
 
 
 class Run(object):
-    def __init__(self, run_id=None, mode=None, dir=None, config=None, sweep_id=None, storage_id=None, description=None, resume='never', program=None, wandb_dir=None):
+    def __init__(self, run_id=None, mode=None, dir=None, config=None, sweep_id=None, storage_id=None, description=None, resume=None, program=None, wandb_dir=None):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else generate_id()
-        self.resume = resume
+        self.resume = resume if resume else 'never'
         self.mode = mode if mode else 'dryrun'
 
         self.program = program
