@@ -45,6 +45,7 @@ class History(object):
         self._add_callback = add_callback
 
     def load(self):
+        self.rows = []
         try:
             # only preload the default stream, TODO: better stream support
             if self.stream_name == "default":
