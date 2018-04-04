@@ -266,9 +266,9 @@ export function sortRuns(sort, runs) {
       return -1;
     }
     if (sort.ascending) {
-      return valA > valB ? -1 : 1;
-    } else {
       return valA < valB ? -1 : 1;
+    } else {
+      return valA > valB ? -1 : 1;
     }
   };
   return runs.sort(cmp);
