@@ -234,6 +234,7 @@ class LinePlotPanel extends React.Component {
               border: '1px dashed #999',
               padding: 15,
               color: '#666',
+              zIndex: 1,
             }}>
             <Icon name="line chart" />
             {message}
