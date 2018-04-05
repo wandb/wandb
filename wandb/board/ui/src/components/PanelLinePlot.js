@@ -299,6 +299,7 @@ class LinePlotPanel extends React.Component {
         xAxis={xAxisLabel(xAxis, lines)}
         yScale={this.props.config.yLogScale ? 'log' : 'linear'}
         xScale={this.props.config.xLogScale ? 'log' : 'linear'}
+        currentHeight={this.props.currentHeight}
       />
     );
   }

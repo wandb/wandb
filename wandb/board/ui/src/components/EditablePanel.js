@@ -70,6 +70,27 @@ class EditablePanel extends React.Component {
             </Button>
           </Modal.Actions>
         </Modal>
+        <Modal
+          open={this.state.zooming}
+          dimmer="blurring"
+          size="fullscreen"
+          trigger={
+            <Icon
+              style={{backgroundColor: 'white'}}
+              link
+              name="zoom"
+              onClick={() => this.setState({zooming: true})}
+            />
+          }>
+          <Modal.Content style={{padding: 16, height: '500'}}>
+            <Panel {...this.props} editMode={false} currentHeight={500} />
+          </Modal.Content>
+          <Modal.Actions>
+            <Button positive onClick={() => this.setState({zooming: false})}>
+              OK
+            </Button>
+          </Modal.Actions>
+        </Modal>
         <Panel {...this.props} editMode={false} />
       </div>
     );

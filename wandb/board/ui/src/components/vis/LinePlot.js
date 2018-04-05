@@ -270,7 +270,7 @@ export default class LinePlot extends React.PureComponent {
           />
           <div style={{position: 'absolute', top: 0, width: '100%'}}>
             <LinePlotCrosshair
-              height={240}
+              height={this.props.currentHeight - 70 || 220}
               xAxis={this.props.xAxis}
               lines={this.props.lines}
               disabled={this.state.disabled}
