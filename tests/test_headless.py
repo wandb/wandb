@@ -31,6 +31,7 @@ def test_dry_run(runner):
 def test_dry_run_custom_dir(runner):
     with runner.isolated_filesystem():
         os.environ["WANDB_DIR"] = "/tmp"
+        sh.rm("-rf", "/tmp/wandb/*")
         with open("train.py", "w") as f:
             f.write(train_py)
         res = sh.python("train.py")

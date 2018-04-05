@@ -21,7 +21,7 @@ def _files():
     }
 
 
-def project(name='test', empty=False, files=None):
+def _download_urls(name='test', empty=False, files=None):
     files = {'edges': []} if empty else (files or _files())
     return {
         'name': name,
@@ -30,6 +30,19 @@ def project(name='test', empty=False, files=None):
             'id': 'test1234',
             'framework': 'keras',
             'files': files
+        }
+    }
+
+
+def _run_resume_status(name='test', empty=False, files=None):
+    return {
+        'bucket': {
+            'name': name,
+            'logLineCount': 14,
+            'historyLineCount': 5,
+            'eventsLineCount': 2,
+            'historyTail': '[]',
+            'eventsTail': '[]'
         }
     }
 
@@ -65,7 +78,7 @@ index 30d74d2..9a2c773 100644
 def success_or_failure(payload=None, body_match="query"):
     def wrapper(mocker, status_code=200, error=None):
         if error:
-            body = {'error': error}
+            body = {'errors': error}
         else:
             body = {'data': payload}
 
@@ -98,17 +111,28 @@ def upsert_run():
 
 @pytest.fixture
 def query_project():
-    return _query('model', project(), body_match="query Model")
+    # this should really be called query_download_urls
+    return _query('model', _download_urls(), body_match="updatedAt")
+
+
+@pytest.fixture
+def query_run_resume_status():
+    return _query('model', _run_resume_status(), body_match="historyTail")
+
+
+@pytest.fixture
+def query_no_run_resume_status():
+    return _query('model', None, body_match="historyTail")
 
 
 @pytest.fixture
 def query_empty_project():
-    return _query('model', project(empty=True))
+    return _query('model', _download_urls(empty=True))
 
 
 @pytest.fixture
 def query_projects():
-    return _query('models', [project("test_1"), project("test_2"), project("test_3")], body_match="query Models")
+    return _query('models', [_download_urls("test_1"), _download_urls("test_2"), _download_urls("test_3")], body_match="query Models")
 
 
 @pytest.fixture

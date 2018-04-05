@@ -61,6 +61,8 @@ class Retry(object):
             num_retries = self._num_retries
         if num_retries is None:
             num_retries = 1000000
+        if os.environ.get('WANDB_TEST', None):
+            num_retries = 0
         sleep_base = 1
         try:
             sleep_base = kwargs.pop('retry_sleep_base')
