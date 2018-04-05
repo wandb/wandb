@@ -1,6 +1,7 @@
 import six
 import time
 import logging
+import json
 import socket
 from select import select
 import threading
@@ -19,8 +20,7 @@ CODE_LAUNCH_ERROR = 100
 
 class Server(object):
     """A simple socket server started in the user process.  It binds to a port
-    assigned by the OS.  It must receive a message from the wandb process within
-    5 seconds of calling connect to be established.
+    assigned by the OS.
 
     Wire Protocol:
     1 => ready
@@ -32,7 +32,7 @@ class Server(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind(('', 0))
         self.socket.listen(1)
-        self.socket.settimeout(5.0)
+        self.socket.settimeout(30)
         self.port = self.socket.getsockname()[1]
         self.connection = None
 
@@ -48,11 +48,22 @@ class Server(object):
         conn, _, err = select([self.connection], [], [
                               self.connection], max_seconds)
         try:
-            res = bytearray(self.connection.recv(2))
-            if res[0] in [CODE_READY, CODE_DONE]:
+            message = b''
+            while True:
+                res = self.connection.recv(1024)
+                term = res.find(b'\0')
+                if term != -1:
+                    message += res[:term]
+                    break
+                else:
+                    message += res
+            message = json.loads(message.decode('utf8'))
+            if message['status'] == 'done':
                 return True
-            elif res[0] in [CODE_LAUNCH_ERROR]:
-                return False
+            elif message['status'] == 'ready':
+                return True, message
+            elif message['status'] == 'launch_error':
+                return False, None
             else:
                 raise socket.error()
         except socket.error as e:
@@ -87,8 +98,7 @@ class Client(object):
             self.connected = False
 
     def send(self, data):
-        if isinstance(data, list):
-            data = ints2bytes(data)
+        data = json.dumps(data).encode('utf8') + b'\0'
         if self.connected:
             self.socket.sendall(data)
 
@@ -100,13 +110,13 @@ class Client(object):
 
     def done(self):
         try:
-            self.send([CODE_DONE])
+            self.send({'status': 'done'})
         except socket.error:
             logger.warn(
                 "Wandb took longer than 30 seconds and the user process finished")
 
-    def ready(self):
-        self.send([CODE_READY])
+    def ready(self, storage_id):
+        self.send({'status': 'ready', 'storage_id': storage_id})
 
     def launch_error(self):
-        self.send([CODE_LAUNCH_ERROR])
+        self.send({'status': 'launch_error'})

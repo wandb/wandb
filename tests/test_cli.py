@@ -50,6 +50,14 @@ def local_netrc(monkeypatch):
     monkeypatch.setattr(os.path, "expanduser", expand)
 
 
+def setup_module(module):
+    os.environ["WANDB_TEST"] = "true"
+
+
+def teardown_module(module):
+    del os.environ["WANDB_TEST"]
+
+
 def test_help(runner):
     result = runner.invoke(cli.cli)
     assert result.exit_code == 0
@@ -406,3 +414,27 @@ def test_board_custom_dir(runner, mocker, monkeypatch):
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert app.run.called
+
+
+def test_resume_never(runner, request_mocker, upsert_run, query_run_resume_status, git_repo):
+    query_run_resume_status(request_mocker)
+    upsert_run(request_mocker, error=['Bucket with that name already exists'])
+    # default is --resume="never"
+    result = runner.invoke(cli.run, ["missing.py"])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "resume='never'" in str(result.output)
+    assert result.exit_code == 1
+
+
+def test_resume_must(runner, request_mocker, query_run_resume_status, git_repo):
+    query_run_resume_status(request_mocker, status_code=404)
+    result = runner.invoke(cli.run, ["--resume=must", "missing.py"])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "resume='must'" in str(result.output)
+    assert result.exit_code == 1
+
+# TODO: test actual resume

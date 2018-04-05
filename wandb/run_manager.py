@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 OUTPUT_FNAME = 'output.log'
 
 
-class LaunchError(Exception):
+class LaunchError(Error):
     """Raised when there's an error starting up."""
 
 
@@ -421,34 +421,45 @@ class RunManager(object):
         self._event_handlers[wandb_run.EVENTS_FNAME] = FileEventHandlerTextStream(
             self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=True)
 
-    def _init_run(self):
+    def init_run(self, env=None):
         if self._cloud:
-            resume_status = self._api.run_resume_status(project=self._api.settings("project"),
-                                                        entity=self._api.settings(
-                                                            "entity"),
-                                                        name=self._run.id)
-            if resume_status == None and self._run.resume == 'must':
-                raise LaunchError(
-                    "resume='must' but run (%s) doesn't exist" % self._run.id)
-            elif resume_status != None and self._run.resume == 'never':
-                raise LaunchError(
-                    "resume='never' but run (%s) exists" % self._run.id)
-            if resume_status:
-                print('Resuming run: %s' % self._run.id)
-                self._setup_resume(resume_status)
+            storage_id = None
+            if self._run.resume != 'never':
+                resume_status = self._api.run_resume_status(project=self._api.settings("project"),
+                                                            entity=self._api.settings(
+                                                                "entity"),
+                                                            name=self._run.id)
+                if resume_status == None and self._run.resume == 'must':
+                    raise LaunchError(
+                        "resume='must' but run (%s) doesn't exist" % self._run.id)
+                if resume_status:
+                    print('Resuming run: %s' % self._run.id)
+                    self._setup_resume(resume_status)
+                    storage_id = resume_status['id']
 
-            upsert_result = self._api.upsert_run(name=self._run.id,
-                                                 project=self._api.settings(
-                                                     "project"),
-                                                 entity=self._api.settings(
-                                                     "entity"),
-                                                 config=self._run.config.as_dict(),
-                                                 description=self._run.description,
-                                                 host=self._run.host,
-                                                 program_path=self._run.program,
-                                                 repo=self._api.repo_remote_url(),
-                                                 sweep_name=self._run.sweep_id)
+            try:
+                upsert_result = self._api.upsert_run(id=storage_id,
+                                                     name=self._run.id,
+                                                     project=self._api.settings(
+                                                         "project"),
+                                                     entity=self._api.settings(
+                                                         "entity"),
+                                                     config=self._run.config.as_dict(),
+                                                     description=self._run.description,
+                                                     host=self._run.host,
+                                                     program_path=self._run.program,
+                                                     repo=self._api.repo_remote_url(),
+                                                     sweep_name=self._run.sweep_id)
+            except wandb.api.CommError as e:
+                # TODO: Get rid of str contains check
+                if self._run.resume == 'never' and 'exists' in str(e):
+                    raise LaunchError(
+                        "resume='never' but run (%s) exists" % self._run.id)
+                else:
+                    raise LaunchError(
+                        'Launch exception: %s, see wandb-debug.log for details' % str(e))
             self._run.storage_id = upsert_result['id']
+            self._run.set_environment(environment=env)
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -456,8 +467,6 @@ class RunManager(object):
         This returns after the process has ended and syncing is done.
         Captures ctrl-c's, signals, etc.
         """
-        self._init_run()
-
         stdout_streams, stderr_streams = self._get_stdout_stderr_streams()
 
         if sys.platform == "win32":
@@ -500,10 +509,11 @@ class RunManager(object):
         Captures ctrl-c's, signals, etc.
         """
         try:
-            self._init_run()
+            self.init_run()
         except LaunchError as e:
             print(str(e))
             self._socket.launch_error()
+            return
 
         stdout_read_file = os.fdopen(stdout_read_fd, 'rb')
         stderr_read_file = os.fdopen(stderr_read_fd, 'rb')
@@ -514,7 +524,7 @@ class RunManager(object):
         self.proc = Process(pid)
 
         # Signal the main process that we're all hooked up
-        self._socket.ready()
+        self._socket.ready(self._run.storage_id)
 
         self._sync_etc(headless=True)
 
