@@ -479,6 +479,7 @@ class Api(object):
         query Model($project: String!, $entity: String!, $name: String!) {
             model(name: $project, entityName: $entity) {
                 bucket(name: $name) {
+                    id
                     name
                     logLineCount
                     historyLineCount
@@ -648,7 +649,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']
+        result = {file['name']                
             : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 

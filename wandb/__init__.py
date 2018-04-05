@@ -207,10 +207,11 @@ def _init_headless(api, run, job_type, cloud=True):
         stderr_redirector.redirect()
 
     # Listen on the socket waiting for the wandb process to be ready
-    success = server.listen(30)
+    success, message = server.listen(30)
     if not success:
         print('wandb Error: Failed to start')
         sys.exit(1)
+    run.storage_id = message['storage_id']
 
     def done():
         server.done(hooks.exit_code)
@@ -264,7 +265,7 @@ def init(job_type='train', config=None):
             _init_headless(api, run, job_type)
 
         def config_persist_callback():
-            api.upsert_run(name=run.id, project=api.settings(
+            api.upsert_run(id=run.storage_id, name=run.id, project=api.settings(
                 'project'), entity=api.settings('entity'),
                 config=run.config.as_dict())
         # set the run directory in the config so it actually gets persisted

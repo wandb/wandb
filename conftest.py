@@ -2,8 +2,6 @@ import pytest
 import requests_mock
 import os
 
-os.environ["WANDB_DEBUG"] = "true"
-
 #"Error: 'Session' object has no attribute 'request'""
 #@pytest.fixture(autouse=True)
 # def no_requests(monkeypatch):

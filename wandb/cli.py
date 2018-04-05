@@ -547,7 +547,6 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
     api.set_current_run_id(run.id)
 
     env = dict(os.environ)
-    run.set_environment(env)
     if configs:
         env['WANDB_CONFIG_PATHS'] = configs
     if show:
@@ -555,23 +554,21 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
 
     try:
         rm = run_manager.RunManager(api, run)
+        rm.init_run(env)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %
                         util.get_log_file_path())
-        wandb.termerror(exc_value)
+        wandb.termerror(str(exc_value))
         if 'permission' in str(exc_value):
             wandb.termerror(
                 'Are you sure you provided the correct API key to "wandb login"?')
         lines = traceback.format_exception(
             exc_type, exc_value, exc_traceback)
         logger.error('\n'.join(lines))
-        return
+        sys.exit(1)
 
-    try:
-        rm.run_user_process(program, args, env)
-    except run_manager.LaunchError as e:
-        raise ClickException(str(e))
+    rm.run_user_process(program, args, env)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")

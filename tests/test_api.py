@@ -30,7 +30,8 @@ def test_projects_success(request_mocker, query_projects):
 
 
 def test_projects_failure(request_mocker, query_projects):
-    query_projects(request_mocker, status_code=400, error="Bummer")
+    query_projects(request_mocker, status_code=400,
+                   error=[{'message': "Bummer"}])
     with pytest.raises(wandb.Error):
         api.list_projects()
 
