@@ -303,9 +303,10 @@ export function stateToIcon(state, key) {
 }
 
 export class RunFancyName {
-  constructor(run, spec) {
+  constructor(run, spec, prefix = '') {
     this._run = run;
     this._spec = spec;
+    this._prefix = prefix;
   }
 
   special = {
@@ -327,6 +328,7 @@ export class RunFancyName {
     }
     return (
       <span>
+        {this.prefix}{' '}
         {this._spec
           .map(key => {
             let value = getRunValue(this._run, key);
@@ -346,11 +348,14 @@ export class RunFancyName {
   }
 
   toString() {
-    return this._spec
-      .map(key => (this.special[key] ? null : getRunValue(this._run, key)))
-      .filter(o => o)
-      .map(val => displayValue(val))
-      .join(' ');
+    return (
+      this._prefix +
+      this._spec
+        .map(key => (this.special[key] ? null : getRunValue(this._run, key)))
+        .filter(o => o)
+        .map(val => displayValue(val))
+        .join(' ')
+    );
   }
 }
 

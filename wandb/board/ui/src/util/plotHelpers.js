@@ -7,6 +7,7 @@ import {
   runDisplayName,
   RunFancyName,
   groupConfigIdx,
+  truncateString,
 } from '../util/runhelpers.js';
 
 const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -474,7 +475,7 @@ export function aggregateLines(lines, name, idx, bucketData = true) {
   };
 
   let line = {
-    title: 'Mean ' + name,
+    title: truncateString('Mean ' + name, 30),
     color: color(idx),
     data: lineData,
   };

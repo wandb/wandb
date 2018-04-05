@@ -127,7 +127,13 @@ class DashboardView extends Component {
         query={query}
         config={panelConfig.config}
         data={this.props.data}
-        currentHeight={this.state.panels[i]}
+        currentHeight={
+          // LB: I'm putting a height margin of 30 in here because I think this is
+          // the safest way to do it, but probably LinePlot should make the margin
+          panelConfig &&
+          panelConfig.layout &&
+          panelConfig.layout.h * ROW_HEIGHT - 30
+        }
         updateType={newType =>
           this.props.updatePanel(i, {
             ...panelConfig,
