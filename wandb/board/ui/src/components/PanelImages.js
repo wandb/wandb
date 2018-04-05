@@ -11,9 +11,38 @@ class ImagesPanel extends React.Component {
 
   static validForData(data) {
     return (
-      !_.isNil(data.history) &&
-      _.values(data.history[0]).find(v => v && v._type === 'images')
+      // we are looking for any element in history with a value with
+      !_.isNil(data.history) && this.imageKeys(data.history).length > 0
     );
+  }
+
+  static imageKeys(history) {
+    /**
+     * Find all the keys in history that ever have the type "image"
+     *
+     * History obejcts look like
+     * [ { "loss": 1, "acc": 2},
+     * { "loss": 3, "example":{"_type": "images"}}]
+     * We want to find all keys where "_type" is ever set to images
+     */
+
+    let imageKeys = [];
+    for (let row in history) {
+      _.keys(history[row])
+        .filter(k => {
+          return (
+            history[row][k] &&
+            history[row][k]._type &&
+            history[row][k]._type === 'images'
+          );
+        })
+        .map(key => {
+          if (imageKeys.indexOf(key) == -1) {
+            imageKeys.push(key);
+          }
+        });
+    }
+    return imageKeys;
   }
 
   zoomLevels() {
@@ -98,9 +127,9 @@ class ImagesPanel extends React.Component {
 
   renderNormal() {
     let {history} = this.props.data;
-    //TODO: performance / don't hard code imageKey
-    let imageKey = 'examples';
-    let images = history.map(h => h[imageKey]);
+    //TODO: handle multiple keys
+    let imageKey = ImagesPanel.imageKeys(history)[0];
+    let images = history.map(h => h[imageKey]).filter(img => img);
 
     if (images.length == 0) {
       return this.renderError(

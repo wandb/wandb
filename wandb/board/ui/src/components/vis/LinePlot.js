@@ -140,7 +140,6 @@ class LinePlotCrosshair extends React.PureComponent {
         for (let j = 0; j < embededLinesIdx.length; j++) {
           let data = [];
           let line = enabledLines[j];
-          console.log('elj', line.data[embededLinesIdx[j]]);
           while (
             line.data[embededLinesIdx[j]] &&
             line.data[embededLinesIdx[j]].x < maxSlice
@@ -148,7 +147,6 @@ class LinePlotCrosshair extends React.PureComponent {
             data.push(enabledLines[j].data[embededLinesIdx[j]].y);
             embededLinesIdx[j]++;
           }
-          console.log('DATA ', data);
           if (data.length > 0) {
             this.highlights[avgSlice].push({
               title: line.title.toString ? line.title.toString() : line.title,
