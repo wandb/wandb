@@ -171,31 +171,37 @@ class ImagesPanel extends React.Component {
     return (
       <div>
         <h3>Epoch {this.state.epoch}</h3>
-        {captions.map((label, i) => {
-          return (
-            <div
-              key={i}
-              style={{
-                float: 'left',
-                zoom: this.props.config.zoom || 1,
-                filter: this.props.config.filter || 'none',
-                padding: 5,
-                textAlign: 'center',
-              }}>
+        {console.log('Captions', captions)}
+        {captions ? (
+          captions.map((label, i) => {
+            return (
               <div
+                key={i}
                 style={{
-                  backgroundImage: `url(${sprite})`,
-                  width: width,
-                  height: height,
-                  backgroundPosition: `${i * width}px 0`,
-                }}
-              />
-              <span style={{fontSize: '0.6em', lineHeight: '1em'}}>
-                {label}
-              </span>
-            </div>
-          );
-        })}
+                  float: 'left',
+                  zoom: this.props.config.zoom || 1,
+                  filter: this.props.config.filter || 'none',
+                  padding: 5,
+                  textAlign: 'center',
+                }}>
+                <div
+                  style={{
+                    backgroundImage: `url(${sprite})`,
+                    width: width,
+                    height: height,
+                    backgroundPosition: `${i * width}px 0`,
+                  }}
+                />
+                <span style={{fontSize: '0.6em', lineHeight: '1em'}}>
+                  {label}
+                </span>
+              </div>
+            );
+          })
+        ) : (
+          <p>No Images Uploaded for epoch {this.state.epoch}</p>
+        )}
+
         <input
           type="range"
           list="epochs"

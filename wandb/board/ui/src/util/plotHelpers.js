@@ -85,7 +85,10 @@ export function numericKeysFromHistory(history) {
   if (!history || history.length == 0) {
     return [];
   }
-  return _.keys(history[0]).filter(k => !history[0][k]._type); // remove images and media
+
+  return _.keys(history[0]).filter(
+    k => !(history[0][k] && history[0][k]._type),
+  ); // remove images and media
 }
 
 export function xAxisChoices(data) {
