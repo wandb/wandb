@@ -354,7 +354,6 @@ export function smoothLines(lines, smoothingWeight) {
   let smoothedLines = lines.map((line, i) => ({
     ...line,
     data: smoothLine(line.data, smoothingWeight, line.area),
-    color: line.area ? color(i, 0.2) : color(i, 0.8),
   }));
 
   return _.concat(smoothedLines);
