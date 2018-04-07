@@ -477,7 +477,7 @@ export function aggregateLines(lines, name, idx, bucketData = true) {
   };
 
   let line = {
-    title: truncateString('Mean ' + name, 30),
+    title: 'Mean ' + name,
     color: color(idx),
     data: lineData,
   };
@@ -634,7 +634,7 @@ export function linesFromDataRunsPlot(
           aggLines,
           aggregateLines(
             lineGroup,
-            key + ' ' + groupBy + ':' + displayValue(configVal),
+            groupBy + ':' + displayValue(configVal),
             i++,
             bucketAggregation,
           ),
