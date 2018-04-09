@@ -14,13 +14,19 @@ import {
 import {truncateString, displayValue} from '../../util/runhelpers.js';
 import {smartNames} from '../../util/plotHelpers.js';
 import {format} from 'd3-format';
+import Highlight from './highlight.js';
+import {Button, Container} from 'semantic-ui-react';
 
 class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
   // re-render every time the crosshair (highlight) changes.
+  state = {
+    lastDrawLocation: null,
+  };
+
   render() {
     const smallSizeThresh = 50;
-
+    const {lastDrawLocation} = this.state;
     let {height, xAxis, yScale, lines, disabled, xScale} = this.props;
     let xType = 'linear';
     if (xAxis == 'Absolute Time') {
@@ -59,45 +65,66 @@ class LinePlotPlot extends React.PureComponent {
     return (
       // SML: I turned off animation, it was making stuff uncomfortably slow even
       // with the smallGraph detection.
-      <FlexibleWidthXYPlot
-        margin={{left: 50}}
-        animation={false}
-        yType={yScale}
-        xType={xType}
-        height={height}>
-        <VerticalGridLines />
-        <HorizontalGridLines />
-        <XAxis
-          title={xAxis}
-          tickTotal={5}
-          tickValues={smallGraph ? _.range(1, smallSizeThresh) : null}
-          tickFormat={xType != 'time' ? tick => format('.2s')(tick) : null}
-        />
-        <YAxis tickValues={null} tickFormat={tick => format('.2r')(tick)} />
+      <Container>
+        <FlexibleWidthXYPlot
+          margin={{left: 50}}
+          animation={true}
+          xDomain={
+            lastDrawLocation && [lastDrawLocation.left, lastDrawLocation.right]
+          }
+          yType={yScale}
+          xType={xType}
+          height={height}>
+          <VerticalGridLines />
+          <HorizontalGridLines />
+          <XAxis
+            title={xAxis}
+            tickTotal={5}
+            tickValues={smallGraph ? _.range(1, smallSizeThresh) : null}
+            tickFormat={xType != 'time' ? tick => format('.2s')(tick) : null}
+          />
+          <YAxis tickValues={null} tickFormat={tick => format('.2r')(tick)} />
 
-        {lines
-          .map(
-            (line, i) =>
-              !disabled[line.title] ? (
-                line.area ? (
-                  <AreaSeries
-                    key={i}
-                    color={line.color}
-                    data={line.data}
-                    getNull={d => d.y !== null}
-                  />
-                ) : (
-                  <LineSeries
-                    key={i}
-                    color={line.color}
-                    data={line.data}
-                    nullAccessor={d => d.y !== null}
-                  />
-                )
-              ) : null,
-          )
-          .filter(o => o)}
-      </FlexibleWidthXYPlot>
+          {lines
+            .map(
+              (line, i) =>
+                !disabled[line.title] ? (
+                  line.area ? (
+                    <AreaSeries
+                      key={i}
+                      color={line.color}
+                      data={line.data}
+                      getNull={d => d.y !== null}
+                    />
+                  ) : (
+                    <LineSeries
+                      key={i}
+                      color={line.color}
+                      data={line.data}
+                      nullAccessor={d => d.y !== null}
+                    />
+                  )
+                ) : null,
+            )
+            .filter(o => o)}
+
+          <Highlight
+            onBrushEnd={area => {
+              this.setState({
+                lastDrawLocation: area,
+              });
+            }}
+          />
+        </FlexibleWidthXYPlot>
+
+        <Button
+          className="showcase-button"
+          onClick={() => {
+            this.setState({lastDrawLocation: null});
+          }}>
+          Reset Zoom
+        </Button>
+      </Container>
     );
   }
 }
@@ -309,7 +336,13 @@ export default class LinePlot extends React.PureComponent {
             lines={this.props.lines}
             disabled={this.state.disabled}
           />
-          <div style={{position: 'absolute', top: 0, width: '100%'}}>
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              width: '100%',
+              pointerEvents: 'none',
+            }}>
             <LinePlotCrosshair
               height={this.props.currentHeight - 70 || 220}
               xAxis={this.props.xAxis}
