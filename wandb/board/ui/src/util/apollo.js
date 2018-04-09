@@ -116,12 +116,13 @@ const errorLink = onError(({networkError, graphQLErrors}, store) => {
     });
   }
   if (networkError) {
-    console.error(`Network Error: ${networkError}`);
+    let errorMessage = 'Application Error';
     if (networkError.result) {
       console.error(networkError.result.errors);
+    } else if (networkError.message === 'Failed to fetch') {
+      errorMessage = 'Network Error';
     }
-
-    dispatch(setFlash({message: 'Backend Unavailable', color: 'red'}));
+    dispatch(setFlash({message: errorMessage, color: 'red'}));
   }
 });
 

@@ -7,7 +7,6 @@ import update from 'immutability-helper';
 import TabbedViews from '../components/TabbedViews';
 import DashboardView from '../components/DashboardView';
 import ViewModifier from '../containers/ViewModifier';
-import ErrorPage from '../components/ErrorPage';
 import withHistoryLoader from '../containers/HistoryLoader';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
 import {

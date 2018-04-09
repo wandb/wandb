@@ -6,7 +6,6 @@ import update from 'immutability-helper';
 import {Container, Loader} from 'semantic-ui-react';
 import ModelEditor from '../components/ModelEditor';
 import ModelViewer from '../components/ModelViewer';
-import ErrorPage from '../components/ErrorPage';
 import {MODEL_QUERY, MODEL_DELETION, MODEL_UPSERT} from '../graphql/models';
 import {updateLocationParams} from '../actions/location';
 
@@ -30,20 +29,20 @@ class Model extends React.Component {
 
   render() {
     let action = this.props.match.path.split('/').pop();
-    return this.props.error ? (
-      <ErrorPage error={this.props.error} history={this.props.history} />
-    ) : (
-      <Container className="model">
-        {this.props.loading ? (
-          <Loader active={this.props.loading} size="massive" />
-        ) : this.props.user && action === 'edit' ? (
-          <ModelEditor {...this.props} />
-        ) : this.props.user && action === 'sweeps' ? (
-          <Sweeps {...this.props} />
-        ) : (
-          <ModelViewer {...this.props} />
-        )}
-      </Container>
+    return (
+      !this.props.error && (
+        <Container className="model">
+          {this.props.loading ? (
+            <Loader active={this.props.loading} size="massive" />
+          ) : this.props.user && action === 'edit' ? (
+            <ModelEditor {...this.props} />
+          ) : this.props.user && action === 'sweeps' ? (
+            <Sweeps {...this.props} />
+          ) : (
+            <ModelViewer {...this.props} />
+          )}
+        </Container>
+      )
     );
   }
 }

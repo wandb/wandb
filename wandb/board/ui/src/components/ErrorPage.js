@@ -10,7 +10,10 @@ const ErrorPage = ({error, history, dispatch}) => {
     setTimeout(() => window.location.reload(true), 20000);
   }
 
-  let icon, title, message;
+  let icon,
+    title,
+    message,
+    knownError = true;
   //For now let's grab the first error from the GQL server
   //TODO: why is this sometimes an array?
   if (Array.isArray(error)) error = error[0];
@@ -67,22 +70,26 @@ const ErrorPage = ({error, history, dispatch}) => {
         icon = 'bug';
         title = 'Application Error';
         message = 'You may have found a bug.';
+        knownError = false;
     }
   }
+
   return (
-    <Dimmer
-      active={true}
-      onClickOutside={() => {
-        dispatch(resetError());
-        if (error.code > 400 && history) history.goBack();
-      }}>
-      <Header as="h2" icon inverted>
-        <Icon name={icon} />
-        {title}
-        <Header.Subheader>{message}</Header.Subheader>
-      </Header>
-      <p>{instructions}</p>
-    </Dimmer>
+    knownError && (
+      <Dimmer
+        active={true}
+        onClickOutside={() => {
+          dispatch(resetError());
+          if (error.code > 400 && history) history.goBack();
+        }}>
+        <Header as="h2" icon inverted>
+          <Icon name={icon} />
+          {title}
+          <Header.Subheader>{message}</Header.Subheader>
+        </Header>
+        <p>{instructions}</p>
+      </Dimmer>
+    )
   );
 };
 
