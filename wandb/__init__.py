@@ -78,7 +78,7 @@ class Error(Exception):
 # 'from wandb import __stage_dir__' from api.py etc.
 from wandb import wandb_types as types
 from wandb import api as wandb_api
-from wandb import config as wandb_config
+from wandb import wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import util

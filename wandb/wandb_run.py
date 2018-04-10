@@ -10,7 +10,7 @@ from wandb import summary
 from wandb import meta
 from wandb import typedtable
 from wandb import util
-from wandb.config import Config
+from wandb.wandb_config import Config
 import atexit
 import sys
 

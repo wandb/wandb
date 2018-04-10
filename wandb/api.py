@@ -17,7 +17,7 @@ from wandb import __version__, wandb_dir, Error
 from wandb.git_repo import GitRepo
 from wandb import retry
 from wandb import util
-from .config import Config
+from .wandb_config import Config
 import base64
 import binascii
 import click

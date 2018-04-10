@@ -31,7 +31,7 @@ import whaaaaat
 
 import wandb
 from wandb.api import Api
-from wandb.config import Config
+from wandb.wandb_config import Config
 from wandb import agent as wandb_agent
 from wandb import wandb_run
 from wandb import wandb_dir

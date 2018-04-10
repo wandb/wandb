@@ -12,7 +12,7 @@ from tempfile import NamedTemporaryFile
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 from shortuuid import ShortUUID
-from .config import Config
+from .wandb_config import Config
 import logging
 import threading
 import json
