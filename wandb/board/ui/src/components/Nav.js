@@ -23,48 +23,51 @@ class Nav extends Component {
   render() {
     const flash = this.props.flash || {};
     return (
-      <Menu fixed="top" borderless>
-        <Container fluid style={{marginLeft: 10, position: 'relative'}}>
-          <NavLink exact to="/" className="item">
-            <img src={logo} className="logo" alt="Weights & Biases" />
-          </NavLink>
-          <NavLink
-            to={`/`}
-            isActive={() =>
-              //TODO: very unfortunate
-              this.props.location.pathname.indexOf('dashboards') === -1
-            }
-            className="item">
-            Runs
-          </NavLink>
-          <NavLink to={`/dashboards/edit`} className="item">
-            Dashboards
-          </NavLink>
-          <Menu.Menu position="right" />
-          <Transition
-            animation="fly down"
-            duration={1000}
-            visible={this.state.showFlash}
-            onComplete={() => {
-              if (!flash.sticky)
-                setTimeout(() => this.setState({showFlash: false}), 5000);
+      <div>
+        <Menu fixed="top" borderless>
+          <Container fluid style={{marginLeft: 10, position: 'relative'}}>
+            <NavLink exact to="/" className="item">
+              <img src={logo} className="logo" alt="Weights & Biases" />
+            </NavLink>
+            <NavLink
+              to={`/`}
+              isActive={() =>
+                //TODO: very unfortunate
+                this.props.location.pathname.indexOf('dashboards') === -1
+              }
+              className="item">
+              Runs
+            </NavLink>
+            <NavLink to={`/dashboards/edit`} className="item">
+              Dashboards
+            </NavLink>
+            <Menu.Menu position="right" />
+          </Container>
+        </Menu>
+        <Transition
+          animation="fly down"
+          duration={1000}
+          visible={this.state.showFlash}
+          onComplete={() => {
+            if (!flash.sticky)
+              setTimeout(() => this.setState({showFlash: false}), 5000);
+          }}>
+          <Message
+            floating
+            color={flash.color || 'orange'}
+            onDismiss={() => this.setState({showFlash: false})}
+            compact
+            style={{
+              position: 'absolute',
+              right: 20,
+              top: 50,
+              paddingRight: 30,
+              zIndex: 9999,
             }}>
-            <Message
-              floating
-              color={flash.color || 'orange'}
-              onDismiss={() => this.setState({showFlash: false})}
-              compact
-              style={{
-                position: 'absolute',
-                right: 0,
-                top: 50,
-                paddingRight: 30,
-              }}>
-              {flash.message}
-            </Message>
-          </Transition>
-        </Container>
-      </Menu>
+            {flash.message}
+          </Message>
+        </Transition>
+      </div>
     );
   }
 }
