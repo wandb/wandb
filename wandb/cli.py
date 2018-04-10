@@ -580,7 +580,7 @@ def sweep(ctx, config_yaml):
     click.echo('Creating sweep from: %s' % config_yaml)
     try:
         yaml_file = open(config_yaml)
-    except OSError:
+    except (OSError, IOError):
         wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
         return
     try:
