@@ -189,7 +189,7 @@ class ImagesPanel extends React.Component {
                     backgroundImage: `url(${sprite})`,
                     width: width,
                     height: height,
-                    backgroundPosition: `${i * width}px 0`,
+                    backgroundPosition: `-${i * width}px 0`,
                   }}
                 />
                 <span style={{fontSize: '0.6em', lineHeight: '1em'}}>
