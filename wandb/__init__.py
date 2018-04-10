@@ -227,6 +227,17 @@ def _init_headless(api, run, job_type, cloud=True):
 # relies on it, and it improves the API a bit (user doesn't have to
 # pass the run into WandbCallback)
 run = None
+config = None  # config object shared with the global run
+
+
+def log(history_row):
+    """Log a dict to the global run's history.
+
+    Eg.
+
+    wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
+    """
+    run.history.add(history_row)
 
 
 def init(job_type='train', config=None):
@@ -255,6 +266,10 @@ def init(job_type='train', config=None):
     run = wandb_run.Run.from_environment_or_defaults()
     run.job_type = job_type
     run.set_environment()
+    def set_global_config(c):
+        global config  # because we already have a local config
+        config = c
+    set_global_config(run.config)
 
     api = wandb_api.Api()
     api.set_current_run_id(run.id)
@@ -296,4 +311,4 @@ def init(job_type='train', config=None):
     return run
 
 
-__all__ = ['init', 'termlog', 'run', 'types', 'callbacks']
+__all__ = ['init', 'config', 'termlog', 'run', 'types', 'callbacks']
