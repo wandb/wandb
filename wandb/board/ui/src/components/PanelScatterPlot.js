@@ -46,15 +46,15 @@ class ScatterPlotPanel extends React.Component {
   _setup(props, nextProps) {
     let {xAxis, yAxis, zAxis} = nextProps.config;
     if (nextProps.selections !== props.selections) {
-      if (xAxis) {
-        this.xSelect = filtersForAxis(nextProps.selections, xAxis);
-      }
-      if (yAxis) {
-        this.ySelect = filtersForAxis(nextProps.selections, yAxis);
-      }
-      if (zAxis) {
-        this.zSelect = filtersForAxis(nextProps.selections, zAxis);
-      }
+      // if (xAxis) {
+      //   this.xSelect = filtersForAxis(nextProps.selections, xAxis);
+      // }
+      // if (yAxis) {
+      //   this.ySelect = filtersForAxis(nextProps.selections, yAxis);
+      // }
+      // if (zAxis) {
+      //   this.zSelect = filtersForAxis(nextProps.selections, zAxis);
+      // }
     }
   }
 

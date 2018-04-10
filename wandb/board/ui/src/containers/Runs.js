@@ -20,18 +20,15 @@ import {connect} from 'react-redux';
 import queryString from 'query-string';
 import _ from 'lodash';
 import {
-  filterRuns,
   sortRuns,
-  filterToString,
-  filterFromString,
-  displayFilterKey,
+  flatKeySuggestions,
   defaultViews,
   parseBuckets,
   setupKeySuggestions,
 } from '../util/runhelpers.js';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {bindActionCreators} from 'redux';
-import {clearFilters, addFilter, setColumns} from '../actions/run';
+import {setColumns, setFilters} from '../actions/run';
 import {
   resetViews,
   setServerViews,
@@ -43,6 +40,7 @@ import update from 'immutability-helper';
 import {BOARD} from '../util/board';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
+import * as Filter from '../util/filters';
 
 class Runs extends React.Component {
   state = {showFailed: false, activeTab: 0, showFilters: false};
@@ -63,12 +61,10 @@ class Runs extends React.Component {
     ) {
       let query = {};
       if (!_.isEmpty(nextProps.runFilters)) {
-        query.filter = _.values(nextProps.runFilters)
-          .filter(filter => filter.key.section)
-          .map(filterToString);
+        query.filters = Filter.toURL(nextProps.runFilters);
       }
       if (!_.isEmpty(nextProps.runSelections)) {
-        query.select = _.values(nextProps.runSelections).map(filterToString);
+        query.selects = Filter.toURL(nextProps.runSelections);
       }
       if (!_.isNil(nextProps.activeView)) {
         query.activeView = nextProps.activeView;
@@ -86,42 +82,65 @@ class Runs extends React.Component {
   _readUrl(props) {
     var parsed = queryString.parse(window.location.search);
     if (!parsed) {
-      return;
+      returnj;
     }
-    let readFilters = kind => {
-      if (parsed[kind]) {
-        if (!_.isArray(parsed[kind])) {
-          parsed[kind] = [parsed[kind]];
-        }
-        let filters = parsed[kind].map(filterFromString);
-        filters = filters.filter(filter => filter);
-        for (var filter of filters) {
-          this.props.addFilter(kind, filter.key, filter.op, filter.value);
-        }
-        return filters;
+    let filterFilters;
+    if (parsed.filters) {
+      filterFilters = Filter.fromURL(parsed.filters);
+    } else if (parsed.filter) {
+      let filts = parsed.filter;
+      if (!_.isArray(filts)) {
+        filts = [filts];
       }
-      return [];
-    };
-    let filterFilters = readFilters('filter');
-    if (filterFilters.length === 0) {
-      this.props.addFilter(
-        'filter',
-        {section: 'tags', value: 'hidden'},
-        '=',
-        'false',
-      );
+      filterFilters = Filter.fromOldURL(filts);
     }
-    let selectFilters = readFilters('select');
-    if (selectFilters.length === 0) {
-      this.props.addFilter('select', {section: 'run', value: 'id'}, '=', '*');
+    let selectFilters;
+    if (parsed.selections) {
+      selectFilters = Filter.fromURL(parsed.selections);
+    } else if (parsed.selection) {
+      let filts = parsed.selection;
+      if (!_.isArray(filts)) {
+        filts = [filts];
+      }
+      selectFilters = Filter.fromOldURL(filts);
     }
+
+    if (filterFilters) {
+      this.props.setFilters('filter', filterFilters);
+    } else {
+      this.props.setFilters('filter', {
+        op: 'OR',
+        filters: [
+          {
+            op: 'AND',
+            filters: [
+              {key: {section: 'tags', name: 'hidden'}, op: '=', value: false},
+            ],
+          },
+        ],
+      });
+    }
+
+    if (selectFilters) {
+      this.props.setFilters('select', selectFilters);
+    } else {
+      this.props.setFilters('select', {
+        op: 'OR',
+        filters: [
+          {
+            op: 'AND',
+            filters: [{key: {section: 'run', name: 'id'}, op: '=', value: '*'}],
+          },
+        ],
+      });
+    }
+
     if (!_.isNil(parsed.activeView)) {
       this.props.setActiveView('runs', parseInt(parsed.activeView, 10));
     }
   }
 
   componentWillMount() {
-    this.props.clearFilters();
     this.props.resetViews();
     this._readUrl(this.props);
   }
@@ -185,6 +204,8 @@ class Runs extends React.Component {
 
   render() {
     let ModelInfo = this.props.ModelInfo;
+    const filterCount = Filter.countIndividual(this.props.runFilters);
+    const selectionCount = Filter.countIndividual(this.props.runSelections);
     return (
       <Container>
         <Confirm
@@ -207,12 +228,11 @@ class Runs extends React.Component {
                   rotated={this.state.showFilters ? null : 'counterclockwise'}
                   name="dropdown"
                 />
-                {_.keys(this.props.runFilters).length === 0 &&
-                _.keys(this.props.runSelections).length === 0
+                {filterCount === 0 && selectionCount === 0
                   ? 'Filters / Selections'
-                  : _.keys(this.props.runFilters).length +
+                  : filterCount +
                     ' Filters / ' +
-                    _.keys(this.props.runSelections).length +
+                    selectionCount +
                     ' Selections'}
               </p>
               <p>
@@ -238,7 +258,9 @@ class Runs extends React.Component {
                       <RunFiltersRedux
                         kind="filter"
                         buttonText="Add Filter"
-                        keySuggestions={this.props.data.keys}
+                        keySuggestions={flatKeySuggestions(
+                          this.props.data.keys,
+                        )}
                         runs={this.props.data.base}
                         filteredRuns={this.props.data.filtered}
                       />
@@ -415,8 +437,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
   return bindActionCreators(
     {
       setColumns,
-      clearFilters,
-      addFilter,
+      setFilters,
       setServerViews,
       setBrowserViews,
       setActiveView,

@@ -9,8 +9,9 @@ export type Filter = IndividualFilter | GroupFilter;
 // needs to match IndividualFilter.op
 // TODO: using enum may allow us to get rid of the duplication.
 const ops = ['=', '!=', '<', '>', '<=', '>='];
+export type IndividiualOp = '=' | '!=' | '<' | '>' | '<=' | '>=';
 export interface IndividualFilter {
-  readonly op: '=' | '!=' | '<' | '>' | '<=' | '>=';
+  readonly op: IndividiualOp;
   readonly key: Run.Key;
   readonly value: Run.Value;
 }
@@ -20,8 +21,16 @@ export interface GroupFilter {
   readonly filters: Filter[];
 }
 
-function isGroup(filter: Filter): filter is GroupFilter {
+export function isGroup(filter: Filter): filter is GroupFilter {
   return (filter as GroupFilter).filters !== undefined;
+}
+
+export function isIndividual(filter: Filter): filter is IndividualFilter {
+  return (filter as IndividualFilter).key !== undefined;
+}
+
+export function isEmpty(filter: Filter): boolean {
+  return isIndividual(filter) && filter.key.name === '';
 }
 
 export function match(filter: Filter, run: Run.Run): boolean {
@@ -32,7 +41,10 @@ export function match(filter: Filter, run: Run.Run): boolean {
     } else {
       return result.some(o => o);
     }
-  } else {
+  } else if (isIndividual(filter)) {
+    if (filter.key.name === '') {
+      return true;
+    }
     const value = Run.getValue(run, filter.key);
     if (filter.op === '=') {
       if (filter.value === '*') {
@@ -52,13 +64,13 @@ export function match(filter: Filter, run: Run.Run): boolean {
     const ifilt = filter as IndividualFilter;
     if (ifilt.value != null && value != null) {
       if (ifilt.op === '<') {
-        return ifilt.value < value;
+        return value < ifilt.value;
       } else if (filter.op === '>') {
-        return ifilt.value > value;
+        return value > ifilt.value;
       } else if (filter.op === '<=') {
-        return ifilt.value <= value;
+        return value <= ifilt.value;
       } else if (filter.op === '>=') {
-        return ifilt.value >= value;
+        return value >= ifilt.value;
       }
     }
   }
@@ -69,16 +81,17 @@ export function filterRuns(filter: Filter, runs: Run.Run[]) {
   return runs.filter(run => match(filter, run));
 }
 
+type QueryPathItem = number | string;
 export class Update {
-  static groupPush(path: string[], filter: Filter): Query<GroupFilter> {
+  static groupPush(path: QueryPathItem[], filter: Filter): Query<GroupFilter> {
     return genUpdate(path, {filters: {$push: [filter]}});
   }
 
-  static groupRemove(path: string[], index: number): Query<GroupFilter> {
+  static groupRemove(path: QueryPathItem[], index: number): Query<GroupFilter> {
     return genUpdate(path, {filters: {$splice: [[index, 1]]}});
   }
 
-  static setFilter(path: string[], filter: Filter): Query<GroupFilter> {
+  static setFilter(path: QueryPathItem[], filter: Filter): Query<GroupFilter> {
     return genUpdate(path, {$set: filter});
   }
 }
@@ -86,18 +99,14 @@ export class Update {
 // Can't build this up as query directly, so we take the Tree type from
 // immutability-helper and use it.
 type Tree<T> = {[K in keyof T]?: Query<T[K]>};
-function genUpdate(path: string[], updateQuery: Query<any>): Query<any> {
+function genUpdate(path: QueryPathItem[], updateQuery: Query<any>): Query<any> {
   const result: Tree<any> = {};
   let node = result;
   path.forEach((pathItem, i) => {
-    node.filters = {};
-    if (i === path.length - 1) {
-      node.filters[pathItem] = updateQuery;
-    } else {
-      node.filters[pathItem] = {};
-      node = node.filters[pathItem] as Tree<any>;
-    }
+    node.filters = {[pathItem]: {}};
+    node = node.filters[pathItem] as Tree<any>;
   });
+  Object.assign(node, updateQuery);
   return result;
 }
 
@@ -190,7 +199,7 @@ export function fromOldURL(filterStrings: string[]): Filter | null {
     const [keyString, op, valueAny] = parsed;
     const value: Run.Value = valueAny;
     const key = Run.keyFromString(keyString);
-    if (key == null || _.isEmpty(key.section) || _.isEmpty(key.name)) {
+    if (key == null || key.section == null || key.name == null) {
       return null;
     }
     return {key, op, value};
@@ -199,6 +208,26 @@ export function fromOldURL(filterStrings: string[]): Filter | null {
     return null;
   }
   return fromJson(result);
+}
+
+export function fromOldQuery(oldQuery: any): Filter | null {
+  // Parses filters stored in the old format. Not super safe.
+  if (!_.isArray(oldQuery)) {
+    return null;
+  }
+  const individualFilters: any = oldQuery
+    .map(
+      (f: any) =>
+        f.key && f.key.section && f.key.value && f.op && f.value
+          ? {
+              key: {section: f.key.section, name: f.key.value},
+              op: f.op,
+              value: f.value,
+            }
+          : null,
+    )
+    .filter(o => o);
+  return {op: 'OR', filters: [{op: 'AND', filters: individualFilters}]};
 }
 
 export function fromURL(filterString: string): Filter | null {
@@ -213,4 +242,13 @@ export function fromURL(filterString: string): Filter | null {
 
 export function toURL(filter: Filter): string {
   return JSON.stringify(filter);
+}
+
+export function countIndividual(filter: Filter): number {
+  if (isIndividual(filter)) {
+    return 1;
+  } else if (isGroup(filter)) {
+    return filter.filters.reduce((total, f) => total + countIndividual(f), 0);
+  }
+  return 0;
 }

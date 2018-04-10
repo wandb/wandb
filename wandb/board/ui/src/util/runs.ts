@@ -1,5 +1,6 @@
 import {flatten} from 'flat';
 import * as _ from 'lodash';
+import * as numeral from 'numeral';
 import {JSONparseNaN} from './jsonnan';
 import * as Parse from './parse';
 
@@ -30,6 +31,8 @@ export function keyFromString(keyString: string): Key | null {
 
 export type Value = string | number | boolean | null;
 
+export type DomValue = string | number;
+
 // config and summary are stored as KeyVal
 interface KeyVal {
   readonly [key: string]: Value;
@@ -46,8 +49,8 @@ export interface Run {
   readonly state: string; // TODO: narrow this type
   readonly user: User;
   readonly host: string;
-  readonly createdAt: Date;
-  readonly heartbeatAt: Date;
+  readonly createdAt: string;
+  readonly heartbeatAt: string;
   readonly tags: string[];
   readonly description: string;
   readonly config: KeyVal;
@@ -126,8 +129,8 @@ export function fromJson(json: any): Run | null {
     state,
     user,
     host,
-    createdAt,
-    heartbeatAt,
+    createdAt: createdAt.toISOString(),
+    heartbeatAt: heartbeatAt.toISOString(),
     tags,
     description: typeof json.description === 'string' ? json.description : '',
     config,
@@ -211,15 +214,63 @@ export function getValue(run: Run, runKey: Key): Value {
       return run.state;
     } else if (name === 'host') {
       return run.host;
+    } else if (name === 'createdAt') {
+      return run.createdAt;
     } else {
       return null;
     }
   } else if (section === 'tags') {
     return _.indexOf(run.tags, name) !== -1;
   } else if (section === 'config') {
-    return run.config[name];
+    return run.config[name] || null;
   } else if (section === 'summary') {
-    return run.summary[name];
+    return run.summary[name] || null;
   }
   return null;
+}
+
+export function sortableValue(value: Value) {
+  if (typeof value === 'number' || typeof value === 'string') {
+    return value;
+  } else {
+    return JSON.stringify(value);
+  }
+}
+
+export function valueString(value: Value) {
+  if (value == null) {
+    return 'null';
+  }
+  return value.toString();
+}
+
+export function displayKey(k: Key) {
+  if (k.section && k.name !== '') {
+    if (k.section === 'run') {
+      return k.name;
+    } else {
+      return k.section + ':' + k.name;
+    }
+  } else {
+    return '-';
+  }
+}
+
+export function displayValue(value: Value) {
+  if (value == null) {
+    return '-';
+  } else if (typeof value === 'number' && _.isFinite(value)) {
+    return numeral(value).format('0.[000]');
+  }
+  return value.toString();
+}
+
+export function domValue(value: Value): DomValue {
+  if (typeof value === 'number' || typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'boolean') {
+    return value.toString();
+  }
+  return 'null';
 }

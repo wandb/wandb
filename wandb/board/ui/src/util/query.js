@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import update from 'immutability-helper';
-import {displayFilterKey, displayValue} from './runhelpers';
+import * as Run from './runs';
+import * as Filter from './filters';
 
 export function addFilter(filters, key, op, value) {
   let filter = _.find(
@@ -55,17 +56,16 @@ export function merge(base, apply) {
   result.entity = apply.entity || base.entity;
   result.model = apply.model || base.model;
 
-  // base and apply may share keys, so we rekey.
-  // RunFilters needs to be able to remove individual
-  // filters (to compute keyValCounts) for the filters that
-  // it's managing, so it's important to leave the keys alone
-  // for the apply.filters.
-  result.filters = {};
-  for (var key of _.keys(base.filters)) {
-    result.filters['base' + key] = base.filters[key];
-  }
-  for (var key of _.keys(apply.filters)) {
-    result.filters[key] = apply.filters[key];
+  // AND the two sets of filters together
+  if (apply.filters) {
+    let applyFilters = apply.filters;
+    if (_.isObject(apply.filters) && apply.filters.op == null) {
+      // Handle the old format
+      applyFilters = Filter.fromOldQuery(_.values(apply.filters));
+    }
+    result.filters = {op: 'AND', filters: [base.filters, applyFilters]};
+  } else {
+    result.filters = base.filters;
   }
 
   // TODO: probably not the right thing to do
@@ -81,17 +81,24 @@ export function merge(base, apply) {
 }
 
 export function summaryString(query) {
-  if (strategy(query) === 'page' || _.keys(query.filters).length === 0) {
+  if (strategy(query) === 'page') {
+    return '';
+  }
+  if (
+    query.filters == null ||
+    query.filters.op !== 'OR' ||
+    query.filters.filters[0].op !== 'AND'
+  ) {
     return '';
   }
   let filtStrs = _.map(
-    query.filters,
+    query.filters.filters[0].filters,
     filt =>
-      displayFilterKey(filt.key) +
+      Run.displayKey(filt.key) +
       ' ' +
       filt.op +
       ' ' +
-      displayValue(filt.value),
+      Run.displayValue(filt.value),
   );
   return filtStrs.join(', ');
 }

@@ -10,7 +10,7 @@ import {
   Modal,
 } from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
-import {filterRuns, sortRuns} from '../util/runhelpers.js';
+import {sortRuns} from '../util/runhelpers.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
 import Panel from '../components/Panel';

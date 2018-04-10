@@ -26,8 +26,8 @@ beforeAll(() => {
       state: 'running',
       user: {username: 'shawn', photoUrl: 'aphoto.com'},
       host: 'angry.local',
-      createdAt: new Date(2018, 2, 22),
-      heartbeatAt: new Date(2018, 2, 22, 1),
+      createdAt: new Date(2018, 2, 22).toISOString(),
+      heartbeatAt: new Date(2018, 2, 22, 1).toISOString(),
       tags: ['good', 'baseline'],
       description: 'shawn-run\nSome interesting info',
       config: {lr: 0.9, momentum: 0.95},
@@ -39,8 +39,8 @@ beforeAll(() => {
       state: 'running',
       user: {username: 'brian', photoUrl: 'bphoto.com'},
       host: 'brian.local',
-      createdAt: new Date(2018, 2, 23),
-      heartbeatAt: new Date(2018, 2, 23, 1),
+      createdAt: new Date(2018, 2, 23).toISOString(),
+      heartbeatAt: new Date(2018, 2, 23, 1).toISOString(),
       tags: [],
       description: 'fancy',
       config: {lr: 0.6, momentum: 0.95},
@@ -52,8 +52,8 @@ beforeAll(() => {
       state: 'failed',
       user: {username: 'lindsay', photoUrl: 'lphoto.com'},
       host: 'linsday.local',
-      createdAt: new Date(2018, 2, 24),
-      heartbeatAt: new Date(2018, 2, 24, 1),
+      createdAt: new Date(2018, 2, 24).toISOString(),
+      heartbeatAt: new Date(2018, 2, 24, 1).toISOString(),
       tags: ['hidden'],
       description: 'testrun\nJust testing some stuff',
       config: {lr: 0.7, momentum: 0.94, testparam: 'yes'},
@@ -86,18 +86,6 @@ describe('Individual Filter', () => {
     expect(result[1]).toMatchObject({id: 'id-brian'});
   });
 
-  it('config >=', () => {
-    const filter: Filter.Filter = {
-      key: Run.key('config', 'lr')!,
-      op: '>=',
-      value: 0.7,
-    };
-    const result = Filter.filterRuns(filter, runs);
-    expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({id: 'id-brian'});
-    expect(result[1]).toMatchObject({id: 'id-lindsay'});
-  });
-
   it('config <=', () => {
     const filter: Filter.Filter = {
       key: Run.key('config', 'lr')!,
@@ -106,14 +94,26 @@ describe('Individual Filter', () => {
     };
     const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({id: 'id-brian'});
+    expect(result[1]).toMatchObject({id: 'id-lindsay'});
+  });
+
+  it('config >=', () => {
+    const filter: Filter.Filter = {
+      key: Run.key('config', 'lr')!,
+      op: '>=',
+      value: 0.7,
+    };
+    const result = Filter.filterRuns(filter, runs);
+    expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({id: 'id-shawn'});
     expect(result[1]).toMatchObject({id: 'id-lindsay'});
   });
 
-  it('summary <', () => {
+  it('summary >', () => {
     const filter: Filter.Filter = {
       key: Run.key('summary', 'loss')!,
-      op: '<',
+      op: '>',
       value: 0.1,
     };
     const result = Filter.filterRuns(filter, runs);
@@ -121,10 +121,10 @@ describe('Individual Filter', () => {
     expect(result[0]).toMatchObject({id: 'id-shawn'});
   });
 
-  it('summary >', () => {
+  it('summary <', () => {
     const filter: Filter.Filter = {
       key: Run.key('summary', 'loss')!,
-      op: '>',
+      op: '<',
       value: 0.1,
     };
     const result = Filter.filterRuns(filter, runs);
@@ -291,6 +291,16 @@ describe('filter modifiers', () => {
     update(goodFilters, result);
   });
 
+  it('groupRemove top-level works', () => {
+    const result = Filter.Update.groupRemove([], 1);
+    expect(result).toEqual({
+      filters: {
+        $splice: [[1, 1]],
+      },
+    });
+    // update(goodFilters, result);
+  });
+
   it('setKey works', () => {
     const result = Filter.Update.setFilter(['1', '0'], {
       key: {
@@ -319,5 +329,9 @@ describe('filter modifiers', () => {
       },
     });
     update(goodFilters, result);
+  });
+
+  it('countIndividual works', () => {
+    expect(Filter.countIndividual(goodFilters)).toBe(3);
   });
 });

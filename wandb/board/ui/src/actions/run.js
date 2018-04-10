@@ -1,11 +1,7 @@
 export const TOGGLE_RUN_SELECTION = 'TOGGLE_RUN_SELECTION';
 export const UPDATE_RUN_SELECTIONS = 'UPDATE_RUN_SELECTIONS';
 export const UPDATE_JOB = 'UPDATE_JOB';
-export const ADD_FILTER = 'ADD_FILTER';
-export const DELETE_FILTER = 'DELETE_FILTER';
-export const EDIT_FILTER = 'EDIT_FILTER';
-export const SET_FILTER_COMPONENT = 'SET_FILTER_COMPONENT';
-export const CLEAR_FILTERS = 'CLEAR_FILTERS';
+export const SET_FILTERS = 'SET_FILTERS';
 export const SET_COLUMNS = 'MERGE_COLUMNS';
 export const TOGGLE_COLUMN = 'TOGGLE_COLUMN';
 export const ENABLE_COLUMN = 'ENABLE_COLUMN';
@@ -55,28 +51,11 @@ export const setHighlight = runId => {
   };
 };
 
-export const deleteFilter = (kind, id) => {
+export const setFilters = (kind, filters) => {
   return {
-    type: DELETE_FILTER,
+    type: SET_FILTERS,
     kind,
-    id,
-  };
-};
-
-export const setFilterComponent = (kind, id, component, value) => {
-  return {
-    type: SET_FILTER_COMPONENT,
-    kind,
-    id,
-    component,
-    value,
-  };
-};
-
-export const clearFilters = filterModel => {
-  return {
-    type: CLEAR_FILTERS,
-    filterModel,
+    filters,
   };
 };
 
