@@ -238,7 +238,7 @@ class Runs extends React.Component {
                     rotated={this.state.showFilters ? null : 'counterclockwise'}
                     name="dropdown"
                   />
-                  {filterCount + ' Filters'}
+                  {filterCount + ' Filter' + (filterCount === 1 ? '' : 's')}
                 </span>
               </p>
             </Grid.Column>
