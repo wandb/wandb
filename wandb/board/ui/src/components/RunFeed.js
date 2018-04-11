@@ -577,4 +577,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
   return bindActionCreators({setFilters, setSort}, dispatch);
 };
 
+// export dumb component for testing purposes
+export {RunFeed};
+
 export default connect(mapStateToProps(), mapDispatchToProps)(RunFeed);

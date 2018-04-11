@@ -50,9 +50,15 @@ export interface Run {
   readonly name: string;
   readonly state: string; // TODO: narrow this type
   readonly user: User;
+<<<<<<< HEAD
   readonly host: string;
   readonly createdAt: string;
   readonly heartbeatAt: string;
+=======
+  readonly host: string | null;
+  readonly createdAt: Date;
+  readonly heartbeatAt: Date;
+>>>>>>> master
   readonly tags: string[];
   readonly description: string;
   readonly config: KeyVal;
@@ -89,7 +95,7 @@ export function fromJson(json: any): Run | null {
   }
 
   const host = json.host;
-  if (typeof host !== 'string') {
+  if (typeof host !== 'string' && host !== null) {
     console.warn(`Invalid run host: ${json.host}`);
     return null;
   }

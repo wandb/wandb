@@ -4,7 +4,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.5.12'
+__version__ = '0.5.14'
 
 import atexit
 import click
@@ -78,7 +78,7 @@ class Error(Exception):
 # 'from wandb import __stage_dir__' from api.py etc.
 from wandb import wandb_types as types
 from wandb import api as wandb_api
-from wandb import config as wandb_config
+from wandb import wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import util
@@ -153,32 +153,6 @@ def _init_headless(api, run, job_type, cloud=True):
     if 'WANDB_DESCRIPTION' in os.environ:
         run.description = os.environ['WANDB_DESCRIPTION']
 
-    # TODO: better failure handling
-    root = api.git.root
-    remote_url = api.git.remote_url
-    host = socket.gethostname()
-    # handle non-git directories
-    if not root:
-        root = os.path.abspath(os.getcwd())
-        remote_url = 'file://%s%s' % (host, root)
-
-    try:
-        import __main__
-        program = __main__.__file__
-    except (ImportError, AttributeError):
-        # probably `python -c`, an embedded interpreter or something
-        program = '<python with no main file>'
-
-    # we need to create the run first of all so history and summary syncing
-    # work even if the syncer process is slow to start.
-    if cloud:
-        upsert_result = api.upsert_run(name=run.id,
-                                       project=api.settings("project"),
-                                       entity=api.settings("entity"),
-                                       config=run.config.as_dict(), description=run.description, host=host,
-                                       program_path=program, repo=remote_url, sweep_name=run.sweep_id,
-                                       job_type=job_type)
-        run.storage_id = upsert_result['id']
     env = dict(os.environ)
     run.set_environment(env)
 
@@ -201,7 +175,6 @@ def _init_headless(api, run, job_type, cloud=True):
         'stderr_master_fd': stderr_master_fd,
         'cloud': cloud,
         'job_type': job_type,
-        'program': program,
         'port': server.port
     }
     internal_cli_path = os.path.join(
@@ -234,7 +207,11 @@ def _init_headless(api, run, job_type, cloud=True):
         stderr_redirector.redirect()
 
     # Listen on the socket waiting for the wandb process to be ready
-    server.listen(5)
+    success, message = server.listen(30)
+    if not success:
+        print('wandb Error: Failed to start')
+        sys.exit(1)
+    run.storage_id = message['storage_id']
 
     def done():
         server.done(hooks.exit_code)
@@ -250,6 +227,17 @@ def _init_headless(api, run, job_type, cloud=True):
 # relies on it, and it improves the API a bit (user doesn't have to
 # pass the run into WandbCallback)
 run = None
+config = None  # config object shared with the global run
+
+
+def log(history_row):
+    """Log a dict to the global run's history.
+
+    Eg.
+
+    wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
+    """
+    run.history.add(history_row)
 
 
 def init(job_type='train', config=None):
@@ -278,19 +266,23 @@ def init(job_type='train', config=None):
     run = wandb_run.Run.from_environment_or_defaults()
     run.job_type = job_type
     run.set_environment()
+    def set_global_config(c):
+        global config  # because we already have a local config
+        config = c
+    set_global_config(run.config)
 
     api = wandb_api.Api()
     api.set_current_run_id(run.id)
-    if run.mode == 'run':
+    if run.mode == 'clirun' or run.mode == 'run':
         api.ensure_configured()
-        if run.storage_id:
-            # we have to write job_type here because we don't know it before init()
-            api.upsert_run(id=run.storage_id, job_type=job_type)
-        else:
+
+        if run.mode == 'run':
             _init_headless(api, run, job_type)
 
         def config_persist_callback():
-            api.upsert_run(id=run.storage_id, config=run.config.as_dict())
+            api.upsert_run(id=run.storage_id, name=run.id, project=api.settings(
+                'project'), entity=api.settings('entity'),
+                config=run.config.as_dict())
         # set the run directory in the config so it actually gets persisted
         run.config.set_run_dir(run.dir)
         run.config.set_persist_callback(config_persist_callback)
@@ -319,4 +311,4 @@ def init(job_type='train', config=None):
     return run
 
 
-__all__ = ['init', 'termlog', 'run', 'types', 'callbacks']
+__all__ = ['init', 'config', 'termlog', 'run', 'types', 'callbacks']

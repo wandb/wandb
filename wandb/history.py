@@ -40,21 +40,37 @@ class History(object):
         self._steps = 0
         self._lock = Lock()
         self._torch = None
-        try:
-            # only preload the default stream, TODO: better stream support
-            if stream_name == "default":
-                with open(self.fname) as f:
-                    for line in f:
-                        self._index(json.loads(line))
-        except IOError:
-            pass
-
+        self.load()
         self._file = open(self.fname, 'a')
         self._add_callback = add_callback
 
+    def load(self):
+        self.rows = []
+        try:
+            # only preload the default stream, TODO: better stream support
+            if self.stream_name == "default":
+                with open(self.fname) as f:
+                    for line in f:
+                        try:
+                            self._index(json.loads(line))
+                        except TypeError:
+                            print('warning: malformed history line: %s...' %
+                                  line[:40])
+                # initialize steps and run time based on existing data.
+                if '_step' in self.row:
+                    self._steps = self.row['_step'] + 1
+                # fudge the start_time to compensate for previous run length
+                if '_runtime' in self.row:
+                    self._start_time = wandb.START_TIME - self.row['_runtime']
+                self.row = {}
+        except IOError:
+            pass
+
     def keys(self):
-        media_keys = [k for k, v in six.iteritems(
-            self.row) if isinstance(v, dict) and v.get("_type")]
+        media_keys = []
+        if self.rows:
+            media_keys = [k for k, v in six.iteritems(
+                self.rows[-1]) if isinstance(v, dict) and v.get("_type")]
         return [k for k in self._keys - set(media_keys) if not k.startswith("_")]
 
     def stream(self, name):
@@ -117,9 +133,8 @@ class History(object):
 
     def _index(self, row):
         """Internal row adding method that updates step, and keys"""
-        if self._process == "wandb":
-            self.row = row
-            self.rows.append(row)
+        self.row = row
+        self.rows.append(row)
         self._keys.update(row.keys())
         self._steps += 1
 

@@ -234,6 +234,7 @@ class LinePlotPanel extends React.Component {
               border: '1px dashed #999',
               padding: 15,
               color: '#666',
+              zIndex: 1,
             }}>
             <Icon name="line chart" />
             {message}
@@ -298,6 +299,7 @@ class LinePlotPanel extends React.Component {
         xAxis={xAxisLabel(xAxis, lines)}
         yScale={this.props.config.yLogScale ? 'log' : 'linear'}
         xScale={this.props.config.xLogScale ? 'log' : 'linear'}
+        currentHeight={this.props.currentHeight}
       />
     );
   }

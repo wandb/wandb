@@ -31,7 +31,7 @@ import whaaaaat
 
 import wandb
 from wandb.api import Api
-from wandb.config import Config
+from wandb.wandb_config import Config
 from wandb import agent as wandb_agent
 from wandb import wandb_run
 from wandb import wandb_dir
@@ -88,6 +88,7 @@ def require_init(func):
         _require_init()
         return func(*args, **kwargs)
     return wrapper
+
 
 def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
@@ -519,6 +520,8 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.argument('args', nargs=-1)
 @click.option('--id', default=None,
               help='Run id to use, default is to generate.')
+@click.option('--resume', default='never', type=click.Choice(['never', 'must', 'allow']),
+              help='Resume startegy, default is never')
 @click.option('--dir', default=None,
               help='Files in this directory will be saved to wandb, defaults to wandb')
 @click.option('--configs', default=None,
@@ -528,7 +531,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
 @display_error
-def run(ctx, program, args, id, dir, configs, message, show):
+def run(ctx, program, args, id, resume, dir, configs, message, show):
     api.ensure_configured()
     if configs:
         config_paths = configs.split(',')
@@ -536,47 +539,34 @@ def run(ctx, program, args, id, dir, configs, message, show):
         config_paths = []
     config = Config(config_paths=config_paths,
                     wandb_dir=dir or wandb.wandb_dir())
-    run = wandb_run.Run(run_id=id, mode='run',
-                        config=config, description=message)
+    run = wandb_run.Run(run_id=id, mode='clirun',
+                        config=config, description=message,
+                        program=program,
+                        resume=resume)
 
     api.set_current_run_id(run.id)
 
-    # TODO: better failure handling
-    root = api.git.root
-    remote_url = api.git.remote_url
-    host = socket.gethostname()
-    # handle non-git directories
-    if not root:
-        root = os.path.abspath(os.getcwd())
-        remote_url = 'file://%s%s' % (host, root)
-
-    upsert_result = api.upsert_run(name=run.id,
-                                   project=api.settings("project"),
-                                   entity=api.settings("entity"),
-                                   config=run.config.as_dict(), description=run.description, host=host,
-                                   program_path=program, repo=remote_url, sweep_name=run.sweep_id)
-    run.storage_id = upsert_result['id']
     env = dict(os.environ)
-    run.set_environment(env)
     if configs:
         env['WANDB_CONFIG_PATHS'] = configs
     if show:
         env['WANDB_SHOW_RUN'] = 'True'
 
     try:
-        rm = run_manager.RunManager(api, run, program=program)
+        rm = run_manager.RunManager(api, run)
+        rm.init_run(env)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %
                         util.get_log_file_path())
-        wandb.termerror(exc_value)
+        wandb.termerror(str(exc_value))
         if 'permission' in str(exc_value):
             wandb.termerror(
                 'Are you sure you provided the correct API key to "wandb login"?')
         lines = traceback.format_exception(
             exc_type, exc_value, exc_traceback)
         logger.error('\n'.join(lines))
-        return
+        sys.exit(1)
 
     rm.run_user_process(program, args, env)
 
@@ -590,7 +580,7 @@ def sweep(ctx, config_yaml):
     click.echo('Creating sweep from: %s' % config_yaml)
     try:
         yaml_file = open(config_yaml)
-    except OSError:
+    except (OSError, IOError):
         wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
         return
     try:
