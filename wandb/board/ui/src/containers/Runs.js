@@ -41,6 +41,7 @@ import {BOARD} from '../util/board';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
 import * as Filter from '../util/filters';
+import * as Selection from '../util/selections';
 
 class Runs extends React.Component {
   state = {showFailed: false, activeTab: 0, showFilters: false};
@@ -64,7 +65,7 @@ class Runs extends React.Component {
         query.filters = Filter.toURL(nextProps.runFilters);
       }
       if (!_.isEmpty(nextProps.runSelections)) {
-        query.selects = Filter.toURL(nextProps.runSelections);
+        query.selections = Filter.toURL(nextProps.runSelections);
       }
       if (!_.isNil(nextProps.activeView)) {
         query.activeView = nextProps.activeView;
@@ -124,15 +125,7 @@ class Runs extends React.Component {
     if (selectFilters) {
       this.props.setFilters('select', selectFilters);
     } else {
-      this.props.setFilters('select', {
-        op: 'OR',
-        filters: [
-          {
-            op: 'AND',
-            filters: [{key: {section: 'run', name: 'id'}, op: '=', value: '*'}],
-          },
-        ],
-      });
+      this.props.setFilters('select', Selection.all());
     }
 
     if (!_.isNil(parsed.activeView)) {
@@ -277,7 +270,9 @@ class Runs extends React.Component {
                       <RunFiltersRedux
                         kind="select"
                         buttonText="Add Selection"
-                        keySuggestions={this.props.data.keys}
+                        keySuggestions={flatKeySuggestions(
+                          this.props.data.keys,
+                        )}
                         runs={this.props.data.base}
                         filteredRuns={this.props.data.filtered}
                       />

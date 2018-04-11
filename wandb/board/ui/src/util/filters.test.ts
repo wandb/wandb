@@ -2,7 +2,47 @@ import update from 'immutability-helper';
 import * as Filter from './filters';
 import * as Run from './runs';
 
-let runs: Run.Run[];
+const runs = [
+  {
+    id: 'id-shawn',
+    name: 'name0',
+    state: 'running',
+    user: {username: 'shawn', photoUrl: 'aphoto.com'},
+    host: 'angry.local',
+    createdAt: new Date(2018, 2, 22).toISOString(),
+    heartbeatAt: new Date(2018, 2, 22, 1).toISOString(),
+    tags: ['good', 'baseline'],
+    description: 'shawn-run\nSome interesting info',
+    config: {lr: 0.9, momentum: 0.95},
+    summary: {acc: 0.72, loss: 0.12},
+  },
+  {
+    id: 'id-brian',
+    name: 'name1',
+    state: 'running',
+    user: {username: 'brian', photoUrl: 'bphoto.com'},
+    host: 'brian.local',
+    createdAt: new Date(2018, 2, 23).toISOString(),
+    heartbeatAt: new Date(2018, 2, 23, 1).toISOString(),
+    tags: [],
+    description: 'fancy',
+    config: {lr: 0.6, momentum: 0.95},
+    summary: {acc: 0.8, loss: 0.05},
+  },
+  {
+    id: 'id-lindsay',
+    name: 'name2',
+    state: 'failed',
+    user: {username: 'lindsay', photoUrl: 'lphoto.com'},
+    host: 'linsday.local',
+    createdAt: new Date(2018, 2, 24).toISOString(),
+    heartbeatAt: new Date(2018, 2, 24, 1).toISOString(),
+    tags: ['hidden'],
+    description: 'testrun\nJust testing some stuff',
+    config: {lr: 0.7, momentum: 0.94, testparam: 'yes'},
+    summary: {acc: 0.85},
+  },
+];
 
 const goodFilters: Filter.Filter = {
   op: 'OR',
@@ -17,50 +57,6 @@ const goodFilters: Filter.Filter = {
     },
   ],
 };
-
-beforeAll(() => {
-  runs = [
-    {
-      id: 'id-shawn',
-      name: 'name0',
-      state: 'running',
-      user: {username: 'shawn', photoUrl: 'aphoto.com'},
-      host: 'angry.local',
-      createdAt: new Date(2018, 2, 22).toISOString(),
-      heartbeatAt: new Date(2018, 2, 22, 1).toISOString(),
-      tags: ['good', 'baseline'],
-      description: 'shawn-run\nSome interesting info',
-      config: {lr: 0.9, momentum: 0.95},
-      summary: {acc: 0.72, loss: 0.12},
-    },
-    {
-      id: 'id-brian',
-      name: 'name1',
-      state: 'running',
-      user: {username: 'brian', photoUrl: 'bphoto.com'},
-      host: 'brian.local',
-      createdAt: new Date(2018, 2, 23).toISOString(),
-      heartbeatAt: new Date(2018, 2, 23, 1).toISOString(),
-      tags: [],
-      description: 'fancy',
-      config: {lr: 0.6, momentum: 0.95},
-      summary: {acc: 0.8, loss: 0.05},
-    },
-    {
-      id: 'id-lindsay',
-      name: 'name2',
-      state: 'failed',
-      user: {username: 'lindsay', photoUrl: 'lphoto.com'},
-      host: 'linsday.local',
-      createdAt: new Date(2018, 2, 24).toISOString(),
-      heartbeatAt: new Date(2018, 2, 24, 1).toISOString(),
-      tags: ['hidden'],
-      description: 'testrun\nJust testing some stuff',
-      config: {lr: 0.7, momentum: 0.94, testparam: 'yes'},
-      summary: {acc: 0.85},
-    },
-  ];
-});
 
 describe('Individual Filter', () => {
   it('name =', () => {
@@ -251,58 +247,63 @@ describe('to and fromURL', () => {
 
 describe('filter modifiers', () => {
   it('groupPush works', () => {
-    const result = Filter.Update.groupPush(['1'], {
+    const result = Filter.Update.groupPush(goodFilters, ['1'], {
       key: {section: 'run', name: 'host'},
       op: '=',
       value: 'brian.local',
     });
     expect(result).toEqual({
-      filters: {
-        '1': {
-          filters: {
-            $push: [
-              {
-                key: {
-                  section: 'run',
-                  name: 'host',
-                },
-                op: '=',
-                value: 'brian.local',
-              },
-            ],
-          },
+      filters: [
+        {key: {name: 'host', section: 'run'}, op: '=', value: 'angry.local'},
+        {
+          filters: [
+            {key: {name: 'state', section: 'run'}, op: '=', value: 'running'},
+            {
+              key: {name: 'host', section: 'run'},
+              op: '=',
+              value: 'brian.local',
+            },
+            {
+              key: {name: 'host', section: 'run'},
+              op: '=',
+              value: 'brian.local',
+            },
+          ],
+          op: 'AND',
         },
-      },
+      ],
+      op: 'OR',
     });
-    update(goodFilters, result);
   });
 
   it('groupRemove works', () => {
-    const result = Filter.Update.groupRemove(['1'], 1);
+    const result = Filter.Update.groupRemove(goodFilters, ['1'], 1);
     expect(result).toEqual({
-      filters: {
-        '1': {
-          filters: {
-            $splice: [[1, 1]],
-          },
+      filters: [
+        {key: {name: 'host', section: 'run'}, op: '=', value: 'angry.local'},
+        {
+          filters: [
+            {key: {name: 'state', section: 'run'}, op: '=', value: 'running'},
+          ],
+          op: 'AND',
         },
-      },
+      ],
+      op: 'OR',
     });
-    update(goodFilters, result);
   });
 
   it('groupRemove top-level works', () => {
-    const result = Filter.Update.groupRemove([], 1);
+    const result = Filter.Update.groupRemove(goodFilters, [], 1);
     expect(result).toEqual({
-      filters: {
-        $splice: [[1, 1]],
-      },
+      filters: [
+        {key: {name: 'host', section: 'run'}, op: '=', value: 'angry.local'},
+      ],
+      op: 'OR',
     });
-    // update(goodFilters, result);
   });
 
   it('setKey works', () => {
-    const result = Filter.Update.setFilter(['1', '0'], {
+    const result = Filter.Update.setFilter(goodFilters, ['1', '0'], {
       key: {
         section: 'config',
         name: 'lr',
@@ -311,24 +312,22 @@ describe('filter modifiers', () => {
       value: 0.9,
     });
     expect(result).toEqual({
-      filters: {
-        '1': {
-          filters: {
-            '0': {
-              $set: {
-                key: {
-                  section: 'config',
-                  name: 'lr',
-                },
-                op: '>=',
-                value: 0.9,
-              },
+      filters: [
+        {key: {name: 'host', section: 'run'}, op: '=', value: 'angry.local'},
+        {
+          filters: [
+            {key: {name: 'lr', section: 'config'}, op: '>=', value: 0.9},
+            {
+              key: {name: 'host', section: 'run'},
+              op: '=',
+              value: 'brian.local',
             },
-          },
+          ],
+          op: 'AND',
         },
-      },
+      ],
+      op: 'OR',
     });
-    update(goodFilters, result);
   });
 
   it('countIndividual works', () => {

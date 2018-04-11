@@ -4,10 +4,11 @@ import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 import {Form} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
-import {filterKeyFromString, filtersForAxis} from '../util/runhelpers.js';
 import {getRunValue, scatterPlotCandidates} from '../util/runhelpers.js';
 import {batchActions} from 'redux-batched-actions';
 import {addFilter, setHighlight} from '../actions/run';
+import * as Selection from '../util/selections';
+import * as Run from '../util/runs';
 
 import './PlotParCoor.css';
 
@@ -374,7 +375,10 @@ class ParCoordPanel extends React.Component {
     if (dimensions && nextProps.selections !== props.selections) {
       this.select = {};
       for (var dim of dimensions) {
-        this.select[dim] = filtersForAxis(nextProps.selections, dim);
+        this.select[dim] = Selection.bounds(
+          nextProps.selections,
+          Run.keyFromString(dim),
+        );
       }
     }
   }

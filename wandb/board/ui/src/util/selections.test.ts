@@ -113,10 +113,10 @@ describe('Selection', () => {
     );
     expect(
       Selection.bounds(selection, {section: 'config', name: 'lr'}),
-    ).toEqual([null, 0.7]);
+    ).toEqual({low: null, high: 0.7});
     expect(
       Selection.bounds(selection, {section: 'config', name: 'doesnt-xist'}),
-    ).toEqual([null, null]);
+    ).toEqual({low: null, high: null});
     selection = Selection.Update.addBound(
       selection,
       {section: 'config', name: 'lr'},
@@ -125,6 +125,52 @@ describe('Selection', () => {
     );
     expect(
       Selection.bounds(selection, {section: 'config', name: 'lr'}),
-    ).toEqual([0.3, 0.7]);
+    ).toEqual({low: 0.3, high: 0.7});
+
+    selection = Selection.Update.addBound(
+      selection,
+      {section: 'config', name: 'lr'},
+      '<=',
+      null,
+    );
+    expect(
+      Selection.bounds(selection, {section: 'config', name: 'lr'}),
+    ).toEqual({low: 0.3, high: null});
+  });
+
+  it('multiple bounds', () => {
+    let selection = Selection.Update.addBound(
+      Selection.all(),
+      {section: 'config', name: 'lr'},
+      '<=',
+      0.7,
+    );
+    selection = Selection.Update.addBound(
+      selection,
+      {section: 'config', name: 'lr'},
+      '>=',
+      0.5,
+    );
+    selection = Selection.Update.addBound(
+      selection,
+      {section: 'summary', name: 'Accuracy Trousers'},
+      '<=',
+      0.1,
+    );
+    selection = Selection.Update.addBound(
+      selection,
+      {section: 'summary', name: 'Accuracy Trousers'},
+      '>=',
+      0,
+    );
+    expect(
+      Selection.bounds(selection, {section: 'config', name: 'lr'}),
+    ).toEqual({low: 0.5, high: 0.7});
+    expect(
+      Selection.bounds(selection, {
+        section: 'summary',
+        name: 'Accuracy Trousers',
+      }),
+    ).toEqual({low: 0, high: 0.1});
   });
 });

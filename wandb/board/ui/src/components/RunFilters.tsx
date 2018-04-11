@@ -200,17 +200,23 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
             value={this.props.value}
             onChange={(e, {value}) => {
               let parsedValue: Run.Value = parseFloat(value);
-              if (
-                (typeof value === 'string' && value.search('.') !== -1) ||
-                isNaN(parsedValue)
-              ) {
-                if (value === 'true') {
-                  parsedValue = true;
-                } else if (value === 'false') {
-                  parsedValue = false;
-                } else if (value === 'null') {
-                  parsedValue = null;
-                } else if (typeof value === 'string') {
+              if (!isNaN(parsedValue)) {
+                // If value is '3.' we just get 3
+                if (parsedValue.toString().length !== value.length) {
+                  parsedValue = value;
+                }
+              } else {
+                if (value.search('.') === -1) {
+                  if (value === 'true') {
+                    parsedValue = true;
+                  } else if (value === 'false') {
+                    parsedValue = false;
+                  } else if (value === 'null') {
+                    parsedValue = null;
+                  } else if (typeof value === 'string') {
+                    parsedValue = value;
+                  }
+                } else {
                   parsedValue = value;
                 }
               }
@@ -267,7 +273,7 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
   }
 
   elementId() {
-    return 'runFilterViewer' + globalFilterId;
+    return 'runFilterViewer' + this.globalId;
   }
 
   innerDivRef = (ref: any) => {
@@ -402,16 +408,7 @@ export class RunFiltersSection extends React.Component<
       <div>
         {filters.filters.map((filter, i) => {
           const filterId = this.props.index.toString() + i;
-          let otherFilters: Filter.Filter = update(
-            filters,
-            Filter.Update.groupRemove([], i),
-          );
-          console.log(
-            'other',
-            filters,
-            Filter.Update.groupRemove([], i),
-            otherFilters,
-          );
+          let otherFilters = Filter.Update.groupRemove(filters, [], i);
           if (mergeFilters) {
             otherFilters = {
               op: 'AND',
@@ -501,26 +498,21 @@ export default class RunFilters extends React.Component<
             canAdd={this.props.filteredRuns.length > 1}
             editFilter={(id: string) => this.setState({editingId: id})}
             pushFilter={(newFilter: Filter.Filter) => {
-              console.log(
-                'Updated',
-                Filter.Update.groupPush([i], newFilter),
-                update(filters, Filter.Update.groupPush([i], newFilter)),
-              );
               this.props.setFilters(
                 kind,
-                update(filters, Filter.Update.groupPush([i], newFilter)),
+                Filter.Update.groupPush(filters, [i], newFilter),
               );
             }}
             deleteFilter={(index: number) =>
               this.props.setFilters(
                 kind,
-                update(filters, Filter.Update.groupRemove([i], index)),
+                Filter.Update.groupRemove(filters, [i], index),
               )
             }
             setFilter={(index: number, f: Filter.Filter) =>
               this.props.setFilters(
                 kind,
-                update(filters, Filter.Update.setFilter([i, index], f)),
+                Filter.Update.setFilter(filters, [i, index], f),
               )
             }
           />

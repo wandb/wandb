@@ -57,7 +57,7 @@ function findIndex(selection: Selection, key: Run.Key, op: BoundOp): number {
 export function bounds(
   selection: Selection,
   key: Run.Key,
-): [number | null, number | null] {
+): {low: number | null; high: number | null} {
   let lowerValue = null;
   let upperValue = null;
   const lowerIndex = findIndex(selection, key, '>=');
@@ -74,7 +74,7 @@ export function bounds(
       upperValue = val;
     }
   }
-  return [lowerValue, upperValue];
+  return {low: lowerValue, high: upperValue};
 }
 
 export class Update {
@@ -83,24 +83,34 @@ export class Update {
     selection: Selection,
     key: Run.Key,
     op: BoundOp,
-    value: number,
+    value: number | null,
   ): Selection {
     // All bounds are added in the first AND group. If we already have this bound, we modify it.
-    const filter = {key, op, value};
-    const selectNoneIndex = _.findIndex(selection.filters[0].filters, {
-      key: {section: 'run', name: 'id'},
-      op: '!=',
-      value: '*',
-    });
-    // Remove the none selection if present.
-    if (selectNoneIndex !== -1) {
-      selection = Filter.Update.groupRemove(selection, [0], selectNoneIndex);
-    }
-    const index = findIndex(selection, key, op);
-    if (index === -1) {
-      return Filter.Update.groupPush(selection, [0], filter);
+    if (value == null) {
+      // value == null removes selection
+      const index = findIndex(selection, key, op);
+      if (index !== -1) {
+        return Filter.Update.groupRemove(selection, [0], index);
+      } else {
+        return selection;
+      }
     } else {
-      return Filter.Update.setFilter(selection, [0, index], filter);
+      const filter = {key, op, value};
+      const selectNoneIndex = _.findIndex(selection.filters[0].filters, {
+        key: {section: 'run', name: 'id'},
+        op: '!=',
+        value: '*',
+      });
+      // Remove the none selection if present.
+      if (selectNoneIndex !== -1) {
+        selection = Filter.Update.groupRemove(selection, [0], selectNoneIndex);
+      }
+      const index = findIndex(selection, key, op);
+      if (index === -1) {
+        return Filter.Update.groupPush(selection, [0], filter);
+      } else {
+        return Filter.Update.setFilter(selection, [0, index], filter);
+      }
     }
   }
 

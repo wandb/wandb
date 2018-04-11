@@ -21,10 +21,11 @@ import {
   VerticalRectSeries,
   Hint,
 } from 'react-vis';
-import {batchActions} from 'redux-batched-actions';
 import '../../node_modules/react-vis/dist/style.css';
 import BoxSelection from './vis/BoxSelection';
-import {addFilter, setHighlight} from '../actions/run';
+import {setFilters, setHighlight} from '../actions/run';
+import * as Selection from '../util/selections';
+import * as Run from '../util/runs';
 
 class ScatterPlotPanel extends React.Component {
   static type = 'Scatter Plot';
@@ -46,15 +47,24 @@ class ScatterPlotPanel extends React.Component {
   _setup(props, nextProps) {
     let {xAxis, yAxis, zAxis} = nextProps.config;
     if (nextProps.selections !== props.selections) {
-      // if (xAxis) {
-      //   this.xSelect = filtersForAxis(nextProps.selections, xAxis);
-      // }
-      // if (yAxis) {
-      //   this.ySelect = filtersForAxis(nextProps.selections, yAxis);
-      // }
-      // if (zAxis) {
-      //   this.zSelect = filtersForAxis(nextProps.selections, zAxis);
-      // }
+      if (xAxis) {
+        this.xSelect = Selection.bounds(
+          nextProps.selections,
+          Run.keyFromString(xAxis),
+        );
+      }
+      if (yAxis) {
+        this.ySelect = Selection.bounds(
+          nextProps.selections,
+          Run.keyFromString(yAxis),
+        );
+      }
+      if (zAxis) {
+        this.zSelect = Selection.bounds(
+          nextProps.selections,
+          Run.keyFromString(zAxis),
+        );
+      }
     }
   }
 
@@ -215,32 +225,32 @@ class ScatterPlotPanel extends React.Component {
               xSelect={this.xSelect}
               ySelect={this.ySelect}
               onSelectChange={(xSelect, ySelect) => {
-                this.props.batchActions([
-                  addFilter(
-                    'select',
-                    filterKeyFromString(xAxis),
-                    '>',
-                    xSelect.low,
-                  ),
-                  addFilter(
-                    'select',
-                    filterKeyFromString(xAxis),
-                    '<',
-                    xSelect.high,
-                  ),
-                  addFilter(
-                    'select',
-                    filterKeyFromString(yAxis),
-                    '>',
-                    ySelect.low,
-                  ),
-                  addFilter(
-                    'select',
-                    filterKeyFromString(yAxis),
-                    '<',
-                    ySelect.high,
-                  ),
-                ]);
+                let selections = this.props.selections;
+                selections = Selection.Update.addBound(
+                  selections,
+                  Run.keyFromString(xAxis),
+                  '>=',
+                  xSelect.low,
+                );
+                selections = Selection.Update.addBound(
+                  selections,
+                  Run.keyFromString(xAxis),
+                  '<=',
+                  xSelect.high,
+                );
+                selections = Selection.Update.addBound(
+                  selections,
+                  Run.keyFromString(yAxis),
+                  '>=',
+                  ySelect.low,
+                );
+                selections = Selection.Update.addBound(
+                  selections,
+                  Run.keyFromString(yAxis),
+                  '<=',
+                  ySelect.high,
+                );
+                this.props.setFilters('select', selections);
               }}
             />
             <XAxis title={xAxis} />
@@ -288,7 +298,7 @@ function mapStateToProps(state, ownProps) {
 }
 
 const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({batchActions, setHighlight}, dispatch);
+  return bindActionCreators({setFilters, setHighlight}, dispatch);
 };
 
 let ConnectScatterPlotPanel = connect(mapStateToProps, mapDispatchToProps)(

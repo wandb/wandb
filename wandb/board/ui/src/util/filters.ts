@@ -83,16 +83,16 @@ export function filterRuns(filter: Filter, runs: Run.Run[]) {
 
 type QueryPathItem = number | string;
 export class Update {
-  static groupPush(path: QueryPathItem[], filter: Filter): Query<GroupFilter> {
-    return genUpdate(path, {filters: {$push: [filter]}});
+  static groupPush<T>(owner: T, path: QueryPathItem[], filter: Filter): T {
+    return update(owner, genUpdate(path, {filters: {$push: [filter]}}));
   }
 
-  static groupRemove(path: QueryPathItem[], index: number): Query<GroupFilter> {
-    return genUpdate(path, {filters: {$splice: [[index, 1]]}});
+  static groupRemove<T>(owner: T, path: QueryPathItem[], index: number): T {
+    return update(owner, genUpdate(path, {filters: {$splice: [[index, 1]]}}));
   }
 
-  static setFilter(path: QueryPathItem[], filter: Filter): Query<GroupFilter> {
-    return genUpdate(path, {$set: filter});
+  static setFilter<T>(owner: T, path: QueryPathItem[], filter: Filter): T {
+    return update(owner, genUpdate(path, {$set: filter}));
   }
 }
 
