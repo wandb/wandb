@@ -190,7 +190,6 @@ class Runs extends React.Component {
   render() {
     let ModelInfo = this.props.ModelInfo;
     const filterCount = Filter.countIndividual(this.props.runFilters);
-    const selectionCount = Filter.countIndividual(this.props.runSelections);
     return (
       <Container>
         <Confirm

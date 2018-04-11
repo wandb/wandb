@@ -42,15 +42,14 @@ describe('Panel components test', () => {
         <PanelType {...props} />
       </MockAppWrapper>,
     );
-
     expect(container.find('LinePlot')).toHaveLength(1);
-    expect(container.find('HelpIcon')).toHaveLength(1);
     // header from config is not rendered
     expect(container.find('div.header')).toHaveLength(0);
 
+    // TODO(vlad): which button was this triggering?
     // trigger button click event
-    button = container.find(Button);
-    button.at(1).simulate('click');
+    // button = container.find(Button);
+    // button.at(1).simulate('click');
 
     expect(container.text()).toContain("This chart isn't configured yet");
   });
