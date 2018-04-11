@@ -4,6 +4,8 @@ import {bindActionCreators} from 'redux';
 import {Form, Checkbox} from 'semantic-ui-react';
 import update from 'immutability-helper';
 import * as Query from '../util/query';
+import * as Filter from '../util/filters';
+import * as RunHelpers from '../util/runhelpers';
 import RunFilters from '../components/RunFilters';
 import ProjectSelector from '../components/ProjectSelector';
 
@@ -17,26 +19,13 @@ class QueryEditor extends React.Component {
   }
 
   setFilters(newFilters) {
+    console.log('SETTING newFilters', newFilters);
     this.props.setQuery(
       update(this.query, {
         filters: {
           $set: newFilters,
         },
       }),
-    );
-  }
-
-  addFilter(key, op, value) {
-    this.setFilters(Query.addFilter(this.filters, key, op, value));
-  }
-
-  deleteFilter(id) {
-    this.setFilters(Query.deleteFilter(this.filters, id));
-  }
-
-  setFilterComponent(id, component, value) {
-    this.setFilters(
-      Query.setFilterComponent(this.filters, id, component, value),
     );
   }
 
@@ -47,7 +36,22 @@ class QueryEditor extends React.Component {
     if (strategy !== 'page' && strategy !== 'merge') {
       strategy = 'page';
     }
-    this.filters = this.query.filters || {};
+    this.filters = this.query.filters;
+    if (_.isObject(this.filters) && this.filters.op == null) {
+      // Handle the old format.
+      this.filters = Filter.fromOldQuery(_.values(this.filters));
+    }
+    if (this.filters == null) {
+      this.filters = {
+        op: 'OR',
+        filters: [
+          {
+            op: 'AND',
+            filters: [],
+          },
+        ],
+      };
+    }
     let project = this.query.model || '';
 
     return (
@@ -79,19 +83,11 @@ class QueryEditor extends React.Component {
               <label>Filters</label>
               <RunFilters
                 filters={this.filters}
-                allFilters={this.props.allFilters}
+                mergeFilters={this.props.pageQuery.filters}
                 runs={runs}
                 filteredRuns={this.props.filteredRuns}
                 keySuggestions={keySuggestions}
-                addFilter={(_, key, op, value) =>
-                  this.addFilter(key, op, value)
-                }
-                deleteFilter={(_, id) => this.deleteFilter(id)}
-                setFilterComponent={(_, id, component, value) =>
-                  this.setFilterComponent(id, component, value)
-                }
-                buttonText="Add Filter"
-                nobox
+                setFilters={(_, newFilters) => this.setFilters(newFilters)}
               />
             </Form.Field>
           </Form.Group>

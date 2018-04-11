@@ -12,7 +12,7 @@ describe('Model page components test', () => {
       runs: {
         currentJob: 'test',
         filters: {
-          filter: [],
+          filter: {op: 'OR', filters: [{op: 'AND', filters: []}]},
         },
         sort: {},
         columns: {},

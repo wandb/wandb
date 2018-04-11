@@ -3,7 +3,7 @@ import {graphql, withApollo} from 'react-apollo';
 import {fragments, FAKE_HISTORY_QUERY, HISTORY_QUERY} from '../graphql/runs';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
-import {filterRuns, sortRuns} from '../util/runhelpers.js';
+import {sortRuns} from '../util/runhelpers.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import _ from 'lodash';
