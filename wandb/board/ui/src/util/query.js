@@ -84,23 +84,17 @@ export function summaryString(query) {
   if (strategy(query) === 'page') {
     return '';
   }
-  if (
-    query.filters == null ||
-    query.filters.op !== 'OR' ||
-    query.filters.filters[0].op !== 'AND'
-  ) {
+  if (query.filters == null) {
     return '';
   }
-  let filtStrs = _.map(
-    query.filters.filters[0].filters,
-    filt =>
-      Run.displayKey(filt.key) +
-      ' ' +
-      filt.op +
-      ' ' +
-      Run.displayValue(filt.value),
-  );
-  return filtStrs.join(', ');
+  let filters = query.filters;
+  if (filters.op == null) {
+    filters = Filter.fromOldQuery(_.values(query.filters));
+  }
+  if (filters == null) {
+    return null;
+  }
+  return Filter.summaryString(filters);
 }
 
 export function strategy(query) {

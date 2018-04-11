@@ -246,11 +246,32 @@ export function toURL(filter: Filter): string {
   return JSON.stringify(filter);
 }
 
-export function countIndividual(filter: Filter): number {
+export function flatIndividuals(filter: Filter): IndividualFilter[] {
   if (isIndividual(filter)) {
-    return 1;
+    return [filter];
   } else if (isGroup(filter)) {
-    return filter.filters.reduce((total, f) => total + countIndividual(f), 0);
+    return filter.filters.reduce(
+      (acc, f) => acc.concat(flatIndividuals(f)),
+      [] as IndividualFilter[],
+    );
   }
-  return 0;
+  return [];
+}
+
+export function countIndividual(filter: Filter): number {
+  return flatIndividuals(filter).length;
+}
+
+export function summaryString(filter: Filter): string {
+  const filts = flatIndividuals(filter);
+  const filtStrs = _.map(
+    filts,
+    filt =>
+      Run.displayKey(filt.key) +
+      ' ' +
+      filt.op +
+      ' ' +
+      Run.displayValue(filt.value),
+  );
+  return filtStrs.join(', ');
 }

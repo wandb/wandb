@@ -339,4 +339,10 @@ describe('filter modifiers', () => {
   it('countIndividual works', () => {
     expect(Filter.countIndividual(goodFilters)).toBe(3);
   });
+
+  it('summaryString works', () => {
+    expect(Filter.summaryString(goodFilters)).toBe(
+      'host = angry.local, state = running, host = brian.local',
+    );
+  });
 });
