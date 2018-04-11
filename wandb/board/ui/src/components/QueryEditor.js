@@ -29,20 +29,6 @@ class QueryEditor extends React.Component {
     );
   }
 
-  addFilter(key, op, value) {
-    this.setFilters(Query.addFilter(this.filters, key, op, value));
-  }
-
-  deleteFilter(id) {
-    this.setFilters(Query.deleteFilter(this.filters, id));
-  }
-
-  setFilterComponent(id, component, value) {
-    this.setFilters(
-      Query.setFilterComponent(this.filters, id, component, value),
-    );
-  }
-
   render() {
     let {setQuery, runs, keySuggestions} = this.props;
     this.query = this.props.panelQuery || {};

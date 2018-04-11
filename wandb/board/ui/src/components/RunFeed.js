@@ -18,13 +18,7 @@ import Tags from '../components/Tags';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {makeShouldUpdate} from '../util/shouldUpdate';
-
-import {
-  addFilter,
-  enableColumn,
-  toggleRunSelection,
-  setSort,
-} from '../actions/run';
+import {setFilters, enableColumn, setSort} from '../actions/run';
 import _ from 'lodash';
 // import {JSONparseNaN} from '../util/jsonnan';
 import Pagination from './Pagination';
@@ -36,6 +30,8 @@ import {
   truncateString,
 } from '../util/runhelpers.js';
 import ContentLoader from 'react-content-loader';
+import * as Selection from '../util/selections';
+import * as Filter from '../util/filters';
 
 const maxColNameLength = 20;
 
@@ -93,7 +89,7 @@ class ValueDisplay extends PureComponent {
                   onClick={() => {
                     let filterKey = {
                       section: this.props.section,
-                      value: this.props.valKey,
+                      name: this.props.valKey,
                     };
                     this.props.addFilter(
                       'filter',
@@ -114,7 +110,7 @@ class ValueDisplay extends PureComponent {
 }
 
 const mapValueDisplayDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({addFilter, enableColumn}, dispatch);
+  return bindActionCreators({enableColumn}, dispatch);
 };
 
 ValueDisplay = connect(null, mapValueDisplayDispatchToProps)(ValueDisplay);
@@ -264,7 +260,7 @@ class RunFeedRow extends React.Component {
                     addFilter={tag =>
                       this.props.addFilter(
                         'filter',
-                        {section: 'tags', value: tag},
+                        {section: 'tags', name: tag},
                         '=',
                         'true',
                       )
@@ -297,7 +293,15 @@ class RunFeedRow extends React.Component {
           <Table.Cell collapsing>
             <Checkbox
               checked={!!selectedRuns[run.name]}
-              onChange={() => this.props.toggleRunSelection(run.name, run.id)}
+              onChange={() => {
+                let selections = this.props.selections;
+                if (selectedRuns[run.name] != null) {
+                  selections = Selection.Update.deselect(selections, run.name);
+                } else {
+                  selections = Selection.Update.select(selections, run.name);
+                }
+                this.props.setFilters('select', selections);
+              }}
             />
           </Table.Cell>
         )}
@@ -320,6 +324,7 @@ class RunFeedRow extends React.Component {
                         {run.sweep.name}
                       </NavLink>
                     }
+                    addFilter={this.props.addFilter}
                   />
                 )}
               </Table.Cell>
@@ -366,6 +371,7 @@ class RunFeedRow extends React.Component {
                   valKey={key}
                   value={getRunValue(run, columnName)}
                   justValue
+                  addFilter={this.props.addFilter}
                 />
               </Table.Cell>
             );
@@ -451,10 +457,21 @@ class RunFeed extends PureComponent {
                     run={run}
                     selectable={this.props.selectable}
                     selectedRuns={this.props.selectedRuns}
+                    selections={this.props.selections}
                     loading={this.props.loading}
                     columnNames={columnNames}
                     project={this.props.project}
-                    addFilter={this.props.addFilter}
+                    addFilter={(type, key, op, value) =>
+                      this.props.setFilters(
+                        type,
+                        Filter.Update.groupPush(this.props.filters, [0], {
+                          key,
+                          op,
+                          value,
+                        }),
+                      )
+                    }
+                    setFilters={this.props.setFilters}
                   />
                 ))}
             </Table.Body>
@@ -550,12 +567,14 @@ function mapStateToProps() {
       columns: cols,
       sort: state.runs.sort,
       currentPage: state.runs.pages[id] && state.runs.pages[id].current,
+      selections: state.runs.filters.select,
+      filters: state.runs.filters.filter,
     };
   };
 }
 
 const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({addFilter, toggleRunSelection, setSort}, dispatch);
+  return bindActionCreators({setFilters, setSort}, dispatch);
 };
 
 export default connect(mapStateToProps(), mapDispatchToProps)(RunFeed);
