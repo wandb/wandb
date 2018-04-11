@@ -206,10 +206,12 @@ function parcoor(
   function brush() {
     for (let i = 0; i < dimensions.length; ++i) {
       if (d3.event.target == y[dimensions[i]].brush) {
-        extents[i] = d3.event.selection.map(
-          y[dimensions[i]].invert,
-          y[dimensions[i]],
-        );
+        if (d3.event.selection) {
+          extents[i] = d3.event.selection.map(
+            y[dimensions[i]].invert,
+            y[dimensions[i]],
+          );
+        }
       }
     }
 
