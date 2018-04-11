@@ -1,6 +1,6 @@
 import React from 'react';
 import {Container, Segment, Grid, List} from 'semantic-ui-react';
-import logo from '../assets/logo.svg';
+import logo from '../assets/wandb-new.svg';
 
 const Footer = () => (
   <Segment className="footer" vertical>

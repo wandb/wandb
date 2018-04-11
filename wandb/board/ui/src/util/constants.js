@@ -15,27 +15,47 @@ export const frameworkOptions = e => {
     };
   });
 };
+
 export const PERMISSIONS = [];
-export const COLORS = [
-  '#0074D9', // BLUE
-  '#FF851B', // ORANGE
-  '#001f3f', // NAVY
-  '#FF4136', // RED
-  '#3D9970', // OLIVE
-  '#FFDC00', // YELLOW
-  '#7FDBFF', // AQUA
-  '#B10DC9', // PURPLE
-  '#39CCCC', // TEAL
-  '#85144b', // MAROON
-  '#2ECC40', // GREEN
-  '#01FF70', // LIME
-  '#F012BE', // FUCHSIA
-  '#fbbd08', // orange
-  '#f2711c', // red
-  '#b5cc18', // pukegreen
-  '#21ba45', // green
-  '#00b5ad', // bluegreen
-  '#2185d0', // blue
+
+// Got this list from a cool site http://tools.medialab.sciences-po.fr/iwanthue/
+// First five are locked from demian
+export const COLORS10 = [
+  '#ecbb33',
+  '#55565b',
+  '#007faf',
+  '#c1433c',
+  '#3d9e3e',
+  '#936ccb',
+  '#b08342',
+  '#65cca6',
+  '#cb5b95',
+  '#b2ce63',
+];
+
+// If we wanted to use 20 colors...
+
+export const COLORS20 = [
+  '#ecbb33',
+  '#55565b',
+  '#007faf',
+  '#c1433c',
+  '#3d9e3e',
+  '#825fd3',
+  '#9ad858',
+  '#d23f74',
+  '#6adbb5',
+  '#c44bad',
+  '#478955',
+  '#d68fd3',
+  '#de7333',
+  '#6e8ddc',
+  '#a16234',
+  '#7e599e',
+  '#c0ce73',
+  '#c86c7e',
+  '#807f2e',
+  '#daa865',
 ];
 
 export const MAX_HISTORIES_LOADED = 10;

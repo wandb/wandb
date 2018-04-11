@@ -86,7 +86,7 @@ class RunsLinePlotPanel extends React.Component {
     let disabled = this.props.data.histories.data.length === 0;
 
     return (
-      <div>
+      <div className="runs-line-plot">
         {!this.props.data.loading &&
           (!yAxisOptions || yAxisOptions.length == 0) && (
             <div className="ui negative message">

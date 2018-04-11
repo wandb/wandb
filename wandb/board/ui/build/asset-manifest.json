@@ -1,13 +1,14 @@
 {
-  "main.css": "static/css/main.20851e13.css",
-  "main.css.map": "static/css/main.20851e13.css.map",
-  "main.js": "static/js/main.0170dccb.js",
-  "main.js.map": "static/js/main.0170dccb.js.map",
+  "main.css": "static/css/main.451d4201.css",
+  "main.css.map": "static/css/main.451d4201.css.map",
+  "main.js": "static/js/main.3e524ccf.js",
+  "main.js.map": "static/js/main.3e524ccf.js.map",
   "static/media/flags.png": "static/media/flags.9c74e172.png",
   "static/media/icons.eot": "static/media/icons.674f50d2.eot",
   "static/media/icons.svg": "static/media/icons.912ec66d.svg",
   "static/media/icons.ttf": "static/media/icons.b06871f2.ttf",
   "static/media/icons.woff": "static/media/icons.fee66e71.woff",
   "static/media/icons.woff2": "static/media/icons.af7ae505.woff2",
-  "static/media/logo.svg": "static/media/logo.fb996a0b.svg"
+  "static/media/logo.svg": "static/media/wandb-new.e21d98a9.svg",
+  "static/media/wandb-new.svg": "static/media/wandb-new.e21d98a9.svg"
 }

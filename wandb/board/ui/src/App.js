@@ -17,6 +17,7 @@ try {
 } catch (err) {
   Nav = require('./components/Nav').default;
 }
+Nav = require('./components/Nav').default;
 
 class App extends Component {
   state = {loading: false, error: null};

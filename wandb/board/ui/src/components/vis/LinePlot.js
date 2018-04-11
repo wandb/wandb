@@ -21,13 +21,17 @@ class LinePlotPlot extends React.PureComponent {
   render() {
     const smallSizeThresh = 50;
 
-    let {height, xAxis, yScale, lines, disabled, xScale} = this.props;
+    let {height, xAxis, yScale, lines, disabled, xScale, yAxis} = this.props;
     let xType = 'linear';
     if (xAxis == 'Absolute Time') {
       xType = 'time';
     } else if (xScale == 'log') {
       // this is not actually implemented
       xType = 'log';
+    }
+
+    if (!yAxis) {
+      yAxis = '';
     }
 
     let nullGraph = false;
@@ -60,20 +64,31 @@ class LinePlotPlot extends React.PureComponent {
       // SML: I turned off animation, it was making stuff uncomfortably slow even
       // with the smallGraph detection.
       <FlexibleWidthXYPlot
-        margin={{left: 50}}
         animation={false}
         yType={yScale}
         xType={xType}
         height={height}>
-        <VerticalGridLines />
-        <HorizontalGridLines />
         <XAxis
           title={xAxis}
           tickTotal={5}
           tickValues={smallGraph ? _.range(1, smallSizeThresh) : null}
           tickFormat={xType != 'time' ? tick => format('.2s')(tick) : null}
+          style={{
+            line: {stroke: '999'},
+            ticks: {stroke: '999'},
+            text: {stroke: 'none', fill: 'aaa', fontWeight: 600},
+          }}
         />
-        <YAxis tickValues={null} tickFormat={tick => format('.2r')(tick)} />
+        <YAxis
+          title={yAxis}
+          tickValues={null}
+          tickFormat={tick => format('.2r')(tick)}
+          style={{
+            line: {stroke: '999'},
+            ticks: {stroke: '999'},
+            text: {stroke: 'none', fill: 'aaa', fontWeight: 600},
+          }}
+        />
 
         {lines
           .map(
@@ -92,11 +107,15 @@ class LinePlotPlot extends React.PureComponent {
                     color={line.color}
                     data={line.data}
                     nullAccessor={d => d.y !== null}
+                    strokeDasharray={i < 5 ? undefined : '4,4'}
+                    strokeStyle={'solid'}
                   />
                 )
               ) : null,
           )
-          .filter(o => o)}
+          .filter(o => o)
+          .reverse() // revese so the top line is the first line
+        }
       </FlexibleWidthXYPlot>
     );
   }
@@ -258,6 +277,7 @@ export default class LinePlot extends React.PureComponent {
     lines = filteredLines;
     return (
       <div
+        className="line-plot"
         style={{
           border: this.props.lines.length === 0 ? '1px solid #ccc' : '',
         }}>

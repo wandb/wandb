@@ -4,11 +4,25 @@ import PropTypes from 'prop-types';
 import {Button, Icon, Menu, Tab} from 'semantic-ui-react';
 
 class TabbedViews extends React.Component {
-  state = {editMode: false};
+  state = {editMode: false, nightMode: false};
 
   static propTypes = {
     renderView: PropTypes.func.isRequired,
   };
+
+  setNightMode(nightMode) {
+    this.setState({nightMode: nightMode});
+    if (nightMode) {
+      document.body.style.background = '#000';
+      document.body.style.color = '#fff';
+      document.body.className = 'nightMode'
+    } else {
+      document.body.style.background = '#fff';
+      document.body.style.color = '#000';    
+      document.body.className = 'dayMode'
+
+    }
+  }
 
   render() {
     let panes = this.props.tabs.map((viewId, i) => ({
@@ -89,7 +103,16 @@ class TabbedViews extends React.Component {
               onClick={() => window.print()}
             />
           )}
+        {this.props.viewType === 'dashboards' &&
+          !this.props.fullScreen && (
+            <Button
+              floated="right"
+              icon="moon"
+              onClick={() => this.setNightMode(!this.state.nightMode)}
+            />
+          )}
         <Tab
+          className={this.state.nightMode ? 'nightMode' : 'dayMode'}
           panes={panes}
           menu={{secondary: true, pointing: true}}
           activeIndex={activeIndex}

@@ -11,6 +11,25 @@
     padding-bottom: 5px !important;
 }
 
+.ui.menu.top {
+    background: rgb(96,99,105);
+}
+
+.ui.menu .logo img {
+    width: 10em !important; /* for the logo */
+    margin: 0em !important;
+
+}
+
+.ui.menu .logo {
+    padding-top: 0px !important;
+    padding-bottom: 0px !important; 
+}
+
+.ui.borderless.menu {
+    border: 0px;
+}
+
 body .ui.menu .active.item {
     background: none;
     /*text-decoration: underline;*/

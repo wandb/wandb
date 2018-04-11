@@ -2,7 +2,8 @@ import React, {Component} from 'react';
 import {connect} from 'react-redux';
 import {NavLink, withRouter} from 'react-router-dom';
 import {Menu, Container, Message, Transition} from 'semantic-ui-react';
-import logo from '../assets/logo.svg';
+import logo from '../assets/wandb-new.svg';
+
 import '../components/Nav.css';
 
 class Nav extends Component {
@@ -25,8 +26,8 @@ class Nav extends Component {
     return (
       <Menu fixed="top" borderless>
         <Container fluid style={{marginLeft: 10, position: 'relative'}}>
-          <NavLink exact to="/" className="item">
-            <img src={logo} className="logo" alt="Weights & Biases" />
+          <NavLink exact to="/" className="item logo">
+            <img src={logo} alt="W&B" />
           </NavLink>
           <NavLink
             to={`/`}
