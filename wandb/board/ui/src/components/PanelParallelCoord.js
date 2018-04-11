@@ -5,8 +5,7 @@ import _ from 'lodash';
 import {Form} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {getRunValue, scatterPlotCandidates} from '../util/runhelpers.js';
-import {batchActions} from 'redux-batched-actions';
-import {addFilter, setHighlight} from '../actions/run';
+import {setFilters, setHighlight} from '../actions/run';
 import * as Selection from '../util/selections';
 import * as Run from '../util/runs';
 
@@ -467,10 +466,20 @@ class ParCoordPanel extends React.Component {
           select={this.select}
           highlight={this.props.highlight}
           onBrushEvent={(axis, low, high) => {
-            this.props.batchActions([
-              addFilter('select', filterKeyFromString(axis), '>', low),
-              addFilter('select', filterKeyFromString(axis), '<', high),
-            ]);
+            let selections = this.props.selections;
+            selections = Selection.Update.addBound(
+              selections,
+              Run.keyFromString(axis),
+              '>=',
+              low,
+            );
+            selections = Selection.Update.addBound(
+              selections,
+              Run.keyFromString(axis),
+              '<=',
+              high,
+            );
+            this.props.setFilters('select', selections);
           }}
           onMouseOverEvent={runName => {
             this.props.setHighlight(runName);
@@ -505,7 +514,7 @@ function mapStateToProps(state, ownProps) {
 }
 
 const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({batchActions, setHighlight}, dispatch);
+  return bindActionCreators({setFilters, setHighlight}, dispatch);
 };
 
 let ConnectParCoordPanel = connect(mapStateToProps, mapDispatchToProps)(
