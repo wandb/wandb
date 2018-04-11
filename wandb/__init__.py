@@ -240,6 +240,13 @@ def log(history_row):
     run.history.add(history_row)
 
 
+def uninit():
+    """Undo the effects of init(). Useful for testing.
+    """
+    global run, config
+    run = config = None
+
+
 def init(job_type='train', config=None):
     global run
     global __stage_dir__
@@ -311,4 +318,4 @@ def init(job_type='train', config=None):
     return run
 
 
-__all__ = ['init', 'config', 'termlog', 'run', 'types', 'callbacks']
+__all__ = ['init', 'config', 'termlog', 'run', 'types', 'callbacks', 'uninit']
