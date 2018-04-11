@@ -132,10 +132,15 @@ function checkIndividualFilter(filter: any): IndividualFilter | null {
   if (filter.value == null) {
     return null;
   }
+  console.log(
+    'calling parseValue',
+    JSON.stringify(filter.value),
+    JSON.stringify(Run.parseValue(filter.value)),
+  );
   return {
     key: filterKey,
     op: filter.op,
-    value: filter.value,
+    value: Run.parseValue(filter.value),
   };
 }
 
@@ -174,14 +179,7 @@ function checkFilter(filter: any): Filter | null {
 }
 
 export function fromJson(json: any): Filter | null {
-  if (checkGroupFilterSet(json)) {
-    // This is the old format, a top-level array of individual filters to be
-    // AND'd together.
-    // TODO: Fix
-    return {op: 'AND', filters: json};
-  } else {
-    return checkFilter(json);
-  }
+  return checkFilter(json);
 }
 
 export function fromOldURL(filterStrings: string[]): Filter | null {
@@ -204,10 +202,14 @@ export function fromOldURL(filterStrings: string[]): Filter | null {
     }
     return {key, op, value};
   });
-  if (result.some(f => !f)) {
+  if (result.some(f => f == null)) {
     return null;
   }
-  return fromJson(result);
+  const andFilters = checkGroupFilterSet(result);
+  if (andFilters == null) {
+    return null;
+  }
+  return {op: 'OR', filters: [{op: 'AND', filters: andFilters}]};
 }
 
 export function fromOldQuery(oldQuery: any): Filter | null {

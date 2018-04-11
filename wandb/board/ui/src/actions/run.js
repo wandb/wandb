@@ -34,16 +34,6 @@ export const updateJob = id => {
   };
 };
 
-export const addFilter = (kind, key, op, value) => {
-  return {
-    type: ADD_FILTER,
-    kind,
-    key,
-    op,
-    value,
-  };
-};
-
 export const setHighlight = runId => {
   return {
     type: SET_HIGHLIGHT,

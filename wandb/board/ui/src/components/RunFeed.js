@@ -262,7 +262,7 @@ class RunFeedRow extends React.Component {
                         'filter',
                         {section: 'tags', name: tag},
                         '=',
-                        'true',
+                        true,
                       )
                     }
                   />

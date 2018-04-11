@@ -22,7 +22,6 @@ export function keyValueCounts(runs: Run.Run[], keys: string[]): KeyValueCount {
     result[keyString] = {};
     const keyResult = result[keyString];
     for (const run of runs) {
-      console.log('keyString', keyString);
       const key = Run.keyFromString(keyString);
       if (key == null) {
         continue;

@@ -51,7 +51,6 @@ describe('Panel components test', () => {
     // trigger button click event
     button = container.find(Button);
     button.at(1).simulate('click');
-    // TODO: mock `addFilter` method
 
     expect(container.text()).toContain("This chart isn't configured yet");
   });

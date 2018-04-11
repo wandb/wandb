@@ -209,26 +209,32 @@ describe('fromJson', () => {
       }),
     ).toBe(null);
   });
-
-  it('old format', () => {
-    const filters = [
-      {key: {section: 'run', name: 'host'}, op: '!=', value: 'shawn.local'},
-    ];
-    expect(Filter.fromJson(filters)).toEqual({op: 'AND', filters});
-  });
 });
 
 describe('fromOldURL', () => {
   it('good', () => {
     expect(
-      Filter.fromOldURL([JSON.stringify(['run:host', '=', 'shawn.local'])]),
+      Filter.fromOldURL([
+        JSON.stringify(['run:host', '=', 'shawn.local']),
+        JSON.stringify(['tags:hidden', '=', 'false']),
+      ]),
     ).toEqual({
-      op: 'AND',
+      op: 'OR',
       filters: [
         {
-          key: {section: 'run', name: 'host'},
-          op: '=',
-          value: 'shawn.local',
+          op: 'AND',
+          filters: [
+            {
+              key: {section: 'run', name: 'host'},
+              op: '=',
+              value: 'shawn.local',
+            },
+            {
+              key: {section: 'tags', name: 'hidden'},
+              op: '=',
+              value: false,
+            },
+          ],
         },
       ],
     });

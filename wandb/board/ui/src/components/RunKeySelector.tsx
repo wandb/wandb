@@ -38,12 +38,6 @@ export default class RunKeySelector extends React.Component<
     }
   }
 
-  componentDidMount() {
-    if (this.dropdownEl) {
-      console.log('dropdownEl', this.dropdownEl);
-    }
-  }
-
   render() {
     const {keys} = this.props;
     if (

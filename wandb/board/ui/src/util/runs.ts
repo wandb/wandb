@@ -276,3 +276,34 @@ export function domValue(value: Value): DomValue {
   }
   return 'null';
 }
+
+export function parseValue(val: any): Value {
+  let parsedValue: Value = null;
+  if (typeof val === 'number' || typeof val === 'boolean') {
+    parsedValue = val;
+  } else if (typeof val === 'string') {
+    parsedValue = parseFloat(val);
+    if (!isNaN(parsedValue)) {
+      // If value is '3.' we just get 3, but we return the string '3.' so this can be used in input
+      // fields.
+      if (parsedValue.toString().length !== val.length) {
+        parsedValue = val;
+      }
+    } else {
+      if (val.indexOf('.') === -1) {
+        if (val === 'true') {
+          parsedValue = true;
+        } else if (val === 'false') {
+          parsedValue = false;
+        } else if (val === 'null') {
+          parsedValue = null;
+        } else if (typeof val === 'string') {
+          parsedValue = val;
+        }
+      } else {
+        parsedValue = val;
+      }
+    }
+  }
+  return parsedValue;
+}

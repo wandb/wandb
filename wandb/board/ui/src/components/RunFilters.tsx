@@ -30,13 +30,11 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
   valueSuggestions: any;
 
   componentWillMount() {
-    console.log('editor props', this.props);
     const filtered = Filter.filterRuns(
       this.props.otherFilters,
       this.props.runs,
     );
     this.keyValueCounts = RunHelpers2.keyValueCounts(filtered, this.props.keys);
-    console.log('GOT KVC', this.keyValueCounts);
     this.setupValueSuggestions(this.props);
   }
 
@@ -112,13 +110,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
           ),
         };
       });
-      console.log(
-        'VALUE auto check',
-        this.props.value,
-        this.valueSuggestions.length,
-      );
       if (this.props.value == null && this.valueSuggestions.length > 0) {
-        console.log('SETTING VALUE AUTO', this.valueSuggestions[0].value);
         this.props.setFilterValue(this.valueSuggestions[0].value);
       }
     } else {
@@ -135,7 +127,6 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
       text: op,
       value: op,
     }));
-    console.log('VALUE', this.props.value);
     return (
       <Form id={this.elementId()}>
         <Form.Field>
@@ -177,20 +168,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
               selection
               value={Run.domValue(this.props.value)}
               onChange={(e, {value}) => {
-                let parsedValue = null;
-                if (typeof value === 'number') {
-                  parsedValue = value;
-                }
-                if (value === 'true') {
-                  parsedValue = true;
-                } else if (value === 'false') {
-                  parsedValue = false;
-                } else if (value === 'null') {
-                  parsedValue = null;
-                } else if (typeof value === 'string') {
-                  parsedValue = value;
-                }
-                this.props.setFilterValue(parsedValue);
+                this.props.setFilterValue(Run.parseValue(value));
                 this.props.close();
               }}
             />
@@ -199,28 +177,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
           <Form.Input
             value={this.props.value}
             onChange={(e, {value}) => {
-              let parsedValue: Run.Value = parseFloat(value);
-              if (!isNaN(parsedValue)) {
-                // If value is '3.' we just get 3
-                if (parsedValue.toString().length !== value.length) {
-                  parsedValue = value;
-                }
-              } else {
-                if (value.search('.') === -1) {
-                  if (value === 'true') {
-                    parsedValue = true;
-                  } else if (value === 'false') {
-                    parsedValue = false;
-                  } else if (value === 'null') {
-                    parsedValue = null;
-                  } else if (typeof value === 'string') {
-                    parsedValue = value;
-                  }
-                } else {
-                  parsedValue = value;
-                }
-              }
-              this.props.setFilterValue(parsedValue);
+              this.props.setFilterValue(Run.parseValue(value));
             }}
           />
         )}
@@ -360,12 +317,6 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
                 this.props.setFilter({...this.props.filter, op: filterOp})
               }
               setFilterValue={(filterValue: Run.Value) => {
-                console.log(
-                  'setting filter value',
-                  filterValue,
-                  this.props.filter,
-                  {...this.props.filter, value: filterValue},
-                );
                 this.props.setFilter({
                   ...this.props.filter,
                   value: filterValue,

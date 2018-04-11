@@ -93,8 +93,8 @@ class Runs extends React.Component {
     let selectFilters;
     if (parsed.selections) {
       selectFilters = Filter.fromURL(parsed.selections);
-    } else if (parsed.selection) {
-      let filts = parsed.selection;
+    } else if (parsed.select) {
+      let filts = parsed.select;
       if (!_.isArray(filts)) {
         filts = [filts];
       }
