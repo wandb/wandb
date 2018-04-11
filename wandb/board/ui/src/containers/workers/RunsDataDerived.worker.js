@@ -31,7 +31,7 @@ function handleMessage(m, postMessage) {
     selectedRuns = filterRuns(query.selections, filteredRuns);
   }
   let selectedRunsById = _.fromPairs(
-    selectedRuns.map(run => [run.name, run.id]),
+    selectedRuns.map(run => [run.name, run.id])
   );
 
   let keys = _.flatMap(keySuggestions, section => section.suggestions);
