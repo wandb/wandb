@@ -10,8 +10,7 @@ import * as Selection from '../util/selections';
 import * as Run from '../util/runs';
 
 import './PlotParCoor.css';
-
-var d3 = window.d3;
+import * as d3 from 'd3';
 
 function parcoor(
   node,
@@ -21,112 +20,52 @@ function parcoor(
   mouseOverCallback,
   mouseOutCallback,
 ) {
-  var select = reactEl.props.select;
-
   let isBrushing = false;
+  let computedWidth = 1070;
 
-  var d3node = d3.select(node).node(),
-    computedWidth = 1070;
+  const d3node = d3.select(node).node();
+
   if (d3node)
     computedWidth = Math.max(280, d3node.getBoundingClientRect().width);
-  var margin = {top: 30, right: 10, bottom: 10, left: 10},
+  const margin = {top: 30, right: 10, bottom: 10, left: 10},
     width = computedWidth - margin.left - margin.right,
     height = 280 - margin.top - margin.bottom;
 
-  var x = d3.scale.ordinal().rangePoints([0, width], 1),
+  const x = d3
+      .scaleBand()
+      .rangeRound([0, width])
+      .padding(1),
     y = {},
     dragging = {};
 
-  var line = d3.svg.line(),
-    axis = d3.svg.axis().orient('left'),
-    background,
-    foreground;
+  const line = d3.line();
 
-  var svg = d3
+  const svg = d3
     .select(node)
     .html('')
     .append('svg')
     .attr('width', width + margin.left + margin.right)
     .attr('height', height + margin.top + margin.bottom)
     .append('g')
-    .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+    .attr('transform', `translate(${margin.left},${margin.top})`);
 
-  var dimensions;
-  x.domain(
-    (dimensions = d3
-      .keys(data[0])
-      .filter(d => d !== 'name')
-      .filter(function(d) {
-        return (
-          _.isFinite(parseFloat(data[0][d])) &&
-          (y[d] = d3.scale
-            .linear()
-            .domain(
-              d3.extent(data, function(p) {
-                return +parseFloat(p[d]);
-              }),
-            )
-            .range([height, 0]))
-        );
-      })),
-  );
-  function position(d) {
-    var v = dragging[d];
-    return v == null ? x(d) : v;
-  }
-
-  function transition(g) {
-    return g.transition().duration(500);
-  }
-
-  // Returns the path for a given data point.
-  function path(d) {
-    return line(
-      dimensions.map(function(p) {
-        return [position(p), y[p](d[p])];
-      }),
+  const dimensions = d3
+    .keys(data[0])
+    .filter(d => d !== 'name')
+    .filter(
+      d =>
+        _.isFinite(parseFloat(data[0][d])) &&
+        (y[d] = d3
+          .scaleLinear()
+          .domain(d3.extent(data, p => +parseFloat(p[d])))
+          .range([height, 0])),
     );
-  }
+  x.domain(dimensions);
 
-  function brushstart() {
-    isBrushing = true;
-    if (d3.event.sourceEvent) {
-      d3.event.sourceEvent.stopPropagation();
-    }
-  }
-
-  function brush(axis) {
-    var actives = dimensions.filter(function(p) {
-        return y[p].brush && !y[p].brush.empty();
-      }),
-      extents = actives.map(function(p) {
-        return y[p].brush.extent();
-      });
-    foreground.style('display', function(d) {
-      return actives.every(function(p, i) {
-        return extents[i][0] <= d[p] && d[p] <= extents[i][1];
-      })
-        ? null
-        : 'none';
-    });
-  }
-
-  function brushend(axis) {
-    isBrushing = false;
-    // This doesn't work well if we do it in brush, probably a feedback loop.
-    // Doing it here for now, we can fix later.
-    if (axis) {
-      let [low, high] = y[axis].brush.extent();
-      if (low === high) {
-        low = null;
-        high = null;
-      }
-      brushCallback(axis, low, high);
-    }
-  }
+  const extents = dimensions.map(p => [0, 0]);
 
   // Add grey background lines for context.
-  background = svg
+  const background = svg
     .append('g')
     .attr('class', 'background')
     .selectAll('path')
@@ -136,7 +75,7 @@ function parcoor(
     .attr('d', path);
 
   // Add blue foreground lines for focus.
-  foreground = svg
+  const foreground = svg
     .append('g')
     .attr('class', 'foreground')
     .selectAll('path')
@@ -145,56 +84,32 @@ function parcoor(
     .append('path')
     .attr('d', path);
 
-  // Add wider transparent lines for hovering
-  svg
-    .append('g')
-    .attr('class', 'hoverable')
-    .attr('stroke-width', 5)
-    .selectAll('path')
-    .data(data)
-    .enter()
-    .append('path')
-    .attr('d', path)
-    .on('mouseover', (row, index) => mouseOverCallback(row, index))
-    .on('mouseout', (row, index) => mouseOutCallback());
-
   // Add a group element for each dimension.
-  var g = svg
+  const g = svg
     .selectAll('.dimension')
     .data(dimensions)
     .enter()
     .append('g')
     .attr('class', 'dimension')
-    .attr('transform', function(d) {
-      return 'translate(' + x(d) + ')';
-    })
+    .attr('transform', d => `translate(${x(d)})`)
     .call(
-      d3.behavior
+      d3
         .drag()
-        .origin(function(d) {
-          return {x: x(d)};
-        })
-        .on('dragstart', function(d) {
+        .subject(d => ({x: x(d)}))
+        .on('start', d => {
           dragging[d] = x(d);
           background.attr('visibility', 'hidden');
         })
-        .on('drag', function(d) {
+        .on('drag', d => {
           dragging[d] = Math.min(width, Math.max(0, d3.event.x));
           foreground.attr('d', path);
-          dimensions.sort(function(a, b) {
-            return position(a) - position(b);
-          });
+          dimensions.sort((a, b) => position(a) - position(b));
           x.domain(dimensions);
-          g.attr('transform', function(d) {
-            return 'translate(' + position(d) + ')';
-          });
+          g.attr('transform', d => `translate(${position(d)})`);
         })
-        .on('dragend', function(d) {
+        .on('end', function(d) {
           delete dragging[d];
-          transition(d3.select(this)).attr(
-            'transform',
-            'translate(' + x(d) + ')',
-          );
+          transition(d3.select(this)).attr('transform', `translate(${x(d)})`);
           transition(foreground).attr('d', path);
           background
             .attr('d', path)
@@ -202,50 +117,125 @@ function parcoor(
             .delay(500)
             .duration(0)
             .attr('visibility', null);
+          addHover();
         }),
     );
-
   // Add an axis and title.
   g
     .append('g')
     .attr('class', 'axis')
     .each(function(d) {
-      d3.select(this).call(axis.scale(y[d]));
+      d3.select(this).call(d3.axisLeft(y[d]));
     })
+    //text does not show up because previous line breaks somehow
     .append('text')
+    .attr('fill', 'black')
     .style('text-anchor', 'middle')
     .attr('y', -9)
-    .text(function(d) {
-      return d;
-    });
+    .text(d => d);
 
   // Add and store a brush for each axis.
   g
     .append('g')
     .attr('class', 'brush')
     .each(function(d) {
-      d3.select(this).call(obj => {
-        let ourBrush = d3.svg
-          .brush()
-          .y(y[d])
-          .on('brushstart', brushstart)
+      d3.select(this).call(
+        (y[d].brush = d3
+          .brushY()
+          .extent([[-8, 0], [8, height]])
+          .on('brush start', brushstart)
           .on('brush', brush)
-          .on('brushend', brushend);
-        y[d].brush = ourBrush;
-        if (select[d] && (select[d].low || select[d].high)) {
-          ourBrush.extent([
-            select[d].low || y[d].domain()[0],
-            select[d].high || y[d].domain()[1],
-          ]);
-        }
-        ourBrush(obj);
-      });
+          .on('end', axis => {
+            let selection = d3.event.selection;
+            if (!selection) {
+              brushend(axis, null, null);
+              return;
+            }
+            let [high, low] = selection.map(y[d].invert);
+            brushend(axis, low, high);
+          })),
+      );
+      let select = reactEl.props.select[d];
+      if (select && select.low && select.high) {
+        let [high, low] = [select.low, select.high].map(y[d]);
+        y[d].brush.move(d3.select(this), [low, high]);
+      }
     })
     .selectAll('rect')
     .attr('x', -8)
     .attr('width', 16);
 
-  brush();
+  // Add wider transparent lines for hovering (reusable function)
+  function addHover() {
+    // Remove any previously added lines
+    svg.selectAll('g.hoverable').remove();
+    // Add new lines based on latest data
+    svg
+      .append('g')
+      .attr('class', 'hoverable')
+      .attr('stroke-width', 5)
+      .selectAll('path')
+      .data(data)
+      .enter()
+      .append('path')
+      .attr('d', path)
+      .on('mouseover', (row, index) => mouseOverCallback(row, index))
+      .on('mouseout', (row, index) => mouseOutCallback());
+  }
+  addHover();
+
+  function position(d) {
+    const v = dragging[d];
+    return v == null ? x(d) : v;
+  }
+
+  function transition(g) {
+    return g.transition().duration(500);
+  }
+
+  // Returns the path for a given data point.
+  function path(d) {
+    return line(dimensions.map(p => [position(p), y[p](d[p])]));
+  }
+
+  function brushstart() {
+    isBrushing = true;
+  }
+
+  // Handles a brush event, toggling the display of foreground lines.
+  function brush() {
+    for (let i = 0; i < dimensions.length; ++i) {
+      if (d3.event.target == y[dimensions[i]].brush) {
+        extents[i] = d3.event.selection.map(
+          y[dimensions[i]].invert,
+          y[dimensions[i]],
+        );
+      }
+    }
+
+    foreground.style(
+      'display',
+      d =>
+        dimensions.every((p, i) => {
+          if (extents[i][0] == 0 && extents[i][0] == 0) {
+            return true;
+          }
+          return extents[i][1] <= d[p] && d[p] <= extents[i][0];
+        })
+          ? null
+          : 'none',
+    );
+  }
+
+  function brushend(axis, low, high) {
+    isBrushing = false;
+    if (low === high) {
+      low = null;
+      high = null;
+    }
+    console.log('brushend', axis, low, high);
+    brushCallback(axis, low, high);
+  }
 
   function handleHighlight(runData) {
     if (isBrushing) {
@@ -253,17 +243,18 @@ function parcoor(
     }
     if (!runData) {
       svg.selectAll('g.hover').remove();
+      // FIXME: Why should we need this ?
       //TODO: this calling of self and redefining handleHighlight is gross
-      setTimeout(() => {
-        reactEl.handleHighlight = parcoor(
-          node,
-          data,
-          reactEl,
-          brushCallback,
-          mouseOverCallback,
-          mouseOutCallback,
-        );
-      }, 0);
+      // setTimeout(() => {
+      //   reactEl.handleHighlight = parcoor(
+      //     node,
+      //     data,
+      //     reactEl,
+      //     brushCallback,
+      //     mouseOverCallback,
+      //     mouseOutCallback,
+      //   );
+      // }, 0);
     } else {
       svg
         .insert('g', ':first-child')
@@ -292,12 +283,12 @@ class PlotParCoor extends React.Component {
       if (props.highlight === null) {
         this.handleHighlight(null);
       } else {
-        let run = _.find(props.runs, run => run.name === props.highlight);
+        const run = _.find(props.runs, run => run.name === props.highlight);
         if (!run) {
           this.handleHighlight(null);
         } else {
-          let row = {};
-          for (var col of this.props.cols) {
+          const row = {};
+          for (const col of this.props.cols) {
             row[col] = getRunValue(run, col);
           }
           this.handleHighlight([row]);
@@ -328,10 +319,10 @@ class PlotParCoor extends React.Component {
   }
 
   render() {
-    let cols = this.props.cols;
+    const cols = this.props.cols;
     let data = this.props.runs.map(run => {
-      let row = {name: run.name};
-      for (var col of cols) {
+      const row = {name: run.name};
+      for (const col of cols) {
         row[col] = getRunValue(run, col);
       }
       return row;
@@ -370,8 +361,11 @@ class ParCoordPanel extends React.Component {
   }
 
   _setup(props, nextProps) {
-    let {dimensions} = nextProps.config;
-    if (dimensions && nextProps.selections !== props.selections) {
+    const {dimensions} = nextProps.config;
+    if (
+      dimensions &&
+      (nextProps.selections !== props.selections || _.isEmpty(this.select))
+    ) {
       this.select = {};
       for (var dim of dimensions) {
         this.select[dim] = Selection.bounds(
@@ -387,9 +381,6 @@ class ParCoordPanel extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    //for (var prop of _.keys(nextProps)) {
-    //  console.log('prop equal?', prop, this.props[prop] === nextProps[prop]);
-    //}
     this._setup(this.props, nextProps);
   }
 
@@ -457,7 +448,7 @@ class ParCoordPanel extends React.Component {
   }
 
   renderNormal() {
-    let {dimensions} = this.props.config;
+    const {dimensions} = this.props.config;
     if (this.props.data.filtered && dimensions) {
       return (
         <PlotParCoor
@@ -517,7 +508,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
   return bindActionCreators({setFilters, setHighlight}, dispatch);
 };
 
-let ConnectParCoordPanel = connect(mapStateToProps, mapDispatchToProps)(
+const ConnectParCoordPanel = connect(mapStateToProps, mapDispatchToProps)(
   ParCoordPanel,
 );
 ConnectParCoordPanel.type = ParCoordPanel.type;
