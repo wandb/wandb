@@ -1,13 +1,13 @@
 import {
-  displayFilterKey,
   updateRuns,
   flatKeySuggestions,
   setupKeySuggestions,
-  filterRuns,
   sortRuns,
   getColumns,
 } from '../../util/runhelpers.js';
 import {JSONparseNaN} from '../../util/jsonnan';
+import * as Run from '../../util/runs';
+import * as Filter from '../../util/filters';
 import * as Query from '../../util/query';
 import _ from 'lodash';
 
@@ -20,7 +20,10 @@ function handleMessage(m, postMessage) {
   } else {
     runs = updateRuns(prevBuckets, buckets, runs);
   }
-  let filteredRuns = sortRuns(query.sort, filterRuns(query.filters, runs));
+  let filteredRuns = sortRuns(
+    query.sort,
+    Filter.filterRuns(query.filters, runs),
+  );
   let keySuggestions = setupKeySuggestions(runs);
   let filteredRunsById = {};
   for (var run of filteredRuns) {
@@ -28,7 +31,7 @@ function handleMessage(m, postMessage) {
   }
   let selectedRuns = [];
   if (_.size(query.selections) !== 0) {
-    selectedRuns = filterRuns(query.selections, filteredRuns);
+    selectedRuns = Filter.filterRuns(query.selections, filteredRuns);
   }
   let selectedRunsById = _.fromPairs(
     selectedRuns.map(run => [run.name, run.id])
@@ -36,7 +39,7 @@ function handleMessage(m, postMessage) {
 
   let keys = _.flatMap(keySuggestions, section => section.suggestions);
   let axisOptions = keys.map(key => {
-    let displayKey = displayFilterKey(key);
+    let displayKey = Run.displayKey(key);
     return {
       key: displayKey,
       value: displayKey,

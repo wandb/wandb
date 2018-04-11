@@ -15,7 +15,6 @@ import {
   numericKeysFromHistories,
 } from '../util/plotHelpers.js';
 
-import {addFilter} from '../actions/run';
 import * as Query from '../util/query';
 import * as Run from '../util/runhelpers.js';
 import * as UI from '../util/uihelpers.js';
@@ -311,66 +310,6 @@ class RunsLinePlotPanel extends React.Component {
           )}
         </div>
         <div style={{clear: 'both'}}>
-          {this.props.data.base.length !== 0 &&
-            data.length === 0 &&
-            this.props.data.selectedRuns.length === 0 &&
-            !loading && (
-              <div
-                style={{
-                  zIndex: 10,
-                  position: 'absolute',
-                  height: 200,
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <div
-                  style={{
-                    maxWidth: 300,
-                    backgroundColor: 'white',
-                    border: '1px solid #333',
-                    padding: 15,
-                  }}>
-                  <p>
-                    Select runs containing <i>{key}</i> in their history.
-                    <HelpIcon
-                      content={
-                        <div>
-                          <p>You can select runs by:</p>
-                          <List bulleted>
-                            <List.Item>
-                              Highlighting regions or axes in charts
-                            </List.Item>
-                            <List.Item>
-                              Checking them in the table below
-                            </List.Item>
-                            <List.Item>
-                              Manually adding selections above.
-                            </List.Item>
-                          </List>
-                        </div>
-                      }
-                    />
-                  </p>
-                  <p style={{textAlign: 'center'}}> - or - </p>
-                  <p style={{textAlign: 'center'}}>
-                    <Button
-                      content="Select All"
-                      onClick={() =>
-                        this.props.addFilter(
-                          'select',
-                          {section: 'run', value: 'id'},
-                          '=',
-                          '*',
-                        )
-                      }
-                    />{' '}
-                    {this.props.data.filtered.length} runs.
-                  </p>
-                </div>
-              </div>
-            )}
           {_.isNil(this.props.config.key) && (
             <div
               style={{
@@ -427,7 +366,7 @@ class RunsLinePlotPanel extends React.Component {
 registerPanelClass(RunsLinePlotPanel);
 
 const mapDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({addFilter}, dispatch);
+  return bindActionCreators({}, dispatch);
 };
 
 let ConnectRunsLinePlotPanel = connect(null, mapDispatchToProps)(
