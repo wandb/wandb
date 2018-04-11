@@ -6,6 +6,7 @@ import {
   Button,
   Grid,
   Icon,
+  Input,
   Popup,
   Transition,
 } from 'semantic-ui-react';
@@ -54,30 +55,24 @@ class Runs extends React.Component {
     this.props.refetch({order: [column, order].join(' ')});
   };
 
-  _setUrl(props, nextProps) {
-    if (
-      props.runFilters !== nextProps.runFilters ||
-      props.runSelections !== nextProps.runSelections ||
-      props.activeView !== nextProps.activeView
-    ) {
-      let query = {};
-      if (!_.isEmpty(nextProps.runFilters)) {
-        query.filters = Filter.toURL(nextProps.runFilters);
-      }
-      if (!_.isEmpty(nextProps.runSelections)) {
-        query.selections = Filter.toURL(nextProps.runSelections);
-      }
-      if (!_.isNil(nextProps.activeView)) {
-        query.activeView = nextProps.activeView;
-      }
-      let url = `/${nextProps.match.params.entity}/${
-        nextProps.match.params.model
-      }/runs`;
-      if (!_.isEmpty(query)) {
-        url += '?' + queryString.stringify(query);
-      }
-      window.history.replaceState(null, null, url);
+  _shareableUrl(props) {
+    let query = {};
+    if (!_.isEmpty(props.runFilters)) {
+      query.filters = Filter.toURL(props.runFilters);
     }
+    if (!_.isEmpty(props.runSelections)) {
+      query.selections = Filter.toURL(props.runSelections);
+    }
+    if (!_.isNil(props.activeView)) {
+      query.activeView = props.activeView;
+    }
+    return (
+      `${window.location.protocol}//${window.location.host}${
+        window.location.pathname
+      }` +
+      '?' +
+      queryString.stringify(query)
+    );
   }
 
   _readUrl(props) {
@@ -140,8 +135,6 @@ class Runs extends React.Component {
 
   componentDidMount() {
     this.doneLoading = false;
-
-    this._setUrl({}, this.props);
   }
 
   componentWillReceiveProps(nextProps) {
@@ -189,7 +182,6 @@ class Runs extends React.Component {
       }
       this.props.setServerViews(nextProps.views);
     }
-    this._setUrl(this.props, nextProps);
   }
 
   handleTabChange = (e, {activeIndex}) =>
@@ -212,26 +204,42 @@ class Runs extends React.Component {
           <Grid.Row divided columns={2}>
             <Grid.Column>{ModelInfo}</Grid.Column>
             <Grid.Column textAlign="right">
-              <p
-                style={{cursor: 'pointer'}}
-                onClick={() =>
-                  this.setState({showFilters: !this.state.showFilters})
-                }>
-                <Icon
-                  rotated={this.state.showFilters ? null : 'counterclockwise'}
-                  name="dropdown"
+              <p style={{marginBottom: '.5em'}}>
+                <Popup
+                  content={
+                    <Input
+                      style={{minWidth: 520}}
+                      value={this._shareableUrl(this.props)}
+                    />
+                  }
+                  style={{width: '100%'}}
+                  on="click"
+                  position="bottom right"
+                  wide="very"
+                  trigger={
+                    <Button
+                      style={{marginRight: 6}}
+                      icon="linkify"
+                      size="mini"
+                    />
+                  }
                 />
-                {filterCount === 0 && selectionCount === 0
-                  ? 'Filters / Selections'
-                  : filterCount +
-                    ' Filters / ' +
-                    selectionCount +
-                    ' Selections'}
-              </p>
-              <p>
                 {this.props.data.base.length} total runs,{' '}
                 {this.props.data.filtered.length} filtered,{' '}
                 {this.props.data.selectedRuns.length} selected
+              </p>
+              <p>
+                <span
+                  style={{cursor: 'pointer'}}
+                  onClick={() =>
+                    this.setState({showFilters: !this.state.showFilters})
+                  }>
+                  <Icon
+                    rotated={this.state.showFilters ? null : 'counterclockwise'}
+                    name="dropdown"
+                  />
+                  {filterCount + ' Filters'}
+                </span>
               </p>
             </Grid.Column>
           </Grid.Row>
@@ -251,25 +259,6 @@ class Runs extends React.Component {
                       <RunFiltersRedux
                         kind="filter"
                         buttonText="Add Filter"
-                        keySuggestions={flatKeySuggestions(
-                          this.props.data.keys,
-                        )}
-                        runs={this.props.data.base}
-                        filteredRuns={this.props.data.filtered}
-                      />
-                    </Grid.Column>
-                  </Grid.Row>
-                )}
-                {this.state.showFilters && (
-                  <Grid.Row>
-                    <Grid.Column width={16}>
-                      <h5 style={{marginBottom: 6}}>
-                        Selections
-                        <HelpIcon text="Selections control highlighted regions on charts, the runs displayed on History charts, and which runs are checked in the table." />
-                      </h5>
-                      <RunFiltersRedux
-                        kind="select"
-                        buttonText="Add Selection"
                         keySuggestions={flatKeySuggestions(
                           this.props.data.keys,
                         )}
