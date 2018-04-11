@@ -355,7 +355,7 @@ class RunFeedRow extends React.Component {
               </Table.Cell>
             );
           } else {
-            let key = columnName.split(':')[1];
+            let [section, key] = columnName.split(':');
             return (
               <Table.Cell
                 key={columnName}
@@ -367,7 +367,7 @@ class RunFeedRow extends React.Component {
                 }}
                 collapsing>
                 <ValueDisplay
-                  section="config"
+                  section={section}
                   valKey={key}
                   value={getRunValue(run, columnName)}
                   justValue
