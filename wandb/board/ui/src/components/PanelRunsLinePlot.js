@@ -17,6 +17,7 @@ import {
 
 import * as Query from '../util/query';
 import * as Run from '../util/runhelpers.js';
+import * as RunHelpers2 from '../util/runhelpers2';
 import * as UI from '../util/uihelpers.js';
 
 class RunsLinePlotPanel extends React.Component {
@@ -27,10 +28,36 @@ class RunsLinePlotPanel extends React.Component {
 
   constructor(props) {
     super(props);
+    this.keySuggestions = [];
   }
 
   static validForData(data) {
     return data && !_.isNil(data.histories);
+  }
+
+  _setupKeySuggestions(props) {
+    const keyValueCounts = RunHelpers2.keyValueCounts(
+      props.data.filtered,
+      Run.flatKeySuggestions(props.data.keys)
+    );
+    // Show keys that have at least one value.
+    this.keySuggestions = _.map(
+      keyValueCounts,
+      (valueCounts, key) => (_.keys(valueCounts).length >= 1 ? key : null)
+    ).filter(o => o);
+  }
+
+  componentWillMount() {
+    this._setupKeySuggestions(this.props);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (
+      this.props.data.filtered !== nextProps.data.filtered ||
+      this.props.data.keys !== nextProps.data.keys
+    ) {
+      this._setupKeySuggestions(nextProps);
+    }
   }
 
   scaledSmoothness() {
@@ -53,7 +80,7 @@ class RunsLinePlotPanel extends React.Component {
     // the point of this is to remove histories that aren't numerical (images)
     // and special histories that start with _
     let keys = numericKeysFromHistories(this.props.data.histories).filter(
-      key => !key.startsWith('_'),
+      key => !key.startsWith('_')
     );
     let yAxisOptions = keys.map(key => ({
       key: key,
@@ -78,7 +105,7 @@ class RunsLinePlotPanel extends React.Component {
           text: xAxisChoice,
           key: xAxisChoice,
           value: xAxisChoice,
-        }),
+        })
       );
 
     let groupByOptions = {};
@@ -110,9 +137,7 @@ class RunsLinePlotPanel extends React.Component {
                   search
                   multiple
                   selection
-                  options={UI.makeOptions(
-                    Run.flatKeySuggestions(this.props.data.keys),
-                  )}
+                  options={UI.makeOptions(this.keySuggestions)}
                   value={this.props.config.legendFields || ['name']}
                   onChange={(e, {value}) =>
                     this.props.updateConfig({
@@ -275,7 +300,7 @@ class RunsLinePlotPanel extends React.Component {
       this.props.config.groupBy || 'None',
       legendSpec,
       this.props.data,
-      this.props.config.yLogScale,
+      this.props.config.yLogScale
     );
     let title = key;
     if (Query.strategy(this.props.panelQuery) === 'merge') {
@@ -370,7 +395,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 };
 
 let ConnectRunsLinePlotPanel = connect(null, mapDispatchToProps)(
-  RunsLinePlotPanel,
+  RunsLinePlotPanel
 );
 ConnectRunsLinePlotPanel.type = RunsLinePlotPanel.type;
 ConnectRunsLinePlotPanel.options = RunsLinePlotPanel.yAxisOptions;

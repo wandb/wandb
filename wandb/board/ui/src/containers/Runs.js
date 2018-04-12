@@ -379,7 +379,6 @@ class Runs extends React.Component {
                   <Icon
                     style={{marginRight: 4}}
                     color="grey"
-                    size="medium"
                     name="checkmark box"
                   />{' '}
                   All
@@ -391,7 +390,6 @@ class Runs extends React.Component {
                   <Icon
                     style={{marginRight: 4}}
                     color="grey"
-                    size="medium"
                     name="square outline"
                   />{' '}
                   None
