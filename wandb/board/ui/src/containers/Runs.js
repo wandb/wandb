@@ -80,7 +80,7 @@ class Runs extends React.Component {
   _readUrl(props) {
     var parsed = queryString.parse(window.location.search);
     if (!parsed) {
-      returnj;
+      return;
     }
     let filterFilters;
     if (parsed.filters) {
