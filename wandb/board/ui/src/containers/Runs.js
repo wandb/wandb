@@ -1,8 +1,10 @@
 import React from 'react';
 import {graphql, compose, withApollo} from 'react-apollo';
 import {
+  Checkbox,
   Confirm,
   Container,
+  Dropdown,
   Button,
   Grid,
   Icon,
@@ -152,7 +154,7 @@ class Runs extends React.Component {
         Sweep: _.indexOf(nextProps.data.columnNames, 'Sweep') !== -1,
       };
       let summaryColumns = nextProps.data.columnNames.filter(col =>
-        _.startsWith(col, 'summary'),
+        _.startsWith(col, 'summary')
       );
       for (var col of summaryColumns) {
         defaultColumns[col] = true;
@@ -168,7 +170,7 @@ class Runs extends React.Component {
     ) {
       // no views on server, provide a default
       this.props.setBrowserViews(
-        defaultViews((nextProps.buckets.edges[0] || {}).node),
+        defaultViews((nextProps.buckets.edges[0] || {}).node)
       );
     } else if (
       nextProps.views &&
@@ -259,7 +261,7 @@ class Runs extends React.Component {
                         kind="filter"
                         buttonText="Add Filter"
                         keySuggestions={flatKeySuggestions(
-                          this.props.data.keys,
+                          this.props.data.keys
                         )}
                         runs={this.props.data.base}
                         filteredRuns={this.props.data.filtered}
@@ -351,6 +353,47 @@ class Runs extends React.Component {
               <Icon name="trash" />
               Hide {this.props.data.selectedRuns.length} run(s)
             </Button>
+            <Dropdown
+              icon={null}
+              trigger={
+                <Button>
+                  <Icon name="checkmark box" />
+                  Select
+                </Button>
+              }
+              onClick={(e, {value}) => console.log('dropdown click', value)}>
+              <Dropdown.Menu>
+                <Dropdown.Item
+                  onClick={() =>
+                    this.props.setFilters('select', Selection.all())
+                  }>
+                  <Icon
+                    style={{marginRight: 4}}
+                    color="grey"
+                    size="medium"
+                    name="checkmark box"
+                  />{' '}
+                  All
+                </Dropdown.Item>
+                <Dropdown.Item
+                  onClick={() =>
+                    this.props.setFilters('select', Selection.none())
+                  }>
+                  <Icon
+                    style={{marginRight: 4}}
+                    color="grey"
+                    size="medium"
+                    name="square outline"
+                  />{' '}
+                  None
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
+            {/* <p style={{float: 'right'}}>
+              Select
+              <a>all</a>
+              <a>none</a>
+            </p> */}
           </Grid.Column>
         </Grid>
         <RunFeed
@@ -393,7 +436,7 @@ const withMutations = compose(
         });
       },
     }),
-  }),
+  })
 );
 
 function mapStateToProps(state, ownProps) {
@@ -427,10 +470,10 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       resetViews,
       addView,
     },
-    dispatch,
+    dispatch
   );
 };
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withRunsQueryRedux(withRunsDataLoader(Runs))),
+  withMutations(withRunsQueryRedux(withRunsDataLoader(Runs)))
 );
