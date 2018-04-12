@@ -1,59 +1,79 @@
 .dashboard.night {
-    background-color: rgb(34, 37, 39);
+  background-color: rgb(34, 37, 39);
 }
 
 .dashboard.night > div {
-    color: #fff;
+  color: #fff;
 }
 
 /* Into the night */
 .dashboard .panel > div {
-    transition: background-color 1s linear, border 1s linear;
+  transition: background-color 1s linear, border 1s linear;
 }
 
 .dashboard .panel {
-    position: relative;
-    z-index: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .react-grid-layout {
-    position: relative;
+  position: relative;
 }
 
 .react-grid-item.panel > div {
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    overflow: hidden;
-    background-color: white;
-    border: 1px solid rgb(219, 219, 219);
-    border-radius: 4px;
-    padding: 5px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  overflow: hidden;
+  background-color: white;
+  border: 1px solid rgb(219, 219, 219);
+  border-radius: 4px;
+  padding: 5px;
 }
 
 .panel .edit {
-    display: none;
+  display: none;
 }
 
 .editing .panel .edit {
-    display: block;
-    position: absolute;
-    z-index: 1;
-    top: 6px;
-    right: 0;
-    border: none !important;
+  display: block;
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  right: 0;
+  border: none !important;
+}
+
+.panel .zoom {
+  display: none;
+}
+
+.display .panel .zoom {
+  display: block;
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  right: 0;
+  border: none !important;
+}
+
+.ui.fullscreen.modal {
+  width: 95% !important;
+  left: 2.5% !important;
+  margin: 1em auto;
+  height: 650;
 }
 
 .react-resizable-handle {
-    display: none;
-    pointer-events: none;
+  display: none;
+  pointer-events: none;
 }
 
 .editing .react-resizable-handle {
-    display: inline;
-    pointer-events: all;
+  display: inline;
+  pointer-events: all;
 }
 
 /* .editing .panel > div {
@@ -63,23 +83,23 @@
 } */
 
 .dashboard .panel > div {
-    box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .editing .panel.react-draggable-dragging > div {
-    box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.1);
 }
 
 .editing .panel.react-draggable-dragging,
 .editing .panel.resizing {
-    z-index: 2;
+  z-index: 2;
 }
 
 /* Why doesn't this work on drag */
 .editing .panel.react-draggable-dragging > div,
 .editing .panel.resizing > div {
-    border: 1px solid #a1a1a1;
-    background-color: #b1d5f3ee !important;
+  border: 1px solid #a1a1a1;
+  background-color: #b1d5f3ee !important;
 }
 
 /* .panel .actions {
@@ -96,8 +116,8 @@
 
 .editing .panel.react-draggable-dragging .actions,
 .editing .panel.resizing .actions {
-    opacity: 0;
-    transition: opacity 0.3s linear;
+  opacity: 0;
+  transition: opacity 0.3s linear;
 }
 
 /* .editing.dragging .actions {
@@ -105,37 +125,37 @@
 } */
 
 .editing .panel {
-    cursor: move;
-    transition: transform 0.3s;
+  cursor: move;
+  transition: transform 0.3s;
 }
 
 .editing .panel.react-draggable-dragging,
 .editing .panel.resizing {
-    transition: transform 0s;
+  transition: transform 0s;
 }
 
 .editing .panel .react-resizable-handle {
-    position: absolute;
-    width: 40px;
-    height: 40px;
-    bottom: 0;
-    right: 0;
-    cursor: nwse-resize;
-    z-index: 1;
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+  z-index: 1;
 }
 .react-grid-item > .react-resizable-handle::after {
-    content: "";
-    position: absolute;
-    right: 5px;
-    bottom: 5px;
-    width: 8px;
-    height: 8px;
-    border-right: 2px solid rgba(0, 0, 0, 0.4);
-    border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+  content: '';
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(0, 0, 0, 0.4);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
 }
 
 .editing .react-grid-placeholder {
-    z-index: 0;
-    background-color: #f2f2f2;
-    transition: all 0.15s linear;
+  z-index: 0;
+  background-color: #f2f2f2;
+  transition: all 0.15s linear;
 }

@@ -46,6 +46,10 @@
   version "9.4.0"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-9.4.0.tgz#b85a0bcf1e1cc84eb4901b7e96966aedc6f078d1"
 
+"@types/numeral@^0.0.22":
+  version "0.0.22"
+  resolved "https://registry.yarnpkg.com/@types/numeral/-/numeral-0.0.22.tgz#86bef1f0a2d743afdc2ef3168d45f2905e1a0b93"
+
 "@types/react@^16.1.0":
   version "16.1.0"
   resolved "https://registry.yarnpkg.com/@types/react/-/react-16.1.0.tgz#6c0e9955ce73f332b4a1948d45decaf18c764c6e"

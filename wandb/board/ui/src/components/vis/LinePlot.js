@@ -115,17 +115,62 @@ class LinePlotCrosshair extends React.PureComponent {
       line => !props.disabled[line.title] && line.data.length > 0 && !line.aux,
     );
 
-    for (var line of enabledLines) {
-      for (var point of line.data) {
-        if (_.isNil(this.highlights[point.x])) {
-          this.highlights[point.x] = [];
+    let longestLine = _.max(enabledLines.map(line => line.data.length));
+
+    if (longestLine > 200) {
+      // we're going to average points
+      let maxX = _.max(
+        enabledLines.map(line => {
+          return line.data[line.data.length - 1].x;
+        }),
+      );
+      let minX = _.min(enabledLines.map(line => line.data[0].x));
+      let steps = 50;
+      let step = (maxX - minX) / 50;
+      // we're gonna make an index for each line since they're sorted
+      // and increment them until the x value is higher than our current slice
+      let embededLinesIdx = enabledLines.map(line => 0);
+
+      for (let i = 0; i < steps; i++) {
+        let minSlice = i * step + minX;
+        let maxSlice = (i + 1) * step + minX;
+        let avgSlice = (i + 0.5) * step + minX;
+        this.highlights[avgSlice] = [];
+
+        for (let j = 0; j < embededLinesIdx.length; j++) {
+          let data = [];
+          let line = enabledLines[j];
+          while (
+            line.data[embededLinesIdx[j]] &&
+            line.data[embededLinesIdx[j]].x < maxSlice
+          ) {
+            data.push(enabledLines[j].data[embededLinesIdx[j]].y);
+            embededLinesIdx[j]++;
+          }
+          if (data.length > 0) {
+            this.highlights[avgSlice].push({
+              title: line.title.toString ? line.title.toString() : line.title,
+              color: line.color,
+              x: avgSlice,
+              y: _.mean(data),
+            });
+          }
         }
-        this.highlights[point.x].push({
-          title: line.title.toString ? line.title.toString() : line.title,
-          color: line.color,
-          x: point.x,
-          y: point.y,
-        });
+      }
+    } else {
+      // we're going to calculate every point exactly
+      for (var line of enabledLines) {
+        for (var point of line.data) {
+          if (_.isNil(this.highlights[point.x])) {
+            this.highlights[point.x] = [];
+          }
+          this.highlights[point.x].push({
+            title: line.title.toString ? line.title.toString() : line.title,
+            color: line.color,
+            x: point.x,
+            y: point.y,
+          });
+        }
       }
     }
 
@@ -134,11 +179,7 @@ class LinePlotCrosshair extends React.PureComponent {
     this.falseLine = [];
     if (enabledLines.length > 0) {
       let y = enabledLines[0].data[0].y;
-      let xs = _.sortBy(
-        _.uniq(
-          _.flatMap(enabledLines, line => line.data.map(point => point.x)),
-        ),
-      );
+      let xs = _.keys(this.highlights).map(k => Number(k));
       this.falseLine = xs.map(x => ({x: x, y: y}));
     }
   }
@@ -270,7 +311,7 @@ export default class LinePlot extends React.PureComponent {
           />
           <div style={{position: 'absolute', top: 0, width: '100%'}}>
             <LinePlotCrosshair
-              height={240}
+              height={this.props.currentHeight - 70 || 220}
               xAxis={this.props.xAxis}
               lines={this.props.lines}
               disabled={this.state.disabled}

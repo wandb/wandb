@@ -158,18 +158,6 @@ export function getRunValue(run, key) {
   return _getRunValueFromSectionName(run, section, name);
 }
 
-export function displayFilterKey(filterKey) {
-  if (filterKey.section && filterKey.value) {
-    if (filterKey.section === 'run') {
-      return filterKey.value;
-    } else {
-      return filterKey.section + ':' + filterKey.value;
-    }
-  } else {
-    return null;
-  }
-}
-
 export function filterKeyFromString(s) {
   let [section, name] = s.split(':', 2);
   if (_.isNil(name)) {
@@ -178,35 +166,9 @@ export function filterKeyFromString(s) {
   return {section: section, value: name};
 }
 
-export function filterToString(filter) {
-  return JSON.stringify([
-    displayFilterKey(filter.key),
-    filter.op,
-    filter.value,
-  ]);
-}
-
-export function filterFromString(s) {
-  let parsed;
-  try {
-    parsed = JSON.parse(s);
-  } catch (e) {
-    return null;
-  }
-  if (!_.isArray(parsed) || parsed.length !== 3) {
-    return null;
-  }
-  let [fullKey, op, value] = parsed;
-  let key = filterKeyFromString(fullKey);
-  if (_.isEmpty(key.section) || _.isEmpty(key.value)) {
-    return null;
-  }
-  return {key, op, value};
-}
-
 export function filtersForAxis(filters, axis) {
   let selections = _.values(filters);
-  let sels = selections.filter(sel => displayFilterKey(sel.key) === axis);
+  let sels = selections.filter(sel => Run.displayKey(sel.key) === axis);
   function getValueForOp(selections, op) {
     let opSel = _.find(selections, sel => sel.op === op);
     if (opSel) {
@@ -217,22 +179,6 @@ export function filtersForAxis(filters, axis) {
   return {low: getValueForOp(sels, '>'), high: getValueForOp(sels, '<')};
 }
 
-export function filterRuns(filters, runs) {
-  for (var filterID of _.keys(filters)) {
-    let filter = filters[filterID];
-    if (!filter.key.section) {
-      continue;
-    }
-    runs = runs.filter(run =>
-      runFilterCompare(
-        filter.op,
-        filter.value,
-        sortableValue(getRunValueFromFilterKey(run, filter.key)),
-      ),
-    );
-  }
-  return runs;
-}
 export function sortRuns(sort, runs) {
   if (!sort.name) {
     return runs;
@@ -266,9 +212,9 @@ export function sortRuns(sort, runs) {
       return -1;
     }
     if (sort.ascending) {
-      return valA > valB ? -1 : 1;
-    } else {
       return valA < valB ? -1 : 1;
+    } else {
+      return valA > valB ? -1 : 1;
     }
   };
   return runs.sort(cmp);
@@ -303,15 +249,16 @@ export function stateToIcon(state, key) {
 }
 
 export class RunFancyName {
-  constructor(run, spec) {
+  constructor(run, spec, prefix = '') {
     this._run = run;
     this._spec = spec;
+    this._prefix = prefix;
   }
 
   special = {
     createdAt: value => (
       <span key="createdAt">
-        (started <TimeAgo date={value} />){' '}
+        (started <TimeAgo date={new Date(value)} />){' '}
       </span>
     ),
     stateIcon: () => stateToIcon(this._run.state, 'stateIcon'),
@@ -327,6 +274,7 @@ export class RunFancyName {
     }
     return (
       <span>
+        {this.prefix}{' '}
         {this._spec
           .map(key => {
             let value = getRunValue(this._run, key);
@@ -346,11 +294,14 @@ export class RunFancyName {
   }
 
   toString() {
-    return this._spec
-      .map(key => (this.special[key] ? null : getRunValue(this._run, key)))
-      .filter(o => o)
-      .map(val => displayValue(val))
-      .join(' ');
+    return (
+      this._prefix +
+      this._spec
+        .map(key => (this.special[key] ? null : getRunValue(this._run, key)))
+        .filter(o => o)
+        .map(val => displayValue(val))
+        .join(' ')
+    );
   }
 }
 
@@ -558,7 +509,7 @@ export function setupKeySuggestions(runs) {
       title: 'run',
       suggestions: runSuggestions.map(suggestion => ({
         section: 'run',
-        value: suggestion,
+        name: suggestion,
       })),
     },
     {
@@ -567,7 +518,7 @@ export function setupKeySuggestions(runs) {
         .sort()
         .map(tag => ({
           section: 'tags',
-          value: tag,
+          name: tag,
         })),
     },
     {
@@ -578,14 +529,14 @@ export function setupKeySuggestions(runs) {
       title: 'config',
       suggestions: getSectionSuggestions('config').map(suggestion => ({
         section: 'config',
-        value: suggestion,
+        name: suggestion,
       })),
     },
     {
       title: 'summary',
       suggestions: getSectionSuggestions('summary').map(suggestion => ({
         section: 'summary',
-        value: suggestion,
+        name: suggestion,
       })),
     },
   ];
@@ -596,32 +547,8 @@ export function flatKeySuggestions(keySuggestions) {
   return _.flatMap(keySuggestions, section =>
     section.suggestions.map(
       suggestion =>
-        section.title === 'run'
-          ? suggestion.value
-          : displayFilterKey(suggestion),
+        section.title === 'run' ? suggestion.name : Run.displayKey(suggestion),
     ),
-  );
-}
-
-export function setupKeyValueCounts(runs, keys, filters) {
-  runs = filterRuns(filters, runs);
-  let result = {};
-  for (let key of keys) {
-    let keyResult = {};
-    for (let run of runs) {
-      let value = getRunValue(run, key);
-      let valueKey = sortableValue(value);
-      if (_.isNil(keyResult[valueKey])) {
-        keyResult[valueKey] = {value: valueKey, count: 0};
-      }
-      keyResult[valueKey].count++;
-    }
-    result[key] = keyResult;
-  }
-  return _.mapValues(result, valCounts =>
-    _.sortBy(_.map(valCounts, val => val).filter(val => !_.isNil(val.value)), [
-      'value',
-    ]),
   );
 }
 

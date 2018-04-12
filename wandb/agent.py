@@ -12,7 +12,7 @@ import six
 
 import wandb
 from wandb.api import Api
-from wandb.config import Config
+from wandb.wandb_config import Config
 from wandb import util
 from wandb import wandb_run
 

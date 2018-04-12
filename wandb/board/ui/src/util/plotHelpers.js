@@ -7,6 +7,7 @@ import {
   runDisplayName,
   RunFancyName,
   groupConfigIdx,
+  truncateString,
 } from '../util/runhelpers.js';
 
 const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -84,7 +85,10 @@ export function numericKeysFromHistory(history) {
   if (!history || history.length == 0) {
     return [];
   }
-  return _.keys(history[0]).filter(k => !history[0][k]._type); // remove images and media
+
+  return _.keys(history[0]).filter(
+    k => !(history[0][k] && history[0][k]._type),
+  ); // remove images and media
 }
 
 export function xAxisChoices(data) {
@@ -122,8 +126,7 @@ export function monotonicIncreasingNames(data, historyKeys) {
   historyKeys = historyKeys.filter(k => {
     for (var i = 0; i < data.history.length; i++) {
       var row = data.history[i];
-      if (row[k])
-        return Boolean(row[k]._type);
+      if (row[k]) return Boolean(row[k]._type);
     }
   });
 
@@ -233,6 +236,47 @@ function filterNegative(lines) {
   });
 }
 
+export function smoothArea(data, smoothingWeight) {
+  // LB: this is pretty ugly but areas have two numbers to smooth simultaneously y and y0
+  // we will return smoothed and smoothed0
+  // right now things are broken and I think this is the safest way to do it.
+  // definitely should be refactored later
+  let last = data.length > 0 ? 0 : NaN;
+  let last0 = data.length > 0 ? 0 : NaN;
+
+  let numAccum = 0;
+  let numAccum0 = 0;
+
+  data.forEach((d, i) => {
+    let nextVal = d.y;
+    if (!_.isFinite(last)) {
+      d.smoothed = nextVal;
+    } else {
+      last = last * smoothingWeight + (1 - smoothingWeight) * nextVal;
+      numAccum++;
+
+      let debiasWeight = 1;
+      if (smoothingWeight !== 1.0) {
+        debiasWeight = 1.0 - Math.pow(smoothingWeight, numAccum);
+      }
+      d.smoothed = last / debiasWeight;
+    }
+    let nextVal0 = d.y0;
+    if (!_.isFinite(last0)) {
+      d.smoothed0 = nextVal0;
+    } else {
+      last0 = last0 * smoothingWeight + (1 - smoothingWeight) * nextVal0;
+      numAccum0++;
+
+      let debiasWeight = 1;
+      if (smoothingWeight !== 1.0) {
+        debiasWeight = 1.0 - Math.pow(smoothingWeight, numAccum0);
+      }
+      d.smoothed0 = last0 / debiasWeight;
+    }
+  });
+}
+
 export function smooth(data, smoothingWeight) {
   /** data is array of x/y objects
    * x is always an index as this is used, so x-distance between each
@@ -268,7 +312,7 @@ export function smooth(data, smoothingWeight) {
   });
 }
 
-export function smoothLine(lineData, smoothingWeight) {
+export function smoothLine(lineData, smoothingWeight, area = false) {
   /**
    * Scale lines by smoothingWeight
    * smoothingWeight should be between 0 and 1
@@ -277,14 +321,22 @@ export function smoothLine(lineData, smoothingWeight) {
    * Keeps the original lines passed in and adds a new line
    * with the name of the original line plus -smooth.
    */
-
   let smoothLineData = {name: lineData.name + '-smooth', data: []};
   if (smoothingWeight) {
-    smooth(lineData, smoothingWeight);
-    smoothLineData = lineData.map(point => ({
-      x: point.x,
-      y: point.smoothed,
-    }));
+    if (area) {
+      smoothArea(lineData, smoothingWeight);
+      smoothLineData = lineData.map(point => ({
+        x: point.x,
+        y: point.smoothed,
+        y0: point.smoothed0,
+      }));
+    } else {
+      smooth(lineData, smoothingWeight);
+      smoothLineData = lineData.map(point => ({
+        x: point.x,
+        y: point.smoothed,
+      }));
+    }
   }
   return smoothLineData;
 }
@@ -299,22 +351,12 @@ export function smoothLines(lines, smoothingWeight) {
     return lines;
   }
 
-  // we want to leave alone the auxiliary lines
-  let specialLines = lines.filter(line => line.aux);
-
-  let smoothedLines = lines.filter(line => !line.aux).map((line, i) => ({
+  let smoothedLines = lines.map((line, i) => ({
     ...line,
-    data: smoothLine(line.data, smoothingWeight),
-    color: color(i, 0.8),
+    data: smoothLine(line.data, smoothingWeight, line.area),
   }));
 
-  // we want to leave a light trace of the original lines (except aux lines)
-  let origLines = lines.filter(line => !line.aux).map((line, i) => ({
-    ...line,
-    aux: true,
-    color: color(i, 0.1),
-  }));
-  return _.concat(specialLines, origLines, smoothedLines);
+  return _.concat(smoothedLines);
 }
 
 export function avgPointsByBucket(points, bucketCount, min, max) {
@@ -592,7 +634,7 @@ export function linesFromDataRunsPlot(
           aggLines,
           aggregateLines(
             lineGroup,
-            key + ' ' + groupBy + ':' + displayValue(configVal),
+            groupBy + ':' + displayValue(configVal),
             i++,
             bucketAggregation,
           ),

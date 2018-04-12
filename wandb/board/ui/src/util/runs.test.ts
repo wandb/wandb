@@ -24,8 +24,8 @@ describe('Runs Factory', () => {
       description: '',
       user: {username: 'mcgee', photoUrl: 'example.com'},
       host: 'angry.local',
-      createdAt: new Date(CREATED_AT + 'z'),
-      heartbeatAt: new Date(CREATED_AT + 'z'),
+      createdAt: new Date(CREATED_AT + 'z').toISOString(),
+      heartbeatAt: new Date(CREATED_AT + 'z').toISOString(),
       tags: ['a', 'b'],
       config: {'akey.subkey': 14, bkey: null},
       summary: {acc: 0.14},
@@ -85,5 +85,32 @@ describe('Run', () => {
       name: 'akey.subkey',
     });
     expect(configValue).toBe(14);
+  });
+});
+
+describe('parseValue', () => {
+  it('parses "true"', () => {
+    const result = Run.parseValue('true');
+    expect(result).toEqual(true);
+  });
+
+  it('parses "null"', () => {
+    const result = Run.parseValue('null');
+    expect(result).toEqual(null);
+  });
+
+  it('parses number string', () => {
+    const result = Run.parseValue('3.5321');
+    expect(result).toEqual(3.5321);
+  });
+
+  it('parses number with decimal as string', () => {
+    const result = Run.parseValue('3.');
+    expect(result).toEqual('3.');
+  });
+
+  it('passes number through', () => {
+    const result = Run.parseValue(3.1);
+    expect(result).toEqual(3.1);
   });
 });
