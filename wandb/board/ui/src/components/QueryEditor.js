@@ -1,3 +1,4 @@
+import _ from 'lodash';
 import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
@@ -19,13 +20,12 @@ class QueryEditor extends React.Component {
   }
 
   setFilters(newFilters) {
-    console.log('SETTING newFilters', newFilters);
     this.props.setQuery(
       update(this.query, {
         filters: {
           $set: newFilters,
         },
-      }),
+      })
     );
   }
 

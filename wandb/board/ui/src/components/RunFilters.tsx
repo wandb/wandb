@@ -32,7 +32,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
   componentWillMount() {
     const filtered = Filter.filterRuns(
       this.props.otherFilters,
-      this.props.runs,
+      this.props.runs
     );
     this.keyValueCounts = RunHelpers2.keyValueCounts(filtered, this.props.keys);
     this.setupValueSuggestions(this.props);
@@ -135,7 +135,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
               _.map(
                 this.keyValueCounts,
                 (valueCounts, key) =>
-                  _.keys(valueCounts).length > 1 ? key : null,
+                  _.keys(valueCounts).length > 1 ? key : null
               ).filter(o => o) as string[]
             }
             storedKey={Run.displayKey(this.props.filterKey)}
@@ -159,28 +159,21 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
             />
           </Form.Field>
         )}
-        {this.props.op === '=' || this.props.op === '!=' ? (
-          <Form.Field>
-            <Dropdown
-              options={this.valueSuggestions}
-              placeholder="value"
-              search
-              selection
-              value={Run.domValue(this.props.value)}
-              onChange={(e, {value}) => {
-                this.props.setFilterValue(Run.parseValue(value));
-                this.props.close();
-              }}
-            />
-          </Form.Field>
-        ) : (
-          <Form.Input
-            value={this.props.value}
+        <Form.Field>
+          <Dropdown
+            additionLabel=""
+            allowAdditions
+            options={this.valueSuggestions}
+            placeholder="value"
+            search
+            selection
+            value={Run.domValue(this.props.value)}
             onChange={(e, {value}) => {
               this.props.setFilterValue(Run.parseValue(value));
             }}
+            onClose={() => this.props.close()}
           />
-        )}
+        </Form.Field>
       </Form>
     );
   }
@@ -451,19 +444,19 @@ export default class RunFilters extends React.Component<
             pushFilter={(newFilter: Filter.Filter) => {
               this.props.setFilters(
                 kind,
-                Filter.Update.groupPush(filters, [i], newFilter),
+                Filter.Update.groupPush(filters, [i], newFilter)
               );
             }}
             deleteFilter={(index: number) =>
               this.props.setFilters(
                 kind,
-                Filter.Update.groupRemove(filters, [i], index),
+                Filter.Update.groupRemove(filters, [i], index)
               )
             }
             setFilter={(index: number, f: Filter.Filter) =>
               this.props.setFilters(
                 kind,
-                Filter.Update.setFilter(filters, [i, index], f),
+                Filter.Update.setFilter(filters, [i, index], f)
               )
             }
           />

@@ -135,7 +135,7 @@ function checkIndividualFilter(filter: any): IndividualFilter | null {
   console.log(
     'calling parseValue',
     JSON.stringify(filter.value),
-    JSON.stringify(Run.parseValue(filter.value)),
+    JSON.stringify(Run.parseValue(filter.value))
   );
   return {
     key: filterKey,
@@ -226,7 +226,7 @@ export function fromOldQuery(oldQuery: any): Filter | null {
               op: f.op,
               value: f.value,
             }
-          : null,
+          : null
     )
     .filter(o => o);
   return {op: 'OR', filters: [{op: 'AND', filters: individualFilters}]};
@@ -252,7 +252,7 @@ export function flatIndividuals(filter: Filter): IndividualFilter[] {
   } else if (isGroup(filter)) {
     return filter.filters.reduce(
       (acc, f) => acc.concat(flatIndividuals(f)),
-      [] as IndividualFilter[],
+      [] as IndividualFilter[]
     );
   }
   return [];
@@ -263,6 +263,10 @@ export function countIndividual(filter: Filter): number {
 }
 
 export function summaryString(filter: Filter): string {
+  // This just finds all individual filters in the tree and displays
+  // them as a comma-separated list. Obviously not fully descriptive,
+  // but works for the common case where we have a single AND within
+  // an OR
   const filts = flatIndividuals(filter);
   const filtStrs = _.map(
     filts,
@@ -271,7 +275,7 @@ export function summaryString(filter: Filter): string {
       ' ' +
       filt.op +
       ' ' +
-      Run.displayValue(filt.value),
+      Run.displayValue(filt.value)
   );
   return filtStrs.join(', ');
 }
