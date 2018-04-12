@@ -60,6 +60,14 @@ export const MODEL_UPSERT = gql`
         views: $views
       }
     ) {
+      project {
+        id
+        name
+        entityName
+        description
+        access
+        views
+      }
       model {
         id
         name

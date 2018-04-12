@@ -86,8 +86,8 @@ const withMutations = compose(
           variables: {...variables},
           updateQueries: {
             Model: (prev, {mutationResult}) => {
-              const newModel = mutationResult.data.upsertModel.model;
-              return update(prev, {model: newModel});
+              const res = mutationResult.data.upsertModel;
+              return update(prev, {project: {$merge: res.project}});
             },
           },
         }),

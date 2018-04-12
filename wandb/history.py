@@ -12,6 +12,7 @@ from threading import Lock
 import warnings
 import weakref
 import six
+import traceback
 
 from wandb.wandb_torch import TorchHistory
 import wandb

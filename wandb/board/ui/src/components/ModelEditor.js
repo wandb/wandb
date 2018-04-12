@@ -160,11 +160,13 @@ class ModelEditor extends React.Component {
                       name: '',
                     });
                     if (this.props.addModel)
-                      this.props.addModel(res.data.upsertModel.project);
+                      this.props.addModel(res.data.upsertModel.model);
                   } else {
-                    window.location.href = `/${this.props.project.entityName}/${
-                      res.data.upsertModel.project.name
-                    }`;
+                    this.props.history.push(
+                      `/${this.props.project.entityName}/${
+                        res.data.upsertModel.model.name
+                      }`,
+                    );
                   }
                 });
             }}
@@ -172,12 +174,12 @@ class ModelEditor extends React.Component {
         </Button.Group>
 
         <Button.Group size="small" floated="right">
-          this.props.project.id && (
-          <DangerModal
-            button={{negative: true, icon: 'trash'}}
-            yes={() => this.props.delete(this.props.project.id)}
-          />
-          )
+          {this.props.project.id && (
+            <DangerModal
+              button={{negative: true, icon: 'trash'}}
+              yes={() => this.props.delete(this.props.project.id)}
+            />
+          )}
         </Button.Group>
       </Form>
     );

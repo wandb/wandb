@@ -145,11 +145,11 @@ class RunEditor extends React.Component {
                         id: this.props.run.id,
                       })
                       .then(res => {
-                        window.location.href = `/${
-                          this.props.project.entityName
-                        }/${this.props.project.name}/runs/${
-                          res.data.upsertBucket.bucket.name
-                        }`;
+                        this.props.history.push(
+                          `/${this.props.project.entityName}/${
+                            this.props.project.name
+                          }/runs/${res.data.upsertBucket.bucket.name}`,
+                        );
                       });
                   }}
                 />

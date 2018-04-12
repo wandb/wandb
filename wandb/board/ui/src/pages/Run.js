@@ -87,6 +87,7 @@ class Run extends React.Component {
             project={this.props.project}
             run={this.props.run}
             submit={this.props.submit}
+            history={this.props.history}
           />
         ) : (
           <RunViewer
@@ -180,7 +181,7 @@ const withMutations = compose(
           updateQueries: {
             Model: (prev, {mutationResult}) => {
               const bucket = mutationResult.data.upsertBucket.bucket;
-              return update(prev, {model: {bucket: {$set: bucket}}});
+              return update(prev, {project: {run: {$merge: bucket}}});
             },
           },
         });
@@ -195,7 +196,7 @@ const withMutations = compose(
           updateQueries: {
             Model: (prev, {mutationResult}) => {
               const newModel = mutationResult.data.upsertModel.model;
-              return update(prev, {model: {$set: newModel}});
+              return update(prev, {project: {$merge: newModel}});
             },
           },
         }),
