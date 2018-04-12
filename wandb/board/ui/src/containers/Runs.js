@@ -357,7 +357,16 @@ class Runs extends React.Component {
               icon={null}
               trigger={
                 <Button>
-                  <Icon name="checkmark box" />
+                  <Icon
+                    name={
+                      this.props.data.selectedRuns.length === 0
+                        ? 'square outline'
+                        : this.props.data.selectedRuns.length ===
+                          this.props.data.filtered.length
+                          ? 'checkmark box'
+                          : 'minus square outline'
+                    }
+                  />
                   Select
                 </Button>
               }
