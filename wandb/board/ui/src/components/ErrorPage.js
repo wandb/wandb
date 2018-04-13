@@ -27,7 +27,7 @@ const ErrorPage = ({error, history, dispatch}) => {
     exFatal: fatal === true,
   });
   let instructions = 'Report the issue at github.com/wandb/client/issues.';
-  if (message.match('has been deemed inappropriate')) {
+  if (message.match('is a reserved word')) {
     // this is a 400 when the name is on our banned list
     icon = 'frown';
     title = 'Bad name';
