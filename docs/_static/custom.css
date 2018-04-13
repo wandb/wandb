@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css?family=Lora');
-
 .body a.reference {
   font-weight: bold;
 }
@@ -27,21 +25,21 @@ div.sphinxsidebar form {
   max-width: 200px;
 }
 
-div.sphinxsidebar #searchbox input[type=text] {
+div.sphinxsidebar #searchbox input[type='text'] {
   width: 150px;
 }
 
-div.sphinxsidebar input[type=text],
-input[name=q],
-input[value=search] {
+div.sphinxsidebar input[type='text'],
+input[name='q'],
+input[value='search'] {
   outline: none;
   border: 1px dotted #ccc;
   font-size: 1.5em;
   padding: 4px 38px 4px 10px;
 }
 
-div.sphinxsidebar input[type=submit],
-.body input[type=submit] {
+div.sphinxsidebar input[type='submit'],
+.body input[type='submit'] {
   position: absolute;
   padding: 4px;
   font-size: 1.5em;

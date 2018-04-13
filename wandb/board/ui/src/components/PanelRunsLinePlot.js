@@ -112,7 +112,7 @@ class RunsLinePlotPanel extends React.Component {
     let disabled = this.props.data.histories.data.length === 0;
 
     return (
-      <div>
+      <div className="runs-line-plot">
         {!this.props.data.loading &&
           (!yAxisOptions || yAxisOptions.length == 0) && (
             <div className="ui negative message">
@@ -285,7 +285,7 @@ class RunsLinePlotPanel extends React.Component {
     }
     let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
 
-    let key = this.props.config.key;
+    let yAxis = this.props.config.key;
     // Always show running Icon in legend.
     let legendSpec = (this.props.config.legendFields || ['name']).concat([
       'runningIcon',
@@ -293,7 +293,7 @@ class RunsLinePlotPanel extends React.Component {
 
     let lines = linesFromDataRunsPlot(
       data,
-      key,
+      yAxis,
       this.props.config.xAxis || '_step',
       this.scaledSmoothness(),
       this.props.config.aggregate,
@@ -302,16 +302,23 @@ class RunsLinePlotPanel extends React.Component {
       this.props.data,
       this.props.config.yLogScale
     );
-    let title = key;
+    lines.map(
+      (line, i) =>
+        !line.area &&
+        (line.mark = i < 5 ? 'solid' : i < 10 ? 'dashed' : 'dotted')
+    );
+
+    let title = yAxis;
     if (Query.strategy(this.props.panelQuery) === 'merge') {
       let querySummary = Query.summaryString(this.props.panelQuery);
-      if (querySummary) {
-        title += ' (' + querySummary + ')';
-      }
+
       if (this.props.panelQuery.model) {
-        title = this.props.panelQuery.model + ':' + title;
+        title = this.props.panelQuery.model + ' (' + querySummary + ')';
+      } else {
+        title = yAxis + ' (' + querySummary + ')';
       }
     }
+
     return (
       <div>
         <h4 style={{display: 'inline'}}>
@@ -326,7 +333,7 @@ class RunsLinePlotPanel extends React.Component {
               />
             )}
         </h4>
-        <div style={{float: 'right', marginRight: 10}}>
+        <div style={{float: 'right', marginRight: 15}}>
           {totalRuns > maxRuns && (
             <span style={{fontSize: 13}}>
               {/* <HelpIcon text="Run history plots are currently limited in the amount of data they can display. You can control runs displayed here by changing your selections." /> */}
@@ -363,6 +370,7 @@ class RunsLinePlotPanel extends React.Component {
           )}
           <LinePlot
             xAxis={xAxisLabel(this.props.config.xAxis, lines)}
+            yAxis={yAxis}
             yScale={this.props.config.yLogScale ? 'log' : 'linear'}
             xScale={this.props.config.xLogScale ? 'log' : 'linear'}
             lines={lines}

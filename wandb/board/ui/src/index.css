@@ -1,5 +1,58 @@
+
+
+
+
+@font-face {
+  font-family: "graphein";
+  src: url(./fonts/grapheinpro-book-webfont.woff) format('woff');
+}
+
+@font-face {
+  font-family: "graphein";
+  src: url(./fonts/grapheinpro-bold-webfont.woff) format('woff');
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: "graphein";
+  src: url(./fonts/grapheinpro-bolditalic-webfont.woff) format('woff');
+  font-weight: bold;
+  font-style: italic;
+}
+
+
+@font-face {
+  font-family: "graphein";
+  src: url(./fonts/grapheinpro-italic-webfont.woff) format('woff');
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "graphein";
+  src: url(./fonts/grapheinpro-light-webfont.woff) format('woff');
+  font-weight: lighter;
+}
+
+@font-face {
+  font-family: "graphein";
+  src: url(./fonts/grapheinpro-lightitalic-webfont.woff) format('woff');
+  font-weight: lighter;
+  font-style: italic;
+}
+/*
+@font-face {
+  font-family: "graphein";
+  src: url(./fonts/grapheinpro-black-webfont.woff) format('woff');
+  font-weight: bolder;
+}
+*/
+
+
 body {
   margin: 0;
   padding: 0;
-  font-family: sans-serif;
+  /*font-family: "graphein";*/
+}
+:root {
+  --primary-color: #007FAF;
 }
