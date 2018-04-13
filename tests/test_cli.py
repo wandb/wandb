@@ -243,6 +243,21 @@ def test_projects_error(runner, request_mocker, query_projects):
     assert "Error" in result.output
 
 
+def test_login_key_arg(runner, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        # If the test was run from a directory containing .wandb, then __stage_dir__
+        # was '.wandb' when imported by api.py, reload to fix. UGH!
+        reload(wandb)
+        result = runner.invoke(cli.login, [DUMMY_API_KEY])
+        print('Output: ', result.output)
+        print('Exception: ', result.exception)
+        print('Traceback: ', traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        with open("netrc", "r") as f:
+            generatedNetrc = f.read()
+        assert DUMMY_API_KEY in generatedNetrc
+
+
 def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer):
     mock = query_projects(request_mocker)
     query_viewer(request_mocker)
@@ -262,6 +277,7 @@ def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_
             generatedWandb = f.read()
         assert DUMMY_API_KEY in generatedNetrc
         assert "test_model" in generatedWandb
+        assert "Successfully logged in" in result.output
 
 
 @pytest.mark.teams("foo", "bar")
