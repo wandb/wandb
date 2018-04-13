@@ -237,6 +237,7 @@ export function stateToIcon(state, key) {
   let icon = 'check',
     color = 'green';
   if (state === 'failed' || state === 'crashed') {
+    return null;
     icon = 'remove';
     color = 'red';
   } else if (state === 'killed') {
