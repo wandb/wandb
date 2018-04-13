@@ -81,23 +81,30 @@ class TabbedViews extends React.Component {
             }}
           />
         )}
-        {!this.props.fullScreen && (
-          <Popup
-            trigger={
-              <Button
-                content={
-                  this.props.viewType === 'dashboards'
-                    ? null
-                    : this.state.editMode ? 'View Charts' : 'Edit Charts'
-                }
-                floated="right"
-                icon={this.state.editMode ? 'unhide' : 'configure'}
-                onClick={() => this.setState({editMode: !this.state.editMode})}
-              />
-            }
-            content="Edit Charts"
+        {this.props.viewType !== 'dashboards' && (
+          <Button
+            content={this.state.editMode ? 'View Charts' : 'Edit Charts'}
+            floated="right"
+            icon={this.state.editMode ? 'unhide' : 'configure'}
+            onClick={() => this.setState({editMode: !this.state.editMode})}
           />
         )}
+
+        {!this.props.fullScreen &&
+          (this.props.viewType === 'dashboards' && (
+            <Popup
+              trigger={
+                <Button
+                  floated="right"
+                  icon={this.state.editMode ? 'unhide' : 'configure'}
+                  onClick={() =>
+                    this.setState({editMode: !this.state.editMode})
+                  }
+                />
+              }
+              content="Edit Charts"
+            />
+          ))}
         {this.props.viewType === 'dashboards' &&
           !this.props.fullScreen && (
             <Popup
