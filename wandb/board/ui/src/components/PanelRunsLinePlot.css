@@ -1,4 +1,5 @@
-.viewMode {
+/* this fixes the charts in the dashboard to line up */
+.viewMode:not(.modal) {
   position: absolute;
   bottom: 0px;
 }

@@ -99,6 +99,7 @@ class LinePlotPlot extends React.PureComponent {
                     color={line.color}
                     data={line.data}
                     getNull={d => d.y !== null}
+                    stroke={'#0000'}
                   />
                 ) : (
                   <LineSeries
