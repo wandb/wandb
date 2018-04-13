@@ -27,11 +27,11 @@ try:
 except ImportError:  # windows
     tty = None
 import types
-import webbrowser
 
+from . import env
 from . import io_wrap
 
-__root_dir__ = os.getenv("WANDB_DIR", "./")
+__root_dir__ = env.get_dir('./')
 
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists(os.path.join(__root_dir__, '.wandb')):
@@ -76,8 +76,8 @@ class Error(Exception):
 
 # These imports need to be below __stage_dir__ declration until we remove
 # 'from wandb import __stage_dir__' from api.py etc.
+import wandb.api
 from wandb import wandb_types as types
-from wandb import api as wandb_api
 from wandb import wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
@@ -149,12 +149,11 @@ class ExitHooks(object):
             traceback.print_exception(exc_type, exc, *tb)
 
 
-def _init_headless(api, run, job_type, cloud=True):
-    if 'WANDB_DESCRIPTION' in os.environ:
-        run.description = os.environ['WANDB_DESCRIPTION']
+def _init_headless(run, job_type, cloud=True):
+    run.description = env.get_description(run.description)
 
-    env = dict(os.environ)
-    run.set_environment(env)
+    environ = dict(os.environ)
+    run.set_environment(environ)
 
     server = wandb_socket.Server()
     run.socket = server
@@ -192,7 +191,7 @@ def _init_headless(api, run, job_type, cloud=True):
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
     subprocess.Popen(['/usr/bin/env', 'python', internal_cli_path, json.dumps(
-        headless_args)], env=env, **popen_kwargs)
+        headless_args)], env=environ, **popen_kwargs)
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
 
@@ -203,7 +202,7 @@ def _init_headless(api, run, job_type, cloud=True):
     stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
     stdout_redirector.redirect()
-    if os.environ.get('WANDB_DEBUG') != 'true':
+    if env.get_debug():
         stderr_redirector.redirect()
 
     # Listen on the socket waiting for the wandb process to be ready
@@ -240,6 +239,15 @@ def log(history_row):
     run.history.add(history_row)
 
 
+def ensure_configured():
+    api = wandb.api.Api()
+    # The WANDB_DEBUG check ensures tests still work.
+    if not env.is_debug() and not api.settings('project'):
+        termlog('wandb.init() called but system not configured.\n'
+                      'Run "wandb init" or set environment variables to get started')
+        sys.exit(1)
+
+
 def uninit():
     """Undo the effects of init(). Useful for testing.
     """
@@ -261,6 +269,8 @@ def init(job_type='train', config=None):
     if run or os.getenv('WANDB_INITED'):
         return run
 
+    raise Exception('asdf')
+
     if __stage_dir__ is None:
         __stage_dir__ = "wandb"
         util.mkdir_exists_ok(wandb_dir())
@@ -278,30 +288,20 @@ def init(job_type='train', config=None):
         config = c
     set_global_config(run.config)
 
-    api = wandb_api.Api()
-    api.set_current_run_id(run.id)
     if run.mode == 'clirun' or run.mode == 'run':
-        api.ensure_configured()
+        ensure_configured()
 
         if run.mode == 'run':
-            _init_headless(api, run, job_type)
+            _init_headless(run, job_type)
 
-        def config_persist_callback():
-            api.upsert_run(id=run.storage_id, name=run.id, project=api.settings(
-                'project'), entity=api.settings('entity'),
-                config=run.config.as_dict())
         # set the run directory in the config so it actually gets persisted
         run.config.set_run_dir(run.dir)
-        run.config.set_persist_callback(config_persist_callback)
-
-        if bool(os.environ.get('WANDB_SHOW_RUN')):
-            webbrowser.open_new_tab(run.get_url(api))
     elif run.mode == 'dryrun':
         termlog(
             'wandb dry run mode. Run `wandb board` from this directory to see results')
         termlog()
         run.config.set_run_dir(run.dir)
-        _init_headless(api, run, job_type, False)
+        _init_headless(run, job_type, False)
     else:
         termlog(
             'Invalid run mode "%s". Please unset WANDB_MODE to do a dry run or' % run.mode)
@@ -318,4 +318,4 @@ def init(job_type='train', config=None):
     return run
 
 
-__all__ = ['init', 'config', 'termlog', 'run', 'types', 'callbacks', 'uninit']
+__all__ = ['init', 'config', 'termlog', 'run', 'types', 'callbacks']
