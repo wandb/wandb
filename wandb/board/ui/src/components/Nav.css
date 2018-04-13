@@ -11,6 +11,10 @@
   padding-bottom: 5px !important;
 }
 
+.ui.menu {
+  box-shadow: none !important;
+}
+
 .ui.menu.top {
   background: rgb(96, 99, 105);
 }
