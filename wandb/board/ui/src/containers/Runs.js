@@ -45,6 +45,7 @@ import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
 import * as Filter from '../util/filters';
 import * as Selection from '../util/selections';
+import * as Query from '../util/query';
 
 class Runs extends React.Component {
   state = {showFailed: false, activeTab: 0, showFilters: false};
@@ -414,6 +415,11 @@ class Runs extends React.Component {
           selectedRuns={this.props.data.selectedRunsById}
           columnNames={this.props.data.columnNames}
           limit={this.props.limit}
+          query={Query.merge(this.props.query, {
+            entity: this.props.match.params.entity,
+            model: this.props.match.params.model,
+            strategy: 'merge',
+          })}
         />
       </Container>
     );

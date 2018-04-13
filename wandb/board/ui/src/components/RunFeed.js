@@ -29,6 +29,7 @@ import {
   stateToIcon,
   truncateString,
 } from '../util/runhelpers.js';
+import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
 import * as Selection from '../util/selections';
 import * as Filter from '../util/filters';
@@ -70,7 +71,7 @@ class ValueDisplay extends PureComponent {
                     icon="external square"
                     onClick={() => {
                       this.props.enableColumn(
-                        this.props.section + ':' + this.props.valKey,
+                        this.props.section + ':' + this.props.valKey
                       );
                     }}
                   />
@@ -95,7 +96,7 @@ class ValueDisplay extends PureComponent {
                       'filter',
                       filterKey,
                       '=',
-                      sortableValue(this.props.value),
+                      sortableValue(this.props.value)
                     );
                   }}
                 />
@@ -255,17 +256,17 @@ class RunFeedRow extends React.Component {
                   <strong>{edge.user && edge.user.username}</strong>
                   {/* edge.host && `on ${edge.host} ` */}
                   {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
-                  <Tags
+                  {/* <Tags
                     tags={edge.tags}
                     addFilter={tag =>
                       this.props.addFilter(
                         'filter',
                         {section: 'tags', name: tag},
                         '=',
-                        true,
+                        true
                       )
                     }
-                  />
+                  /> */}
                 </Item.Extra>
                 {admin && <Launcher runId={edge.id} runName={edge.name} />}
               </Item.Content>
@@ -411,23 +412,26 @@ class RunFeed extends PureComponent {
   }
 
   render() {
+    console.log('this.props.data', this.props.data);
     let /*stats =
         this.props.project &&
         Object.keys(JSONparseNaN(this.props.project.summaryMetrics)).sort(),*/
-      runsLength = this.props.runs ? this.props.runs.length : 0,
+      runsLength = this.props.data.base ? this.props.data.base.length : 0,
       startIndex = (this.props.currentPage - 1) * this.props.limit,
       endIndex = Math.min(startIndex + this.props.limit, runsLength),
       runs =
-        this.props.runs && this.props.runs.length > 0 && !this.props.loading
-          ? this.props.runs.slice(startIndex, endIndex)
+        this.props.data.filtered &&
+        this.props.data.filtered.length > 0 &&
+        !this.props.loading
+          ? this.props.data.filtered.slice(startIndex, endIndex)
           : this.tablePlaceholders(
               this.props.limit,
-              this.props.project.bucketCount,
+              this.props.project.bucketCount
             ),
       columnNames = this.props.loading
         ? ['Description']
         : this.props.columnNames.filter(
-            columnName => this.props.columns[columnName],
+            columnName => this.props.columns[columnName]
           );
     if (!this.props.loading && runsLength === 0) {
       return <div>No runs match the chosen filters.</div>;
@@ -468,7 +472,7 @@ class RunFeed extends PureComponent {
                           key,
                           op,
                           value,
-                        }),
+                        })
                       )
                     }
                     setFilters={this.props.setFilters}
@@ -580,4 +584,6 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 // export dumb component for testing purposes
 export {RunFeed};
 
-export default connect(mapStateToProps(), mapDispatchToProps)(RunFeed);
+export default connect(mapStateToProps(), mapDispatchToProps)(
+  withRunsDataLoader(RunFeed)
+);

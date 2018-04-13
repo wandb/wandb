@@ -9,7 +9,7 @@ export function addFilter(filters, key, op, value) {
     filter =>
       filter.key.section === key.section &&
       filter.key.value === key.value &&
-      filter.op === op,
+      filter.op === op
   );
   if (value === null) {
     // Remove filter if value is null
@@ -115,6 +115,7 @@ export function sameModel(q1, q2) {
 }
 
 export function canReuseBaseData(query) {
+  return false;
   return strategy(query) === 'merge' && sameModel(query, query.baseQuery);
 }
 
@@ -123,6 +124,7 @@ export function shouldPoll(query) {
 }
 
 export function needsOwnRunsQuery(query) {
+  return true;
   return (
     strategy(query) === 'root' ||
     (strategy(query) === 'merge' && !sameModel(query, query.baseQuery))
