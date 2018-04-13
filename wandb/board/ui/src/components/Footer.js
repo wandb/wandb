@@ -15,7 +15,7 @@ const Footer = () => (
             alt="Weights & Biases"
           />
         </Grid.Column>
-        <Grid.Column textAlign="right" verticalAlign="bottom">
+        <Grid.Column textAlign="right" verticalAlign="middle">
           <List link horizontal>
             <List.Item as="a" target="_blank" href="http://docs.wandb.com">
               Documentation

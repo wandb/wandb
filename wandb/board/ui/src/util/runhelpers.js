@@ -237,6 +237,8 @@ export function stateToIcon(state, key) {
   let icon = 'check',
     color = 'green';
   if (state === 'failed' || state === 'crashed') {
+    // This is disabled, we were showing too many scary red X icons.
+    return null;
     icon = 'remove';
     color = 'red';
   } else if (state === 'killed') {
