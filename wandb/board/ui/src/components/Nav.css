@@ -73,6 +73,11 @@ body .ui.menu .item.disabled:hover {
   text-decoration: none;
 }
 
+body .ui.menu a.item:hover,
+body .ui.menu .active.item:hover {
+  color: var(--verylightgray);
+}
+
 body .ui.menu .item.disabled,
 body .ui.menu .item.disabled:hover {
   color: var(--lightgray);

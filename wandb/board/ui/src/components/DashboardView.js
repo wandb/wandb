@@ -164,10 +164,10 @@ class DashboardView extends Component {
 
   render() {
     const {editMode, width} = this.props;
-    
+
     // Configs must have a layout key
     let panelConfigs = convertTabbedPanels(this.props.config).filter(
-      config => config.layout && validConfigLayout(config.layout),
+      config => config.layout && validConfigLayout(config.layout)
     );
     if (panelConfigs.length !== this.props.config.length) {
       // If we found invalid panels, update the browser state so on next save
@@ -186,7 +186,7 @@ class DashboardView extends Component {
     }
 
     return (
-      <div className='dashboard'>
+      <div className="dashboard">
         {this.props.editMode && (
           <Form>
             <h5>Tab Settings</h5>
@@ -258,8 +258,9 @@ class DashboardView extends Component {
                     style={{
                       width: '100%',
                       height: '100%',
-                      backgroundColor: '#f8fbf8',
-                      border: '3px dashed #666',
+                      backgroundColor: 'rgb(0, 127, 175, 0.05)',
+                      border: '1px dashed #666',
+                      borderRadius: 0,
                       fontSize: 20,
                     }}
                     icon
@@ -291,9 +292,14 @@ class DashboardView extends Component {
                     isDraggable: true,
                     isResizable: true,
                   }}>
-                  {this.renderPanel(panelConfig, i, this.state.editing === i, this.props.nightMode)}
+                  {this.renderPanel(
+                    panelConfig,
+                    i,
+                    this.state.editing === i,
+                    this.props.nightMode
+                  )}
                 </div>
-              ),
+              )
           )}
         </Grid>
       </div>

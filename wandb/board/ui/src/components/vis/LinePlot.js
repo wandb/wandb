@@ -294,13 +294,13 @@ export default class LinePlot extends React.PureComponent {
         <div
           className="line-plot-legend"
           style={{
-            fontSize: 11,
+            fontSize: 12,
             minHeight: 40,
             maxHeight: 60,
             overflow: 'scroll',
             overflowX: 'hidden',
             overflowY: 'hidden',
-            lineHeight: '100%',
+            lineHeight: '110%',
           }}>
           <div style={{verticalAlign: 'center'}}>
             {lines.map((line, i) => (
