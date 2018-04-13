@@ -87,7 +87,7 @@ export function numericKeysFromHistory(history) {
   }
 
   return _.keys(history[0]).filter(
-    k => !(history[0][k] && history[0][k]._type),
+    k => !(history[0][k] && history[0][k]._type)
   ); // remove images and media
 }
 
@@ -195,7 +195,7 @@ export function appropriateTimestep(lines) {
 
 export function convertSecondsToTimestep(
   lines,
-  timestep = appropriateTimestep(lines),
+  timestep = appropriateTimestep(lines)
 ) {
   /**
    * Converts all ther xAxis values to minutes hors or days by dividing by "factor"
@@ -380,7 +380,7 @@ export function avgPointsByBucket(points, bucketCount, min, max) {
 
   let avgBuckets = buckets.map(
     (bucket, i) =>
-      bucket.length > 0 ? avg(buckets[i].map((b, j) => b.y)) : NaN,
+      bucket.length > 0 ? avg(buckets[i].map((b, j) => b.y)) : NaN
   );
   return avgBuckets;
 }
@@ -396,7 +396,7 @@ export function aggregateLines(lines, name, idx, bucketData = true) {
   let maxLengthRun = arrMax(lines.map(line => line.data.length));
 
   let xVals = _.flatten(
-    lines.map((line, j) => line.data.map((point, i) => point.x)),
+    lines.map((line, j) => line.data.map((point, i) => point.x))
   );
 
   if (xVals.length == 0) {
@@ -417,25 +417,25 @@ export function aggregateLines(lines, name, idx, bucketData = true) {
 
     // get all the data points in aligned buckets
     let bucketedLines = lines.map((line, j) =>
-      avgPointsByBucket(line.data, bucketCount, minX, maxX),
+      avgPointsByBucket(line.data, bucketCount, minX, maxX)
     );
 
     // do a manual zip because lodash's zip is not like python
     bucketedLines.map((bucket, i) =>
       bucket.map((b, j) => {
         mergedBuckets[j] ? mergedBuckets[j].push(b) : (mergedBuckets[j] = [b]);
-      }),
+      })
     );
 
     // remove NaNs
     mergedBuckets = mergedBuckets.map((xBucket, i) =>
-      xBucket.filter(y => isFinite(y)),
+      xBucket.filter(y => isFinite(y))
     );
 
     let inc = (maxX - minX) / bucketCount;
 
     mergedBuckets.map(
-      (xBucket, i) => (bucketXValues[i] = minX + (i + 0.5) * inc),
+      (xBucket, i) => (bucketXValues[i] = minX + (i + 0.5) * inc)
     );
   } else {
     bucketXValues = _.uniq(xVals).sort((a, b) => a - b);
@@ -449,7 +449,7 @@ export function aggregateLines(lines, name, idx, bucketData = true) {
         mergedBuckets[idx]
           ? mergedBuckets[idx].push(point.y)
           : (mergedBuckets[idx] = [point.y]);
-      }),
+      })
     );
   }
 
@@ -490,7 +490,7 @@ export function linesFromDataRunPlot(
   eventKeys,
   xAxis,
   smoothingWeight,
-  yAxisLog = false,
+  yAxisLog = false
 ) {
   /**
    * This is to plot data for PanelLinePlot.
@@ -571,7 +571,7 @@ export function linesFromDataRunsPlot(
   groupBy,
   nameSpec,
   rawData,
-  yAxisLog = false,
+  yAxisLog = false
 ) {
   /** Takes in data points and returns lines ready for passing
    * in to react-vis.
@@ -622,7 +622,7 @@ export function linesFromDataRunsPlot(
     if (groupBy && groupBy != 'None') {
       let groupIdx = groupConfigIdx(
         rawData.selectedRuns.slice(0, lines.length),
-        groupBy,
+        groupBy
       );
       let i = 0;
       _.forOwn(groupIdx, (idxArr, configVal) => {
@@ -636,8 +636,8 @@ export function linesFromDataRunsPlot(
             lineGroup,
             groupBy + ':' + displayValue(configVal),
             i++,
-            bucketAggregation,
-          ),
+            bucketAggregation
+          )
         );
       });
     } else {
