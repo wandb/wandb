@@ -25,7 +25,7 @@ class Run(object):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else generate_id()
         self.resume = resume if resume else 'never'
-        self.mode = mode if mode else 'dryrun'
+        self.mode = mode if mode else 'run'
 
         self.program = program
         if not self.program:

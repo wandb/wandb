@@ -15,6 +15,7 @@ def test_dry_run(runner):
     with runner.isolated_filesystem():
         with open("train.py", "w") as f:
             f.write(train_py)
+        os.environ["WANDB_MODE"] = "dryrun"
         res = sh.python("train.py")
         run_dir = glob.glob("wandb/dry*")[0]
         assert "loss:" in res
@@ -26,16 +27,19 @@ def test_dry_run(runner):
         assert os.path.exists(run_dir + "/wandb-history.jsonl")
         assert os.path.exists(run_dir + "/wandb-events.jsonl")
         assert os.path.exists(run_dir + "/wandb-summary.json")
+        del os.environ["WANDB_MODE"]
 
 
 def test_dry_run_custom_dir(runner):
     with runner.isolated_filesystem():
         os.environ["WANDB_DIR"] = "/tmp"
+        os.environ["WANDB_MODE"] = "dryrun"
         sh.rm("-rf", "/tmp/wandb/*")
         with open("train.py", "w") as f:
             f.write(train_py)
         res = sh.python("train.py")
         del os.environ["WANDB_DIR"]
+        del os.environ["WANDB_MODE"]
         run_dir = glob.glob("/tmp/wandb/dry*")[0]
         assert os.path.exists(run_dir + "/output.log")
 
@@ -44,6 +48,7 @@ def test_dry_run_exc(runner):
     with runner.isolated_filesystem():
         with open("train.py", "w") as f:
             f.write(train_py.replace("#raise", "raise"))
+        os.environ["WANDB_MODE"] = "dryrun"
         try:
             res = sh.python("train.py")
         except sh.ErrorReturnCode as e:
@@ -53,12 +58,14 @@ def test_dry_run_exc(runner):
         meta = json.loads(open(run_dir + "/wandb-metadata.json").read())
         assert meta["state"] == "failed"
         assert meta["exitcode"] == 1
+        del os.environ["WANDB_MODE"]
 
 
 def test_dry_run_kill(runner):
     with runner.isolated_filesystem():
         with open("train.py", "w") as f:
             f.write(train_py.replace("#os.kill", "os.kill"))
+        os.environ["WANDB_MODE"] = "dryrun"
         res = sh.python("train.py", _bg=True)
         try:
             res.wait()
@@ -69,5 +76,6 @@ def test_dry_run_kill(runner):
         meta = json.loads(open(run_dir + "/wandb-metadata.json").read())
         assert meta["state"] == "killed"
         assert meta["exitcode"] == 255
+        del os.environ["WANDB_MODE"]
 
 # TODO: test server communication
