@@ -6,7 +6,7 @@
   border-radius: 0.29rem;
 }
 
-.buttons.runFilterViewer button.filter {
+.runFilters:hover .buttons.runFilterViewer button.filter {
   border-radius: 0.29rem 0 0 0.29rem;
 }
 
