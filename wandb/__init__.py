@@ -269,8 +269,6 @@ def init(job_type='train', config=None):
     if run or os.getenv('WANDB_INITED'):
         return run
 
-    raise Exception('asdf')
-
     if __stage_dir__ is None:
         __stage_dir__ = "wandb"
         util.mkdir_exists_ok(wandb_dir())
