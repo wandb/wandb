@@ -362,3 +362,35 @@ describe('filter modifiers', () => {
     );
   });
 });
+
+describe('simplifyFilters', () => {
+  it('preserves non-empty', () => {
+    expect(Filter.simplify(goodFilters)).toEqual(goodFilters);
+  });
+
+  it('removes blanks', () => {
+    expect(
+      Filter.simplify({op: 'OR', filters: [{op: 'AND', filters: []}]})
+    ).toBe(null);
+  });
+
+  it('hybrid', () => {
+    const goodFiltersWithExtra: Filter.Filter = {
+      op: 'OR',
+      filters: [
+        {key: Run.key('run', 'host')!, op: '=', value: 'angry.local'},
+        {op: 'AND', filters: []},
+        {
+          op: 'AND',
+          filters: [
+            {key: Run.key('run', 'state')!, op: '=', value: 'running'},
+            {key: Run.key('run', 'host')!, op: '=', value: 'brian.local'},
+            {key: Run.key('run', 'id')!, op: 'IN', value: ['name1', 'name2']},
+            {op: 'OR', filters: []},
+          ],
+        },
+      ],
+    };
+    expect(Filter.simplify(goodFiltersWithExtra)).toEqual(goodFilters);
+  });
+});

@@ -401,7 +401,8 @@ export class RunFiltersSection extends React.Component<
   render() {
     const {filters, mergeFilters, runs, keySuggestions, editingId} = this.props;
     return filters.op === 'AND' ? (
-      <div>
+      <div className="runFiltersSection">
+        {this.props.index !== 0 && 'OR '}
         {filters.filters.map((filter, i) => {
           const filterId = this.props.index.toString() + i;
           let otherFilters = Filter.Update.groupRemove(filters, [], i);
@@ -434,8 +435,9 @@ export class RunFiltersSection extends React.Component<
         <Button
           icon="plus"
           disabled={!this.props.canAdd}
+          className="andButton"
           circular
-          content="Add Filter"
+          content="AND"
           style={{marginTop: 8}}
           size="tiny"
           onClick={() =>
@@ -473,17 +475,16 @@ export default class RunFilters extends React.Component<
   state = {editingId: ''};
 
   render() {
-    const {
-      filters,
-      mergeFilters,
-      kind,
-      runs,
-      keySuggestions,
-      nobox,
-    } = this.props;
-    const filterIDs = _.keys(filters).sort();
+    const {mergeFilters, kind, runs, keySuggestions, nobox} = this.props;
+    let modFilters = Filter.simplify(this.props.filters);
+    let empty = false;
+    if (modFilters == null) {
+      empty = true;
+      modFilters = {op: 'OR', filters: [{op: 'AND', filters: []}]};
+    }
+    const filters: Filter.Filter = modFilters;
     return filters.op === 'OR' ? (
-      <div>
+      <div className={empty ? 'runFiltersEmpty' : 'runFilters'}>
         {filters.filters.map((filter, i) => (
           <RunFiltersSection
             key={i}
@@ -515,6 +516,25 @@ export default class RunFilters extends React.Component<
             }
           />
         ))}
+        <Button
+          className="orButton"
+          circular
+          icon="plus"
+          content="OR"
+          style={{marginTop: 8}}
+          size="tiny"
+          onClick={() =>
+            this.props.setFilters(
+              kind,
+              Filter.Update.groupPush(filters, [], {
+                op: 'AND',
+                filters: [
+                  {key: {section: 'run', name: ''}, op: '=', value: null},
+                ],
+              })
+            )
+          }
+        />
       </div>
     ) : (
       <p>Can't render filters</p>

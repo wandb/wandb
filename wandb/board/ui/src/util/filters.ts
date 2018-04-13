@@ -331,3 +331,19 @@ export function domValue(
     return Run.domValue(filter.value);
   }
 }
+
+export function simplify(filter: Filter): Filter | null {
+  // Removes any group filters that are empty. Could become more advanced, for
+  // example converting ORs with the same key (at the same level) to IN.
+  if (isGroup(filter)) {
+    const newFilter = {
+      ...filter,
+      filters: filter.filters.map(simplify).filter(o => o) as Filter[],
+    };
+    if (newFilter.filters.length === 0) {
+      return null;
+    }
+    return newFilter;
+  }
+  return filter;
+}
