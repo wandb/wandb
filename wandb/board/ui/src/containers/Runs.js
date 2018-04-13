@@ -80,7 +80,7 @@ class Runs extends React.Component {
   _readUrl(props) {
     var parsed = queryString.parse(window.location.search);
     if (!parsed) {
-      returnj;
+      return;
     }
     let filterFilters;
     if (parsed.filters) {
@@ -379,7 +379,6 @@ class Runs extends React.Component {
                   <Icon
                     style={{marginRight: 4}}
                     color="grey"
-                    size="medium"
                     name="checkmark box"
                   />{' '}
                   All
@@ -391,7 +390,6 @@ class Runs extends React.Component {
                   <Icon
                     style={{marginRight: 4}}
                     color="grey"
-                    size="medium"
                     name="square outline"
                   />{' '}
                   None

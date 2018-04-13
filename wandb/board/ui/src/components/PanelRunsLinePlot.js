@@ -6,6 +6,7 @@ import {Button, List, Loader, Form, Grid, Icon} from 'semantic-ui-react';
 import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {registerPanelClass} from '../util/registry.js';
+import '../components/PanelRunsLinePlot.css';
 
 import {
   linesFromDataRunsPlot,
@@ -17,6 +18,7 @@ import {
 
 import * as Query from '../util/query';
 import * as Run from '../util/runhelpers.js';
+import * as RunHelpers2 from '../util/runhelpers2';
 import * as UI from '../util/uihelpers.js';
 
 class RunsLinePlotPanel extends React.Component {
@@ -27,10 +29,36 @@ class RunsLinePlotPanel extends React.Component {
 
   constructor(props) {
     super(props);
+    this.keySuggestions = [];
   }
 
   static validForData(data) {
     return data && !_.isNil(data.histories);
+  }
+
+  _setupKeySuggestions(props) {
+    const keyValueCounts = RunHelpers2.keyValueCounts(
+      props.data.filtered,
+      Run.flatKeySuggestions(props.data.keys)
+    );
+    // Show keys that have at least one value.
+    this.keySuggestions = _.map(
+      keyValueCounts,
+      (valueCounts, key) => (_.keys(valueCounts).length >= 1 ? key : null)
+    ).filter(o => o);
+  }
+
+  componentWillMount() {
+    this._setupKeySuggestions(this.props);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (
+      this.props.data.filtered !== nextProps.data.filtered ||
+      this.props.data.keys !== nextProps.data.keys
+    ) {
+      this._setupKeySuggestions(nextProps);
+    }
   }
 
   scaledSmoothness() {
@@ -53,7 +81,7 @@ class RunsLinePlotPanel extends React.Component {
     // the point of this is to remove histories that aren't numerical (images)
     // and special histories that start with _
     let keys = numericKeysFromHistories(this.props.data.histories).filter(
-      key => !key.startsWith('_'),
+      key => !key.startsWith('_')
     );
     let yAxisOptions = keys.map(key => ({
       key: key,
@@ -78,14 +106,14 @@ class RunsLinePlotPanel extends React.Component {
           text: xAxisChoice,
           key: xAxisChoice,
           value: xAxisChoice,
-        }),
+        })
       );
 
     let groupByOptions = {};
     let disabled = this.props.data.histories.data.length === 0;
 
     return (
-      <div>
+      <div className="runs-line-plot">
         {!this.props.data.loading &&
           (!yAxisOptions || yAxisOptions.length == 0) && (
             <div className="ui negative message">
@@ -110,9 +138,7 @@ class RunsLinePlotPanel extends React.Component {
                   search
                   multiple
                   selection
-                  options={UI.makeOptions(
-                    Run.flatKeySuggestions(this.props.data.keys),
-                  )}
+                  options={UI.makeOptions(this.keySuggestions)}
                   value={this.props.config.legendFields || ['name']}
                   onChange={(e, {value}) =>
                     this.props.updateConfig({
@@ -252,7 +278,7 @@ class RunsLinePlotPanel extends React.Component {
     );
   }
 
-  renderNormal() {
+  renderNormal(mode = 'viewMode') {
     if (!this.props.data.histories) {
       // Not sure why this condition is happening.
       // TODO: fix.
@@ -260,7 +286,7 @@ class RunsLinePlotPanel extends React.Component {
     }
     let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
 
-    let key = this.props.config.key;
+    let yAxis = this.props.config.key;
     // Always show running Icon in legend.
     let legendSpec = (this.props.config.legendFields || ['name']).concat([
       'runningIcon',
@@ -268,25 +294,38 @@ class RunsLinePlotPanel extends React.Component {
 
     let lines = linesFromDataRunsPlot(
       data,
-      key,
+      yAxis,
       this.props.config.xAxis || '_step',
       this.scaledSmoothness(),
       this.props.config.aggregate,
       this.props.config.groupBy || 'None',
       legendSpec,
       this.props.data,
-      this.props.config.yLogScale,
+      this.props.config.yLogScale
     );
-    let title = key;
-    if (Query.strategy(this.props.panelQuery) === 'merge') {
-      let querySummary = Query.summaryString(this.props.panelQuery);
-      if (querySummary) {
-        title += ' (' + querySummary + ')';
+    lines.map(
+      (line, i) =>
+        !line.area &&
+        (line.mark = i < 5 ? 'solid' : i < 10 ? 'dashed' : 'dotted')
+    );
+
+    let title = '';
+    if (yAxis) {
+      if (Query.strategy(this.props.panelQuery) === 'merge') {
+        let querySummary = Query.summaryString(this.props.panelQuery);
+
+        if (this.props.panelQuery.model) {
+          title = this.props.panelQuery.model + ' (' + querySummary + ')';
+        } else {
+          title = yAxis + ' (' + querySummary + ')';
+        }
+      } else {
+        title = yAxis;
       }
-      if (this.props.panelQuery.model) {
-        title = this.props.panelQuery.model + ':' + title;
-      }
+    } else {
+      title = '';
     }
+
     return (
       <div>
         <h4 style={{display: 'inline'}}>
@@ -301,7 +340,7 @@ class RunsLinePlotPanel extends React.Component {
               />
             )}
         </h4>
-        <div style={{float: 'right', marginRight: 10}}>
+        <div style={{float: 'right', marginRight: 15}}>
           {totalRuns > maxRuns && (
             <span style={{fontSize: 13}}>
               {/* <HelpIcon text="Run history plots are currently limited in the amount of data they can display. You can control runs displayed here by changing your selections." /> */}
@@ -309,7 +348,7 @@ class RunsLinePlotPanel extends React.Component {
             </span>
           )}
         </div>
-        <div style={{clear: 'both'}}>
+        <div style={{clear: 'both'}} className={mode}>
           {_.isNil(this.props.config.key) && (
             <div
               style={{
@@ -338,6 +377,7 @@ class RunsLinePlotPanel extends React.Component {
           )}
           <LinePlot
             xAxis={xAxisLabel(this.props.config.xAxis, lines)}
+            yAxis={yAxis}
             yScale={this.props.config.yLogScale ? 'log' : 'linear'}
             xScale={this.props.config.xLogScale ? 'log' : 'linear'}
             lines={lines}
@@ -354,7 +394,7 @@ class RunsLinePlotPanel extends React.Component {
     if (this.props.configMode) {
       return (
         <div>
-          {this.renderNormal()}
+          {this.renderNormal('editMode')}
           {this.renderConfig()}
         </div>
       );
@@ -370,7 +410,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 };
 
 let ConnectRunsLinePlotPanel = connect(null, mapDispatchToProps)(
-  RunsLinePlotPanel,
+  RunsLinePlotPanel
 );
 ConnectRunsLinePlotPanel.type = RunsLinePlotPanel.type;
 ConnectRunsLinePlotPanel.options = RunsLinePlotPanel.yAxisOptions;

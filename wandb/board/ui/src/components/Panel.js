@@ -73,7 +73,7 @@ export default class Panel extends React.Component {
 
     if (!panel && this.props.editMode) {
       panel = (
-        <div>
+        <div className={this.props.className}>
           {!this.props.noButtons && (
             <Button.Group basic floated="right">
               {/*

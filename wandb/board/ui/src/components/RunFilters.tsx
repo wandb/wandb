@@ -15,14 +15,13 @@ let globalFilterId = 0;
 interface RunFilterEditorProps {
   runs: Run.Run[];
   keys: string[];
-  filterKey: Run.Key;
-  op: Filter.IndividiualOp;
-  value: Run.Value;
+  filter: Filter.IndividualFilter;
   id: number;
   otherFilters: Filter.Filter;
   setFilterKey(key: Run.Key): void;
-  setFilterOp(op: Filter.IndividiualOp): void;
+  setFilterOp(op: Filter.IndividualOp): void;
   setFilterValue(value: Run.Value): void;
+  setFilterMultiValue(value: Run.Value[]): void;
   close(): void;
 }
 class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
@@ -40,7 +39,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
 
   componentDidMount() {
     const el = document.getElementById(this.elementId());
-    if (this.props.filterKey.name === '' && el) {
+    if (this.props.filter.key.name === '' && el) {
       const inputs = el.getElementsByTagName('input');
       if (inputs.length > 0) {
         inputs[0].focus();
@@ -53,7 +52,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
   }
 
   displayValue(value: Run.Value) {
-    if (this.props.filterKey.section === 'tags') {
+    if (this.props.filter.key.section === 'tags') {
       return value === true ? 'Set' : 'Unset';
     } else {
       return Run.displayValue(value);
@@ -61,13 +60,13 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
   }
 
   setupValueSuggestions(props: RunFilterEditorProps) {
-    const keyString = Run.displayKey(this.props.filterKey);
+    const keyString = Run.displayKey(this.props.filter.key);
     let valueCounts = keyString ? this.keyValueCounts[keyString] : null;
     if (valueCounts) {
-      if (this.props.filterKey.section === 'tags') {
+      if (this.props.filter.key.section === 'tags') {
         // We want true before false
         valueCounts = [...valueCounts].reverse();
-      } else if (props.op === '=' || props.op === '!=') {
+      } else if (props.filter.op === '=' || props.filter.op === '!=') {
         valueCounts = [{value: '*', count: 0}, ...valueCounts];
       }
       this.valueSuggestions = valueCounts.map(({value, count}) => {
@@ -110,7 +109,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
           ),
         };
       });
-      if (this.props.value == null && this.valueSuggestions.length > 0) {
+      if (this.props.filter.value == null && this.valueSuggestions.length > 0) {
         this.props.setFilterValue(this.valueSuggestions[0].value);
       }
     } else {
@@ -123,7 +122,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
   }
 
   render() {
-    const operators = ['=', '!=', '>=', '<='].map(op => ({
+    const operators = ['=', '!=', '>=', '<=', 'IN'].map(op => ({
       text: op,
       value: op,
     }));
@@ -138,7 +137,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
                   _.keys(valueCounts).length > 1 ? key : null
               ).filter(o => o) as string[]
             }
-            storedKey={Run.displayKey(this.props.filterKey)}
+            storedKey={Run.displayKey(this.props.filter.key)}
             onValidSelection={keyString => {
               const filterKey = Run.keyFromString(keyString);
               if (filterKey != null) {
@@ -147,14 +146,14 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
             }}
           />
         </Form.Field>
-        {this.props.filterKey.section !== 'tags' && (
+        {this.props.filter.key.section !== 'tags' && (
           <Form.Field>
             <Select
               options={operators}
               placeholder={'operator'}
-              value={this.props.op}
+              value={this.props.filter.op}
               onChange={(e, {value}) => {
-                this.props.setFilterOp(value as Filter.IndividiualOp);
+                this.props.setFilterOp(value as Filter.IndividualOp);
               }}
             />
           </Form.Field>
@@ -167,9 +166,21 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
             placeholder="value"
             search
             selection
-            value={Run.domValue(this.props.value)}
+            multiple={Filter.isMultiValue(this.props.filter)}
+            value={Filter.domValue(this.props.filter)}
             onChange={(e, {value}) => {
-              this.props.setFilterValue(Run.parseValue(value));
+              if (value) {
+                if (Filter.isMultiValue(this.props.filter)) {
+                  if (
+                    !(typeof value === 'string') &&
+                    !(typeof value === 'number')
+                  ) {
+                    this.props.setFilterMultiValue(value.map(Run.parseValue));
+                  }
+                } else {
+                  this.props.setFilterValue(Run.parseValue(value));
+                }
+              }
             }}
             onClose={() => this.props.close()}
           />
@@ -188,7 +199,7 @@ interface RunFilterProps {
   id: string;
   editFilter(id: string): void;
   deleteFilter(): void;
-  setFilter(filter: Filter.Filter): void;
+  setFilter(filter: Filter.IndividualFilter): void;
 }
 class RunFilter extends React.Component<RunFilterProps, {}> {
   innerDiv: any;
@@ -272,7 +283,11 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
                   <span>
                     <span>{Run.displayKey(key)}</span>{' '}
                     <span>{op ? op : '_'}</span>{' '}
-                    <span>{value != null ? Run.displayValue(value) : '-'}</span>
+                    <span>
+                      {value != null
+                        ? Filter.displayIndividualValue(this.props.filter)
+                        : '-'}
+                    </span>
                   </span>
                 )}
               </Button>
@@ -294,9 +309,7 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
           <div ref={this.innerDivRef}>
             <RunFilterEditor
               runs={this.props.runs}
-              filterKey={key}
-              op={op}
-              value={value}
+              filter={this.props.filter}
               keys={this.props.keys}
               otherFilters={this.props.otherFilters}
               id={this.globalId}
@@ -306,14 +319,53 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
                   key: filterKey,
                 })
               }
-              setFilterOp={(filterOp: Filter.IndividiualOp) =>
-                this.props.setFilter({...this.props.filter, op: filterOp})
-              }
+              setFilterOp={(filterOp: Filter.IndividualOp) => {
+                const isMulti = Filter.isMultiValue(this.props.filter);
+                let filter: Filter.IndividualFilter = this.props.filter;
+                if (Filter.isMultiValue(this.props.filter)) {
+                  if (!Filter.isMultiOp(filterOp)) {
+                    let val = null;
+                    if (this.props.filter.value.length > 0) {
+                      val = this.props.filter.value[0];
+                    }
+                    filter = {
+                      key: this.props.filter.key,
+                      op: filterOp,
+                      value: val,
+                    };
+                  }
+                } else {
+                  if (Filter.isMultiOp(filterOp)) {
+                    filter = {
+                      key: this.props.filter.key,
+                      op: filterOp,
+                      value:
+                        this.props.filter.value != null &&
+                        this.props.filter.value !== '*'
+                          ? [this.props.filter.value]
+                          : [],
+                    };
+                  } else {
+                    filter = {
+                      key: this.props.filter.key,
+                      op: filterOp,
+                      value: this.props.filter.value,
+                    };
+                  }
+                }
+                this.props.setFilter(filter);
+              }}
               setFilterValue={(filterValue: Run.Value) => {
                 this.props.setFilter({
                   ...this.props.filter,
                   value: filterValue,
-                });
+                } as Filter.ValueFilter);
+              }}
+              setFilterMultiValue={(filterValue: Run.Value[]) => {
+                this.props.setFilter({
+                  ...this.props.filter,
+                  value: filterValue,
+                } as Filter.MultiValueFilter);
               }}
               close={() => this.props.editFilter('')}
             />
@@ -340,7 +392,7 @@ interface RunFiltersSectionProps {
   editFilter(id: string): void;
   pushFilter(filter: Filter.Filter): void;
   deleteFilter(index: number): void;
-  setFilter(index: number, filter: Filter.Filter): void;
+  setFilter(index: number, filter: Filter.IndividualFilter): void;
 }
 export class RunFiltersSection extends React.Component<
   RunFiltersSectionProps,
@@ -349,7 +401,8 @@ export class RunFiltersSection extends React.Component<
   render() {
     const {filters, mergeFilters, runs, keySuggestions, editingId} = this.props;
     return filters.op === 'AND' ? (
-      <div>
+      <div className="runFiltersSection">
+        {this.props.index !== 0 && 'OR '}
         {filters.filters.map((filter, i) => {
           const filterId = this.props.index.toString() + i;
           let otherFilters = Filter.Update.groupRemove(filters, [], i);
@@ -373,15 +426,18 @@ export class RunFiltersSection extends React.Component<
               editing={editingId === filterId}
               editFilter={(id: string) => this.props.editFilter(id)}
               deleteFilter={() => this.props.deleteFilter(i)}
-              setFilter={(f: Filter.Filter) => this.props.setFilter(i, f)}
+              setFilter={(f: Filter.IndividualFilter) =>
+                this.props.setFilter(i, f)
+              }
             />
           );
         })}
         <Button
           icon="plus"
           disabled={!this.props.canAdd}
+          className="andButton"
           circular
-          content="Add Filter"
+          content="AND"
           style={{marginTop: 8}}
           size="tiny"
           onClick={() =>
@@ -419,17 +475,16 @@ export default class RunFilters extends React.Component<
   state = {editingId: ''};
 
   render() {
-    const {
-      filters,
-      mergeFilters,
-      kind,
-      runs,
-      keySuggestions,
-      nobox,
-    } = this.props;
-    const filterIDs = _.keys(filters).sort();
+    const {mergeFilters, kind, runs, keySuggestions, nobox} = this.props;
+    let modFilters = Filter.simplify(this.props.filters);
+    let empty = false;
+    if (modFilters == null) {
+      empty = true;
+      modFilters = {op: 'OR', filters: [{op: 'AND', filters: []}]};
+    }
+    const filters: Filter.Filter = modFilters;
     return filters.op === 'OR' ? (
-      <div>
+      <div className={empty ? 'runFiltersEmpty' : 'runFilters'}>
         {filters.filters.map((filter, i) => (
           <RunFiltersSection
             key={i}
@@ -461,13 +516,25 @@ export default class RunFilters extends React.Component<
             }
           />
         ))}
-        {/* <Button
-          icon="plus"
+        <Button
+          className="orButton"
           circular
-          content="Add Filter"
+          icon="plus"
+          content="OR"
           style={{marginTop: 8}}
           size="tiny"
-        /> */}
+          onClick={() =>
+            this.props.setFilters(
+              kind,
+              Filter.Update.groupPush(filters, [], {
+                op: 'AND',
+                filters: [
+                  {key: {section: 'run', name: ''}, op: '=', value: null},
+                ],
+              })
+            )
+          }
+        />
       </div>
     ) : (
       <p>Can't render filters</p>

@@ -1,7 +1,3 @@
-.dashboard.night {
-  background-color: rgb(34, 37, 39);
-}
-
 .dashboard.night > div {
   color: #fff;
 }
@@ -28,10 +24,53 @@
   right: 0;
   overflow: hidden;
   background-color: white;
+
   border: 1px solid rgb(219, 219, 219);
   border-radius: 4px;
   padding: 5px;
 }
+
+/* L2K */
+
+.nightMode .react-grid-item.panel > div {
+  background-color: black;
+  border: 1px solid black;
+  color: white;
+}
+
+.nightMode .dashboard {
+  background: rgba(0, 0, 0, 0);
+}
+
+.nightMode .ui.menu {
+  /* nav bar */
+  background: #55565b;
+  color: white;
+}
+
+.nightMode .ui.secondary.pointing.menu .item {
+  color: white;
+  border-color: white;
+}
+
+.nightMode .ui.secondary.pointing.menu .active.item {
+  color: white;
+  border-color: white;
+}
+.nightMode .ui.modal > .content {
+  background: #555;
+}
+
+.nightMode .ui.modal > .actions {
+  background: #555;
+}
+
+/* for now we hide the footer in night mode */
+.nightMode div.ui.vertical.segment.footer {
+  visibility: hidden;
+}
+
+/* end L2K */
 
 .panel .edit {
   display: none;

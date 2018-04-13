@@ -57,26 +57,29 @@ export function truncateString(string, maxLength = 30) {
   return truncString;
 }
 
+export function fuzzyMatchRegex(matchStr) {
+  var regexpStr = '';
+  for (var i = 0; i < matchStr.length; i++) {
+    regexpStr += matchStr.charAt(i);
+    regexpStr += '.*';
+  }
+  return new RegExp(regexpStr, 'i');
+}
+
 // fuzzyMatch replicates the command-P in vscode matching all the characters in order'
 // but not necessarily sequential
 export function fuzzyMatch(strings, matchStr) {
   if (!matchStr) {
     return strings;
   }
-  var regexpStr = '';
-  for (var i = 0; i < matchStr.length; i++) {
-    regexpStr += matchStr.charAt(i);
-    regexpStr += '.*';
-  }
-  var regexp = new RegExp(regexpStr, 'i');
-  return strings.filter(str => str.match(regexp));
+  return strings.filter(str => str.match(fuzzyMatchRegex(matchStr)));
 }
 
 // fuzzyMatchHighlight works with fuzzyMatch to highlight the matching substrings
 export function fuzzyMatchHighlight(
   str,
   matchStr,
-  matchStyle = {backgroundColor: 'yellow'},
+  matchStyle = {backgroundColor: 'yellow'}
 ) {
   if (!matchStr) {
     return str;
@@ -98,7 +101,7 @@ export function fuzzyMatchHighlight(
             ))
           ) : (
             <span key={'span' + j}>{c.toString()}</span>
-          ),
+          )
       )}
     </span>
   );
@@ -234,6 +237,8 @@ export function stateToIcon(state, key) {
   let icon = 'check',
     color = 'green';
   if (state === 'failed' || state === 'crashed') {
+    // This is disabled, we were showing too many scary red X icons.
+    return null;
     icon = 'remove';
     color = 'red';
   } else if (state === 'killed') {
@@ -246,6 +251,24 @@ export function stateToIcon(state, key) {
   return (
     <Icon key={key} name={icon} color={color} loading={state === 'running'} />
   );
+}
+
+export class RunsFancyName {
+  /*
+   * This makes a fancy name when you aggregate multiple runs.
+   */
+
+  constructor(runs, spec, prefix = '') {
+    this._runs = runs;
+    this._spec = spec;
+    this._prefix = prefix;
+  }
+  toComponent() {
+    if (!this._spec) {
+      return runDisplayName(this._run);
+    }
+    return <span>{this.prefix} </span>;
+  }
 }
 
 export class RunFancyName {
@@ -447,7 +470,7 @@ export function defaultViews(run) {
 // Generates relay compatible bucket id
 export function relayBucketId(params) {
   return btoa(
-    ['BucketType', 'v1', params.run, params.model, params.entity].join(':'),
+    ['BucketType', 'v1', params.run, params.model, params.entity].join(':')
   );
 }
 
@@ -478,7 +501,7 @@ export function updateRuns(oldBuckets, newBuckets, prevResult) {
   }
   oldBuckets = oldBuckets || {edges: []};
   let oldBucketsMap = _.fromPairs(
-    oldBuckets.edges.map(edge => [edge.node.name, edge.node]),
+    oldBuckets.edges.map(edge => [edge.node.name, edge.node])
   );
   let prevResultMap = _.fromPairs(prevResult.map(row => [row.name, row]));
   return newBuckets.edges
@@ -547,8 +570,8 @@ export function flatKeySuggestions(keySuggestions) {
   return _.flatMap(keySuggestions, section =>
     section.suggestions.map(
       suggestion =>
-        section.title === 'run' ? suggestion.name : Run.displayKey(suggestion),
-    ),
+        section.title === 'run' ? suggestion.name : Run.displayKey(suggestion)
+    )
   );
 }
 
@@ -567,7 +590,7 @@ export function getColumns(runs) {
     ['Ran', 'Runtime', 'Config'],
     configColumns,
     ['Summary'],
-    summaryColumns,
+    summaryColumns
   );
 }
 

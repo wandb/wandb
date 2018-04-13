@@ -10,6 +10,7 @@ import './App.css';
 import './react-autosuggest.css';
 import './components/vis/ReactVis.css';
 import {mouseListenersStart} from './util/mouse';
+import pattern from './assets/wandb-pattern.svg';
 
 let Nav;
 try {
@@ -38,7 +39,7 @@ class App extends Component {
       <div className={this.props.fullScreen ? 'fullScreen' : ''}>
         <AutoReload setFlash={this.props.setFlash} />
         <Nav user={this.props.user} history={this.props.history} />
-        <Container className="main" fluid>
+        <Container className="main" fluid style={{backgroundImage: pattern}}>
           {this.props.error || this.state.error ? (
             <ErrorPage history={this.props.history} error={this.props.error} />
           ) : (

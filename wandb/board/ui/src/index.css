@@ -1,5 +1,61 @@
+@font-face {
+  font-family: 'graphein';
+  src: url(./fonts/grapheinpro-book-webfont.woff) format('woff');
+}
+
+@font-face {
+  font-family: 'graphein';
+  src: url(./fonts/grapheinpro-bold-webfont.woff) format('woff');
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: 'graphein';
+  src: url(./fonts/grapheinpro-bolditalic-webfont.woff) format('woff');
+  font-weight: bold;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'graphein';
+  src: url(./fonts/grapheinpro-italic-webfont.woff) format('woff');
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'graphein';
+  src: url(./fonts/grapheinpro-light-webfont.woff) format('woff');
+  font-weight: lighter;
+}
+
+@font-face {
+  font-family: 'graphein';
+  src: url(./fonts/grapheinpro-lightitalic-webfont.woff) format('woff');
+  font-weight: lighter;
+  font-style: italic;
+}
+/*
+@font-face {
+  font-family: "graphein";
+  src: url(./fonts/grapheinpro-black-webfont.woff) format('woff');
+  font-weight: bolder;
+}
+*/
+
 body {
   margin: 0;
   padding: 0;
-  font-family: sans-serif;
+  /*font-family: "graphein";*/
+}
+:root {
+  --primaryColor: #007faf;
+  --secondaryColor: #7a7b7e;
+  --yellow: #ecbb33;
+  --red: #c1433c;
+  --green: #3d9e3e;
+  --blue: #007faf;
+  --darkgray: #55565b;
+  --gray: #7a7b7e;
+  --lightgray: #b3b3b0;
+  --verylightgray: #ddddda;
 }

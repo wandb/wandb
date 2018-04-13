@@ -8,13 +8,25 @@ export type Filter = IndividualFilter | GroupFilter;
 
 // needs to match IndividualFilter.op
 // TODO: using enum may allow us to get rid of the duplication.
-const ops = ['=', '!=', '<', '>', '<=', '>='];
-export type IndividiualOp = '=' | '!=' | '<' | '>' | '<=' | '>=';
-export interface IndividualFilter {
-  readonly op: IndividiualOp;
+const valueOps = ['=', '!=', '<', '>', '<=', '>='];
+export type ValueOp = '=' | '!=' | '<' | '>' | '<=' | '>=';
+export interface ValueFilter {
+  readonly op: ValueOp;
   readonly key: Run.Key;
   readonly value: Run.Value;
 }
+
+const multiValueOps = ['IN'];
+export type MultiValueOp = 'IN';
+export interface MultiValueFilter {
+  readonly op: MultiValueOp;
+  readonly key: Run.Key;
+  readonly value: Run.Value[];
+}
+
+const ops = valueOps.concat(multiValueOps);
+export type IndividualOp = ValueOp | MultiValueOp;
+export type IndividualFilter = ValueFilter | MultiValueFilter;
 
 export interface GroupFilter {
   readonly op: 'AND' | 'OR';
@@ -27,6 +39,16 @@ export function isGroup(filter: Filter): filter is GroupFilter {
 
 export function isIndividual(filter: Filter): filter is IndividualFilter {
   return (filter as IndividualFilter).key !== undefined;
+}
+
+export function isMultiValue(
+  filter: IndividualFilter
+): filter is MultiValueFilter {
+  return isMultiOp(filter.op);
+}
+
+export function isMultiOp(op: IndividualOp): op is MultiValueOp {
+  return _.indexOf(multiValueOps, op) !== -1;
 }
 
 export function isEmpty(filter: Filter): boolean {
@@ -58,19 +80,17 @@ export function match(filter: Filter, run: Run.Run): boolean {
       }
       return filter.value !== value;
     }
-    // Have to convert to IndividiualFilter here for some reason, without this
-    // the compiler complains that filter.value could be null, even though we're
-    // checking it.
-    const ifilt = filter as IndividualFilter;
-    if (ifilt.value != null && value != null) {
-      if (ifilt.op === '<') {
-        return value < ifilt.value;
+    if (filter.value != null && value != null) {
+      if (filter.op === '<') {
+        return value < filter.value!;
       } else if (filter.op === '>') {
-        return value > ifilt.value;
+        return value > filter.value!;
       } else if (filter.op === '<=') {
-        return value <= ifilt.value;
+        return value <= filter.value!;
       } else if (filter.op === '>=') {
-        return value >= ifilt.value;
+        return value >= filter.value!;
+      } else if (isMultiValue(filter)) {
+        return _.indexOf(filter.value, value) !== -1;
       }
     }
   }
@@ -132,16 +152,19 @@ function checkIndividualFilter(filter: any): IndividualFilter | null {
   if (filter.value == null) {
     return null;
   }
-  console.log(
-    'calling parseValue',
-    JSON.stringify(filter.value),
-    JSON.stringify(Run.parseValue(filter.value)),
-  );
-  return {
-    key: filterKey,
-    op: filter.op,
-    value: Run.parseValue(filter.value),
-  };
+  if (isMultiValue(filter)) {
+    return {
+      key: filterKey,
+      op: filter.op,
+      value: filter.value,
+    };
+  } else {
+    return {
+      key: filterKey,
+      op: filter.op,
+      value: Run.parseValue(filter.value),
+    };
+  }
 }
 
 function checkGroupFilter(filter: any): GroupFilter | null {
@@ -226,7 +249,7 @@ export function fromOldQuery(oldQuery: any): Filter | null {
               op: f.op,
               value: f.value,
             }
-          : null,
+          : null
     )
     .filter(o => o);
   return {op: 'OR', filters: [{op: 'AND', filters: individualFilters}]};
@@ -252,7 +275,7 @@ export function flatIndividuals(filter: Filter): IndividualFilter[] {
   } else if (isGroup(filter)) {
     return filter.filters.reduce(
       (acc, f) => acc.concat(flatIndividuals(f)),
-      [] as IndividualFilter[],
+      [] as IndividualFilter[]
     );
   }
   return [];
@@ -262,16 +285,65 @@ export function countIndividual(filter: Filter): number {
   return flatIndividuals(filter).length;
 }
 
-export function summaryString(filter: Filter): string {
-  const filts = flatIndividuals(filter);
-  const filtStrs = _.map(
-    filts,
-    filt =>
-      Run.displayKey(filt.key) +
-      ' ' +
-      filt.op +
-      ' ' +
-      Run.displayValue(filt.value),
+export function displayIndividualValue(filter: IndividualFilter): string {
+  let value: string = '';
+  if (isMultiValue(filter)) {
+    if (filter.value != null) {
+      value = filter.value.join(',');
+    } else {
+      value = 'null;';
+    }
+  } else {
+    value = Run.displayValue(filter.value);
+  }
+  return value;
+}
+
+function displayIndividual(filter: IndividualFilter): string {
+  return (
+    Run.displayKey(filter.key) +
+    ' ' +
+    filter.op +
+    ' ' +
+    displayIndividualValue(filter)
   );
-  return filtStrs.join(', ');
+}
+
+export function summaryString(filter: Filter): string {
+  // This just finds all individual filters in the tree and displays
+  // them as a comma-separated list. Obviously not fully descriptive,
+  // but works for the common case where we have a single AND within
+  // an OR
+  const filts = flatIndividuals(filter);
+  return _.map(filts, displayIndividual).join(', ');
+}
+
+export function domValue(
+  filter: IndividualFilter
+): Run.DomValue | Run.DomValue[] {
+  if (isMultiValue(filter)) {
+    if (filter.value == null) {
+      return [];
+    } else {
+      return filter.value.map(Run.domValue);
+    }
+  } else {
+    return Run.domValue(filter.value);
+  }
+}
+
+export function simplify(filter: Filter): Filter | null {
+  // Removes any group filters that are empty. Could become more advanced, for
+  // example converting ORs with the same key (at the same level) to IN.
+  if (isGroup(filter)) {
+    const newFilter = {
+      ...filter,
+      filters: filter.filters.map(simplify).filter(o => o) as Filter[],
+    };
+    if (newFilter.filters.length === 0) {
+      return null;
+    }
+    return newFilter;
+  }
+  return filter;
 }

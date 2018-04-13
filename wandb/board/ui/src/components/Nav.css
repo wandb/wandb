@@ -1,26 +1,75 @@
 .ui.dropdown.login.logout .dropdown i.dropdown.icon {
-    margin: 0;
-    padding: 0;
+  margin: 0;
+  padding: 0;
 }
 .ui.dropdown.login.logout .dropdown i.dropdown.icon:before {
-    content: "\F0D7";
+  content: '\F0D7';
 }
 
-.ui.menu .ui.dropdown.login.logout .menu>.teams {
-    margin-bottom:-5px;
-    padding-bottom: 5px !important;
+.ui.menu .ui.dropdown.login.logout .menu > .teams {
+  margin-bottom: -5px;
+  padding-bottom: 5px !important;
+}
+
+.ui.menu.top {
+  background: rgb(96, 99, 105);
+}
+
+.ui.menu .logo img {
+  width: 10em !important; /* for the logo */
+  margin: 0em !important;
+}
+
+.ui.menu a.item.logo {
+  padding: 0px;
+}
+
+.ui.borderless.menu {
+  border: 0px;
+}
+/*
+.ui .menu div {
+    color:rgb(255, 255, 255);
+}*/
+
+.ui.dropdown span:hover {
+  color: rgba(0, 0, 0, 0.95);
+}
+
+.ui.dropdown i {
+  color: inherit;
+}
+
+.ui.top.menu a.item {
+  color: rgb(255, 255, 255);
+}
+
+div.ui.dropdown.link.item {
+  color: rgb(255, 255, 255);
+}
+
+div.ui.dropdown.login {
+  color: rgb(255, 255, 255);
+}
+div.ui.dropdown.login:hover {
+  color: rgba(0, 0, 0, 0.95);
 }
 
 body .ui.menu .active.item {
-    background: none;
-    /*text-decoration: underline;*/
-    font-weight: 600;
+  background: none;
+  /*text-decoration: underline;*/
+  font-weight: 600;
 }
 
-body .ui.dropdown .menu>.item:hover {
-    text-decoration: underline;
-    z-index: auto;
+body .ui.dropdown .menu > .item:hover {
+  text-decoration: underline;
+  z-index: auto;
 }
 body .ui.menu .item.disabled:hover {
-    text-decoration: none;
+  text-decoration: none;
+}
+
+body .ui.menu .item.disabled,
+body .ui.menu .item.disabled:hover {
+  color: var(--lightgray);
 }

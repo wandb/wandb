@@ -53,6 +53,7 @@ const goodFilters: Filter.Filter = {
       filters: [
         {key: Run.key('run', 'state')!, op: '=', value: 'running'},
         {key: Run.key('run', 'host')!, op: '=', value: 'brian.local'},
+        {key: Run.key('run', 'id')!, op: 'IN', value: ['name1', 'name2']},
       ],
     },
   ],
@@ -68,6 +69,18 @@ describe('Individual Filter', () => {
     const result = Filter.filterRuns(filter, runs);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({id: 'id-shawn'});
+  });
+
+  it('id IN', () => {
+    const filter: Filter.Filter = {
+      key: Run.key('run', 'id')!,
+      op: 'IN',
+      value: ['name1', 'name2'],
+    };
+    const result = Filter.filterRuns(filter, runs);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({name: 'name1'});
+    expect(result[1]).toMatchObject({name: 'name2'});
   });
 
   it('state !=', () => {
@@ -196,7 +209,7 @@ describe('fromJson', () => {
       Filter.fromJson({
         op: 'And',
         filters: [],
-      }),
+      })
     ).toBe(null);
   });
 
@@ -206,7 +219,7 @@ describe('fromJson', () => {
         key: {section: 'none'},
         op: '=',
         value: 14,
-      }),
+      })
     ).toBe(null);
   });
 });
@@ -217,7 +230,7 @@ describe('fromOldURL', () => {
       Filter.fromOldURL([
         JSON.stringify(['run:host', '=', 'shawn.local']),
         JSON.stringify(['tags:hidden', '=', 'false']),
-      ]),
+      ])
     ).toEqual({
       op: 'OR',
       filters: [
@@ -269,6 +282,7 @@ describe('filter modifiers', () => {
               op: '=',
               value: 'brian.local',
             },
+            {key: Run.key('run', 'id')!, op: 'IN', value: ['name1', 'name2']},
             {
               key: {name: 'host', section: 'run'},
               op: '=',
@@ -290,6 +304,7 @@ describe('filter modifiers', () => {
         {
           filters: [
             {key: {name: 'state', section: 'run'}, op: '=', value: 'running'},
+            {key: Run.key('run', 'id')!, op: 'IN', value: ['name1', 'name2']},
           ],
           op: 'AND',
         },
@@ -328,6 +343,7 @@ describe('filter modifiers', () => {
               op: '=',
               value: 'brian.local',
             },
+            {key: Run.key('run', 'id')!, op: 'IN', value: ['name1', 'name2']},
           ],
           op: 'AND',
         },
@@ -337,12 +353,44 @@ describe('filter modifiers', () => {
   });
 
   it('countIndividual works', () => {
-    expect(Filter.countIndividual(goodFilters)).toBe(3);
+    expect(Filter.countIndividual(goodFilters)).toBe(4);
   });
 
   it('summaryString works', () => {
     expect(Filter.summaryString(goodFilters)).toBe(
-      'host = angry.local, state = running, host = brian.local',
+      'host = angry.local, state = running, host = brian.local, id IN name1,name2'
     );
+  });
+});
+
+describe('simplifyFilters', () => {
+  it('preserves non-empty', () => {
+    expect(Filter.simplify(goodFilters)).toEqual(goodFilters);
+  });
+
+  it('removes blanks', () => {
+    expect(
+      Filter.simplify({op: 'OR', filters: [{op: 'AND', filters: []}]})
+    ).toBe(null);
+  });
+
+  it('hybrid', () => {
+    const goodFiltersWithExtra: Filter.Filter = {
+      op: 'OR',
+      filters: [
+        {key: Run.key('run', 'host')!, op: '=', value: 'angry.local'},
+        {op: 'AND', filters: []},
+        {
+          op: 'AND',
+          filters: [
+            {key: Run.key('run', 'state')!, op: '=', value: 'running'},
+            {key: Run.key('run', 'host')!, op: '=', value: 'brian.local'},
+            {key: Run.key('run', 'id')!, op: 'IN', value: ['name1', 'name2']},
+            {op: 'OR', filters: []},
+          ],
+        },
+      ],
+    };
+    expect(Filter.simplify(goodFiltersWithExtra)).toEqual(goodFilters);
   });
 });

@@ -137,7 +137,7 @@ class Launcher extends Component {
               Cancel
             </Button>
             <Button
-              color="blue"
+              positive
               icon={
                 this.state.launching ? (
                   <Icon loading name="spinner" />
