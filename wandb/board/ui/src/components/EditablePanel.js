@@ -45,6 +45,7 @@ class EditablePanel extends React.Component {
           dimmer="blurring"
           trigger={
             <Icon
+              style={{backgroundColor: 'white'}}
               link
               name="edit"
               size="large"

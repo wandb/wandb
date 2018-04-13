@@ -26,7 +26,7 @@
   background-color: white;
 
   border: 1px solid rgb(219, 219, 219);
-  border-radius: 4px;
+  box-shadow: none !important;
   padding: 5px;
 }
 

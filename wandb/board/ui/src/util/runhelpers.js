@@ -46,6 +46,9 @@ export function sortableValue(value) {
 // Truncate string.  Doesn't seem like there's an easy way to do this by pixel length.
 // Splits the string in the middle.
 export function truncateString(string, maxLength = 30) {
+  if (!string) {
+    return '';
+  }
   if (string.length < maxLength) {
     return string;
   }
