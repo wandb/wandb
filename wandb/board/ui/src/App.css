@@ -55,6 +55,7 @@ img.logo.inverted {
 }
 .footer {
   color: #888 !important;
+  background-color: #f4f4f4 !important;
 }
 .model .ui.mini.statistics .statistic > .value,
 .model .ui.mini.statistics .statistic > .label {
