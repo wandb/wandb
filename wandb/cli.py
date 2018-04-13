@@ -33,6 +33,7 @@ import wandb
 from wandb.api import Api
 from wandb.wandb_config import Config
 from wandb import agent as wandb_agent
+from wandb import env
 from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import util
@@ -200,7 +201,7 @@ def cli(ctx):
 
 @cli.command(context_settings=CONTEXT, help="List projects")
 @require_init
-@click.option("--entity", "-e", default=None, envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 def projects(entity, display=True):
     projects = api.list_projects(entity=entity)
@@ -221,8 +222,8 @@ def projects(entity, display=True):
 
 @cli.command(context_settings=CONTEXT, help="List runs in a project")
 @click.pass_context
-@click.option("--project", "-p", default=None, envvar='WANDB_PROJECT', help="The project you wish to list runs from.")
-@click.option("--entity", "-e", default=None, envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--project", "-p", default=None, envvar=env.PROJECT, help="The project you wish to list runs from.")
+@click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 @require_init
 def runs(ctx, project, entity):
@@ -240,9 +241,9 @@ def runs(ctx, project, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="List local & remote file status")
-@click.argument("run", envvar='WANDB_RUN')
+@click.argument("run", envvar=env.RUN)
 @click.option("--settings/--no-settings", help="Show the current settings", default=True)
-@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
+@click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
 @display_error
 def status(run, settings, project):
     if settings:
@@ -260,10 +261,10 @@ def status(run, settings, project):
 
 
 @cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
-@click.argument("run", envvar='WANDB_RUN')
+@click.argument("run", envvar=env.RUN)
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
-@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
-@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
+@click.option("--entity", "-e", default="models", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 def restore(run, branch, project, entity):
     project, run = api.parse_slug(run, project=project)
@@ -336,9 +337,9 @@ def restore(run, branch, project, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
-@click.argument("run", envvar='WANDB_RUN')
-@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you want to download.")
-@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.argument("run", envvar=env.RUN)
+@click.option("--project", "-p", envvar=env.PROJECT, help="The project you want to download.")
+@click.option("--entity", "-e", default="models", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 def pull(project, run, entity):
     project, run = api.parse_slug(run, project=project)
@@ -521,7 +522,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.option('--id', default=None,
               help='Run id to use, default is to generate.')
 @click.option('--resume', default='never', type=click.Choice(['never', 'must', 'allow']),
-              help='Resume startegy, default is never')
+              help='Resume strategy, default is never')
 @click.option('--dir', default=None,
               help='Files in this directory will be saved to wandb, defaults to wandb')
 @click.option('--configs', default=None,
@@ -532,7 +533,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help="Open the run page in your default browser.")
 @display_error
 def run(ctx, program, args, id, resume, dir, configs, message, show):
-    api.ensure_configured()
+    wandb.ensure_configured()
     if configs:
         config_paths = configs.split(',')
     else:
@@ -546,15 +547,15 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
 
     api.set_current_run_id(run.id)
 
-    env = dict(os.environ)
+    environ = dict(os.environ)
     if configs:
-        env['WANDB_CONFIG_PATHS'] = configs
+        environ[env.CONFIG_PATHS] = configs
     if show:
-        env['WANDB_SHOW_RUN'] = 'True'
+        environ[env.SHOW_RUN] = 'True'
 
     try:
         rm = run_manager.RunManager(api, run)
-        rm.init_run(env)
+        rm.init_run(environ)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %
@@ -568,7 +569,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
         logger.error('\n'.join(lines))
         sys.exit(1)
 
-    rm.run_user_process(program, args, env)
+    rm.run_user_process(program, args, environ)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")

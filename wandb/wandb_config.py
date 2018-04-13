@@ -5,12 +5,13 @@ import sys
 import yaml
 
 import wandb
-from .api import Error
+
+FNAME = 'config.yaml'
 
 logger = logging.getLogger(__name__)
 
 
-class ConfigError(Error):
+class ConfigError(wandb.Error):
     pass
 
 
@@ -27,11 +28,8 @@ def boolify(s):
 class Config(object):
     """Creates a W&B config object."""
 
-    def __init__(self, config_paths=[], wandb_dir=None, run_dir=None, persist_callback=None):
+    def __init__(self, config_paths=[], wandb_dir=None, run_dir=None):
         object.__setattr__(self, '_wandb_dir', wandb_dir)
-
-        # TODO: Replace this with an event system.
-        self.set_persist_callback(persist_callback)
 
         # OrderedDict to make writing unit tests easier. (predictable order for
         # .key())
@@ -106,7 +104,7 @@ class Config(object):
 
     def _config_path(self):
         if self._run_dir and os.path.isdir(self._run_dir):
-            return os.path.join(self._run_dir, 'config.yaml')
+            return os.path.join(self._run_dir, FNAME)
         return None
 
     def keys(self):
@@ -132,13 +130,6 @@ class Config(object):
         object.__setattr__(self, '_run_dir', run_dir)
         self._load_values()
 
-    def set_persist_callback(self, callback):
-        """Change the persist callback for this Config.
-
-        Does not call self.persist()
-        """
-        object.__setattr__(self, '_persist_callback', callback)
-
     def persist(self):
         """Stores the current configuration for pushing to W&B"""
         # In dryrun mode, without wandb run, we don't
@@ -151,10 +142,6 @@ class Config(object):
             return
         with open(path, "w") as conf_file:
             conf_file.write(str(self))
-
-        # TODO: Replace with events
-        if self._persist_callback:
-            self._persist_callback()
 
     def get(self, *args):
         return self._items.get(*args)
