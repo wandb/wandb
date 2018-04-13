@@ -133,7 +133,8 @@ def write_netrc(host, entity, key):
             'API-key must be exactly 40 characters long: %s (%s chars)' % (key, len(key)))
         return None
     try:
-        print("Appending to netrc %s" % os.path.expanduser('~/.netrc'))
+        print("Appending key to your netrc file: %s" %
+              os.path.expanduser('~/.netrc'))
         normalized_host = host.split("/")[-1].split(":")[0]
         machine_line = 'machine %s' % normalized_host
         path = os.path.expanduser('~/.netrc')
@@ -161,6 +162,7 @@ def write_netrc(host, entity, key):
             """).format(host=normalized_host, entity=entity, key=key))
         os.chmod(os.path.expanduser('~/.netrc'),
                  stat.S_IRUSR | stat.S_IWUSR)
+        return True
     except IOError as e:
         click.secho("Unable to read ~/.netrc", fg="red")
         return None
@@ -368,28 +370,33 @@ def pull(project, run, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@click.argument("key", nargs=-1)
 @display_error
-def login():
+def login(key):
+    key = key[0] if len(key) > 0 else None
     # Import in here for performance reasons
     import webbrowser
     # TODO: use Oauth and a local webserver: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
     url = api.app_url + '/profile?message=true'
     # TODO: google cloud SDK check_browser.py
-    launched = webbrowser.open_new_tab(url)
+    if key:
+        launched = False
+    else:
+        launched = webbrowser.open_new_tab(url)
     if launched:
         click.echo(
             'Opening [{0}] in a new tab in your default browser.'.format(url))
-    else:
+    elif not key:
         click.echo("You can find your API keys here: {0}".format(url))
 
-    key = click.prompt("{warning} Paste an API key from your profile".format(
-        warning=click.style("Not authenticated!", fg="red")),
-        value_proc=lambda x: x.strip())
-
+    key = key or click.prompt("Paste an API key from your profile".format(
+        value_proc=lambda x: x.strip()))
     if key:
         # TODO: get the username here...
         # username = api.viewer().get('entity', 'models')
-        write_netrc(api.api_url, "user", key)
+        if write_netrc(api.api_url, "user", key):
+            click.secho(
+                "Successfully logged in to Weights & Biases!", fg="green")
 
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
