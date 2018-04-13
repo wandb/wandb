@@ -385,7 +385,13 @@ export function avgPointsByBucket(points, bucketCount, min, max) {
   return avgBuckets;
 }
 
-export function aggregateLines(lines, name, idx, bucketData = true) {
+export function aggregateLines(
+  lines,
+  name,
+  idx,
+  bucketData = true,
+  nameSpec = null
+) {
   /**
    * Takes in a bunch of lines and returns a line with
    * the name Mean + name that plots the average of all the lines passed in
@@ -636,12 +642,13 @@ export function linesFromDataRunsPlot(
             lineGroup,
             groupBy + ':' + displayValue(configVal),
             i++,
-            bucketAggregation
+            bucketAggregation,
+            nameSpec
           )
         );
       });
     } else {
-      aggLines = aggregateLines(lines, key, 0, bucketAggregation);
+      aggLines = aggregateLines(lines, key, 0, bucketAggregation, nameSpec);
     }
     lines = aggLines;
   } else {

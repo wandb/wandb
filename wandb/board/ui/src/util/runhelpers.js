@@ -251,6 +251,24 @@ export function stateToIcon(state, key) {
   );
 }
 
+export class RunsFancyName {
+  /*
+   * This makes a fancy name when you aggregate multiple runs.
+   */
+
+  constructor(runs, spec, prefix = '') {
+    this._runs = runs;
+    this._spec = spec;
+    this._prefix = prefix;
+  }
+  toComponent() {
+    if (!this._spec) {
+      return runDisplayName(this._run);
+    }
+    return <span>{this.prefix} </span>;
+  }
+}
+
 export class RunFancyName {
   constructor(run, spec, prefix = '') {
     this._run = run;

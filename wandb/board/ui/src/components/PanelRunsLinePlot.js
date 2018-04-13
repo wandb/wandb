@@ -6,6 +6,7 @@ import {Button, List, Loader, Form, Grid, Icon} from 'semantic-ui-react';
 import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {registerPanelClass} from '../util/registry.js';
+import '../components/PanelRunsLinePlot.css';
 
 import {
   linesFromDataRunsPlot,
@@ -277,7 +278,7 @@ class RunsLinePlotPanel extends React.Component {
     );
   }
 
-  renderNormal() {
+  renderNormal(mode = 'viewMode') {
     if (!this.props.data.histories) {
       // Not sure why this condition is happening.
       // TODO: fix.
@@ -341,7 +342,7 @@ class RunsLinePlotPanel extends React.Component {
             </span>
           )}
         </div>
-        <div style={{clear: 'both', position: 'absolute', bottom: 0}}>
+        <div style={{clear: 'both'}} className={mode}>
           {_.isNil(this.props.config.key) && (
             <div
               style={{
@@ -387,7 +388,7 @@ class RunsLinePlotPanel extends React.Component {
     if (this.props.configMode) {
       return (
         <div>
-          {this.renderNormal()}
+          {this.renderNormal('editMode')}
           {this.renderConfig()}
         </div>
       );

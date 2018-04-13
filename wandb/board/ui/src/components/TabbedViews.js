@@ -71,7 +71,7 @@ class TabbedViews extends React.Component {
       <div>
         {this.state.editMode && (
           <Button
-            color="green"
+            color="yellow"
             floated="right"
             content="Save Changes"
             disabled={!this.props.isModified}
