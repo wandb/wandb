@@ -107,8 +107,11 @@ def prompt_for_project(ctx, entity):
                 'message': "Which project should we use?",
                 'choices': project_names + ["Create New"]
             }
-            project = whaaaaat.prompt([question])['project_name']
-
+            result = whaaaaat.prompt([question])
+            if result:
+                project = result['project_name']
+            else:
+                project = "Create New"
             # TODO: check with the server if the project exists
             if project == "Create New":
                 project = click.prompt(
@@ -419,7 +422,12 @@ def init(ctx):
             'message': "Which team should we use?",
             'choices': team_names + ["Manual Entry"]
         }
-        entity = whaaaaat.prompt([question])['team_name']
+        result = whaaaaat.prompt([question])
+        # result can be empty on click
+        if result:
+            entity = result['team_name']
+        else:
+            entity = "Manual Entry"
         if entity == "Manual Entry":
             entity = click.prompt("Enter the name of the team you want to use")
     else:
