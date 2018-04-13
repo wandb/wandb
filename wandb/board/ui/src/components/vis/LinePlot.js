@@ -235,43 +235,44 @@ class LinePlotCrosshair extends React.PureComponent {
           opacity={0}
           data={this.falseLine}
         />
-        {crosshairValues && (
-          <Crosshair values={crosshairValues}>
-            <div
-              style={{
-                color: '#333',
-                borderRadius: 6,
-                border: '1px solid #bbb',
-                minWidth: 160,
-                padding: 8,
-                background: 'white',
-                whiteSpace: 'nowrap',
-                lineHeight: '120%',
-              }}>
-              <b>
-                {this.props.xAxis + ': ' + displayValue(crosshairValues[0].x)}
-              </b>
-              {crosshairValues.sort((a, b) => b.y - a.y).map((point, i) => (
-                <div key={point.title + ' ' + i}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      color: point.color,
-                    }}>
-                    <b fontSize="large">
-                      {point.mark === 'dashed'
-                        ? '┅'
-                        : point.mark === 'dotted' ? '┉' : '━'}
-                    </b>{' '}
-                    <span style={{marginLeft: 6}}>
-                      {point.title + ': ' + displayValue(point.y)}
+        {crosshairValues &&
+          crosshairValues.length > 0 && (
+            <Crosshair values={crosshairValues}>
+              <div
+                style={{
+                  color: '#333',
+                  borderRadius: 6,
+                  border: '1px solid #bbb',
+                  minWidth: 160,
+                  padding: 8,
+                  background: 'white',
+                  whiteSpace: 'nowrap',
+                  lineHeight: '120%',
+                }}>
+                <b>
+                  {this.props.xAxis + ': ' + displayValue(crosshairValues[0].x)}
+                </b>
+                {crosshairValues.sort((a, b) => b.y - a.y).map((point, i) => (
+                  <div key={point.title + ' ' + i}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        color: point.color,
+                      }}>
+                      <b fontSize="large">
+                        {point.mark === 'dashed'
+                          ? '┅'
+                          : point.mark === 'dotted' ? '┉' : '━'}
+                      </b>{' '}
+                      <span style={{marginLeft: 6}}>
+                        {point.title + ': ' + displayValue(point.y)}
+                      </span>
                     </span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Crosshair>
-        )}
+                  </div>
+                ))}
+              </div>
+            </Crosshair>
+          )}
       </FlexibleWidthXYPlot>
     );
   }
