@@ -309,15 +309,21 @@ class RunsLinePlotPanel extends React.Component {
         (line.mark = i < 5 ? 'solid' : i < 10 ? 'dashed' : 'dotted')
     );
 
-    let title = yAxis;
-    if (Query.strategy(this.props.panelQuery) === 'merge') {
-      let querySummary = Query.summaryString(this.props.panelQuery);
+    let title = '';
+    if (yAxis) {
+      if (Query.strategy(this.props.panelQuery) === 'merge') {
+        let querySummary = Query.summaryString(this.props.panelQuery);
 
-      if (this.props.panelQuery.model) {
-        title = this.props.panelQuery.model + ' (' + querySummary + ')';
+        if (this.props.panelQuery.model) {
+          title = this.props.panelQuery.model + ' (' + querySummary + ')';
+        } else {
+          title = yAxis + ' (' + querySummary + ')';
+        }
       } else {
-        title = yAxis + ' (' + querySummary + ')';
+        title = yAxis;
       }
+    } else {
+      title = '';
     }
 
     return (
