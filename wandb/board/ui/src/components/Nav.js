@@ -2,7 +2,7 @@ import React, {Component} from 'react';
 import {connect} from 'react-redux';
 import {NavLink, withRouter} from 'react-router-dom';
 import {Menu, Container, Message, Transition} from 'semantic-ui-react';
-import logo from '../assets/wandb-new.svg';
+import logo from '../assets/wandb.svg';
 
 import '../components/Nav.css';
 

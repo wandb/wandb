@@ -1,5 +1,3 @@
-
-
 .dashboard.night > div {
   color: #fff;
 }
@@ -40,20 +38,13 @@
   color: white;
 }
 
-.react-grid-item {
-  font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif
-}
-
-.react-grid-item * {
-  font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif
-}
-
 .nightMode .dashboard {
-  background: black;
+  background: rgba(0, 0, 0, 0);
 }
 
 .nightMode .ui.menu {
-  background: black;
+  /* nav bar */
+  background: #55565b;
   color: white;
 }
 
@@ -66,12 +57,17 @@
   color: white;
   border-color: white;
 }
-.nightMode .ui.modal>.content {
+.nightMode .ui.modal > .content {
   background: #555;
 }
 
-.nightMode .ui.modal>.actions {
+.nightMode .ui.modal > .actions {
   background: #555;
+}
+
+/* for now we hide the footer in night mode */
+.nightMode div.ui.vertical.segment.footer {
+  visibility: hidden;
 }
 
 /* end L2K */

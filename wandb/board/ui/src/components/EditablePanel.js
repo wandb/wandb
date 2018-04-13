@@ -64,7 +64,7 @@ class EditablePanel extends React.Component {
               }}>
               <Icon name="trash" />Delete Chart
             </Button>
-            <Button positive onClick={() => this.setState({editing: false})}>
+            <Button primary onClick={() => this.setState({editing: false})}>
               OK
             </Button>
           </Modal.Actions>
@@ -84,7 +84,7 @@ class EditablePanel extends React.Component {
             <Panel {...this.props} editMode={false} currentHeight={500} />
           </Modal.Content>
           <Modal.Actions>
-            <Button positive onClick={() => this.setState({zooming: false})}>
+            <Button primary onClick={() => this.setState({zooming: false})}>
               OK
             </Button>
           </Modal.Actions>

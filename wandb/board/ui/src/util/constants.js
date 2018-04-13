@@ -18,19 +18,33 @@ export const frameworkOptions = e => {
 
 export const PERMISSIONS = [];
 
+/*
+@primaryColor : #007FAF;  // blue
+@secondaryColor: #7A7B7E; // gray
+@yellow: #ECBB33;
+@red: #C1433C;
+@green: #3D9E3E;
+@blue: #007FAF;
+@darkgray: #55565B;
+@gray: #7A7B7E;
+@lightgray: #B3B3B0;
+@verylightgray: #DDDDDA;
+*/
+
 // Got this list from a cool site http://tools.medialab.sciences-po.fr/iwanthue/
 // First five are locked from demian
+// Try to make them lighter towards the end so they fade a little into white background
 export const COLORS10 = [
-  '#ecbb33',
-  '#55565b',
+  '#df672a',
   '#007faf',
   '#c1433c',
   '#3d9e3e',
-  '#936ccb',
-  '#b08342',
-  '#65cca6',
-  '#cb5b95',
-  '#b2ce63',
+  '#c99d06',
+  '#926ccb',
+  '#6bb59b',
+  '#ad825c',
+  '#c66b9e',
+  '#a7b756',
 ];
 
 // If we wanted to use 20 colors...
