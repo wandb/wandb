@@ -87,24 +87,6 @@ export const RUNS_QUERY = gql`
       summaryMetrics
       views
       requestSubscribe @include(if: $requestSubscribe)
-      sweeps {
-        edges {
-          node {
-            id
-            name
-            createdAt
-            heartbeatAt
-            updatedAt
-            description
-            state
-            runCount
-            user {
-              username
-              photoUrl
-            }
-          }
-        }
-      }
       runs(
         first: $limit
         after: $cursor
