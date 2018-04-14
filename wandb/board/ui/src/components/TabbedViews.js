@@ -1,14 +1,34 @@
 import React from 'react';
 import _ from 'lodash';
 import PropTypes from 'prop-types';
-import {Button, Icon, Menu, Tab} from 'semantic-ui-react';
+import {Popup, Button, Icon, Menu, Tab} from 'semantic-ui-react';
 
 class TabbedViews extends React.Component {
-  state = {editMode: false};
+  state = {editMode: false, nightMode: false};
 
   static propTypes = {
     renderView: PropTypes.func.isRequired,
   };
+
+  componentWillUnmount() {
+    console.log('Unmounting night mode');
+    if (this.state.nightMode) {
+      this.setNightMode(false);
+    }
+  }
+
+  setNightMode(nightMode) {
+    this.setState({nightMode: nightMode});
+    if (nightMode) {
+      document.body.style.background = '#55565B';
+      document.body.style.color = '#fff';
+      document.body.className = 'nightMode';
+    } else {
+      document.body.style.background = '#fff';
+      document.body.style.color = '#000';
+      document.body.className = 'dayMode';
+    }
+  }
 
   render() {
     let panes = this.props.tabs.map((viewId, i) => ({
@@ -22,7 +42,7 @@ class TabbedViews extends React.Component {
             viewId,
             this.state.editMode,
             i !== 0,
-            i !== this.props.tabs.length - 1,
+            i !== this.props.tabs.length - 1
           )}
         </Tab.Pane>
       ),
@@ -51,7 +71,7 @@ class TabbedViews extends React.Component {
       <div>
         {this.state.editMode && (
           <Button
-            color="green"
+            color="yellow"
             floated="right"
             content="Save Changes"
             disabled={!this.props.isModified}
@@ -61,42 +81,78 @@ class TabbedViews extends React.Component {
             }}
           />
         )}
-        {!this.props.fullScreen && (
+        {this.props.viewType !== 'dashboards' && (
           <Button
-            content={
-              this.props.viewType === 'dashboards'
-                ? null
-                : this.state.editMode ? 'View Charts' : 'Edit Charts'
-            }
+            content={this.state.editMode ? 'View Charts' : 'Edit Charts'}
             floated="right"
             icon={this.state.editMode ? 'unhide' : 'configure'}
             onClick={() => this.setState({editMode: !this.state.editMode})}
           />
         )}
+
+        {!this.props.fullScreen &&
+          (this.props.viewType === 'dashboards' && (
+            <Popup
+              trigger={
+                <Button
+                  floated="right"
+                  icon={this.state.editMode ? 'unhide' : 'configure'}
+                  onClick={() =>
+                    this.setState({editMode: !this.state.editMode})
+                  }
+                />
+              }
+              content="Edit Charts"
+            />
+          ))}
         {this.props.viewType === 'dashboards' &&
           !this.props.fullScreen && (
-            <Button
-              floated="right"
-              icon="window maximize"
-              onClick={() => this.props.setFullScreen(true)}
+            <Popup
+              trigger={
+                <Button
+                  floated="right"
+                  icon="window maximize"
+                  onClick={() => this.props.setFullScreen(true)}
+                />
+              }
+              content="Full Screen"
             />
           )}
         {this.props.viewType === 'dashboards' &&
           !this.props.fullScreen && (
-            <Button
-              floated="right"
-              icon="print"
-              onClick={() => window.print()}
+            <Popup
+              trigger={
+                <Button
+                  floated="right"
+                  icon="print"
+                  onClick={() => window.print()}
+                />
+              }
+              content="Print"
+            />
+          )}
+        {this.props.viewType === 'dashboards' &&
+          !this.props.fullScreen && (
+            <Popup
+              trigger={
+                <Button
+                  floated="right"
+                  icon="moon"
+                  onClick={() => this.setNightMode(!this.state.nightMode)}
+                />
+              }
+              content="Night Mode"
             />
           )}
         <Tab
+          className={this.state.nightMode ? 'nightMode' : 'dayMode'}
           panes={panes}
           menu={{secondary: true, pointing: true}}
           activeIndex={activeIndex}
           onTabChange={(event, {activeIndex}) => {
             this.props.setActiveView(
               this.props.viewType,
-              this.props.tabs[activeIndex],
+              this.props.tabs[activeIndex]
             );
           }}
         />

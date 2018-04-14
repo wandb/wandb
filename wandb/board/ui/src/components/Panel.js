@@ -3,7 +3,7 @@ import _ from 'lodash';
 import {Button, Card, Dropdown, Grid, Icon, Segment} from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
 import QueryEditor from '../components/QueryEditor';
-import {filterRuns, sortRuns} from '../util/runhelpers.js';
+import {sortRuns, flatKeySuggestions} from '../util/runhelpers.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
 
@@ -73,7 +73,7 @@ export default class Panel extends React.Component {
 
     if (!panel && this.props.editMode) {
       panel = (
-        <div>
+        <div className={this.props.className}>
           {!this.props.noButtons && (
             <Button.Group basic floated="right">
               {/*
@@ -125,7 +125,7 @@ export default class Panel extends React.Component {
                 allowProjectChange={this.props.viewType === 'dashboards'}
                 setQuery={this.props.updateQuery}
                 runs={this.props.data.base}
-                keySuggestions={this.props.data.keys}
+                keySuggestions={flatKeySuggestions(this.props.data.keys)}
                 filteredRuns={this.props.data.filtered}
               />
             )}

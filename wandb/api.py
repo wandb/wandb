@@ -12,12 +12,6 @@ import os
 import json
 import yaml
 import re
-import wandb
-from wandb import __version__, wandb_dir, Error
-from wandb.git_repo import GitRepo
-from wandb import retry
-from wandb import util
-from .config import Config
 import base64
 import binascii
 import click
@@ -35,6 +29,13 @@ import time
 import sys
 
 from six import b
+
+import wandb
+from wandb import __version__, wandb_dir, Error
+from wandb import env
+from wandb.git_repo import GitRepo
+from wandb import retry
+from wandb import util
 
 logger = logging.getLogger(__name__)
 
@@ -224,13 +225,6 @@ class Api(object):
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
 
-    def ensure_configured(self):
-        # The WANDB_DEBUG check ensures tests still work.
-        if not os.getenv('WANDB_DEBUG') and not self.settings("project"):
-            wandb.termlog('wandb.init() called but system not configured.\n'
-                          'Run "wandb init" or set environment variables to get started')
-            sys.exit(1)
-
     @property
     def current_run_id(self):
         return self._current_run_id
@@ -289,12 +283,10 @@ class Api(object):
                             section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")
-            self._settings["project"] = os.environ.get("WANDB_PROJECT",
-                                                       self._settings.get("project"))
-            self._settings["entity"] = os.environ.get("WANDB_ENTITY",
-                                                      self._settings.get("entity"))
-            self._settings["base_url"] = os.environ.get("WANDB_BASE_URL",
-                                                        self._settings.get("base_url"))
+            self._settings["project"] = env.get_project(self._settings.get("project"))
+            self._settings["entity"] = env.get_entity(self._settings.get("entity"))
+            self._settings["base_url"] = env.get_base_url(self._settings.get("base_url"))
+
         return self._settings if key is None else self._settings[key]
 
     def parse_slug(self, slug, project=None, run=None):
@@ -306,7 +298,7 @@ class Api(object):
             project = project or self.settings().get("project")
             if project is None:
                 raise CommError("No default project configured.")
-            run = run or slug or os.environ.get("WANDB_RUN")
+            run = run or slug or env.get_run()
             if run is None:
                 run = "latest"
         return (project, run)
@@ -600,7 +592,7 @@ class Api(object):
         response = self.gql(mutation, variable_values={
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit,
-            'host': host, 'debug': os.getenv('DEBUG'), 'repo': repo, 'program': program_path, 'jobType': job_type,
+            'host': host, 'debug': env.get_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics})
         return response['upsertBucket']['bucket']
 

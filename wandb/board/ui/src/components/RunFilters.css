@@ -1,15 +1,35 @@
 .buttons.runFilterViewer button.delete {
-    display: none;
+  display: none;
 }
 
 .buttons.runFilterViewer button.filter {
-    border-radius: .29rem;
+  border-radius: 0.29rem;
 }
 
-.buttons.runFilterViewer:hover button.filter {
-    border-radius: .29rem 0 0 .29rem;
+.runFilters:hover .buttons.runFilterViewer button.filter {
+  border-radius: 0.29rem 0 0 0.29rem;
 }
 
-.buttons.runFilterViewer:hover button.delete {
-    display: block;
+.runFilters:hover .buttons.runFilterViewer button.delete {
+  display: block;
+}
+
+.ui.button.orButton {
+  display: none;
+}
+
+.runFilters:hover .ui.button.orButton {
+  display: inline;
+}
+
+.ui.button.andButton {
+  display: none;
+}
+
+.runFilters:hover .ui.button.andButton {
+  display: inline;
+}
+
+.runFiltersEmpty .ui.button.andButton {
+  display: inline;
 }

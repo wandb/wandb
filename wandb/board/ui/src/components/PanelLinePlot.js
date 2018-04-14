@@ -46,7 +46,7 @@ class LinePlotPanel extends React.Component {
     }
 
     let selectedHistoryKeys = this.props.config.lines.filter(
-      key => !_.startsWith(key, '_') && _.includes(historyKeys, key),
+      key => !_.startsWith(key, '_') && _.includes(historyKeys, key)
     );
     return selectedHistoryKeys;
   }
@@ -104,7 +104,7 @@ class LinePlotPanel extends React.Component {
         text: xAxisChoice,
         key: xAxisChoice,
         value: xAxisChoice,
-      }),
+      })
     );
 
     // LB I manually filter the keyword "epoch" from the yAxis options
@@ -267,7 +267,7 @@ class LinePlotPanel extends React.Component {
       selectedEventKeys,
       xAxis,
       this.scaledSmoothness(),
-      this.props.config.yLogScale,
+      this.props.config.yLogScale
     );
 
     if (
@@ -282,7 +282,7 @@ class LinePlotPanel extends React.Component {
           <a href="http://docs.wandb.com/#history">
             http://docs.wandb.com/#history
           </a>.
-        </p>,
+        </p>
       );
     }
     if (selectedMetrics.length == 0) {

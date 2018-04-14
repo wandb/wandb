@@ -4,11 +4,7 @@ import {
   TOGGLE_RUN_SELECTION,
   UPDATE_RUN_SELECTIONS,
   UPDATE_JOB,
-  ADD_FILTER,
-  DELETE_FILTER,
-  EDIT_FILTER,
-  SET_FILTER_COMPONENT,
-  CLEAR_FILTERS,
+  SET_FILTERS,
   SET_COLUMNS,
   TOGGLE_COLUMN,
   ENABLE_COLUMN,
@@ -51,46 +47,11 @@ export default function runs(
       return {...state, selected: selected};
     case UPDATE_JOB:
       return {...state, currentJob: action.id};
-    case ADD_FILTER:
-      return update(state, {
-        filters: {
-          [action.kind]: {
-            $set: Query.addFilter(
-              state.filters[action.kind],
-              action.key,
-              action.op,
-              action.value,
-            ),
-          },
-        },
+    case SET_FILTERS:
+      let result = update(state, {
+        filters: {[action.kind]: {$set: action.filters}},
       });
-    case DELETE_FILTER:
-      return update(state, {
-        filters: {
-          [action.kind]: {
-            $set: Query.deleteFilter(state.filters[action.kind], action.id),
-          },
-        },
-      });
-    case SET_FILTER_COMPONENT:
-      return update(state, {
-        filters: {
-          [action.kind]: {
-            $set: Query.setFilterComponent(
-              state.filters[action.kind],
-              action.id,
-              action.component,
-              action.value,
-            ),
-          },
-        },
-      });
-    case CLEAR_FILTERS:
-      nextFilterID = 0;
-      return update(state, {
-        filterModel: {$set: action.filterModel},
-        filters: {$set: {filter: {}, select: {}}},
-      });
+      return result;
     case SET_HIGHLIGHT:
       return update(state, {highlight: {$set: action.runId}});
     case SET_COLUMNS:

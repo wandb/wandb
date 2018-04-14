@@ -79,16 +79,16 @@ const userTimingMiddleware = new ApolloLink((operation, forward) => {
           window.performance.measure(
             operation.operationName,
             uuid + '-start',
-            uuid + '-end',
+            uuid + '-end'
           );
           const measure = window.performance.getEntriesByName(
-            operation.operationName,
+            operation.operationName
           )[0];
           window.ga(
             'send',
             'timing',
             operation.operationName,
-            measure.duration,
+            measure.duration
           );
         } catch (e) {
           console.warn('unable to time pageview', e);
@@ -106,7 +106,7 @@ const errorLink = onError(({networkError, graphQLErrors}, store) => {
       if (code === 401) {
         localStorage.removeItem('id_token');
         if (document.location.pathname !== '/login') {
-          localStorage.setItem('redirect', document.location.pathname);
+          localStorage.setItem('redirect', document.location.href);
         }
         dispatch(push('/login'));
       } else {

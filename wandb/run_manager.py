@@ -12,17 +12,20 @@ from tempfile import NamedTemporaryFile
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 from shortuuid import ShortUUID
-from .config import Config
 import logging
 import threading
 import json
+import yaml
 
+import click
 import six
 from six.moves import queue
-import click
+import webbrowser
 
 import wandb
+from wandb import env
 from wandb import Error
+from wandb import wandb_config as config
 from wandb import io_wrap
 from wandb import file_pusher
 from wandb import sparkline
@@ -111,6 +114,58 @@ class FileEventHandlerOverwriteDeferred(FileEventHandler):
 
     def finish(self):
         self._file_pusher.file_changed(self.save_name, self.file_path)
+
+
+class FileEventHandlerConfig(FileEventHandler):
+    """Set the summary instead of uploading the file"""
+    RATE_LIMIT_SECONDS = 5
+
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        self._api = api
+        self._storage_id = kwargs["storage_id"]
+        del kwargs["storage_id"]
+        super(FileEventHandlerConfig, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._last_sent = time.time() - self.RATE_LIMIT_SECONDS
+        self._file_pusher = file_pusher
+        self._thread = None
+
+    def on_created(self):
+        self._eventually_update()
+
+    def on_modified(self):
+        self._eventually_update()
+
+    def _eventually_update(self):
+        if time.time() - self._last_sent >= self.RATE_LIMIT_SECONDS:
+            if self._thread:
+                self._thread.join()
+                self._thread = None
+
+            self._thread = threading.Timer(self.RATE_LIMIT_SECONDS, self._update)
+            self._thread.start()
+        else:
+            self._update()
+
+    def _update(self):
+        try:
+            config_dict = yaml.load(open(self.file_path))
+        except yaml.parser.ParserError:
+            wandb.termlog("Unable to parse config file; probably being modified by user process?")
+            return
+
+        # TODO(adrian): ensure the file content will exactly match Bucket.config
+        # ie. push the file content as a string
+        self._api.upsert_run(id=self._storage_id, config=config_dict)
+        self._file_pusher.file_changed(self.save_name, self.file_path, copy=True)
+        self._last_sent = time.time()
+
+    def finish(self):
+        if self._thread:
+            self._thread.join()
+            self._thread = None
+
+        self._update()
 
 
 class FileEventHandlerSummary(FileEventHandler):
@@ -539,6 +594,9 @@ class RunManager(object):
         except AttributeError:  # SIGQUIT doesn't exist on windows
             pass
 
+        if env.get_show_run():
+            webbrowser.open_new_tab(self._run.get_url(self._api))
+
         exitcode = None
         try:
             while True:
@@ -561,12 +619,16 @@ class RunManager(object):
                     time.sleep(1)
         except KeyboardInterrupt:
             exitcode = 255
-            wandb.termlog('Ctrl-c pressed; waiting for program to end.')
-            keyboard_interrupt_time = time.time()
-            if not headless:
-                # give the process a couple of seconds to die, then kill it
-                while self.proc.poll() is None and (time.time() - keyboard_interrupt_time) < 2:
-                    time.sleep(0.1)
+            if headless:
+                wandb.termlog('Ctrl-c pressed.')
+            else:
+                wandb.termlog('Ctrl-c pressed; waiting for program to end. Press ctrl-c again to kill it.')
+                try:
+                    while self.proc.poll() is None:
+                        time.sleep(0.1)
+                except KeyboardInterrupt:
+                    pass
+
                 if self.proc.poll() is None:
                     wandb.termlog('Program still alive. Killing it.')
                     try:
@@ -620,8 +682,8 @@ class RunManager(object):
             format_str = '  {:>%s} {}' % max_len
             for k, v in summary.items():
                 wandb.termlog(format_str.format(k, v))
-            self._run.history.load()
 
+        self._run.history.load()
         history_keys = self._run.history.keys()
         if len(history_keys):
             wandb.termlog('Run history:')
@@ -747,6 +809,9 @@ class RunManager(object):
             # theory). So for now we defer uploading everything til the end of the run.
             # TODO: send wandb-summary during run. One option is to copy to a temporary
             # file before uploading.
+            elif save_name == config.FNAME:
+                self._event_handlers[save_name] = FileEventHandlerConfig(
+                    file_path, save_name, self._api, self._file_pusher, storage_id=self._run.storage_id)
             elif save_name == 'wandb-summary.json':
                 # Load the summary into the syncer process for meta etc to work
                 self._run.summary.load()

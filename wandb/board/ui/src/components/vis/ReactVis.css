@@ -23,3 +23,22 @@
 #root .rv-discrete-color-legend-item.clickable:hover {
     background: #eee;
 }
+
+
+.nightMode .line-plot {
+    background: #000;
+    color: #d4d4d5;
+    font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif
+}
+
+.nightMode .line-plot-legend {
+    background: #000;
+    color: #d4d4d5;
+    font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif
+
+}
+
+h4 {
+    font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif
+}
+
