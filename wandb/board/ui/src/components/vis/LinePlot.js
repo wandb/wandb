@@ -73,6 +73,9 @@ class LinePlotPlot extends React.PureComponent {
       // with the smallGraph detection.
       <FlexibleWidthXYPlot
         animation={false}
+        xDomain={
+          lastDrawLocation && [lastDrawLocation.left, lastDrawLocation.right]
+        }
         yType={yScale}
         xType={xType}
         height={height}>
