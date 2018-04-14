@@ -33,6 +33,7 @@ import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
 import * as Selection from '../util/selections';
 import * as Filter from '../util/filters';
+import * as Query from '../util/query';
 
 const maxColNameLength = 20;
 
@@ -573,6 +574,11 @@ function mapStateToProps() {
       currentPage: state.runs.pages[id] && state.runs.pages[id].current,
       selections: state.runs.filters.select,
       filters: state.runs.filters.filter,
+      query: Query.merge(ownProps.pageQuery, {
+        entity: ownProps.match.params.entity,
+        model: ownProps.match.params.model,
+        strategy: 'merge',
+      }),
     };
   };
 }
