@@ -348,7 +348,11 @@ class RunsLinePlotPanel extends React.Component {
             </span>
           )}
         </div>
-        <div style={{clear: 'both'}} className={mode}>
+        <div
+          style={{
+            clear: 'both',
+          }}
+          className={mode}>
           {_.isNil(this.props.config.key) && (
             <div
               style={{
