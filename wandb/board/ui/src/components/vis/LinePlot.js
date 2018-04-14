@@ -11,6 +11,8 @@ import {
   DiscreteColorLegend,
   Crosshair,
 } from 'react-vis';
+import {Segment} from 'semantic-ui-react';
+
 import {truncateString, displayValue} from '../../util/runhelpers.js';
 import {smartNames} from '../../util/plotHelpers.js';
 import {format} from 'd3-format';
@@ -287,11 +289,7 @@ export default class LinePlot extends React.PureComponent {
     let lines = [];
     lines = filteredLines;
     return (
-      <div
-        className="line-plot"
-        style={{
-          border: this.props.lines.length === 0 ? '1px solid #ccc' : '',
-        }}>
+      <Segment attached="bottom" basic>
         <div
           className="line-plot-legend"
           style={{
@@ -338,6 +336,7 @@ export default class LinePlot extends React.PureComponent {
             ))}
           </div>
         </div>
+
         <div style={{position: 'relative'}}>
           <LinePlotPlot
             height={this.props.currentHeight - 70 || 220}
@@ -359,7 +358,7 @@ export default class LinePlot extends React.PureComponent {
             />
           </div>
         </div>
-      </div>
+      </Segment>
     );
   }
 }
