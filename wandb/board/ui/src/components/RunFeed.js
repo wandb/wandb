@@ -5,6 +5,7 @@ import {
   Icon,
   Image,
   Label,
+  Loader,
   Table,
   Item,
   Popup,
@@ -390,6 +391,38 @@ class RunFeed extends PureComponent {
   };
   state = {sort: 'timeline', dir: 'descending'};
 
+  handleScroll() {
+    const windowHeight =
+      'innerHeight' in window
+        ? window.innerHeight
+        : document.documentElement.offsetHeight;
+    const body = document.body;
+    const html = document.documentElement;
+    const docHeight = Math.max(
+      body.scrollHeight,
+      body.offsetHeight,
+      html.clientHeight,
+      html.scrollHeight,
+      html.offsetHeight
+    );
+    const windowBottom = windowHeight + window.pageYOffset;
+    if (windowBottom >= docHeight) {
+      if (this.props.data.loadMore) {
+        // TODO: don't call if no more data (maybe we don't provide loadMore in that case)
+        // TODO: set state to loading so we can show an indicator
+        this.props.data.loadMore();
+      }
+    }
+  }
+
+  componentDidMount() {
+    window.addEventListener('scroll', () => this.handleScroll());
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('scroll', () => this.handleScroll());
+  }
+
   sortedClass(type) {
     return this.state.sort === type ? `sorted ${this.state.dir}` : '';
   }
@@ -413,27 +446,15 @@ class RunFeed extends PureComponent {
   }
 
   render() {
-    console.log('this.props.data', this.props.data);
-    let /*stats =
-        this.props.project &&
-        Object.keys(JSONparseNaN(this.props.project.summaryMetrics)).sort(),*/
-      runsLength = this.props.data.base ? this.props.data.base.length : 0,
-      startIndex = (this.props.currentPage - 1) * this.props.limit,
-      endIndex = Math.min(startIndex + this.props.limit, runsLength),
-      runs =
-        this.props.data.filtered &&
-        this.props.data.filtered.length > 0 &&
-        !this.props.loading
-          ? this.props.data.filtered.slice(startIndex, endIndex)
-          : this.tablePlaceholders(
-              this.props.limit,
-              this.props.project.bucketCount
-            ),
-      columnNames = this.props.loading
-        ? ['Description']
-        : this.props.columnNames.filter(
-            columnName => this.props.columns[columnName]
-          );
+    const runsLength = this.props.data.counts.filtered;
+    const startIndex = (this.props.currentPage - 1) * this.props.limit;
+    const endIndex = Math.min(startIndex + this.props.limit, runsLength);
+    const runs = this.props.data.filtered;
+    const columnNames = this.props.loading
+      ? ['Description']
+      : this.props.columnNames.filter(
+          columnName => this.props.columns[columnName]
+        );
     if (!this.props.loading && runsLength === 0) {
       return <div>No runs match the chosen filters.</div>;
     }
@@ -482,12 +503,6 @@ class RunFeed extends PureComponent {
             </Table.Body>
           </Table>
         </div>
-        <Pagination
-          id={this.props.project.id}
-          total={runsLength}
-          limit={this.props.limit}
-          scroll={false}
-        />
       </div>
     );
   }
@@ -578,6 +593,10 @@ function mapStateToProps() {
         entity: ownProps.match.params.entity,
         model: ownProps.match.params.model,
         strategy: 'merge',
+        page: {
+          // num: state.runs.pages[id] ? state.runs.pages[id].current : 0,
+          size: ownProps.limit,
+        },
       }),
     };
   };

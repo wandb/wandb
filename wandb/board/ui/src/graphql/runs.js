@@ -114,6 +114,7 @@ export const RUNS_QUERY = gql`
         filters: $filters
       ) {
         paths
+        count
         edges {
           node {
             ...BasicRunFragment

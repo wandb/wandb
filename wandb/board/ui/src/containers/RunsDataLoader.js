@@ -40,6 +40,7 @@ function withRunsData() {
           name: query.model,
           order: 'timeline',
           requestSubscribe: requestSubscribe || false,
+          limit: query.page && query.page.size,
         },
       };
       if (BOARD) {
@@ -50,15 +51,48 @@ function withRunsData() {
       }
       return defaults;
     },
-    props: ({data: {loading, project, viewer, refetch}, errors}) => {
+    props: ({data: {loading, project, viewer, fetchMore}, errors}) => {
       //TODO: For some reason the first poll causes loading to be true
       // if (project && projects.runs && loading) loading = false;
       return {
         loading,
-        refetch,
         runs: project && project.runs,
         views: project && project.views,
         projectID: project && project.id,
+        counts: {
+          base: project && project.runs && project.runs.count,
+          filtered: project && project.runs && project.runs.count,
+          selected: project && project.runs && project.runs.count,
+        },
+        loadMore:
+          project &&
+          (() =>
+            fetchMore({
+              variables: {
+                cursor: project.runs.pageInfo.endCursor,
+              },
+              updateQuery: (previousResult, {fetchMoreResult}) => {
+                const newEdges = fetchMoreResult.project.runs.edges;
+                const pageInfo = fetchMoreResult.project.runs.pageInfo;
+
+                return newEdges.length
+                  ? {
+                      project: {
+                        __typename: previousResult.project.__typename,
+                        id: previousResult.project.id,
+                        runs: {
+                          __typename: previousResult.project.runs.__typename,
+                          edges: [
+                            ...previousResult.project.runs.edges,
+                            ...newEdges,
+                          ],
+                          pageInfo,
+                        },
+                      },
+                    }
+                  : previousResult;
+              },
+            })),
       };
     },
   });
@@ -77,6 +111,11 @@ function withDerivedRunsData(WrappedComponent) {
         keys: [],
         axisOptions: [],
         columnNames: [],
+        counts: {
+          base: 0,
+          filtered: 0,
+          selected: 0,
+        },
       },
     };
     constructor(props) {
@@ -91,6 +130,7 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     _setup(prevProps, props) {
+      this.loadMore = props.loadMore;
       let strategy = Query.strategy(props.query);
       if (strategy === 'page') {
         this.setState({data: props.data});
@@ -100,6 +140,7 @@ function withDerivedRunsData(WrappedComponent) {
           prevBuckets: prevProps.runs,
           runs: props.runs,
           query: props.query,
+          counts: props.counts,
         };
         this.worker.postMessage(messageData);
       }
@@ -109,7 +150,7 @@ function withDerivedRunsData(WrappedComponent) {
     componentWillMount() {
       this.worker = new RunsDataWorker();
       this.worker.onmessage = m => {
-        this.setState({data: m.data});
+        this.setState({data: {...m.data, loadMore: this.loadMore}});
       };
       this._setup({}, this.props);
     }
@@ -175,7 +216,7 @@ function withDerivedHistoryData(WrappedComponent) {
                       console.log(
                         `WARNING: JSON error parsing history (HistoryLoader). Row: ${i}, Bucket: ${
                           edge.node.name
-                        }`,
+                        }`
                       );
                       return null;
                     }
@@ -188,10 +229,10 @@ function withDerivedHistoryData(WrappedComponent) {
               _.uniq(
                 _.flatMap(
                   this.runHistory,
-                  o => (o.history ? o.history.map(row => _.keys(row)) : []),
-                ),
-              ),
-            ),
+                  o => (o.history ? o.history.map(row => _.keys(row)) : [])
+                )
+              )
+            )
           );
         }
         this.runHistories = {
@@ -199,7 +240,7 @@ function withDerivedHistoryData(WrappedComponent) {
           maxRuns: MAX_HISTORIES_LOADED,
           totalRuns: _.keys(nextProps.data.selectedRunsById).length,
           data: this.runHistory.filter(
-            o => o.history && nextProps.data.selectedRunsById[o.name],
+            o => o.history && nextProps.data.selectedRunsById[o.name]
           ),
           keys: this.historyKeys,
         };
@@ -238,7 +279,7 @@ export default function withRunsDataLoader(WrappedComponent) {
 
   return withRunsData()(
     withDerivedRunsData(
-      withHistoryLoader(withDerivedHistoryData(RunsDataLoader)),
-    ),
+      withHistoryLoader(withDerivedHistoryData(RunsDataLoader))
+    )
   );
 }

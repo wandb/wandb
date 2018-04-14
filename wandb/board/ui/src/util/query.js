@@ -53,6 +53,7 @@ export function merge(base, apply) {
   }
   let result = {};
   result.strategy = apply.strategy;
+  result.page = apply.page;
   result.entity = apply.entity || base.entity;
   result.model = apply.model || base.model;
 
