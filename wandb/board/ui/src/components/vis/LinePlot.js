@@ -10,6 +10,7 @@ import {
   AreaSeries,
   DiscreteColorLegend,
   Crosshair,
+  Borders,
 } from 'react-vis';
 import {Segment} from 'semantic-ui-react';
 
@@ -76,9 +77,44 @@ class LinePlotPlot extends React.PureComponent {
         xDomain={
           lastDrawLocation && [lastDrawLocation.left, lastDrawLocation.right]
         }
+        className={
+          'line-plot-plot' + (lastDrawLocation ? lastDrawLocation.classes : '')
+        }
         yType={yScale}
         xType={xType}
         height={height}>
+        {lines
+          .map(
+            (line, i) =>
+              !disabled[line.title] ? (
+                line.area ? (
+                  <AreaSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    getNull={d => d.y !== null}
+                    stroke={'#0000'}
+                  />
+                ) : (
+                  <LineSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    getNull={d => d.y !== null}
+                    strokeDasharray={
+                      line.mark === 'dashed'
+                        ? '4,2'
+                        : line.mark === 'dotted' ? '1,1' : undefined
+                    }
+                    strokeStyle={'solid'}
+                  />
+                )
+              ) : null
+          )
+          .filter(o => o)
+          .reverse() // revese so the top line is the first line
+        }
+        <Borders style={{all: {fill: '#fff'}}} />
         <XAxis
           title={truncateString(xAxis)}
           tickTotal={5}
@@ -100,37 +136,6 @@ class LinePlotPlot extends React.PureComponent {
             text: {stroke: 'none', fill: 'aaa', fontWeight: 600},
           }}
         />
-        {lines
-          .map(
-            (line, i) =>
-              !disabled[line.title] ? (
-                line.area ? (
-                  <AreaSeries
-                    key={i}
-                    color={line.color}
-                    data={line.data}
-                    getNull={d => d.y !== null}
-                    stroke={'#0000'}
-                  />
-                ) : (
-                  <LineSeries
-                    key={i}
-                    color={line.color}
-                    data={line.data}
-                    nullAccessor={d => d.y !== null}
-                    strokeDasharray={
-                      line.mark === 'dashed'
-                        ? '4,2'
-                        : line.mark === 'dotted' ? '1,1' : undefined
-                    }
-                    strokeStyle={'solid'}
-                  />
-                )
-              ) : null
-          )
-          .filter(o => o)
-          .reverse() // revese so the top line is the first line
-        }
         <Highlight
           onBrushEnd={area => {
             this.setState({

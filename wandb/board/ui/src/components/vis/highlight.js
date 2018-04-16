@@ -34,12 +34,19 @@ export default class Highlight extends AbstractSeries {
   }
 
   onParentMouseDown(e) {
-    const {marginLeft, innerHeight, onBrushStart} = this.props;
+    const {
+      marginLeft,
+      innerWidth,
+      innerHeight,
+      onBrushStart,
+      xDomain,
+    } = this.props;
     let offsetX = e.nativeEvent.offsetX;
     if (e.nativeEvent.type === 'touchstart') {
       offsetX = e.nativeEvent.pageX;
     }
     const location = offsetX - marginLeft;
+    const step = innerWidth / (xDomain[1] - xDomain[0]);
 
     // TODO: Eventually support drawing as a full rectangle, if desired. Currently the code supports 'x' only
     this.setState({
@@ -51,6 +58,7 @@ export default class Highlight extends AbstractSeries {
         left: location,
       },
       startLoc: location,
+      minStepSpan: step * 4,
     });
 
     if (onBrushStart) {
@@ -70,21 +78,41 @@ export default class Highlight extends AbstractSeries {
     }
 
     const {onBrushEnd} = this.props;
-    const {drawArea} = this.state;
+    const {drawArea, minStepSpan, disableZoom} = this.state;
     const xScale = ScaleUtils.getAttributeScale(this.props, 'x');
     const yScale = ScaleUtils.getAttributeScale(this.props, 'y');
+    const highlightedArea = drawArea.right - drawArea.left;
+    let classes = ' zoomed-in';
 
     // Clear the draw area
     this.setState({
       drawing: false,
       drawArea: {top: 0, right: 0, bottom: 0, left: 0},
       startLoc: 0,
+      minStepSpan: 0,
     });
 
     // Invoke the callback with null if the selected area was < 5px
     if (Math.abs(drawArea.right - drawArea.left) < 5) {
+      this.setState({disableZoom: false});
       onBrushEnd(null);
       return;
+    }
+
+    if (highlightedArea < minStepSpan) {
+      const diff = (minStepSpan - highlightedArea) / 2;
+
+      drawArea.left -= diff;
+      if (drawArea.left < 0) {
+        drawArea.left = 0;
+      }
+      drawArea.right += diff;
+      if (drawArea.right > this.props.innerWidth) {
+        drawArea.right = this.props.innerWidth;
+      }
+
+      classes += ' max-zoom';
+      this.setState({disableZoom: true});
     }
 
     // Compute the corresponding domain drawn
@@ -93,9 +121,10 @@ export default class Highlight extends AbstractSeries {
       right: xScale.invert(drawArea.right),
       bottom: yScale.invert(drawArea.bottom),
       left: xScale.invert(drawArea.left),
+      classes: classes,
     };
 
-    if (onBrushEnd) {
+    if (onBrushEnd && !disableZoom) {
       onBrushEnd(domainArea);
     }
   }
@@ -133,7 +162,7 @@ export default class Highlight extends AbstractSeries {
       color,
       opacity,
     } = this.props;
-    const {drawArea: {left, right, top, bottom}} = this.state;
+    const {drawArea: {left, right, top, bottom}, disableZoom} = this.state;
 
     return (
       <g
@@ -162,7 +191,7 @@ export default class Highlight extends AbstractSeries {
         <rect
           className="highlight"
           pointerEvents="none"
-          opacity={opacity}
+          opacity={!disableZoom ? opacity : 0}
           fill={color}
           x={left}
           y={top}
