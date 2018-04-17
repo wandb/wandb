@@ -10,19 +10,26 @@ import {
   AreaSeries,
   DiscreteColorLegend,
   Crosshair,
+  Borders,
 } from 'react-vis';
 import {Segment} from 'semantic-ui-react';
 
 import {truncateString, displayValue} from '../../util/runhelpers.js';
 import {smartNames} from '../../util/plotHelpers.js';
 import {format} from 'd3-format';
+import Highlight from './highlight.js';
+import {Button, Container} from 'semantic-ui-react';
 
 class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
   // re-render every time the crosshair (highlight) changes.
+  state = {
+    lastDrawLocation: null,
+  };
+
   render() {
     const smallSizeThresh = 50;
-
+    const {lastDrawLocation} = this.state;
     let {height, xAxis, yScale, lines, disabled, xScale, yAxis} = this.props;
     let xType = 'linear';
     if (xAxis == 'Absolute Time') {
@@ -67,9 +74,47 @@ class LinePlotPlot extends React.PureComponent {
       // with the smallGraph detection.
       <FlexibleWidthXYPlot
         animation={false}
+        xDomain={
+          lastDrawLocation && [lastDrawLocation.left, lastDrawLocation.right]
+        }
+        className={
+          'line-plot-plot' + (lastDrawLocation ? lastDrawLocation.classes : '')
+        }
         yType={yScale}
         xType={xType}
         height={height}>
+        {lines
+          .map(
+            (line, i) =>
+              !disabled[line.title] ? (
+                line.area ? (
+                  <AreaSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    getNull={d => d.y !== null}
+                    stroke={'#0000'}
+                  />
+                ) : (
+                  <LineSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    getNull={d => d.y !== null}
+                    strokeDasharray={
+                      line.mark === 'dashed'
+                        ? '4,2'
+                        : line.mark === 'dotted' ? '1,1' : undefined
+                    }
+                    strokeStyle={'solid'}
+                  />
+                )
+              ) : null
+          )
+          .filter(o => o)
+          .reverse() // revese so the top line is the first line
+        }
+        <Borders style={{all: {fill: '#fff'}}} />
         <XAxis
           title={truncateString(xAxis)}
           tickTotal={5}
@@ -91,37 +136,13 @@ class LinePlotPlot extends React.PureComponent {
             text: {stroke: 'none', fill: 'aaa', fontWeight: 600},
           }}
         />
-        {lines
-          .map(
-            (line, i) =>
-              !disabled[line.title] ? (
-                line.area ? (
-                  <AreaSeries
-                    key={i}
-                    color={line.color}
-                    data={line.data}
-                    getNull={d => d.y !== null}
-                    stroke={'#0000'}
-                  />
-                ) : (
-                  <LineSeries
-                    key={i}
-                    color={line.color}
-                    data={line.data}
-                    nullAccessor={d => d.y !== null}
-                    strokeDasharray={
-                      line.mark === 'dashed'
-                        ? '4,2'
-                        : line.mark === 'dotted' ? '1,1' : undefined
-                    }
-                    strokeStyle={'solid'}
-                  />
-                )
-              ) : null
-          )
-          .filter(o => o)
-          .reverse() // revese so the top line is the first line
-        }
+        <Highlight
+          onBrushEnd={area => {
+            this.setState({
+              lastDrawLocation: area,
+            });
+          }}
+        />
       </FlexibleWidthXYPlot>
     );
   }
@@ -346,7 +367,13 @@ export default class LinePlot extends React.PureComponent {
             lines={this.props.lines}
             disabled={this.state.disabled}
           />
-          <div style={{position: 'absolute', top: 0, width: '100%'}}>
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              width: '100%',
+              pointerEvents: 'none',
+            }}>
             <LinePlotCrosshair
               height={this.props.currentHeight - 70 || 220}
               xAxis={this.props.xAxis}
