@@ -10,7 +10,7 @@ import {
   Modal,
 } from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
-import {filterRuns, sortRuns} from '../util/runhelpers.js';
+import {sortRuns} from '../util/runhelpers.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
 import Panel from '../components/Panel';
@@ -65,7 +65,7 @@ class EditablePanel extends React.Component {
               }}>
               <Icon name="trash" />Delete Chart
             </Button>
-            <Button positive onClick={() => this.setState({editing: false})}>
+            <Button primary onClick={() => this.setState({editing: false})}>
               OK
             </Button>
           </Modal.Actions>
@@ -76,7 +76,6 @@ class EditablePanel extends React.Component {
           size="fullscreen"
           trigger={
             <Icon
-              style={{backgroundColor: 'white'}}
               link
               name="zoom"
               onClick={() => this.setState({zooming: true})}
@@ -86,7 +85,7 @@ class EditablePanel extends React.Component {
             <Panel {...this.props} editMode={false} currentHeight={500} />
           </Modal.Content>
           <Modal.Actions>
-            <Button positive onClick={() => this.setState({zooming: false})}>
+            <Button primary onClick={() => this.setState({zooming: false})}>
               OK
             </Button>
           </Modal.Actions>

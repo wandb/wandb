@@ -31,8 +31,9 @@ import whaaaaat
 
 import wandb
 from wandb.api import Api
-from wandb.config import Config
+from wandb.wandb_config import Config
 from wandb import agent as wandb_agent
+from wandb import env
 from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import util
@@ -107,8 +108,11 @@ def prompt_for_project(ctx, entity):
                 'message': "Which project should we use?",
                 'choices': project_names + ["Create New"]
             }
-            project = whaaaaat.prompt([question])['project_name']
-
+            result = whaaaaat.prompt([question])
+            if result:
+                project = result['project_name']
+            else:
+                project = "Create New"
             # TODO: check with the server if the project exists
             if project == "Create New":
                 project = click.prompt(
@@ -129,7 +133,8 @@ def write_netrc(host, entity, key):
             'API-key must be exactly 40 characters long: %s (%s chars)' % (key, len(key)))
         return None
     try:
-        print("Appending to netrc %s" % os.path.expanduser('~/.netrc'))
+        print("Appending key to your netrc file: %s" %
+              os.path.expanduser('~/.netrc'))
         normalized_host = host.split("/")[-1].split(":")[0]
         machine_line = 'machine %s' % normalized_host
         path = os.path.expanduser('~/.netrc')
@@ -157,6 +162,7 @@ def write_netrc(host, entity, key):
             """).format(host=normalized_host, entity=entity, key=key))
         os.chmod(os.path.expanduser('~/.netrc'),
                  stat.S_IRUSR | stat.S_IWUSR)
+        return True
     except IOError as e:
         click.secho("Unable to read ~/.netrc", fg="red")
         return None
@@ -200,7 +206,7 @@ def cli(ctx):
 
 @cli.command(context_settings=CONTEXT, help="List projects")
 @require_init
-@click.option("--entity", "-e", default=None, envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 def projects(entity, display=True):
     projects = api.list_projects(entity=entity)
@@ -221,8 +227,8 @@ def projects(entity, display=True):
 
 @cli.command(context_settings=CONTEXT, help="List runs in a project")
 @click.pass_context
-@click.option("--project", "-p", default=None, envvar='WANDB_PROJECT', help="The project you wish to list runs from.")
-@click.option("--entity", "-e", default=None, envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--project", "-p", default=None, envvar=env.PROJECT, help="The project you wish to list runs from.")
+@click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 @require_init
 def runs(ctx, project, entity):
@@ -240,9 +246,9 @@ def runs(ctx, project, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="List local & remote file status")
-@click.argument("run", envvar='WANDB_RUN')
+@click.argument("run", envvar=env.RUN)
 @click.option("--settings/--no-settings", help="Show the current settings", default=True)
-@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
+@click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
 @display_error
 def status(run, settings, project):
     if settings:
@@ -260,10 +266,10 @@ def status(run, settings, project):
 
 
 @cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
-@click.argument("run", envvar='WANDB_RUN')
+@click.argument("run", envvar=env.RUN)
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
-@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you wish to upload to.")
-@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
+@click.option("--entity", "-e", default="models", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 def restore(run, branch, project, entity):
     project, run = api.parse_slug(run, project=project)
@@ -336,9 +342,9 @@ def restore(run, branch, project, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
-@click.argument("run", envvar='WANDB_RUN')
-@click.option("--project", "-p", envvar='WANDB_PROJECT', help="The project you want to download.")
-@click.option("--entity", "-e", default="models", envvar='WANDB_ENTITY', help="The entity to scope the listing to.")
+@click.argument("run", envvar=env.RUN)
+@click.option("--project", "-p", envvar=env.PROJECT, help="The project you want to download.")
+@click.option("--entity", "-e", default="models", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 def pull(project, run, entity):
     project, run = api.parse_slug(run, project=project)
@@ -364,28 +370,33 @@ def pull(project, run, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@click.argument("key", nargs=-1)
 @display_error
-def login():
+def login(key):
+    key = key[0] if len(key) > 0 else None
     # Import in here for performance reasons
     import webbrowser
     # TODO: use Oauth and a local webserver: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
     url = api.app_url + '/profile?message=true'
     # TODO: google cloud SDK check_browser.py
-    launched = webbrowser.open_new_tab(url)
+    if key:
+        launched = False
+    else:
+        launched = webbrowser.open_new_tab(url)
     if launched:
         click.echo(
             'Opening [{0}] in a new tab in your default browser.'.format(url))
-    else:
+    elif not key:
         click.echo("You can find your API keys here: {0}".format(url))
 
-    key = click.prompt("{warning} Paste an API key from your profile".format(
-        warning=click.style("Not authenticated!", fg="red")),
-        value_proc=lambda x: x.strip())
-
+    key = key or click.prompt("Paste an API key from your profile".format(
+        value_proc=lambda x: x.strip()))
     if key:
         # TODO: get the username here...
         # username = api.viewer().get('entity', 'models')
-        write_netrc(api.api_url, "user", key)
+        if write_netrc(api.api_url, "user", key):
+            click.secho(
+                "Successfully logged in to Weights & Biases!", fg="green")
 
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
@@ -419,7 +430,12 @@ def init(ctx):
             'message': "Which team should we use?",
             'choices': team_names + ["Manual Entry"]
         }
-        entity = whaaaaat.prompt([question])['team_name']
+        result = whaaaaat.prompt([question])
+        # result can be empty on click
+        if result:
+            entity = result['team_name']
+        else:
+            entity = "Manual Entry"
         if entity == "Manual Entry":
             entity = click.prompt("Enter the name of the team you want to use")
     else:
@@ -521,7 +537,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.option('--id', default=None,
               help='Run id to use, default is to generate.')
 @click.option('--resume', default='never', type=click.Choice(['never', 'must', 'allow']),
-              help='Resume startegy, default is never')
+              help='Resume strategy, default is never')
 @click.option('--dir', default=None,
               help='Files in this directory will be saved to wandb, defaults to wandb')
 @click.option('--configs', default=None,
@@ -532,7 +548,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help="Open the run page in your default browser.")
 @display_error
 def run(ctx, program, args, id, resume, dir, configs, message, show):
-    api.ensure_configured()
+    wandb.ensure_configured()
     if configs:
         config_paths = configs.split(',')
     else:
@@ -546,15 +562,15 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
 
     api.set_current_run_id(run.id)
 
-    env = dict(os.environ)
+    environ = dict(os.environ)
     if configs:
-        env['WANDB_CONFIG_PATHS'] = configs
+        environ[env.CONFIG_PATHS] = configs
     if show:
-        env['WANDB_SHOW_RUN'] = 'True'
+        environ[env.SHOW_RUN] = 'True'
 
     try:
         rm = run_manager.RunManager(api, run)
-        rm.init_run(env)
+        rm.init_run(environ)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %
@@ -568,7 +584,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
         logger.error('\n'.join(lines))
         sys.exit(1)
 
-    rm.run_user_process(program, args, env)
+    rm.run_user_process(program, args, environ)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
@@ -580,7 +596,7 @@ def sweep(ctx, config_yaml):
     click.echo('Creating sweep from: %s' % config_yaml)
     try:
         yaml_file = open(config_yaml)
-    except OSError:
+    except (OSError, IOError):
         wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
         return
     try:

@@ -2,7 +2,8 @@ import React, {Component} from 'react';
 import {connect} from 'react-redux';
 import {NavLink, withRouter} from 'react-router-dom';
 import {Menu, Container, Message, Transition} from 'semantic-ui-react';
-import logo from '../assets/logo.svg';
+import logo from '../assets/wandb.svg';
+
 import '../components/Nav.css';
 
 class Nav extends Component {
@@ -23,51 +24,36 @@ class Nav extends Component {
   render() {
     const flash = this.props.flash || {};
     return (
-      <div>
-        <Menu fixed="top" borderless>
-          <Container fluid style={{marginLeft: 10, position: 'relative'}}>
-            <NavLink exact to="/" className="item">
-              <img src={logo} className="logo" alt="Weights & Biases" />
-            </NavLink>
-            <NavLink
-              to={`/`}
-              isActive={() =>
-                //TODO: very unfortunate
-                this.props.location.pathname.indexOf('dashboards') === -1
-              }
-              className="item">
-              Runs
-            </NavLink>
-            <NavLink to={`/dashboards/edit`} className="item">
-              Dashboards
-            </NavLink>
-            <Menu.Menu position="right" />
-          </Container>
-        </Menu>
-        <Transition
-          animation="fly down"
-          duration={1000}
-          visible={this.state.showFlash}
-          onComplete={() => {
-            if (!flash.sticky)
-              setTimeout(() => this.setState({showFlash: false}), 5000);
-          }}>
-          <Message
-            floating
-            color={flash.color || 'orange'}
-            onDismiss={() => this.setState({showFlash: false})}
-            compact
-            style={{
-              position: 'absolute',
-              right: 20,
-              top: 50,
-              paddingRight: 30,
-              zIndex: 9999,
+      <Menu fixed="top" borderless>
+        <Container fluid style={{marginLeft: 10, position: 'relative'}}>
+          <NavLink exact to="/" className="item logo">
+            <img src={logo} alt="W&B" />
+          </NavLink>
+          <NavLink
+            to={`/`}
+            isActive={() =>
+              //TODO: very unfortunate
+              this.props.location.pathname.indexOf('dashboards') === -1
+            }
+            className="item">
+            Runs
+          </NavLink>
+          <NavLink to={`/dashboards/edit`} className="item">
+            Dashboards
+          </NavLink>
+          <Menu.Menu position="right" />
+          <Transition
+            animation="fly down"
+            duration={1000}
+            visible={this.state.showFlash}
+            onComplete={() => {
+              if (!flash.sticky)
+                setTimeout(() => this.setState({showFlash: false}), 5000);
             }}>
             {flash.message}
-          </Message>
-        </Transition>
-      </div>
+          </Transition>
+        </Container>
+      </Menu>
     );
   }
 }

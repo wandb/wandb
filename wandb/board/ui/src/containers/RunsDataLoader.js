@@ -15,10 +15,8 @@ import {fragments, FAKE_HISTORY_QUERY, HISTORY_QUERY} from '../graphql/runs';
 import {BOARD} from '../util/board';
 import {makeShouldUpdate} from '../util/shouldUpdate';
 import {
-  displayFilterKey,
   updateRuns,
   setupKeySuggestions,
-  filterRuns,
   sortRuns,
   getColumns,
 } from '../util/runhelpers.js';

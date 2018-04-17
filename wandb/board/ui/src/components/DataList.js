@@ -58,9 +58,9 @@ class DataList extends React.Component {
           ? ((newPrefix = prefix.concat([key])),
             (retData = Object.assign(
               retData,
-              this._flattenInternal(newPrefix, data[key]),
+              this._flattenInternal(newPrefix, data[key])
             )))
-          : (retData[prefix.concat([key]).join('.')] = data[key]),
+          : (retData[prefix.concat([key]).join('.')] = data[key])
     );
 
     return retData;
@@ -109,16 +109,15 @@ class DataList extends React.Component {
         <div className="DataListWithSearch">
           <List divided>
             {this.state.filter
-              ? fuzzyMatch(Object.keys(this.flatData), this.state.filter)
-                  .sort()
-                  .map((key, i) =>
+              ? fuzzyMatch(Object.keys(this.flatData), this.state.filter).map(
+                  (key, i) =>
                     this.configItem(
                       fuzzyMatchHighlight(key, this.state.filter),
                       this.flatData[key],
                       i,
-                      true,
-                    ),
-                  )
+                      true
+                    )
+                )
               : _.keys(this.flatData)
                   .sort()
                   .map((key, i) => this.configItem(key, this.flatData[key], i))}

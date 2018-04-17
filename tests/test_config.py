@@ -2,7 +2,7 @@ import pytest
 import os
 from click.testing import CliRunner
 
-from wandb import config
+from wandb import wandb_config as config
 import yaml
 import sys
 import os

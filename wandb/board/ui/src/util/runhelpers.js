@@ -46,6 +46,9 @@ export function sortableValue(value) {
 // Truncate string.  Doesn't seem like there's an easy way to do this by pixel length.
 // Splits the string in the middle.
 export function truncateString(string, maxLength = 30) {
+  if (!string) {
+    return '';
+  }
   if (string.length < maxLength) {
     return string;
   }
@@ -57,27 +60,90 @@ export function truncateString(string, maxLength = 30) {
   return truncString;
 }
 
-// fuzzyMatch replicates the command-P in vscode matching all the characters in order'
-// but not necessarily sequential
-export function fuzzyMatch(strings, matchStr) {
-  if (!matchStr) {
-    return strings;
-  }
+export function fuzzyMatchRegex(matchStr) {
   var regexpStr = '';
   for (var i = 0; i < matchStr.length; i++) {
     regexpStr += matchStr.charAt(i);
     regexpStr += '.*';
   }
-  var regexp = new RegExp(regexpStr, 'i');
-  return strings.filter(str => str.match(regexp));
+  return new RegExp(regexpStr, 'i');
 }
 
-// fuzzyMatchHighlight works with fuzzyMatch to highlight the matching substrings
+var indexMap = function(list) {
+  /**
+   *  For longestCommonSubstring, from
+   * From https://github.com/mirkokiefer/longest-common-substring/blob/master/index.js
+   */
+  var map = {};
+  _.forEach(list, (each, i) => {
+    map[each] = map[each] || [];
+    map[each].push(i);
+  });
+  return map;
+};
+
+function longestCommonSubstring(seq1, seq2) {
+  /**
+   * From https://github.com/mirkokiefer/longest-common-substring/blob/master/index.js
+   */
+  var result = {startString1: 0, startString2: 0, length: 0};
+  var indexMapBefore = indexMap(seq1);
+  var previousOverlap = [];
+  _.forEach(seq2, (eachAfter, indexAfter) => {
+    var overlapLength;
+    var overlap = [];
+    var indexesBefore = indexMapBefore[eachAfter] || [];
+    indexesBefore.forEach(function(indexBefore) {
+      overlapLength =
+        ((indexBefore && previousOverlap[indexBefore - 1]) || 0) + 1;
+      if (overlapLength > result.length) {
+        result.length = overlapLength;
+        result.startString1 = indexBefore - overlapLength + 1;
+        result.startString2 = indexAfter - overlapLength + 1;
+      }
+      overlap[indexBefore] = overlapLength;
+    });
+    previousOverlap = overlap;
+  });
+  return result;
+}
+
+export function fuzzyMatchScore(str, matchStr) {
+  /**
+   * Returns the length of the longest common substring so that fuzzymatch
+   * can sort on it.
+   */
+  return longestCommonSubstring(str, matchStr).length;
+}
+
+export function fuzzyMatch(strings, matchStr) {
+  /**
+   * fuzzyMatch replicates the command-P in vscode matching all the characters in order'
+   * but not necessarily sequential
+   */
+  if (!matchStr) {
+    return strings;
+  }
+  let matchedStrs = strings.filter(str => str.match(fuzzyMatchRegex(matchStr)));
+  let scoredStrs = matchedStrs.map(str => {
+    return {
+      string: str,
+      score: -1 * fuzzyMatchScore(str, matchStr),
+    };
+  });
+  console.log('OY', scoredStrs);
+  let sortedScores = _.sortBy(scoredStrs, ['score']);
+  return sortedScores.map(ss => ss.string);
+}
+
 export function fuzzyMatchHighlight(
   str,
   matchStr,
-  matchStyle = {backgroundColor: 'yellow'},
+  matchStyle = {backgroundColor: 'yellow'}
 ) {
+  /**
+   * fuzzyMatchHighlight works with fuzzyMatch to highlight the matching substrings
+   */
   if (!matchStr) {
     return str;
   }
@@ -98,7 +164,7 @@ export function fuzzyMatchHighlight(
             ))
           ) : (
             <span key={'span' + j}>{c.toString()}</span>
-          ),
+          )
       )}
     </span>
   );
@@ -158,18 +224,6 @@ export function getRunValue(run, key) {
   return _getRunValueFromSectionName(run, section, name);
 }
 
-export function displayFilterKey(filterKey) {
-  if (filterKey.section && filterKey.value) {
-    if (filterKey.section === 'run') {
-      return filterKey.value;
-    } else {
-      return filterKey.section + ':' + filterKey.value;
-    }
-  } else {
-    return null;
-  }
-}
-
 export function filterKeyFromString(s) {
   let [section, name] = s.split(':', 2);
   if (_.isNil(name)) {
@@ -178,35 +232,9 @@ export function filterKeyFromString(s) {
   return {section: section, value: name};
 }
 
-export function filterToString(filter) {
-  return JSON.stringify([
-    displayFilterKey(filter.key),
-    filter.op,
-    filter.value,
-  ]);
-}
-
-export function filterFromString(s) {
-  let parsed;
-  try {
-    parsed = JSON.parse(s);
-  } catch (e) {
-    return null;
-  }
-  if (!_.isArray(parsed) || parsed.length !== 3) {
-    return null;
-  }
-  let [fullKey, op, value] = parsed;
-  let key = filterKeyFromString(fullKey);
-  if (_.isEmpty(key.section) || _.isEmpty(key.value)) {
-    return null;
-  }
-  return {key, op, value};
-}
-
 export function filtersForAxis(filters, axis) {
   let selections = _.values(filters);
-  let sels = selections.filter(sel => displayFilterKey(sel.key) === axis);
+  let sels = selections.filter(sel => Run.displayKey(sel.key) === axis);
   function getValueForOp(selections, op) {
     let opSel = _.find(selections, sel => sel.op === op);
     if (opSel) {
@@ -217,22 +245,6 @@ export function filtersForAxis(filters, axis) {
   return {low: getValueForOp(sels, '>'), high: getValueForOp(sels, '<')};
 }
 
-export function filterRuns(filters, runs) {
-  for (var filterID of _.keys(filters)) {
-    let filter = filters[filterID];
-    if (!filter.key.section) {
-      continue;
-    }
-    runs = runs.filter(run =>
-      runFilterCompare(
-        filter.op,
-        filter.value,
-        sortableValue(getRunValueFromFilterKey(run, filter.key)),
-      ),
-    );
-  }
-  return runs;
-}
 export function sortRuns(sort, runs) {
   if (!sort.name) {
     return runs;
@@ -266,9 +278,9 @@ export function sortRuns(sort, runs) {
       return -1;
     }
     if (sort.ascending) {
-      return valA > valB ? -1 : 1;
-    } else {
       return valA < valB ? -1 : 1;
+    } else {
+      return valA > valB ? -1 : 1;
     }
   };
   return runs.sort(cmp);
@@ -288,6 +300,8 @@ export function stateToIcon(state, key) {
   let icon = 'check',
     color = 'green';
   if (state === 'failed' || state === 'crashed') {
+    // This is disabled, we were showing too many scary red X icons.
+    return null;
     icon = 'remove';
     color = 'red';
   } else if (state === 'killed') {
@@ -302,6 +316,24 @@ export function stateToIcon(state, key) {
   );
 }
 
+export class RunsFancyName {
+  /*
+   * This makes a fancy name when you aggregate multiple runs.
+   */
+
+  constructor(runs, spec, prefix = '') {
+    this._runs = runs;
+    this._spec = spec;
+    this._prefix = prefix;
+  }
+  toComponent() {
+    if (!this._spec) {
+      return runDisplayName(this._run);
+    }
+    return <span>{this.prefix} </span>;
+  }
+}
+
 export class RunFancyName {
   constructor(run, spec, prefix = '') {
     this._run = run;
@@ -312,7 +344,7 @@ export class RunFancyName {
   special = {
     createdAt: value => (
       <span key="createdAt">
-        (started <TimeAgo date={value} />){' '}
+        (started <TimeAgo date={new Date(value)} />){' '}
       </span>
     ),
     stateIcon: () => stateToIcon(this._run.state, 'stateIcon'),
@@ -501,7 +533,7 @@ export function defaultViews(run) {
 // Generates relay compatible bucket id
 export function relayBucketId(params) {
   return btoa(
-    ['BucketType', 'v1', params.run, params.model, params.entity].join(':'),
+    ['BucketType', 'v1', params.run, params.model, params.entity].join(':')
   );
 }
 
@@ -532,7 +564,7 @@ export function updateRuns(oldBuckets, newBuckets, prevResult) {
   }
   oldBuckets = oldBuckets || {edges: []};
   let oldBucketsMap = _.fromPairs(
-    oldBuckets.edges.map(edge => [edge.node.name, edge.node]),
+    oldBuckets.edges.map(edge => [edge.node.name, edge.node])
   );
   let prevResultMap = _.fromPairs(prevResult.map(row => [row.name, row]));
   return newBuckets.edges
@@ -563,7 +595,7 @@ export function setupKeySuggestions(runs) {
       title: 'run',
       suggestions: runSuggestions.map(suggestion => ({
         section: 'run',
-        value: suggestion,
+        name: suggestion,
       })),
     },
     {
@@ -572,7 +604,7 @@ export function setupKeySuggestions(runs) {
         .sort()
         .map(tag => ({
           section: 'tags',
-          value: tag,
+          name: tag,
         })),
     },
     {
@@ -583,14 +615,14 @@ export function setupKeySuggestions(runs) {
       title: 'config',
       suggestions: getSectionSuggestions('config').map(suggestion => ({
         section: 'config',
-        value: suggestion,
+        name: suggestion,
       })),
     },
     {
       title: 'summary',
       suggestions: getSectionSuggestions('summary').map(suggestion => ({
         section: 'summary',
-        value: suggestion,
+        name: suggestion,
       })),
     },
   ];
@@ -601,32 +633,8 @@ export function flatKeySuggestions(keySuggestions) {
   return _.flatMap(keySuggestions, section =>
     section.suggestions.map(
       suggestion =>
-        section.title === 'run'
-          ? suggestion.value
-          : displayFilterKey(suggestion),
-    ),
-  );
-}
-
-export function setupKeyValueCounts(runs, keys, filters) {
-  runs = filterRuns(filters, runs);
-  let result = {};
-  for (let key of keys) {
-    let keyResult = {};
-    for (let run of runs) {
-      let value = getRunValue(run, key);
-      let valueKey = sortableValue(value);
-      if (_.isNil(keyResult[valueKey])) {
-        keyResult[valueKey] = {value: valueKey, count: 0};
-      }
-      keyResult[valueKey].count++;
-    }
-    result[key] = keyResult;
-  }
-  return _.mapValues(result, valCounts =>
-    _.sortBy(_.map(valCounts, val => val).filter(val => !_.isNil(val.value)), [
-      'value',
-    ]),
+        section.title === 'run' ? suggestion.name : Run.displayKey(suggestion)
+    )
   );
 }
 
@@ -645,7 +653,7 @@ export function getColumns(runs) {
     ['Ran', 'Runtime', 'Config'],
     configColumns,
     ['Summary'],
-    summaryColumns,
+    summaryColumns
   );
 }
 

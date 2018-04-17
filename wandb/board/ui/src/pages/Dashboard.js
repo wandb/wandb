@@ -10,17 +10,13 @@ import ViewModifier from '../containers/ViewModifier';
 import withHistoryLoader from '../containers/HistoryLoader';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
 import {
-  filterRuns,
   sortRuns,
-  filterToString,
-  filterFromString,
-  displayFilterKey,
   defaultViews,
   parseBuckets,
   setupKeySuggestions,
 } from '../util/runhelpers.js';
 import {setServerViews, setBrowserViews, setActiveView} from '../actions/view';
-import {addFilter} from '../actions/run';
+import {setFilters} from '../actions/run';
 import {updateLocationParams} from '../actions/location';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
@@ -33,7 +29,24 @@ class Dashboard extends React.Component {
 
   componentWillMount() {
     this.props.updateLocationParams(this.props.match.params);
-    this.props.addFilter('select', {section: 'run', value: 'id'}, '=', '*');
+    this.props.setFilters('filter', {
+      op: 'OR',
+      filters: [
+        {
+          op: 'AND',
+          filters: [],
+        },
+      ],
+    });
+    this.props.setFilters('select', {
+      op: 'OR',
+      filters: [
+        {
+          op: 'AND',
+          filters: [{key: {section: 'run', name: 'id'}, op: '=', value: '*'}],
+        },
+      ],
+    });
   }
 
   componentWillReceiveProps(nextProps) {
@@ -126,7 +139,7 @@ function mapStateToProps(state, ownProps) {
 const mapDispatchToProps = (dispatch, ownProps) => {
   return bindActionCreators(
     {
-      addFilter,
+      setFilters,
       setServerViews,
       setBrowserViews,
       setActiveView,
