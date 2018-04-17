@@ -73,7 +73,7 @@ export const RUNS_QUERY = gql`
     $jobKey: String
     $order: String
     $filters: JSONString
-    $limit: Int = 500
+    $limit: Int = 1000
     $bucketIds: [String]
     $history: Boolean = false
     $requestSubscribe: Boolean!

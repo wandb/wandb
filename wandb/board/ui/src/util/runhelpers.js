@@ -69,21 +69,81 @@ export function fuzzyMatchRegex(matchStr) {
   return new RegExp(regexpStr, 'i');
 }
 
-// fuzzyMatch replicates the command-P in vscode matching all the characters in order'
-// but not necessarily sequential
+var indexMap = function(list) {
+  /**
+   *  For longestCommonSubstring, from
+   * From https://github.com/mirkokiefer/longest-common-substring/blob/master/index.js
+   */
+  var map = {};
+  _.forEach(list, (each, i) => {
+    map[each] = map[each] || [];
+    map[each].push(i);
+  });
+  return map;
+};
+
+function longestCommonSubstring(seq1, seq2) {
+  /**
+   * From https://github.com/mirkokiefer/longest-common-substring/blob/master/index.js
+   */
+  var result = {startString1: 0, startString2: 0, length: 0};
+  var indexMapBefore = indexMap(seq1);
+  var previousOverlap = [];
+  _.forEach(seq2, (eachAfter, indexAfter) => {
+    var overlapLength;
+    var overlap = [];
+    var indexesBefore = indexMapBefore[eachAfter] || [];
+    indexesBefore.forEach(function(indexBefore) {
+      overlapLength =
+        ((indexBefore && previousOverlap[indexBefore - 1]) || 0) + 1;
+      if (overlapLength > result.length) {
+        result.length = overlapLength;
+        result.startString1 = indexBefore - overlapLength + 1;
+        result.startString2 = indexAfter - overlapLength + 1;
+      }
+      overlap[indexBefore] = overlapLength;
+    });
+    previousOverlap = overlap;
+  });
+  return result;
+}
+
+export function fuzzyMatchScore(str, matchStr) {
+  /**
+   * Returns the length of the longest common substring so that fuzzymatch
+   * can sort on it.
+   */
+  return longestCommonSubstring(str, matchStr).length;
+}
+
 export function fuzzyMatch(strings, matchStr) {
+  /**
+   * fuzzyMatch replicates the command-P in vscode matching all the characters in order'
+   * but not necessarily sequential
+   */
   if (!matchStr) {
     return strings;
   }
-  return strings.filter(str => str.match(fuzzyMatchRegex(matchStr)));
+  let matchedStrs = strings.filter(str => str.match(fuzzyMatchRegex(matchStr)));
+  let scoredStrs = matchedStrs.map(str => {
+    return {
+      string: str,
+      score: -1 * fuzzyMatchScore(str, matchStr),
+    };
+  });
+  console.log('OY', scoredStrs);
+  let sortedScores = _.sortBy(scoredStrs, ['score']);
+  return sortedScores.map(ss => ss.string);
 }
 
-// fuzzyMatchHighlight works with fuzzyMatch to highlight the matching substrings
 export function fuzzyMatchHighlight(
   str,
   matchStr,
   matchStyle = {backgroundColor: 'yellow'}
 ) {
+  /**
+   * fuzzyMatchHighlight works with fuzzyMatch to highlight the matching substrings
+   */
   if (!matchStr) {
     return str;
   }

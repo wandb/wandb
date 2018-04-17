@@ -477,7 +477,7 @@ export function aggregateLines(
   let area = {
     title: 'area ' + name,
     aux: true,
-    color: color(idx, 0.3),
+    color: color(idx, 0.15),
     data: areaData,
     area: true,
   };
