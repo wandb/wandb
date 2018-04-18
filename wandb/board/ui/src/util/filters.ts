@@ -350,13 +350,13 @@ export function simplify(filter: Filter): Filter | null {
 
 export function serverPathKey(key: Run.Key): string {
   if (key.section === 'config') {
-    return 'config:' + key.name;
+    return 'config.' + key.name;
   } else if (key.section === 'summary') {
-    return 'summary_metrics:' + key.name;
+    return 'summary_metrics.' + key.name;
   } else if (key.section === 'run') {
     return key.name;
   } else if (key.section === 'tags') {
-    return 'tags:' + key.name;
+    return 'tags.' + key.name;
   } else {
     return '<DIDNT_CONVERT_KEY_TO_PATH_IN_BROWSER>';
   }

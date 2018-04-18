@@ -52,7 +52,7 @@ const withFilterValueSuggestions = graphql<
       variables: {
         entityName,
         name: projectName,
-        filters: JSON.stringify({}),
+        filters: JSON.stringify(Filter.toMongo(otherFilters)),
         keyPath,
       },
     };
@@ -235,7 +235,7 @@ const withFilterKeySuggestions = graphql<
       variables: {
         entityName,
         name: projectName,
-        filters: JSON.stringify({}),
+        filters: JSON.stringify(Filter.toMongo(otherFilters)),
       },
     };
   },
