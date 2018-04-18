@@ -378,15 +378,28 @@ function toMongoOpValue(op: IndividualOp, value: Run.Value | Run.Value[]): any {
   }
 }
 
+function toMongoIndividual(filter: IndividualFilter): any {
+  if (filter.key.section === 'tags') {
+    if (filter.value === false) {
+      return {
+        $or: [{tags: null}, {tags: filter.key.name}],
+      };
+    } else {
+      return {tags: filter.key.name};
+    }
+  }
+  return {
+    [serverPathKey(filter.key)]: toMongoOpValue(filter.op, filter.value),
+  };
+}
+
 const GROUP_OP_TO_MONGO = {
   AND: '$and',
   OR: '$or',
 };
 export function toMongo(filter: Filter): any {
   if (isIndividual(filter)) {
-    return {
-      [serverPathKey(filter.key)]: toMongoOpValue(filter.op, filter.value),
-    };
+    return toMongoIndividual(filter);
   } else if (isGroup(filter)) {
     return {[GROUP_OP_TO_MONGO[filter.op]]: filter.filters.map(toMongo)};
   }

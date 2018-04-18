@@ -410,4 +410,34 @@ describe('toMongo', () => {
       ],
     });
   });
+
+  it('works again', () => {
+    const filters: Filter.Filter = {
+      op: 'OR',
+      filters: [
+        {key: Run.key('run', 'host')!, op: '=', value: 'angry.local'},
+        {
+          op: 'AND',
+          filters: [
+            {key: Run.key('tags', 'hidden')!, op: '=', value: false},
+            {key: Run.key('tags', 'good')!, op: '=', value: true},
+            {key: Run.key('config', 'lr')!, op: '>=', value: 0.9},
+          ],
+        },
+      ],
+    };
+    console.log(JSON.stringify(Filter.toMongo(filters)));
+    expect(Filter.toMongo(filters)).toEqual({
+      $or: [
+        {host: 'angry.local'},
+        {
+          $and: [
+            {$or: [{tags: null}, {tags: 'hidden'}]},
+            {tags: 'good'},
+            {'config.lr.value': {$gte: 0.9}},
+          ],
+        },
+      ],
+    });
+  });
 });
