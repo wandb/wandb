@@ -20,12 +20,12 @@ describe('App components test', () => {
     container = render(
       <MockAppWrapper store={store}>
         <Routes />
-      </MockAppWrapper>,
+      </MockAppWrapper>
     );
   });
 
   it('finds footer text', () => {
-    expect(container.text()).toContain('Weights & Biases');
+    expect(container.text()).toContain('Documentation');
   });
 
   // dispatch flash message

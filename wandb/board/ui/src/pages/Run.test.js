@@ -61,7 +61,7 @@ describe('Run page components test', () => {
         updateLocationParams={() => {}}
         setBrowserViews={() => {}}
         setServerViews={() => {}}
-      />,
+      />
     );
   });
 
@@ -71,7 +71,7 @@ describe('Run page components test', () => {
 
   it('finds <RunViewer /> component', () => {
     expect(container.find(RunViewer)).toHaveLength(0);
-    container.setProps({model: model, bucket: model.bucket});
+    container.setProps({project: model, run: model.bucket});
     expect(container.find(RunViewer)).toHaveLength(1);
   });
 });
