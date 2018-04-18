@@ -1,6 +1,6 @@
-.buttons.runFilterViewer button.delete {
+/* .buttons.runFilterViewer button.delete {
   display: none;
-}
+} */
 
 .buttons.runFilterViewer button.filter {
   border-radius: 0.29rem;
@@ -14,17 +14,17 @@
   display: block;
 }
 
-.ui.button.orButton {
+/* .ui.button.orButton {
   display: none;
-}
+} */
 
 .runFilters:hover .ui.button.orButton {
   display: inline;
 }
 
-.ui.button.andButton {
+/* .ui.button.andButton {
   display: none;
-}
+} */
 
 .runFilters:hover .ui.button.andButton {
   display: inline;

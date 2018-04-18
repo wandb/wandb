@@ -7,6 +7,7 @@ import * as UI from '../util/uihelpers';
 interface RunKeySelectorProps {
   storedKey: string;
   keys: string[];
+  disabled: boolean;
   onValidSelection(key: string): void;
 }
 export default class RunKeySelector extends React.Component<
@@ -19,7 +20,7 @@ export default class RunKeySelector extends React.Component<
   searchFunction = (options: any, query: any) => {
     const matched = RunHelpers.fuzzyMatch(
       options.map((option: any) => option.text),
-      query,
+      query
     );
     return matched.map((v: any) => ({
       content: RunHelpers.fuzzyMatchHighlight(v, query),
@@ -49,6 +50,7 @@ export default class RunKeySelector extends React.Component<
     }
     return (
       <Dropdown
+        disabled={this.props.disabled}
         ref={el => (this.dropdownEl = el)}
         options={UI.makeOptions(keys)}
         placeholder="Key"

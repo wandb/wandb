@@ -258,11 +258,10 @@ class Runs extends React.Component {
                         <HelpIcon text="Filters limit the set of runs that will be displayed in charts and tables on this page." />
                       </h5>
                       <RunFiltersRedux
+                        entityName={this.props.match.params.entity}
+                        projectName={this.props.match.params.model}
                         kind="filter"
                         buttonText="Add Filter"
-                        keySuggestions={flatKeySuggestions(
-                          this.props.data.keys
-                        )}
                         runs={this.props.data.base}
                         filteredRuns={this.props.data.filtered}
                       />

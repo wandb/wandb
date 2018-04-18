@@ -1,9 +1,11 @@
 import update from 'immutability-helper';
 import * as _ from 'lodash';
 import * as React from 'react';
-import {Button, Dropdown, Form, Popup, Select} from 'semantic-ui-react';
+import {graphql, OptionProps, QueryProps} from 'react-apollo';
+import {Button, Dropdown, Form, Loader, Popup, Select} from 'semantic-ui-react';
 import {setFilters} from '../actions/run';
 import RunKeySelector from '../components/RunKeySelector';
+import {FILTER_KEY_SUGGESTIONS} from '../graphql/filters';
 import * as Filter from '../util/filters';
 import * as RunHelpers from '../util/runhelpers';
 import * as RunHelpers2 from '../util/runhelpers2';
@@ -11,19 +13,88 @@ import * as Run from '../util/runs';
 
 import './RunFilters.css';
 
-let globalFilterId = 0;
-interface RunFilterEditorProps {
+// This is what's passed in to the FilterKeySuggestions HOC
+interface FilterKeySuggestionsProps {
+  entityName: string;
+  projectName: string;
   runs: Run.Run[];
-  keys: string[];
   filter: Filter.IndividualFilter;
-  id: number;
   otherFilters: Filter.Filter;
+  id: number;
   setFilterKey(key: Run.Key): void;
   setFilterOp(op: Filter.IndividualOp): void;
   setFilterValue(value: Run.Value): void;
   setFilterMultiValue(value: Run.Value[]): void;
   close(): void;
 }
+
+// This is the result of the gql query
+interface FilterKeySuggestionsResponse {
+  project?: {
+    pathCounts: string;
+  };
+}
+
+interface FilterKeySuggestionsResponseParsed {
+  loading: boolean;
+  keys: string[];
+}
+
+const withFilterKeySuggestions = graphql<
+  FilterKeySuggestionsResponse,
+  FilterKeySuggestionsProps,
+  RunFilterEditorProps
+>(FILTER_KEY_SUGGESTIONS, {
+  options: ({entityName, projectName, otherFilters}) => {
+    return {
+      variables: {
+        entityName,
+        name: projectName,
+        filters: JSON.stringify({}),
+      },
+    };
+  },
+  props: ({data}) => {
+    if (data == null) {
+      // data is never null when doing a query (rather than mutation), but the apollo-react
+      // types don't account for this.
+      throw new Error('data == null for graphql query');
+    }
+    return {
+      loading: data.loading,
+      keys: data.project
+        ? parseFilterKeySuggestions(data.project.pathCounts)
+        : [],
+    };
+  },
+});
+
+function parseFilterKeySuggestion(pathString: string): string | null {
+  const [section, name] = pathString.split('.', 2);
+  if (name == null) {
+    return null;
+  }
+  if (section === 'config') {
+    return 'config:' + name;
+  } else if (section === 'summary_metrics') {
+    return 'summary:' + name;
+  }
+  return null;
+}
+
+function parseFilterKeySuggestions(pathCountsString: string): string[] {
+  const json = JSON.parse(pathCountsString);
+  if (!_.isObject(json)) {
+    return [];
+  }
+  return (_.keys(json)
+    .map(parseFilterKeySuggestion)
+    .filter(o => o) as string[]).sort();
+}
+
+let globalFilterId = 0;
+type RunFilterEditorProps = FilterKeySuggestionsProps &
+  FilterKeySuggestionsResponseParsed;
 class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
   keyValueCounts: RunHelpers2.KeyValueCount = {};
   valueSuggestions: any;
@@ -33,8 +104,6 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
       this.props.otherFilters,
       this.props.runs
     );
-    this.keyValueCounts = RunHelpers2.keyValueCounts(filtered, this.props.keys);
-    this.setupValueSuggestions(this.props);
   }
 
   componentDidMount() {
@@ -118,7 +187,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
   }
 
   componentWillReceiveProps(nextProps: RunFilterEditorProps) {
-    this.setupValueSuggestions(nextProps);
+    console.log('RunFilterEditor willReceiveProps');
   }
 
   render() {
@@ -127,72 +196,87 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
       value: op,
     }));
     return (
-      <Form id={this.elementId()}>
-        <Form.Field>
-          <RunKeySelector
-            keys={
-              _.map(
-                this.keyValueCounts,
-                (valueCounts, key) =>
-                  _.keys(valueCounts).length > 1 ? key : null
-              ).filter(o => o) as string[]
-            }
-            storedKey={Run.displayKey(this.props.filter.key)}
-            onValidSelection={keyString => {
-              const filterKey = Run.keyFromString(keyString);
-              if (filterKey != null) {
-                this.props.setFilterKey(filterKey);
-              }
-            }}
-          />
-        </Form.Field>
-        {this.props.filter.key.section !== 'tags' && (
+      <div style={{position: 'relative'}}>
+        <Form id={this.elementId()}>
           <Form.Field>
-            <Select
-              options={operators}
-              placeholder={'operator'}
-              value={this.props.filter.op}
-              onChange={(e, {value}) => {
-                this.props.setFilterOp(value as Filter.IndividualOp);
+            <RunKeySelector
+              keys={this.props.keys}
+              storedKey={Run.displayKey(this.props.filter.key)}
+              onValidSelection={keyString => {
+                const filterKey = Run.keyFromString(keyString);
+                if (filterKey != null) {
+                  this.props.setFilterKey(filterKey);
+                }
               }}
+              disabled={this.props.loading}
             />
           </Form.Field>
-        )}
-        <Form.Field>
-          <Dropdown
-            additionLabel=""
-            allowAdditions
-            options={this.valueSuggestions}
-            placeholder="value"
-            search
-            selection
-            multiple={Filter.isMultiValue(this.props.filter)}
-            value={Filter.domValue(this.props.filter)}
-            onChange={(e, {value}) => {
-              if (value) {
-                if (Filter.isMultiValue(this.props.filter)) {
-                  if (
-                    !(typeof value === 'string') &&
-                    !(typeof value === 'number')
-                  ) {
-                    this.props.setFilterMultiValue(value.map(Run.parseValue));
+          {this.props.filter.key.section !== 'tags' && (
+            <Form.Field>
+              <Select
+                disabled={this.props.loading}
+                options={operators}
+                placeholder={'operator'}
+                value={this.props.filter.op}
+                onChange={(e, {value}) => {
+                  this.props.setFilterOp(value as Filter.IndividualOp);
+                }}
+              />
+            </Form.Field>
+          )}
+          <Form.Field>
+            <Dropdown
+              disabled={this.props.loading}
+              additionLabel=""
+              allowAdditions
+              options={this.valueSuggestions}
+              placeholder="value"
+              search
+              selection
+              multiple={Filter.isMultiValue(this.props.filter)}
+              value={Filter.domValue(this.props.filter)}
+              onChange={(e, {value}) => {
+                if (value) {
+                  if (Filter.isMultiValue(this.props.filter)) {
+                    if (
+                      !(typeof value === 'string') &&
+                      !(typeof value === 'number')
+                    ) {
+                      this.props.setFilterMultiValue(value.map(Run.parseValue));
+                    }
+                  } else {
+                    this.props.setFilterValue(Run.parseValue(value));
                   }
-                } else {
-                  this.props.setFilterValue(Run.parseValue(value));
                 }
-              }
-            }}
-            onClose={() => this.props.close()}
-          />
-        </Form.Field>
-      </Form>
+              }}
+              onClose={() => this.props.close()}
+            />
+          </Form.Field>
+        </Form>
+        {this.props.loading && (
+          <div
+            style={{
+              position: 'absolute',
+              height: '100%',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Loader active />
+          </div>
+        )}
+      </div>
     );
   }
 }
 
+const RunFilterEditorWrapped = withFilterKeySuggestions(RunFilterEditor);
+
 interface RunFilterProps {
+  entityName: string;
+  projectName: string;
   runs: Run.Run[];
-  keys: string[];
   filter: Filter.IndividualFilter;
   otherFilters: Filter.Filter;
   editing: boolean;
@@ -307,10 +391,11 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
         on="click"
         content={
           <div ref={this.innerDivRef}>
-            <RunFilterEditor
+            <RunFilterEditorWrapped
+              entityName={this.props.entityName}
+              projectName={this.props.projectName}
               runs={this.props.runs}
               filter={this.props.filter}
-              keys={this.props.keys}
               otherFilters={this.props.otherFilters}
               id={this.globalId}
               setFilterKey={(filterKey: Run.Key) =>
@@ -382,10 +467,11 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
 }
 
 interface RunFiltersSectionProps {
+  entityName: string;
+  projectName: string;
   filters: Filter.Filter;
   mergeFilters: Filter.Filter | null;
   runs: Run.Run[];
-  keySuggestions: string[];
   index: number;
   editingId: string;
   canAdd: boolean;
@@ -399,7 +485,7 @@ export class RunFiltersSection extends React.Component<
   {}
 > {
   render() {
-    const {filters, mergeFilters, runs, keySuggestions, editingId} = this.props;
+    const {filters, mergeFilters, runs, editingId} = this.props;
     return filters.op === 'AND' ? (
       <div className="runFiltersSection">
         {this.props.index !== 0 && 'OR '}
@@ -417,9 +503,10 @@ export class RunFiltersSection extends React.Component<
           }
           return (
             <RunFilter
+              entityName={this.props.entityName}
+              projectName={this.props.projectName}
               key={filterId}
               runs={runs}
-              keys={keySuggestions}
               filter={filter}
               otherFilters={otherFilters}
               id={filterId}
@@ -456,12 +543,13 @@ export class RunFiltersSection extends React.Component<
 }
 
 interface RunFiltersProps {
+  entityName: string;
+  projectName: string;
   filters: Filter.Filter;
   mergeFilters: Filter.Filter | null;
   kind: string;
   runs: Run.Run[];
   filteredRuns: Run.Run[];
-  keySuggestions: string[];
   nobox: boolean;
   setFilters(kind: string, filters: Filter.Filter): void;
 }
@@ -475,7 +563,7 @@ export default class RunFilters extends React.Component<
   state = {editingId: ''};
 
   render() {
-    const {mergeFilters, kind, runs, keySuggestions, nobox} = this.props;
+    const {mergeFilters, kind, runs, nobox} = this.props;
     let modFilters = Filter.simplify(this.props.filters);
     let empty = false;
     if (modFilters == null) {
@@ -487,9 +575,10 @@ export default class RunFilters extends React.Component<
       <div className={empty ? 'runFiltersEmpty' : 'runFilters'}>
         {filters.filters.map((filter, i) => (
           <RunFiltersSection
+            entityName={this.props.entityName}
+            projectName={this.props.projectName}
             key={i}
             runs={runs}
-            keySuggestions={keySuggestions}
             filters={filter}
             mergeFilters={mergeFilters}
             index={i}
