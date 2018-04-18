@@ -394,3 +394,20 @@ describe('simplifyFilters', () => {
     expect(Filter.simplify(goodFiltersWithExtra)).toEqual(goodFilters);
   });
 });
+
+describe('toMongo', () => {
+  it('works', () => {
+    expect(Filter.toMongo(goodFilters)).toEqual({
+      $or: [
+        {host: 'angry.local'},
+        {
+          $and: [
+            {state: 'running'},
+            {host: 'brian.local'},
+            {id: {$in: ['name1', 'name2']}},
+          ],
+        },
+      ],
+    });
+  });
+});

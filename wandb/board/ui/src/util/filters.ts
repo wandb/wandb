@@ -347,3 +347,47 @@ export function simplify(filter: Filter): Filter | null {
   }
   return filter;
 }
+
+export function serverPathKey(key: Run.Key): string {
+  if (key.section === 'config') {
+    return 'config:' + key.name;
+  } else if (key.section === 'summary') {
+    return 'summary_metrics:' + key.name;
+  } else if (key.section === 'run') {
+    return key.name;
+  } else if (key.section === 'tags') {
+    return 'tags:' + key.name;
+  } else {
+    return '<DIDNT_CONVERT_KEY_TO_PATH_IN_BROWSER>';
+  }
+}
+
+const INDIVIDUAL_OP_TO_MONGO = {
+  '!=': '$ne',
+  '>': '$gt',
+  '>=': '$gte',
+  '<': '$lt',
+  '<=': '$lte',
+  IN: '$in',
+};
+function toMongoOpValue(op: IndividualOp, value: Run.Value | Run.Value[]): any {
+  if (op === '=') {
+    return value;
+  } else {
+    return {[INDIVIDUAL_OP_TO_MONGO[op]]: value};
+  }
+}
+
+const GROUP_OP_TO_MONGO = {
+  AND: '$and',
+  OR: '$or',
+};
+export function toMongo(filter: Filter): any {
+  if (isIndividual(filter)) {
+    return {
+      [serverPathKey(filter.key)]: toMongoOpValue(filter.op, filter.value),
+    };
+  } else if (isGroup(filter)) {
+    return {[GROUP_OP_TO_MONGO[filter.op]]: filter.filters.map(toMongo)};
+  }
+}
