@@ -2,6 +2,8 @@
 // over.
 //
 // TODO: tests
+//
+// TODO: Remove this file once PanelRunsLinePlot doesn't depend on it anymore.
 
 import * as _ from 'lodash';
 
@@ -37,6 +39,6 @@ export function keyValueCounts(runs: Run.Run[], keys: string[]): KeyValueCount {
   return _.mapValues(result, valCounts =>
     _.sortBy(_.map(valCounts, val => val).filter(val => !_.isNil(val.value)), [
       'value',
-    ]),
+    ])
   );
 }
