@@ -350,7 +350,7 @@ export function simplify(filter: Filter): Filter | null {
 
 export function serverPathKey(key: Run.Key): string {
   if (key.section === 'config') {
-    return 'config.' + key.name;
+    return 'config.' + key.name + '.value';
   } else if (key.section === 'summary') {
     return 'summary_metrics.' + key.name;
   } else if (key.section === 'run') {
