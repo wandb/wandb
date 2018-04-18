@@ -30,19 +30,17 @@ class Model extends React.Component {
   render() {
     let action = this.props.match.path.split('/').pop();
     return (
-      !this.props.error && (
-        <Container className="model">
-          {this.props.loading ? (
-            <Loader active={this.props.loading} size="massive" />
-          ) : this.props.user && action === 'edit' ? (
-            <ModelEditor {...this.props} />
-          ) : this.props.user && action === 'sweeps' ? (
-            <Sweeps {...this.props} />
-          ) : (
-            <ModelViewer {...this.props} />
-          )}
-        </Container>
-      )
+      <Container className="model">
+        {this.props.loading ? (
+          <Loader active={this.props.loading} size="massive" />
+        ) : this.props.user && action === 'edit' ? (
+          <ModelEditor {...this.props} />
+        ) : this.props.user && action === 'sweeps' ? (
+          <Sweeps {...this.props} />
+        ) : (
+          <ModelViewer {...this.props} />
+        )}
+      </Container>
     );
   }
 }
@@ -52,7 +50,7 @@ const withData = graphql(MODEL_QUERY, {
     return {
       variables: {
         entityName: params.entity,
-        name: params.model,
+        // name: params.model,
         bucketName: params.bucket || 'latest',
         upload: user && path.split('/').pop() === 'edit' ? true : false,
         detailed: false,
@@ -91,7 +89,7 @@ const withMutations = compose(
           },
         }),
     }),
-  }),
+  })
 );
 
 const modelMapDispatchToProps = (dispatch, ownProps) => {
@@ -104,5 +102,5 @@ const modelMapDispatchToProps = (dispatch, ownProps) => {
 export {Model};
 
 export default withMutations(
-  withData(connect(null, modelMapDispatchToProps)(Model)),
+  withData(connect(null, modelMapDispatchToProps)(Model))
 );

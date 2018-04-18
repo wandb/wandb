@@ -26,52 +26,50 @@ class Models extends Component {
 
   render() {
     return (
-      !this.props.error && (
-        <Container>
-          <Loader active={this.props.loading} size="massive" />
-          {this.props.user && (
-            <Button
-              as="a"
-              href={`/${this.props.entity}/new`}
-              style={{zIndex: 5}}
-              floated="right">
-              Create Project
-            </Button>
-          )}
-          <Header style={{marginRight: 200}}>Projects</Header>
-          <Item.Group divided relaxed>
-            {this.models().map(edge => (
-              <Item style={{display: 'block'}} key={edge.node.id}>
-                <ModelHeader condensed={true} model={edge.node} />
-                <div style={{marginTop: 16}} />
-                <Markdown content={edge.node.description} />
-              </Item>
-            ))}
-            {!this.props.loading &&
-              this.models().length === 0 && (
-                <div>
-                  <br />
-                  <h4>No runs for this project yet.</h4>
-                  <p>New to wandb?</p>
-                  <ol>
-                    <li>
-                      Visit the getting started{' '}
-                      <a href="http://docs.wandb.com/#getting-started">
-                        documentation.
-                      </a>
-                    </li>
-                    <li>
-                      Take a look at our{' '}
-                      <a href="https://github.com/wandb/examples">
-                        example projects.
-                      </a>
-                    </li>
-                  </ol>
-                </div>
-              )}
-          </Item.Group>
-        </Container>
-      )
+      <Container>
+        <Loader active={this.props.loading} size="massive" />
+        {this.props.user && (
+          <Button
+            as="a"
+            href={`/${this.props.entity}/new`}
+            style={{zIndex: 5}}
+            floated="right">
+            Create Project
+          </Button>
+        )}
+        <Header style={{marginRight: 200}}>Projects</Header>
+        <Item.Group divided relaxed>
+          {this.models().map(edge => (
+            <Item style={{display: 'block'}} key={edge.node.id}>
+              <ModelHeader condensed={true} model={edge.node} />
+              <div style={{marginTop: 16}} />
+              <Markdown content={edge.node.description} />
+            </Item>
+          ))}
+          {!this.props.loading &&
+            this.models().length === 0 && (
+              <div>
+                <br />
+                <h4>No runs for this project yet.</h4>
+                <p>New to wandb?</p>
+                <ol>
+                  <li>
+                    Visit the getting started{' '}
+                    <a href="http://docs.wandb.com/#getting-started">
+                      documentation.
+                    </a>
+                  </li>
+                  <li>
+                    Take a look at our{' '}
+                    <a href="https://github.com/wandb/examples">
+                      example projects.
+                    </a>
+                  </li>
+                </ol>
+              </div>
+            )}
+        </Item.Group>
+      </Container>
     );
   }
 }
