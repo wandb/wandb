@@ -5,13 +5,193 @@ import {graphql, OptionProps, QueryProps} from 'react-apollo';
 import {Button, Dropdown, Form, Loader, Popup, Select} from 'semantic-ui-react';
 import {setFilters} from '../actions/run';
 import RunKeySelector from '../components/RunKeySelector';
-import {FILTER_KEY_SUGGESTIONS} from '../graphql/filters';
+import {
+  FILTER_KEY_SUGGESTIONS,
+  FILTER_VALUE_SUGGESTIONS,
+} from '../graphql/filters';
 import * as Filter from '../util/filters';
 import * as RunHelpers from '../util/runhelpers';
-import * as RunHelpers2 from '../util/runhelpers2';
 import * as Run from '../util/runs';
 
 import './RunFilters.css';
+
+interface FilterValueSuggestionsProps {
+  entityName: string;
+  projectName: string;
+  otherFilters: Filter.Filter;
+  keysLoading: boolean;
+  keyPath: string | undefined;
+  filter: Filter.IndividualFilter;
+  setFilterValue(value: Run.Value): void;
+  setFilterMultiValue(value: Run.Value[]): void;
+  close(): void;
+}
+
+// Result of the gql query
+interface FilterValueSuggestionsResponse {
+  project?: {
+    valueCounts: string;
+  };
+}
+
+type ValueCounts = Array<{value: Run.Value; count: number}>;
+
+interface FilterValueSuggestionsResponseParsed {
+  loading?: boolean;
+  valueOptions?: ValueOptions;
+}
+
+const withFilterValueSuggestions = graphql<
+  FilterValueSuggestionsResponse,
+  FilterValueSuggestionsProps,
+  FilterValueSelectorProps
+>(FILTER_VALUE_SUGGESTIONS, {
+  skip: ({keyPath}) => !keyPath,
+  options: ({entityName, projectName, keyPath, otherFilters}) => {
+    return {
+      variables: {
+        entityName,
+        name: projectName,
+        filters: JSON.stringify({}),
+        keyPath,
+      },
+    };
+  },
+  props: ({data, ownProps}) => {
+    if (data == null) {
+      // data is never null when doing a query (rather than mutation), but the apollo-react
+      // types don't account for this.
+      throw new Error('data == null for graphql query');
+    }
+    return {
+      loading: data.loading,
+      valueOptions:
+        // Not sure why we need to check data.project.valueCounts here, but we get two calls, one with
+        // just id and name, and then a second with valueCounts
+        data.project && data.project.valueCounts
+          ? parseFilterValueSuggestions(
+              ownProps.filter.key,
+              data.project.valueCounts
+            )
+          : [],
+    };
+  },
+});
+
+function displayValue(filterKey: Run.Key, value: Run.Value) {
+  if (filterKey.section === 'tags') {
+    return value === true ? 'Set' : 'Unset';
+  } else {
+    return Run.displayValue(value);
+  }
+}
+
+function parseFilterValueSuggestions(
+  filterKey: Run.Key,
+  valueCountsString: string
+): ValueOptions {
+  const json = JSON.parse(valueCountsString);
+  return json.values
+    .map((valCount: any) => {
+      if (
+        !_.isArray(valCount) ||
+        valCount.length !== 2 ||
+        !_.isNumber(valCount[1])
+      ) {
+        console.warn('invalid valueCount', valCount);
+        return null;
+      }
+      const value = Run.parseValue(valCount[0]);
+      const count: number = valCount[1];
+      const displayVal = displayValue(filterKey, value);
+      return {
+        text: displayVal,
+        key: Run.domValue(value),
+        value: Run.domValue(value),
+        content: (
+          <span
+            style={{
+              display: 'inline-block',
+              width: '100%',
+            }}
+            key={displayVal}>
+            <span
+              style={{
+                display: 'inline-block',
+                whitespace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+              {displayVal}
+            </span>
+            {value !== '*' && (
+              <span
+                style={{
+                  width: 60,
+                  fontStyle: 'italic',
+                  display: 'inline-block',
+                  float: 'right',
+                  whitespace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}>
+                ({count} {count === 1 ? 'run' : 'runs'})
+              </span>
+            )}
+          </span>
+        ),
+      };
+    })
+    .filter((o: any) => o);
+}
+
+type ValueOptions = Array<{
+  text: string;
+  value: string | number;
+  key: string | number;
+  content: React.ReactNode;
+}>;
+
+type FilterValueSelectorProps = FilterValueSuggestionsProps &
+  FilterValueSuggestionsResponseParsed;
+class FilterValueSelector extends React.Component<
+  FilterValueSelectorProps,
+  {}
+> {
+  render() {
+    return (
+      <Dropdown
+        disabled={this.props.keysLoading || this.props.loading}
+        additionLabel=""
+        allowAdditions
+        options={this.props.valueOptions}
+        placeholder="value"
+        search
+        selection
+        multiple={Filter.isMultiValue(this.props.filter)}
+        value={Filter.domValue(this.props.filter)}
+        onChange={(e, {value}) => {
+          if (value) {
+            if (Filter.isMultiValue(this.props.filter)) {
+              if (
+                !(typeof value === 'string') &&
+                !(typeof value === 'number')
+              ) {
+                this.props.setFilterMultiValue(value.map(Run.parseValue));
+              }
+            } else {
+              this.props.setFilterValue(Run.parseValue(value));
+            }
+          }
+        }}
+        onClose={() => this.props.close()}
+      />
+    );
+  }
+}
+const FilterValueSelectorWrapped = withFilterValueSuggestions(
+  FilterValueSelector
+);
 
 // This is what's passed in to the FilterKeySuggestions HOC
 interface FilterKeySuggestionsProps {
@@ -35,9 +215,14 @@ interface FilterKeySuggestionsResponse {
   };
 }
 
+interface KeyToPath {
+  [key: string]: string;
+}
+
 interface FilterKeySuggestionsResponseParsed {
   loading: boolean;
   keys: string[];
+  keyToPath: KeyToPath;
 }
 
 const withFilterKeySuggestions = graphql<
@@ -60,11 +245,13 @@ const withFilterKeySuggestions = graphql<
       // types don't account for this.
       throw new Error('data == null for graphql query');
     }
+    const keyToPath = data.project
+      ? parseFilterKeySuggestions(data.project.pathCounts)
+      : {};
     return {
       loading: data.loading,
-      keys: data.project
-        ? parseFilterKeySuggestions(data.project.pathCounts)
-        : [],
+      keys: _.keys(keyToPath).sort(),
+      keyToPath,
     };
   },
 });
@@ -82,21 +269,22 @@ function parseFilterKeySuggestion(pathString: string): string | null {
   return null;
 }
 
-function parseFilterKeySuggestions(pathCountsString: string): string[] {
+function parseFilterKeySuggestions(pathCountsString: string): KeyToPath {
   const json = JSON.parse(pathCountsString);
   if (!_.isObject(json)) {
-    return [];
+    return {};
   }
-  return (_.keys(json)
-    .map(parseFilterKeySuggestion)
-    .filter(o => o) as string[]).sort();
+  return _.fromPairs(
+    _.keys(json)
+      .map(path => [parseFilterKeySuggestion(path), path])
+      .filter(([key, path]) => key)
+  );
 }
 
 let globalFilterId = 0;
 type RunFilterEditorProps = FilterKeySuggestionsProps &
   FilterKeySuggestionsResponseParsed;
 class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
-  keyValueCounts: RunHelpers2.KeyValueCount = {};
   valueSuggestions: any;
 
   componentWillMount() {
@@ -118,72 +306,6 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
 
   elementId() {
     return 'filtereditor-' + this.props.id;
-  }
-
-  displayValue(value: Run.Value) {
-    if (this.props.filter.key.section === 'tags') {
-      return value === true ? 'Set' : 'Unset';
-    } else {
-      return Run.displayValue(value);
-    }
-  }
-
-  setupValueSuggestions(props: RunFilterEditorProps) {
-    const keyString = Run.displayKey(this.props.filter.key);
-    let valueCounts = keyString ? this.keyValueCounts[keyString] : null;
-    if (valueCounts) {
-      if (this.props.filter.key.section === 'tags') {
-        // We want true before false
-        valueCounts = [...valueCounts].reverse();
-      } else if (props.filter.op === '=' || props.filter.op === '!=') {
-        valueCounts = [{value: '*', count: 0}, ...valueCounts];
-      }
-      this.valueSuggestions = valueCounts.map(({value, count}) => {
-        const displayVal = this.displayValue(value);
-        return {
-          text: displayVal,
-          key: Run.domValue(value),
-          value: Run.domValue(value),
-          content: (
-            <span
-              style={{
-                display: 'inline-block',
-                width: '100%',
-              }}
-              key={displayVal}>
-              <span
-                style={{
-                  display: 'inline-block',
-                  whitespace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}>
-                {displayVal}
-              </span>
-              {value !== '*' && (
-                <span
-                  style={{
-                    width: 60,
-                    fontStyle: 'italic',
-                    display: 'inline-block',
-                    float: 'right',
-                    whitespace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}>
-                  ({count} {count === 1 ? 'run' : 'runs'})
-                </span>
-              )}
-            </span>
-          ),
-        };
-      });
-      if (this.props.filter.value == null && this.valueSuggestions.length > 0) {
-        this.props.setFilterValue(this.valueSuggestions[0].value);
-      }
-    } else {
-      this.valueSuggestions = [];
-    }
   }
 
   componentWillReceiveProps(nextProps: RunFilterEditorProps) {
@@ -225,31 +347,18 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
             </Form.Field>
           )}
           <Form.Field>
-            <Dropdown
-              disabled={this.props.loading}
-              additionLabel=""
-              allowAdditions
-              options={this.valueSuggestions}
-              placeholder="value"
-              search
-              selection
-              multiple={Filter.isMultiValue(this.props.filter)}
-              value={Filter.domValue(this.props.filter)}
-              onChange={(e, {value}) => {
-                if (value) {
-                  if (Filter.isMultiValue(this.props.filter)) {
-                    if (
-                      !(typeof value === 'string') &&
-                      !(typeof value === 'number')
-                    ) {
-                      this.props.setFilterMultiValue(value.map(Run.parseValue));
-                    }
-                  } else {
-                    this.props.setFilterValue(Run.parseValue(value));
-                  }
-                }
-              }}
-              onClose={() => this.props.close()}
+            <FilterValueSelectorWrapped
+              entityName={this.props.entityName}
+              projectName={this.props.projectName}
+              otherFilters={this.props.otherFilters}
+              keysLoading={this.props.loading}
+              keyPath={
+                this.props.keyToPath[Run.displayKey(this.props.filter.key)]
+              }
+              filter={this.props.filter}
+              setFilterValue={this.props.setFilterValue}
+              setFilterMultiValue={this.props.setFilterMultiValue}
+              close={this.props.close}
             />
           </Form.Field>
         </Form>
