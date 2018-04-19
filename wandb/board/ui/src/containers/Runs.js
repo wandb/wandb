@@ -165,7 +165,6 @@ class Runs extends React.Component {
     //   this.props.setColumns(defaultColumns);
     // }
     // Setup views loaded from server.
-    console.log('NEXT VIEWS', nextProps.views);
     if (
       nextProps.views &&
       nextProps.views.runs &&
