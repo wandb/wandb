@@ -392,6 +392,9 @@ class RunFeed extends PureComponent {
   state = {sort: 'timeline', dir: 'descending'};
 
   handleScroll() {
+    if (this.pageLoad) {
+      return;
+    }
     const windowHeight =
       'innerHeight' in window
         ? window.innerHeight
@@ -410,6 +413,7 @@ class RunFeed extends PureComponent {
       if (this.props.data.loadMore) {
         // TODO: don't call if no more data (maybe we don't provide loadMore in that case)
         // TODO: set state to loading so we can show an indicator
+        this.pageLoad = true;
         this.props.data.loadMore();
       }
     }
@@ -420,6 +424,7 @@ class RunFeed extends PureComponent {
   }
 
   componentWillMount() {
+    this.pageLoad = true;
     this._setup(this.props);
   }
 
@@ -427,10 +432,15 @@ class RunFeed extends PureComponent {
     window.removeEventListener('scroll', () => this.handleScroll());
   }
 
+  componentDidUpdate() {
+    this.handleScroll();
+  }
+
   _setup(props) {
-    this.columnNames = props.loading
-      ? ['Description']
-      : getColumns(props.data.filtered);
+    this.columnNames =
+      props.data.length === 0 && props.loading
+        ? ['Description']
+        : getColumns(props.data.filtered);
   }
 
   componentWillReceiveProps(nextProps) {
@@ -439,6 +449,9 @@ class RunFeed extends PureComponent {
       this.props.loading !== nextProps.loading
     ) {
       this._setup(nextProps);
+    }
+    if (!nextProps.loading) {
+      this.pageLoad = false;
     }
   }
 
@@ -497,10 +510,10 @@ class RunFeed extends PureComponent {
                   <RunFeedRow
                     key={i}
                     run={run}
+                    loading={this.props.loading && !this.pageLoad}
                     selectable={this.props.selectable}
                     selectedRuns={this.props.selectedRuns}
                     selections={this.props.selections}
-                    loading={this.props.loading}
                     columnNames={this.columnNames}
                     project={this.props.project}
                     addFilter={(type, key, op, value) =>
@@ -516,6 +529,16 @@ class RunFeed extends PureComponent {
                     setFilters={this.props.setFilters}
                   />
                 ))}
+              {this.props.loading &&
+                this.pageLoad && (
+                  <RunFeedRow
+                    selectable={this.props.selectable}
+                    key="loader"
+                    run={{config: {}, summary: {}}}
+                    loading={true}
+                    columnNames={this.columnNames}
+                  />
+                )}
             </Table.Body>
           </Table>
         </div>

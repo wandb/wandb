@@ -54,6 +54,7 @@ function withRunsData() {
           limit: query.page && query.page.size,
           filters: JSON.stringify(Filter.toMongo(query.filters)),
         },
+        notifyOnNetworkStatusChange: true,
       };
       if (BOARD) {
         defaults.pollInterval = 5000;
