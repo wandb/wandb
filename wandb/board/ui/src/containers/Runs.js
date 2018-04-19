@@ -350,7 +350,7 @@ class Runs extends React.Component {
                   },
                 });
               }}>
-              <Icon name="trash" />
+              <Icon name="hide" />
               Hide {this.props.data.selectedRuns.length} run(s)
             </Button>
             <Dropdown

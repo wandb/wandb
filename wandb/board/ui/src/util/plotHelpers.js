@@ -387,10 +387,11 @@ export function avgPointsByBucket(points, bucketCount, min, max) {
 
 export function aggregateLines(
   lines,
-  name,
+  name, // for the legend
   idx,
+  rawData, // for the legend
   bucketData = true,
-  nameSpec = null
+  nameSpec = null // for the legend
 ) {
   /**
    * Takes in a bunch of lines and returns a line with
@@ -474,16 +475,18 @@ export function aggregateLines(
       y: arrMax(bucket),
     }));
 
+  let prefix = 'Area ';
   let area = {
-    title: 'area ' + name,
+    title: new RunFancyName(rawData, nameSpec, prefix), //'area ' + name,
     aux: true,
     color: color(idx, 0.15),
     data: areaData,
     area: true,
   };
 
+  prefix = 'Mean ' + name;
   let line = {
-    title: 'Mean ' + name,
+    title: new RunFancyName(rawData, nameSpec, prefix),
     color: color(idx),
     data: lineData,
   };
@@ -589,7 +592,7 @@ export function linesFromDataRunsPlot(
    * aggregate - (Boolean) should we aggregate
    * groupBy - (String or null) what config parameter should we aggregate by
    * nameSpec - (String or null) controls line titles (see runFancyName)
-   * rawData - The data from this.props.data TODO: Why do we need this??
+   * rawData - The data from this.props.data - needed for the legend
    * yAxisLog - is the yaxis log scale - this is to remove non-positive values pre-plot
    */
 
@@ -633,8 +636,10 @@ export function linesFromDataRunsPlot(
       let i = 0;
       _.forOwn(groupIdx, (idxArr, configVal) => {
         let lineGroup = [];
+        let groupRawData = [];
         idxArr.map((idx, j) => {
           lineGroup.push(lines[idx]);
+          groupRawData.push(rawData.selectedRuns[idx]);
         });
         aggLines = _.concat(
           aggLines,
@@ -642,13 +647,22 @@ export function linesFromDataRunsPlot(
             lineGroup,
             groupBy + ':' + displayValue(configVal),
             i++,
+            groupRawData,
             bucketAggregation,
             nameSpec
           )
         );
       });
     } else {
-      aggLines = aggregateLines(lines, key, 0, bucketAggregation, nameSpec);
+      // aggregate everything
+      aggLines = aggregateLines(
+        lines,
+        key,
+        0,
+        rawData,
+        bucketAggregation,
+        nameSpec
+      );
     }
     lines = aggLines;
   } else {
