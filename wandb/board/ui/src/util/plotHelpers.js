@@ -385,12 +385,30 @@ export function avgPointsByBucket(points, bucketCount, min, max) {
   return avgBuckets;
 }
 
+export function bucketsFromLines(lines) {
+  let maxLengthRun = arrMax(lines.map(line => line.data.length));
+
+  let xVals = _.flatten(
+    lines.map((line, j) => line.data.map((point, i) => point.x))
+  );
+
+  if (xVals.length == 0) {
+    return null;
+  }
+
+  let maxX = arrMax(xVals);
+  let minX = arrMin(xVals);
+
+  let bucketCount = Math.ceil(maxLengthRun / 2);
+  return {maxX: maxX, minX: minX, bucketCount: bucketCount};
+}
+
 export function aggregateLines(
   lines,
   name, // for the legend
   idx,
   rawData, // for the legend
-  bucketData = true,
+  buckets = null,
   nameSpec = null // for the legend
 ) {
   /**
@@ -400,27 +418,16 @@ export function aggregateLines(
    * representing the min and the max.
    */
 
-  let maxLengthRun = arrMax(lines.map(line => line.data.length));
-
-  let xVals = _.flatten(
-    lines.map((line, j) => line.data.map((point, i) => point.x))
-  );
-
-  if (xVals.length == 0) {
-    return [];
-  }
-
-  let maxX = arrMax(xVals);
-  let minX = arrMin(xVals);
   let bucketXValues = [];
   let mergedBuckets = [];
 
-  if (bucketData) {
+  if (buckets) {
     /**
      * We aggregate lines by first bucketing them.  This is important when there
      * is sampling or when the x values don't line up.
      */
-    let bucketCount = Math.ceil(maxLengthRun / 2);
+
+    let {maxX, minX, bucketCount} = buckets;
 
     // get all the data points in aligned buckets
     let bucketedLines = lines.map((line, j) =>
@@ -445,6 +452,9 @@ export function aggregateLines(
       (xBucket, i) => (bucketXValues[i] = minX + (i + 0.5) * inc)
     );
   } else {
+    let xVals = _.flatten(
+      lines.map((line, j) => line.data.map((point, i) => point.x))
+    );
     bucketXValues = _.uniq(xVals).sort((a, b) => a - b);
     let xValToBucketIndex = {};
     bucketXValues.map((val, i) => (xValToBucketIndex[val] = i));
@@ -623,8 +633,9 @@ export function linesFromDataRunsPlot(
   if (aggregate) {
     let bucketAggregation = true; // should we bucket the x values
     let maxLength = arrMax(lines.map((line, i) => line.data.length));
+    let buckets = null;
     if (xAxisKey == '_step' && maxLength < 200) {
-      bucketAggregation = false;
+      buckets = bucketsFromLines(lines);
     }
 
     let aggLines = [];
@@ -648,21 +659,14 @@ export function linesFromDataRunsPlot(
             groupBy + ':' + displayValue(configVal),
             i++,
             groupRawData,
-            bucketAggregation,
+            buckets,
             nameSpec
           )
         );
       });
     } else {
       // aggregate everything
-      aggLines = aggregateLines(
-        lines,
-        key,
-        0,
-        rawData,
-        bucketAggregation,
-        nameSpec
-      );
+      aggLines = aggregateLines(lines, key, 0, rawData, buckets, nameSpec);
     }
     lines = aggLines;
   } else {
