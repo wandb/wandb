@@ -197,7 +197,6 @@ const FilterValueSelectorWrapped = withFilterValueSuggestions(
 interface FilterKeySuggestionsProps {
   entityName: string;
   projectName: string;
-  runs: Run.Run[];
   filter: Filter.IndividualFilter;
   otherFilters: Filter.Filter;
   id: number;
@@ -287,13 +286,6 @@ type RunFilterEditorProps = FilterKeySuggestionsProps &
 class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
   valueSuggestions: any;
 
-  componentWillMount() {
-    const filtered = Filter.filterRuns(
-      this.props.otherFilters,
-      this.props.runs
-    );
-  }
-
   componentDidMount() {
     const el = document.getElementById(this.elementId());
     if (this.props.filter.key.name === '' && el) {
@@ -372,7 +364,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Loader active />
+            <Loader inline active />
           </div>
         )}
       </div>
@@ -385,7 +377,6 @@ const RunFilterEditorWrapped = withFilterKeySuggestions(RunFilterEditor);
 interface RunFilterProps {
   entityName: string;
   projectName: string;
-  runs: Run.Run[];
   filter: Filter.IndividualFilter;
   otherFilters: Filter.Filter;
   editing: boolean;
@@ -503,7 +494,6 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
             <RunFilterEditorWrapped
               entityName={this.props.entityName}
               projectName={this.props.projectName}
-              runs={this.props.runs}
               filter={this.props.filter}
               otherFilters={this.props.otherFilters}
               id={this.globalId}
@@ -580,7 +570,6 @@ interface RunFiltersSectionProps {
   projectName: string;
   filters: Filter.Filter;
   mergeFilters: Filter.Filter | null;
-  runs: Run.Run[];
   index: number;
   editingId: string;
   canAdd: boolean;
@@ -594,7 +583,7 @@ export class RunFiltersSection extends React.Component<
   {}
 > {
   render() {
-    const {filters, mergeFilters, runs, editingId} = this.props;
+    const {filters, mergeFilters, editingId} = this.props;
     return filters.op === 'AND' ? (
       <div className="runFiltersSection">
         {this.props.index !== 0 && 'OR '}
@@ -615,7 +604,6 @@ export class RunFiltersSection extends React.Component<
               entityName={this.props.entityName}
               projectName={this.props.projectName}
               key={filterId}
-              runs={runs}
               filter={filter}
               otherFilters={otherFilters}
               id={filterId}
@@ -657,8 +645,7 @@ interface RunFiltersProps {
   filters: Filter.Filter;
   mergeFilters: Filter.Filter | null;
   kind: string;
-  runs: Run.Run[];
-  filteredRuns: Run.Run[];
+  filteredRunsCount: number;
   nobox: boolean;
   setFilters(kind: string, filters: Filter.Filter): void;
 }
@@ -672,7 +659,7 @@ export default class RunFilters extends React.Component<
   state = {editingId: ''};
 
   render() {
-    const {mergeFilters, kind, runs, nobox} = this.props;
+    const {mergeFilters, kind, nobox} = this.props;
     let modFilters = Filter.simplify(this.props.filters);
     let empty = false;
     if (modFilters == null) {
@@ -687,12 +674,11 @@ export default class RunFilters extends React.Component<
             entityName={this.props.entityName}
             projectName={this.props.projectName}
             key={i}
-            runs={runs}
             filters={filter}
             mergeFilters={mergeFilters}
             index={i}
             editingId={this.state.editingId}
-            canAdd={this.props.filteredRuns.length > 1}
+            canAdd={this.props.filteredRunsCount > 1}
             editFilter={(id: string) => this.setState({editingId: id})}
             pushFilter={(newFilter: Filter.Filter) => {
               this.props.setFilters(

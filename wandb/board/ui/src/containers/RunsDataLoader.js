@@ -25,6 +25,7 @@ import withHistoryLoader from '../containers/HistoryLoader';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import * as Query from '../util/query';
+import * as Filter from '../util/filters';
 import _ from 'lodash';
 import RunsDataWorker from './workers/RunsDataDerived.worker.js';
 
@@ -41,6 +42,7 @@ function withRunsData() {
           order: 'timeline',
           requestSubscribe: requestSubscribe || false,
           limit: query.page && query.page.size,
+          filters: JSON.stringify(Filter.toMongo(query.filters)),
         },
       };
       if (BOARD) {
@@ -131,19 +133,14 @@ function withDerivedRunsData(WrappedComponent) {
 
     _setup(prevProps, props) {
       this.loadMore = props.loadMore;
-      let strategy = Query.strategy(props.query);
-      if (strategy === 'page') {
-        this.setState({data: props.data});
-      } else {
-        let messageData = {
-          base: props.data && props.data.base,
-          prevBuckets: prevProps.runs,
-          runs: props.runs,
-          query: props.query,
-          counts: props.counts,
-        };
-        this.worker.postMessage(messageData);
-      }
+      let messageData = {
+        base: props.data && props.data.base,
+        prevBuckets: prevProps.runs,
+        runs: props.runs,
+        query: props.query,
+        counts: props.counts,
+      };
+      this.worker.postMessage(messageData);
       this.views = props.views ? JSON.parse(props.views) : null;
     }
 

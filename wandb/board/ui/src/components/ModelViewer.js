@@ -59,6 +59,9 @@ class ModelViewer extends React.Component {
               entity: match.params.entity,
               model: match.params.model,
               strategy: 'root',
+              page: {
+                size: 1,
+              },
             }}
           />
         )}

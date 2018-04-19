@@ -379,6 +379,9 @@ function toMongoOpValue(op: IndividualOp, value: Run.Value | Run.Value[]): any {
 }
 
 function toMongoIndividual(filter: IndividualFilter): any {
+  if (filter.key.name === '' || filter.value == null) {
+    return null;
+  }
   if (filter.key.section === 'tags') {
     if (filter.value === false) {
       return {
@@ -401,6 +404,10 @@ export function toMongo(filter: Filter): any {
   if (isIndividual(filter)) {
     return toMongoIndividual(filter);
   } else if (isGroup(filter)) {
-    return {[GROUP_OP_TO_MONGO[filter.op]]: filter.filters.map(toMongo)};
+    return {
+      [GROUP_OP_TO_MONGO[filter.op]]: filter.filters
+        .map(toMongo)
+        .filter(o => o),
+    };
   }
 }

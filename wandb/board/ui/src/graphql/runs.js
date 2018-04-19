@@ -126,6 +126,33 @@ export const RUNS_QUERY = gql`
   ${fragments.historyRun}
 `;
 
+export const PROJECT_QUERY = gql`
+  query Project($name: String!, $entityName: String, $filters: JSONString) {
+    project(name: $name, entityName: $entityName) {
+      id
+      name
+      createdAt
+      entityName
+      description
+      summaryMetrics
+      views
+      requestSubscribe
+      runs(filters: {}) {
+        count
+      }
+      filtered: runs(filters: $filters) {
+        count
+      }
+    }
+    viewer {
+      id
+      email
+      photoUrl
+      admin
+    }
+  }
+`;
+
 export const RUN_UPSERT = gql`
   mutation upsertRun($id: String, $description: String, $tags: [String!]) {
     upsertBucket(input: {id: $id, description: $description, tags: $tags}) {

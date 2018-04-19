@@ -17,7 +17,7 @@ import RunFiltersRedux from './RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
 import ViewModifier from './ViewModifier';
 import HelpIcon from '../components/HelpIcon';
-import {MODIFY_RUNS} from '../graphql/runs';
+import {PROJECT_QUERY, MODIFY_RUNS} from '../graphql/runs';
 import {MODEL_UPSERT} from '../graphql/models';
 import {connect} from 'react-redux';
 import queryString from 'query-string';
@@ -45,6 +45,7 @@ import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
 import * as Filter from '../util/filters';
 import * as Selection from '../util/selections';
+import * as Query from '../util/query';
 
 class Runs extends React.Component {
   state = {showFailed: false, activeTab: 0, showFilters: false};
@@ -140,50 +141,50 @@ class Runs extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    if (
-      !this.doneLoading &&
-      nextProps.loading === false &&
-      nextProps.data.base.length > 0
-    ) {
-      this.doneLoading = true;
-      let defaultColumns = {
-        Description: true,
-        Ran: true,
-        Runtime: true,
-        _ConfigAuto: true,
-        Sweep: _.indexOf(nextProps.data.columnNames, 'Sweep') !== -1,
-      };
-      let summaryColumns = nextProps.data.columnNames.filter(col =>
-        _.startsWith(col, 'summary')
-      );
-      for (var col of summaryColumns) {
-        defaultColumns[col] = true;
-      }
-      this.props.setColumns(defaultColumns);
-    }
+    // if (
+    //   !this.doneLoading &&
+    //   nextProps.loading === false &&
+    //   nextProps.data.base.length > 0
+    // ) {
+    //   this.doneLoading = true;
+    //   let defaultColumns = {
+    //     Description: true,
+    //     Ran: true,
+    //     Runtime: true,
+    //     _ConfigAuto: true,
+    //     Sweep: _.indexOf(nextProps.data.columnNames, 'Sweep') !== -1,
+    //   };
+    //   let summaryColumns = nextProps.data.columnNames.filter(col =>
+    //     _.startsWith(col, 'summary')
+    //   );
+    //   for (var col of summaryColumns) {
+    //     defaultColumns[col] = true;
+    //   }
+    //   this.props.setColumns(defaultColumns);
+    // }
     // Setup views loaded from server.
-    if (
-      nextProps.data.base.length > 0 &&
-      (nextProps.views === null || !nextProps.views.runs) &&
-      _.isEmpty(this.props.reduxServerViews.runs.views) &&
-      _.isEmpty(this.props.reduxBrowserViews.runs.views)
-    ) {
-      // no views on server, provide a default
-      this.props.setBrowserViews(
-        defaultViews((nextProps.runs.edges[0] || {}).node)
-      );
-    } else if (
-      nextProps.views &&
-      nextProps.views.runs &&
-      !_.isEqual(nextProps.views, this.props.reduxServerViews)
-    ) {
-      if (
-        _.isEqual(this.props.reduxServerViews, this.props.reduxBrowserViews)
-      ) {
-        this.props.setBrowserViews(nextProps.views);
-      }
-      this.props.setServerViews(nextProps.views);
-    }
+    // if (
+    //   nextProps.counts.runs > 0 &&
+    //   (nextProps.views === null || !nextProps.views.runs) &&
+    //   _.isEmpty(this.props.reduxServerViews.runs.views) &&
+    //   _.isEmpty(this.props.reduxBrowserViews.runs.views)
+    // ) {
+    //   // no views on server, provide a default
+    //   this.props.setBrowserViews(
+    //     defaultViews((nextProps.runs.edges[0] || {}).node)
+    //   );
+    // } else if (
+    //   nextProps.views &&
+    //   nextProps.views.runs &&
+    //   !_.isEqual(nextProps.views, this.props.reduxServerViews)
+    // ) {
+    //   if (
+    //     _.isEqual(this.props.reduxServerViews, this.props.reduxBrowserViews)
+    //   ) {
+    //     this.props.setBrowserViews(nextProps.views);
+    //   }
+    //   this.props.setServerViews(nextProps.views);
+    // }
   }
 
   handleTabChange = (e, {activeIndex}) =>
@@ -225,9 +226,9 @@ class Runs extends React.Component {
                     />
                   }
                 />
-                {this.props.data.base.length} total runs,{' '}
-                {this.props.data.filtered.length} filtered,{' '}
-                {this.props.data.selectedRuns.length} selected
+                {this.props.counts.runs} total runs,{' '}
+                {this.props.counts.filtered} filtered,{' '}
+                {this.props.counts.selectedRuns} selected
               </p>
               <p>
                 <span
@@ -262,8 +263,7 @@ class Runs extends React.Component {
                         projectName={this.props.match.params.model}
                         kind="filter"
                         buttonText="Add Filter"
-                        runs={this.props.data.base}
-                        filteredRuns={this.props.data.filtered}
+                        filteredRunsCount={this.props.counts.filtered}
                       />
                     </Grid.Column>
                   </Grid.Row>
@@ -271,7 +271,7 @@ class Runs extends React.Component {
               </Transition.Group>
             </Grid.Column>
           </Grid.Row>
-          <Grid.Column width={16}>
+          {/* <Grid.Column width={16}>
             {this.props.haveViews && (
               <ViewModifier
                 viewType="runs"
@@ -287,9 +287,9 @@ class Runs extends React.Component {
                 }
               />
             )}
-          </Grid.Column>
+          </Grid.Column> */}
           <Grid.Column width={16} style={{zIndex: 2}}>
-            <Popup
+            {/* <Popup
               trigger={
                 <Button
                   disabled={this.props.loading}
@@ -303,7 +303,7 @@ class Runs extends React.Component {
               }
               on="click"
               position="bottom left"
-            />
+            /> */}
             {!this.props.haveViews && (
               <Button
                 floated="right"
@@ -315,42 +315,42 @@ class Runs extends React.Component {
             )}
             <Button
               floated="right"
-              disabled={this.props.data.selectedRuns.length === 0}
+              disabled={this.props.counts.selected === 0}
               onClick={e => {
                 // TODO(adrian): this should probably just be a separate component
                 e.preventDefault();
 
-                this.setState({
-                  showConfirm: true,
-                  confirmText:
-                    'Are you sure you would like to hide these runs? You can reverse this later by removing the "hidden" label.',
-                  confirmButton: `Hide ${
-                    this.props.data.selectedRuns.length
-                  } run(s)`,
-                  handleConfirm: e => {
-                    e.preventDefault();
-                    this.props.modifyRuns({
-                      ids: this.props.data.selectedRuns.map(run => run.id),
-                      addTags: ['hidden'],
-                    });
-                    this.setState({
-                      showConfirm: false,
-                      handleConfirm: null,
-                      handleCancel: null,
-                    });
-                  },
-                  handleCancel: e => {
-                    e.preventDefault();
-                    this.setState({
-                      showConfirm: false,
-                      handleConfirm: null,
-                      handleCancel: null,
-                    });
-                  },
-                });
+                // this.setState({
+                //   showConfirm: true,
+                //   confirmText:
+                //     'Are you sure you would like to hide these runs? You can reverse this later by removing the "hidden" label.',
+                //   confirmButton: `Hide ${
+                //     this.props.counts.selected
+                //   } run(s)`,
+                //   handleConfirm: e => {
+                //     e.preventDefault();
+                //     this.props.modifyRuns({
+                //       ids: this.props.data.selectedRuns.map(run => run.id),
+                //       addTags: ['hidden'],
+                //     });
+                //     this.setState({
+                //       showConfirm: false,
+                //       handleConfirm: null,
+                //       handleCancel: null,
+                //     });
+                //   },
+                //   handleCancel: e => {
+                //     e.preventDefault();
+                //     this.setState({
+                //       showConfirm: false,
+                //       handleConfirm: null,
+                //       handleCancel: null,
+                //     });
+                //   },
+                // });
               }}>
               <Icon name="trash" />
-              Hide {this.props.data.selectedRuns.length} run(s)
+              Hide {this.props.counts.selected} run(s)
             </Button>
             <Dropdown
               icon={null}
@@ -358,10 +358,10 @@ class Runs extends React.Component {
                 <Button>
                   <Icon
                     name={
-                      this.props.data.selectedRuns.length === 0
+                      this.props.counts.selected === 0
                         ? 'square outline'
-                        : this.props.data.selectedRuns.length ===
-                          this.props.data.filtered.length
+                        : this.props.counts.selectedRuns ===
+                          this.props.counts.filtered
                           ? 'checkmark box'
                           : 'minus square outline'
                     }
@@ -406,15 +406,23 @@ class Runs extends React.Component {
           admin={this.props.user && this.props.user.admin}
           match={this.props.match}
           loading={this.props.loading}
-          runs={this.props.data.filtered}
           project={this.props.project}
           onSort={this.onSort}
           showFailed={this.state.showFailed}
           selectable={true}
-          selectedRuns={this.props.data.selectedRunsById}
-          columnNames={this.props.data.columnNames}
+          // selectedRuns={this.props.data.selectedRunsById}
+          // columnNames={this.props.data.columnNames}
           limit={this.props.limit}
-          pageQuery={this.props.query}
+          query={{
+            entity: this.props.match.params.entity,
+            model: this.props.match.params.model,
+            strategy: 'root',
+            filters: this.props.runFilters,
+            page: {
+              // num: state.runs.pages[id] ? state.runs.pages[id].current : 0,
+              size: 10,
+            },
+          }}
         />
       </Container>
     );
@@ -482,6 +490,32 @@ const mapDispatchToProps = (dispatch, ownProps) => {
   );
 };
 
+const withData = graphql(PROJECT_QUERY, {
+  options: ({match, runFilters}) => {
+    return {
+      variables: {
+        entityName: match.params.entity,
+        name: match.params.model,
+        filters: JSON.stringify(Filter.toMongo(runFilters)),
+      },
+    };
+  },
+  props: ({data: {loading, project, viewer, fetchMore}, errors}) => {
+    //TODO: For some reason the first poll causes loading to be true
+    // if (project && projects.runs && loading) loading = false;
+    return {
+      loading,
+      views: project && project.views,
+      projectID: project && project.id,
+      counts: {
+        runs: project && project.runs && project.runs.count,
+        filtered: project && project.filtered && project.filtered.count,
+        selected: project && project.runs && project.runs.count,
+      },
+    };
+  },
+});
+
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withRunsQueryRedux(withRunsDataLoader(Runs)))
+  withMutations(withData(Runs))
 );

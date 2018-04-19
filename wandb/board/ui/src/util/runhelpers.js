@@ -578,6 +578,59 @@ export function flatKeySuggestions(keySuggestions) {
   );
 }
 
+function autoCols(section, runs) {
+  runs = runs.filter(run => run[section]);
+  if (runs.length <= 1) {
+    return [];
+  }
+  let allKeys = _.uniq(_.flatMap(runs, run => _.keys(run[section])));
+  let result = {};
+  for (let key of allKeys) {
+    let vals = runs.map(run => run[section][key]).filter(o => o != null);
+    let types = _.uniq(vals.map(val => typeof val));
+    if (vals.length === 0) {
+      result[key] = false;
+    } else if (types.length !== 1) {
+      // Show columns that have different types
+      result[key] = true;
+    } else {
+      let type = types[0];
+      let uniqVals = _.uniq(vals);
+      if (type === 'string') {
+        // Show columns that have differing values unless all values differ
+        if (uniqVals.length > 1 && uniqVals.length < vals.length) {
+          result[key] = true;
+        } else {
+          result[key] = false;
+        }
+      } else {
+        if (vals.every(val => _.isArray(val) && val.length === 0)) {
+          // Special case for empty arrays, we don't get non-empty arrays
+          // as config values because of the flattening that happens at a higher
+          // layer.
+          result[key] = false;
+        } else if (
+          vals.every(val => _.isObject(val) && _.keys(val).length === 0)
+        ) {
+          // Special case for empty objects.
+          result[key] = false;
+        } else {
+          // Show columns that have differing values even if all values differ
+          if (uniqVals.length > 1) {
+            result[key] = true;
+          } else {
+            result[key] = false;
+          }
+        }
+      }
+    }
+  }
+  return _.map(result, (enable, key) => enable && key)
+    .filter(o => o && !_.startsWith(o, '_'))
+    .sort()
+    .map(key => section + ':' + key);
+}
+
 export function getColumns(runs) {
   let configColumns = _.uniq(_.flatMap(runs, run => _.keys(run.config)))
     .sort()
@@ -590,10 +643,9 @@ export function getColumns(runs) {
     runs && runs.findIndex(r => r.sweep) > -1 ? ['Sweep', 'Stop'] : [];
   return ['Description'].concat(
     sweepColumns,
-    ['Ran', 'Runtime', 'Config'],
-    configColumns,
-    ['Summary'],
-    summaryColumns
+    ['Ran', 'Runtime'],
+    autoCols('config', runs),
+    autoCols('summary', runs)
   );
 }
 

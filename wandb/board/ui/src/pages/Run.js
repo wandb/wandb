@@ -4,13 +4,7 @@ import {Container, Loader} from 'semantic-ui-react';
 import RunEditor from '../components/RunEditor';
 import RunViewer from '../components/RunViewer';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
-import {
-  RUN_UPSERT,
-  RUN_DELETION,
-  RUN_STOP,
-  RUNS_QUERY,
-  fragments,
-} from '../graphql/runs';
+import {RUN_UPSERT, RUN_DELETION, RUN_STOP, fragments} from '../graphql/runs';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
@@ -201,7 +195,7 @@ const withMutations = compose(
           },
         }),
     }),
-  }),
+  })
 );
 
 //TODO: move parsed loss logic here
@@ -216,7 +210,7 @@ function mapStateToProps(state, ownProps) {
 function mapDispatchToProps(dispatch) {
   return bindActionCreators(
     {updateLocationParams, setServerViews, setBrowserViews},
-    dispatch,
+    dispatch
   );
 }
 
@@ -224,5 +218,5 @@ function mapDispatchToProps(dispatch) {
 export {Run};
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withData(withApollo(Run))),
+  withMutations(withData(withApollo(Run)))
 );
