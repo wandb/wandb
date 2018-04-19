@@ -141,6 +141,8 @@ class Runs extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
+    // Columns selction is disabled now, everything is automatic. We can re-enable
+    // if someone asks for it.
     // if (
     //   !this.doneLoading &&
     //   nextProps.loading === false &&
@@ -163,28 +165,19 @@ class Runs extends React.Component {
     //   this.props.setColumns(defaultColumns);
     // }
     // Setup views loaded from server.
-    // if (
-    //   nextProps.counts.runs > 0 &&
-    //   (nextProps.views === null || !nextProps.views.runs) &&
-    //   _.isEmpty(this.props.reduxServerViews.runs.views) &&
-    //   _.isEmpty(this.props.reduxBrowserViews.runs.views)
-    // ) {
-    //   // no views on server, provide a default
-    //   this.props.setBrowserViews(
-    //     defaultViews((nextProps.runs.edges[0] || {}).node)
-    //   );
-    // } else if (
-    //   nextProps.views &&
-    //   nextProps.views.runs &&
-    //   !_.isEqual(nextProps.views, this.props.reduxServerViews)
-    // ) {
-    //   if (
-    //     _.isEqual(this.props.reduxServerViews, this.props.reduxBrowserViews)
-    //   ) {
-    //     this.props.setBrowserViews(nextProps.views);
-    //   }
-    //   this.props.setServerViews(nextProps.views);
-    // }
+    console.log('NEXT VIEWS', nextProps.views);
+    if (
+      nextProps.views &&
+      nextProps.views.runs &&
+      !_.isEqual(nextProps.views, this.props.reduxServerViews)
+    ) {
+      if (
+        _.isEqual(this.props.reduxServerViews, this.props.reduxBrowserViews)
+      ) {
+        this.props.setBrowserViews(nextProps.views);
+      }
+      this.props.setServerViews(nextProps.views);
+    }
   }
 
   handleTabChange = (e, {activeIndex}) =>
@@ -271,23 +264,30 @@ class Runs extends React.Component {
               </Transition.Group>
             </Grid.Column>
           </Grid.Row>
-          {/* <Grid.Column width={16}>
-            {this.props.haveViews && (
-              <ViewModifier
-                viewType="runs"
-                data={this.props.data}
-                pageQuery={this.props.query}
-                updateViews={views =>
-                  this.props.updateModel({
-                    entityName: this.props.match.params.entity,
-                    name: this.props.match.params.model,
-                    id: this.props.projectID,
-                    views: views,
-                  })
-                }
-              />
-            )}
-          </Grid.Column> */}
+          {
+            <Grid.Column width={16}>
+              {this.props.haveViews && (
+                <ViewModifier
+                  viewType="runs"
+                  data={this.props.data}
+                  pageQuery={{
+                    entity: this.props.match.params.entity,
+                    model: this.props.match.params.model,
+                    sort: this.props.sort,
+                    filters: this.props.runFilters,
+                  }}
+                  updateViews={views =>
+                    this.props.updateModel({
+                      entityName: this.props.match.params.entity,
+                      name: this.props.match.params.model,
+                      id: this.props.projectID,
+                      views: views,
+                    })
+                  }
+                />
+              )}
+            </Grid.Column>
+          }
           <Grid.Column width={16} style={{zIndex: 2}}>
             {/* <Popup
               trigger={
@@ -505,7 +505,7 @@ const withData = graphql(PROJECT_QUERY, {
     // if (project && projects.runs && loading) loading = false;
     return {
       loading,
-      views: project && project.views,
+      views: project && project.views && JSON.parse(project.views),
       projectID: project && project.id,
       counts: {
         runs: project && project.runs && project.runs.count,
