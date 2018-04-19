@@ -421,6 +421,7 @@ class Runs extends React.Component {
               // num: state.runs.pages[id] ? state.runs.pages[id].current : 0,
               size: 10,
             },
+            sort: this.props.sort,
           }}
         />
       </Container>

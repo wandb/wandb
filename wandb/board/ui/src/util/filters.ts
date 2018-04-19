@@ -348,7 +348,7 @@ export function simplify(filter: Filter): Filter | null {
   return filter;
 }
 
-export function serverPathKey(key: Run.Key): string {
+export function serverPathKey(key: Run.Key): string | null {
   if (key.section === 'config') {
     return 'config.' + key.name + '.value';
   } else if (key.section === 'summary') {
@@ -358,7 +358,7 @@ export function serverPathKey(key: Run.Key): string {
   } else if (key.section === 'tags') {
     return 'tags.' + key.name;
   } else {
-    return '<DIDNT_CONVERT_KEY_TO_PATH_IN_BROWSER>';
+    return null;
   }
 }
 
@@ -391,8 +391,12 @@ function toMongoIndividual(filter: IndividualFilter): any {
       return {tags: filter.key.name};
     }
   }
+  const path = serverPathKey(filter.key);
+  if (path == null) {
+    return path;
+  }
   return {
-    [serverPathKey(filter.key)]: toMongoOpValue(filter.op, filter.value),
+    [path]: toMongoOpValue(filter.op, filter.value),
   };
 }
 

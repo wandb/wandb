@@ -25,6 +25,7 @@ import withHistoryLoader from '../containers/HistoryLoader';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import * as Query from '../util/query';
+import * as Run from '../util/runs';
 import * as Filter from '../util/filters';
 import _ from 'lodash';
 import RunsDataWorker from './workers/RunsDataDerived.worker.js';
@@ -35,11 +36,20 @@ function withRunsData() {
     alias: 'withRunsData',
     skip: ({query}) => !Query.needsOwnRunsQuery(query),
     options: ({query, requestSubscribe}) => {
+      let order = 'timeline';
+      if (query.sort && query.sort.name) {
+        const serverPath = Filter.serverPathKey(
+          Run.keyFromString(query.sort.name)
+        );
+        if (serverPath) {
+          order = (query.sort.ascending ? '-' : '+') + serverPath;
+        }
+      }
       const defaults = {
         variables: {
           entityName: query.entity,
           name: query.model,
-          order: 'timeline',
+          order: order,
           requestSubscribe: requestSubscribe || false,
           limit: query.page && query.page.size,
           filters: JSON.stringify(Filter.toMongo(query.filters)),
