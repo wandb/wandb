@@ -65,8 +65,7 @@ function withRunsData() {
       return defaults;
     },
     props: ({data: {loading, project, viewer, fetchMore}, errors}) => {
-      //TODO: For some reason the first poll causes loading to be true
-      // if (project && projects.runs && loading) loading = false;
+      let lastFetchMoreEndCursor;
       return {
         loading,
         runs: project && project.runs,
@@ -81,7 +80,12 @@ function withRunsData() {
           project &&
           project.runs &&
           project.runs.pageInfo.hasNextPage &&
-          (onDone =>
+          (onDone => {
+            if (lastFetchMoreEndCursor === project.runs.pageInfo.endCursor) {
+              onDone();
+              return;
+            }
+            lastFetchMoreEndCursor = project.runs.pageInfo.endCursor;
             fetchMore({
               variables: {
                 cursor: project.runs.pageInfo.endCursor,
@@ -107,7 +111,8 @@ function withRunsData() {
                     }
                   : previousResult;
               },
-            }).then(onDone)),
+            }).then(onDone);
+          }),
       };
     },
   });
