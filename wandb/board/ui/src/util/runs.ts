@@ -205,10 +205,9 @@ export function displayName(run: Run) {
 export function getValue(run: Run, runKey: Key): Value {
   const {section, name} = runKey;
   if (section === 'run') {
-    if (name === 'id') {
-      // Alias 'id' to 'name'.
+    if (name === 'name') {
       return run.name;
-    } else if (name === 'name') {
+    } else if (name === 'displayName') {
       return displayName(run);
     } else if (name === 'userName') {
       return run.user.username;

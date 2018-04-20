@@ -133,6 +133,7 @@ export function needsOwnRunsQuery(query) {
 }
 
 export function needsOwnHistoryQuery(query) {
+  return true;
   return strategy(query) === 'root' || strategy(query) === 'merge';
 }
 ///// End control flow stuff

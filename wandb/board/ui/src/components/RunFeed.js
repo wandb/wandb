@@ -280,32 +280,27 @@ class RunFeedRow extends React.Component {
   }
 
   render() {
-    let {
-      run,
-      selectable,
-      selectedRuns,
-      loading,
-      columnNames,
-      project,
-    } = this.props;
+    let {run, selectable, loading, columnNames, project} = this.props;
     const summary = run.summary;
     const config = run.config;
+    const selected =
+      this.props.selections && Filter.match(this.props.selections, run);
     return (
       <Table.Row key={run.id}>
         {selectable && (
           <Table.Cell collapsing>
-            {/* <Checkbox
-              checked={!!selectedRuns[run.name]}
+            <Checkbox
+              checked={selected}
               onChange={() => {
                 let selections = this.props.selections;
-                if (selectedRuns[run.name] != null) {
+                if (selected) {
                   selections = Selection.Update.deselect(selections, run.name);
                 } else {
                   selections = Selection.Update.select(selections, run.name);
                 }
                 this.props.setFilters('select', selections);
               }}
-            /> */}
+            />
           </Table.Cell>
         )}
         {columnNames.map(columnName => {
@@ -395,7 +390,7 @@ class RunFeed extends PureComponent {
 
   handleScroll() {
     if (this.props.loading || this.state.pageLoading) {
-      return false;
+      return;
     }
     const windowHeight =
       'innerHeight' in window
@@ -511,7 +506,6 @@ class RunFeed extends PureComponent {
                     run={run}
                     loading={false}
                     selectable={this.props.selectable}
-                    selectedRuns={this.props.selectedRuns}
                     selections={this.props.selections}
                     columnNames={this.columnNames}
                     project={this.props.project}
@@ -531,6 +525,7 @@ class RunFeed extends PureComponent {
               {this.props.loading && (
                 <RunFeedRow
                   selectable={this.props.selectable}
+                  selections={this.props.selections}
                   key="loader"
                   run={{config: {}, summary: {}}}
                   loading={true}

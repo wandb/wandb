@@ -62,7 +62,7 @@ const goodFilters: Filter.Filter = {
 describe('Individual Filter', () => {
   it('name =', () => {
     const filter: Filter.Filter = {
-      key: Run.key('run', 'name')!,
+      key: Run.key('run', 'displayName')!,
       op: '=',
       value: 'shawn-run',
     };
@@ -73,7 +73,7 @@ describe('Individual Filter', () => {
 
   it('id IN', () => {
     const filter: Filter.Filter = {
-      key: Run.key('run', 'id')!,
+      key: Run.key('run', 'name')!,
       op: 'IN',
       value: ['name1', 'name2'],
     };

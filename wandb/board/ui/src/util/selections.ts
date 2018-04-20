@@ -44,7 +44,9 @@ export function none(): Selection {
     filters: [
       {
         op: 'AND',
-        filters: [{key: {section: 'run', name: 'id'}, op: '!=', value: '*'}],
+        filters: [
+          {key: {section: 'run', name: 'name'}, op: '=', value: '<NONE>'},
+        ],
       },
     ],
   };
@@ -56,7 +58,7 @@ function findIndex(selection: Selection, key: Run.Key, op: BoundOp): number {
 
 export function bounds(
   selection: Selection,
-  key: Run.Key,
+  key: Run.Key
 ): {low: number | null; high: number | null} {
   let lowerValue = null;
   let upperValue = null;
@@ -83,7 +85,7 @@ export class Update {
     selection: Selection,
     key: Run.Key,
     op: BoundOp,
-    value: number | null,
+    value: number | null
   ): Selection {
     // All bounds are added in the first AND group. If we already have this bound, we modify it.
     if (value == null) {
@@ -97,9 +99,9 @@ export class Update {
     } else {
       const filter = {key, op, value};
       const selectNoneIndex = _.findIndex(selection.filters[0].filters, {
-        key: {section: 'run', name: 'id'},
-        op: '!=',
-        value: '*',
+        key: {section: 'run', name: 'name'},
+        op: '=',
+        value: '<NONE>',
       });
       // Remove the none selection if present.
       if (selectNoneIndex !== -1) {
@@ -117,7 +119,7 @@ export class Update {
   static select(selection: Selection, id: string): Selection {
     // Removes a deselection if present and adds a selection. The selection is added
     // as a new child of the OR.
-    const key: Run.Key = {section: 'run', name: 'id'};
+    const key: Run.Key = {section: 'run', name: 'name'};
     const deselectIndex = _.findIndex(selection.filters[0].filters, {
       key,
       op: '!=',
@@ -136,7 +138,7 @@ export class Update {
 
   static deselect(selection: Selection, id: string): Selection {
     // Inverse of select. The deselect is added to the first AND.
-    const key: Run.Key = {section: 'run', name: 'id'};
+    const key: Run.Key = {section: 'run', name: 'name'};
     const selectIndex = _.findIndex(selection.filters, {
       key,
       op: '=',
