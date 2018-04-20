@@ -220,7 +220,7 @@ class Runs extends React.Component {
                 />
                 {this.props.counts.runs} total runs,{' '}
                 {this.props.counts.filtered} filtered,{' '}
-                {this.props.counts.selectedRuns} selected
+                {this.props.counts.selected} selected
               </p>
               <p>
                 <span
@@ -491,12 +491,15 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 };
 
 const withData = graphql(PROJECT_QUERY, {
-  options: ({match, runFilters}) => {
+  options: ({match, runFilters, runSelections}) => {
     return {
       variables: {
         entityName: match.params.entity,
         name: match.params.model,
         filters: JSON.stringify(Filter.toMongo(runFilters)),
+        selections: JSON.stringify(
+          Filter.toMongo(Filter.And(runFilters, runSelections))
+        ),
       },
     };
   },
@@ -508,9 +511,9 @@ const withData = graphql(PROJECT_QUERY, {
       views: project && project.views && JSON.parse(project.views),
       projectID: project && project.id,
       counts: {
-        runs: project && project.runs && project.runs.count,
-        filtered: project && project.filtered && project.filtered.count,
-        selected: project && project.runs && project.runs.count,
+        runs: project && project.runCount,
+        filtered: project && project.filteredCount,
+        selected: project && project.selectedCount,
       },
     };
   },

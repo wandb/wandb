@@ -96,7 +96,6 @@ export const RUNS_QUERY = gql`
         filters: $filters
       ) {
         paths
-        count
         edges {
           node {
             ...BasicRunFragment
@@ -127,28 +126,23 @@ export const RUNS_QUERY = gql`
 `;
 
 export const PROJECT_QUERY = gql`
-  query Project($name: String!, $entityName: String, $filters: JSONString) {
+  query Project(
+    $name: String!
+    $entityName: String
+    $filters: JSONString
+    $selections: JSONString
+  ) {
     project(name: $name, entityName: $entityName) {
       id
       name
       createdAt
       entityName
       description
-      summaryMetrics
       views
       requestSubscribe
-      runs(filters: {}) {
-        count
-      }
-      filtered: runs(filters: $filters) {
-        count
-      }
-    }
-    viewer {
-      id
-      email
-      photoUrl
-      admin
+      runCount(filters: {})
+      filteredCount: runCount(filters: $filters)
+      selectedCount: runCount(filters: $selections)
     }
   }
 `;

@@ -79,7 +79,9 @@ function withRunsData() {
         },
         loadMore:
           project &&
-          (() =>
+          project.runs &&
+          project.runs.pageInfo.hasNextPage &&
+          (onDone =>
             fetchMore({
               variables: {
                 cursor: project.runs.pageInfo.endCursor,
@@ -105,7 +107,7 @@ function withRunsData() {
                     }
                   : previousResult;
               },
-            })),
+            }).then(onDone)),
       };
     },
   });

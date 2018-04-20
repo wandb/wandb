@@ -101,6 +101,10 @@ export function filterRuns(filter: Filter, runs: Run.Run[]) {
   return runs.filter(run => match(filter, run));
 }
 
+export function And(filter1: Filter, filter2: Filter): Filter {
+  return {op: 'AND', filters: [filter1, filter2]};
+}
+
 type QueryPathItem = number | string;
 export class Update {
   static groupPush<T>(owner: T, path: QueryPathItem[], filter: Filter): T {
