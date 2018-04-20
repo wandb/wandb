@@ -87,6 +87,7 @@ export const RUNS_QUERY = gql`
       summaryMetrics
       views
       requestSubscribe @include(if: $requestSubscribe)
+      runCount(filters: $filters)
       runs(
         first: $limit
         after: $cursor

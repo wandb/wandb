@@ -54,15 +54,6 @@ class ModelViewer extends React.Component {
             jobFilter={this.state.jobId}
             limit={10}
             requestSubscribe={true}
-            histQueryKey="runsPage"
-            query={{
-              entity: match.params.entity,
-              model: match.params.model,
-              strategy: 'root',
-              page: {
-                size: 1,
-              },
-            }}
           />
         )}
       </div>

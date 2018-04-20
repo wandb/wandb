@@ -6,6 +6,7 @@ import _ from 'lodash';
 import './DashboardView.css';
 import EditablePanel from '../components/EditablePanel';
 import * as Query from '../util/query';
+import * as Filter from '../util/filters';
 
 export const GRID_WIDTH = 12;
 export const GRID_MARGIN = 6;
@@ -112,6 +113,19 @@ class DashboardView extends Component {
 
   renderPanel(panelConfig, i, openEdit, nightMode) {
     let query = Query.merge(this.props.pageQuery, panelConfig.query || {});
+    if (
+      panelConfig.viewType === 'Run History Line Plot' ||
+      !panelConfig.viewType
+    ) {
+      // load history
+      query.history = true;
+      // only 10
+      query.page = {
+        size: 10,
+      };
+      // use selections in addition to filters.
+      query.filters = Filter.And(query.filters, query.selections);
+    }
     return (
       <EditablePanel
         viewType={this.props.viewType}

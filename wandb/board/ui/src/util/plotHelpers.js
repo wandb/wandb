@@ -627,7 +627,7 @@ export function linesFromDataRunsPlot(
     let aggLines = [];
     if (groupBy && groupBy != 'None') {
       let groupIdx = groupConfigIdx(
-        rawData.selectedRuns.slice(0, lines.length),
+        rawData.filtered.slice(0, lines.length),
         groupBy
       );
       let i = 0;

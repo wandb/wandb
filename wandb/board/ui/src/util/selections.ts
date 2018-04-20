@@ -32,7 +32,9 @@ export function all(): Selection {
     filters: [
       {
         op: 'AND',
-        filters: [],
+        filters: [
+          {key: {section: 'run', name: 'name'}, op: '!=', value: '<NONE>'},
+        ],
       },
     ],
   };

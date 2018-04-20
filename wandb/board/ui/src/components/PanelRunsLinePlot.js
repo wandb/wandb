@@ -33,6 +33,7 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   static validForData(data) {
+    return true;
     return data && !_.isNil(data.histories);
   }
 
@@ -66,7 +67,7 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   _groupByOptions() {
-    let configs = this.props.data.selectedRuns.map((run, i) => run.config);
+    let configs = this.props.data.filtered.map((run, i) => run.config);
 
     let names = _.concat('None', Run.groupByCandidates(configs));
     return names.map((name, i) => ({
@@ -77,6 +78,9 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   renderConfig() {
+    if (!this.props.data.histories) {
+      return <p>No Histories</p>;
+    }
     // LB note this maybe should move to RunsDataLoader?
     // the point of this is to remove histories that aren't numerical (images)
     // and special histories that start with _
@@ -234,7 +238,7 @@ class RunsLinePlotPanel extends React.Component {
                   />
                 </Form.Field>
               </Grid.Column>
-              {this.props.data.selectedRuns.length > 1 && (
+              {this.props.data.filtered.length > 1 && (
                 <Grid.Column width={4} verticalAlign="middle">
                   <Form.Checkbox
                     toggle
@@ -284,7 +288,8 @@ class RunsLinePlotPanel extends React.Component {
       // TODO: fix.
       return <p>No Histories</p>;
     }
-    let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
+    let {data, maxRuns, totalRuns} = this.props.data.histories;
+    let {loading} = this.props.data;
 
     let yAxis = this.props.config.key;
     // Always show running Icon in legend.

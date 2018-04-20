@@ -417,7 +417,7 @@ class RunFeed extends PureComponent {
   }
 
   componentDidMount() {
-    window.addEventListener('scroll', () => this.handleScroll());
+    // window.addEventListener('scroll', () => this.handleScroll());
   }
 
   componentWillMount() {
@@ -425,7 +425,7 @@ class RunFeed extends PureComponent {
   }
 
   componentWillUnmount() {
-    window.removeEventListener('scroll', () => this.handleScroll());
+    // window.removeEventListener('scroll', () => this.handleScroll());
   }
 
   componentDidUpdate() {
@@ -471,7 +471,7 @@ class RunFeed extends PureComponent {
   }
 
   render() {
-    const runsLength = this.props.data.counts.filtered;
+    const runsLength = this.props.runCount;
     const startIndex = (this.props.currentPage - 1) * this.props.limit;
     const endIndex = Math.min(startIndex + this.props.limit, runsLength);
     const runs = this.props.data.filtered;
@@ -535,6 +535,7 @@ class RunFeed extends PureComponent {
             </Table.Body>
           </Table>
         </div>
+        <Button content="Load More" onClick={() => this.handleScroll()} />
       </div>
     );
   }

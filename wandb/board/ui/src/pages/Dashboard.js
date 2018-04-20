@@ -10,6 +10,7 @@ import ViewModifier from '../containers/ViewModifier';
 import ErrorPage from '../components/ErrorPage';
 import withHistoryLoader from '../containers/HistoryLoader';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
+import {PROJECT_QUERY} from '../graphql/runs';
 import {
   sortRuns,
   defaultViews,
@@ -22,6 +23,8 @@ import {updateLocationParams} from '../actions/location';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import withRunsQueryRedux from '../containers/RunsQueryRedux';
 import _ from 'lodash';
+import * as Filter from '../util/filters';
+import * as Select from '../util/selections';
 
 class Dashboard extends React.Component {
   ensureModel() {
@@ -39,15 +42,7 @@ class Dashboard extends React.Component {
         },
       ],
     });
-    this.props.setFilters('select', {
-      op: 'OR',
-      filters: [
-        {
-          op: 'AND',
-          filters: [{key: {section: 'run', name: 'id'}, op: '=', value: '*'}],
-        },
-      ],
-    });
+    this.props.setFilters('select', Select.all());
   }
 
   componentWillReceiveProps(nextProps) {
@@ -89,7 +84,13 @@ class Dashboard extends React.Component {
             editMode={this.props.user && action === 'edit'}
             viewType="dashboards"
             data={this.props.data}
-            pageQuery={this.props.query}
+            pageQuery={{
+              entity: this.props.match.params.entity,
+              model: this.props.match.params.model,
+              sort: this.props.sort,
+              filters: this.props.runFilters,
+              selections: this.props.runSelections,
+            }}
             updateViews={views =>
               this.props.updateModel({
                 entityName: this.props.match.params.entity,
@@ -146,31 +147,44 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       setActiveView,
       updateLocationParams,
     },
-    dispatch,
+    dispatch
   );
 };
 
+const withData = graphql(PROJECT_QUERY, {
+  options: ({match, runFilters, runSelections}) => {
+    return {
+      variables: {
+        entityName: match.params.entity,
+        name: match.params.model,
+        filters: JSON.stringify(Filter.toMongo(runFilters)),
+        selections: JSON.stringify(
+          Filter.toMongo(Filter.And(runFilters, runSelections))
+        ),
+      },
+    };
+  },
+  props: ({data: {loading, project, viewer, fetchMore}, errors}) => {
+    //TODO: For some reason the first poll causes loading to be true
+    // if (project && projects.runs && loading) loading = false;
+    return {
+      loading,
+      views: project && project.views && JSON.parse(project.views),
+      projectID: project && project.id,
+    };
+  },
+});
+
 Dashboard = withMutations(
   withRunsQueryRedux(
-    withRunsDataLoader(connect(mapStateToProps, mapDispatchToProps)(Dashboard)),
-  ),
+    connect(mapStateToProps, mapDispatchToProps)(withData(Dashboard))
+  )
 );
 
 class DashboardWrapper extends React.Component {
   render() {
     var {match} = this.props;
-    return (
-      <Dashboard
-        {...this.props}
-        histQueryKey="dashboardsPage"
-        match={match}
-        query={{
-          entity: match.params.entity,
-          model: match.params.model,
-          strategy: 'root',
-        }}
-      />
-    );
+    return <Dashboard {...this.props} match={match} />;
   }
 }
 

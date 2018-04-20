@@ -274,6 +274,7 @@ class Runs extends React.Component {
                     model: this.props.match.params.model,
                     sort: this.props.sort,
                     filters: this.props.runFilters,
+                    selections: this.props.runSelections,
                   }}
                   updateViews={views =>
                     this.props.updateModel({
