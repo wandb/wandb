@@ -78,7 +78,7 @@ class Run extends React.Component {
   render() {
     let action = this.props.match.path.split('/').pop();
     return (
-      <Container>
+      <div>
         {!this.props.model ? (
           <Loader size="massive" active={true} />
         ) : this.props.user && action === 'edit' ? (
@@ -112,7 +112,7 @@ class Run extends React.Component {
             }
           />
         )}
-      </Container>
+      </div>
     );
   }
 }
@@ -200,7 +200,7 @@ const withMutations = compose(
           },
         }),
     }),
-  }),
+  })
 );
 
 //TODO: move parsed loss logic here
@@ -215,7 +215,7 @@ function mapStateToProps(state, ownProps) {
 function mapDispatchToProps(dispatch) {
   return bindActionCreators(
     {updateLocationParams, setServerViews, setBrowserViews},
-    dispatch,
+    dispatch
   );
 }
 
@@ -223,5 +223,5 @@ function mapDispatchToProps(dispatch) {
 export {Run};
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withMutations(withData(withApollo(Run))),
+  withMutations(withData(withApollo(Run)))
 );

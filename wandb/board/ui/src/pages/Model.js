@@ -33,7 +33,7 @@ class Model extends React.Component {
     return this.props.error ? (
       <ErrorPage error={this.props.error} history={this.props.history} />
     ) : (
-      <Container className="model">
+      <div className="model">
         {this.props.loading ? (
           <Loader active={this.props.loading} size="massive" />
         ) : this.props.user && action === 'edit' ? (
@@ -43,7 +43,7 @@ class Model extends React.Component {
         ) : (
           <ModelViewer {...this.props} />
         )}
-      </Container>
+      </div>
     );
   }
 }
@@ -92,7 +92,7 @@ const withMutations = compose(
           },
         }),
     }),
-  }),
+  })
 );
 
 const modelMapDispatchToProps = (dispatch, ownProps) => {
@@ -105,5 +105,5 @@ const modelMapDispatchToProps = (dispatch, ownProps) => {
 export {Model};
 
 export default withMutations(
-  withData(connect(null, modelMapDispatchToProps)(Model)),
+  withData(connect(null, modelMapDispatchToProps)(Model))
 );

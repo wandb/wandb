@@ -22,7 +22,7 @@ class NewModel extends React.Component {
 
   render() {
     return (
-      <Container className="model">
+      <div className="model">
         <Loader active={this.props.loading} />
         <Header>Create Project</Header>
         <ModelEditor
@@ -33,7 +33,7 @@ class NewModel extends React.Component {
           loading={this.props.loading}
           addModel={this.addModel.bind(this)}
         />
-      </Container>
+      </div>
     );
   }
 }

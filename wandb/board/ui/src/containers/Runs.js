@@ -193,7 +193,7 @@ class Runs extends React.Component {
     let ModelInfo = this.props.ModelInfo;
     const filterCount = Filter.countIndividual(this.props.runFilters);
     return (
-      <Container>
+      <div>
         <Confirm
           open={this.state.showConfirm}
           onCancel={this.state.handleCancel}
@@ -415,7 +415,7 @@ class Runs extends React.Component {
           columnNames={this.props.data.columnNames}
           limit={this.props.limit}
         />
-      </Container>
+      </div>
     );
   }
 }
