@@ -78,9 +78,13 @@ body .ui.table tr.active {
 body .ui.form .field {
   margin: 0 0 2em;
 }
+
+/*
+LB What's all this stuff doing??
 body .ui.active.button {
   background-color: #e5f9e7 !important;
 }
+*/
 
 body .input-style {
   border: 1px solid rgba(34, 36, 38, 0.15);
