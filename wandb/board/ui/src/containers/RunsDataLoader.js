@@ -238,6 +238,10 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     componentWillMount() {
+      if (!Query.needsOwnRunsQuery(this.props.query)) {
+        this.data = this.props.data;
+        return;
+      }
       this._setup({}, this.props);
     }
 
@@ -249,6 +253,10 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     componentWillReceiveProps(nextProps) {
+      if (!Query.needsOwnRunsQuery(nextProps.query)) {
+        this.data = nextProps.data;
+        return;
+      }
       if (
         this.props.runs !== nextProps.runs ||
         this.props.historyBuckets !== nextProps.historyBuckets ||

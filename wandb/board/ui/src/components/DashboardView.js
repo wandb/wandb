@@ -112,19 +112,23 @@ class DashboardView extends Component {
   };
 
   renderPanel(panelConfig, i, openEdit, nightMode) {
-    let query = Query.merge(this.props.pageQuery, panelConfig.query || {});
-    if (
-      panelConfig.viewType === 'Run History Line Plot' ||
-      !panelConfig.viewType
-    ) {
-      // load history
-      query.history = true;
-      // only 10
-      query.page = {
-        size: 10,
-      };
-      // use selections in addition to filters.
-      query.filters = Filter.And(query.filters, query.selections);
+    let query;
+    // I'm so sorry...
+    if (this.props.viewType != 'run') {
+      query = Query.merge(this.props.pageQuery, panelConfig.query || {});
+      if (
+        panelConfig.viewType === 'Run History Line Plot' ||
+        !panelConfig.viewType
+      ) {
+        // load history
+        query.history = true;
+        // only 10
+        query.page = {
+          size: 10,
+        };
+        // use selections in addition to filters.
+        query.filters = Filter.And(query.filters, query.selections);
+      }
     }
     return (
       <EditablePanel

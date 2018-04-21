@@ -33,8 +33,7 @@ class RunsLinePlotPanel extends React.Component {
   }
 
   static validForData(data) {
-    return true;
-    return data && !_.isNil(data.histories);
+    return !_.isNil(data.base);
   }
 
   _setupKeySuggestions(props) {
