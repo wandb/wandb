@@ -385,12 +385,31 @@ export function avgPointsByBucket(points, bucketCount, min, max) {
   return avgBuckets;
 }
 
+export function bucketsFromLines(lines) {
+  let maxLengthRun = arrMax(lines.map(line => line.data.length));
+
+  let xVals = _.flatten(
+    lines.map((line, j) => line.data.map((point, i) => point.x))
+  );
+
+  if (xVals.length == 0) {
+    return null;
+  }
+
+  let maxX = arrMax(xVals);
+  let minX = arrMin(xVals);
+
+  let bucketCount = Math.ceil(maxLengthRun / 2);
+  return {maxX: maxX, minX: minX, bucketCount: bucketCount};
+}
+
 export function aggregateLines(
   lines,
-  name,
+  name, // for the legend
   idx,
-  bucketData = true,
-  nameSpec = null
+  rawData, // for the legend
+  buckets = null,
+  nameSpec = null // for the legend
 ) {
   /**
    * Takes in a bunch of lines and returns a line with
@@ -399,27 +418,16 @@ export function aggregateLines(
    * representing the min and the max.
    */
 
-  let maxLengthRun = arrMax(lines.map(line => line.data.length));
-
-  let xVals = _.flatten(
-    lines.map((line, j) => line.data.map((point, i) => point.x))
-  );
-
-  if (xVals.length == 0) {
-    return [];
-  }
-
-  let maxX = arrMax(xVals);
-  let minX = arrMin(xVals);
   let bucketXValues = [];
   let mergedBuckets = [];
 
-  if (bucketData) {
+  if (buckets) {
     /**
      * We aggregate lines by first bucketing them.  This is important when there
      * is sampling or when the x values don't line up.
      */
-    let bucketCount = Math.ceil(maxLengthRun / 2);
+
+    let {maxX, minX, bucketCount} = buckets;
 
     // get all the data points in aligned buckets
     let bucketedLines = lines.map((line, j) =>
@@ -444,6 +452,9 @@ export function aggregateLines(
       (xBucket, i) => (bucketXValues[i] = minX + (i + 0.5) * inc)
     );
   } else {
+    let xVals = _.flatten(
+      lines.map((line, j) => line.data.map((point, i) => point.x))
+    );
     bucketXValues = _.uniq(xVals).sort((a, b) => a - b);
     let xValToBucketIndex = {};
     bucketXValues.map((val, i) => (xValToBucketIndex[val] = i));
@@ -474,16 +485,18 @@ export function aggregateLines(
       y: arrMax(bucket),
     }));
 
+  let prefix = 'Area ';
   let area = {
-    title: 'area ' + name,
+    title: new RunFancyName(rawData, nameSpec, prefix), //'area ' + name,
     aux: true,
-    color: color(idx, 0.3),
+    color: color(idx, 0.15),
     data: areaData,
     area: true,
   };
 
+  prefix = 'Mean ' + name;
   let line = {
-    title: 'Mean ' + name,
+    title: new RunFancyName(rawData, nameSpec, prefix),
     color: color(idx),
     data: lineData,
   };
@@ -589,7 +602,7 @@ export function linesFromDataRunsPlot(
    * aggregate - (Boolean) should we aggregate
    * groupBy - (String or null) what config parameter should we aggregate by
    * nameSpec - (String or null) controls line titles (see runFancyName)
-   * rawData - The data from this.props.data TODO: Why do we need this??
+   * rawData - The data from this.props.data - needed for the legend
    * yAxisLog - is the yaxis log scale - this is to remove non-positive values pre-plot
    */
 
@@ -620,8 +633,9 @@ export function linesFromDataRunsPlot(
   if (aggregate) {
     let bucketAggregation = true; // should we bucket the x values
     let maxLength = arrMax(lines.map((line, i) => line.data.length));
+    let buckets = null;
     if (xAxisKey == '_step' && maxLength < 200) {
-      bucketAggregation = false;
+      buckets = bucketsFromLines(lines);
     }
 
     let aggLines = [];
@@ -633,8 +647,10 @@ export function linesFromDataRunsPlot(
       let i = 0;
       _.forOwn(groupIdx, (idxArr, configVal) => {
         let lineGroup = [];
+        let groupRawData = [];
         idxArr.map((idx, j) => {
           lineGroup.push(lines[idx]);
+          groupRawData.push(rawData.selectedRuns[idx]);
         });
         aggLines = _.concat(
           aggLines,
@@ -642,13 +658,15 @@ export function linesFromDataRunsPlot(
             lineGroup,
             groupBy + ':' + displayValue(configVal),
             i++,
-            bucketAggregation,
+            groupRawData,
+            buckets,
             nameSpec
           )
         );
       });
     } else {
-      aggLines = aggregateLines(lines, key, 0, bucketAggregation, nameSpec);
+      // aggregate everything
+      aggLines = aggregateLines(lines, key, 0, rawData, buckets, nameSpec);
     }
     lines = aggLines;
   } else {

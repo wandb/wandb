@@ -1,4 +1,9 @@
-.viewMode {
-  position: 'absolute';
+/* this fixes the charts in the dashboard to line up */
+/*.viewMode:not(.modal) {
+  position: absolute;
   bottom: 0px;
+}*/
+/* see https://github.com/Semantic-Org/Semantic-UI/issues/3801 */
+.ui.basic.segment {
+  border: none;
 }

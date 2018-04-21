@@ -39,13 +39,13 @@ class App extends Component {
       <div className={this.props.fullScreen ? 'fullScreen' : ''}>
         <AutoReload setFlash={this.props.setFlash} />
         <Nav user={this.props.user} history={this.props.history} />
-        <Container className="main" fluid style={{backgroundImage: pattern}}>
+        <div className="main" style={{padding: '20px'}}>
           {this.props.error || this.state.error ? (
             <ErrorPage history={this.props.history} error={this.props.error} />
           ) : (
             this.props.children
           )}
-        </Container>
+        </div>
         <Footer />
       </div>
     );

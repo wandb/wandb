@@ -12,10 +12,6 @@ body {
   padding-bottom: 50px;
 }
 
-#root .menu .item .logo {
-  width: 3.8em;
-  padding: 0;
-}
 .auth0-lock.auth0-lock .auth0-lock-name {
   overflow: visible !important;
 }

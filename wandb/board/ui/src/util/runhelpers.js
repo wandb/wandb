@@ -69,21 +69,81 @@ export function fuzzyMatchRegex(matchStr) {
   return new RegExp(regexpStr, 'i');
 }
 
-// fuzzyMatch replicates the command-P in vscode matching all the characters in order'
-// but not necessarily sequential
+var indexMap = function(list) {
+  /**
+   *  For longestCommonSubstring, from
+   * From https://github.com/mirkokiefer/longest-common-substring/blob/master/index.js
+   */
+  var map = {};
+  _.forEach(list, (each, i) => {
+    map[each] = map[each] || [];
+    map[each].push(i);
+  });
+  return map;
+};
+
+function longestCommonSubstring(seq1, seq2) {
+  /**
+   * From https://github.com/mirkokiefer/longest-common-substring/blob/master/index.js
+   */
+  var result = {startString1: 0, startString2: 0, length: 0};
+  var indexMapBefore = indexMap(seq1);
+  var previousOverlap = [];
+  _.forEach(seq2, (eachAfter, indexAfter) => {
+    var overlapLength;
+    var overlap = [];
+    var indexesBefore = indexMapBefore[eachAfter] || [];
+    indexesBefore.forEach(function(indexBefore) {
+      overlapLength =
+        ((indexBefore && previousOverlap[indexBefore - 1]) || 0) + 1;
+      if (overlapLength > result.length) {
+        result.length = overlapLength;
+        result.startString1 = indexBefore - overlapLength + 1;
+        result.startString2 = indexAfter - overlapLength + 1;
+      }
+      overlap[indexBefore] = overlapLength;
+    });
+    previousOverlap = overlap;
+  });
+  return result;
+}
+
+export function fuzzyMatchScore(str, matchStr) {
+  /**
+   * Returns the length of the longest common substring so that fuzzymatch
+   * can sort on it.
+   */
+  return longestCommonSubstring(str, matchStr).length;
+}
+
 export function fuzzyMatch(strings, matchStr) {
+  /**
+   * fuzzyMatch replicates the command-P in vscode matching all the characters in order'
+   * but not necessarily sequential
+   */
   if (!matchStr) {
     return strings;
   }
-  return strings.filter(str => str.match(fuzzyMatchRegex(matchStr)));
+  let matchedStrs = strings.filter(str => str.match(fuzzyMatchRegex(matchStr)));
+  let scoredStrs = matchedStrs.map(str => {
+    return {
+      string: str,
+      score: -1 * fuzzyMatchScore(str, matchStr),
+    };
+  });
+  console.log('OY', scoredStrs);
+  let sortedScores = _.sortBy(scoredStrs, ['score']);
+  return sortedScores.map(ss => ss.string);
 }
 
-// fuzzyMatchHighlight works with fuzzyMatch to highlight the matching substrings
 export function fuzzyMatchHighlight(
   str,
   matchStr,
   matchStyle = {backgroundColor: 'yellow'}
 ) {
+  /**
+   * fuzzyMatchHighlight works with fuzzyMatch to highlight the matching substrings
+   */
   if (!matchStr) {
     return str;
   }
@@ -270,48 +330,53 @@ export class RunsFancyName {
     if (!this._spec) {
       return runDisplayName(this._run);
     }
-    return <span>{this.prefix} </span>;
+    return <span>{this._prefix} </span>;
   }
 }
 
 export class RunFancyName {
-  constructor(run, spec, prefix = '') {
-    this._run = run;
+  constructor(runOrRuns, spec, prefix = '') {
+    if (runOrRuns instanceof Array) {
+      this._runs = runOrRuns;
+    } else {
+      this._runs = [runOrRuns];
+    }
     this._spec = spec;
     this._prefix = prefix;
   }
 
   special = {
-    createdAt: value => (
+    createdAt: values => (
       <span key="createdAt">
-        (started <TimeAgo date={new Date(value)} />){' '}
+        (started <TimeAgo date={new Date(_.min(values))} />){' '}
       </span>
     ),
-    stateIcon: () => stateToIcon(this._run.state, 'stateIcon'),
+    // FIXME: The stateicon probably shouldn't be just the state of the first entry
+    stateIcon: () => stateToIcon(this._runs[0].state, 'stateIcon'),
     runningIcon: () =>
-      this._run.state === 'running'
-        ? stateToIcon(this._run.state, 'runningIcon')
+      _.some(this._runs, run => run.state === 'running')
+        ? stateToIcon('running', 'runningIcon')
         : null,
   };
 
   toComponent() {
     if (!this._spec) {
-      return runDisplayName(this._run);
+      return runDisplayName(this._runs[0]);
     }
     return (
       <span>
-        {this.prefix}{' '}
+        {this._prefix}{' '}
         {this._spec
           .map(key => {
-            let value = getRunValue(this._run, key);
+            let values = this._runs.map(run => getRunValue(run, key));
             let specialFn = this.special[key];
             if (specialFn) {
-              return specialFn(value);
+              return specialFn(values);
             } else {
-              if (_.isString(value)) {
-                value = truncateString(value, 24);
+              if (_.isString(values[0])) {
+                values = truncateString(values[0], 24);
               }
-              return <span key={key}>{displayValue(value)} </span>;
+              return <span key={key}>{displayValue(values)} </span>;
             }
           })
           .filter(o => o)}
@@ -320,14 +385,19 @@ export class RunFancyName {
   }
 
   toString() {
-    return (
+    let str =
       this._prefix +
       this._spec
-        .map(key => (this.special[key] ? null : getRunValue(this._run, key)))
+        .map(
+          key =>
+            this.special[key]
+              ? null
+              : this._runs.map(run => getRunValue(run, key)).join(', ')
+        )
         .filter(o => o)
         .map(val => displayValue(val))
-        .join(' ')
-    );
+        .join(' ');
+    return truncateString(str, 60);
   }
 }
 

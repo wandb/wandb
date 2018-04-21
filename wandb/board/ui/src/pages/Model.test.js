@@ -35,8 +35,8 @@ describe('Model page components test', () => {
         params: {},
         path: '/:entity/:model/edit',
       },
-      model: {
-        bucket: {
+      project: {
+        run: {
           createdAt: '2017-24-09T10:09:28.487559',
           name: 'tmp',
         },
@@ -56,7 +56,7 @@ describe('Model page components test', () => {
     container = mount(
       <MockAppWrapper store={store}>
         <Model {...props} />
-      </MockAppWrapper>,
+      </MockAppWrapper>
     );
     expect(container.find(ModelViewer)).toHaveLength(1);
   });

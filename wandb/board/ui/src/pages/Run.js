@@ -72,7 +72,7 @@ class Run extends React.Component {
   render() {
     let action = this.props.match.path.split('/').pop();
     return (
-      <Container>
+      <div>
         {!this.props.project ? (
           <Loader size="massive" active={true} />
         ) : this.props.user && action === 'edit' ? (
@@ -107,7 +107,7 @@ class Run extends React.Component {
             }
           />
         )}
-      </Container>
+      </div>
     );
   }
 }

@@ -1,5 +1,5 @@
 import * as Filter from './filters';
-import * as Selection from './Selections';
+import * as Selection from './selections';
 
 const runs = [
   {
@@ -89,7 +89,7 @@ describe('Selection', () => {
       Selection.none(),
       {section: 'config', name: 'lr'},
       '<=',
-      0.7,
+      0.7
     );
     expect(Filter.filterRuns(selection, runs).length).toBe(2);
   });
@@ -99,7 +99,7 @@ describe('Selection', () => {
       Selection.all(),
       {section: 'config', name: 'lr'},
       '<=',
-      0.7,
+      0.7
     );
     expect(Filter.filterRuns(selection, runs).length).toBe(2);
   });
@@ -109,32 +109,32 @@ describe('Selection', () => {
       Selection.all(),
       {section: 'config', name: 'lr'},
       '<=',
-      0.7,
+      0.7
     );
     expect(
-      Selection.bounds(selection, {section: 'config', name: 'lr'}),
+      Selection.bounds(selection, {section: 'config', name: 'lr'})
     ).toEqual({low: null, high: 0.7});
     expect(
-      Selection.bounds(selection, {section: 'config', name: 'doesnt-xist'}),
+      Selection.bounds(selection, {section: 'config', name: 'doesnt-xist'})
     ).toEqual({low: null, high: null});
     selection = Selection.Update.addBound(
       selection,
       {section: 'config', name: 'lr'},
       '>=',
-      0.3,
+      0.3
     );
     expect(
-      Selection.bounds(selection, {section: 'config', name: 'lr'}),
+      Selection.bounds(selection, {section: 'config', name: 'lr'})
     ).toEqual({low: 0.3, high: 0.7});
 
     selection = Selection.Update.addBound(
       selection,
       {section: 'config', name: 'lr'},
       '<=',
-      null,
+      null
     );
     expect(
-      Selection.bounds(selection, {section: 'config', name: 'lr'}),
+      Selection.bounds(selection, {section: 'config', name: 'lr'})
     ).toEqual({low: 0.3, high: null});
   });
 
@@ -143,34 +143,34 @@ describe('Selection', () => {
       Selection.all(),
       {section: 'config', name: 'lr'},
       '<=',
-      0.7,
+      0.7
     );
     selection = Selection.Update.addBound(
       selection,
       {section: 'config', name: 'lr'},
       '>=',
-      0.5,
+      0.5
     );
     selection = Selection.Update.addBound(
       selection,
       {section: 'summary', name: 'Accuracy Trousers'},
       '<=',
-      0.1,
+      0.1
     );
     selection = Selection.Update.addBound(
       selection,
       {section: 'summary', name: 'Accuracy Trousers'},
       '>=',
-      0,
+      0
     );
     expect(
-      Selection.bounds(selection, {section: 'config', name: 'lr'}),
+      Selection.bounds(selection, {section: 'config', name: 'lr'})
     ).toEqual({low: 0.5, high: 0.7});
     expect(
       Selection.bounds(selection, {
         section: 'summary',
         name: 'Accuracy Trousers',
-      }),
+      })
     ).toEqual({low: 0, high: 0.1});
   });
 });

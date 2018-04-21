@@ -161,7 +161,7 @@ function parseConfig(confJson: any, runName: string): KeyVal | null {
     return null;
   }
   config = removeEmptyListsAndObjects(
-    flatten(_.mapValues(config, extractConfigValue)),
+    flatten(_.mapValues(config, extractConfigValue))
   );
   return config;
 }
@@ -191,7 +191,7 @@ function removeEmptyListsAndObjects(obj: any) {
       !(
         (_.isArray(o) && o.length === 0) ||
         (_.isObject(o) && _.keys(o).length === 0)
-      ),
+      )
   );
 }
 

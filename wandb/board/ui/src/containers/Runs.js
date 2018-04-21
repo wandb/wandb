@@ -186,7 +186,7 @@ class Runs extends React.Component {
     let ModelInfo = this.props.ModelInfo;
     const filterCount = Filter.countIndividual(this.props.runFilters);
     return (
-      <Container>
+      <div>
         <Confirm
           open={this.state.showConfirm}
           onCancel={this.state.handleCancel}
@@ -349,7 +349,7 @@ class Runs extends React.Component {
                 //   },
                 // });
               }}>
-              <Icon name="trash" />
+              <Icon name="hide" />
               Hide {this.props.counts.selected} run(s)
             </Button>
             <Dropdown
@@ -425,7 +425,7 @@ class Runs extends React.Component {
             sort: this.props.sort,
           }}
         />
-      </Container>
+      </div>
     );
   }
 }
