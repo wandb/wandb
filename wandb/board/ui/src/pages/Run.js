@@ -1,6 +1,7 @@
 import React from 'react';
 import {graphql, compose, withApollo} from 'react-apollo';
-import {Container, Loader} from 'semantic-ui-react';
+import {Container} from 'semantic-ui-react';
+import Loader from '../components/Loader';
 import RunEditor from '../components/RunEditor';
 import RunViewer from '../components/RunViewer';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
@@ -80,7 +81,7 @@ class Run extends React.Component {
     return (
       <div>
         {!this.props.model ? (
-          <Loader size="massive" active={true} />
+          <Loader />
         ) : this.props.user && action === 'edit' ? (
           // TODO: Don't render button if user can't edit
           <RunEditor

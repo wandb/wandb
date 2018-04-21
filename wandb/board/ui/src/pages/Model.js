@@ -3,7 +3,8 @@ import {graphql, compose} from 'react-apollo';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
-import {Container, Loader} from 'semantic-ui-react';
+import {Container} from 'semantic-ui-react';
+import Loader from '../components/Loader';
 import ModelEditor from '../components/ModelEditor';
 import ModelViewer from '../components/ModelViewer';
 import ErrorPage from '../components/ErrorPage';
@@ -35,7 +36,7 @@ class Model extends React.Component {
     ) : (
       <div className="model">
         {this.props.loading ? (
-          <Loader active={this.props.loading} size="massive" />
+          <Loader />
         ) : this.props.user && action === 'edit' ? (
           <ModelEditor {...this.props} />
         ) : this.props.user && action === 'sweeps' ? (

@@ -1,7 +1,8 @@
 import React from 'react';
 import {graphql, compose} from 'react-apollo';
-import {Container, Header, Loader} from 'semantic-ui-react';
+import {Container, Header} from 'semantic-ui-react';
 import ModelEditor from '../components/ModelEditor';
+import Loader from '../components/Loader';
 import {MODEL_UPSERT} from '../graphql/models';
 import {push} from 'react-router-redux';
 import {connect} from 'react-redux';
@@ -23,7 +24,7 @@ class NewModel extends React.Component {
   render() {
     return (
       <div className="model">
-        <Loader active={this.props.loading} />
+        <Loader />
         <Header>Create Project</Header>
         <ModelEditor
           entityName={this.props.match.params.entity}
@@ -46,7 +47,7 @@ const withMutations = compose(
           variables: {entityName, description, name, framework},
         }),
     }),
-  }),
+  })
 );
 
 // export dumb component for testing purposes
