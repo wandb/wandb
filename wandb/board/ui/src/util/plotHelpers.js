@@ -650,7 +650,7 @@ export function linesFromDataRunsPlot(
         let groupRawData = [];
         idxArr.map((idx, j) => {
           lineGroup.push(lines[idx]);
-          groupRawData.push(rawData.selectedRuns[idx]);
+          groupRawData.push(rawData.filtered[idx]);
         });
         aggLines = _.concat(
           aggLines,

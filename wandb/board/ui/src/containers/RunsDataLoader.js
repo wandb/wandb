@@ -125,23 +125,6 @@ function withRunsData() {
 // Parses runs into runs/keySuggestions
 function withDerivedRunsData(WrappedComponent) {
   let RunsDataDerived = class extends React.Component {
-    state = {
-      data: {
-        base: [],
-        filtered: [],
-        filteredRunsById: {},
-        selectedRuns: [],
-        selectedRunsById: {},
-        keys: [],
-        axisOptions: [],
-        columnNames: [],
-        counts: {
-          base: 0,
-          filtered: 0,
-          selected: 0,
-        },
-      },
-    };
     constructor(props) {
       super(props);
       this.keySuggestions = [];
@@ -246,10 +229,7 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     shouldComponentUpdate(nextProps, nextState) {
-      return (
-        this._shouldUpdate(this.props, nextProps, this.props.histQueryKey) ||
-        this.state.data !== nextState.data
-      );
+      return this._shouldUpdate(this.props, nextProps, this.props.histQueryKey);
     }
 
     componentWillReceiveProps(nextProps) {
