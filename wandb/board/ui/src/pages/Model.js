@@ -3,7 +3,8 @@ import {graphql, compose} from 'react-apollo';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
-import {Container, Loader} from 'semantic-ui-react';
+import {Container} from 'semantic-ui-react';
+import Loader from '../components/Loader';
 import ModelEditor from '../components/ModelEditor';
 import ModelViewer from '../components/ModelViewer';
 import ErrorPage from '../components/ErrorPage';
@@ -33,9 +34,9 @@ class Model extends React.Component {
     return this.props.error ? (
       <ErrorPage error={this.props.error} history={this.props.history} />
     ) : (
-      <Container className="model">
+      <div className="model">
         {this.props.loading ? (
-          <Loader active={this.props.loading} size="massive" />
+          <Loader />
         ) : this.props.user && action === 'edit' ? (
           <ModelEditor {...this.props} />
         ) : this.props.user && action === 'sweeps' ? (
@@ -43,7 +44,7 @@ class Model extends React.Component {
         ) : (
           <ModelViewer {...this.props} />
         )}
-      </Container>
+      </div>
     );
   }
 }
@@ -92,7 +93,7 @@ const withMutations = compose(
           },
         }),
     }),
-  }),
+  })
 );
 
 const modelMapDispatchToProps = (dispatch, ownProps) => {
@@ -105,5 +106,5 @@ const modelMapDispatchToProps = (dispatch, ownProps) => {
 export {Model};
 
 export default withMutations(
-  withData(connect(null, modelMapDispatchToProps)(Model)),
+  withData(connect(null, modelMapDispatchToProps)(Model))
 );

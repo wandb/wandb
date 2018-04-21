@@ -1,7 +1,8 @@
 import React from 'react';
 import MockAppWrapper from '../util/test/mockAppWrapper';
 import {Model} from './Model';
-import {Container, Loader} from 'semantic-ui-react';
+import {Container} from 'semantic-ui-react';
+import Loader from '../components/Loader';
 import ModelViewer from '../components/ModelViewer';
 import ModelEditor from '../components/ModelEditor';
 import ErrorPage from '../components/ErrorPage';
