@@ -8,6 +8,7 @@ import {JSONparseNaN} from '../util/jsonnan';
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import _ from 'lodash';
 import * as Query from '../util/query';
+import * as Filter from '../util/filters';
 
 // We track which histories are in the process of loading globally.
 let loadingHistories = {};
@@ -26,12 +27,12 @@ export default function withHistoryLoader(WrappedComponent) {
       // dashboard page right now)
       let pollingMode = Query.shouldPoll(nextProps.query);
 
-      if (nextProps.data.selectedRuns !== props.data.selectedRuns) {
+      if (nextProps.data.filtered !== props.data.filtered) {
         //console.log('SelectionQueryThing willReceiveProps', nextProps);
         let selected = _.fromPairs(
-          nextProps.data.selectedRuns
+          nextProps.data.filtered
             .slice(0, MAX_HISTORIES_LOADED)
-            .map(run => [run.name, run.id]),
+            .map(run => [run.name, run.id])
         );
         // find set of selected runs that have not been fetched
         //console.log('n selected', _.size(selected));
@@ -77,7 +78,16 @@ export default function withHistoryLoader(WrappedComponent) {
                 variables: {
                   entityName: nextProps.query.entity,
                   name: nextProps.query.model,
-                  bucketIds: toLoad.map(o => o.name),
+                  filters: JSON.stringify(
+                    Filter.toMongo({
+                      op: 'AND',
+                      filters: toLoad.map(o => ({
+                        key: {section: 'run', name: 'name'},
+                        op: '=',
+                        value: o.name,
+                      })),
+                    })
+                  ),
                 },
               })
               .then(result => {

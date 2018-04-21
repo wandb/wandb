@@ -9,7 +9,7 @@ export function addFilter(filters, key, op, value) {
     filter =>
       filter.key.section === key.section &&
       filter.key.value === key.value &&
-      filter.op === op,
+      filter.op === op
   );
   if (value === null) {
     // Remove filter if value is null
@@ -53,6 +53,7 @@ export function merge(base, apply) {
   }
   let result = {};
   result.strategy = apply.strategy;
+  result.page = apply.page;
   result.entity = apply.entity || base.entity;
   result.model = apply.model || base.model;
 
@@ -115,6 +116,7 @@ export function sameModel(q1, q2) {
 }
 
 export function canReuseBaseData(query) {
+  return false;
   return strategy(query) === 'merge' && sameModel(query, query.baseQuery);
 }
 
@@ -123,6 +125,7 @@ export function shouldPoll(query) {
 }
 
 export function needsOwnRunsQuery(query) {
+  return !!query;
   return (
     strategy(query) === 'root' ||
     (strategy(query) === 'merge' && !sameModel(query, query.baseQuery))
@@ -130,6 +133,7 @@ export function needsOwnRunsQuery(query) {
 }
 
 export function needsOwnHistoryQuery(query) {
+  return true;
   return strategy(query) === 'root' || strategy(query) === 'merge';
 }
 ///// End control flow stuff

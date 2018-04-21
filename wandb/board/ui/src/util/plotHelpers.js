@@ -641,7 +641,7 @@ export function linesFromDataRunsPlot(
     let aggLines = [];
     if (groupBy && groupBy != 'None') {
       let groupIdx = groupConfigIdx(
-        rawData.selectedRuns.slice(0, lines.length),
+        rawData.filtered.slice(0, lines.length),
         groupBy
       );
       let i = 0;
@@ -650,7 +650,7 @@ export function linesFromDataRunsPlot(
         let groupRawData = [];
         idxArr.map((idx, j) => {
           lineGroup.push(lines[idx]);
-          groupRawData.push(rawData.selectedRuns[idx]);
+          groupRawData.push(rawData.filtered[idx]);
         });
         aggLines = _.concat(
           aggLines,

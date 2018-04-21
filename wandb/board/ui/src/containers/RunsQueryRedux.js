@@ -4,12 +4,7 @@ import {bindActionCreators} from 'redux';
 
 function mapStateToProps(state, ownProps) {
   return {
-    query: {
-      ...ownProps.query,
-      filters: state.runs.filters.filter,
-      selections: state.runs.filters.select,
-      sort: state.runs.sort,
-    },
+    filters: state.runs.filters.filter,
   };
 }
 

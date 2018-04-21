@@ -101,6 +101,10 @@ export function filterRuns(filter: Filter, runs: Run.Run[]) {
   return runs.filter(run => match(filter, run));
 }
 
+export function And(filter1: Filter, filter2: Filter): Filter {
+  return {op: 'AND', filters: [filter1, filter2]};
+}
+
 type QueryPathItem = number | string;
 export class Update {
   static groupPush<T>(owner: T, path: QueryPathItem[], filter: Filter): T {
@@ -346,4 +350,72 @@ export function simplify(filter: Filter): Filter | null {
     return newFilter;
   }
   return filter;
+}
+
+export function serverPathKey(key: Run.Key): string | null {
+  if (key.section === 'config') {
+    return 'config.' + key.name + '.value';
+  } else if (key.section === 'summary') {
+    return 'summary_metrics.' + key.name;
+  } else if (key.section === 'run') {
+    return key.name;
+  } else if (key.section === 'tags') {
+    return 'tags.' + key.name;
+  } else {
+    return null;
+  }
+}
+
+const INDIVIDUAL_OP_TO_MONGO = {
+  '!=': '$ne',
+  '>': '$gt',
+  '>=': '$gte',
+  '<': '$lt',
+  '<=': '$lte',
+  IN: '$in',
+};
+function toMongoOpValue(op: IndividualOp, value: Run.Value | Run.Value[]): any {
+  if (op === '=') {
+    return value;
+  } else {
+    return {[INDIVIDUAL_OP_TO_MONGO[op]]: value};
+  }
+}
+
+function toMongoIndividual(filter: IndividualFilter): any {
+  if (filter.key.name === '' || filter.value == null) {
+    return null;
+  }
+  if (filter.key.section === 'tags') {
+    if (filter.value === false) {
+      return {
+        $or: [{tags: null}, {tags: filter.key.name}],
+      };
+    } else {
+      return {tags: filter.key.name};
+    }
+  }
+  const path = serverPathKey(filter.key);
+  if (path == null) {
+    return path;
+  }
+  return {
+    [path]: toMongoOpValue(filter.op, filter.value),
+  };
+}
+
+const GROUP_OP_TO_MONGO = {
+  AND: '$and',
+  OR: '$or',
+};
+export function toMongo(filter: Filter): any {
+  if (isIndividual(filter)) {
+    return toMongoIndividual(filter);
+  } else if (isGroup(filter)) {
+    return {
+      [GROUP_OP_TO_MONGO[filter.op]]: filter.filters
+        .map(toMongo)
+        .filter(o => o),
+    };
+  }
 }

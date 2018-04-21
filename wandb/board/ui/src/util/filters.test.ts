@@ -62,7 +62,7 @@ const goodFilters: Filter.Filter = {
 describe('Individual Filter', () => {
   it('name =', () => {
     const filter: Filter.Filter = {
-      key: Run.key('run', 'name')!,
+      key: Run.key('run', 'displayName')!,
       op: '=',
       value: 'shawn-run',
     };
@@ -73,7 +73,7 @@ describe('Individual Filter', () => {
 
   it('id IN', () => {
     const filter: Filter.Filter = {
-      key: Run.key('run', 'id')!,
+      key: Run.key('run', 'name')!,
       op: 'IN',
       value: ['name1', 'name2'],
     };
@@ -392,5 +392,52 @@ describe('simplifyFilters', () => {
       ],
     };
     expect(Filter.simplify(goodFiltersWithExtra)).toEqual(goodFilters);
+  });
+});
+
+describe('toMongo', () => {
+  it('works', () => {
+    expect(Filter.toMongo(goodFilters)).toEqual({
+      $or: [
+        {host: 'angry.local'},
+        {
+          $and: [
+            {state: 'running'},
+            {host: 'brian.local'},
+            {id: {$in: ['name1', 'name2']}},
+          ],
+        },
+      ],
+    });
+  });
+
+  it('works again', () => {
+    const filters: Filter.Filter = {
+      op: 'OR',
+      filters: [
+        {key: Run.key('run', 'host')!, op: '=', value: 'angry.local'},
+        {
+          op: 'AND',
+          filters: [
+            {key: Run.key('tags', 'hidden')!, op: '=', value: false},
+            {key: Run.key('tags', 'good')!, op: '=', value: true},
+            {key: Run.key('config', 'lr')!, op: '>=', value: 0.9},
+          ],
+        },
+      ],
+    };
+    console.log(JSON.stringify(Filter.toMongo(filters)));
+    expect(Filter.toMongo(filters)).toEqual({
+      $or: [
+        {host: 'angry.local'},
+        {
+          $and: [
+            {$or: [{tags: null}, {tags: 'hidden'}]},
+            {tags: 'good'},
+            {'config.lr.value': {$gte: 0.9}},
+          ],
+        },
+      ],
+    });
   });
 });

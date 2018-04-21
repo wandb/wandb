@@ -161,7 +161,7 @@ function parseConfig(confJson: any, runName: string): KeyVal | null {
     return null;
   }
   config = removeEmptyListsAndObjects(
-    flatten(_.mapValues(config, extractConfigValue)),
+    flatten(_.mapValues(config, extractConfigValue))
   );
   return config;
 }
@@ -191,7 +191,7 @@ function removeEmptyListsAndObjects(obj: any) {
       !(
         (_.isArray(o) && o.length === 0) ||
         (_.isObject(o) && _.keys(o).length === 0)
-      ),
+      )
   );
 }
 
@@ -205,10 +205,9 @@ export function displayName(run: Run) {
 export function getValue(run: Run, runKey: Key): Value {
   const {section, name} = runKey;
   if (section === 'run') {
-    if (name === 'id') {
-      // Alias 'id' to 'name'.
+    if (name === 'name') {
       return run.name;
-    } else if (name === 'name') {
+    } else if (name === 'displayName') {
       return displayName(run);
     } else if (name === 'userName') {
       return run.user.username;

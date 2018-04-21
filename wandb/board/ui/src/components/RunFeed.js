@@ -5,6 +5,7 @@ import {
   Icon,
   Image,
   Label,
+  Loader,
   Table,
   Item,
   Popup,
@@ -28,7 +29,9 @@ import {
   sortableValue,
   stateToIcon,
   truncateString,
+  getColumns,
 } from '../util/runhelpers.js';
+import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
 import * as Selection from '../util/selections';
 import * as Filter from '../util/filters';
@@ -70,7 +73,7 @@ class ValueDisplay extends PureComponent {
                     icon="external square"
                     onClick={() => {
                       this.props.enableColumn(
-                        this.props.section + ':' + this.props.valKey,
+                        this.props.section + ':' + this.props.valKey
                       );
                     }}
                   />
@@ -95,7 +98,7 @@ class ValueDisplay extends PureComponent {
                       'filter',
                       filterKey,
                       '=',
-                      sortableValue(this.props.value),
+                      sortableValue(this.props.value)
                     );
                   }}
                 />
@@ -255,17 +258,17 @@ class RunFeedRow extends React.Component {
                   <strong>{edge.user && edge.user.username}</strong>
                   {/* edge.host && `on ${edge.host} ` */}
                   {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
-                  <Tags
+                  {/* <Tags
                     tags={edge.tags}
                     addFilter={tag =>
                       this.props.addFilter(
                         'filter',
                         {section: 'tags', name: tag},
                         '=',
-                        true,
+                        true
                       )
                     }
-                  />
+                  /> */}
                 </Item.Extra>
                 {admin && <Launcher runId={edge.id} runName={edge.name} />}
               </Item.Content>
@@ -277,25 +280,20 @@ class RunFeedRow extends React.Component {
   }
 
   render() {
-    let {
-      run,
-      selectable,
-      selectedRuns,
-      loading,
-      columnNames,
-      project,
-    } = this.props;
+    let {run, selectable, loading, columnNames, project} = this.props;
     const summary = run.summary;
     const config = run.config;
+    const selected =
+      this.props.selections && Filter.match(this.props.selections, run);
     return (
       <Table.Row key={run.id}>
         {selectable && (
           <Table.Cell collapsing>
             <Checkbox
-              checked={!!selectedRuns[run.name]}
+              checked={selected}
               onChange={() => {
                 let selections = this.props.selections;
-                if (selectedRuns[run.name] != null) {
+                if (selected) {
                   selections = Selection.Update.deselect(selections, run.name);
                 } else {
                   selections = Selection.Update.select(selections, run.name);
@@ -383,10 +381,72 @@ class RunFeedRow extends React.Component {
 }
 
 class RunFeed extends PureComponent {
+  state = {pageLoading: true};
+
   static defaultProps = {
     currentPage: 1,
   };
   state = {sort: 'timeline', dir: 'descending'};
+
+  handleScroll() {
+    if (this.props.loading || this.state.pageLoading) {
+      return;
+    }
+    const windowHeight =
+      'innerHeight' in window
+        ? window.innerHeight
+        : document.documentElement.offsetHeight;
+    const body = document.body;
+    const html = document.documentElement;
+    const docHeight = Math.max(
+      body.scrollHeight,
+      body.offsetHeight,
+      html.clientHeight,
+      html.scrollHeight,
+      html.offsetHeight
+    );
+    const windowBottom = windowHeight + window.pageYOffset;
+    if (windowBottom >= docHeight) {
+      if (this.props.data.loadMore) {
+        this.setState({pageLoading: true});
+        this.props.data.loadMore(() => {
+          this.setState({pageLoading: false});
+        });
+      }
+    }
+  }
+
+  componentDidMount() {
+    // window.addEventListener('scroll', () => this.handleScroll());
+  }
+
+  componentWillMount() {
+    this._setup(this.props);
+  }
+
+  componentWillUnmount() {
+    // window.removeEventListener('scroll', () => this.handleScroll());
+  }
+
+  componentDidUpdate() {
+    setTimeout(() => this.handleScroll(), 1);
+  }
+
+  _setup(props) {
+    this.columnNames =
+      props.data.length === 0 && props.loading
+        ? ['Description']
+        : getColumns(props.data.filtered);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (
+      this.props.data.filtered !== nextProps.data.filtered ||
+      this.props.loading !== nextProps.loading
+    ) {
+      this._setup(nextProps);
+    }
+  }
 
   sortedClass(type) {
     return this.state.sort === type ? `sorted ${this.state.dir}` : '';
@@ -411,26 +471,14 @@ class RunFeed extends PureComponent {
   }
 
   render() {
-    let /*stats =
-        this.props.project &&
-        Object.keys(JSONparseNaN(this.props.project.summaryMetrics)).sort(),*/
-      runsLength = this.props.runs ? this.props.runs.length : 0,
-      startIndex = (this.props.currentPage - 1) * this.props.limit,
-      endIndex = Math.min(startIndex + this.props.limit, runsLength),
-      runs =
-        this.props.runs && this.props.runs.length > 0 && !this.props.loading
-          ? this.props.runs.slice(startIndex, endIndex)
-          : this.tablePlaceholders(
-              this.props.limit,
-              this.props.project.bucketCount,
-            ),
-      columnNames = this.props.loading
-        ? ['Description']
-        : this.props.columnNames.filter(
-            columnName => this.props.columns[columnName],
-          );
+    const runsLength = this.props.runCount;
+    const startIndex = (this.props.currentPage - 1) * this.props.limit;
+    const endIndex = Math.min(startIndex + this.props.limit, runsLength);
+    const runs = this.props.data.filtered;
     if (!this.props.loading && runsLength === 0) {
-      return <div>No runs match the chosen filters.</div>;
+      return (
+        <div style={{marginTop: 30}}>No runs match the chosen filters.</div>
+      );
     }
     return (
       <div>
@@ -447,19 +495,19 @@ class RunFeed extends PureComponent {
               selectable={this.props.selectable}
               sort={this.props.sort}
               setSort={this.props.setSort}
-              columnNames={columnNames}
+              columnNames={this.columnNames}
             />
             <Table.Body>
-              {runs &&
+              {(this.state.pageLoading || !this.props.loading) &&
+                runs &&
                 runs.map((run, i) => (
                   <RunFeedRow
                     key={i}
                     run={run}
+                    loading={false}
                     selectable={this.props.selectable}
-                    selectedRuns={this.props.selectedRuns}
                     selections={this.props.selections}
-                    loading={this.props.loading}
-                    columnNames={columnNames}
+                    columnNames={this.columnNames}
                     project={this.props.project}
                     addFilter={(type, key, op, value) =>
                       this.props.setFilters(
@@ -468,74 +516,29 @@ class RunFeed extends PureComponent {
                           key,
                           op,
                           value,
-                        }),
+                        })
                       )
                     }
                     setFilters={this.props.setFilters}
                   />
                 ))}
+              {this.props.loading && (
+                <RunFeedRow
+                  selectable={this.props.selectable}
+                  selections={this.props.selections}
+                  key="loader"
+                  run={{config: {}, summary: {}}}
+                  loading={true}
+                  columnNames={this.columnNames}
+                />
+              )}
             </Table.Body>
           </Table>
         </div>
-        <Pagination
-          id={this.props.project.id}
-          total={runsLength}
-          limit={this.props.limit}
-          scroll={false}
-        />
+        <Button content="Load More" onClick={() => this.handleScroll()} />
       </div>
     );
   }
-}
-
-function autoConfigCols(runs) {
-  runs = runs.filter(run => run.config);
-  if (runs.length <= 1) {
-    return [];
-  }
-  let allKeys = _.uniq(_.flatMap(runs, run => _.keys(run.config)));
-  let result = {};
-  for (let key of allKeys) {
-    let vals = runs.map(run => run.config[key]).filter(o => o != null);
-    let types = _.uniq(vals.map(val => typeof val));
-    if (vals.length === 0) {
-      result[key] = false;
-    } else if (types.length !== 1) {
-      // Show columns that have different types
-      result[key] = true;
-    } else {
-      let type = types[0];
-      let uniqVals = _.uniq(vals);
-      if (type === 'string') {
-        // Show columns that have differing values unless all values differ
-        if (uniqVals.length > 1 && uniqVals.length < vals.length) {
-          result[key] = true;
-        } else {
-          result[key] = false;
-        }
-      } else {
-        if (vals.every(val => _.isArray(val) && val.length === 0)) {
-          // Special case for empty arrays, we don't get non-empty arrays
-          // as config values because of the flattening that happens at a higher
-          // layer.
-          result[key] = false;
-        } else if (
-          vals.every(val => _.isObject(val) && _.keys(val).length === 0)
-        ) {
-          // Special case for empty objects.
-          result[key] = false;
-        } else {
-          // Show columns that have differing values even if all values differ
-          if (uniqVals.length > 1) {
-            result[key] = true;
-          } else {
-            result[key] = false;
-          }
-        }
-      }
-    }
-  }
-  return _.mapKeys(result, (value, key) => 'config:' + key);
 }
 
 function mapStateToProps() {
@@ -546,23 +549,6 @@ function mapStateToProps() {
 
   return function(state, ownProps) {
     const id = ownProps.project.id;
-    if (state.runs.columns !== prevColumns || ownProps.runs !== prevRuns) {
-      if (state.runs.columns['_ConfigAuto']) {
-        // We only update auto columns if runs length changes, as a performance
-        // optimization. TODO: do a better check here.
-        if (
-          _.keys(autoCols).length < 10 ||
-          ownProps.runs.length !== prevRuns.length
-        ) {
-          autoCols = autoConfigCols(ownProps.runs);
-        }
-        cols = {...state.runs.columns, ...autoCols};
-      } else {
-        cols = state.runs.columns;
-      }
-      prevColumns = state.runs.columns;
-      prevRuns = ownProps.runs;
-    }
     return {
       columns: cols,
       sort: state.runs.sort,
@@ -580,4 +566,6 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 // export dumb component for testing purposes
 export {RunFeed};
 
-export default connect(mapStateToProps(), mapDispatchToProps)(RunFeed);
+export default withRunsDataLoader(
+  connect(mapStateToProps(), mapDispatchToProps)(RunFeed)
+);

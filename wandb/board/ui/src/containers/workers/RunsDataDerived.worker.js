@@ -14,17 +14,10 @@ import _ from 'lodash';
 let runs = [];
 
 function handleMessage(m, postMessage) {
-  let {base, prevRuns, query} = m.data;
+  let {base, prevRuns, query, counts} = m.data;
   let curRuns = m.data.runs;
-  if (Query.canReuseBaseData(query)) {
-    runs = base;
-  } else {
-    runs = updateRuns(prevRuns, curRuns, []);
-  }
-  let filteredRuns = sortRuns(
-    query.sort,
-    Filter.filterRuns(query.filters, runs),
-  );
+  runs = updateRuns(prevRuns, curRuns, []);
+  let filteredRuns = runs;
   let keySuggestions = setupKeySuggestions(runs);
   let filteredRunsById = {};
   for (var run of filteredRuns) {
@@ -58,6 +51,7 @@ function handleMessage(m, postMessage) {
     keys: keySuggestions,
     axisOptions,
     columnNames,
+    counts,
   };
   postMessage(data);
 }

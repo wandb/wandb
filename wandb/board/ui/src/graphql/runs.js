@@ -87,24 +87,7 @@ export const RUNS_QUERY = gql`
       summaryMetrics
       views
       requestSubscribe @include(if: $requestSubscribe)
-      sweeps {
-        edges {
-          node {
-            id
-            name
-            createdAt
-            heartbeatAt
-            updatedAt
-            description
-            state
-            runCount
-            user {
-              username
-              photoUrl
-            }
-          }
-        }
-      }
+      runCount(filters: $filters)
       runs(
         first: $limit
         after: $cursor
@@ -141,6 +124,28 @@ export const RUNS_QUERY = gql`
   }
   ${fragments.basicRun}
   ${fragments.historyRun}
+`;
+
+export const PROJECT_QUERY = gql`
+  query Project(
+    $name: String!
+    $entityName: String
+    $filters: JSONString
+    $selections: JSONString
+  ) {
+    project(name: $name, entityName: $entityName) {
+      id
+      name
+      createdAt
+      entityName
+      description
+      views
+      requestSubscribe
+      runCount(filters: {})
+      filteredCount: runCount(filters: $filters)
+      selectedCount: runCount(filters: $selections)
+    }
+  }
 `;
 
 export const RUN_UPSERT = gql`
