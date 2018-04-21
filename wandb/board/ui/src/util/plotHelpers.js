@@ -634,7 +634,9 @@ export function linesFromDataRunsPlot(
     let bucketAggregation = true; // should we bucket the x values
     let maxLength = arrMax(lines.map((line, i) => line.data.length));
     let buckets = null;
+
     if (xAxisKey == '_step' && maxLength < 200) {
+    } else {
       buckets = bucketsFromLines(lines);
     }
 
