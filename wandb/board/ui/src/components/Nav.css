@@ -6,9 +6,17 @@
   content: '\F0D7';
 }
 
+.login.logout {
+  padding-right: 15px;
+}
+
 .ui.menu .ui.dropdown.login.logout .menu > .teams {
   margin-bottom: -5px;
   padding-bottom: 5px !important;
+}
+
+img.logo {
+  width: 11em;
 }
 
 .ui.menu {
@@ -17,11 +25,6 @@
 
 .ui.menu.top {
   background: rgb(96, 99, 105);
-}
-
-.ui.menu .logo img {
-  width: 10em !important; /* for the logo */
-  margin: 0em !important;
 }
 
 .ui.menu a.item.logo {
@@ -36,10 +39,6 @@
     color:rgb(255, 255, 255);
 }*/
 
-.ui.dropdown span:hover {
-  color: rgba(0, 0, 0, 0.95);
-}
-
 .ui.dropdown i {
   color: inherit;
 }
@@ -52,11 +51,12 @@ div.ui.dropdown.link.item {
   color: rgb(255, 255, 255);
 }
 
+div.ui.dropdown.link.item:hover {
+  color: var(--lightgray);
+}
+
 div.ui.dropdown.login {
   color: rgb(255, 255, 255);
-}
-div.ui.dropdown.login:hover {
-  color: rgba(0, 0, 0, 0.95);
 }
 
 body .ui.menu .active.item {

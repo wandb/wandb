@@ -59,7 +59,7 @@ class Server(object):
                     message += res
             message = json.loads(message.decode('utf8'))
             if message['status'] == 'done':
-                return True
+                return True, None
             elif message['status'] == 'ready':
                 return True, message
             elif message['status'] == 'launch_error':
@@ -69,7 +69,7 @@ class Server(object):
         except socket.error as e:
             logger.error(
                 "Failed to receive valid message from wandb process within %s seconds" % max_seconds)
-            return False
+            return False, None
 
     def done(self, exitcode=None):
         data = [2]

@@ -21,7 +21,7 @@ class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
   // re-render every time the crosshair (highlight) changes.
   render() {
-    const smallSizeThresh = 50;
+    const smallSizeThresh = 11;
 
     let {height, xAxis, yScale, lines, disabled, xScale, yAxis} = this.props;
     let xType = 'linear';
@@ -43,17 +43,17 @@ class LinePlotPlot extends React.PureComponent {
       lines.filter(line => line.data.length).map((line, i) => line.data.length)
     );
 
+    let xMax = _.max(
+      lines.map(
+        (line, i) => (line ? _.max(line.data.map((points, i) => points.x)) : 0)
+      )
+    );
     if (!maxDataLength) {
       nullGraph = true;
     } else if (
       maxDataLength < smallSizeThresh &&
       lines &&
-      _.max(
-        lines.map(
-          (line, i) =>
-            line ? _.max(line.data.map((points, i) => points.x)) : 0
-        )
-      ) < smallSizeThresh
+      xMax < smallSizeThresh
     ) {
       if (maxDataLength < 2) {
         nullGraph = true;
@@ -74,7 +74,9 @@ class LinePlotPlot extends React.PureComponent {
           title={truncateString(xAxis)}
           tickTotal={5}
           tickValues={smallGraph ? _.range(1, smallSizeThresh) : null}
-          tickFormat={xType != 'time' ? tick => format('.2s')(tick) : null}
+          tickFormat={
+            xType != 'time' && xMax > 10 ? tick => format('.2s')(tick) : null
+          }
           style={{
             line: {stroke: '999'},
             ticks: {stroke: '999'},
