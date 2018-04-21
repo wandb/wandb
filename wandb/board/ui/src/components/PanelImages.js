@@ -139,7 +139,7 @@ class ImagesPanel extends React.Component {
           <a href="http://docs.wandb.com/#media">
             http://docs.wandb.com/#media
           </a>
-        </p>,
+        </p>
       );
     }
 
@@ -170,7 +170,7 @@ class ImagesPanel extends React.Component {
     }
     return (
       <div>
-        <h3>Epoch {this.state.epoch}</h3>
+        <h3>Step {this.state.epoch}</h3>
         {console.log('Captions', captions)}
         {captions ? (
           captions.map((label, i) => {
