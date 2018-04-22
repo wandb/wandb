@@ -47,7 +47,13 @@ class SystemList extends React.Component {
   }
 
   render() {
-    return <DataList data={this.data} formatValue={this.formatValue} />;
+    return (
+      <DataList
+        name="Utilization"
+        data={this.data}
+        formatValue={this.formatValue}
+      />
+    );
   }
 }
 

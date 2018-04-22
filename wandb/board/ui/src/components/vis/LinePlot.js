@@ -18,14 +18,13 @@ import {truncateString, displayValue} from '../../util/runhelpers.js';
 import {smartNames} from '../../util/plotHelpers.js';
 import {format} from 'd3-format';
 import Highlight from './highlight.js';
-import {Button, Container} from 'semantic-ui-react';
 
 class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
   // re-render every time the crosshair (highlight) changes.
 
   render() {
-    const smallSizeThresh = 50;
+    const smallSizeThresh = 11;
     let {
       height,
       xAxis,
@@ -40,7 +39,6 @@ class LinePlotPlot extends React.PureComponent {
       crosshairCount,
       onBrushEnd,
     } = this.props;
-
     let xType = 'linear';
     if (xAxis == 'Absolute Time') {
       xType = 'time';
@@ -60,17 +58,17 @@ class LinePlotPlot extends React.PureComponent {
       lines.filter(line => line.data.length).map((line, i) => line.data.length)
     );
 
+    let xMax = _.max(
+      lines.map(
+        (line, i) => (line ? _.max(line.data.map((points, i) => points.x)) : 0)
+      )
+    );
     if (!maxDataLength) {
       nullGraph = true;
     } else if (
       maxDataLength < smallSizeThresh &&
       lines &&
-      _.max(
-        lines.map(
-          (line, i) =>
-            line ? _.max(line.data.map((points, i) => points.x)) : 0
-        )
-      ) < smallSizeThresh
+      xMax < smallSizeThresh
     ) {
       if (maxDataLength < 2) {
         nullGraph = true;
@@ -107,7 +105,7 @@ class LinePlotPlot extends React.PureComponent {
                     key={i}
                     color={line.color}
                     data={line.data}
-                    getNull={d => d.y !== null}
+                    nullAccessor={d => d.y !== null}
                     strokeDasharray={
                       line.mark === 'dashed'
                         ? '4,2'

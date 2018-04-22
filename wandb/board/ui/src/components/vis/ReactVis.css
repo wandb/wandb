@@ -38,10 +38,6 @@
   font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
 }
 
-h4 {
-  font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
-}
-
 .line-plot-container {
   cursor: zoom-in;
 }
@@ -56,4 +52,8 @@ h4 {
 
 .line-plot-container.max-zoom:active {
   cursor: not-allowed;
+}
+
+h4 {
+  font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import MockAppWrapper from '../util/test/mockAppWrapper';
 import {Run} from './Run';
-import {Loader} from 'semantic-ui-react';
+import Loader from '../components/Loader';
 import RunViewer from '../components/RunViewer';
 import RunEditor from '../components/RunEditor';
 
@@ -61,7 +61,7 @@ describe('Run page components test', () => {
         updateLocationParams={() => {}}
         setBrowserViews={() => {}}
         setServerViews={() => {}}
-      />,
+      />
     );
   });
 

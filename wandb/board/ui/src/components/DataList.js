@@ -1,5 +1,5 @@
 import React from 'react';
-import {List, Input, Icon} from 'semantic-ui-react';
+import {List, Input, Icon, Modal, Button, Grid} from 'semantic-ui-react';
 import FixedLengthString from '../components/FixedLengthString';
 
 import {
@@ -96,16 +96,65 @@ class DataList extends React.Component {
     return displayValue(value);
   }
 
+  rawMode = e => {
+    this.setState({format: 'raw'});
+  };
+
+  jsonMode = e => {
+    this.setState({format: 'json'});
+  };
+
   renderLongList() {
     return (
       <div>
-        <Input
-          onChange={(e, {value}) => this.setState({filter: value})}
-          icon={{name: 'search', circular: true, link: true}}
-          placeholder="Search..."
-          size="mini"
-          className="DataListSearchBox"
-        />
+        <Grid style={{marginBottom: 0}}>
+          <Grid.Column floated="left" width={10}>
+            <Input
+              onChange={(e, {value}) => this.setState({filter: value})}
+              icon={{name: 'search', circular: true, link: true}}
+              placeholder="Search..."
+              size="mini"
+              className="DataListSearchBox"
+            />
+          </Grid.Column>
+          <Grid.Column floated="right" width={3}>
+            <Modal
+              trigger={<Button icon="expand" size="mini" floated="right" />}>
+              <Modal.Header>
+                {this.props.name}
+                <Button.Group floated="right">
+                  <Button
+                    active={this.state.format !== 'json'}
+                    onClick={this.rawMode}>
+                    List
+                  </Button>
+                  <Button
+                    active={this.state.format === 'json'}
+                    onClick={this.jsonMode}>
+                    Json
+                  </Button>
+                </Button.Group>
+              </Modal.Header>
+              <Modal.Content>
+                {this.state.format === 'json' ? (
+                  JSON.stringify(this.props.data, null, '\t')
+                ) : (
+                  <List>
+                    {_.keys(this.flatData)
+                      .sort()
+                      .map((key, i) =>
+                        this.configItem(
+                          key,
+                          this.formatValue(this.flatData[key]),
+                          i
+                        )
+                      )}
+                  </List>
+                )}
+              </Modal.Content>
+            </Modal>
+          </Grid.Column>
+        </Grid>
         <div className="DataListWithSearch">
           <List divided>
             {this.state.filter
@@ -120,7 +169,13 @@ class DataList extends React.Component {
                 )
               : _.keys(this.flatData)
                   .sort()
-                  .map((key, i) => this.configItem(key, this.flatData[key], i))}
+                  .map((key, i) =>
+                    this.configItem(
+                      key,
+                      this.formatValue(this.flatData[key]),
+                      i
+                    )
+                  )}
           </List>
         </div>
       </div>
