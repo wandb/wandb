@@ -23,14 +23,24 @@ import {Button, Container} from 'semantic-ui-react';
 class LinePlotPlot extends React.PureComponent {
   // Implements the actual plot and data as a PureComponent, so that we don't
   // re-render every time the crosshair (highlight) changes.
-  state = {
-    lastDrawLocation: null,
-  };
 
   render() {
     const smallSizeThresh = 50;
-    const {lastDrawLocation} = this.state;
-    let {height, xAxis, yScale, lines, disabled, xScale, yAxis} = this.props;
+    let {
+      height,
+      xAxis,
+      yScale,
+      lines,
+      disabled,
+      xScale,
+      yAxis,
+      onMouseUp,
+      setRef,
+      lastDrawLocation,
+      crosshairCount,
+      onBrushEnd,
+    } = this.props;
+
     let xType = 'linear';
     if (xAxis == 'Absolute Time') {
       xType = 'time';
@@ -76,9 +86,6 @@ class LinePlotPlot extends React.PureComponent {
         animation={false}
         xDomain={
           lastDrawLocation && [lastDrawLocation.left, lastDrawLocation.right]
-        }
-        className={
-          'line-plot-plot' + (lastDrawLocation ? lastDrawLocation.classes : '')
         }
         yType={yScale}
         xType={xType}
@@ -137,10 +144,11 @@ class LinePlotPlot extends React.PureComponent {
           }}
         />
         <Highlight
+          setRef={setRef}
+          stepCount={crosshairCount}
+          onMouseUp={onMouseUp}
           onBrushEnd={area => {
-            this.setState({
-              lastDrawLocation: area,
-            });
+            onBrushEnd(area);
           }}
         />
       </FlexibleWidthXYPlot>
@@ -230,6 +238,8 @@ class LinePlotCrosshair extends React.PureComponent {
       let xs = _.keys(this.highlights).map(k => Number(k));
       this.falseLine = xs.map(x => ({x: x, y: y}));
     }
+
+    props.setCrosshairCount(this.falseLine.length);
   }
 
   componentWillMount() {
@@ -246,13 +256,29 @@ class LinePlotCrosshair extends React.PureComponent {
   }
 
   render() {
-    let {height, xAxis, highlightX, onMouseLeave, onHighlight} = this.props;
+    let {
+      height,
+      xAxis,
+      highlightX,
+      onMouseLeave,
+      onHighlight,
+      onMouseDown,
+      lastDrawLocation,
+    } = this.props;
     let crosshairValues = null;
     if (highlightX && this.highlights[highlightX]) {
       crosshairValues = this.highlights[highlightX];
     }
+
     return (
-      <FlexibleWidthXYPlot onMouseLeave={() => onMouseLeave()} height={height}>
+      <FlexibleWidthXYPlot
+        animation={false}
+        xDomain={
+          lastDrawLocation && [lastDrawLocation.left, lastDrawLocation.right]
+        }
+        onMouseLeave={() => onMouseLeave()}
+        height={height}
+        onMouseDown={e => onMouseDown(e)}>
         <LineSeries
           onNearestX={item => onHighlight(item.x)}
           color="black"
@@ -303,9 +329,26 @@ class LinePlotCrosshair extends React.PureComponent {
 }
 
 export default class LinePlot extends React.PureComponent {
-  state = {disabled: {}, highlightX: null};
+  state = {
+    disabled: {},
+    highlightX: null,
+    hideCrosshair: false,
+    lastDrawLocation: null,
+    crosshairCount: 0,
+  };
+
+  constructor(props) {
+    super(props);
+
+    this.linePlotRef = null;
+
+    this.setLinePlotRef = element => {
+      this.linePlotRef = element;
+    };
+  }
 
   render() {
+    const {lastDrawLocation} = this.state;
     let filteredLines = this.props.lines.filter(line => !line.aux);
     let lines = [];
     lines = filteredLines;
@@ -358,7 +401,12 @@ export default class LinePlot extends React.PureComponent {
           </div>
         </div>
 
-        <div style={{position: 'relative'}}>
+        <div
+          style={{position: 'relative'}}
+          className={
+            'line-plot-container' +
+            (lastDrawLocation ? lastDrawLocation.classes : '')
+          }>
           <LinePlotPlot
             height={this.props.currentHeight - 70 || 220}
             xAxis={this.props.xAxis}
@@ -366,13 +414,22 @@ export default class LinePlot extends React.PureComponent {
             yScale={this.props.yScale}
             lines={this.props.lines}
             disabled={this.state.disabled}
+            onMouseUp={() => this.setState({hideCrosshair: false})}
+            setRef={e => this.setLinePlotRef(e)}
+            lastDrawLocation={lastDrawLocation}
+            crosshairCount={this.state.crosshairCount}
+            onBrushEnd={area =>
+              this.setState({
+                lastDrawLocation: area,
+              })
+            }
           />
           <div
             style={{
               position: 'absolute',
               top: 0,
               width: '100%',
-              pointerEvents: 'none',
+              pointerEvents: this.state.hideCrosshair ? 'none' : 'auto',
             }}>
             <LinePlotCrosshair
               height={this.props.currentHeight - 70 || 220}
@@ -382,6 +439,16 @@ export default class LinePlot extends React.PureComponent {
               highlightX={this.state.highlightX}
               onMouseLeave={() => this.setState({highlightX: null})}
               onHighlight={xValue => this.setState({highlightX: xValue})}
+              lastDrawLocation={lastDrawLocation}
+              onMouseDown={e => {
+                this.setState({hideCrosshair: true});
+                const element = this.linePlotRef;
+                let evt = new MouseEvent('mousedown', e.nativeEvent);
+                element.dispatchEvent(evt);
+              }}
+              setCrosshairCount={count =>
+                this.setState({crosshairCount: count})
+              }
             />
           </div>
         </div>

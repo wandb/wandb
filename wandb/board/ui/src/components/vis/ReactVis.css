@@ -42,18 +42,18 @@ h4 {
   font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
 }
 
-.line-plot-plot .highlight-container {
+.line-plot-container {
   cursor: zoom-in;
 }
 
-.line-plot-plot.zoomed-in .highlight-container {
+.line-plot-container.zoomed-in {
   cursor: zoom-out;
 }
 
-.line-plot-plot.zoomed-in:active .highlight-container {
+.line-plot-container.zoomed-in:active {
   cursor: zoom-in;
 }
 
-.line-plot-plot.max-zoom:active .highlight-container {
+.line-plot-container.max-zoom:active {
   cursor: not-allowed;
 }

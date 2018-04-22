@@ -19,7 +19,9 @@ const Footer = () => (
         </Grid.Column>
         <Grid.Column textAlign="right" verticalAlign="bottom">
           <img
-            src={document.body.style.background === '#55565B' ? white : logo}
+            src={
+              document.body.style.background === '#55565B' ? whitelogo : logo
+            }
             style={{opacity: 0.7, height: '3em'}}
             className="logo"
             alt="Weights & Biases"

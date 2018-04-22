@@ -12,6 +12,7 @@ export default class Highlight extends AbstractSeries {
     drawing: false,
     drawArea: {top: 0, right: 0, bottom: 0, left: 0},
     startLoc: 0,
+    initialXDomain: null,
   };
 
   _getDrawArea(loc) {
@@ -40,13 +41,29 @@ export default class Highlight extends AbstractSeries {
       innerHeight,
       onBrushStart,
       xDomain,
+      stepCount,
     } = this.props;
     let offsetX = e.nativeEvent.offsetX;
+    // initial domain size, that will be used to calculate current step size based on highlighted area
+    let initialDomain;
     if (e.nativeEvent.type === 'touchstart') {
       offsetX = e.nativeEvent.pageX;
     }
     const location = offsetX - marginLeft;
-    const step = innerWidth / (xDomain[1] - xDomain[0]);
+    // set 'initialXDomain' value only once as 'xDomain' is changed on every zoom
+    if (!this.state.initialXDomain) {
+      this.setState({initialXDomain: xDomain});
+      initialDomain = xDomain[1] - xDomain[0];
+    } else {
+      initialDomain =
+        this.state.initialXDomain[1] - this.state.initialXDomain[0];
+    }
+    // size of highlighted area
+    const currentDomain = xDomain[1] - xDomain[0];
+    // number of steps currently visible
+    const currentSteps = currentDomain / initialDomain * stepCount;
+    // calculate 'step' size
+    const step = innerWidth / currentSteps;
 
     // TODO: Eventually support drawing as a full rectangle, if desired. Currently the code supports 'x' only
     this.setState({
@@ -58,7 +75,8 @@ export default class Highlight extends AbstractSeries {
         left: location,
       },
       startLoc: location,
-      minStepSpan: step * 4,
+      // number of minimum steps to display
+      minStepSpan: step * 5,
     });
 
     if (onBrushStart) {
@@ -77,7 +95,7 @@ export default class Highlight extends AbstractSeries {
       return;
     }
 
-    const {onBrushEnd} = this.props;
+    const {onBrushEnd, onMouseUp} = this.props;
     const {drawArea, minStepSpan, disableZoom} = this.state;
     const xScale = ScaleUtils.getAttributeScale(this.props, 'x');
     const yScale = ScaleUtils.getAttributeScale(this.props, 'y');
@@ -96,6 +114,7 @@ export default class Highlight extends AbstractSeries {
     if (Math.abs(drawArea.right - drawArea.left) < 5) {
       this.setState({disableZoom: false});
       onBrushEnd(null);
+      onMouseUp();
       return;
     }
 
@@ -127,6 +146,7 @@ export default class Highlight extends AbstractSeries {
     if (onBrushEnd && !disableZoom) {
       onBrushEnd(domainArea);
     }
+    onMouseUp();
   }
 
   onParentMouseMove(e) {
@@ -161,6 +181,7 @@ export default class Highlight extends AbstractSeries {
       innerHeight,
       color,
       opacity,
+      setRef,
     } = this.props;
     const {drawArea: {left, right, top, bottom}, disableZoom} = this.state;
 
@@ -168,6 +189,7 @@ export default class Highlight extends AbstractSeries {
       <g
         transform={`translate(${marginLeft}, ${marginTop})`}
         className="highlight-container"
+        ref={setRef}
         onMouseUp={() => this.stopDrawing()}
         onMouseLeave={() => this.stopDrawing()}
         // preventDefault() so that mouse event emulation does not happen
