@@ -207,7 +207,8 @@ export default class Highlight extends AbstractSeries {
           opacity="0"
           x={0}
           y={0}
-          width={innerWidth}
+          // prevent console error for negative value
+          width={innerWidth > 0 ? innerWidth : 0}
           height={innerHeight}
         />
         <rect
