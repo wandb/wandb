@@ -4,6 +4,7 @@ export const SIGN_IN = 'SIGN_IN';
 export const SIGN_OUT = 'SIGN_OUT';
 export const FLASH = 'FLASH';
 export const FULL_SCREEN = 'FULL_SCREEN';
+export const GRAPHQL_STATUS = 'GRAPHQL_STATUS';
 
 export const displayError = error => {
   return {
@@ -42,5 +43,12 @@ export const setFullScreen = fullScreen => {
   return {
     type: FULL_SCREEN,
     fullScreen,
+  };
+};
+
+export const updateGraphqlStatus = status => {
+  return {
+    type: GRAPHQL_STATUS,
+    status,
   };
 };

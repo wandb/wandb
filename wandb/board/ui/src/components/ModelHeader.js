@@ -30,18 +30,21 @@ class ModelHeader extends React.Component {
               )}
           </Button.Group>
         </Header>
-        {!condensed && (
-          <div style={{color: 'gray'}}>
-            Updated{' '}
-            <TimeAgo date={(model.bucket.createdAt || model.createdAt) + 'Z'} />
-            {hasFiles &&
-              `Avg Size ${numeral(
-                model.bucket.files.edges
-                  .map(e => parseInt(e.node.sizeBytes, 10))
-                  .reduce((a, b) => a + b, 0),
-              ).format('0.0b')} `}{' '}
-          </div>
-        )}
+        {!condensed &&
+          model.bucket && (
+            <div style={{color: 'gray'}}>
+              Updated{' '}
+              <TimeAgo
+                date={(model.bucket.createdAt || model.createdAt) + 'Z'}
+              />
+              {hasFiles &&
+                `Avg Size ${numeral(
+                  model.bucket.files.edges
+                    .map(e => parseInt(e.node.sizeBytes, 10))
+                    .reduce((a, b) => a + b, 0)
+                ).format('0.0b')} `}{' '}
+            </div>
+          )}
       </div>
     );
   }

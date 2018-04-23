@@ -5,6 +5,7 @@ import {
   SIGN_OUT,
   FLASH,
   FULL_SCREEN,
+  GRAPHQL_STATUS,
 } from '../actions';
 import update from 'immutability-helper';
 
@@ -27,6 +28,8 @@ const global = (state = {}, action) => {
       return update(state, {$merge: {flash: action.flash}});
     case FULL_SCREEN:
       return update(state, {$merge: {fullScreen: action.fullScreen}});
+    case GRAPHQL_STATUS:
+      return update(state, {$merge: {graphqlStatus: action.status}});
     default:
       return state;
   }

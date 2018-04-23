@@ -31,7 +31,7 @@ export default function withHistoryLoader(WrappedComponent) {
         let selected = _.fromPairs(
           nextProps.data.selectedRuns
             .slice(0, MAX_HISTORIES_LOADED)
-            .map(run => [run.name, run.id]),
+            .map(run => [run.name, run.id])
         );
         // find set of selected runs that have not been fetched
         //console.log('n selected', _.size(selected));
@@ -88,28 +88,31 @@ export default function withHistoryLoader(WrappedComponent) {
               });
           }
         }
-        nextProps.client.writeQuery({
-          query: FAKE_HISTORY_QUERY,
-          variables: {histQueryKey: nextProps.histQueryKey},
-          data: {
-            model: {
-              id: 'fake_history_query_' + nextProps.histQueryKey,
-              __typename: 'ModelType',
-              buckets: {
-                __typename: 'BucketConnectionType',
-                edges: selectedInfo.map(o => ({
-                  node: {
-                    id: o.id,
-                    name: o.name,
-                    history: o.history,
-                    __typename: 'BucketType',
-                  },
-                  __typename: 'BucketTypeEdge',
-                })),
+        // if graphql is online
+        if (this.props.graphqlStatus) {
+          nextProps.client.writeQuery({
+            query: FAKE_HISTORY_QUERY,
+            variables: {histQueryKey: nextProps.histQueryKey},
+            data: {
+              model: {
+                id: 'fake_history_query_' + nextProps.histQueryKey,
+                __typename: 'ModelType',
+                buckets: {
+                  __typename: 'BucketConnectionType',
+                  edges: selectedInfo.map(o => ({
+                    node: {
+                      id: o.id,
+                      name: o.name,
+                      history: o.history,
+                      __typename: 'BucketType',
+                    },
+                    __typename: 'BucketTypeEdge',
+                  })),
+                },
               },
             },
-          },
-        });
+          });
+        }
       }
     }
 
@@ -142,5 +145,11 @@ export default function withHistoryLoader(WrappedComponent) {
     }),
   });
 
-  return withApollo(withData(HistoryLoader));
+  function mapStateToProps(state, ownProps) {
+    return {
+      graphqlStatus: state.global.graphqlStatus,
+    };
+  }
+
+  return withApollo(withData(connect(mapStateToProps)(HistoryLoader)));
 }
