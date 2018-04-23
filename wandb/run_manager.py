@@ -494,6 +494,7 @@ class RunManager(object):
 
             try:
                 upsert_result = self._api.upsert_run(id=storage_id,
+                                                     commit=self._api.git.last_commit,
                                                      name=self._run.id,
                                                      project=self._api.settings(
                                                          "project"),

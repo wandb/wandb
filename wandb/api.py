@@ -588,7 +588,7 @@ class Api(object):
             config = json.dumps(config)
         if not description:
             description = None
-        commit = commit or self.git.last_commit
+
         response = self.gql(mutation, variable_values={
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit,
@@ -1141,6 +1141,7 @@ class FileStreamApi(object):
         files = {}
         # Groupby needs group keys to be consecutive, so sort first.
         chunks.sort(key=lambda c: c.filename)
+        #print('fsapi', chunks)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
             if filename not in self._file_policies:
