@@ -50,7 +50,19 @@ class Nav extends Component {
               if (!flash.sticky)
                 setTimeout(() => this.setState({showFlash: false}), 5000);
             }}>
-            {flash.message}
+            <Message
+              floating
+              color={flash.color || 'orange'}
+              onDismiss={() => this.setState({showFlash: false})}
+              compact
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: 50,
+                paddingRight: 30,
+              }}>
+              {flash.message}
+            </Message>
           </Transition>
         </Container>
       </Menu>
