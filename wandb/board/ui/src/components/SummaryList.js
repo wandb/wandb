@@ -51,7 +51,7 @@ class SummaryList extends React.Component {
   }
 
   render() {
-    return <DataList data={this.data} noData={this.noData} />;
+    return <DataList name="Summary" data={this.data} noData={this.noData} />;
   }
 }
 

@@ -2,7 +2,8 @@ import React, {Component} from 'react';
 import {graphql} from 'react-apollo';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
-import {Container, Header, Loader, Item, Button} from 'semantic-ui-react';
+import {Container, Header, Item, Button} from 'semantic-ui-react';
+import Loader from '../components/Loader';
 import ModelHeader from '../components/ModelHeader';
 import Markdown from '../components/Markdown';
 import {MODELS_QUERY} from '../graphql/models';
@@ -27,7 +28,7 @@ class Models extends Component {
   render() {
     return (
       <Container>
-        <Loader active={this.props.loading} size="massive" />
+        <Loader />
         {this.props.user && (
           <Button
             as="a"

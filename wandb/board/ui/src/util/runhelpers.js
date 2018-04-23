@@ -330,48 +330,53 @@ export class RunsFancyName {
     if (!this._spec) {
       return runDisplayName(this._run);
     }
-    return <span>{this.prefix} </span>;
+    return <span>{this._prefix} </span>;
   }
 }
 
 export class RunFancyName {
-  constructor(run, spec, prefix = '') {
-    this._run = run;
+  constructor(runOrRuns, spec, prefix = '') {
+    if (runOrRuns instanceof Array) {
+      this._runs = runOrRuns;
+    } else {
+      this._runs = [runOrRuns];
+    }
     this._spec = spec;
     this._prefix = prefix;
   }
 
   special = {
-    createdAt: value => (
+    createdAt: values => (
       <span key="createdAt">
-        (started <TimeAgo date={new Date(value)} />){' '}
+        (started <TimeAgo date={new Date(_.min(values))} />){' '}
       </span>
     ),
-    stateIcon: () => stateToIcon(this._run.state, 'stateIcon'),
+    // FIXME: The stateicon probably shouldn't be just the state of the first entry
+    stateIcon: () => stateToIcon(this._runs[0].state, 'stateIcon'),
     runningIcon: () =>
-      this._run.state === 'running'
-        ? stateToIcon(this._run.state, 'runningIcon')
+      _.some(this._runs, run => run.state === 'running')
+        ? stateToIcon('running', 'runningIcon')
         : null,
   };
 
   toComponent() {
     if (!this._spec) {
-      return runDisplayName(this._run);
+      return runDisplayName(this._runs[0]);
     }
     return (
       <span>
-        {this.prefix}{' '}
+        {this._prefix}{' '}
         {this._spec
           .map(key => {
-            let value = getRunValue(this._run, key);
+            let values = this._runs.map(run => getRunValue(run, key));
             let specialFn = this.special[key];
             if (specialFn) {
-              return specialFn(value);
+              return specialFn(values);
             } else {
-              if (_.isString(value)) {
-                value = truncateString(value, 24);
+              if (_.isString(values[0])) {
+                values = truncateString(values[0], 24);
               }
-              return <span key={key}>{displayValue(value)} </span>;
+              return <span key={key}>{displayValue(values)} </span>;
             }
           })
           .filter(o => o)}
@@ -380,14 +385,19 @@ export class RunFancyName {
   }
 
   toString() {
-    return (
+    let str =
       this._prefix +
       this._spec
-        .map(key => (this.special[key] ? null : getRunValue(this._run, key)))
+        .map(
+          key =>
+            this.special[key]
+              ? null
+              : this._runs.map(run => getRunValue(run, key)).join(', ')
+        )
         .filter(o => o)
         .map(val => displayValue(val))
-        .join(' ')
-    );
+        .join(' ');
+    return truncateString(str, 60);
   }
 }
 

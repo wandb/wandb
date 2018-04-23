@@ -2,11 +2,12 @@ import React from 'react';
 import {graphql} from 'react-apollo';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
-import {Container, Loader} from 'semantic-ui-react';
+import {Container} from 'semantic-ui-react';
 import update from 'immutability-helper';
 import TabbedViews from '../components/TabbedViews';
 import DashboardView from '../components/DashboardView';
 import ViewModifier from '../containers/ViewModifier';
+import Loader from '../components/Loader';
 import withHistoryLoader from '../containers/HistoryLoader';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
 import {
@@ -79,7 +80,7 @@ class Dashboard extends React.Component {
     return (
       <Container fluid style={{padding: '0 20px'}}>
         {this.props.loading ? (
-          <Loader active={this.props.loading} size="massive" />
+          <Loader />
         ) : (
           <ViewModifier
             {...this.props}
@@ -145,14 +146,14 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       setActiveView,
       updateLocationParams,
     },
-    dispatch,
+    dispatch
   );
 };
 
 Dashboard = withMutations(
   withRunsQueryRedux(
-    withRunsDataLoader(connect(mapStateToProps, mapDispatchToProps)(Dashboard)),
-  ),
+    withRunsDataLoader(connect(mapStateToProps, mapDispatchToProps)(Dashboard))
+  )
 );
 
 class DashboardWrapper extends React.Component {

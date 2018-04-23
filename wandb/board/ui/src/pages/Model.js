@@ -3,7 +3,8 @@ import {graphql, compose} from 'react-apollo';
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 import update from 'immutability-helper';
-import {Container, Loader} from 'semantic-ui-react';
+import {Container} from 'semantic-ui-react';
+import Loader from '../components/Loader';
 import ModelEditor from '../components/ModelEditor';
 import ModelViewer from '../components/ModelViewer';
 import {MODEL_QUERY, MODEL_DELETION, MODEL_UPSERT} from '../graphql/models';
@@ -30,9 +31,9 @@ class Model extends React.Component {
   render() {
     let action = this.props.match.path.split('/').pop();
     return (
-      <Container className="model">
+      <div className="model">
         {this.props.loading ? (
-          <Loader active={this.props.loading} size="massive" />
+          <Loader />
         ) : this.props.user && action === 'edit' ? (
           <ModelEditor {...this.props} />
         ) : this.props.user && action === 'sweeps' ? (
@@ -40,7 +41,7 @@ class Model extends React.Component {
         ) : (
           <ModelViewer {...this.props} />
         )}
-      </Container>
+      </div>
     );
   }
 }
@@ -50,7 +51,7 @@ const withData = graphql(MODEL_QUERY, {
     return {
       variables: {
         entityName: params.entity,
-        // name: params.model,
+        name: params.model,
         bucketName: params.bucket || 'latest',
         upload: user && path.split('/').pop() === 'edit' ? true : false,
         detailed: false,

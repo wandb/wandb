@@ -47,13 +47,15 @@ class ConfigList extends React.Component {
 
   removeValues(data) {
     Object.keys(data).map(
-      (key, i) => (data[key] = data[key].value || data[key]),
+      (key, i) => (data[key] = data[key].value || data[key])
     );
     return data;
   }
 
   render() {
-    return <DataList data={this.data} noData={this.noData} />;
+    return (
+      <DataList name="Configuration" data={this.data} noData={this.noData} />
+    );
   }
 }
 
