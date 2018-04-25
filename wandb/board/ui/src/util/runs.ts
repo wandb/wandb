@@ -29,6 +29,10 @@ export function keyFromString(keyString: string): Key | null {
   return key(section, name);
 }
 
+export function keyToString(k: Key): string {
+  return k.section + ':' + k.name;
+}
+
 export type Value = string | number | boolean | null;
 
 export type DomValue = string | number;
@@ -326,6 +330,14 @@ export function serverPathToKey(pathString: string): Key | null {
     };
   }
   return null;
+}
+
+export function serverPathToKeyString(pathString: string): string | null {
+  const k = serverPathToKey(pathString);
+  if (k == null) {
+    return null;
+  }
+  return keyToString(k);
 }
 
 export function keyToServerPath(k: Key): string | null {

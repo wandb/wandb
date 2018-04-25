@@ -262,7 +262,7 @@ function parseFilterKeySuggestions(pathCountsString: string): KeyToPath {
   }
   return _.fromPairs(
     _.keys(json)
-      .map(path => [Run.serverPathToKey(path), path])
+      .map(path => [Run.serverPathToKeyString(path), path])
       .filter(([key, path]) => key)
   );
 }
