@@ -55,17 +55,6 @@ def _set_stage_dir(stage_dir):
     __stage_dir__ = stage_dir
 
 
-if __stage_dir__ is not None:
-    log_fname = wandb_dir() + 'debug.log'
-else:
-    log_fname = './wandb-debug.log'
-logging.basicConfig(
-    filemode="w",
-    filename=log_fname,
-    level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-
 class Error(Exception):
     """Base W&B Error"""
     # For python 2 support
@@ -87,6 +76,14 @@ from wandb.media import Image
 #     'cli': running from "wandb" command
 #     'run': we're a script launched by "wandb run"
 #     'dryrun': we're a script not launched by "wandb run"
+
+
+logger = logging.getLogger(__name__)
+if __stage_dir__ is not None:
+    log_fname = wandb_dir() + 'debug.log'
+else:
+    log_fname = './wandb-debug.log'
+
 
 LOG_STRING = click.style('wandb', fg='blue', bold=True)
 ERROR_STRING = click.style('ERROR', bg='red', fg='green')
@@ -246,7 +243,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     except KeyboardInterrupt:
         pass
 
-    if wandb_process.poll() is not None:
+    if wandb_process.poll() is None:
         termlog('Killing wandb process, PID {}'.format(wandb_process.pid))
         wandb_process.kill()
 
@@ -285,6 +282,23 @@ def uninit():
     run = config = None
 
 
+def try_to_set_up_logging():
+    logger.setLevel(logging.DEBUG)
+    try:
+        handler = logging.FileHandler(log_fname, mode='w')
+    except IOError as e:  # eg. in case wandb directory isn't writable
+        if env.is_debug():
+            raise
+        else:
+            termerror('Failed to set up logging: {}'.format(e))
+            return False
+
+    handler.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+
+    return True
+
+
 def init(job_type='train', config=None):
     global run
     global __stage_dir__
@@ -303,12 +317,20 @@ def init(job_type='train', config=None):
         __stage_dir__ = "wandb"
         util.mkdir_exists_ok(wandb_dir())
 
+    if not try_to_set_up_logging():
+        sys.exit(1)
+
     try:
         signal.signal(signal.SIGQUIT, _debugger)
     except AttributeError:
         pass
 
-    run = wandb_run.Run.from_environment_or_defaults()
+    try:
+        run = wandb_run.Run.from_environment_or_defaults()
+    except IOError as e:
+        termerror('Failed to create run directory: {}'.format(e))
+        sys.exit(1)
+
     run.job_type = job_type
     run.set_environment()
     def set_global_config(c):
