@@ -287,10 +287,6 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
     return 'filtereditor-' + this.props.id;
   }
 
-  componentWillReceiveProps(nextProps: RunFilterEditorProps) {
-    console.log('RunFilterEditor willReceiveProps');
-  }
-
   render() {
     const operators = ['=', '!=', '>=', '<=', 'IN'].map(op => ({
       text: op,
