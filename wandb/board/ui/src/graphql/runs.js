@@ -3,9 +3,6 @@ import gql from 'graphql-tag';
 export const fragments = {
   basicRun: gql`
     fragment BasicRunFragment on Run {
-      id
-      name
-      config
       framework
       description
       createdAt
@@ -18,8 +15,6 @@ export const fragments = {
       sweep {
         name
       }
-      summaryMetrics
-      systemMetrics
       user {
         username
         photoUrl
@@ -29,7 +24,6 @@ export const fragments = {
   `,
   detailedRun: gql`
     fragment DetailedRunFragment on Run {
-      id
       history
       events
       exampleTableColumns
@@ -58,6 +52,13 @@ export const fragments = {
       }
     }
   `,
+  selectRun: gql`
+    fragment SelectRunFragment on Run {
+      config
+      summaryMetrics
+      systemMetrics
+    }
+  `,
   historyRun: gql`
     fragment HistoryRunFragment on Run {
       history(samples: 500)
@@ -65,6 +66,10 @@ export const fragments = {
   `,
 };
 
+// Some weirdness here. If a fragment is disabled by a skip/include directive,
+// quiver/graphene will remove the fields in the fragment. Order matters, whatever
+// the last fragment to be included/skipped says goes. We must include __typename
+// above fragments or it ends up getting removed.
 export const RUNS_QUERY = gql`
   query ModelRuns(
     $cursor: String
@@ -75,8 +80,11 @@ export const RUNS_QUERY = gql`
     $filters: JSONString
     $limit: Int = 1000
     $bucketIds: [String]
-    $history: Boolean = false
     $requestSubscribe: Boolean!
+    $selectEnable: Boolean = true
+    $basicEnable: Boolean = true
+    $history: Boolean = false
+    $fields: [String]
   ) {
     project(name: $name, entityName: $entityName) {
       id
@@ -95,16 +103,17 @@ export const RUNS_QUERY = gql`
         order: $order
         names: $bucketIds
         filters: $filters
+        fields: $fields
       ) {
         paths
         edges {
           node {
-            ...BasicRunFragment
+            id
+            name
+            __typename
+            ...SelectRunFragment @include(if: $selectEnable)
+            ...BasicRunFragment @include(if: $basicEnable)
             ...HistoryRunFragment @include(if: $history)
-            user {
-              username
-              photoUrl
-            }
           }
         }
         pageInfo {
@@ -123,6 +132,7 @@ export const RUNS_QUERY = gql`
     }
   }
   ${fragments.basicRun}
+  ${fragments.selectRun}
   ${fragments.historyRun}
 `;
 
@@ -141,7 +151,7 @@ export const PROJECT_QUERY = gql`
       description
       views
       requestSubscribe
-      runCount(filters: {})
+      runCount(filters: "{}")
       filteredCount: runCount(filters: $filters)
       selectedCount: runCount(filters: $selections)
     }

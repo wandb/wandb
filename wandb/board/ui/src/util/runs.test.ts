@@ -46,25 +46,31 @@ describe('Runs Factory', () => {
   it('fails without user', () => {
     const run = {...VALID_RUN_JSON};
     delete run.user;
-    expect(Run.fromJson(run)).toBe(null);
+    expect(Run.fromJson(run)!.user).toEqual({
+      name: '',
+      photoUrl: '',
+    });
   });
 
   it('fails with invalid user', () => {
     const run = {...VALID_RUN_JSON, user: []};
-    expect(Run.fromJson(run)).toBe(null);
+    expect(Run.fromJson(run)!.user).toEqual({
+      name: '',
+      photoUrl: '',
+    });
   });
 
   it('fails without tags', () => {
     const run = {...VALID_RUN_JSON};
     delete run.tags;
-    expect(Run.fromJson(run)).toBe(null);
+    expect(Run.fromJson(run)!.tags).toEqual([]);
   });
 
   it('fails with invalid tags', () => {
     const run1 = {...VALID_RUN_JSON, tags: {a: 5}};
-    expect(Run.fromJson(run1)).toBe(null);
+    expect(Run.fromJson(run1)!.tags).toEqual([]);
     const run2 = {...VALID_RUN_JSON, tags: [5]};
-    expect(Run.fromJson(run2)).toBe(null);
+    expect(Run.fromJson(run2)!.tags).toEqual([]);
   });
 });
 

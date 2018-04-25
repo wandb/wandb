@@ -2,7 +2,7 @@ import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {Form} from 'semantic-ui-react';
+import {Form, Loader} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {getRunValue, scatterPlotCandidates} from '../util/runhelpers.js';
 import {setFilters, setHighlight} from '../actions/run';
@@ -18,7 +18,7 @@ function parcoor(
   reactEl,
   brushCallback,
   mouseOverCallback,
-  mouseOutCallback,
+  mouseOutCallback
 ) {
   let isBrushing = false;
   let computedWidth = 1070;
@@ -58,7 +58,7 @@ function parcoor(
         (y[d] = d3
           .scaleLinear()
           .domain(d3.extent(data, p => +parseFloat(p[d])))
-          .range([height, 0])),
+          .range([height, 0]))
     );
   x.domain(dimensions);
 
@@ -118,7 +118,7 @@ function parcoor(
             .duration(0)
             .attr('visibility', null);
           addHover();
-        }),
+        })
     );
   // Add an axis and title.
   g
@@ -153,7 +153,7 @@ function parcoor(
             }
             let [high, low] = selection.map(y[d].invert);
             brushend(axis, low, high);
-          })),
+          }))
       );
       let select = reactEl.props.select[d];
       if (select && select.low && select.high) {
@@ -209,7 +209,7 @@ function parcoor(
         if (d3.event.selection) {
           extents[i] = d3.event.selection.map(
             y[dimensions[i]].invert,
-            y[dimensions[i]],
+            y[dimensions[i]]
           );
         }
       }
@@ -225,7 +225,7 @@ function parcoor(
           return extents[i][1] <= d[p] && d[p] <= extents[i][0];
         })
           ? null
-          : 'none',
+          : 'none'
     );
   }
 
@@ -339,7 +339,7 @@ class PlotParCoor extends React.Component {
             this,
             (axis, low, high) => this.props.onBrushEvent(axis, low, high),
             (row, index) => this.props.onMouseOverEvent(data[index].name),
-            () => this.props.onMouseOutEvent(),
+            () => this.props.onMouseOutEvent()
           );
         }}
       />
@@ -372,7 +372,7 @@ class ParCoordPanel extends React.Component {
       for (var dim of dimensions) {
         this.select[dim] = Selection.bounds(
           nextProps.selections,
-          Run.keyFromString(dim),
+          Run.keyFromString(dim)
         );
       }
     }
@@ -451,7 +451,13 @@ class ParCoordPanel extends React.Component {
 
   renderNormal() {
     const {dimensions} = this.props.config;
-    if (this.props.data.filtered && dimensions) {
+    if (this.props.data.loading) {
+      return (
+        <div>
+          <Loader inline active />
+        </div>
+      );
+    } else if (this.props.data.filtered && dimensions) {
       return (
         <PlotParCoor
           cols={dimensions}
@@ -464,13 +470,13 @@ class ParCoordPanel extends React.Component {
               selections,
               Run.keyFromString(axis),
               '>=',
-              low,
+              low
             );
             selections = Selection.Update.addBound(
               selections,
               Run.keyFromString(axis),
               '<=',
-              high,
+              high
             );
             this.props.setFilters('select', selections);
           }}
@@ -511,7 +517,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 };
 
 const ConnectParCoordPanel = connect(mapStateToProps, mapDispatchToProps)(
-  ParCoordPanel,
+  ParCoordPanel
 );
 ConnectParCoordPanel.type = ParCoordPanel.type;
 ConnectParCoordPanel.options = ParCoordPanel.options;

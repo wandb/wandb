@@ -61,6 +61,11 @@ export interface Run {
 
 export function fromJson(json: any): Run | null {
   // Safely parse a json object as returned from the server into a validly typed Run
+  // This used to return null in a lot more cases, now if we receive invalid data we
+  // set the values to defaults. This happens when we select specific fields from
+  // the run in the graphql query (for Scatter and Parallel Coordinates plots). It'd
+  // probably be better to have a special type for those cases, instead of using default
+  // values, so that other parts of the code has better guarantees about what to expect.
   if (typeof json !== 'object') {
     return null;
   }
@@ -76,43 +81,40 @@ export function fromJson(json: any): Run | null {
     return null;
   }
 
-  const state = json.state;
+  let state = json.state;
   if (typeof name !== 'string' || name.length === 0) {
-    console.warn(`Invalid run state: ${json.state}`);
-    return null;
+    state = 'unknown';
   }
 
-  const user = json.user;
+  let user = json.user;
   if (user == null || user.username == null || user.photoUrl == null) {
-    console.warn(`Invalid user for run ${name}:`, json.user);
-    return null;
+    user = {
+      name: '',
+      photoUrl: '',
+    };
   }
 
-  const host = json.host;
+  let host = json.host;
   if (typeof host !== 'string' && host !== null) {
-    console.warn(`Invalid run host: ${json.host}`);
-    return null;
+    host = '';
   }
 
-  const createdAt = Parse.parseDate(json.createdAt);
+  let createdAt = Parse.parseDate(json.createdAt);
   if (createdAt == null) {
-    console.warn(`Invalid createdAt for run ${name}:`, json.createdAt);
-    return null;
+    createdAt = new Date();
   }
 
-  const heartbeatAt = Parse.parseDate(json.heartbeatAt);
+  let heartbeatAt = Parse.parseDate(json.heartbeatAt);
   if (heartbeatAt == null) {
-    console.warn(`Invalid heartbeatAt for run ${name}:`, json.heartbeatAt);
-    return null;
+    heartbeatAt = new Date();
   }
 
-  const tags = json.tags;
+  let tags = json.tags;
   if (
     !(tags instanceof Array) ||
     !tags.every((tag: any) => typeof tag === 'string')
   ) {
-    console.warn(`Invalid tags for run ${name}:`, json.tags);
-    return null;
+    tags = [];
   }
 
   const config = parseConfig(json.config, name);

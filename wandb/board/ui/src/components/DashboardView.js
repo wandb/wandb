@@ -5,8 +5,9 @@ import {Button, Divider, Form, Icon, Modal} from 'semantic-ui-react';
 import _ from 'lodash';
 import './DashboardView.css';
 import EditablePanel from '../components/EditablePanel';
-import * as Query from '../util/query';
 import * as Filter from '../util/filters';
+import * as Query from '../util/query';
+import * as Run from '../util/runs';
 
 export const GRID_WIDTH = 12;
 export const GRID_MARGIN = 6;
@@ -128,6 +129,33 @@ class DashboardView extends Component {
         };
         // use selections in addition to filters.
         query.filters = Filter.And(query.filters, query.selections);
+      }
+      if (panelConfig.viewType === 'Scatter Plot' && panelConfig.config) {
+        if (!panelConfig.config.xAxis || !panelConfig.config.yAxis) {
+          query.disabled = true;
+        } else {
+          query.select = [
+            Filter.serverPathKey(Run.keyFromString(panelConfig.config.xAxis)),
+            Filter.serverPathKey(Run.keyFromString(panelConfig.config.yAxis)),
+          ];
+          if (panelConfig.config.zAxis) {
+            query.select.push(
+              Filter.serverPathKey(Run.keyFromString(panelConfig.config.zAxis))
+            );
+          }
+        }
+      }
+      if (
+        panelConfig.viewType === 'Parallel Coordinates Plot' &&
+        panelConfig.config
+      ) {
+        if (panelConfig.config.dimensions.length === 0) {
+          query.disabled = true;
+        } else {
+          query.select = panelConfig.config.dimensions.map(dim =>
+            Filter.serverPathKey(Run.keyFromString(dim))
+          );
+        }
       }
     }
     return (

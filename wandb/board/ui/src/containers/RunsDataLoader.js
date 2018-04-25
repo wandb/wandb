@@ -32,7 +32,7 @@ import * as Run from '../util/runs';
 import * as Filter from '../util/filters';
 import _ from 'lodash';
 
-// Load the graphql data for this panel, currently loads all data for this project and entity.
+// Load the graphql data for this panel.
 function withRunsData() {
   return graphql(RUNS_QUERY, {
     alias: 'withRunsData',
@@ -47,6 +47,7 @@ function withRunsData() {
           order = (query.sort.ascending ? '-' : '+') + serverPath;
         }
       }
+      const selectEnable = query.select ? query.select.length > 0 : false;
       const defaults = {
         variables: {
           entityName: query.entity,
@@ -56,6 +57,8 @@ function withRunsData() {
           history: !!query.history,
           limit: query.page && query.page.size,
           filters: JSON.stringify(Filter.toMongo(query.filters)),
+          fields: query.select,
+          basicEnable: !selectEnable,
         },
         notifyOnNetworkStatusChange: true,
       };

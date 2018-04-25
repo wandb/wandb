@@ -2,7 +2,7 @@ import React from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import _ from 'lodash';
-import {Form} from 'semantic-ui-react';
+import {Form, Loader} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {
   convertValue,
@@ -50,19 +50,19 @@ class ScatterPlotPanel extends React.Component {
       if (xAxis) {
         this.xSelect = Selection.bounds(
           nextProps.selections,
-          Run.keyFromString(xAxis),
+          Run.keyFromString(xAxis)
         );
       }
       if (yAxis) {
         this.ySelect = Selection.bounds(
           nextProps.selections,
-          Run.keyFromString(yAxis),
+          Run.keyFromString(yAxis)
         );
       }
       if (zAxis) {
         this.zSelect = Selection.bounds(
           nextProps.selections,
-          Run.keyFromString(zAxis),
+          Run.keyFromString(zAxis)
         );
       }
     }
@@ -165,7 +165,13 @@ class ScatterPlotPanel extends React.Component {
   renderNormal() {
     let {xAxis, yAxis, zAxis} = this.props.config;
 
-    if (this.props.data.filtered.length && xAxis && yAxis) {
+    if (this.props.data.loading) {
+      return (
+        <div>
+          <Loader inline active />
+        </div>
+      );
+    } else if (this.props.data.filtered.length && xAxis && yAxis) {
       let data = this.props.data.filtered
         .map(run => {
           let point = {
@@ -201,7 +207,7 @@ class ScatterPlotPanel extends React.Component {
       }
       let highlight = _.find(
         data,
-        point => point.runId === this.props.highlight,
+        point => point.runId === this.props.highlight
       );
       return (
         <div>
@@ -230,25 +236,25 @@ class ScatterPlotPanel extends React.Component {
                   selections,
                   Run.keyFromString(xAxis),
                   '>=',
-                  xSelect.low,
+                  xSelect.low
                 );
                 selections = Selection.Update.addBound(
                   selections,
                   Run.keyFromString(xAxis),
                   '<=',
-                  xSelect.high,
+                  xSelect.high
                 );
                 selections = Selection.Update.addBound(
                   selections,
                   Run.keyFromString(yAxis),
                   '>=',
-                  ySelect.low,
+                  ySelect.low
                 );
                 selections = Selection.Update.addBound(
                   selections,
                   Run.keyFromString(yAxis),
                   '<=',
-                  ySelect.high,
+                  ySelect.high
                 );
                 this.props.setFilters('select', selections);
               }}
@@ -302,7 +308,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 };
 
 let ConnectScatterPlotPanel = connect(mapStateToProps, mapDispatchToProps)(
-  ScatterPlotPanel,
+  ScatterPlotPanel
 );
 ConnectScatterPlotPanel.type = ScatterPlotPanel.type;
 ConnectScatterPlotPanel.options = ScatterPlotPanel.options;
