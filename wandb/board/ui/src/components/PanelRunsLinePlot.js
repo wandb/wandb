@@ -73,7 +73,7 @@ class RunsLinePlotPanel extends React.Component {
       {text: xAxisLabels['_timestamp'], key: '_timestamp', value: '_timestamp'},
     ];
 
-    let {loading, data, maxRuns, totalRuns} = this.props.data.histories;
+    let {loading, data} = this.props.data.histories;
 
     let newXAxisChoices = xAxisChoicesRunsPlot(data);
     newXAxisChoices
@@ -262,8 +262,10 @@ class RunsLinePlotPanel extends React.Component {
       // TODO: fix.
       return <p>No Histories</p>;
     }
-    let {data, maxRuns, totalRuns} = this.props.data.histories;
+    let {data} = this.props.data.histories;
     let {loading} = this.props.data;
+    const totalRuns = this.props.data.totalRuns;
+    const maxRuns = this.props.data.limit;
 
     let yAxis = this.props.config.key;
     // Always show running Icon in legend.
@@ -309,15 +311,14 @@ class RunsLinePlotPanel extends React.Component {
       <div>
         <h4 style={{display: 'inline'}}>
           {title}
-          {loading &&
-            data.length < maxRuns && (
-              <Loader
-                style={{marginLeft: 6, marginBottom: 2}}
-                active
-                inline
-                size="small"
-              />
-            )}
+          {loading && (
+            <Loader
+              style={{marginLeft: 6, marginBottom: 2}}
+              active
+              inline
+              size="small"
+            />
+          )}
         </h4>
         <div style={{float: 'right', marginRight: 15}}>
           {totalRuns > maxRuns && (

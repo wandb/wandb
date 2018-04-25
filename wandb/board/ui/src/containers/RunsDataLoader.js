@@ -212,8 +212,6 @@ function withDerivedRunsData(WrappedComponent) {
           )
         );
         runHistories = {
-          maxRuns: MAX_HISTORIES_LOADED,
-          totalRuns: props.runCount,
           data: runHistory.filter(o => o.history),
           keys: historyKeys,
         };
@@ -229,9 +227,9 @@ function withDerivedRunsData(WrappedComponent) {
         axisOptions,
         columnNames,
         loadMore: props.loadMore,
+        totalRuns: props.runCount,
+        limit: props.query.page.size,
         histories: runHistories || {
-          maxRuns: MAX_HISTORIES_LOADED,
-          totalRuns: 0,
           data: [],
           keys: [],
         },
