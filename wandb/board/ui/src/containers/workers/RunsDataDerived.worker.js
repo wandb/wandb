@@ -1,6 +1,5 @@
 import {
   updateRuns,
-  flatKeySuggestions,
   setupKeySuggestions,
   sortRuns,
   getColumns,

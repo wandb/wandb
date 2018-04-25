@@ -639,15 +639,6 @@ export function setupKeySuggestions(runs) {
   return keySuggestions;
 }
 
-export function flatKeySuggestions(keySuggestions) {
-  return _.flatMap(keySuggestions, section =>
-    section.suggestions.map(
-      suggestion =>
-        section.title === 'run' ? suggestion.name : Run.displayKey(suggestion)
-    )
-  );
-}
-
 function autoCols(section, runs) {
   runs = runs.filter(run => run[section]);
   if (runs.length <= 1) {
@@ -717,43 +708,6 @@ export function getColumns(runs) {
     autoCols('config', runs),
     autoCols('summary', runs)
   );
-}
-
-export function scatterPlotCandidates(configs, summaryMetrics) {
-  /* We want to pull out configurations that a user might want to put in a scatterplot
-   * For now that means configurations with more than two distinct numeric values
-   */
-  let configKeys = [];
-  // get all the keys from all the configs
-
-  configs.map((c, i) => {
-    _.keys(c).map((key, j) => {
-      configKeys.push(key);
-    });
-  });
-  let k = _.uniq(configKeys);
-  configKeys = k.filter((key, i) => {
-    let vals = configs.map((c, i) => c[key]).filter(i => _.isFinite(i));
-    return _.uniq(vals).length > 1;
-  });
-  configKeys = configKeys.map((key, i) => 'config:' + key);
-
-  let summaryMetricKeys = [];
-  summaryMetrics.map((c, i) => {
-    _.keys(c).map((key, j) => {
-      summaryMetricKeys.push(key);
-    });
-  });
-
-  k = _.uniq(summaryMetricKeys);
-
-  summaryMetricKeys = k.filter((key, i) => {
-    let vals = summaryMetrics.map((c, i) => c[key]).filter(i => _.isFinite(i));
-    return _.uniq(vals).length > 1;
-  });
-  summaryMetricKeys = summaryMetricKeys.map((key, i) => 'summary:' + key);
-
-  return _.concat(configKeys, summaryMetricKeys);
 }
 
 export function groupByCandidates(configs) {

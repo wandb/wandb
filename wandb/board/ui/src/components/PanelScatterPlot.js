@@ -69,11 +69,7 @@ class ScatterPlotPanel extends React.Component {
   }
 
   _scatterPlotOptions() {
-    let configs = this.props.data.filtered.map((run, i) => run.config);
-    let summaryMetrics = this.props.data.filtered.map((run, i) => run.summary);
-
-    let names = scatterPlotCandidates(configs, summaryMetrics);
-    return names.map((name, i) => ({
+    return this.props.data.keys.map((name, i) => ({
       text: name,
       key: name,
       value: name,

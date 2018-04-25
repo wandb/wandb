@@ -29,6 +29,7 @@ import {MAX_HISTORIES_LOADED} from '../util/constants.js';
 import {JSONparseNaN} from '../util/jsonnan';
 import * as Query from '../util/query';
 import * as Run from '../util/runs';
+import * as RunHelpers2 from '../util/runhelpers2';
 import * as Filter from '../util/filters';
 import _ from 'lodash';
 
@@ -45,7 +46,6 @@ function withRunsData() {
           order = (query.sort.ascending ? '-' : '+') + serverPath;
         }
       }
-      const selectEnable = query.select ? query.select.length > 0 : false;
       const defaults = {
         variables: {
           entityName: query.entity,
@@ -56,7 +56,7 @@ function withRunsData() {
           limit: query.page && query.page.size,
           filters: JSON.stringify(Filter.toMongo(query.filters)),
           fields: query.select,
-          basicEnable: !selectEnable,
+          basicEnable: !query.select,
         },
         notifyOnNetworkStatusChange: true,
       };
@@ -146,13 +146,13 @@ function withDerivedRunsData(WrappedComponent) {
 
       const runs = updateRuns(prevRuns, curRuns, []);
       let filteredRuns = runs;
-      let keySuggestions = setupKeySuggestions(runs);
+      let keys = curRuns && RunHelpers2.keySuggestions(curRuns.paths);
+      keys = keys || [];
       let filteredRunsById = {};
       for (var run of filteredRuns) {
         filteredRunsById[run.name] = run;
       }
 
-      let keys = _.flatMap(keySuggestions, section => section.suggestions);
       let axisOptions = keys.map(key => {
         let displayKey = Run.displayKey(key);
         return {
@@ -207,7 +207,7 @@ function withDerivedRunsData(WrappedComponent) {
         base: runs,
         filtered: filteredRuns,
         filteredRunsById,
-        keys: keySuggestions,
+        keys: keys,
         axisOptions,
         columnNames,
         loadMore: props.loadMore,

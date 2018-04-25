@@ -36,31 +36,6 @@ class RunsLinePlotPanel extends React.Component {
     return !_.isNil(data.base);
   }
 
-  _setupKeySuggestions(props) {
-    const keyValueCounts = RunHelpers2.keyValueCounts(
-      props.data.filtered,
-      Run.flatKeySuggestions(props.data.keys)
-    );
-    // Show keys that have at least one value.
-    this.keySuggestions = _.map(
-      keyValueCounts,
-      (valueCounts, key) => (_.keys(valueCounts).length >= 1 ? key : null)
-    ).filter(o => o);
-  }
-
-  componentWillMount() {
-    this._setupKeySuggestions(this.props);
-  }
-
-  componentWillReceiveProps(nextProps) {
-    if (
-      this.props.data.filtered !== nextProps.data.filtered ||
-      this.props.data.keys !== nextProps.data.keys
-    ) {
-      this._setupKeySuggestions(nextProps);
-    }
-  }
-
   scaledSmoothness() {
     return Math.sqrt(this.props.config.smoothingWeight || 0) * 0.999;
   }
@@ -141,7 +116,7 @@ class RunsLinePlotPanel extends React.Component {
                   search
                   multiple
                   selection
-                  options={UI.makeOptions(this.keySuggestions)}
+                  options={UI.makeOptions(this.props.data.keys)}
                   value={this.props.config.legendFields || ['name']}
                   onChange={(e, {value}) =>
                     this.props.updateConfig({

@@ -3,7 +3,7 @@ import _ from 'lodash';
 import {Button, Card, Dropdown, Grid, Icon, Segment} from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
 import QueryEditor from '../components/QueryEditor';
-import {sortRuns, flatKeySuggestions} from '../util/runhelpers.js';
+import {sortRuns} from '../util/runhelpers.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
 
@@ -28,7 +28,7 @@ export default class Panel extends React.Component {
     data,
     sizeKey,
     panelQuery,
-    currentHeight,
+    currentHeight
   ) {
     if (!data) {
       return Panel.loading;
@@ -125,7 +125,7 @@ export default class Panel extends React.Component {
                 allowProjectChange={this.props.viewType === 'dashboards'}
                 setQuery={this.props.updateQuery}
                 runs={this.props.data.base}
-                keySuggestions={flatKeySuggestions(this.props.data.keys)}
+                keySuggestions={this.props.data.keys}
                 filteredRuns={this.props.data.filtered}
               />
             )}
@@ -140,7 +140,7 @@ export default class Panel extends React.Component {
         data,
         sizeKey,
         this.props.panelQuery,
-        this.props.currentHeight,
+        this.props.currentHeight
       );
     }
     return <div className={this.props.className}>{panel}</div>;
