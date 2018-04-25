@@ -202,19 +202,18 @@ def _init_headless(run, job_type, cloud=True):
     stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
     stdout_redirector.redirect()
-    if env.get_debug():
+    if not env.get_debug():
         stderr_redirector.redirect()
 
     # Listen on the socket waiting for the wandb process to be ready
     success, message = server.listen(30)
     if not success:
-        print('wandb Error: Failed to start')
+        termerror('Failed to start')
         sys.exit(1)
     run.storage_id = message['storage_id']
 
     def done():
         server.done(hooks.exit_code)
-        logger.info("Waiting for wandb process to finish")
         server.listen()
 
     atexit.register(done)
