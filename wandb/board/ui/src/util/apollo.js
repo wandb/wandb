@@ -8,6 +8,8 @@ import {push} from 'react-router-redux';
 import queryString from 'query-string';
 import {BOARD} from './board';
 
+import * as hash from 'hash.js';
+
 let dispatch = null;
 
 const SERVERS = {
@@ -133,10 +135,32 @@ const link = ApolloLink.from([
   httpLink,
 ]);
 
+// Unfortuantely we need to make every run object unique. This is because we do multiple
+// queries for runs with different config/summary_metrics/event selections on the Runs page.
+// Those are JSONString fields, so apollo just goes with the newest version of each one.
+// A better option would probably be to merge the query result into the apollo cache ourselves
+// so we only have one object per run.
+// We're including keys and values here currently. Could achieve the same effect with less memory
+// overhead by only hashing keys, but we'd have to JSON parse.
+function dataIdFromObject(object) {
+  if (object.__typename === 'Run') {
+    const extra = hash
+      .sha1()
+      .update(
+        (object.config || '') +
+          (object.summaryMetrics || '') +
+          (object.systemMetrics || '')
+      )
+      .digest('hex');
+    return object.id + extra;
+  }
+  return object.id;
+}
+
 const apolloClient = new ApolloClient({
   link: link,
   cache: new InMemoryCache({
-    dataIdFromObject: object => object.id,
+    dataIdFromObject: dataIdFromObject,
   }),
 });
 

@@ -47,6 +47,7 @@ function withRunsData() {
         }
       }
       const defaults = {
+        fetchPolicy: 'network-only',
         variables: {
           entityName: query.entity,
           name: query.model,
