@@ -291,7 +291,7 @@ export default class LinePlot extends React.PureComponent {
     let lines = [];
     lines = filteredLines;
     return (
-      <Segment attached="bottom" basic>
+      <Segment attached="bottom" basic style={{border: 'none'}}>
         <div
           className="line-plot-legend"
           style={{
