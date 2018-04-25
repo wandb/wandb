@@ -309,7 +309,7 @@ class Runs extends React.Component {
                 content="Add Charts"
                 disabled={this.props.loading}
                 icon="area chart"
-                onClick={() => this.props.addView('runs', 'New View', [])}
+                onClick={() => this.props.addView('runs', 'Charts', [])}
               />
             )}
             <Button

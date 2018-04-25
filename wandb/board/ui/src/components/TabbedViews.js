@@ -10,8 +10,16 @@ class TabbedViews extends React.Component {
     renderView: PropTypes.func.isRequired,
   };
 
+  componentWillMount() {
+    if (
+      this.props.tabs.length === 1 &&
+      this.props.views[this.props.tabs[0]].config.length === 0
+    ) {
+      this.setState({editMode: true});
+    }
+  }
+
   componentWillUnmount() {
-    console.log('Unmounting night mode');
     if (this.state.nightMode) {
       this.setNightMode(false);
     }
@@ -53,7 +61,7 @@ class TabbedViews extends React.Component {
           <Menu.Item
             key="add"
             onClick={() =>
-              this.props.addView(this.props.viewType, 'New View', [])
+              this.props.addView(this.props.viewType, 'More Charts', [])
             }>
             <Icon name="plus" />
           </Menu.Item>
