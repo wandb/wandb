@@ -114,9 +114,14 @@ class DashboardView extends Component {
 
   renderPanel(panelConfig, i, openEdit, nightMode) {
     let query;
-    // I'm so sorry...
+    // This is not a great place for this logic, it should be in each Panel Type.
     if (this.props.viewType != 'run') {
       query = Query.merge(this.props.pageQuery, panelConfig.query || {});
+      if (!panelConfig.config) {
+        query.page = {
+          size: 1,
+        };
+      }
       if (
         panelConfig.viewType === 'Run History Line Plot' ||
         !panelConfig.viewType
@@ -132,7 +137,9 @@ class DashboardView extends Component {
       }
       if (panelConfig.viewType === 'Scatter Plot' && panelConfig.config) {
         if (!panelConfig.config.xAxis || !panelConfig.config.yAxis) {
-          query.disabled = true;
+          query.page = {
+            size: 1,
+          };
         } else {
           query.select = [
             Run.keyStringToServerPath(panelConfig.config.xAxis),
@@ -150,7 +157,9 @@ class DashboardView extends Component {
         panelConfig.config
       ) {
         if (panelConfig.config.dimensions.length === 0) {
-          query.disabled = true;
+          query.page = {
+            size: 1,
+          };
         } else {
           query.select = panelConfig.config.dimensions.map(dim =>
             Run.keyStringToServerPath(dim)

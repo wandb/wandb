@@ -125,11 +125,7 @@ export function shouldPoll(query) {
 }
 
 export function needsOwnRunsQuery(query) {
-  return !!query;
-  return (
-    strategy(query) === 'root' ||
-    (strategy(query) === 'merge' && !sameModel(query, query.baseQuery))
-  );
+  return query ? !query.disabled : false;
 }
 
 export function needsOwnHistoryQuery(query) {

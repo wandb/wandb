@@ -126,6 +126,23 @@ function withRunsData() {
 // Parses runs into runs/keySuggestions
 function withDerivedRunsData(WrappedComponent) {
   let RunsDataDerived = class extends React.Component {
+    defaultData = {
+      loading: false,
+      base: [],
+      filtered: [],
+      filteredRunsById: {},
+      keys: [],
+      axisOptions: [],
+      columnNames: [],
+      loadMore: null,
+      histories: {
+        maxRuns: MAX_HISTORIES_LOADED,
+        totalRuns: 0,
+        data: [],
+        keys: [],
+      },
+    };
+
     constructor(props) {
       super(props);
       this.keySuggestions = [];
@@ -223,7 +240,7 @@ function withDerivedRunsData(WrappedComponent) {
 
     componentWillMount() {
       if (!Query.needsOwnRunsQuery(this.props.query)) {
-        this.data = this.props.data;
+        this.data = this.defaultData;
         return;
       }
       this._setup({}, this.props);
@@ -235,7 +252,7 @@ function withDerivedRunsData(WrappedComponent) {
 
     componentWillReceiveProps(nextProps) {
       if (!Query.needsOwnRunsQuery(nextProps.query)) {
-        this.data = nextProps.data;
+        this.data = this.defaultData;
         return;
       }
       if (
