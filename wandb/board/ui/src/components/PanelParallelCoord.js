@@ -447,6 +447,8 @@ class ParCoordPanel extends React.Component {
 
   renderNormal() {
     const {dimensions} = this.props.config;
+    const totalRuns = this.props.data.totalRuns;
+    const maxRuns = this.props.data.limit;
     if (this.props.data.loading) {
       return (
         <div>
@@ -455,32 +457,41 @@ class ParCoordPanel extends React.Component {
       );
     } else if (this.props.data.filtered && dimensions) {
       return (
-        <PlotParCoor
-          cols={dimensions}
-          runs={this.props.data.filtered}
-          select={this.select}
-          highlight={this.props.highlight}
-          onBrushEvent={(axis, low, high) => {
-            let selections = this.props.selections;
-            selections = Selection.Update.addBound(
-              selections,
-              Run.keyFromString(axis),
-              '>=',
-              low
-            );
-            selections = Selection.Update.addBound(
-              selections,
-              Run.keyFromString(axis),
-              '<=',
-              high
-            );
-            this.props.setFilters('select', selections);
-          }}
-          onMouseOverEvent={runName => {
-            this.props.setHighlight(runName);
-          }}
-          onMouseOutEvent={() => this.props.setHighlight(null)}
-        />
+        <div>
+          <div style={{float: 'right', marginRight: 15}}>
+            {totalRuns > maxRuns && (
+              <span style={{fontSize: 13}}>
+                Showing {maxRuns} of {totalRuns} filtered runs{' '}
+              </span>
+            )}
+          </div>
+          <PlotParCoor
+            cols={dimensions}
+            runs={this.props.data.filtered}
+            select={this.select}
+            highlight={this.props.highlight}
+            onBrushEvent={(axis, low, high) => {
+              let selections = this.props.selections;
+              selections = Selection.Update.addBound(
+                selections,
+                Run.keyFromString(axis),
+                '>=',
+                low
+              );
+              selections = Selection.Update.addBound(
+                selections,
+                Run.keyFromString(axis),
+                '<=',
+                high
+              );
+              this.props.setFilters('select', selections);
+            }}
+            onMouseOverEvent={runName => {
+              this.props.setHighlight(runName);
+            }}
+            onMouseOutEvent={() => this.props.setHighlight(null)}
+          />
+        </div>
       );
     } else {
       return <p>Please configure dimensions first</p>;

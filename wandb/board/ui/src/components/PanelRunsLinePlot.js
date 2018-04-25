@@ -323,7 +323,6 @@ class RunsLinePlotPanel extends React.Component {
         <div style={{float: 'right', marginRight: 15}}>
           {totalRuns > maxRuns && (
             <span style={{fontSize: 13}}>
-              {/* <HelpIcon text="Run history plots are currently limited in the amount of data they can display. You can control runs displayed here by changing your selections." /> */}
               Showing {maxRuns} of {totalRuns} selected runs{' '}
             </span>
           )}

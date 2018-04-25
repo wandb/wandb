@@ -205,8 +205,17 @@ class ScatterPlotPanel extends React.Component {
         data,
         point => point.runId === this.props.highlight
       );
+      const totalRuns = this.props.data.totalRuns;
+      const maxRuns = this.props.data.limit;
       return (
         <div>
+          <div style={{float: 'right', marginRight: 15}}>
+            {totalRuns > maxRuns && (
+              <span style={{fontSize: 13}}>
+                Showing {maxRuns} of {totalRuns} filtered runs{' '}
+              </span>
+            )}
+          </div>
           {zAxis && (
             <div>
               <FlexibleWidthXYPlot height={55}>

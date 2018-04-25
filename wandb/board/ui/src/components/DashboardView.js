@@ -150,6 +150,9 @@ class DashboardView extends Component {
             size: 1,
           };
         } else {
+          query.page = {
+            size: 500,
+          };
           query.select = [
             Run.keyStringToServerPath(panelConfig.config.xAxis),
             Run.keyStringToServerPath(panelConfig.config.yAxis),
@@ -170,6 +173,9 @@ class DashboardView extends Component {
             size: 1,
           };
         } else {
+          query.page = {
+            size: 500,
+          };
           query.select = panelConfig.config.dimensions.map(dim =>
             Run.keyStringToServerPath(dim)
           );
