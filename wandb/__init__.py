@@ -236,7 +236,7 @@ def _init_headless(run, job_type, cloud=True):
 
 
 def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stderr_redirector):
-    termlog("Waiting for wandb process to finish, PID {}")
+    termlog("Waiting for wandb process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
     stdout_redirector.restore()
     stderr_redirector.restore()
