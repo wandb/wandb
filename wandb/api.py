@@ -178,7 +178,7 @@ class Api(object):
         Args:
             out_dir (str): Directory to write the patch files.
         """
-        if not self.git.repo:
+        if not self.git.enabled:
             return False
 
         try:
@@ -213,13 +213,14 @@ class Api(object):
 
     def repo_remote_url(self):
         # TODO: better failure handling
-        root = self.git.root
-        remote_url = self.git.remote_url
-        host = socket.gethostname()
-        # handle non-git directories
-        if not root:
+        if self.git.enabled:
+            root = self.git.root
+            remote_url = self.git.remote_url
+        else:
+            host = socket.gethostname()
             root = os.path.abspath(os.getcwd())
             remote_url = 'file://%s%s' % (host, root)
+
         return remote_url
 
     def set_current_run_id(self, run_id):

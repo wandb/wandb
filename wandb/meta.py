@@ -32,15 +32,17 @@ class Meta(object):
         self._thread.start()
 
     def setup(self):
+        self.data["root"] = os.getcwd()
         if self._api.git.enabled:
             self.data["git"] = {
                 "remote": self._api.git.remote_url,
                 "commit": self._api.git.last_commit
             }
+            self.data["email"] = self._api.git.email
+            self.data["root"] = self._api.git.root or self.data["root"]
+
         self.data["startedAt"] = datetime.utcfromtimestamp(
             wandb.START_TIME).isoformat()
-        self.data["email"] = self._api.git.email
-        self.data["root"] = self._api.git.root or os.getcwd()
         self.data["host"] = socket.gethostname()
         self.data["username"] = os.getenv("WANDB_USERNAME", getpass.getuser())
         try:

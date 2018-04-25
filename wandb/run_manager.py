@@ -492,9 +492,14 @@ class RunManager(object):
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
 
+            if self._api.git.enabled:
+                commit = self._api.git.last_commit
+            else:
+                commit = None
+
             try:
                 upsert_result = self._api.upsert_run(id=storage_id,
-                                                     commit=self._api.git.last_commit,
+                                                     commit=commit,
                                                      name=self._run.id,
                                                      project=self._api.settings(
                                                          "project"),
