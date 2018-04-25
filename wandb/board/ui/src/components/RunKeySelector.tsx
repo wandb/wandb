@@ -5,6 +5,7 @@ import * as RunHelpers from '../util/runhelpers';
 import * as UI from '../util/uihelpers';
 
 interface RunKeySelectorProps {
+  loading: boolean;
   storedKey: string;
   keys: string[];
   disabled: boolean;
@@ -50,6 +51,7 @@ export default class RunKeySelector extends React.Component<
     }
     return (
       <Dropdown
+        loading={this.props.loading}
         disabled={this.props.disabled}
         ref={el => (this.dropdownEl = el)}
         options={UI.makeOptions(keys)}

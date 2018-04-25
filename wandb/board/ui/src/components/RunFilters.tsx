@@ -2,7 +2,7 @@ import update from 'immutability-helper';
 import * as _ from 'lodash';
 import * as React from 'react';
 import {graphql, OptionProps, QueryProps} from 'react-apollo';
-import {Button, Dropdown, Form, Loader, Popup, Select} from 'semantic-ui-react';
+import {Button, Dropdown, Form, Popup, Select} from 'semantic-ui-react';
 import {setFilters} from '../actions/run';
 import RunKeySelector from '../components/RunKeySelector';
 import {
@@ -161,7 +161,7 @@ class FilterValueSelector extends React.Component<
   render() {
     return (
       <Dropdown
-        disabled={this.props.keysLoading || this.props.loading}
+        loading={this.props.keysLoading || this.props.loading}
         additionLabel=""
         allowAdditions
         options={this.props.valueOptions}
@@ -301,6 +301,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
         <Form id={this.elementId()}>
           <Form.Field>
             <RunKeySelector
+              loading={this.props.loading}
               keys={this.props.keys}
               storedKey={Run.displayKey(this.props.filter.key)}
               onValidSelection={keyString => {
@@ -315,7 +316,7 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
           {this.props.filter.key.section !== 'tags' && (
             <Form.Field>
               <Select
-                disabled={this.props.loading}
+                loading={this.props.loading}
                 options={operators}
                 placeholder={'operator'}
                 value={this.props.filter.op}
@@ -341,19 +342,6 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
             />
           </Form.Field>
         </Form>
-        {this.props.loading && (
-          <div
-            style={{
-              position: 'absolute',
-              height: '100%',
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <Loader inline active />
-          </div>
-        )}
       </div>
     );
   }
