@@ -40,9 +40,7 @@ function withRunsData() {
     options: ({query, requestSubscribe}) => {
       let order = 'timeline';
       if (query.sort && query.sort.name) {
-        const serverPath = Filter.serverPathKey(
-          Run.keyFromString(query.sort.name)
-        );
+        const serverPath = Run.keyStringToServerPath(query.sort.name);
         if (serverPath) {
           order = (query.sort.ascending ? '-' : '+') + serverPath;
         }

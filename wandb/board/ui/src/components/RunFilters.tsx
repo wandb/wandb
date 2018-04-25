@@ -255,19 +255,6 @@ const withFilterKeySuggestions = graphql<
   },
 });
 
-function parseFilterKeySuggestion(pathString: string): string | null {
-  const [section, name] = pathString.split('.', 2);
-  if (name == null) {
-    return null;
-  }
-  if (section === 'config') {
-    return 'config:' + name;
-  } else if (section === 'summary_metrics') {
-    return 'summary:' + name;
-  }
-  return null;
-}
-
 function parseFilterKeySuggestions(pathCountsString: string): KeyToPath {
   const json = JSON.parse(pathCountsString);
   if (!_.isObject(json)) {
@@ -275,7 +262,7 @@ function parseFilterKeySuggestions(pathCountsString: string): KeyToPath {
   }
   return _.fromPairs(
     _.keys(json)
-      .map(path => [parseFilterKeySuggestion(path), path])
+      .map(path => [Run.serverPathToKey(path), path])
       .filter(([key, path]) => key)
   );
 }

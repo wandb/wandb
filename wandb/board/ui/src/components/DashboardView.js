@@ -135,12 +135,12 @@ class DashboardView extends Component {
           query.disabled = true;
         } else {
           query.select = [
-            Filter.serverPathKey(Run.keyFromString(panelConfig.config.xAxis)),
-            Filter.serverPathKey(Run.keyFromString(panelConfig.config.yAxis)),
+            Run.keyStringToServerPath(panelConfig.config.xAxis),
+            Run.keyStringToServerPath(panelConfig.config.yAxis),
           ];
           if (panelConfig.config.zAxis) {
             query.select.push(
-              Filter.serverPathKey(Run.keyFromString(panelConfig.config.zAxis))
+              Run.keyStringToServerPath(panelConfig.config.zAxis)
             );
           }
         }
@@ -153,7 +153,7 @@ class DashboardView extends Component {
           query.disabled = true;
         } else {
           query.select = panelConfig.config.dimensions.map(dim =>
-            Filter.serverPathKey(Run.keyFromString(dim))
+            Run.keyStringToServerPath(dim)
           );
         }
       }

@@ -308,3 +308,44 @@ export function parseValue(val: any): Value {
   }
   return parsedValue;
 }
+
+export function serverPathToKey(pathString: string): Key | null {
+  const [section, name] = pathString.split('.', 2);
+  if (name == null) {
+    return null;
+  }
+  if (section === 'config') {
+    return {
+      section: 'config',
+      name,
+    };
+  } else if (section === 'summary_metrics') {
+    return {
+      section: 'summary',
+      name,
+    };
+  }
+  return null;
+}
+
+export function keyToServerPath(k: Key): string | null {
+  if (k.section === 'config') {
+    return 'config.' + k.name + '.value';
+  } else if (k.section === 'summary') {
+    return 'summary_metrics.' + k.name;
+  } else if (k.section === 'run') {
+    return k.name;
+  } else if (k.section === 'tags') {
+    return 'tags.' + k.name;
+  } else {
+    return null;
+  }
+}
+
+export function keyStringToServerPath(keyString: string): string | null {
+  const k = keyFromString(keyString);
+  if (k == null) {
+    return null;
+  }
+  return keyToServerPath(k);
+}

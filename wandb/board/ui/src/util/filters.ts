@@ -352,20 +352,6 @@ export function simplify(filter: Filter): Filter | null {
   return filter;
 }
 
-export function serverPathKey(key: Run.Key): string | null {
-  if (key.section === 'config') {
-    return 'config.' + key.name + '.value';
-  } else if (key.section === 'summary') {
-    return 'summary_metrics.' + key.name;
-  } else if (key.section === 'run') {
-    return key.name;
-  } else if (key.section === 'tags') {
-    return 'tags.' + key.name;
-  } else {
-    return null;
-  }
-}
-
 const INDIVIDUAL_OP_TO_MONGO = {
   '!=': '$ne',
   '>': '$gt',
@@ -395,7 +381,7 @@ function toMongoIndividual(filter: IndividualFilter): any {
       return {tags: filter.key.name};
     }
   }
-  const path = serverPathKey(filter.key);
+  const path = Run.keyToServerPath(filter.key);
   if (path == null) {
     return path;
   }
