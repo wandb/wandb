@@ -671,7 +671,6 @@ class RunManager(object):
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
-            self._socket.done()
             return None
 
         # Show run summary/history
@@ -784,9 +783,6 @@ class RunManager(object):
             wandb.termerror('Sync failed %s' % self.url)
         else:
             wandb.termlog('Synced %s' % self.url)
-
-        if headless:
-            self._socket.done()
 
     def _get_handler(self, file_path, save_name):
         self._stats.update_file(file_path)

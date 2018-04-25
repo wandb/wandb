@@ -122,7 +122,7 @@ class Api(object):
 
     HTTP_TIMEOUT = 10
 
-    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(1)):
+    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1)):
         self.default_settings = {
             'section': "default",
             'entity': "models",

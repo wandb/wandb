@@ -92,6 +92,8 @@ LOG_STRING = click.style('wandb', fg='blue', bold=True)
 ERROR_STRING = click.style('ERROR', bg='red', fg='green')
 
 
+# TODO(adrian): if output has been redirected, make this write to the original STDERR
+# so it doesn't get logged to the backend
 def termlog(string='', newline=True):
     if string:
         line = '\n'.join(['%s: %s' % (LOG_STRING, s)
@@ -115,7 +117,7 @@ def _debugger(*args):
 class Callbacks():
     @property
     def Keras(self):
-        print("DEPRECATED: wandb.callbacks is deprecated, use `from wandb.keras import WandbCallback`")
+        termlog("DEPRECATED: wandb.callbacks is deprecated, use `from wandb.keras import WandbCallback`")
         from wandb.keras import WandbCallback
         return WandbCallback
 
@@ -137,16 +139,19 @@ class ExitHooks(object):
         self.exit_code = code
         self._orig_exit(code)
 
+    def was_ctrl_c(self):
+        return isinstance(self.exception, KeyboardInterrupt)
+
     def exc_handler(self, exc_type, exc, *tb):
         self.exit_code = 1
         self.exception = exc
         if issubclass(exc_type, Error):
             termerror(str(exc))
-        if issubclass(exc_type, KeyboardInterrupt):
+
+        if self.was_ctrl_c():
             self.exit_code = 255
-            traceback.print_exception(exc_type, exc, *tb)
-        else:
-            traceback.print_exception(exc_type, exc, *tb)
+
+        traceback.print_exception(exc_type, exc, *tb)
 
 
 def _init_headless(run, job_type, cloud=True):
@@ -190,34 +195,60 @@ def _init_headless(run, job_type, cloud=True):
     # TODO(adrian): make wandb the foreground process so we don't give
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
-    subprocess.Popen(['/usr/bin/env', 'python', internal_cli_path, json.dumps(
+    wandb_process = subprocess.Popen(['/usr/bin/env', 'python', internal_cli_path, json.dumps(
         headless_args)], env=environ, **popen_kwargs)
+    termlog('Started W&B process with PID {}'.format(wandb_process.pid))
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
 
+    # Listen on the socket waiting for the wandb process to be ready
+    try:
+        success, message = server.listen(30)
+    except KeyboardInterrupt:
+        success = False
+    else:
+        if not success:
+            termerror('W&B process (PID {}) did not respond'.format(wandb_process.pid))
+
+    if not success:
+        wandb_process.kill()
+        for i in range(20):
+            time.sleep(0.1)
+            if wandb_process.poll() is not None:
+                break
+        if wandb_process.poll() is None:
+            termerror('Failed to kill wandb process, PID {}'.format(wandb_process.pid))
+        sys.exit(1)
+
+    run.storage_id = message['storage_id']
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
     stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
     stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
+    atexit.register(_user_process_finished, server, hooks, wandb_process, stdout_redirector, stderr_redirector)
+
+    # redirect output last of all so we don't miss out on error messages
     stdout_redirector.redirect()
     if not env.get_debug():
         stderr_redirector.redirect()
 
-    # Listen on the socket waiting for the wandb process to be ready
-    success, message = server.listen(30)
-    if not success:
-        termerror('Failed to start')
-        sys.exit(1)
-    run.storage_id = message['storage_id']
 
-    def done():
-        server.done(hooks.exit_code)
-        server.listen()
+def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stderr_redirector):
+    termlog("Waiting for wandb process to finish, PID {}")
+    server.done(hooks.exit_code)
+    stdout_redirector.restore()
+    stderr_redirector.restore()
+    try:
+        while wandb_process.poll() is None:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        pass
 
-    atexit.register(done)
-
+    if wandb_process.poll() is not None:
+        termlog('Killing wandb process, PID {}'.format(wandb_process.pid))
+        wandb_process.kill()
 
 
 # Will be set to the run object for the current run, as returned by
