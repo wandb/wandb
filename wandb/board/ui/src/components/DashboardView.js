@@ -133,7 +133,16 @@ class DashboardView extends Component {
           size: 10,
         };
         // use selections in addition to filters.
-        query.filters = Filter.And(query.filters, query.selections);
+        let qfilters = [query.filters, query.selections];
+        if (panelConfig.config && panelConfig.config.key) {
+          // Warning, this assumes history and summary have the same keys
+          const key = {
+            section: 'summary',
+            name: panelConfig.config.key,
+          };
+          qfilters.push({key, op: '!=', value: null});
+        }
+        query.filters = Filter.And(qfilters);
       }
       if (panelConfig.viewType === 'Scatter Plot' && panelConfig.config) {
         if (!panelConfig.config.xAxis || !panelConfig.config.yAxis) {

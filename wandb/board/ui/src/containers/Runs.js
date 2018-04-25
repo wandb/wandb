@@ -498,7 +498,7 @@ const withData = graphql(PROJECT_QUERY, {
         name: match.params.model,
         filters: JSON.stringify(Filter.toMongo(runFilters)),
         selections: JSON.stringify(
-          Filter.toMongo(Filter.And(runFilters, runSelections))
+          Filter.toMongo(Filter.And([runFilters, runSelections]))
         ),
       },
     };

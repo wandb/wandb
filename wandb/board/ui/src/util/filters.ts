@@ -101,8 +101,8 @@ export function filterRuns(filter: Filter, runs: Run.Run[]) {
   return runs.filter(run => match(filter, run));
 }
 
-export function And(filter1: Filter, filter2: Filter): Filter {
-  return {op: 'AND', filters: [filter1, filter2]};
+export function And(filters: Filter[]): Filter {
+  return {op: 'AND', filters};
 }
 
 type QueryPathItem = number | string;
@@ -369,7 +369,7 @@ function toMongoOpValue(op: IndividualOp, value: Run.Value | Run.Value[]): any {
 }
 
 function toMongoIndividual(filter: IndividualFilter): any {
-  if (filter.key.name === '' || filter.value == null) {
+  if (filter.key.name === '') {
     return null;
   }
   if (filter.key.section === 'tags') {
