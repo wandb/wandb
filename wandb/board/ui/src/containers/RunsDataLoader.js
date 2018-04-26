@@ -164,21 +164,16 @@ function withDerivedRunsData(WrappedComponent) {
 
       const runs = updateRuns(prevRuns, curRuns, []);
       let filteredRuns = runs;
-      let keys = curRuns && RunHelpers2.keySuggestions(curRuns.paths);
+      let keys = curRuns && RunHelpers2.keySuggestions(curRuns.paths, 1);
       keys = keys || [];
       let filteredRunsById = {};
       for (var run of filteredRuns) {
         filteredRunsById[run.name] = run;
       }
 
-      let axisOptions = keys.map(key => {
-        let displayKey = Run.displayKey(key);
-        return {
-          key: displayKey,
-          value: displayKey,
-          text: displayKey,
-        };
-      });
+      let axisOptions = curRuns
+        ? RunHelpers2.keySuggestions(curRuns.paths, 0)
+        : [];
 
       let runHistories;
       if (props.historyBuckets) {

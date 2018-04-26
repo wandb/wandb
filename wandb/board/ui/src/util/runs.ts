@@ -3,6 +3,7 @@ import * as _ from 'lodash';
 import * as numeral from 'numeral';
 import {JSONparseNaN} from './jsonnan';
 import * as Parse from './parse';
+import * as String from './string';
 
 // These two must match
 const runKeySections = ['run', 'tags', 'config', 'summary'];
@@ -314,14 +315,17 @@ export function parseValue(val: any): Value {
 }
 
 export function serverPathToKey(pathString: string): Key | null {
-  const [section, name] = pathString.split('.', 2);
+  const [section, name] = String.splitOnce(pathString, '.');
   if (name == null) {
     return null;
   }
   if (section === 'config') {
+    if (!_.endsWith(name, '.value')) {
+      return null;
+    }
     return {
       section: 'config',
-      name,
+      name: name.slice(0, name.length - 6),
     };
   } else if (section === 'summary_metrics') {
     return {

@@ -57,7 +57,7 @@ class RunsLinePlotPanel extends React.Component {
       return <p>No Histories</p>;
     }
     // Warning: This assumes history keys match summary keys!
-    const keys = this.props.data.keys
+    const keys = this.props.data.axisOptions
       .map(Run.keyFromString)
       .filter(key => key.section === 'summary' && !_.startsWith(key.name, '_'))
       .map(key => key.name);
