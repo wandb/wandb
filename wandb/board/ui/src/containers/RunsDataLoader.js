@@ -255,6 +255,7 @@ function withDerivedRunsData(WrappedComponent) {
         return;
       }
       if (
+        this.props.loading !== nextProps.runs ||
         this.props.runs !== nextProps.runs ||
         this.props.historyBuckets !== nextProps.historyBuckets ||
         this.props.views !== nextProps.views ||

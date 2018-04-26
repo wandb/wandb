@@ -17,7 +17,8 @@ import {
 } from '../util/plotHelpers.js';
 
 import * as Query from '../util/query';
-import * as Run from '../util/runhelpers.js';
+import * as Run from '../util/runs';
+import * as RunHelpers from '../util/runhelpers.js';
 import * as RunHelpers2 from '../util/runhelpers2';
 import * as UI from '../util/uihelpers.js';
 
@@ -43,7 +44,7 @@ class RunsLinePlotPanel extends React.Component {
   _groupByOptions() {
     let configs = this.props.data.filtered.map((run, i) => run.config);
 
-    let names = _.concat('None', Run.groupByCandidates(configs));
+    let names = _.concat('None', RunHelpers.groupByCandidates(configs));
     return names.map((name, i) => ({
       text: name,
       key: name,
@@ -55,12 +56,11 @@ class RunsLinePlotPanel extends React.Component {
     if (!this.props.data.histories) {
       return <p>No Histories</p>;
     }
-    // LB note this maybe should move to RunsDataLoader?
-    // the point of this is to remove histories that aren't numerical (images)
-    // and special histories that start with _
-    let keys = numericKeysFromHistories(this.props.data.histories).filter(
-      key => !key.startsWith('_')
-    );
+    // Warning: This assumes history keys match summary keys!
+    const keys = this.props.data.keys
+      .map(Run.keyFromString)
+      .filter(key => key.section === 'summary' && !_.startsWith(key.name, '_'))
+      .map(key => key.name);
     let yAxisOptions = keys.map(key => ({
       key: key,
       value: key,
@@ -193,7 +193,7 @@ class RunsLinePlotPanel extends React.Component {
                   <label>
                     Smoothing:{' '}
                     {this.scaledSmoothness() > 0
-                      ? Run.displayValue(this.scaledSmoothness())
+                      ? RunHelpers.displayValue(this.scaledSmoothness())
                       : 'None'}
                   </label>
                   <input

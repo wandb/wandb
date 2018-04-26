@@ -136,3 +136,15 @@ body .ui.dropdown .menu .selected.item,
 .ui.dropdown.selected {
   background: rgba(0, 0, 0, 0.1);
 }
+
+/* These fix the loader when shown in a modal
+   https://github.com/Semantic-Org/Semantic-UI/issues/4014 */
+.ui.dimmer .ui.modal .ui.loader {
+  color: #333;
+}
+.ui.dimmer .ui.modal .ui.loader:before {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+.ui.dimmer .ui.modal .ui.loader:after {
+  border-color: #767676 transparent transparent;
+}
