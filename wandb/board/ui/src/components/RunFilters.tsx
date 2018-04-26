@@ -361,9 +361,12 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
   portal: any;
   globalId: number = 0;
 
-  componentDidMount() {
+  componentWillMount() {
     this.globalId = globalFilterId;
     globalFilterId++;
+  }
+
+  componentDidMount() {
     // We want newly added filters to be in the editing state by default. But semantic-ui-react's
     // popup implementation is broken and needs an initial click in order to get the correct
     // position of the popup. Without the initial click it renders the popup at the top of the
