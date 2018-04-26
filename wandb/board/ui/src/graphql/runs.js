@@ -176,6 +176,7 @@ export const MODIFY_RUNS = gql`
   mutation modifyRuns($ids: [String], $addTags: [String]) {
     modifyRuns(input: {ids: $ids, addTags: $addTags}) {
       runs {
+        ...SelectRunFragment
         ...BasicRunFragment
         user {
           username
@@ -184,6 +185,7 @@ export const MODIFY_RUNS = gql`
       }
     }
   }
+  ${fragments.selectRun}
   ${fragments.basicRun}
 `;
 

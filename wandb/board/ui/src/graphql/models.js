@@ -21,6 +21,7 @@ export const MODEL_QUERY = gql`
       access
       summaryMetrics
       run(name: $bucketName) {
+        ...SelectRunFragment
         ...BasicRunFragment
         ...DetailedRunFragment @include(if: $detailed)
         requestSubscribe @include(if: $requestSubscribe)
@@ -35,6 +36,7 @@ export const MODEL_QUERY = gql`
       defaultFramework
     }
   }
+  ${runFragments.selectRun}
   ${runFragments.basicRun}
   ${runFragments.detailedRun}
 `;
