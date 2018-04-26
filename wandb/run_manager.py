@@ -492,8 +492,14 @@ class RunManager(object):
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
 
+            if self._api.git.enabled:
+                commit = self._api.git.last_commit
+            else:
+                commit = None
+
             try:
                 upsert_result = self._api.upsert_run(id=storage_id,
+                                                     commit=commit,
                                                      name=self._run.id,
                                                      project=self._api.settings(
                                                          "project"),
@@ -670,7 +676,6 @@ class RunManager(object):
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
-            self._socket.done()
             return None
 
         # Show run summary/history
@@ -783,9 +788,6 @@ class RunManager(object):
             wandb.termerror('Sync failed %s' % self.url)
         else:
             wandb.termlog('Synced %s' % self.url)
-
-        if headless:
-            self._socket.done()
 
     def _get_handler(self, file_path, save_name):
         self._stats.update_file(file_path)

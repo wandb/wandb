@@ -122,7 +122,7 @@ class Api(object):
 
     HTTP_TIMEOUT = 10
 
-    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(1)):
+    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1)):
         self.default_settings = {
             'section': "default",
             'entity': "models",
@@ -178,7 +178,7 @@ class Api(object):
         Args:
             out_dir (str): Directory to write the patch files.
         """
-        if not self.git.repo:
+        if not self.git.enabled:
             return False
 
         try:
@@ -213,13 +213,14 @@ class Api(object):
 
     def repo_remote_url(self):
         # TODO: better failure handling
-        root = self.git.root
-        remote_url = self.git.remote_url
-        host = socket.gethostname()
-        # handle non-git directories
-        if not root:
+        if self.git.enabled:
+            root = self.git.root
+            remote_url = self.git.remote_url
+        else:
+            host = socket.gethostname()
             root = os.path.abspath(os.getcwd())
             remote_url = 'file://%s%s' % (host, root)
+
         return remote_url
 
     def set_current_run_id(self, run_id):
@@ -588,7 +589,7 @@ class Api(object):
             config = json.dumps(config)
         if not description:
             description = None
-        commit = commit or self.git.last_commit
+
         response = self.gql(mutation, variable_values={
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit,
@@ -1141,6 +1142,7 @@ class FileStreamApi(object):
         files = {}
         # Groupby needs group keys to be consecutive, so sort first.
         chunks.sort(key=lambda c: c.filename)
+        #print('fsapi', chunks)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
             if filename not in self._file_policies:
