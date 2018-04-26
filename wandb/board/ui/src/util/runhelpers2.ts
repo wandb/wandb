@@ -10,7 +10,9 @@ export function keySuggestions(pathCountsString: string): string[] | null {
   if (!_.isObject(json)) {
     return null;
   }
-  return (_.keys(json)
-    .map(Run.serverPathToKeyString)
-    .filter(o => o) as string[]).sort();
+  return ['name'].concat(
+    (_.keys(json)
+      .map(Run.serverPathToKeyString)
+      .filter(o => o) as string[]).sort()
+  );
 }

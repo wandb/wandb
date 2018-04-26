@@ -639,7 +639,7 @@ export function setupKeySuggestions(runs) {
   return keySuggestions;
 }
 
-function autoCols(section, runs) {
+function autoCols(section, runs, minUniq) {
   runs = runs.filter(run => run[section]);
   if (runs.length <= 1) {
     return [];
@@ -677,7 +677,7 @@ function autoCols(section, runs) {
           result[key] = false;
         } else {
           // Show columns that have differing values even if all values differ
-          if (uniqVals.length > 1) {
+          if (uniqVals.length > minUniq) {
             result[key] = true;
           } else {
             result[key] = false;
@@ -693,20 +693,13 @@ function autoCols(section, runs) {
 }
 
 export function getColumns(runs) {
-  let configColumns = _.uniq(_.flatMap(runs, run => _.keys(run.config)))
-    .sort()
-    .map(col => 'config:' + col);
-  let summaryColumns = _.uniq(_.flatMap(runs, run => _.keys(run.summary)))
-    .filter(k => !k.startsWith('_') && k !== 'examples')
-    .sort()
-    .map(col => 'summary:' + col);
   let sweepColumns =
     runs && runs.findIndex(r => r.sweep) > -1 ? ['Sweep', 'Stop'] : [];
   return ['Description'].concat(
     sweepColumns,
     ['Ran', 'Runtime'],
-    autoCols('config', runs),
-    autoCols('summary', runs)
+    autoCols('config', runs, 1),
+    autoCols('summary', runs, 0)
   );
 }
 
