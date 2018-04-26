@@ -25,15 +25,13 @@ export default function withHistoryLoader(WrappedComponent) {
       // (or when some other parameters have changed, which doesn't happen on the
       // dashboard page right now)
       let pollingMode = Query.shouldPoll(nextProps.query);
-      if (
-        props.data.selectedRuns &&
-        nextProps.data.selectedRuns !== props.data.selectedRuns
-      ) {
+
+      if (nextProps.data.selectedRuns !== props.data.selectedRuns) {
         //console.log('SelectionQueryThing willReceiveProps', nextProps);
         let selected = _.fromPairs(
           nextProps.data.selectedRuns
             .slice(0, MAX_HISTORIES_LOADED)
-            .map(run => [run.name, run.id])
+            .map(run => [run.name, run.id]),
         );
         // find set of selected runs that have not been fetched
         //console.log('n selected', _.size(selected));
@@ -144,11 +142,5 @@ export default function withHistoryLoader(WrappedComponent) {
     }),
   });
 
-  function mapStateToProps(state, ownProps) {
-    return {
-      graphqlStatus: state.global.graphqlStatus,
-    };
-  }
-
-  return withApollo(withData(connect(mapStateToProps)(HistoryLoader)));
+  return withApollo(withData(HistoryLoader));
 }
