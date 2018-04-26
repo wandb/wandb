@@ -125,7 +125,14 @@ export function shouldPoll(query) {
 }
 
 export function needsOwnRunsQuery(query) {
-  return query ? !query.disabled : false;
+  return (
+    (strategy(query) === 'root' || strategy(query) === 'merge') &&
+    !query.disabled
+  );
+}
+
+export function shouldPassThrough(query) {
+  return strategy(query) === 'page';
 }
 
 export function needsOwnHistoryQuery(query) {

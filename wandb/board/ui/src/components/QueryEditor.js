@@ -56,17 +56,6 @@ class QueryEditor extends React.Component {
 
     return (
       <Form style={{marginBottom: 20}}>
-        <Form.Field style={{marginBottom: 8}}>
-          <Checkbox
-            label="Custom Query"
-            checked={strategy === 'merge'}
-            onChange={() =>
-              strategy === 'page'
-                ? this.setStrategy('merge')
-                : this.setStrategy('page')
-            }
-          />
-        </Form.Field>
         {strategy === 'merge' && (
           <Form.Group style={{marginLeft: 20}}>
             {this.props.allowProjectChange && (

@@ -238,6 +238,10 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     componentWillMount() {
+      if (Query.shouldPassThrough(this.props.query)) {
+        this.data = this.props.data;
+        return;
+      }
       if (!Query.needsOwnRunsQuery(this.props.query)) {
         this.data = this.defaultData;
         return;
@@ -250,6 +254,10 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     componentWillReceiveProps(nextProps) {
+      if (Query.shouldPassThrough(this.props.query)) {
+        this.data = nextProps.data;
+        return;
+      }
       if (!Query.needsOwnRunsQuery(nextProps.query)) {
         this.data = this.defaultData;
         return;
