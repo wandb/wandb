@@ -204,14 +204,22 @@ run = None
 config = None  # config object shared with the global run
 
 
-def log(history_row):
-    """Log a dict to the global run's history.
+def log(history_row, complete=True):
+    """Log a dict to the global run's history.  If complete is false, enables multiple calls before commiting.
 
     Eg.
 
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
     """
-    run.history.add(history_row)
+    if complete:
+        run.history.add(history_row)
+    else:
+        run.history.row.update(history_row)
+
+
+@property
+def history():
+    return run.history
 
 
 def ensure_configured():
@@ -219,7 +227,7 @@ def ensure_configured():
     # The WANDB_DEBUG check ensures tests still work.
     if not env.is_debug() and not api.settings('project'):
         termlog('wandb.init() called but system not configured.\n'
-                      'Run "wandb init" or set environment variables to get started')
+                'Run "wandb init" or set environment variables to get started')
         sys.exit(1)
 
 
@@ -281,6 +289,7 @@ def init(job_type='train', config=None):
 
     run.job_type = job_type
     run.set_environment()
+
     def set_global_config(c):
         global config  # because we already have a local config
         config = c

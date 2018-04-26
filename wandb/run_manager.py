@@ -117,8 +117,8 @@ class FileEventHandlerOverwriteDeferred(FileEventHandler):
 
 
 class FileEventHandlerConfig(FileEventHandler):
-    """Set the summary instead of uploading the file"""
-    RATE_LIMIT_SECONDS = 5
+    """Set the config instead of uploading the file"""
+    RATE_LIMIT_SECONDS = 30
 
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
         self._api = api
@@ -142,7 +142,8 @@ class FileEventHandlerConfig(FileEventHandler):
                 self._thread.join()
                 self._thread = None
 
-            self._thread = threading.Timer(self.RATE_LIMIT_SECONDS, self._update)
+            self._thread = threading.Timer(
+                self.RATE_LIMIT_SECONDS, self._update)
             self._thread.start()
         else:
             self._update()
@@ -151,13 +152,15 @@ class FileEventHandlerConfig(FileEventHandler):
         try:
             config_dict = yaml.load(open(self.file_path))
         except yaml.parser.ParserError:
-            wandb.termlog("Unable to parse config file; probably being modified by user process?")
+            wandb.termlog(
+                "Unable to parse config file; probably being modified by user process?")
             return
 
         # TODO(adrian): ensure the file content will exactly match Bucket.config
         # ie. push the file content as a string
         self._api.upsert_run(id=self._storage_id, config=config_dict)
-        self._file_pusher.file_changed(self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(
+            self.save_name, self.file_path, copy=True)
         self._last_sent = time.time()
 
     def finish(self):
@@ -170,7 +173,7 @@ class FileEventHandlerConfig(FileEventHandler):
 
 class FileEventHandlerSummary(FileEventHandler):
     """Set the summary instead of uploading the file"""
-    RATE_LIMIT_SECONDS = 5
+    RATE_LIMIT_SECONDS = 10
 
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
         self._storage_id = kwargs["storage_id"]
@@ -628,7 +631,8 @@ class RunManager(object):
             if headless:
                 wandb.termlog('Ctrl-c pressed.')
             else:
-                wandb.termlog('Ctrl-c pressed; waiting for program to end. Press ctrl-c again to kill it.')
+                wandb.termlog(
+                    'Ctrl-c pressed; waiting for program to end. Press ctrl-c again to kill it.')
                 try:
                     while self.proc.poll() is None:
                         time.sleep(0.1)
@@ -790,7 +794,9 @@ class RunManager(object):
             wandb.termlog('Synced %s' % self.url)
 
     def _get_handler(self, file_path, save_name):
-        self._stats.update_file(file_path)
+        if not save_name.startswith('media/'):
+            # Don't show stats on media files
+            self._stats.update_file(file_path)
         if save_name not in self._event_handlers:
             if save_name == 'wandb-history.jsonl':
                 self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(

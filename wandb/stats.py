@@ -50,6 +50,9 @@ class Stats(object):
 
 
 class SystemStats(object):
+    SAMPLE_RATE_SECONDS = 2
+    SAMPLES_TO_AVERAGE = 15
+
     def __init__(self, run):
         try:
             nvmlInit()
@@ -77,11 +80,11 @@ class SystemStats(object):
                     self.sampler[stat] = self.sampler.get(stat, [])
                     self.sampler[stat].append(value)
             self.samples += 1
-            if self._shutdown or self.samples >= 15:
+            if self._shutdown or self.samples >= SAMPLES_TO_AVERAGE:
                 self.flush()
                 if self._shutdown:
                     break
-            time.sleep(2)
+            time.sleep(SAMPLE_RATE_SECONDS)
 
     def shutdown(self):
         self._shutdown = True
