@@ -3,7 +3,7 @@ import {ApolloLink, Observable} from 'apollo-link';
 import {InMemoryCache} from 'apollo-cache-inmemory';
 import {createHttpLink} from 'apollo-link-http';
 import {onError} from 'apollo-link-error';
-import {displayError, setFlash, updateGraphqlStatus} from '../actions';
+import {displayError, setFlash} from '../actions';
 import {push} from 'react-router-redux';
 import queryString from 'query-string';
 import {BOARD} from './board';
@@ -99,11 +99,6 @@ const userTimingMiddleware = new ApolloLink((operation, forward) => {
   });
 });
 
-const graphqlStatusMiddleware = new ApolloLink((operation, forward) => {
-  dispatch(updateGraphqlStatus(true));
-  return forward(operation);
-});
-
 const errorLink = onError(({networkError, graphQLErrors}, store) => {
   let errorMessage = 'Application Error';
   if (graphQLErrors) {
@@ -126,19 +121,14 @@ const errorLink = onError(({networkError, graphQLErrors}, store) => {
       console.error(networkError.result.errors);
     } else if (networkError.message === 'Failed to fetch') {
       errorMessage = 'Network Error';
-      dispatch(updateGraphqlStatus(false));
     }
 
-    if (networkError.statusCode === 400) {
-      dispatch(
-        displayError({
-          code: networkError.statusCode,
-          message: errorMessage,
-        })
-      );
-    } else {
-      dispatch(setFlash({message: errorMessage, color: 'red'}));
-    }
+    dispatch(
+      displayError({
+        code: networkError.statusCode || 503,
+        message: errorMessage,
+      })
+    );
   }
 });
 
@@ -146,7 +136,6 @@ const link = ApolloLink.from([
   authMiddleware,
   stackdriverMiddleware,
   userTimingMiddleware,
-  graphqlStatusMiddleware,
   errorLink,
   httpLink,
 ]);

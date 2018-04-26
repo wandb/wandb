@@ -57,7 +57,7 @@ class Nav extends Component {
               compact
               style={{
                 position: 'absolute',
-                right: 0,
+                right: 10,
                 top: 50,
                 paddingRight: 30,
               }}>

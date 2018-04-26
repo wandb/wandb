@@ -25,8 +25,10 @@ export default function withHistoryLoader(WrappedComponent) {
       // (or when some other parameters have changed, which doesn't happen on the
       // dashboard page right now)
       let pollingMode = Query.shouldPoll(nextProps.query);
-
-      if (nextProps.data.selectedRuns !== props.data.selectedRuns) {
+      if (
+        props.data.selectedRuns &&
+        nextProps.data.selectedRuns !== props.data.selectedRuns
+      ) {
         //console.log('SelectionQueryThing willReceiveProps', nextProps);
         let selected = _.fromPairs(
           nextProps.data.selectedRuns
@@ -88,31 +90,28 @@ export default function withHistoryLoader(WrappedComponent) {
               });
           }
         }
-        // if graphql is online
-        if (this.props.graphqlStatus) {
-          nextProps.client.writeQuery({
-            query: FAKE_HISTORY_QUERY,
-            variables: {histQueryKey: nextProps.histQueryKey},
-            data: {
-              model: {
-                id: 'fake_history_query_' + nextProps.histQueryKey,
-                __typename: 'ModelType',
-                buckets: {
-                  __typename: 'BucketConnectionType',
-                  edges: selectedInfo.map(o => ({
-                    node: {
-                      id: o.id,
-                      name: o.name,
-                      history: o.history,
-                      __typename: 'BucketType',
-                    },
-                    __typename: 'BucketTypeEdge',
-                  })),
-                },
+        nextProps.client.writeQuery({
+          query: FAKE_HISTORY_QUERY,
+          variables: {histQueryKey: nextProps.histQueryKey},
+          data: {
+            model: {
+              id: 'fake_history_query_' + nextProps.histQueryKey,
+              __typename: 'ModelType',
+              buckets: {
+                __typename: 'BucketConnectionType',
+                edges: selectedInfo.map(o => ({
+                  node: {
+                    id: o.id,
+                    name: o.name,
+                    history: o.history,
+                    __typename: 'BucketType',
+                  },
+                  __typename: 'BucketTypeEdge',
+                })),
               },
             },
-          });
-        }
+          },
+        });
       }
     }
 

@@ -2,6 +2,7 @@ import 'whatwg-fetch';
 import React, {Component} from 'react';
 //import Nav from './components/Nav';
 import {connect} from 'react-redux';
+import {Container} from 'semantic-ui-react';
 import AutoReload from './components/AutoReload';
 import Loader from './components/Loader';
 import Footer from './components/Footer';
@@ -39,11 +40,13 @@ class App extends Component {
       <div className={this.props.fullScreen ? 'fullScreen' : ''}>
         <AutoReload setFlash={this.props.setFlash} />
         <Nav user={this.props.user} history={this.props.history} />
-        <ErrorPage {...this.props}>
-          <div className="main" style={{padding: '20px'}}>
-            {this.props.children}
-          </div>
-        </ErrorPage>
+        <div className="main" style={{padding: '20px'}}>
+          {this.props.error || this.state.error ? (
+            <ErrorPage history={this.props.history} error={this.props.error} />
+          ) : (
+            this.props.children
+          )}
+        </div>
         <Footer />
       </div>
     );
