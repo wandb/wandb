@@ -70,7 +70,7 @@ class ValueDisplay extends PureComponent {
                     icon="external square"
                     onClick={() => {
                       this.props.enableColumn(
-                        this.props.section + ':' + this.props.valKey,
+                        this.props.section + ':' + this.props.valKey
                       );
                     }}
                   />
@@ -95,7 +95,7 @@ class ValueDisplay extends PureComponent {
                       'filter',
                       filterKey,
                       '=',
-                      sortableValue(this.props.value),
+                      sortableValue(this.props.value)
                     );
                   }}
                 />
@@ -131,8 +131,30 @@ class RunFeedHeader extends React.Component {
     return this._shouldUpdate(this.props, nextProps);
   }
 
+  onClick = columnName => {
+    if (columnName === 'Config' || columnName === 'Summary') {
+      return;
+    }
+    let ascending = true;
+    if (this.props.sort.name === columnName) {
+      ascending = !this.props.sort.ascending;
+    }
+    this.props.setSort(columnName, ascending);
+  };
+
+  caret = sort => {
+    return (
+      this.props.sort.name === sort &&
+      (this.props.sort.ascending ? (
+        <Icon name="caret up" />
+      ) : (
+        <Icon name="caret down" />
+      ))
+    );
+  };
+
   render() {
-    let {selectable, sort, columnNames} = this.props;
+    let {selectable, columnNames} = this.props;
     let longestColumn =
       Object.assign([], columnNames).sort((a, b) => b.length - a.length)[0] ||
       '';
@@ -143,7 +165,14 @@ class RunFeedHeader extends React.Component {
             height: Math.min(longestColumn.length, maxColNameLength) * 8,
             borderLeft: '1px solid rgba(34,36,38,.15)',
           }}>
-          {selectable && <Table.HeaderCell />}
+          {selectable && (
+            <Table.HeaderCell
+              key={'selected'}
+              style={{textAlign: 'center', verticalAlign: 'bottom'}}
+              onClick={() => this.onClick('selected')}>
+              <div>{this.caret('selected')}</div>
+            </Table.HeaderCell>
+          )}
           {columnNames.map(columnName => {
             let columnKey = columnName.split(':')[1];
             return (
@@ -156,16 +185,7 @@ class RunFeedHeader extends React.Component {
                     : ''
                 }
                 style={{textAlign: 'center', verticalAlign: 'bottom'}}
-                onClick={() => {
-                  if (columnName === 'Config' || columnName === 'Summary') {
-                    return;
-                  }
-                  let ascending = true;
-                  if (sort.name === columnName) {
-                    ascending = !sort.ascending;
-                  }
-                  this.props.setSort(columnName, ascending);
-                }}>
+                onClick={() => this.onClick(columnName)}>
                 <div>
                   {_.startsWith(columnName, 'config:') ||
                   _.startsWith(columnName, 'summary:') ? (
@@ -179,13 +199,7 @@ class RunFeedHeader extends React.Component {
                   ) : (
                     <span>{columnName}</span>
                   )}
-
-                  {sort.name === columnName &&
-                    (sort.ascending ? (
-                      <Icon name="caret up" />
-                    ) : (
-                      <Icon name="caret down" />
-                    ))}
+                  {this.caret(columnName)}
                 </div>
               </Table.HeaderCell>
             );
@@ -262,7 +276,7 @@ class RunFeedRow extends React.Component {
                         'filter',
                         {section: 'tags', name: tag},
                         '=',
-                        true,
+                        true
                       )
                     }
                   />
@@ -422,12 +436,12 @@ class RunFeed extends PureComponent {
           ? this.props.runs.slice(startIndex, endIndex)
           : this.tablePlaceholders(
               this.props.limit,
-              this.props.project.bucketCount,
+              this.props.project.bucketCount
             ),
       columnNames = this.props.loading
         ? ['Description']
         : this.props.columnNames.filter(
-            columnName => this.props.columns[columnName],
+            columnName => this.props.columns[columnName]
           );
     if (!this.props.loading && runsLength === 0) {
       return <div>No runs match the chosen filters.</div>;
@@ -468,7 +482,7 @@ class RunFeed extends PureComponent {
                           key,
                           op,
                           value,
-                        }),
+                        })
                       )
                     }
                     setFilters={this.props.setFilters}

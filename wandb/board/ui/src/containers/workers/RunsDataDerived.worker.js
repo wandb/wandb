@@ -22,7 +22,7 @@ function handleMessage(m, postMessage) {
   }
   let filteredRuns = sortRuns(
     query.sort,
-    Filter.filterRuns(query.filters, runs),
+    Filter.filterRuns(query.filters, runs)
   );
   let keySuggestions = setupKeySuggestions(runs);
   let filteredRunsById = {};
@@ -36,7 +36,15 @@ function handleMessage(m, postMessage) {
   let selectedRunsById = _.fromPairs(
     selectedRuns.map(run => [run.name, run.id])
   );
-
+  if (query.sort.name === 'selected') {
+    // add `selected` param for sorting
+    filteredRuns.map(run => {
+      run.selected = _.includes(selectedRunsById, run.id);
+      return run;
+    });
+    // resort by `selected`
+    filteredRuns = sortRuns(query.sort, filteredRuns);
+  }
   let keys = _.flatMap(keySuggestions, section => section.suggestions);
   let axisOptions = keys.map(key => {
     let displayKey = Run.displayKey(key);
