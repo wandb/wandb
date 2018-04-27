@@ -103,8 +103,8 @@ class Client(object):
         else:
             return bytearray()
 
-    def ready(self, storage_id):
-        self.send({'status': 'ready', 'storage_id': storage_id})
+    def ready(self):
+        self.send({'status': 'ready'})
 
     def launch_error(self):
         self.send({'status': 'launch_error'})

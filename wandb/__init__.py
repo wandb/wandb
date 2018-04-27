@@ -168,7 +168,6 @@ def _init_headless(run, job_type, cloud=True):
             termerror('Failed to kill wandb process, PID {}'.format(wandb_process.pid))
         sys.exit(1)
 
-    run.storage_id = message['storage_id']
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
@@ -185,7 +184,9 @@ def _init_headless(run, job_type, cloud=True):
 
 def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stderr_redirector):
     stdout_redirector.restore()
-    stderr_redirector.restore()
+    if not env.get_debug():
+        stderr_redirector.restore()
+
     termlog("Waiting for wandb process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
     try:
