@@ -92,10 +92,10 @@ body .input-style {
   border-radius: 0.29rem;
 }
 
-.blurring.dimmed.dimmable > :not(.dimmer) {
-  -webkit-filter: blur(0.7px) grayscale(0.1) !important;
-  transition: filter 4s linear;
-  filter: blur(3px) grayscale(0.1) !important;
+body.blurring.dimmed.dimmable > :not(.dimmer) {
+  -webkit-filter: blur(3px) grayscale(0.1);
+  /* transition: filter 4s linear; */
+  filter: blur(3px) grayscale(0.1);
 }
 
 body.blurring.dimmable > .dimmer {

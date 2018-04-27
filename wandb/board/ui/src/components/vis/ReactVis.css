@@ -1,44 +1,59 @@
 #root .rv-discrete-color-legend.horizontal {
-    white-space: normal;
+  white-space: normal;
 }
 
-#root .rv-discrete-color-legend-item.horizontal .rv-discrete-color-legend-item__title {
-    margin-left: 6px;
-    display: inline-block;
+#root
+  .rv-discrete-color-legend-item.horizontal
+  .rv-discrete-color-legend-item__title {
+  margin-left: 6px;
+  display: inline-block;
 }
 
 #root .rv-discrete-color-legend-item__color {
-    height: 8px;
-    width: 34px;
+  height: 8px;
+  width: 34px;
 }
 
 #root .rv-discrete-color-legend-item {
-    padding: 0 8px;
+  padding: 0 8px;
 }
 
 #root .rv-discrete-color-legend {
-    font-family: sans-serif;
+  font-family: sans-serif;
 }
 
 #root .rv-discrete-color-legend-item.clickable:hover {
-    background: #eee;
+  background: #eee;
 }
 
-
 .nightMode .line-plot {
-    background: #000;
-    color: #d4d4d5;
-    font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif
+  background: #000;
+  color: #d4d4d5;
+  font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
 }
 
 .nightMode .line-plot-legend {
-    background: #000;
-    color: #d4d4d5;
-    font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif
+  background: #000;
+  color: #d4d4d5;
+  font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
+}
 
+.line-plot-container {
+  cursor: zoom-in;
+}
+
+.line-plot-container.zoomed-in {
+  cursor: zoom-out;
+}
+
+.line-plot-container.zoomed-in:active {
+  cursor: zoom-in;
+}
+
+.line-plot-container.max-zoom:active {
+  cursor: not-allowed;
 }
 
 h4 {
-    font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif
+  font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
 }
-
