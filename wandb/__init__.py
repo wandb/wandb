@@ -245,7 +245,7 @@ def try_to_set_up_logging():
     try:
         logging.basicConfig(
             filemode="w",
-            format='%(asctime)s %(levelname)-7s %(threadName)s [%(filename)s:%(funcName)s():%(lineno)s] %(message)s',
+            format='%(asctime)s %(levelname)-7s %(threadName)-10s [%(filename)s:%(funcName)s():%(lineno)s] %(message)s',
             filename=log_fname,
             level=logging.DEBUG)
     except IOError as e:  # eg. in case wandb directory isn't writable

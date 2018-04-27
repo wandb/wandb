@@ -137,16 +137,22 @@ class FileEventHandlerConfig(FileEventHandler):
         self._eventually_update()
 
     def _eventually_update(self):
-        if time.time() - self._last_sent <= self.RATE_LIMIT_SECONDS:
-            if self._thread:
-                self._thread.join()
-                self._thread = None
+        if self._thread:
+            # assume the existing thread will catch this update
+            return
 
-            self._thread = threading.Timer(
-                self.RATE_LIMIT_SECONDS, self._update)
-            self._thread.start()
-        else:
+        if time.time() - self._last_sent >= self.RATE_LIMIT_SECONDS:
             self._update()
+        else:
+            self._thread = threading.Timer(
+                self.RATE_LIMIT_SECONDS, self._thread_update)
+            self._thread.start()
+
+    def _thread_update(self):
+        try:
+            self._update()
+        finally:
+            self._thread = None
 
     def _update(self):
         try:
@@ -377,15 +383,18 @@ class RunManager(object):
             self._api.get_file_stream_api().set_file_policy(
                 OUTPUT_FNAME, CRDedupeFilePolicy())
 
+    """ FILE SYNCING / UPLOADING STUFF """
+
     # TODO: limit / throttle the number of adds / pushes
     def on_file_created(self, event):
+        logger.info('file/dir created: %s', event.src_path)
         if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._get_handler(event.src_path, save_name).on_created()
 
-    # TODO: is this blocking the main thread?
     def on_file_modified(self, event):
+        logger.info('file/dir modified: %s', event.src_path)
         if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
@@ -436,6 +445,8 @@ class RunManager(object):
         with open(path, 'rb') as f:
             self._api.push(self._project, {save_name: f}, run=self._run.id,
                            progress=lambda _, total: self._stats.update_progress(path, total))
+
+    """ RUN MANAGEMENT STUFF """
 
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
