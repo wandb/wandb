@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 
+# Three possible modes:
+#     'cli': running from "wandb" command
+#     'run': we're a script launched by "wandb run"
+#     'dryrun': we're a script not launched by "wandb run"
+
 from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
@@ -41,10 +46,6 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import util
 from wandb.media import Image
-# Three possible modes:
-#     'cli': running from "wandb" command
-#     'run': we're a script launched by "wandb run"
-#     'dryrun': we're a script not launched by "wandb run"
 
 
 logger = logging.getLogger(__name__)
@@ -174,6 +175,9 @@ def _init_headless(run, job_type, cloud=True):
     stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
     stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
+    # TODO(adrian): we should register this right after starting the wandb process to
+    # make sure we shut down the W&B process eg. if there's an exception in the code
+    # above
     atexit.register(_user_process_finished, server, hooks, wandb_process, stdout_redirector, stderr_redirector)
 
     # redirect output last of all so we don't miss out on error messages
@@ -221,11 +225,6 @@ def log(history_row, complete=True):
         run.history.row.update(history_row)
 
 
-@property
-def history():
-    return run.history
-
-
 def ensure_configured():
     api = wandb.api.Api()
     # The WANDB_DEBUG check ensures tests still work.
@@ -246,7 +245,7 @@ def try_to_set_up_logging():
     try:
         logging.basicConfig(
             filemode="w",
-            format='%(levelname)-7s %(asctime)s [%(filename)s:%(funcName)s():%(lineno)s] %(message)s',
+            format='%(asctime)s %(levelname)-7s %(threadName)s [%(filename)s:%(funcName)s():%(lineno)s] %(message)s',
             filename=log_fname,
             level=logging.DEBUG)
     except IOError as e:  # eg. in case wandb directory isn't writable

@@ -137,7 +137,7 @@ class FileEventHandlerConfig(FileEventHandler):
         self._eventually_update()
 
     def _eventually_update(self):
-        if time.time() - self._last_sent >= self.RATE_LIMIT_SECONDS:
+        if time.time() - self._last_sent <= self.RATE_LIMIT_SECONDS:
             if self._thread:
                 self._thread.join()
                 self._thread = None
