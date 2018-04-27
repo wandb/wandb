@@ -1,130 +1,134 @@
 .ui.feed.metrics > .event .label,
 .ui.feed > .event .statistic .label {
-    border: none;
+  border: none;
 }
 .ui.feed > .event > .content .meta {
-    display: block !important;
+  display: block !important;
 }
-.ui.feed .ui[class*="right floated"].statistic {
-    margin-top: -25px;
-    margin-bottom: -10px;
+.ui.feed .ui[class*='right floated'].statistic {
+  margin-top: -25px;
+  margin-bottom: -10px;
 }
 div.runsTable {
-    margin: 10px 0;
-    overflow-x: auto;
+  margin: 10px 0;
+  overflow-x: auto;
 }
 div.runsTable::-webkit-scrollbar {
-    height: 8px;
+  height: 8px;
 }
 table td.best {
-    font-weight: bold;
+  font-weight: bold;
 }
 table td.config {
-    padding: 0 !important;
+  padding: 0 !important;
 }
 table td.config > div {
-    overflow: auto;
-    padding: 0.5em 0.7em;
-    max-height: 60px;
+  overflow: auto;
+  padding: 0.5em 0.7em;
+  max-height: 60px;
 }
 table td.config > div::-webkit-scrollbar {
-    display: none;
+  display: none;
 }
 table td.config:hover > div::-webkit-scrollbar {
-    display: block;
-    width: 8px;
+  display: block;
+  width: 8px;
 }
 table td.config span.config {
-    font-size: "80%";
-    max-width: 250px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: block;
-    margin-bottom: -2px;
-    color: rgba(0, 0, 0, 0.4);
+  font-size: '80%';
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  margin-bottom: -2px;
+  color: rgba(0, 0, 0, 0.4);
 }
 
 table td.config span.config span.value {
-    font-weight: bold;
+  font-weight: bold;
 }
 
 table .item .header a,
 table .item .extra {
-    max-width: 500px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: inline-block;
+  max-width: 500px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
 }
 table .overview .item > .image + .content {
-    padding-left: 0.75em !important;
+  padding-left: 0.75em !important;
 }
 table .overview {
-    position: relative;
+  position: relative;
 }
 table .overview .item .launcher {
-    position: absolute;
-    right: 5px;
-    bottom: 5px;
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
 }
 @media only screen and (max-width: 767px) {
-    .ui.items .item .image {
-        display: none !important;
-    }
+  .ui.items .item .image {
+    display: none !important;
+  }
 }
 @media only screen and (max-width: 991px) {
-    table .item .header a,
-    table .item .extra {
-        max-width: 200px;
-    }
+  table .item .header a,
+  table .item .extra {
+    max-width: 200px;
+  }
 }
 
 /* Vertical config/summary column headers */
 th.rotate {
-    white-space: nowrap;
+  white-space: nowrap;
 }
 th.rotate > div {
-    transform: rotate(-90deg);
-    width: 30px;
+  transform: rotate(-90deg);
+  width: 30px;
 }
 th.rotate > div > span {
-    padding-left: 8px;
+  padding-left: 8px;
 }
 
 .runsTable .ui.table {
-    border-top: none;
-    border-right: none;
+  border-top: none;
+  border-right: none;
 }
 
 .runsTable .ui.table td {
-    border-right: 1px solid rgba(34, 36, 38, 0.1);
+  border-right: 1px solid rgba(34, 36, 38, 0.1);
 }
 
 .runsTable .ui.table thead th {
-    background: #fff;
+  background: #fff;
 }
 
 .runsTable .ui.celled.table thead th {
-    border-left: none !important;
+  border-left: none !important;
 }
 
 /* The toggle version of Radio is hard to see by default, and too long.
    this fixes it */
 .ui.toggle.checkbox .box:before,
 .ui.toggle.checkbox label:before {
-    background: #aaa !important;
-    width: 2.5rem !important;
+  background: #aaa !important;
+  width: 2.5rem !important;
 }
 .ui.toggle.checkbox .box:after,
 .ui.toggle.checkbox label:after {
-    background: #ddd !important;
+  background: #ddd !important;
 }
 .ui.toggle.checkbox input:checked ~ .box:after,
 .ui.toggle.checkbox input:checked ~ label:after {
-    left: 1.15rem !important;
+  left: 1.15rem !important;
 }
 .ui.toggle.checkbox .box,
 .ui.toggle.checkbox label {
-    padding-left: 3.5rem !important;
+  padding-left: 3.5rem !important;
+}
+
+.ui.definition.sortable.table thead:not(.full-width) th:first-child {
+  pointer-events: auto;
 }
