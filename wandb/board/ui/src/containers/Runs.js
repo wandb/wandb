@@ -315,6 +315,7 @@ class Runs extends React.Component {
             <Button
               floated="right"
               disabled={this.props.counts.selected === 0}
+              disabled={true}
               onClick={e => {
                 // TODO(adrian): this should probably just be a separate component
                 e.preventDefault();
