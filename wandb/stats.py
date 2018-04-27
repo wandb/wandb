@@ -80,11 +80,11 @@ class SystemStats(object):
                     self.sampler[stat] = self.sampler.get(stat, [])
                     self.sampler[stat].append(value)
             self.samples += 1
-            if self._shutdown or self.samples >= SAMPLES_TO_AVERAGE:
+            if self._shutdown or self.samples >= self.SAMPLES_TO_AVERAGE:
                 self.flush()
                 if self._shutdown:
                     break
-            time.sleep(SAMPLE_RATE_SECONDS)
+            time.sleep(self.SAMPLE_RATE_SECONDS)
 
     def shutdown(self):
         self._shutdown = True

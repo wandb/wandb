@@ -1,12 +1,9 @@
 import six
 import time
-import logging
 import json
 import socket
 from select import select
 import threading
-
-logger = logging.getLogger(__name__)
 
 
 def ints2bytes(ints):
@@ -67,8 +64,6 @@ class Server(object):
             else:
                 raise socket.error()
         except socket.error as e:
-            logger.error(
-                "Failed to receive valid message from wandb process within %s seconds" % max_seconds)
             return False, None
 
     def done(self, exitcode=None):
@@ -107,13 +102,6 @@ class Client(object):
             return bytearray(self.socket.recv(limit))
         else:
             return bytearray()
-
-    def done(self):
-        try:
-            self.send({'status': 'done'})
-        except socket.error:
-            logger.warn(
-                "Wandb took longer than 30 seconds and the user process finished")
 
     def ready(self, storage_id):
         self.send({'status': 'ready', 'storage_id': storage_id})

@@ -11,6 +11,7 @@ import subprocess
 import threading
 import time
 
+import wandb
 from wandb import io_wrap
 
 logger = logging.getLogger(__name__)
@@ -142,11 +143,7 @@ def md5_file(path):
 
 
 def get_log_file_path():
-    root_handlers = logger.root.handlers
-    if root_handlers and "baseFilename" in dir(root_handlers[0]):
-        return os.path.relpath(root_handlers[0].baseFilename, os.getcwd())
-    else:
-        return '<unknown>'
+    return wandb.log_fname
 
 
 def read_many_from_queue(q, max_items, queue_timeout):

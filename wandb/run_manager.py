@@ -521,7 +521,7 @@ class RunManager(object):
                         "resume='never' but run (%s) exists" % self._run.id)
                 else:
                     raise LaunchError(
-                        'Launch exception: %s, see wandb-debug.log for details' % str(e))
+                        'Launch exception: {}, see {} for details'.format(e, util.get_log_file_path()))
             self._run.storage_id = upsert_result['id']
             self._run.set_environment(environment=env)
 
