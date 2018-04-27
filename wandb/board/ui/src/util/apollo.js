@@ -14,6 +14,7 @@ let dispatch = null;
 
 const SERVERS = {
   production: 'https://api.wandb.ai/quiver',
+  beta: 'https://api.wandb.ai/quiver',
   // development: 'http://gql.test/graphql',
   development: 'http://gql.test/quiver',
   devprod: 'https://api.wandb.ai/quiver',
