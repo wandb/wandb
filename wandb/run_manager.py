@@ -1,43 +1,47 @@
 import errno
-import psutil
+import json
+import logging
 import os
+import psutil
+import re
 import signal
 import socket
 import stat
 import subprocess
 import sys
 import time
-import re
 from tempfile import NamedTemporaryFile
-from watchdog.observers import Observer
-from watchdog.events import PatternMatchingEventHandler
-from shortuuid import ShortUUID
-import logging
 import threading
-import json
 import yaml
 
 import click
+from shortuuid import ShortUUID
 import six
 from six.moves import queue
+import requests
+from watchdog.observers import Observer
+from watchdog.events import PatternMatchingEventHandler
 import webbrowser
 
 import wandb
+import wandb.api
+from .api import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy
 from wandb import env
 from wandb import Error
-from wandb import wandb_config as config
 from wandb import io_wrap
+from wandb import jsonlfile
 from wandb import file_pusher
+from wandb import meta
+import wandb.rwlock
 from wandb import sparkline
 from wandb import stats
 from wandb import streaming_log
 from wandb import util
+from wandb import wandb_config as config
 from wandb import wandb_run
 from wandb import wandb_socket
-from wandb import meta
-from wandb import jsonlfile
-import wandb.api
-from .api import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -120,14 +124,13 @@ class FileEventHandlerConfig(FileEventHandler):
     """Set the config instead of uploading the file"""
     RATE_LIMIT_SECONDS = 30
 
-    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+    def __init__(self, file_path, save_name, api, file_pusher, run, *args, **kwargs):
         self._api = api
-        self._storage_id = kwargs["storage_id"]
-        del kwargs["storage_id"]
         super(FileEventHandlerConfig, self).__init__(
             file_path, save_name, api, *args, **kwargs)
         self._last_sent = time.time() - self.RATE_LIMIT_SECONDS
         self._file_pusher = file_pusher
+        self._run = run
         self._thread = None
 
     def on_created(self):
@@ -164,7 +167,7 @@ class FileEventHandlerConfig(FileEventHandler):
 
         # TODO(adrian): ensure the file content will exactly match Bucket.config
         # ie. push the file content as a string
-        self._api.upsert_run(id=self._storage_id, config=config_dict)
+        self._api.upsert_run(id=self._run._storage_id, config=config_dict)
         self._file_pusher.file_changed(
             self.save_name, self.file_path, copy=True)
         self._last_sent = time.time()
@@ -181,12 +184,11 @@ class FileEventHandlerSummary(FileEventHandler):
     """Set the summary instead of uploading the file"""
     RATE_LIMIT_SECONDS = 10
 
-    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
-        self._storage_id = kwargs["storage_id"]
-        del kwargs["storage_id"]
+    def __init__(self, file_path, save_name, api, file_pusher, run, *args, **kwargs):
         super(FileEventHandlerSummary, self).__init__(
             file_path, save_name, api, *args, **kwargs)
         self._last_sent = time.time() - self.RATE_LIMIT_SECONDS
+        self._run = run
         self._file_pusher = file_pusher
 
     def on_created(self):
@@ -197,7 +199,7 @@ class FileEventHandlerSummary(FileEventHandler):
             try:
                 self._last_sent = time.time()
                 json.load(open(self.file_path))
-                self._api.upsert_run(id=self._storage_id,
+                self._api.upsert_run(id=self._run.storage_id,
                                      summary_metrics=open(self.file_path).read())
             except ValueError:
                 logger.error("Unable to parse summary json")
@@ -341,11 +343,24 @@ class RunManager(object):
         self._config = run.config
         self.url = self._run.get_url(api)
 
+        # We lock this when the backend is down so Watchdog will keep track of all
+        # the file events that happen. Then, when the backend comes back up, we unlock
+        # it so all the outstanding events will get handled properly. Watchdog's queue
+        # only keeps at most one event per file.
+        # Counterintuitively, we use the "reader" locking to guard writes to the W&B
+        # backend, and the "writer" locking to indicate that the backend is down. That
+        # way, users of the W&B API won't block each other, but can all be
+        # blocked by grabbing a "writer" lock.
+        self._file_event_lock = wandb.rwlock.RWLock()
+        # It starts acquired. We release it when we want to allow the events to happen.
+        # (ie. after the Run is successfully created)
+        self._file_event_lock.writer_enters()
+
         self._event_handlers = {}
 
         self._handler = PatternMatchingEventHandler()
-        self._handler.on_created = self.on_file_created
-        self._handler.on_modified = self.on_file_modified
+        self._handler.on_created = self._on_file_created
+        self._handler.on_modified = self._on_file_modified
         self._handler._patterns = [
             os.path.join(self._watch_dir, os.path.normpath('*'))]
         # Ignore hidden files/folders and output.log because we stream it specially
@@ -386,18 +401,20 @@ class RunManager(object):
     """ FILE SYNCING / UPLOADING STUFF """
 
     # TODO: limit / throttle the number of adds / pushes
-    def on_file_created(self, event):
+    def _on_file_created(self, event):
         logger.info('file/dir created: %s', event.src_path)
         if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
+        self._file_event_lock.await_readable()
         self._get_handler(event.src_path, save_name).on_created()
 
-    def on_file_modified(self, event):
+    def _on_file_modified(self, event):
         logger.info('file/dir modified: %s', event.src_path)
         if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._watch_dir)
+        self._file_event_lock.await_readable()
         self._get_handler(event.src_path, save_name).on_modified()
 
     def _get_handler(self, file_path, save_name):
@@ -426,12 +443,12 @@ class RunManager(object):
             # file before uploading.
             elif save_name == config.FNAME:
                 self._event_handlers[save_name] = FileEventHandlerConfig(
-                    file_path, save_name, self._api, self._file_pusher, storage_id=self._run.storage_id)
+                    file_path, save_name, self._api, self._file_pusher, self._run)
             elif save_name == 'wandb-summary.json':
                 # Load the summary into the syncer process for meta etc to work
                 self._run.summary.load()
                 self._event_handlers[save_name] = FileEventHandlerSummary(
-                    file_path, save_name, self._api, self._file_pusher, storage_id=self._run.storage_id)
+                    file_path, save_name, self._api, self._file_pusher, self._run)
             elif save_name.startswith('media/'):
                 # Save media files immediately
                 self._event_handlers[save_name] = FileEventHandlerOverwrite(
@@ -473,10 +490,12 @@ class RunManager(object):
             # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
             fs_api = self._api.get_file_stream_api()
             self._stdout_stream = streaming_log.TextStreamPusher(
-                fs_api, OUTPUT_FNAME, prepend_timestamp=True)
+                fs_api, OUTPUT_FNAME, prepend_timestamp=True,
+                lock_function=self._file_event_lock.reader_enters)
             self._stderr_stream = streaming_log.TextStreamPusher(
                 fs_api, OUTPUT_FNAME, line_prepend='ERROR',
-                prepend_timestamp=True)
+                prepend_timestamp=True,
+                lock_function=self._file_event_lock.reader_enters)
 
             stdout_streams.append(self._stdout_stream)
             stderr_streams.append(self._stderr_stream)
@@ -565,30 +584,63 @@ class RunManager(object):
             else:
                 commit = None
 
-            try:
-                upsert_result = self._api.upsert_run(id=storage_id,
-                                                     commit=commit,
-                                                     name=self._run.id,
-                                                     project=self._api.settings(
-                                                         "project"),
-                                                     entity=self._api.settings(
-                                                         "entity"),
-                                                     config=self._run.config.as_dict(),
-                                                     description=self._run.description,
-                                                     host=self._run.host,
-                                                     program_path=self._run.program,
-                                                     repo=self._api.repo_remote_url(),
-                                                     sweep_name=self._run.sweep_id)
-            except wandb.api.CommError as e:
-                # TODO: Get rid of str contains check
-                if self._run.resume == 'never' and 'exists' in str(e):
-                    raise LaunchError(
-                        "resume='never' but run (%s) exists" % self._run.id)
-                else:
-                    raise LaunchError(
-                        'Launch exception: {}, see {} for details'.format(e, util.get_log_file_path()))
-            self._run.storage_id = upsert_result['id']
-            self._run.set_environment(environment=env)
+            if not self._upsert_run(False, storage_id, commit, env):
+                self._upsert_run_thread = threading.Thread(target=self._upsert_run, args=(True, storage_id, commit, env))
+                self._upsert_run_thread.daemon = True
+                self._upsert_run_thread.start()
+
+    def _upsert_run(self, retry, storage_id, commit, env):
+        """Upsert the Run (ie. for the first time with all its attributes)
+
+        Arguments:
+            retry: (bool) Whether to retry if the connection fails (ie. if the backend is down).
+                False is useful so we can start running the user process even when the W&B backend
+                is down, and let syncing finish later.
+        Returns:
+            True if the upsert succeeded, False if it failed because the backend is down.
+        Throws:
+            LaunchError on other failures
+        """
+        if retry:
+            num_retries = None
+        else:
+            num_retries = 0 # no retries because we want to let the user process run even if the backend is down
+
+        try:
+            upsert_result = self._api.upsert_run(id=storage_id,
+                                                 commit=commit,
+                                                 name=self._run.id,
+                                                 project=self._api.settings(
+                                                     "project"),
+                                                 entity=self._api.settings(
+                                                     "entity"),
+                                                 config=self._run.config.as_dict(),
+                                                 description=self._run.description,
+                                                 host=self._run.host,
+                                                 program_path=self._run.program,
+                                                 repo=self._api.repo_remote_url(),
+                                                 sweep_name=self._run.sweep_id,
+                                                 num_retries=num_retries)
+        except wandb.api.CommError as e:
+            # TODO: Get rid of str contains check
+            if self._run.resume == 'never' and 'exists' in str(e):
+                raise LaunchError(
+                    "resume='never' but run (%s) exists" % self._run.id)
+            else:
+                if isinstance(e.exc, requests.exceptions.ConnectionError):
+                    wandb.termerror('Failed to connect to W&B. Retrying in the background.')
+                    return False
+
+                raise LaunchError(
+                    'Launch exception: {}, see {} for details'.format(e, util.get_log_file_path()))
+
+        self._run.storage_id = upsert_result['id']
+        self._run.set_environment(environment=env)
+
+        # unblock file syncing and console streaming, which need the Run to have a .storage_id
+        self._file_event_lock.writer_leaves()
+
+        return True
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -638,13 +690,6 @@ class RunManager(object):
         This returns after the process has ended and syncing is done.
         Captures ctrl-c's, signals, etc.
         """
-        try:
-            self.init_run()
-        except LaunchError as e:
-            wandb.termerror(str(e))
-            self._socket.launch_error()
-            return
-
         stdout_read_file = os.fdopen(stdout_read_fd, 'rb')
         stderr_read_file = os.fdopen(stderr_read_fd, 'rb')
         stdout_streams, stderr_streams = self._get_stdout_stderr_streams()
@@ -652,6 +697,13 @@ class RunManager(object):
         self._stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
 
         self.proc = Process(pid)
+
+        try:
+            self.init_run()
+        except LaunchError as e:
+            wandb.termerror(str(e))
+            self._socket.launch_error()
+            return
 
         # Signal the main process that we're all hooked up
         self._socket.ready()

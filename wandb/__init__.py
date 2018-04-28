@@ -149,6 +149,7 @@ def _init_headless(run, job_type, cloud=True):
     else:
         popen_kwargs = {'pass_fds': [stdout_master_fd, stderr_master_fd]}
 
+    # TODO(adrian): ensure we use *exactly* the same python interpreter
     # TODO(adrian): make wandb the foreground process so we don't give
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
