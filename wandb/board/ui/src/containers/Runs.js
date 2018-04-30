@@ -57,8 +57,7 @@ class Runs extends React.Component {
     this.props.refetch({order: [column, order].join(' ')});
   };
 
-  _shareableUrl(props) {
-    let query = {};
+  _updateQueryFromProps(query, props) {
     if (!_.isEmpty(props.runFilters)) {
       query.filters = Filter.toURL(props.runFilters);
     }
@@ -68,6 +67,11 @@ class Runs extends React.Component {
     if (!_.isNil(props.activeView)) {
       query.activeView = props.activeView;
     }
+  }
+
+  _shareableUrl(props) {
+    let query = {};
+    this._updateQueryFromProps(query, props);
     return (
       `${window.location.protocol}//${window.location.host}${
         window.location.pathname
@@ -75,6 +79,24 @@ class Runs extends React.Component {
       '?' +
       queryString.stringify(query)
     );
+  }
+
+  _setUrl(props, nextProps) {
+    if (
+      props.runFilters !== nextProps.runFilters ||
+      props.runSelections !== nextProps.runSelections ||
+      props.activeView !== nextProps.activeView
+    ) {
+      let query = queryString.parse(window.location.search) || {};
+      this._updateQueryFromProps(query, nextProps);
+      let url = `/${nextProps.match.params.entity}/${
+        nextProps.match.params.model
+      }/runs`;
+      if (!_.isEmpty(query)) {
+        url += '?' + queryString.stringify(query);
+      }
+      window.history.replaceState(null, null, url);
+    }
   }
 
   _readUrl(props) {
@@ -137,6 +159,8 @@ class Runs extends React.Component {
 
   componentDidMount() {
     this.doneLoading = false;
+
+    this._setUrl({}, this.props);
   }
 
   componentWillReceiveProps(nextProps) {
@@ -176,6 +200,8 @@ class Runs extends React.Component {
       }
       this.props.setServerViews(nextProps.views);
     }
+
+    this._setUrl(this.props, nextProps);
   }
 
   handleTabChange = (e, {activeIndex}) =>
