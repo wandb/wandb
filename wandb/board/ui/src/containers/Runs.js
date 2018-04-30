@@ -315,39 +315,45 @@ class Runs extends React.Component {
             <Button
               floated="right"
               disabled={this.props.counts.selected === 0}
-              disabled={true}
               onClick={e => {
                 // TODO(adrian): this should probably just be a separate component
                 e.preventDefault();
 
-                // this.setState({
-                //   showConfirm: true,
-                //   confirmText:
-                //     'Are you sure you would like to hide these runs? You can reverse this later by removing the "hidden" label.',
-                //   confirmButton: `Hide ${
-                //     this.props.counts.selected
-                //   } run(s)`,
-                //   handleConfirm: e => {
-                //     e.preventDefault();
-                //     this.props.modifyRuns({
-                //       ids: this.props.data.selectedRuns.map(run => run.id),
-                //       addTags: ['hidden'],
-                //     });
-                //     this.setState({
-                //       showConfirm: false,
-                //       handleConfirm: null,
-                //       handleCancel: null,
-                //     });
-                //   },
-                //   handleCancel: e => {
-                //     e.preventDefault();
-                //     this.setState({
-                //       showConfirm: false,
-                //       handleConfirm: null,
-                //       handleCancel: null,
-                //     });
-                //   },
-                // });
+                this.setState({
+                  showConfirm: true,
+                  confirmText:
+                    'Are you sure you would like to hide these runs? You can reverse this later by removing the "hidden" label.',
+                  confirmButton: `Hide ${this.props.counts.selected} run(s)`,
+                  handleConfirm: e => {
+                    e.preventDefault();
+                    this.props.modifyRuns({
+                      filters: JSON.stringify(
+                        Filter.toMongo(
+                          Filter.And([
+                            this.props.runFilters,
+                            this.props.runSelections,
+                          ])
+                        )
+                      ),
+                      entityName: this.props.match.params.entity,
+                      projectName: this.props.match.params.model,
+                      addTags: ['hidden'],
+                    });
+                    this.setState({
+                      showConfirm: false,
+                      handleConfirm: null,
+                      handleCancel: null,
+                    });
+                  },
+                  handleCancel: e => {
+                    e.preventDefault();
+                    this.setState({
+                      showConfirm: false,
+                      handleConfirm: null,
+                      handleCancel: null,
+                    });
+                  },
+                });
               }}>
               <Icon name="hide" />
               Hide {this.props.counts.selected} run(s)

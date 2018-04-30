@@ -21,6 +21,9 @@ export const MODEL_QUERY = gql`
       access
       summaryMetrics
       run(name: $bucketName) {
+        id
+        name
+        __typename
         ...SelectRunFragment
         ...BasicRunFragment
         ...DetailedRunFragment @include(if: $detailed)

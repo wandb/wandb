@@ -81,13 +81,17 @@ export default (store, client) => {
       'router.location.pathname',
       (cur, next) => {
         return project(cur) === project(next);
-      },
+      }
     ),
     slug = params => {
       return `${params.entity}@${params.project}`;
     };
   store.subscribe(
     projectChange((newPath, oldPath) => {
+      // Runs updating disabled for now.
+      // Disabled for now because we're bypassing cache on the runs page.
+      // (see apollo.js)
+      return;
       //TODO: global order state?
       const newParams = matchProject(newPath).params,
         oldParams = matchProject(oldPath).params,
@@ -143,6 +147,6 @@ export default (store, client) => {
             });
           });
       }
-    }),
+    })
   );
 };

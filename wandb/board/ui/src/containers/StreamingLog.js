@@ -57,11 +57,11 @@ function stream(client, params, run, callback) {
   runChannel(pusherRunSlug(params)).bind('log', payload => {
     //console.time('log lines', payload.length);
     const data = client.readFragment({
-        id: run.id,
-        fragment: fragments.detailedRun,
-        variables: {bucketName: run.name},
-      }),
-      edges = data.logLines.edges;
+      id: run.id,
+      fragment: fragments.detailedRun,
+      variables: {bucketName: run.name},
+    });
+    const edges = data.logLines.edges;
 
     let changed = false,
       del = 1,

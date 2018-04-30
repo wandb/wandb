@@ -48,14 +48,14 @@ class Run extends React.Component {
   componentWillReceiveProps(nextProps) {
     // Setup views loaded from server.
     if (
-      nextProps.bucket &&
+      nextProps.run &&
       (nextProps.views === null || !nextProps.views.run) &&
       _.isEmpty(this.props.reduxServerViews.run.views) &&
       // Prevent infinite loop
       _.isEmpty(this.props.reduxBrowserViews.run.views) &&
       !this.props.reduxBrowserViews.run.configured
     ) {
-      this.props.setBrowserViews(defaultViews(nextProps.bucket));
+      this.props.setBrowserViews(defaultViews(nextProps.run));
     } else if (
       nextProps.views &&
       nextProps.views.run &&

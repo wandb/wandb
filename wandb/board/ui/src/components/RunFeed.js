@@ -258,7 +258,7 @@ class RunFeedRow extends React.Component {
                   <strong>{edge.user && edge.user.username}</strong>
                   {/* edge.host && `on ${edge.host} ` */}
                   {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
-                  {/* <Tags
+                  <Tags
                     tags={edge.tags}
                     addFilter={tag =>
                       this.props.addFilter(
@@ -268,7 +268,7 @@ class RunFeedRow extends React.Component {
                         true
                       )
                     }
-                  /> */}
+                  />
                 </Item.Extra>
                 {admin && <Launcher runId={edge.id} runName={edge.name} />}
               </Item.Content>

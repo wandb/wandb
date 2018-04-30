@@ -144,7 +144,10 @@ const link = ApolloLink.from([
 // We're including keys and values here currently. Could achieve the same effect with less memory
 // overhead by only hashing keys, but we'd have to JSON parse.
 function dataIdFromObject(object) {
-  if (object.__typename === 'Run') {
+  // The object.logLines check is even hackier. We only fetch logLines on the run page, and we
+  // do want to use the apollo cache there so that our real time updates work.
+  // UGH
+  if (object.__typename === 'Run' && object.logLines == null) {
     const extra = hash
       .sha1()
       .update(

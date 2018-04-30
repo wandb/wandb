@@ -173,9 +173,24 @@ export const RUN_UPSERT = gql`
 `;
 
 export const MODIFY_RUNS = gql`
-  mutation modifyRuns($ids: [String], $addTags: [String]) {
-    modifyRuns(input: {ids: $ids, addTags: $addTags}) {
-      runs {
+  mutation modifyRuns(
+    $filters: JSONString
+    $entityName: String
+    $projectName: String
+    $addTags: [String]
+  ) {
+    modifyRuns(
+      input: {
+        filters: $filters
+        entityName: $entityName
+        projectName: $projectName
+        addTags: $addTags
+      }
+    ) {
+      runsSQL {
+        id
+        name
+        __typename
         ...SelectRunFragment
         ...BasicRunFragment
         user {
