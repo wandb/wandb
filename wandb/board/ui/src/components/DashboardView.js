@@ -139,7 +139,7 @@ class DashboardView extends Component {
           panelConfig.config.groupBy &&
           panelConfig.config.groupBy !== 'None'
         ) {
-          query.page.size = 50;
+          query.page.size = 30;
         }
         // use selections in addition to filters.
         let qfilters = [query.filters, query.selections];
