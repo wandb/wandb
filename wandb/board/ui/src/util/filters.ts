@@ -375,7 +375,7 @@ function toMongoIndividual(filter: IndividualFilter): any {
   if (filter.key.section === 'tags') {
     if (filter.value === false) {
       return {
-        $or: [{tags: null}, {tags: filter.key.name}],
+        $or: [{tags: null}, {tags: {$ne: filter.key.name}}],
       };
     } else {
       return {tags: filter.key.name};
