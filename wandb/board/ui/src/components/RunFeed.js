@@ -160,14 +160,18 @@ class RunFeedHeader extends React.Component {
                 }
                 style={{textAlign: 'center', verticalAlign: 'bottom'}}
                 onClick={() => {
-                  if (columnName === 'Config' || columnName === 'Summary') {
+                  if (columnName === 'Runtime') {
                     return;
                   }
-                  let ascending = true;
-                  if (sort.name === columnName) {
-                    ascending = !sort.ascending;
+                  if (columnName === 'Ran') {
+                    this.props.setSort(null, true);
+                  } else {
+                    let ascending = true;
+                    if (sort.name === columnName) {
+                      ascending = !sort.ascending;
+                    }
+                    this.props.setSort(columnName, ascending);
                   }
-                  this.props.setSort(columnName, ascending);
                 }}>
                 <div>
                   {_.startsWith(columnName, 'config:') ||
