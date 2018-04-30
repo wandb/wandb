@@ -72,7 +72,7 @@ class TextStreamPusher(object):
     """Pushes a stream of text, line by line, to wandb."""
 
     def __init__(self, fsapi, filename, line_prepend='', prepend_timestamp=False):
-        """Conctructor.
+        """Constructor.
 
         Args:
             fsapi: api.FileStreamApi instance

@@ -176,6 +176,7 @@ def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
 
 api = Api()
 
+
 # Some commands take project/entity etc. as arguments. We provide default
 # values for those arguments from the current project configuration, as
 # returned by api.settings()
@@ -193,7 +194,7 @@ class RunGroup(click.Group):
         return None
 
 
-@click.command(cls=RunGroup)
+@click.command(cls=RunGroup, invoke_without_command=True)
 @click.version_option(version=wandb.__version__)
 @click.pass_context
 def cli(ctx):
@@ -201,7 +202,9 @@ def cli(ctx):
 
     Run "wandb docs" for full documentation.
     """
-    pass
+    wandb.try_to_set_up_logging()
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @cli.command(context_settings=CONTEXT, help="List projects")

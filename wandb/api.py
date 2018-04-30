@@ -122,7 +122,7 @@ class Api(object):
 
     HTTP_TIMEOUT = 10
 
-    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(1)):
+    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1)):
         self.default_settings = {
             'section': "default",
             'entity': "models",
@@ -178,7 +178,7 @@ class Api(object):
         Args:
             out_dir (str): Directory to write the patch files.
         """
-        if not self.git.repo:
+        if not self.git.enabled:
             return False
 
         try:
@@ -213,13 +213,14 @@ class Api(object):
 
     def repo_remote_url(self):
         # TODO: better failure handling
-        root = self.git.root
-        remote_url = self.git.remote_url
-        host = socket.gethostname()
-        # handle non-git directories
-        if not root:
+        if self.git.enabled:
+            root = self.git.root
+            remote_url = self.git.remote_url
+        else:
+            host = socket.gethostname()
             root = os.path.abspath(os.getcwd())
             remote_url = 'file://%s%s' % (host, root)
+
         return remote_url
 
     def set_current_run_id(self, run_id):
@@ -1086,9 +1087,9 @@ class FileStreamApi(object):
     def rate_limit_seconds(self):
         run_time = time.time() - wandb.START_TIME
         if run_time < 30:
-            return 1
+            return 2
         elif run_time < 300:
-            return 5
+            return 10
         else:
             return self.HEARTBEAT_INTERVAL_SECONDS
 

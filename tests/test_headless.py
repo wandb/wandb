@@ -34,12 +34,16 @@ def test_dry_run_custom_dir(runner):
     with runner.isolated_filesystem():
         os.environ["WANDB_DIR"] = "/tmp"
         os.environ["WANDB_MODE"] = "dryrun"
-        sh.rm("-rf", "/tmp/wandb/*")
-        with open("train.py", "w") as f:
-            f.write(train_py)
-        res = sh.python("train.py")
-        del os.environ["WANDB_DIR"]
-        del os.environ["WANDB_MODE"]
+        try:
+            sh.rm("-rf", "/tmp/wandb/*")
+            with open("train.py", "w") as f:
+                f.write(train_py)
+            res = sh.python("train.py")
+            print(res)
+        finally:  # avoid stepping on other tests, even if this one fails
+            del os.environ["WANDB_DIR"]
+            del os.environ["WANDB_MODE"]
+            sh.rm("-rf", "/tmp/wandb/*")
         run_dir = glob.glob("/tmp/wandb/dry*")[0]
         assert os.path.exists(run_dir + "/output.log")
 
@@ -72,7 +76,9 @@ def test_dry_run_kill(runner):
             print(res)
         except sh.ErrorReturnCode:
             pass
-        run_dir = glob.glob("wandb/dry*")[0]
+        dirs = glob.glob("wandb/dry*")
+        print(dirs)
+        run_dir = dirs[0]
         meta = json.loads(open(run_dir + "/wandb-metadata.json").read())
         assert meta["state"] == "killed"
         assert meta["exitcode"] == 255

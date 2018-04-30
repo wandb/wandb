@@ -84,6 +84,8 @@ function parcoor(
     .append('path')
     .attr('d', path);
 
+  addHover();
+
   // Add a group element for each dimension.
   const g = svg
     .selectAll('.dimension')
@@ -182,7 +184,6 @@ function parcoor(
       .on('mouseover', (row, index) => mouseOverCallback(row, index))
       .on('mouseout', (row, index) => mouseOutCallback());
   }
-  addHover();
 
   function position(d) {
     const v = dragging[d];

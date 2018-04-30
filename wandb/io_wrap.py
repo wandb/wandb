@@ -207,17 +207,13 @@ class FileRedirector(object):
         self.redir_file.flush()  # flush library buffers that dup2 knows nothing about
         os.dup2(self._to_fd, self._from_fd)  # $ exec >&to
 
-    '''
-    This isn't tested properly:
+    #This isn't tested properly:
     def restore(self):
         """Restore `self.redir_file` to its original state.
-
-        This function may only be called once.
         """
         #NOTE: dup2 makes `self._from_fd` inheritable unconditionally
         self.redir_file.flush()
         os.dup2(self.orig_file.fileno(), self._from_fd)  # $ exec >&copied
         #self.orig_file.close()
         #self.orig_file = None
-        self.redir_file = None
-    '''
+        #self.redir_file = None
