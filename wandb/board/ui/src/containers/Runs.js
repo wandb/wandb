@@ -153,7 +153,6 @@ class Runs extends React.Component {
   }
 
   componentWillMount() {
-    this.props.resetViews();
     this._readUrl(this.props);
   }
 
