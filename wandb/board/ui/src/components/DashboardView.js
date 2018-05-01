@@ -134,6 +134,11 @@ class DashboardView extends Component {
         query.page = {
           size: 10,
         };
+        // Specific fields
+        query.historyFields = ['_step', '_runtime', '_timestamp'];
+        if (panelConfig.config && panelConfig.config.key) {
+          query.historyFields.push(panelConfig.config.key);
+        }
         if (
           panelConfig.config &&
           panelConfig.config.groupBy &&

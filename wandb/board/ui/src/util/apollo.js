@@ -153,7 +153,8 @@ function dataIdFromObject(object) {
       .update(
         (object.config || '') +
           (object.summaryMetrics || '') +
-          (object.systemMetrics || '')
+          (object.systemMetrics || '') +
+          (object.history && object.history.length > 0 ? object.history[0] : '')
       )
       .digest('hex');
     return object.id + extra;

@@ -54,6 +54,7 @@ function withRunsData() {
           order: order,
           requestSubscribe: requestSubscribe || false,
           history: !!query.history,
+          historyFields: query.historyFields,
           limit: query.page && query.page.size,
           filters: JSON.stringify(Filter.toMongo(query.filters)),
           fields: query.select,

@@ -85,6 +85,7 @@ export const RUNS_QUERY = gql`
     $basicEnable: Boolean = true
     $history: Boolean = false
     $fields: [String]
+    $historyFields: [String]
   ) {
     project(name: $name, entityName: $entityName) {
       id
@@ -104,6 +105,7 @@ export const RUNS_QUERY = gql`
         names: $bucketIds
         filters: $filters
         fields: $fields
+        historyFields: $historyFields
       ) {
         paths
         edges {
