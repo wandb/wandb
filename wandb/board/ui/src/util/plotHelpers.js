@@ -672,11 +672,15 @@ export function linesFromDataRunsPlot(
     }
     lines = aggLines;
   } else {
-    lines = lines.filter(line => line.data.length > 0).map((line, i) => ({
-      title: new RunFancyName(rawData.filteredRunsById[line.name], nameSpec),
-      color: color(i, 0.8),
-      data: line.data,
-    }));
+    lines = lines
+      .filter(
+        line => rawData.filteredRunsById[line.name] && line.data.length > 0
+      )
+      .map((line, i) => ({
+        title: new RunFancyName(rawData.filteredRunsById[line.name], nameSpec),
+        color: color(i, 0.8),
+        data: line.data,
+      }));
   }
 
   lines = smoothLines(lines, smoothingWeight);

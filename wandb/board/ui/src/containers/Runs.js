@@ -246,6 +246,9 @@ class Runs extends React.Component {
                 {this.props.counts.filtered} filtered,{' '}
                 {this.props.counts.selected} selected
               </p>
+              <div style={{marginTop: 8, marginBottom: 8}}>
+                <Checkbox label="Grouping" />
+              </div>
               <p>
                 <span
                   style={{cursor: 'pointer'}}

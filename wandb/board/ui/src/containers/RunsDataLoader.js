@@ -164,7 +164,11 @@ function withDerivedRunsData(WrappedComponent) {
       const query = props.query;
 
       const runs = updateRuns(prevRuns, curRuns, []);
-      let filteredRuns = runs;
+      let filteredRuns = RunHelpers2.groupRuns(
+        runs,
+        'evaluation',
+        'machine_pool'
+      );
       let keys = curRuns && RunHelpers2.keySuggestions(curRuns.paths, 1);
       keys = keys || [];
       let filteredRunsById = {};

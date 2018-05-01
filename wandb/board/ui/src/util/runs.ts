@@ -39,7 +39,7 @@ export type Value = string | number | boolean | null;
 export type DomValue = string | number;
 
 // config and summary are stored as KeyVal
-interface KeyVal {
+export interface KeyVal {
   // The compiler doesn't like when we an array of runs that have different config keys (in tests),
   // unless we allow undefined here.
   readonly [key: string]: Value | undefined;
