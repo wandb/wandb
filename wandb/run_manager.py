@@ -137,16 +137,22 @@ class FileEventHandlerConfig(FileEventHandler):
         self._eventually_update()
 
     def _eventually_update(self):
-        if time.time() - self._last_sent >= self.RATE_LIMIT_SECONDS:
-            if self._thread:
-                self._thread.join()
-                self._thread = None
+        if self._thread:
+            # assume the existing thread will catch this update
+            return
 
-            self._thread = threading.Timer(
-                self.RATE_LIMIT_SECONDS, self._update)
-            self._thread.start()
-        else:
+        if time.time() - self._last_sent >= self.RATE_LIMIT_SECONDS:
             self._update()
+        else:
+            self._thread = threading.Timer(
+                self.RATE_LIMIT_SECONDS, self._thread_update)
+            self._thread.start()
+
+    def _thread_update(self):
+        try:
+            self._update()
+        finally:
+            self._thread = None
 
     def _update(self):
         try:
@@ -332,34 +338,14 @@ class RunManager(object):
         self._tags = tags
         self._watch_dir = self._run.dir
 
-        logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
+        self._config = run.config
+        self.url = self._run.get_url(api)
+
+        self._event_handlers = {}
 
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self.on_file_created
         self._handler.on_modified = self.on_file_modified
-        self.url = self._run.get_url(api)
-        self._observer = Observer()
-
-        self._observer.schedule(self._handler, self._watch_dir, recursive=True)
-
-        self._config = run.config
-
-        self._stats = stats.Stats()
-        # This starts a thread to write system stats every 30 seconds
-        self._system_stats = stats.SystemStats(run)
-        self._meta = meta.Meta(api, self._run.dir)
-        self._meta.data["jobType"] = job_type
-        if self._run.program:
-            self._meta.data["program"] = self._run.program
-
-        def push_function(save_name, path):
-            with open(path, 'rb') as f:
-                self._api.push(self._project, {save_name: f}, run=self._run.id,
-                               progress=lambda _, total: self._stats.update_progress(path, total))
-        self._file_pusher = file_pusher.FilePusher(push_function)
-
-        self._event_handlers = {}
-
         self._handler._patterns = [
             os.path.join(self._watch_dir, os.path.normpath('*'))]
         # Ignore hidden files/folders and output.log because we stream it specially
@@ -369,7 +355,21 @@ class RunManager(object):
             os.path.join(self._run.dir, OUTPUT_FNAME)
         ]
 
+        self._observer = Observer()
+        self._observer.schedule(self._handler, self._watch_dir, recursive=True)
+
+        self._stats = stats.Stats()
+        # This starts a thread to write system stats every 30 seconds
+        self._system_stats = stats.SystemStats(run)
+        self._meta = meta.Meta(api, self._run.dir)
+        self._meta.data["jobType"] = job_type
+        if self._run.program:
+            self._meta.data["program"] = self._run.program
+        self._file_pusher = file_pusher.FilePusher(self._push_function)
+
         self._socket = wandb_socket.Client(self._port)
+
+        logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
         if self._cloud:
             self._observer.start()
@@ -382,6 +382,71 @@ class RunManager(object):
 
             self._api.get_file_stream_api().set_file_policy(
                 OUTPUT_FNAME, CRDedupeFilePolicy())
+
+    """ FILE SYNCING / UPLOADING STUFF """
+
+    # TODO: limit / throttle the number of adds / pushes
+    def on_file_created(self, event):
+        logger.info('file/dir created: %s', event.src_path)
+        if os.path.isdir(event.src_path):
+            return None
+        save_name = os.path.relpath(event.src_path, self._watch_dir)
+        self._get_handler(event.src_path, save_name).on_created()
+
+    def on_file_modified(self, event):
+        logger.info('file/dir modified: %s', event.src_path)
+        if os.path.isdir(event.src_path):
+            return None
+        save_name = os.path.relpath(event.src_path, self._watch_dir)
+        self._get_handler(event.src_path, save_name).on_modified()
+
+    def _get_handler(self, file_path, save_name):
+        if not save_name.startswith('media/'):
+            # Don't show stats on media files
+            self._stats.update_file(file_path)
+        if save_name not in self._event_handlers:
+            if save_name == 'wandb-history.jsonl':
+                self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
+                    file_path, 'wandb-history.jsonl', self._api)
+            elif save_name == 'wandb-events.jsonl':
+                self._event_handlers['wandb-events.jsonl'] = FileEventHandlerTextStream(
+                    file_path, 'wandb-events.jsonl', self._api)
+            # Don't try to stream tensorboard files for now.
+            # elif 'tfevents' in save_name:
+            #    # TODO: This is hard-coded, but we want to give users control
+            #    # over streaming files (or detect them).
+            #    self._api.get_file_stream_api().set_file_policy(save_name,
+            #                                                    BinaryFilePolicy())
+            #    self._event_handlers[save_name] = FileEventHandlerBinaryStream(
+            #        file_path, save_name, self._api)
+            # Overwrite handler (non-deferred) has a bug, wherein if the file is truncated
+            # during upload, the request to Google hangs (at least, this is my working
+            # theory). So for now we defer uploading everything til the end of the run.
+            # TODO: send wandb-summary during run. One option is to copy to a temporary
+            # file before uploading.
+            elif save_name == config.FNAME:
+                self._event_handlers[save_name] = FileEventHandlerConfig(
+                    file_path, save_name, self._api, self._file_pusher, storage_id=self._run.storage_id)
+            elif save_name == 'wandb-summary.json':
+                # Load the summary into the syncer process for meta etc to work
+                self._run.summary.load()
+                self._event_handlers[save_name] = FileEventHandlerSummary(
+                    file_path, save_name, self._api, self._file_pusher, storage_id=self._run.storage_id)
+            elif save_name.startswith('media/'):
+                # Save media files immediately
+                self._event_handlers[save_name] = FileEventHandlerOverwrite(
+                    file_path, save_name, self._api, self._file_pusher)
+            else:
+                self._event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
+                    file_path, save_name, self._api, self._file_pusher)
+        return self._event_handlers[save_name]
+
+    def _push_function(self, save_name, path):
+        with open(path, 'rb') as f:
+            self._api.push(self._project, {save_name: f}, run=self._run.id,
+                           progress=lambda _, total: self._stats.update_progress(path, total))
+
+    """ RUN MANAGEMENT STUFF """
 
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
@@ -521,7 +586,7 @@ class RunManager(object):
                         "resume='never' but run (%s) exists" % self._run.id)
                 else:
                     raise LaunchError(
-                        'Launch exception: %s, see wandb-debug.log for details' % str(e))
+                        'Launch exception: {}, see {} for details'.format(e, util.get_log_file_path()))
             self._run.storage_id = upsert_result['id']
             self._run.set_environment(environment=env)
 
@@ -575,7 +640,7 @@ class RunManager(object):
         try:
             self.init_run()
         except LaunchError as e:
-            print(str(e))
+            wandb.termerror(str(e))
             self._socket.launch_error()
             return
 
@@ -588,7 +653,7 @@ class RunManager(object):
         self.proc = Process(pid)
 
         # Signal the main process that we're all hooked up
-        self._socket.ready(self._run.storage_id)
+        self._socket.ready()
 
         self._sync_etc(headless=True)
 
@@ -792,58 +857,3 @@ class RunManager(object):
             wandb.termerror('Sync failed %s' % self.url)
         else:
             wandb.termlog('Synced %s' % self.url)
-
-    def _get_handler(self, file_path, save_name):
-        if not save_name.startswith('media/'):
-            # Don't show stats on media files
-            self._stats.update_file(file_path)
-        if save_name not in self._event_handlers:
-            if save_name == 'wandb-history.jsonl':
-                self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
-                    file_path, 'wandb-history.jsonl', self._api)
-            elif save_name == 'wandb-events.jsonl':
-                self._event_handlers['wandb-events.jsonl'] = FileEventHandlerTextStream(
-                    file_path, 'wandb-events.jsonl', self._api)
-            # Don't try to stream tensorboard files for now.
-            # elif 'tfevents' in save_name:
-            #    # TODO: This is hard-coded, but we want to give users control
-            #    # over streaming files (or detect them).
-            #    self._api.get_file_stream_api().set_file_policy(save_name,
-            #                                                    BinaryFilePolicy())
-            #    self._event_handlers[save_name] = FileEventHandlerBinaryStream(
-            #        file_path, save_name, self._api)
-            # Overwrite handler (non-deferred) has a bug, wherein if the file is truncated
-            # during upload, the request to Google hangs (at least, this is my working
-            # theory). So for now we defer uploading everything til the end of the run.
-            # TODO: send wandb-summary during run. One option is to copy to a temporary
-            # file before uploading.
-            elif save_name == config.FNAME:
-                self._event_handlers[save_name] = FileEventHandlerConfig(
-                    file_path, save_name, self._api, self._file_pusher, storage_id=self._run.storage_id)
-            elif save_name == 'wandb-summary.json':
-                # Load the summary into the syncer process for meta etc to work
-                self._run.summary.load()
-                self._event_handlers[save_name] = FileEventHandlerSummary(
-                    file_path, save_name, self._api, self._file_pusher, storage_id=self._run.storage_id)
-            elif save_name.startswith('media/'):
-                # Save media files immediately
-                self._event_handlers[save_name] = FileEventHandlerOverwrite(
-                    file_path, save_name, self._api, self._file_pusher)
-            else:
-                self._event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
-                    file_path, save_name, self._api, self._file_pusher)
-        return self._event_handlers[save_name]
-
-    # TODO: limit / throttle the number of adds / pushes
-    def on_file_created(self, event):
-        if os.path.isdir(event.src_path):
-            return None
-        save_name = os.path.relpath(event.src_path, self._watch_dir)
-        self._get_handler(event.src_path, save_name).on_created()
-
-    # TODO: is this blocking the main thread?
-    def on_file_modified(self, event):
-        if os.path.isdir(event.src_path):
-            return None
-        save_name = os.path.relpath(event.src_path, self._watch_dir)
-        self._get_handler(event.src_path, save_name).on_modified()

@@ -3,11 +3,13 @@
 """
 
 import json
+import logging
 import os
 import socket
 import sys
 import time
 
+import wandb
 import wandb.api
 import wandb.run_manager
 import wandb.wandb_run
@@ -81,7 +83,11 @@ def agent_run(args):
         rm.run_user_process(args['program'], args['args'], env)
 
 
+
+
 def main():
+    wandb.try_to_set_up_logging()
+
     args = json.loads(sys.argv[1])
     command = args['command']
     if command == 'headless':

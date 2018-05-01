@@ -50,20 +50,18 @@ class Retry(object):
            sleep_base (kwarg): amount of time to sleep upon first failure, all other sleeps
                are derived from this one.
         """
-        try:
-            retry_timedelta = kwargs.pop('retry_timedelta')
-        except KeyError:
-            retry_timedelta = self._retry_timedelta
+
+        retry_timedelta = kwargs.pop('retry_timedelta', self._retry_timedelta)
         if retry_timedelta is None:
             retry_timedelta = datetime.timedelta(days=1000000)
-        try:
-            num_retries = kwargs.get('num_retries')
-        except KeyError:
-            num_retries = self._num_retries
+
+        num_retries = kwargs.pop('num_retries', self._num_retries)
         if num_retries is None:
             num_retries = 1000000
-        if os.environ.get('WANDB_TEST', None):
+
+        if os.environ.get('WANDB_TEST'):
             num_retries = 0
+
         sleep_base = 1
         try:
             sleep_base = kwargs.pop('retry_sleep_base')

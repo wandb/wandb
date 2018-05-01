@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 
+# Three possible modes:
+#     'cli': running from "wandb" command
+#     'run': we're a script launched by "wandb run"
+#     'dryrun': we're a script not launched by "wandb run"
+
 from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
@@ -41,17 +46,16 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import util
 from wandb.media import Image
-# Three possible modes:
-#     'cli': running from "wandb" command
-#     'run': we're a script launched by "wandb run"
-#     'dryrun': we're a script not launched by "wandb run"
 
 
 logger = logging.getLogger(__name__)
+
+
 if __stage_dir__ is not None:
     log_fname = wandb_dir() + 'debug.log'
 else:
     log_fname = './wandb-debug.log'
+log_fname = os.path.relpath(log_fname, os.getcwd())
 
 
 def _debugger(*args):
@@ -165,13 +169,15 @@ def _init_headless(run, job_type, cloud=True):
             termerror('Failed to kill wandb process, PID {}'.format(wandb_process.pid))
         sys.exit(1)
 
-    run.storage_id = message['storage_id']
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
     stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
     stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
+    # TODO(adrian): we should register this right after starting the wandb process to
+    # make sure we shut down the W&B process eg. if there's an exception in the code
+    # above
     atexit.register(_user_process_finished, server, hooks, wandb_process, stdout_redirector, stderr_redirector)
 
     # redirect output last of all so we don't miss out on error messages
@@ -181,10 +187,12 @@ def _init_headless(run, job_type, cloud=True):
 
 
 def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stderr_redirector):
+    stdout_redirector.restore()
+    if not env.get_debug():
+        stderr_redirector.restore()
+
     termlog("Waiting for wandb process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
-    stdout_redirector.restore()
-    stderr_redirector.restore()
     try:
         while wandb_process.poll() is None:
             time.sleep(0.1)
@@ -217,11 +225,6 @@ def log(history_row, complete=True):
         run.history.row.update(history_row)
 
 
-@property
-def history():
-    return run.history
-
-
 def ensure_configured():
     api = wandb.api.Api()
     # The WANDB_DEBUG check ensures tests still work.
@@ -239,9 +242,12 @@ def uninit():
 
 
 def try_to_set_up_logging():
-    logger.setLevel(logging.DEBUG)
     try:
-        handler = logging.FileHandler(log_fname, mode='w')
+        logging.basicConfig(
+            filemode="w",
+            format='%(asctime)s %(levelname)-7s %(threadName)-10s [%(filename)s:%(funcName)s():%(lineno)s] %(message)s',
+            filename=log_fname,
+            level=logging.DEBUG)
     except IOError as e:  # eg. in case wandb directory isn't writable
         if env.is_debug():
             raise
@@ -249,15 +255,17 @@ def try_to_set_up_logging():
             termerror('Failed to set up logging: {}'.format(e))
             return False
 
-    handler.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
-
     return True
 
 
 def init(job_type='train', config=None):
     global run
     global __stage_dir__
+
+    # the following line is useful to ensure that no W&B logging happens in the user
+    # process that might interfere with what they do
+    #logging.basicConfig(format='user process %(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     # If a thread calls wandb.init() it will get the same Run object as
     # the parent. If a child process with distinct memory space calls
     # wandb.init(), it won't get an error, but it will get a result of
@@ -272,9 +280,6 @@ def init(job_type='train', config=None):
     if __stage_dir__ is None:
         __stage_dir__ = "wandb"
         util.mkdir_exists_ok(wandb_dir())
-
-    if not try_to_set_up_logging():
-        sys.exit(1)
 
     try:
         signal.signal(signal.SIGQUIT, _debugger)
