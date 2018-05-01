@@ -139,11 +139,7 @@ class DashboardView extends Component {
         if (panelConfig.config && panelConfig.config.key) {
           query.historyFields.push(panelConfig.config.key);
         }
-        if (
-          panelConfig.config &&
-          panelConfig.config.groupBy &&
-          panelConfig.config.groupBy !== 'None'
-        ) {
+        if (panelConfig.config && panelConfig.config.aggregate) {
           query.page.size = 30;
         }
         // use selections in addition to filters.

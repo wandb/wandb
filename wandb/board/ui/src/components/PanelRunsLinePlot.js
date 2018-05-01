@@ -324,7 +324,7 @@ class RunsLinePlotPanel extends React.Component {
           {totalRuns > maxRuns && (
             <span style={{fontSize: 13}}>
               Showing {maxRuns} of {totalRuns} selected runs{this.props.config
-                .groupBy && this.props.config.groupBy != 'None'
+                .aggregate
                 ? ' (before grouping)'
                 : ' '}
             </span>
