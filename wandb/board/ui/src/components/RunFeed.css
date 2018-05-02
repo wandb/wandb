@@ -130,5 +130,9 @@ th.rotate > div > span {
 }
 
 .ui.definition.sortable.table thead:not(.full-width) th:first-child {
+  color: rgba(0, 0, 0, 0.8);
   pointer-events: auto;
+}
+.ui.definition.sortable.table thead:not(.full-width) th:first-child:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
