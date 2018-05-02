@@ -1,3 +1,6 @@
+// This module is not used currently.
+// It can load individual histories in, smartly batching queries together.
+
 import React from 'react';
 import {graphql, withApollo} from 'react-apollo';
 import {fragments, FAKE_HISTORY_QUERY, HISTORY_QUERY} from '../graphql/runs';
@@ -25,7 +28,7 @@ export default function withHistoryLoader(WrappedComponent) {
       // be true when the withRunsData loader upstream from us has polled new data
       // (or when some other parameters have changed, which doesn't happen on the
       // dashboard page right now)
-      let pollingMode = Query.shouldPoll(nextProps.query);
+      let pollingMode = true;
 
       if (nextProps.data.filtered !== props.data.filtered) {
         //console.log('SelectionQueryThing willReceiveProps', nextProps);
@@ -138,7 +141,6 @@ export default function withHistoryLoader(WrappedComponent) {
   };
 
   const withData = graphql(FAKE_HISTORY_QUERY, {
-    skip: ({query}) => !Query.needsOwnHistoryQuery(query),
     options: ({histQueryKey}) => {
       return {
         fetchPolicy: 'cache-only',

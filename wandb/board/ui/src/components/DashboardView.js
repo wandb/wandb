@@ -117,7 +117,6 @@ class DashboardView extends Component {
     // This is not a great place for this logic, it should be in each Panel Type.
     if (this.props.viewType != 'run') {
       query = Query.merge(this.props.pageQuery, panelConfig.query || {});
-      query.strategy = 'merge';
       query.baseQuery = this.props.pageQuery;
       if (!panelConfig.config) {
         query.page = {
@@ -204,7 +203,7 @@ class DashboardView extends Component {
         size={panelConfig.size}
         sizeKey={JSON.stringify(panelConfig.layout)}
         pageQuery={this.props.pageQuery}
-        panelQuery={panelConfig.query}
+        panelQuery={panelConfig.query || {}}
         query={query}
         config={panelConfig.config}
         data={this.props.data}

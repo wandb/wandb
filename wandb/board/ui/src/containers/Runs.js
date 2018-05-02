@@ -298,7 +298,7 @@ class Runs extends React.Component {
                   data={this.props.data}
                   pageQuery={{
                     entity: this.props.match.params.entity,
-                    model: this.props.match.params.model,
+                    project: this.props.match.params.model,
                     sort: this.props.sort,
                     filters: this.props.runFilters,
                     selections: this.props.runSelections,
@@ -449,8 +449,7 @@ class Runs extends React.Component {
           limit={this.props.limit}
           query={{
             entity: this.props.match.params.entity,
-            model: this.props.match.params.model,
-            strategy: 'root',
+            project: this.props.match.params.model,
             filters: this.props.runFilters,
             page: {
               // num: state.runs.pages[id] ? state.runs.pages[id].current : 0,

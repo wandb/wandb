@@ -674,7 +674,7 @@ export default class RunFilters extends React.Component<
             }
           />
         ))}
-        <Button
+        {!empty && <Button
           className="orButton"
           circular
           icon="plus"
@@ -692,7 +692,7 @@ export default class RunFilters extends React.Component<
               })
             )
           }
-        />
+        />}
       </div>
     ) : (
       <p>Can't render filters</p>

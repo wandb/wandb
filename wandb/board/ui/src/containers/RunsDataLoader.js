@@ -37,7 +37,7 @@ import _ from 'lodash';
 function withRunsData() {
   return graphql(RUNS_QUERY, {
     alias: 'withRunsData',
-    skip: ({query}) => !Query.needsOwnRunsQuery(query),
+    skip: ({query}) => query == null || query.disabled,
     options: ({query, requestSubscribe}) => {
       let order = 'timeline';
       if (query.sort && query.sort.name) {
@@ -46,11 +46,12 @@ function withRunsData() {
           order = (query.sort.ascending ? '-' : '+') + serverPath;
         }
       }
+      console.log("QUERY OPTions'", query);
       const defaults = {
         fetchPolicy: 'network-only',
         variables: {
           entityName: query.entity,
-          name: query.model,
+          name: Query.project(query),
           order: order,
           requestSubscribe: requestSubscribe || false,
           history: !!query.history,
@@ -65,7 +66,7 @@ function withRunsData() {
       if (BOARD) {
         defaults.pollInterval = 5000;
       }
-      if (Query.shouldPoll(query)) {
+      if (query.pollInterval) {
         defaults.pollInterval = 60000;
       }
       return defaults;
@@ -242,11 +243,11 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     componentWillMount() {
-      if (Query.shouldPassThrough(this.props.query)) {
+      if (this.props.query == null) {
         this.data = this.props.data;
         return;
       }
-      if (!Query.needsOwnRunsQuery(this.props.query)) {
+      if (this.props.query.disabled) {
         this.data = this.defaultData;
         return;
       }
@@ -258,11 +259,11 @@ function withDerivedRunsData(WrappedComponent) {
     }
 
     componentWillReceiveProps(nextProps) {
-      if (Query.shouldPassThrough(this.props.query)) {
+      if (this.props.query == null) {
         this.data = nextProps.data;
         return;
       }
-      if (!Query.needsOwnRunsQuery(nextProps.query)) {
+      if (this.props.query.disabled) {
         this.data = this.defaultData;
         return;
       }

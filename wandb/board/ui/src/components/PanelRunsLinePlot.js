@@ -292,19 +292,15 @@ class RunsLinePlotPanel extends React.Component {
 
     let title = '';
     if (yAxis) {
-      if (Query.strategy(this.props.panelQuery) === 'merge') {
-        let querySummary = Query.summaryString(this.props.panelQuery);
-
-        if (this.props.panelQuery.model) {
-          title = this.props.panelQuery.model + ' (' + querySummary + ')';
-        } else {
-          title = yAxis + ' (' + querySummary + ')';
-        }
+      if (Query.project(this.props.panelQuery)) {
+        title = Query.project(this.props.panelQuery);
       } else {
         title = yAxis;
       }
-    } else {
-      title = '';
+      let querySummary = Query.summaryString(this.props.panelQuery);
+      if (querySummary != null && querySummary !== '') {
+        title = title + ' (' + querySummary + ')';
+      }
     }
 
     return (

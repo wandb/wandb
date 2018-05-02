@@ -4,15 +4,11 @@ import * as Run from './runs';
 import * as Filter from './filters';
 
 export function merge(base, apply) {
-  let strat = strategy(apply);
-  if (strat === 'page') {
-    return {...base, strategy: apply.strategy};
-  }
   let result = {};
-  result.strategy = apply.strategy;
   result.page = apply.page;
   result.entity = apply.entity || base.entity;
-  result.model = apply.model || base.model;
+  // Use model as well for old data.
+  result.project = apply.project || apply.model || base.project;
 
   // AND the two sets of filters together
   if (apply.filters) {
@@ -39,11 +35,8 @@ export function merge(base, apply) {
 }
 
 export function summaryString(query) {
-  if (strategy(query) === 'page') {
-    return '';
-  }
   if (query.filters == null) {
-    return '';
+    return null;
   }
   let filters = query.filters;
   if (filters.op == null) {
@@ -55,45 +48,6 @@ export function summaryString(query) {
   return Filter.summaryString(filters);
 }
 
-export function strategy(query) {
-  if (!query || !query.strategy) {
-    // page is the default when not explicity provided
-    return 'page';
-  }
-  return query.strategy;
+export function project(query) {
+  return query && (query.project || query.model);
 }
-
-///// Control Flow stuff:
-// The logic in these functions is kind of gnarly because we're conflating
-// a few concepts with query.
-// TODO: rework.
-
-export function sameModel(q1, q2) {
-  return q1.entity === q2.entity && q1.model === q2.model;
-}
-
-export function canReuseBaseData(query) {
-  return false;
-  return strategy(query) === 'merge' && sameModel(query, query.baseQuery);
-}
-
-export function shouldPoll(query) {
-  return strategy(query) === 'merge' && !sameModel(query, query.baseQuery);
-}
-
-export function needsOwnRunsQuery(query) {
-  return (
-    (strategy(query) === 'root' || strategy(query) === 'merge') &&
-    !query.disabled
-  );
-}
-
-export function shouldPassThrough(query) {
-  return strategy(query) === 'page';
-}
-
-export function needsOwnHistoryQuery(query) {
-  return true;
-  return strategy(query) === 'root' || strategy(query) === 'merge';
-}
-///// End control flow stuff

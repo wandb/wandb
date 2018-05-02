@@ -87,7 +87,7 @@ class Dashboard extends React.Component {
             data={this.props.data}
             pageQuery={{
               entity: this.props.match.params.entity,
-              model: this.props.match.params.model,
+              project: this.props.match.params.model,
               sort: this.props.sort,
               filters: this.props.runFilters,
               selections: this.props.runSelections,

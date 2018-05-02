@@ -11,10 +11,6 @@ import RunFilters from '../components/RunFilters';
 import ProjectSelector from '../components/ProjectSelector';
 
 class QueryEditor extends React.Component {
-  setStrategy(strategy) {
-    this.props.setQuery(update(this.query, {strategy: {$set: strategy}}));
-  }
-
   setProject(project) {
     this.props.setQuery(update(this.query, {model: {$set: project}}));
   }
@@ -30,19 +26,15 @@ class QueryEditor extends React.Component {
   }
 
   render() {
-    let {setQuery, runs, keySuggestions} = this.props;
-    this.query = this.props.panelQuery || {};
-    let strategy = this.query.strategy;
-    if (strategy !== 'page' && strategy !== 'merge') {
-      strategy = 'page';
-    }
-    this.filters = this.query.filters;
-    if (_.isObject(this.filters) && this.filters.op == null) {
+    const {query, allowProjectChange, runCount, mergeFilters} = this.props;
+    this.query = query;
+    let filters = this.query.filters;
+    if (_.isObject(filters) && filters.op == null) {
       // Handle the old format.
-      this.filters = Filter.fromOldQuery(_.values(this.filters));
+      filters = Filter.fromOldQuery(_.values(filters));
     }
-    if (this.filters == null) {
-      this.filters = {
+    if (filters == null) {
+      filters = {
         op: 'OR',
         filters: [
           {
@@ -52,35 +44,34 @@ class QueryEditor extends React.Component {
         ],
       };
     }
-    let project = this.query.model || '';
+    const entity = this.query.entity || this.props.defaultEntity;
+    const project = Query.project(this.query) || this.props.defaultProject;
 
     return (
       <Form style={{marginBottom: 20}}>
-        {strategy === 'merge' && (
-          <Form.Group style={{marginLeft: 20}}>
-            {this.props.allowProjectChange && (
-              <Form.Field width={4}>
-                <label>Project</label>
-                <ProjectSelector
-                  entity={this.props.pageQuery.entity}
-                  value={this.query.model || this.props.pageQuery.model}
-                  onChange={project => this.setProject(project)}
-                />
-              </Form.Field>
-            )}
-            <Form.Field width={10}>
-              <label>Filters</label>
-              <RunFilters
-                filters={this.filters}
-                mergeFilters={this.props.pageQuery.filters}
-                runs={runs}
-                filteredRuns={this.props.filteredRuns}
-                keySuggestions={keySuggestions}
-                setFilters={(_, newFilters) => this.setFilters(newFilters)}
+        <Form.Group style={{marginLeft: 20}}>
+          {allowProjectChange && (
+            <Form.Field width={4}>
+              <label>Project</label>
+              <ProjectSelector
+                entity={entity}
+                value={project}
+                onChange={project => this.setProject(project)}
               />
             </Form.Field>
-          </Form.Group>
-        )}
+          )}
+          <Form.Field width={10}>
+            <label>Filters</label>
+            <RunFilters
+              entityName={entity}
+              projectName={project}
+              filters={filters}
+              mergeFilters={mergeFilters}
+              filteredRunsCount={runCount}
+              setFilters={(_, newFilters) => this.setFilters(newFilters)}
+            />
+          </Form.Field>
+        </Form.Group>
       </Form>
     );
   }

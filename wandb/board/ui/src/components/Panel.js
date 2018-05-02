@@ -4,6 +4,7 @@ import {Button, Card, Dropdown, Grid, Icon, Segment} from 'semantic-ui-react';
 import {panelClasses} from '../util/registry.js';
 import QueryEditor from '../components/QueryEditor';
 import {sortRuns} from '../util/runhelpers.js';
+import * as Query from '../util/query.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
 
@@ -119,17 +120,23 @@ export default class Panel extends React.Component {
             (this.props.viewType === 'dashboards' ||
               this.props.viewType === 'runs') && (
               <QueryEditor
-                pageQuery={this.props.pageQuery}
-                panelQuery={this.props.panelQuery}
-                allFilters={this.props.query.filters}
+                defaultEntity={this.props.pageQuery.entity}
+                defaultProject={Query.project(this.props.pageQuery)}
+                query={this.props.panelQuery}
+                mergeFilters={this.props.pageQuery.filters || null}
                 allowProjectChange={this.props.viewType === 'dashboards'}
                 setQuery={this.props.updateQuery}
-                runs={this.props.data.base}
-                keySuggestions={this.props.data.keys}
-                filteredRuns={this.props.data.filtered}
+                runCount={this.props.data.totalRuns}
               />
             )}
-          {this.renderPanelType(PanelType, configMode, config, data, sizeKey)}
+          {this.renderPanelType(
+            PanelType,
+            configMode,
+            config,
+            data,
+            sizeKey,
+            this.props.panelQuery
+          )}
         </div>
       );
     } else if (!panel) {
