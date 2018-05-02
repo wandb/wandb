@@ -30,7 +30,7 @@ export function mergeKeyVals(keyVals: Run.KeyVal[]): Run.KeyVal {
   for (const key of keys) {
     const values = keyVals.map(kv => kv[key]);
     if (typeof values[0] === 'number') {
-      result[key] = _.sum(values);
+      result[key] = _.sum(values) / values.length;
     } else {
       result[key] = values[0];
     }
@@ -38,10 +38,9 @@ export function mergeKeyVals(keyVals: Run.KeyVal[]): Run.KeyVal {
   return result;
 }
 
-export function mergeRuns(runs: Run.Run[], name: string): Run.Run {
-  const result = {
+export function mergeRunsBase(runs: Run.Run[]) {
+  return {
     id: runs[0].id,
-    name,
     state: runs[0].state,
     user: runs[0].user,
     host: runs[0].host,
@@ -49,13 +48,19 @@ export function mergeRuns(runs: Run.Run[], name: string): Run.Run {
     heartbeatAt: runs[0].heartbeatAt,
     tags: runs[0].tags,
     description: '',
+  };
+}
+
+export function mergeRuns(runs: Run.Run[], name: string): Run.Run {
+  return {
+    ...mergeRunsBase(runs),
+    name,
     config: mergeKeyVals(runs.map(r => r.config)),
     summary: mergeKeyVals(runs.map(r => r.summary)),
   };
-  return result;
 }
 
-export function groupRuns(
+export function subgroupRuns(
   runs: Run.Run[],
   groupKey: string,
   subgroupKey: string
@@ -75,9 +80,49 @@ export function groupRuns(
     }
     result[group][subgroup].push(run);
   }
-  const merged = _.mapValues(result, group =>
+  const merged = _.mapValues(result, (group, groupName) =>
     _.map(group, (sgRuns, subgroup) => mergeRuns(sgRuns, subgroup))
   );
 
   return _.flatMap(merged);
+}
+
+export function pivotKeyVals(
+  nameAndKeyVals: Array<[string, Run.KeyVal]>
+): Run.KeyVal {
+  let result: {[key: string]: Run.Value | undefined} = {};
+  for (const nameKV of nameAndKeyVals) {
+    const [name, kv] = nameKV;
+    result = Object.assign(result, _.mapKeys(kv, (v, k) => name + '$' + k));
+  }
+  return result;
+}
+
+export function pivotRuns(runs: Run.Run[], name: string): Run.Run {
+  const result = {
+    ...mergeRunsBase(runs),
+    name,
+    config: pivotKeyVals(runs.map(r => {
+      return [r.name, r.config];
+    }) as Array<[string, Run.KeyVal]>),
+    summary: pivotKeyVals(runs.map(r => {
+      return [r.name, r.summary];
+    }) as Array<[string, Run.KeyVal]>),
+  };
+  return result;
+}
+
+export function groupRuns(runs: Run.Run[], groupKey: string): Run.Run[] {
+  const result: {[group: string]: Run.Run[]} = {};
+  for (const run of runs) {
+    const group = run.config[groupKey] as string;
+    if (group == null) {
+      continue;
+    }
+    if (result[group] == null) {
+      result[group] = [];
+    }
+    result[group].push(run);
+  }
+  return _.map(result, pivotRuns);
 }
