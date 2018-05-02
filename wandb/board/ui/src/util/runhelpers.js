@@ -250,7 +250,7 @@ export function sortRuns(sort, runs) {
     return runs;
   }
   let getVal = run => {
-    if (sort.name === 'Ran') {
+    if (sort.name === 'Ran' || sort.name === 'selected') {
       return run.createdAt;
     } else if (sort.name === 'Description') {
       return runDisplayName(run);

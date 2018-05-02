@@ -42,8 +42,13 @@ function handleMessage(m, postMessage) {
       run.selected = _.includes(selectedRunsById, run.id);
       return run;
     });
-    // resort by `selected`
-    filteredRuns = sortRuns(query.sort, filteredRuns);
+    // partition runs per selected
+    let partitioned = _.partition(filteredRuns, function(run) {
+      return run.selected;
+    });
+    // pull selected runs to top or the bottom of the list
+    if (query.sort.ascending) partitioned.reverse();
+    filteredRuns = _.concat(...partitioned);
   }
   let keys = _.flatMap(keySuggestions, section => section.suggestions);
   let axisOptions = keys.map(key => {
