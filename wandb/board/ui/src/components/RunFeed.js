@@ -135,7 +135,7 @@ class RunFeedHeader extends React.Component {
   }
 
   render() {
-    let {selectable, sort, columnNames} = this.props;
+    let {sort, columnNames} = this.props;
     let longestColumn =
       Object.assign([], columnNames).sort((a, b) => b.length - a.length)[0] ||
       '';
@@ -146,7 +146,7 @@ class RunFeedHeader extends React.Component {
             height: Math.min(longestColumn.length, maxColNameLength) * 8,
             borderLeft: '1px solid rgba(34,36,38,.15)',
           }}>
-          {selectable && <Table.HeaderCell />}
+          <Table.HeaderCell />
           {columnNames.map(columnName => {
             let columnKey = columnName.split(':')[1];
             return (
@@ -257,7 +257,6 @@ class RunFeedGroupRow extends React.Component {
                     }
                   />
                 </Item.Extra>
-                {admin && <Launcher runId={edge.id} runName={edge.name} />}
               </Item.Content>
             </Item>
           </Item.Group>
@@ -267,7 +266,7 @@ class RunFeedGroupRow extends React.Component {
   }
 
   render() {
-    let {run, selectable, loading, columnNames, project} = this.props;
+    let {run, loading, columnNames, project} = this.props;
     const runsLength = this.props.runs.length;
     console.log('THISPROPS', this.props);
     return this.props.runs.map((run, groupIndex) => {
@@ -277,31 +276,23 @@ class RunFeedGroupRow extends React.Component {
         this.props.selections && Filter.match(this.props.selections, run);
       return (
         <Table.Row key={run.id}>
-          {selectable &&
-            (groupIndex === 0 ? (
-              <Table.Cell collapsing>
-                <Checkbox
-                  checked={selected}
-                  onChange={() => {
-                    let selections = this.props.selections;
-                    if (selected) {
-                      selections = Selection.Update.deselect(
-                        selections,
-                        run.name
-                      );
-                    } else {
-                      selections = Selection.Update.select(
-                        selections,
-                        run.name
-                      );
-                    }
-                    this.props.setFilters('select', selections);
-                  }}
-                />
-              </Table.Cell>
-            ) : (
-              groupIndex === 1 && <Table.Cell rowSpan={runsLength - 1} />
-            ))}
+          (groupIndex === 0 ? (
+          <Table.Cell collapsing>
+            <Checkbox
+              checked={selected}
+              onChange={() => {
+                let selections = this.props.selections;
+                if (selected) {
+                  selections = Selection.Update.deselect(selections, run.name);
+                } else {
+                  selections = Selection.Update.select(selections, run.name);
+                }
+                this.props.setFilters('select', selections);
+              }}
+            />
+          </Table.Cell>
+          ) : ( groupIndex === 1 && <Table.Cell rowSpan={runsLength - 1} />
+          ))
           {columnNames.map(columnName => {
             if (columnName === 'Description') {
               return groupIndex === 0 && this.descriptionCell(this.props.runs);
@@ -461,29 +452,27 @@ class RunFeedRunRow extends React.Component {
   }
 
   render() {
-    let {run, selectable, loading, columnNames, project} = this.props;
+    let {run, loading, columnNames, project} = this.props;
     const summary = run.summary;
     const config = run.config;
     const selected =
       this.props.selections && Filter.match(this.props.selections, run);
     return (
       <Table.Row key={run.id}>
-        {selectable && (
-          <Table.Cell collapsing>
-            <Checkbox
-              checked={selected}
-              onChange={() => {
-                let selections = this.props.selections;
-                if (selected) {
-                  selections = Selection.Update.deselect(selections, run.name);
-                } else {
-                  selections = Selection.Update.select(selections, run.name);
-                }
-                this.props.setFilters('select', selections);
-              }}
-            />
-          </Table.Cell>
-        )}
+        <Table.Cell collapsing>
+          <Checkbox
+            checked={selected}
+            onChange={() => {
+              let selections = this.props.selections;
+              if (selected) {
+                selections = Selection.Update.deselect(selections, run.name);
+              } else {
+                selections = Selection.Update.select(selections, run.name);
+              }
+              this.props.setFilters('select', selections);
+            }}
+          />
+        </Table.Cell>
         {columnNames.map(columnName => {
           if (columnName === 'Description') {
             return this.descriptionCell(run);
@@ -644,17 +633,8 @@ class RunFeed extends PureComponent {
     this.props.onSort(name, dir);
   }
 
-  tablePlaceholders(limit, length) {
-    let pageLength = !length || length > limit ? limit : length;
-    return Array.from({length: pageLength}).map((x, i) => {
-      return {id: i};
-    });
-  }
-
   render() {
     const runsLength = this.props.runCount;
-    const startIndex = (this.props.currentPage - 1) * this.props.limit;
-    const endIndex = Math.min(startIndex + this.props.limit, runsLength);
     let runs = this.props.data.filtered;
     if (!this.props.loading && runsLength === 0) {
       return (
@@ -681,7 +661,7 @@ class RunFeed extends PureComponent {
       <div>
         <div className="runsTable">
           <Table
-            definition={this.props.selectable}
+            definition
             style={{borderLeft: null}}
             celled
             sortable
@@ -689,7 +669,6 @@ class RunFeed extends PureComponent {
             unstackable
             size="small">
             <RunFeedHeader
-              selectable={this.props.selectable}
               sort={this.props.sort}
               setSort={this.props.setSort}
               columnNames={this.columnNames}
@@ -705,7 +684,6 @@ class RunFeed extends PureComponent {
                         groupName={run[0].config[this.props.groupKey]}
                         runs={run}
                         loading={false}
-                        selectable={this.props.selectable}
                         selections={this.props.selections}
                         columnNames={this.columnNames}
                         project={this.props.project}
@@ -726,7 +704,6 @@ class RunFeed extends PureComponent {
                         key={i}
                         run={run}
                         loading={false}
-                        selectable={this.props.selectable}
                         selections={this.props.selections}
                         columnNames={this.columnNames}
                         project={this.props.project}
@@ -746,7 +723,6 @@ class RunFeed extends PureComponent {
                 )}
               {this.props.loading && (
                 <RunFeedRunRow
-                  selectable={this.props.selectable}
                   selections={this.props.selections}
                   key="loader"
                   run={{config: {}, summary: {}}}

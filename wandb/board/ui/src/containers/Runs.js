@@ -437,16 +437,10 @@ class Runs extends React.Component {
           </Grid.Column>
         </Grid>
         <RunFeed
-          admin={this.props.user && this.props.user.admin}
           match={this.props.match}
           loading={this.props.loading}
           project={this.props.project}
           onSort={this.onSort}
-          showFailed={this.state.showFailed}
-          selectable={true}
-          // selectedRuns={this.props.data.selectedRunsById}
-          // columnNames={this.props.data.columnNames}
-          limit={this.props.limit}
           query={{
             entity: this.props.match.params.entity,
             project: this.props.match.params.model,
