@@ -51,40 +51,46 @@ export function mergeRunsBase(runs: Run.Run[]) {
   };
 }
 
-export function mergeRuns(runs: Run.Run[], name: string): Run.Run {
+export function mergeRuns(
+  runs: Run.Run[],
+  name: string,
+  subgroupKey: string | null
+): Run.Run {
   return {
     ...mergeRunsBase(runs),
     name,
     config: mergeKeyVals(runs.map(r => r.config)),
     summary: mergeKeyVals(runs.map(r => r.summary)),
+    runCount: runs.length,
+    subgroupCount: subgroupKey
+      ? _.uniq(runs.map(run => run.config[subgroupKey])).length
+      : undefined,
   };
 }
 
 export function subgroupRuns(
   runs: Run.Run[],
   groupKey: string,
-  subgroupKey: string
+  subgroupKey: string | null,
+  bySubgroup: false
 ): Run.Run[] {
-  const result: {[group: string]: {[subgroup: string]: Run.Run[]}} = {};
+  const result: {[group: string]: Run.Run[]} = {};
   for (const run of runs) {
-    const group = run.config[groupKey] as string;
-    const subgroup = run.config[subgroupKey] as string;
-    if (group == null || subgroup == null) {
+    let group = run.config[groupKey] as string;
+    if (bySubgroup && subgroupKey != null) {
+      group += (':' + run.config[subgroupKey]) as string;
+    }
+    if (group == null) {
       continue;
     }
     if (result[group] == null) {
-      result[group] = {};
+      result[group] = [];
     }
-    if (result[group][subgroup] == null) {
-      result[group][subgroup] = [];
-    }
-    result[group][subgroup].push(run);
+    result[group].push(run);
   }
-  const merged = _.mapValues(result, (group, groupName) =>
-    _.map(group, (sgRuns, subgroup) => mergeRuns(sgRuns, subgroup))
+  return _.flatMap(result, (groupOfRuns, groupName) =>
+    mergeRuns(groupOfRuns, groupName, subgroupKey)
   );
-
-  return _.flatMap(merged);
 }
 
 export function pivotKeyVals(

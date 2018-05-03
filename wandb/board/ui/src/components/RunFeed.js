@@ -16,6 +16,8 @@ import './RunFeed.css';
 import Launcher from '../containers/Launcher';
 import FixedLengthString from '../components/FixedLengthString';
 import Tags from '../components/Tags';
+import RunFeedDescription from './RunFeedDescription';
+import RunFeedCell from './RunFeedCell';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {makeShouldUpdate} from '../util/shouldUpdate';
@@ -37,86 +39,6 @@ import * as Selection from '../util/selections';
 import * as Filter from '../util/filters';
 
 const maxColNameLength = 20;
-
-class ValueDisplay extends PureComponent {
-  render() {
-    return (
-      <Popup
-        on="hover"
-        hoverable
-        position="left center"
-        style={{padding: 6}}
-        trigger={
-          <span className="config">
-            {this.props.content ? (
-              <span className="value"> {this.props.content} </span>
-            ) : (
-              <span>
-                <span className="value">{displayValue(this.props.value)}</span>{' '}
-                {!this.props.justValue && (
-                  <span className="key">{this.props.valKey}</span>
-                )}
-              </span>
-            )}
-          </span>
-        }
-        content={
-          <span>
-            {this.props.enablePopout && (
-              <Popup
-                on="hover"
-                inverted
-                size="tiny"
-                trigger={
-                  <Button
-                    style={{padding: 6}}
-                    icon="external square"
-                    onClick={() => {
-                      this.props.enableColumn(
-                        this.props.section + ':' + this.props.valKey
-                      );
-                    }}
-                  />
-                }
-                content="Pop out"
-              />
-            )}
-            <Popup
-              on="hover"
-              inverted
-              size="tiny"
-              trigger={
-                <Button
-                  style={{padding: 6}}
-                  icon="unhide"
-                  onClick={() => {
-                    let filterKey = {
-                      section: this.props.section,
-                      name: this.props.valKey,
-                    };
-                    this.props.addFilter(
-                      'filter',
-                      filterKey,
-                      '=',
-                      sortableValue(this.props.value)
-                    );
-                  }}
-                />
-              }
-              content="Add filter"
-            />
-          </span>
-        }
-      />
-    );
-  }
-}
-
-const mapValueDisplayDispatchToProps = (dispatch, ownProps) => {
-  return bindActionCreators({enableColumn}, dispatch);
-};
-
-ValueDisplay = connect(null, mapValueDisplayDispatchToProps)(ValueDisplay);
 
 class RunFeedHeader extends React.Component {
   constructor(props) {
@@ -146,9 +68,11 @@ class RunFeedHeader extends React.Component {
             height: Math.min(longestColumn.length, maxColNameLength) * 8,
             borderLeft: '1px solid rgba(34,36,38,.15)',
           }}>
-          <Table.HeaderCell />
           {columnNames.map(columnName => {
             let columnKey = columnName.split(':')[1];
+            if (columnName === 'Select') {
+              return <Table.HeaderCell />;
+            }
             return (
               <Table.HeaderCell
                 key={columnName}
@@ -203,171 +127,61 @@ class RunFeedHeader extends React.Component {
   }
 }
 
-class RunFeedGroupRow extends React.Component {
-  descriptionCell(runs) {
-    let {loading, project, admin} = this.props;
-    const edge = runs[0];
-    return (
-      <Table.Cell className="overview" key="Description" rowSpan={runs.length}>
-        {loading && (
-          <ContentLoader
-            style={{height: 43}}
-            height={63}
-            width={350}
-            speed={2}
-            primaryColor={'#f3f3f3'}
-            secondaryColor={'#e3e3e3'}>
-            <circle cx="32" cy="32" r="30" />
-            <rect x="75" y="13" rx="4" ry="4" width="270" height="13" />
-            <rect x="75" y="40" rx="4" ry="4" width="50" height="8" />
-          </ContentLoader>
+class RunFeedSubgroups extends React.Component {
+  render() {
+    const runs = this.props.data.filtered;
+    return runs.map((run, index) => (
+      <Table.Row>
+        {this.props.columnNames.map(
+          columnName =>
+            columnName === 'Description' ? (
+              index === 0 && (
+                <RunFeedDescription rowSpan={runs.length} {...this.props} />
+              )
+            ) : (
+              <RunFeedCell columnName={columnName} run={run} />
+            )
         )}
-        {!loading && (
-          <Item.Group>
-            <Item>
-              <Item.Image size="tiny" style={{width: 40}}>
-                <Image
-                  src={edge.user && edge.user.photoUrl}
-                  size="mini"
-                  style={{borderRadius: '500rem'}}
-                />
-              </Item.Image>
-              <Item.Content>
-                <Item.Header>
-                  <NavLink
-                    to={`/${project.entityName}/${project.name}/runs/${
-                      edge.name
-                    }`}>
-                    {this.props.groupName} {stateToIcon(edge.state)}
-                  </NavLink>
-                </Item.Header>
-                <Item.Extra style={{marginTop: 0}}>
-                  <strong>{edge.user && edge.user.username}</strong>
-                  {/* edge.host && `on ${edge.host} ` */}
-                  {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
-                  <Tags
-                    tags={edge.tags}
-                    addFilter={tag =>
-                      this.props.addFilter(
-                        'filter',
-                        {section: 'tags', name: tag},
-                        '=',
-                        true
-                      )
-                    }
-                  />
-                </Item.Extra>
-              </Item.Content>
-            </Item>
-          </Item.Group>
-        )}
-      </Table.Cell>
-    );
+      </Table.Row>
+    ));
+    return <div>Run COUNT: {this.props.data.filtered.length}</div>;
   }
+}
+
+RunFeedSubgroups = withRunsDataLoader(RunFeedSubgroups);
+
+class RunFeedGroupRow extends React.Component {
+  state = {};
 
   render() {
     let {run, loading, columnNames, project} = this.props;
-    const runsLength = this.props.runs.length;
-    console.log('THISPROPS', this.props);
-    return this.props.runs.map((run, groupIndex) => {
-      const summary = run.summary;
-      const config = run.config;
-      const selected =
-        this.props.selections && Filter.match(this.props.selections, run);
+    if (!this.state.subgroupOpen) {
       return (
-        <Table.Row key={run.id}>
-          (groupIndex === 0 ? (
-          <Table.Cell collapsing>
-            <Checkbox
-              checked={selected}
-              onChange={() => {
-                let selections = this.props.selections;
-                if (selected) {
-                  selections = Selection.Update.deselect(selections, run.name);
-                } else {
-                  selections = Selection.Update.select(selections, run.name);
-                }
-                this.props.setFilters('select', selections);
-              }}
-            />
-          </Table.Cell>
-          ) : ( groupIndex === 1 && <Table.Cell rowSpan={runsLength - 1} />
-          ))
-          {columnNames.map(columnName => {
-            if (columnName === 'Description') {
-              return groupIndex === 0 && this.descriptionCell(this.props.runs);
-            } else if (columnName === 'Sweep') {
-              return (
-                <Table.Cell key="stop" collapsing>
-                  {run.sweep && (
-                    <ValueDisplay
-                      section="sweep"
-                      valKey="name"
-                      value={run.sweep.name}
-                      content={
-                        <NavLink
-                          to={`/${project.entityName}/${project.name}/sweeps/${
-                            run.sweep.name
-                          }`}>
-                          {run.sweep.name}
-                        </NavLink>
-                      }
-                      addFilter={this.props.addFilter}
-                    />
-                  )}
-                </Table.Cell>
-              );
-            } else if (columnName === 'Ran') {
-              return (
-                <Table.Cell key={columnName} collapsing>
-                  <TimeAgo date={new Date(run.createdAt)} />
-                </Table.Cell>
-              );
-            } else if (columnName === 'Runtime') {
-              return (
-                <Table.Cell key={columnName} collapsing>
-                  {run.heartbeatAt && (
-                    <TimeAgo
-                      date={new Date(run.createdAt)}
-                      now={() => new Date(run.heartbeatAt)}
-                      formatter={(v, u, s, d, f) => f().replace(s, '')}
-                      live={false}
-                    />
-                  )}
-                </Table.Cell>
-              );
-            } else if (columnName === 'Stop') {
-              return (
-                <Table.Cell key="stop" collapsing>
-                  {run.shouldStop}
-                </Table.Cell>
-              );
-            } else {
-              let [section, key] = columnName.split(':');
-              return (
-                <Table.Cell
-                  key={columnName}
-                  style={{
-                    maxWidth: 200,
-                    direction: 'rtl',
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                  }}
-                  collapsing>
-                  <ValueDisplay
-                    section={section}
-                    valKey={key}
-                    value={getRunValue(run, columnName)}
-                    justValue
-                    addFilter={this.props.addFilter}
-                  />
-                </Table.Cell>
-              );
-            }
-          })}
-        </Table.Row>
+        <RunFeedRunRow
+          {...this.props}
+          subgroupClick={() => this.setState({subgroupOpen: true})}
+          runsClick={() => this.setState({runsOpen: true})}
+          subgroupsClosed={!this.state.subGroupOpen}
+          runsClosed={!this.state.runsOpen}
+        />
       );
-    });
+    } else {
+      let query = _.cloneDeep(this.props.query);
+      query.filters = {
+        key: {section: 'config', name: this.props.query.grouping.group},
+        op: '=',
+        value: run.config[this.props.query.grouping.group],
+      };
+      query.level = 'subgroup';
+      console.log('USING QUERY', query);
+      return (
+        <RunFeedSubgroups
+          subgroupClick={() => this.setState({subgroupOpen: false})}
+          {...this.props}
+          query={query}
+        />
+      );
+    }
   }
 }
 
@@ -387,70 +201,6 @@ class RunFeedRunRow extends React.Component {
     return this._shouldUpdate(this.props, nextProps, this.props.run.name);
   }
 
-  descriptionCell(edge) {
-    let {loading, project, admin} = this.props;
-    return (
-      <Table.Cell className="overview" key="Description">
-        {loading && (
-          <ContentLoader
-            style={{height: 43}}
-            height={63}
-            width={350}
-            speed={2}
-            primaryColor={'#f3f3f3'}
-            secondaryColor={'#e3e3e3'}>
-            <circle cx="32" cy="32" r="30" />
-            <rect x="75" y="13" rx="4" ry="4" width="270" height="13" />
-            <rect x="75" y="40" rx="4" ry="4" width="50" height="8" />
-          </ContentLoader>
-        )}
-        {!loading && (
-          <Item.Group>
-            <Item>
-              <Item.Image size="tiny" style={{width: 40}}>
-                <Image
-                  src={edge.user && edge.user.photoUrl}
-                  size="mini"
-                  style={{borderRadius: '500rem'}}
-                />
-              </Item.Image>
-              <Item.Content>
-                <Item.Header>
-                  <NavLink
-                    to={`/${project.entityName}/${project.name}/runs/${
-                      edge.name
-                    }`}>
-                    {edge.description || edge.name
-                      ? (edge.description || edge.name).split('\n')[0]
-                      : ''}{' '}
-                    {stateToIcon(edge.state)}
-                  </NavLink>
-                </Item.Header>
-                <Item.Extra style={{marginTop: 0}}>
-                  <strong>{edge.user && edge.user.username}</strong>
-                  {/* edge.host && `on ${edge.host} ` */}
-                  {/*edge.fileCount + ' files saved' NOTE: to add this back, add fileCount back to RUNS_QUERY*/}
-                  <Tags
-                    tags={edge.tags}
-                    addFilter={tag =>
-                      this.props.addFilter(
-                        'filter',
-                        {section: 'tags', name: tag},
-                        '=',
-                        true
-                      )
-                    }
-                  />
-                </Item.Extra>
-                {admin && <Launcher runId={edge.id} runName={edge.name} />}
-              </Item.Content>
-            </Item>
-          </Item.Group>
-        )}
-      </Table.Cell>
-    );
-  }
-
   render() {
     let {run, loading, columnNames, project} = this.props;
     const summary = run.summary;
@@ -459,92 +209,9 @@ class RunFeedRunRow extends React.Component {
       this.props.selections && Filter.match(this.props.selections, run);
     return (
       <Table.Row key={run.id}>
-        <Table.Cell collapsing>
-          <Checkbox
-            checked={selected}
-            onChange={() => {
-              let selections = this.props.selections;
-              if (selected) {
-                selections = Selection.Update.deselect(selections, run.name);
-              } else {
-                selections = Selection.Update.select(selections, run.name);
-              }
-              this.props.setFilters('select', selections);
-            }}
-          />
-        </Table.Cell>
-        {columnNames.map(columnName => {
-          if (columnName === 'Description') {
-            return this.descriptionCell(run);
-          } else if (columnName === 'Sweep') {
-            return (
-              <Table.Cell key="stop" collapsing>
-                {run.sweep && (
-                  <ValueDisplay
-                    section="sweep"
-                    valKey="name"
-                    value={run.sweep.name}
-                    content={
-                      <NavLink
-                        to={`/${project.entityName}/${project.name}/sweeps/${
-                          run.sweep.name
-                        }`}>
-                        {run.sweep.name}
-                      </NavLink>
-                    }
-                    addFilter={this.props.addFilter}
-                  />
-                )}
-              </Table.Cell>
-            );
-          } else if (columnName === 'Ran') {
-            return (
-              <Table.Cell key={columnName} collapsing>
-                <TimeAgo date={new Date(run.createdAt)} />
-              </Table.Cell>
-            );
-          } else if (columnName === 'Runtime') {
-            return (
-              <Table.Cell key={columnName} collapsing>
-                {run.heartbeatAt && (
-                  <TimeAgo
-                    date={new Date(run.createdAt)}
-                    now={() => new Date(run.heartbeatAt)}
-                    formatter={(v, u, s, d, f) => f().replace(s, '')}
-                    live={false}
-                  />
-                )}
-              </Table.Cell>
-            );
-          } else if (columnName === 'Stop') {
-            return (
-              <Table.Cell key="stop" collapsing>
-                {run.shouldStop}
-              </Table.Cell>
-            );
-          } else {
-            let [section, key] = columnName.split(':');
-            return (
-              <Table.Cell
-                key={columnName}
-                style={{
-                  maxWidth: 200,
-                  direction: 'rtl',
-                  textOverflow: 'ellipsis',
-                  overflow: 'hidden',
-                }}
-                collapsing>
-                <ValueDisplay
-                  section={section}
-                  valKey={key}
-                  value={getRunValue(run, columnName)}
-                  justValue
-                  addFilter={this.props.addFilter}
-                />
-              </Table.Cell>
-            );
-          }
-        })}
+        {columnNames.map(columnName => (
+          <RunFeedCell columnName={columnName} {...this.props} />
+        ))}
       </Table.Row>
     );
   }
@@ -678,11 +345,11 @@ class RunFeed extends PureComponent {
                 runs &&
                 runs.map(
                   (run, i) =>
-                    _.isArray(run) ? (
+                    this.props.query.level != 'run' ? (
                       <RunFeedGroupRow
                         key={i}
-                        groupName={run[0].config[this.props.groupKey]}
-                        runs={run}
+                        // groupName={run[0].config[this.props.groupKey]}
+                        run={run}
                         loading={false}
                         selections={this.props.selections}
                         columnNames={this.columnNames}
@@ -697,6 +364,7 @@ class RunFeed extends PureComponent {
                             })
                           )
                         }
+                        query={this.props.query}
                         setFilters={this.props.setFilters}
                       />
                     ) : (

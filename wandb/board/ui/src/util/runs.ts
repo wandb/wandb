@@ -62,6 +62,8 @@ export interface Run {
   readonly description: string;
   readonly config: KeyVal;
   readonly summary: KeyVal;
+  readonly runCount?: number;
+  readonly subgroupCount?: number;
 }
 
 export function fromJson(json: any): Run | null {

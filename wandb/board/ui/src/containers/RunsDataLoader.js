@@ -166,6 +166,23 @@ function withDerivedRunsData(WrappedComponent) {
 
       const runs = updateRuns(prevRuns, curRuns, []);
       let filteredRuns = runs;
+      if (props.query.grouping && props.query.level != 'run') {
+        if (props.query.level === 'subgroup') {
+          filteredRuns = RunHelpers2.subgroupRuns(
+            filteredRuns,
+            props.query.grouping.group,
+            props.query.grouping.subgroup,
+            true
+          );
+        } else {
+          filteredRuns = RunHelpers2.subgroupRuns(
+            filteredRuns,
+            props.query.grouping.group,
+            props.query.grouping.subgroup,
+            false
+          );
+        }
+      }
       // filteredRuns = RunHelpers2.subgroupRuns(
       //   runs,
       //   'evaluation',

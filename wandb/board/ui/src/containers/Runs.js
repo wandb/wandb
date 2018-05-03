@@ -450,6 +450,11 @@ class Runs extends React.Component {
               size: 10,
             },
             sort: this.props.sort,
+            grouping: {
+              group: 'layer_1_size',
+              subgroup: 'learning_rate',
+            },
+            level: 'group',
           }}
         />
       </div>
