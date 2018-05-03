@@ -83,8 +83,6 @@ export const RUNS_QUERY = gql`
     $requestSubscribe: Boolean!
     $selectEnable: Boolean = true
     $basicEnable: Boolean = true
-    $byGroup: Boolean = false
-    $bySubgroup: Boolean = false
     $history: Boolean = false
     $fields: [String]
     $historyFields: [String]
@@ -108,8 +106,6 @@ export const RUNS_QUERY = gql`
         filters: $filters
         fields: $fields
         historyFields: $historyFields
-        byGroup: $byGroup
-        bySubgroup: $bySubgroup
       ) {
         paths
         edges {

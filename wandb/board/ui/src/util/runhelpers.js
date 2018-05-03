@@ -693,14 +693,7 @@ function autoCols(section, runs, minUniq) {
 }
 
 export function getColumns(runs) {
-  let sweepColumns =
-    runs && runs.findIndex(r => r.sweep) > -1 ? ['Sweep', 'Stop'] : [];
-  return ['Description'].concat(
-    sweepColumns,
-    ['Ran', 'Runtime'],
-    autoCols('config', runs, 1),
-    autoCols('summary', runs, 0)
-  );
+  return [].concat(autoCols('config', runs, 1), autoCols('summary', runs, 0));
 }
 
 export function groupByCandidates(configs) {

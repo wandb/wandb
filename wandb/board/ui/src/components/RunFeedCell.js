@@ -7,7 +7,7 @@ import {getRunValue} from '../util/runhelpers.js';
 
 export default class RunFeedCell extends React.Component {
   render() {
-    const {columnName, run} = this.props;
+    const {columnName, selected, run} = this.props;
 
     if (columnName === 'Select') {
       return (

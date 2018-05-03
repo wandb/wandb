@@ -447,12 +447,12 @@ class Runs extends React.Component {
             filters: this.props.runFilters,
             page: {
               // num: state.runs.pages[id] ? state.runs.pages[id].current : 0,
-              size: 10,
+              size: 50,
             },
             sort: this.props.sort,
             grouping: {
-              group: 'layer_1_size',
-              subgroup: 'learning_rate',
+              group: 'evaluation',
+              subgroup: 'machine_pool',
             },
             level: 'group',
           }}
