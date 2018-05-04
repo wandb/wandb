@@ -199,6 +199,17 @@ class RunFeedSubgroupRow extends React.Component {
 
 class RunFeedSubgroups extends React.Component {
   state = {openSubgroups: {}, subgroupLengths: {}, openAllSubgroups: false};
+
+  openSubgroups() {
+    let openSubgroups = this.state.openSubgroups;
+    const subgroupKey = this.props.query.grouping.subgroup;
+    const runs = this.props.data.filtered;
+    if (this.state.openAllSubgroups) {
+      openSubgroups = _.fromPairs(runs.map(r => [r.config[subgroupKey], true]));
+    }
+    return openSubgroups;
+  }
+
   render() {
     if (this.props.loading) {
       return (
@@ -226,10 +237,7 @@ class RunFeedSubgroups extends React.Component {
     }
     const subgroupKey = this.props.query.grouping.subgroup;
     const runs = this.props.data.filtered;
-    let openSubgroups = this.state.openSubgroups;
-    if (this.state.openAllSubgroups) {
-      openSubgroups = _.fromPairs(runs.map(r => [r.config[subgroupKey], true]));
-    }
+    const openSubgroups = this.openSubgroups();
     const allOpen =
       _.filter(openSubgroups, open => open).length === runs.length;
     const descriptionHeight = _.sum(
@@ -260,7 +268,7 @@ class RunFeedSubgroups extends React.Component {
           subgroupRunsClick={() =>
             this.setState({
               openSubgroups: {
-                ...openSubgroups,
+                ...this.openSubgroups(),
                 [subgroup]: !subgroupOpen,
               },
               openAllSubgroups: false,
