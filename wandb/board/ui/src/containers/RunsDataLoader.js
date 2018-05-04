@@ -82,7 +82,7 @@ function withRunsData() {
         views: project && project.views,
         projectID: project && project.id,
         historyBuckets: ownProps.query.history && project && project.runs,
-        runCount: project && project.runCount,
+        totalRuns: project && project.runCount,
         loadMore:
           project &&
           project.runs &&
@@ -248,7 +248,7 @@ function withDerivedRunsData(WrappedComponent) {
         axisOptions,
         columnNames,
         loadMore: props.loadMore,
-        totalRuns: props.runCount,
+        totalRuns: props.totalRuns,
         limit: props.query.page.size,
         histories: runHistories || {
           data: [],
