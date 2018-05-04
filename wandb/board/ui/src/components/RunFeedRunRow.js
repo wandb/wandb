@@ -31,6 +31,7 @@ export default class RunFeedRunRow extends React.Component {
   render() {
     let {
       run,
+      descriptionRun,
       loading,
       subgroupLoading,
       columnNames,
@@ -124,7 +125,7 @@ export default class RunFeedRunRow extends React.Component {
               const descProps = {
                 loading,
                 project,
-                run,
+                run: descriptionRun || run,
                 addFilter,
                 subgroupCount,
                 runCount,

@@ -302,8 +302,6 @@ class RunFeedGroupRow extends React.Component {
         {...this.props}
         showSubgroup={true}
         subgroupHeight={1}
-        subgroupCount={run.subgroupCount}
-        runCount={run.runCount}
         subgroupClick={() =>
           this.setState({subgroupOpen: !this.state.subgroupOpen})
         }
@@ -442,6 +440,9 @@ class RunFeed extends PureComponent {
                         groupKey={this.props.query.grouping.group}
                         subgroupKey={this.props.query.grouping.subgroup}
                         run={run}
+                        descriptionRun={run}
+                        subgroupCount={run.subgroupCount}
+                        runCount={run.runCount}
                         loading={false}
                         selections={this.props.selections}
                         columnNames={this.columnNames}
