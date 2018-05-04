@@ -29,60 +29,10 @@ export default class RunFeedRunRow extends React.Component {
   }
 
   render() {
-    if (this.props.loading) {
-      return (
-        <Table.Row key="loading">
-          {this.props.columnNames.map(columnName => {
-            switch (columnName) {
-              case 'Description':
-                return (
-                  this.props.descriptionHeight && (
-                    <Table.Cell>
-                      <ContentLoader
-                        style={{height: 43}}
-                        height={63}
-                        width={350}
-                        speed={2}
-                        primaryColor={'#f3f3f3'}
-                        secondaryColor={'#e3e3e3'}>
-                        <circle cx="32" cy="32" r="30" />
-                        <rect
-                          x="75"
-                          y="13"
-                          rx="4"
-                          ry="4"
-                          width="270"
-                          height="13"
-                        />
-                        <rect
-                          x="75"
-                          y="40"
-                          rx="4"
-                          ry="4"
-                          width="50"
-                          height="8"
-                        />
-                      </ContentLoader>
-                    </Table.Cell>
-                  )
-                );
-              case 'Subgroup':
-                return (
-                  <Table.Cell>
-                    <ContentLoader height={20} />
-                  </Table.Cell>
-                );
-              default:
-                return <Table.Cell collapsing>-</Table.Cell>;
-            }
-          })}
-        </Table.Row>
-      );
-    }
-
     let {
       run,
       loading,
+      subgroupLoading,
       columnNames,
       project,
 
@@ -138,6 +88,39 @@ export default class RunFeedRunRow extends React.Component {
                 </Table.Cell>
               );
             case 'Description':
+              if (loading) {
+                return (
+                  descriptionHeight && (
+                    <Table.Cell>
+                      <ContentLoader
+                        style={{height: 43}}
+                        height={63}
+                        width={350}
+                        speed={2}
+                        primaryColor={'#f3f3f3'}
+                        secondaryColor={'#e3e3e3'}>
+                        <circle cx="32" cy="32" r="30" />
+                        <rect
+                          x="75"
+                          y="13"
+                          rx="4"
+                          ry="4"
+                          width="270"
+                          height="13"
+                        />
+                        <rect
+                          x="75"
+                          y="40"
+                          rx="4"
+                          ry="4"
+                          width="50"
+                          height="8"
+                        />
+                      </ContentLoader>
+                    </Table.Cell>
+                  )
+                );
+              }
               const descProps = {
                 loading,
                 project,
@@ -153,6 +136,13 @@ export default class RunFeedRunRow extends React.Component {
               };
               return descriptionHeight && <RunFeedDescription {...descProps} />;
             case 'Subgroup':
+              if (loading || subgroupLoading) {
+                return (
+                  <Table.Cell>
+                    <ContentLoader height={20} />
+                  </Table.Cell>
+                );
+              }
               return (
                 subgroupHeight && (
                   <Table.Cell collapsing rowSpan={subgroupHeight}>
@@ -180,20 +170,22 @@ export default class RunFeedRunRow extends React.Component {
             case 'Ran':
               return (
                 <Table.Cell key={columnName} collapsing>
-                  <TimeAgo date={new Date(run.createdAt)} />
+                  {loading ? '-' : <TimeAgo date={new Date(run.createdAt)} />}
                 </Table.Cell>
               );
             case 'Runtime':
               return (
                 <Table.Cell key={columnName} collapsing>
-                  {run.heartbeatAt && (
-                    <TimeAgo
-                      date={new Date(run.createdAt)}
-                      now={() => new Date(run.heartbeatAt)}
-                      formatter={(v, u, s, d, f) => f().replace(s, '')}
-                      live={false}
-                    />
-                  )}
+                  {loading
+                    ? '-'
+                    : run.heartbeatAt && (
+                        <TimeAgo
+                          date={new Date(run.createdAt)}
+                          now={() => new Date(run.heartbeatAt)}
+                          formatter={(v, u, s, d, f) => f().replace(s, '')}
+                          live={false}
+                        />
+                      )}
                 </Table.Cell>
               );
             default:
@@ -208,13 +200,17 @@ export default class RunFeedRunRow extends React.Component {
                     overflow: 'hidden',
                   }}
                   collapsing>
-                  <ValueDisplay
-                    section={section}
-                    valKey={key}
-                    value={getRunValue(run, columnName)}
-                    justValue
-                    addFilter={addFilter}
-                  />
+                  {loading ? (
+                    '-'
+                  ) : (
+                    <ValueDisplay
+                      section={section}
+                      valKey={key}
+                      value={getRunValue(run, columnName)}
+                      justValue
+                      addFilter={addFilter}
+                    />
+                  )}
                 </Table.Cell>
               );
           }

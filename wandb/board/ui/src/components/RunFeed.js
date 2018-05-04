@@ -146,12 +146,7 @@ class RunFeedSubgroupRuns extends React.Component {
   render() {
     if (this.props.loading) {
       return (
-        <RunFeedRunRow
-          descriptionHeight={this.props.descriptionHeight}
-          loading={true}
-          subgroupLoading={true}
-          columnNames={this.props.columnNames}
-        />
+        <RunFeedRunRow {...this.props} loading={false} subgroupLoading={true} />
       );
     }
     const runs = this.props.data.filtered;
@@ -208,9 +203,9 @@ class RunFeedSubgroups extends React.Component {
     if (this.props.loading) {
       return (
         <RunFeedRunRow
+          {...this.props}
           descriptionHeight={1}
-          loading={true}
-          columnNames={this.props.columnNames}
+          showSubgroup={false}
         />
       );
     }
@@ -274,7 +269,6 @@ class RunFeedSubgroups extends React.Component {
           subgroupRunsOpen={subgroupOpen}
           open={this.state.openAllSubgroups || openSubgroups[subgroup]}
           setSubgroupLength={len => {
-            console.log('SETTING SG LEN', len);
             this.setState({
               subgroupLengths: {
                 ...this.state.subgroupLengths,
@@ -492,6 +486,7 @@ class RunFeed extends PureComponent {
                 <RunFeedRunRow
                   descriptionHeight={1}
                   loading={true}
+                  run={{summary: {}, config: {}}}
                   columnNames={this.columnNames}
                 />
               )}
