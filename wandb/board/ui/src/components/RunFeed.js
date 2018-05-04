@@ -16,8 +16,7 @@ import './RunFeed.css';
 import Launcher from '../containers/Launcher';
 import FixedLengthString from '../components/FixedLengthString';
 import Tags from '../components/Tags';
-import RunFeedDescription from './RunFeedDescription';
-import RunFeedCell from './RunFeedCell';
+import RunFeedRunRow from './RunFeedRunRow';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {makeShouldUpdate} from '../util/shouldUpdate';
@@ -127,40 +126,136 @@ class RunFeedHeader extends React.Component {
   }
 }
 
-class RunFeedSubgroups extends React.Component {
+class RunFeedSubgroupRuns extends React.Component {
+  componentWillReceiveProps(nextProps) {
+    if (!nextProps.loading && nextProps.data && nextProps.data.filtered) {
+      nextProps.setSubgroupLength(nextProps.data.filtered.length);
+    } else {
+      nextProps.setSubgroupLength(1);
+    }
+  }
+
   render() {
+    if (this.props.loading) {
+      return (
+        <RunFeedRunRow
+          descriptionHeight={this.props.descriptionHeigh}
+          loading={true}
+          columnNames={this.props.columnNames}
+        />
+      );
+    }
+    const runs = this.props.data.filtered;
+    return runs.map((run, index) => {
+      return (
+        <RunFeedRunRow
+          {...this.props}
+          subgroupHeight={index === 0 && runs.length}
+        />
+      );
+    });
+  }
+}
+
+RunFeedSubgroupRuns = withRunsDataLoader(RunFeedSubgroupRuns);
+
+class RunFeedSubgroupRow extends React.Component {
+  render() {
+    const {run, subgroupName, firstCell, groupHeight, runsClick} = this.props;
+    if (!this.props.open) {
+      return <RunFeedRunRow {...this.props} />;
+    } else {
+      let query = _.cloneDeep(this.props.query);
+      query.filters = {
+        op: 'AND',
+        filters: [
+          {
+            key: {section: 'config', name: this.props.query.grouping.group},
+            op: '=',
+            value: run.config[this.props.query.grouping.group],
+          },
+          {
+            key: {section: 'config', name: this.props.query.grouping.subgroup},
+            op: '=',
+            value: run.config[this.props.query.grouping.subgroup],
+          },
+        ],
+      };
+      query.level = 'run';
+      return (
+        <RunFeedSubgroupRuns
+          {...this.props}
+          query={query}
+          setSubgroupLength={this.props.setSubgroupLength}
+        />
+      );
+    }
+  }
+}
+
+class RunFeedSubgroups extends React.Component {
+  state = {openSubgroups: {}, subgroupLengths: {}};
+  render() {
+    if (this.props.loading) {
+      return (
+        <RunFeedRunRow
+          descriptionHeight={1}
+          loading={true}
+          columnNames={this.props.columnNames}
+        />
+      );
+    }
     const subgroupKey = this.props.query.grouping.subgroup;
     const runs = this.props.data.filtered;
-    return _.sortBy(runs, r => r.config[subgroupKey]).map((run, index) => (
-      <Table.Row>
-        {this.props.columnNames.map(columnName => {
-          switch (columnName) {
-            case 'Description':
-              return (
-                index === 0 && (
-                  <RunFeedDescription rowSpan={runs.length} {...this.props} />
-                )
-              );
-            case 'Subgroup':
-              return (
-                <Table.Cell collapsing>
-                  {run.config[subgroupKey]}
-                  <a onClick={() => runsClick && runsClick()}>
-                    <Icon
-                      rotated={this.props.runsClosed && 'counterclockwise'}
-                      name="dropdown"
-                    />
-                    {run.runCount} Runs
-                  </a>
-                </Table.Cell>
-              );
-            default:
-              return <RunFeedCell columnName={columnName} run={run} />;
+    const descriptionHeight = _.sum(
+      runs.map(
+        run =>
+          this.state.openSubgroups[run.config[subgroupKey]] &&
+          this.state.subgroupLengths[run.config[subgroupKey]]
+            ? this.state.subgroupLengths[run.config[subgroupKey]]
+            : 1
+      )
+    );
+    return _.sortBy(runs, r => r.config[subgroupKey]).map((run, index) => {
+      const subgroup = run.config[subgroupKey];
+      const subgroupOpen = !!this.state.openSubgroups[subgroup];
+      return (
+        <RunFeedSubgroupRow
+          {...this.props}
+          run={run}
+          subgroupName={subgroup}
+          descriptionHeight={index === 0 && descriptionHeight}
+          runsClick={() =>
+            this.setState({
+              openSubgroups: {
+                ...this.state.openSubgroups,
+                [subgroup]: !this.state.openSubgroups[subgroup],
+              },
+            })
           }
-        })}
-      </Table.Row>
-    ));
-    return <div>Run COUNT: {this.props.data.filtered.length}</div>;
+          subgroupRunCount={run.runCount}
+          subgroupRunsClick={() =>
+            this.setState({
+              openSubgroups: {
+                ...this.state.openSubgroups,
+                [subgroup]: !subgroupOpen,
+              },
+            })
+          }
+          subgroupRunsOpen={subgroupOpen}
+          open={this.state.openSubgroups[subgroup]}
+          setSubgroupLength={len => {
+            console.log('SETTING SG LEN', len);
+            this.setState({
+              subgroupLengths: {
+                ...this.state.subgroupLengths,
+                [subgroup]: len,
+              },
+            });
+          }}
+        />
+      );
+    });
   }
 }
 
@@ -175,12 +270,17 @@ class RunFeedGroupRow extends React.Component {
       return (
         <RunFeedRunRow
           {...this.props}
+          descriptionHeight={1}
+          subgroupHeight={1}
+          subgroupCount={run.subgroupCount}
+          runCount={run.runCount}
           subgroupClick={() =>
             this.setState({subgroupOpen: !this.state.subgroupOpen})
           }
+          showSubgroup={false}
           runsClick={() => this.setState({runsOpen: !this.state.runsOpen})}
-          subgroupsClosed={!this.state.subGroupOpen}
-          runsClosed={!this.state.runsOpen}
+          subgroupOpen={this.state.subGroupOpen}
+          runsOpen={this.state.runsOpen}
         />
       );
     } else {
@@ -193,53 +293,21 @@ class RunFeedGroupRow extends React.Component {
       query.level = 'subgroup';
       return (
         <RunFeedSubgroups
+          {...this.props}
+          showSubgroup={true}
+          subgroupHeight={1}
+          subgroupCount={run.subgroupCount}
+          runCount={run.runCount}
           subgroupClick={() =>
             this.setState({subgroupOpen: !this.state.subgroupOpen})
           }
           runsClick={() => this.setState({runsOpen: !this.state.runsOpen})}
-          subgroupsClosed={!this.state.subgroupOpen}
-          runsClosed={!this.state.runsOpen}
-          {...this.props}
+          subgroupOpen={this.state.subgroupOpen}
+          runsOpen={this.state.runsOpen}
           query={query}
         />
       );
     }
-  }
-}
-
-class RunFeedRunRow extends React.Component {
-  constructor(props) {
-    super(props);
-    // This seems like it would be expensive but it's not (.5ms on a row with ~100 columns)
-    this._shouldUpdate = makeShouldUpdate({
-      name: 'RunRow',
-      deep: ['run', 'selectedRuns', 'columnNames'],
-      ignoreFunctions: true,
-      debug: false,
-    });
-  }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    return this._shouldUpdate(this.props, nextProps, this.props.run.name);
-  }
-
-  render() {
-    let {run, loading, columnNames, project} = this.props;
-    const summary = run.summary;
-    const config = run.config;
-    const selected =
-      this.props.selections && Filter.match(this.props.selections, run);
-    return (
-      <Table.Row key={run.id}>
-        {columnNames.map(columnName => (
-          <RunFeedCell
-            columnName={columnName}
-            selected={selected}
-            {...this.props}
-          />
-        ))}
-      </Table.Row>
-    );
   }
 }
 
@@ -368,7 +436,8 @@ class RunFeed extends PureComponent {
                     this.props.query.level != 'run' ? (
                       <RunFeedGroupRow
                         key={i}
-                        // groupName={run[0].config[this.props.groupKey]}
+                        groupKey={this.props.query.grouping.group}
+                        subgroupKey={this.props.query.grouping.subgroup}
                         run={run}
                         loading={false}
                         selections={this.props.selections}
@@ -395,6 +464,7 @@ class RunFeed extends PureComponent {
                         selections={this.props.selections}
                         columnNames={this.columnNames}
                         project={this.props.project}
+                        descriptionHeight={1}
                         addFilter={(type, key, op, value) =>
                           this.props.setFilters(
                             type,
@@ -411,9 +481,7 @@ class RunFeed extends PureComponent {
                 )}
               {this.props.loading && (
                 <RunFeedRunRow
-                  selections={this.props.selections}
-                  key="loader"
-                  run={{config: {}, summary: {}}}
+                  descriptionHeight={1}
                   loading={true}
                   columnNames={this.columnNames}
                 />
