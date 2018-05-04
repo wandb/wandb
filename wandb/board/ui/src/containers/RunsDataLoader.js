@@ -46,7 +46,6 @@ function withRunsData() {
           order = (query.sort.ascending ? '-' : '+') + serverPath;
         }
       }
-      console.log("QUERY OPTions'", query);
       const defaults = {
         fetchPolicy: 'network-only',
         variables: {

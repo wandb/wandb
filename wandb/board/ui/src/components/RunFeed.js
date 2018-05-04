@@ -127,20 +127,29 @@ class RunFeedHeader extends React.Component {
 }
 
 class RunFeedSubgroupRuns extends React.Component {
-  componentWillReceiveProps(nextProps) {
-    if (!nextProps.loading && nextProps.data && nextProps.data.filtered) {
-      nextProps.setSubgroupLength(nextProps.data.filtered.length);
+  _setup(props) {
+    if (!props.loading && props.data && props.data.filtered) {
+      props.setSubgroupLength(props.data.filtered.length);
     } else {
-      nextProps.setSubgroupLength(1);
+      props.setSubgroupLength(1);
     }
+  }
+
+  componentWillMount() {
+    this._setup(this.props);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    this._setup(nextProps);
   }
 
   render() {
     if (this.props.loading) {
       return (
         <RunFeedRunRow
-          descriptionHeight={this.props.descriptionHeigh}
+          descriptionHeight={this.props.descriptionHeight}
           loading={true}
+          subgroupLoading={true}
           columnNames={this.props.columnNames}
         />
       );
@@ -194,7 +203,7 @@ class RunFeedSubgroupRow extends React.Component {
 }
 
 class RunFeedSubgroups extends React.Component {
-  state = {openSubgroups: {}, subgroupLengths: {}};
+  state = {openSubgroups: {}, subgroupLengths: {}, openAllSubgroups: false};
   render() {
     if (this.props.loading) {
       return (
@@ -205,12 +214,33 @@ class RunFeedSubgroups extends React.Component {
         />
       );
     }
+    if (!this.props.subgroupOpen) {
+      return (
+        <RunFeedRunRow
+          {...this.props}
+          descriptionHeight={1}
+          subgroupHeight={1}
+          showSubgroup={false}
+          runsOpen={false}
+          runsClick={() => {
+            this.props.subgroupClick();
+            this.setState({openAllSubgroups: true});
+          }}
+        />
+      );
+    }
     const subgroupKey = this.props.query.grouping.subgroup;
     const runs = this.props.data.filtered;
+    let openSubgroups = this.state.openSubgroups;
+    if (this.state.openAllSubgroups) {
+      openSubgroups = _.fromPairs(runs.map(r => [r.config[subgroupKey], true]));
+    }
+    const allOpen =
+      _.filter(openSubgroups, open => open).length === runs.length;
     const descriptionHeight = _.sum(
       runs.map(
         run =>
-          this.state.openSubgroups[run.config[subgroupKey]] &&
+          openSubgroups[run.config[subgroupKey]] &&
           this.state.subgroupLengths[run.config[subgroupKey]]
             ? this.state.subgroupLengths[run.config[subgroupKey]]
             : 1
@@ -218,32 +248,31 @@ class RunFeedSubgroups extends React.Component {
     );
     return _.sortBy(runs, r => r.config[subgroupKey]).map((run, index) => {
       const subgroup = run.config[subgroupKey];
-      const subgroupOpen = !!this.state.openSubgroups[subgroup];
+      const subgroupOpen = !!openSubgroups[subgroup];
       return (
         <RunFeedSubgroupRow
           {...this.props}
           run={run}
           subgroupName={subgroup}
           descriptionHeight={index === 0 && descriptionHeight}
+          runsOpen={allOpen}
           runsClick={() =>
-            this.setState({
-              openSubgroups: {
-                ...this.state.openSubgroups,
-                [subgroup]: !this.state.openSubgroups[subgroup],
-              },
-            })
+            !allOpen
+              ? this.setState({openAllSubgroups: true})
+              : this.setState({openSubgroups: {}, openAllSubgroups: false})
           }
           subgroupRunCount={run.runCount}
           subgroupRunsClick={() =>
             this.setState({
               openSubgroups: {
-                ...this.state.openSubgroups,
+                ...openSubgroups,
                 [subgroup]: !subgroupOpen,
               },
+              openAllSubgroups: false,
             })
           }
           subgroupRunsOpen={subgroupOpen}
-          open={this.state.openSubgroups[subgroup]}
+          open={this.state.openAllSubgroups || openSubgroups[subgroup]}
           setSubgroupLength={len => {
             console.log('SETTING SG LEN', len);
             this.setState({
@@ -266,48 +295,28 @@ class RunFeedGroupRow extends React.Component {
 
   render() {
     let {run, loading, columnNames, project} = this.props;
-    if (!this.state.subgroupOpen) {
-      return (
-        <RunFeedRunRow
-          {...this.props}
-          descriptionHeight={1}
-          subgroupHeight={1}
-          subgroupCount={run.subgroupCount}
-          runCount={run.runCount}
-          subgroupClick={() =>
-            this.setState({subgroupOpen: !this.state.subgroupOpen})
-          }
-          showSubgroup={false}
-          runsClick={() => this.setState({runsOpen: !this.state.runsOpen})}
-          subgroupOpen={this.state.subGroupOpen}
-          runsOpen={this.state.runsOpen}
-        />
-      );
-    } else {
-      let query = _.cloneDeep(this.props.query);
-      query.filters = {
-        key: {section: 'config', name: this.props.query.grouping.group},
-        op: '=',
-        value: run.config[this.props.query.grouping.group],
-      };
-      query.level = 'subgroup';
-      return (
-        <RunFeedSubgroups
-          {...this.props}
-          showSubgroup={true}
-          subgroupHeight={1}
-          subgroupCount={run.subgroupCount}
-          runCount={run.runCount}
-          subgroupClick={() =>
-            this.setState({subgroupOpen: !this.state.subgroupOpen})
-          }
-          runsClick={() => this.setState({runsOpen: !this.state.runsOpen})}
-          subgroupOpen={this.state.subgroupOpen}
-          runsOpen={this.state.runsOpen}
-          query={query}
-        />
-      );
-    }
+    let query = _.cloneDeep(this.props.query);
+    query.filters = {
+      key: {section: 'config', name: this.props.query.grouping.group},
+      op: '=',
+      value: run.config[this.props.query.grouping.group],
+    };
+    query.level = 'subgroup';
+    query.disabled = !this.state.subgroupOpen;
+    return (
+      <RunFeedSubgroups
+        {...this.props}
+        showSubgroup={true}
+        subgroupHeight={1}
+        subgroupCount={run.subgroupCount}
+        runCount={run.runCount}
+        subgroupClick={() =>
+          this.setState({subgroupOpen: !this.state.subgroupOpen})
+        }
+        subgroupOpen={this.state.subgroupOpen}
+        query={query}
+      />
+    );
   }
 }
 
