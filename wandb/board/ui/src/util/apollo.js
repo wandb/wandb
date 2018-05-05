@@ -100,6 +100,7 @@ const userTimingMiddleware = new ApolloLink((operation, forward) => {
 });
 
 const errorLink = onError(({networkError, graphQLErrors}, store) => {
+  let errorMessage = 'Application Error';
   if (graphQLErrors) {
     graphQLErrors.forEach(error => {
       let {message, code} = error;
@@ -110,18 +111,24 @@ const errorLink = onError(({networkError, graphQLErrors}, store) => {
         }
         dispatch(push('/login'));
       } else {
-        console.error(`GraphQL error ${message} (${code}):`);
         dispatch(displayError(error));
       }
     });
+    dispatch(setFlash({message: errorMessage, color: 'red'}));
   }
   if (networkError) {
-    console.error(`Network Error: ${networkError}`);
     if (networkError.result) {
       console.error(networkError.result.errors);
+    } else if (networkError.message === 'Failed to fetch') {
+      errorMessage = 'Network Error';
     }
 
-    dispatch(setFlash({message: 'Backend Unavailable', color: 'red'}));
+    dispatch(
+      displayError({
+        code: networkError.statusCode || 503,
+        message: errorMessage,
+      })
+    );
   }
 });
 

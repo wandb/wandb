@@ -4,7 +4,7 @@ import logo from '../assets/wandb-long.svg';
 import whitelogo from '../assets/wandb-long-white.svg';
 
 const Footer = () => (
-  <Segment className="footer" vertical>
+  <Segment className="footer" vertical style={{overflow: 'hidden'}}>
     <Grid columns={2} stackable style={{padding: '0px 15px'}}>
       <Grid.Column textAlign="left" verticalAlign="middle">
         <List link horizontal>

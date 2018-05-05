@@ -1,7 +1,7 @@
 import React from 'react';
 import {Dimmer, Header, Icon} from 'semantic-ui-react';
 import {connect} from 'react-redux';
-import {resetError} from '../actions';
+import {resetError, setFlash} from '../actions';
 import _ from 'lodash';
 
 const ErrorPage = ({error, history, dispatch}) => {
@@ -10,7 +10,10 @@ const ErrorPage = ({error, history, dispatch}) => {
     setTimeout(() => window.location.reload(true), 20000);
   }
 
-  let icon, title, message;
+  let icon,
+    title,
+    message,
+    knownError = true;
   //For now let's grab the first error from the GQL server
   //TODO: why is this sometimes an array?
   if (Array.isArray(error)) error = error[0];
@@ -65,10 +68,17 @@ const ErrorPage = ({error, history, dispatch}) => {
         break;
       default:
         icon = 'bug';
-        title = 'Application Error';
+        title = error.message || 'Application Error';
         message = 'You may have found a bug.';
+        knownError = false;
     }
   }
+
+  if (!knownError) {
+    dispatch(setFlash({message: title, color: 'red'}));
+    return false;
+  }
+
   return (
     <Dimmer
       active={true}

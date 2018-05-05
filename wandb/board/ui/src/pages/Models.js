@@ -6,7 +6,6 @@ import {Container, Header, Item, Button} from 'semantic-ui-react';
 import Loader from '../components/Loader';
 import ModelHeader from '../components/ModelHeader';
 import Markdown from '../components/Markdown';
-import ErrorPage from '../components/ErrorPage';
 import {MODELS_QUERY} from '../graphql/models';
 import {updateLocationParams} from '../actions/location';
 
@@ -27,9 +26,7 @@ class Models extends Component {
   }
 
   render() {
-    return this.props.error ? (
-      <ErrorPage error={this.props.error} history={this.props.history} />
-    ) : (
+    return (
       <Container>
         <Loader />
         {this.props.user && (

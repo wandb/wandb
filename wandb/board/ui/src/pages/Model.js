@@ -7,7 +7,6 @@ import {Container} from 'semantic-ui-react';
 import Loader from '../components/Loader';
 import ModelEditor from '../components/ModelEditor';
 import ModelViewer from '../components/ModelViewer';
-import ErrorPage from '../components/ErrorPage';
 import {MODEL_QUERY, MODEL_DELETION, MODEL_UPSERT} from '../graphql/models';
 import {updateLocationParams} from '../actions/location';
 
@@ -31,9 +30,7 @@ class Model extends React.Component {
 
   render() {
     let action = this.props.match.path.split('/').pop();
-    return this.props.error ? (
-      <ErrorPage error={this.props.error} history={this.props.history} />
-    ) : (
+    return (
       <div className="model">
         {this.props.loading ? (
           <Loader />
