@@ -17,6 +17,7 @@ import json
 import logging
 import time
 import os
+import contextlib
 try:
     import pty
 except ImportError:  # windows
@@ -66,7 +67,8 @@ def _debugger(*args):
 class Callbacks():
     @property
     def Keras(self):
-        termlog("DEPRECATED: wandb.callbacks is deprecated, use `from wandb.keras import WandbCallback`")
+        termlog(
+            "DEPRECATED: wandb.callbacks is deprecated, use `from wandb.keras import WandbCallback`")
         from wandb.keras import WandbCallback
         return WandbCallback
 
@@ -157,7 +159,8 @@ def _init_headless(run, job_type, cloud=True):
         success = False
     else:
         if not success:
-            termerror('W&B process (PID {}) did not respond'.format(wandb_process.pid))
+            termerror('W&B process (PID {}) did not respond'.format(
+                wandb_process.pid))
 
     if not success:
         wandb_process.kill()
@@ -166,7 +169,8 @@ def _init_headless(run, job_type, cloud=True):
             if wandb_process.poll() is not None:
                 break
         if wandb_process.poll() is None:
-            termerror('Failed to kill wandb process, PID {}'.format(wandb_process.pid))
+            termerror('Failed to kill wandb process, PID {}'.format(
+                wandb_process.pid))
         sys.exit(1)
 
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
@@ -178,7 +182,8 @@ def _init_headless(run, job_type, cloud=True):
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code
     # above
-    atexit.register(_user_process_finished, server, hooks, wandb_process, stdout_redirector, stderr_redirector)
+    atexit.register(_user_process_finished, server, hooks,
+                    wandb_process, stdout_redirector, stderr_redirector)
 
     # redirect output last of all so we don't miss out on error messages
     stdout_redirector.redirect()
@@ -210,6 +215,13 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # pass the run into WandbCallback)
 run = None
 config = None  # config object shared with the global run
+
+
+def save(path):
+    """symlinks a file into the run directory so it's uploaded
+    """
+    file_name = os.path.basename(path)
+    return os.symlink(os.path.abspath(path), os.path.join(run.dir, file_name))
 
 
 def log(history_row, complete=True):
@@ -264,7 +276,7 @@ def init(job_type='train', config=None):
 
     # the following line is useful to ensure that no W&B logging happens in the user
     # process that might interfere with what they do
-    #logging.basicConfig(format='user process %(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # logging.basicConfig(format='user process %(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     # If a thread calls wandb.init() it will get the same Run object as
     # the parent. If a child process with distinct memory space calls

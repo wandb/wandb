@@ -28,6 +28,8 @@ import threading
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException
 import whaaaaat
+from six.moves import BaseHTTPServer, urllib
+import socket
 
 import wandb
 from wandb.api import Api
@@ -54,6 +56,46 @@ class ClickWandbException(ClickException):
         else:
             return ('An Exception was raised, see %s for full traceback.\n'
                     '%s: %s' % (log_file, orig_type, self.message))
+
+
+class CallbackHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    """Simple callback handler that stores query string parameters and 
+    shuts down the server.
+    """
+
+    def do_GET(self):
+        self.server.result = urllib.parse.parse_qs(
+            self.path.split("?")[-1])
+        self.send_response(200)
+        t = threading.Thread(target=self.server.shutdown)
+        t.daemon = True
+        t.start()
+
+
+class LocalServer():
+    """A local HTTP server that asks for an open port and listens for a callback.
+    The urlencoded callback url is accessed via `.qs` the query parameters passed
+    to the callback are accessed via `.result`
+    """
+
+    def __init__(self):
+        sock = socket.socket()
+        sock.bind(('', 0))
+        self.port = sock.getsockname()[1]
+        self._server = BaseHTTPServer.HTTPServer(
+            ('127.0.0.1', self.port), CallbackHandler)
+        self._server.result = {}
+
+    def qs(self):
+        return urllib.parse.urlencode({
+            "callback": "http://127.0.0.1:{}/callback".format(self.port)})
+
+    @property
+    def result(self):
+        return self._server.result
+
+    def start(self):
+        self._server.serve_forever()
 
 
 def display_error(func):
@@ -372,6 +414,33 @@ def pull(project, run, entity):
                         bar.update(len(data))
 
 
+@cli.command(context_settings=CONTEXT, help="Signup for Weights & Biases")
+@click.pass_context
+@display_error
+def signup(ctx):
+    import webbrowser
+    server = LocalServer()
+    url = api.app_url + "/vanpelt?invited"
+    launched = webbrowser.open_new_tab(
+        url + "&{}".format(server.qs()))
+    if launched:
+        click.echo(
+            'Opened [{0}] in your default browser, waiting for callback... (ctrl-c to cancel)'.format(url))
+        server.start()
+        key = server.result.get("key", [])
+        entity = server.result.get("entity", [None])[0]
+        project = server.result.get("project", [None])[0]
+        if key:
+            ctx.invoke(login, key=key)
+            ctx.invoke(init)
+        else:
+            click.echo(
+                "Failed to login after signing up, try again or run wandb login")
+    else:
+        click.echo("Signup with this url in your browser: {0}".format(url))
+        click.echo("Then run wandb login")
+
+
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @display_error
@@ -472,7 +541,7 @@ def init(ctx):
         """).format(
         code1=click.style("import wandb", bold=True),
         code2=click.style("wandb.init()", bold=True),
-        run=click.style("wandb run <train.py>", bold=True),
+        run=click.style("python <train.py>", bold=True),
         # saving this here so I can easily put it back when we re-enable
         # push/pull
         #"""
