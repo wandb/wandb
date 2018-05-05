@@ -56,15 +56,17 @@ export function mergeRuns(
   name: string,
   subgroupKey: string | null
 ): Run.Run {
+  const groupCounts: number[] = [];
+  if (subgroupKey) {
+    groupCounts.push(_.uniq(runs.map(run => run.config[subgroupKey])).length);
+  }
+  groupCounts.push(runs.length);
   return {
     ...mergeRunsBase(runs),
     name,
     config: mergeKeyVals(runs.map(r => r.config)),
     summary: mergeKeyVals(runs.map(r => r.summary)),
-    runCount: runs.length,
-    subgroupCount: subgroupKey
-      ? _.uniq(runs.map(run => run.config[subgroupKey])).length
-      : undefined,
+    groupCounts,
   };
 }
 

@@ -62,8 +62,7 @@ export interface Run {
   readonly description: string;
   readonly config: KeyVal;
   readonly summary: KeyVal;
-  readonly runCount?: number;
-  readonly subgroupCount?: number;
+  readonly groupCounts?: number[];
 }
 
 export function fromJson(json: any): Run | null {
@@ -124,9 +123,19 @@ export function fromJson(json: any): Run | null {
     tags = [];
   }
 
-  const config = parseConfig(json.config, name);
-  if (config == null) {
-    return null;
+  let config;
+  if (json.groupCounts == null) {
+    // When not grouping, config can be deeply nested
+    config = parseConfig(json.config, name);
+    if (config == null) {
+      return null;
+    }
+  } else {
+    // When grouping, config is flattened on the server :(
+    config = parseFlatConfig(json.config, name);
+    if (config == null) {
+      return null;
+    }
   }
 
   const summary = parseSummary(json.summaryMetrics, name);
@@ -146,6 +155,7 @@ export function fromJson(json: any): Run | null {
     description: typeof json.description === 'string' ? json.description : '',
     config,
     summary,
+    groupCounts: json.groupCounts,
   };
 }
 
@@ -173,6 +183,40 @@ function parseConfig(confJson: any, runName: string): KeyVal | null {
     flatten(_.mapValues(config, extractConfigValue))
   );
   return config;
+}
+
+function extractFlatConfigKey(confKey: string) {
+  const fields = confKey.split('.');
+  if (fields.length < 2) {
+    return null;
+  }
+  if (fields[1] !== 'value') {
+    return null;
+  }
+  fields.splice(1, 1);
+  return fields.join('.');
+}
+
+function parseFlatConfig(confJson: any, runName: string): KeyVal | null {
+  let config: any;
+  try {
+    config = JSONparseNaN(confJson);
+  } catch {
+    console.warn(`Couldn\'t parse flat config for run ${runName}:`, confJson);
+    return null;
+  }
+  if (typeof config !== 'object') {
+    console.warn(`Invalid flat config for run ${runName}:`, confJson);
+    return null;
+  }
+  const result: any = {};
+  _.forEach(config, (val, k) => {
+    const parsedKey = extractFlatConfigKey(k);
+    if (parsedKey != null) {
+      result[parsedKey] = val;
+    }
+  });
+  return result;
 }
 
 function parseSummary(confSummary: any, runName: string): KeyVal | null {

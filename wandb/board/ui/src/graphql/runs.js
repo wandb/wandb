@@ -12,6 +12,7 @@ export const fragments = {
       host
       state
       shouldStop
+      groupCounts
       sweep {
         name
       }
@@ -86,6 +87,8 @@ export const RUNS_QUERY = gql`
     $history: Boolean = false
     $fields: [String]
     $historyFields: [String]
+    $groupKeys: [String]
+    $groupLevel: Int
   ) {
     project(name: $name, entityName: $entityName) {
       id
@@ -106,6 +109,8 @@ export const RUNS_QUERY = gql`
         filters: $filters
         fields: $fields
         historyFields: $historyFields
+        groupKeys: $groupKeys
+        groupLevel: $groupLevel
       ) {
         paths
         edges {

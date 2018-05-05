@@ -43,6 +43,7 @@ export default class RunFeedRunRow extends React.Component {
       groupKey,
       subgroupKey,
 
+      subgroupName,
       subgroupCount,
       runCount,
       subgroupClick,
@@ -149,7 +150,7 @@ export default class RunFeedRunRow extends React.Component {
                   <Table.Cell collapsing rowSpan={subgroupHeight}>
                     {showSubgroup ? (
                       <div>
-                        {run.config[subgroupKey]}
+                        {subgroupName}
                         <a
                           style={{cursor: 'pointer'}}
                           onClick={() =>

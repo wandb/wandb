@@ -450,9 +450,10 @@ class Runs extends React.Component {
               size: 50,
             },
             sort: this.props.sort,
+            // TODO: Don't hardcode this
             grouping: {
-              group: 'evaluation',
-              subgroup: 'machine_pool',
+              group: 'config:experiment',
+              subgroup: 'config:sub',
             },
             level: 'group',
           }}

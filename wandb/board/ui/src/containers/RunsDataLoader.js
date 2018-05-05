@@ -46,6 +46,19 @@ function withRunsData() {
           order = (query.sort.ascending ? '-' : '+') + serverPath;
         }
       }
+      let groupKeys;
+      let groupLevel;
+      if (query.grouping && query.level && query.level !== 'run') {
+        groupKeys = [
+          Run.keyStringToServerPath(query.grouping.group),
+          Run.keyStringToServerPath(query.grouping.subgroup),
+        ];
+        if (query.level == 'subgroup') {
+          groupLevel = 1;
+        } else {
+          groupLevel = 0;
+        }
+      }
       const defaults = {
         fetchPolicy: 'network-only',
         variables: {
@@ -59,6 +72,8 @@ function withRunsData() {
           filters: JSON.stringify(Filter.toMongo(query.filters)),
           fields: query.select,
           basicEnable: !query.select,
+          groupKeys,
+          groupLevel,
         },
         notifyOnNetworkStatusChange: true,
       };
@@ -165,23 +180,23 @@ function withDerivedRunsData(WrappedComponent) {
 
       const runs = updateRuns(prevRuns, curRuns, []);
       let filteredRuns = runs;
-      if (props.query.grouping && props.query.level != 'run') {
-        if (props.query.level === 'subgroup') {
-          filteredRuns = RunHelpers2.subgroupRuns(
-            filteredRuns,
-            props.query.grouping.group,
-            props.query.grouping.subgroup,
-            true
-          );
-        } else {
-          filteredRuns = RunHelpers2.subgroupRuns(
-            filteredRuns,
-            props.query.grouping.group,
-            props.query.grouping.subgroup,
-            false
-          );
-        }
-      }
+      // if (props.query.grouping && props.query.level != 'run') {
+      //   if (props.query.level === 'subgroup') {
+      //     filteredRuns = RunHelpers2.subgroupRuns(
+      //       filteredRuns,
+      //       props.query.grouping.group,
+      //       props.query.grouping.subgroup,
+      //       true
+      //     );
+      //   } else {
+      //     filteredRuns = RunHelpers2.subgroupRuns(
+      //       filteredRuns,
+      //       props.query.grouping.group,
+      //       props.query.grouping.subgroup,
+      //       false
+      //     );
+      //   }
+      // }
       // filteredRuns = RunHelpers2.subgroupRuns(
       //   runs,
       //   'evaluation',
