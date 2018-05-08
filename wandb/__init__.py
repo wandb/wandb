@@ -107,10 +107,6 @@ class ExitHooks(object):
 
 
 def _init_headless(run, job_type, cloud=True):
-    if sys.platform == 'win32':
-        termerror('Headless mode isn\'t supported on Windows. Please try "wandb run ..."')
-        sys.exit(1)
-
     run.description = env.get_description(run.description)
 
     environ = dict(os.environ)
@@ -186,12 +182,8 @@ def _init_headless(run, job_type, cloud=True):
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
-    try:
-        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
-    except io.UnsupportedOperation as e:
-        termerror('Failed to redirect STDOUT/STDERR. If you are using Jupyter, sorry, it isn\'t supported yet.')
-        sys.exit(1)
+    stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+    stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code
@@ -284,6 +276,15 @@ def try_to_set_up_logging():
     return True
 
 
+def get_python_type():
+    if 'ipykernel' in sys.modules:
+        return 'jupyter'
+    elif 'IPython' in sys.modules:
+        return 'ipython'
+    else:
+        return 'python'
+
+
 def init(job_type='train', config=None):
     global run
     global __stage_dir__
@@ -326,6 +327,20 @@ def init(job_type='train', config=None):
         config = c
     set_global_config(run.config)
 
+    # set this immediately after setting the run and the config. if there is an
+    # exception after this it'll probably break the user script anyway
+    os.environ['WANDB_INITED'] = '1'
+
+    # we do these checks after setting the run and the config because users scripts
+    # may depend on those things
+    if sys.platform == 'win32' and run.mode != 'clirun':
+        termerror('Headless mode isn\'t supported on Windows. If you want to use W&B, please use "wandb run ..."; running normally.')
+        return run
+
+    if get_python_type() != 'python':
+        termerror('W&B doesn\'t work in IPython or Jupyter notebooks. Running normally.')
+        return run
+
     if run.mode == 'clirun' or run.mode == 'run':
         ensure_configured()
 
@@ -350,8 +365,6 @@ def init(job_type='train', config=None):
         run.config.update(config)
 
     atexit.register(run.close_files)
-
-    os.environ['WANDB_INITED'] = '1'
 
     return run
 
