@@ -13,6 +13,7 @@ __version__ = '0.5.16'
 
 import atexit
 import click
+import io
 import json
 import logging
 import time
@@ -106,6 +107,10 @@ class ExitHooks(object):
 
 
 def _init_headless(run, job_type, cloud=True):
+    if sys.platform == 'win32':
+        termerror('Headless mode isn\'t supported on Windows. Please try "wandb run ..."')
+        sys.exit(1)
+
     run.description = env.get_description(run.description)
 
     environ = dict(os.environ)
@@ -116,12 +121,17 @@ def _init_headless(run, job_type, cloud=True):
     hooks = ExitHooks()
     hooks.hook()
 
-    stdout_master_fd, stdout_slave_fd = pty.openpty()
-    stderr_master_fd, stderr_slave_fd = pty.openpty()
+    if sys.platform == "win32":
+        # PTYs don't work in windows so we use pipes.
+        stdout_master_fd, stdout_slave_fd = os.pipe()
+        stderr_master_fd, stderr_slave_fd = os.pipe()
+    else:
+        stdout_master_fd, stdout_slave_fd = pty.openpty()
+        stderr_master_fd, stderr_slave_fd = pty.openpty()
 
-    # raw mode so carriage returns etc. don't get added by the terminal driver
-    tty.setraw(stdout_master_fd)
-    tty.setraw(stderr_master_fd)
+        # raw mode so carriage returns etc. don't get added by the terminal driver
+        tty.setraw(stdout_master_fd)
+        tty.setraw(stderr_master_fd)
 
     headless_args = {
         'command': 'headless',
@@ -176,8 +186,12 @@ def _init_headless(run, job_type, cloud=True):
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
-    stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-    stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+    try:
+        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+    except io.UnsupportedOperation as e:
+        termerror('Failed to redirect STDOUT/STDERR. If you are using Jupyter, sorry, it isn\'t supported yet.')
+        sys.exit(1)
 
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code
