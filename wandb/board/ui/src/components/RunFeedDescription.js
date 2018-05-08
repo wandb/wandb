@@ -63,7 +63,7 @@ export default class RunFeedDescription extends React.Component {
                   {subgroupCount && (
                     <a onClick={() => subgroupClick && subgroupClick()}>
                       <Icon
-                        rotated={!subgroupOpen && 'counterclockwise'}
+                        rotated={!subgroupOpen ? 'counterclockwise' : undefined}
                         name="dropdown"
                       />
                       {subgroupCount} Subgroups
@@ -72,7 +72,7 @@ export default class RunFeedDescription extends React.Component {
                   {runCount && (
                     <a onClick={() => runsClick && runsClick()}>
                       <Icon
-                        rotated={!runsOpen && 'counterclockwise'}
+                        rotated={!runsOpen ? 'counterclockwise' : undefined}
                         name="dropdown"
                       />
                       {runCount} Runs

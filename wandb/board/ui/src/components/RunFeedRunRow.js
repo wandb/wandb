@@ -70,7 +70,7 @@ export default class RunFeedRunRow extends React.Component {
           switch (columnName) {
             case 'Select':
               return (
-                <Table.Cell collapsing>
+                <Table.Cell key={columnName} collapsing>
                   <Checkbox
                     checked={selected}
                     onChange={() => {
@@ -94,7 +94,7 @@ export default class RunFeedRunRow extends React.Component {
               if (loading) {
                 return (
                   descriptionHeight && (
-                    <Table.Cell>
+                    <Table.Cell key={columnName}>
                       <ContentLoader
                         style={{height: 43}}
                         height={63}
@@ -137,18 +137,25 @@ export default class RunFeedRunRow extends React.Component {
                 runsOpen,
                 rowSpan: descriptionHeight,
               };
-              return descriptionHeight && <RunFeedDescription {...descProps} />;
+              return (
+                descriptionHeight && (
+                  <RunFeedDescription key={columnName} {...descProps} />
+                )
+              );
             case 'Subgroup':
               if (loading || subgroupLoading) {
                 return (
-                  <Table.Cell>
+                  <Table.Cell key={columnName}>
                     <ContentLoader height={20} />
                   </Table.Cell>
                 );
               }
               return (
                 subgroupHeight && (
-                  <Table.Cell collapsing rowSpan={subgroupHeight}>
+                  <Table.Cell
+                    key={columnName}
+                    collapsing
+                    rowSpan={subgroupHeight}>
                     {showSubgroup ? (
                       <div>
                         {subgroupName}
@@ -158,7 +165,9 @@ export default class RunFeedRunRow extends React.Component {
                             subgroupRunsClick && subgroupRunsClick()
                           }>
                           <Icon
-                            rotated={!subgroupRunsOpen && 'counterclockwise'}
+                            rotated={
+                              !subgroupRunsOpen ? 'counterclockwise' : undefined
+                            }
                             name="dropdown"
                           />
                           {subgroupRunCount} Runs

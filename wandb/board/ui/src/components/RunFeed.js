@@ -71,7 +71,7 @@ class RunFeedHeader extends React.Component {
           {columnNames.map(columnName => {
             let columnKey = columnName.split(':')[1];
             if (columnName === 'Select') {
-              return <Table.HeaderCell />;
+              return <Table.HeaderCell key="select" />;
             }
             return (
               <Table.HeaderCell
@@ -154,6 +154,7 @@ class RunFeedSubgroupRuns extends React.Component {
     return runs.map((run, index) => {
       return (
         <RunFeedRunRow
+          key={run.id}
           {...this.props}
           descriptionHeight={index === 0 && this.props.descriptionHeight}
           subgroupHeight={index === 0 && runs.length}
@@ -268,6 +269,7 @@ class RunFeedSubgroups extends React.Component {
         return (
           <RunFeedSubgroupRow
             {...this.props}
+            key={run.id}
             run={run}
             subgroupName={subgroup}
             descriptionHeight={index === 0 && descriptionHeight}
