@@ -178,6 +178,7 @@ class RunFeedSubgroupRow extends React.Component {
       query.filters = {
         op: 'AND',
         filters: [
+          query.filters,
           {
             key: groupKey,
             op: '=',
@@ -191,6 +192,10 @@ class RunFeedSubgroupRow extends React.Component {
         ],
       };
       query.level = 'run';
+      // Big page size so we load all runs
+      query.page = {
+        size: 1000,
+      };
       return (
         <RunFeedSubgroupRuns
           {...this.props}
@@ -314,13 +319,23 @@ class RunFeedGroupRow extends React.Component {
     let query = _.cloneDeep(this.props.query);
     const groupKey = Run.keyFromString(this.props.query.grouping.group);
     query.filters = {
-      key: groupKey,
-      op: '=',
-      value: Run.getValue(run, groupKey),
+      op: 'AND',
+      filters: [
+        query.filters,
+        {
+          key: groupKey,
+          op: '=',
+          value: Run.getValue(run, groupKey),
+        },
+      ],
     };
     console.log('USING filters', run, query.filters);
     query.level = 'subgroup';
     query.disabled = !this.state.subgroupOpen;
+    // Set a big page size so that we load all subgroups
+    query.page = {
+      size: 500,
+    };
     return (
       <RunFeedSubgroups
         {...this.props}
@@ -397,6 +412,7 @@ class RunFeed extends PureComponent {
         this.columnNames.push('Subgroup');
       }
       this.columnNames = this.columnNames.concat(
+        ['Ran', 'Runtime'],
         getColumns(
           props.data.filtered,
           this.props.query.grouping && this.props.query.grouping.subgroup

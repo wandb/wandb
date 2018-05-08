@@ -447,7 +447,7 @@ class Runs extends React.Component {
             filters: this.props.runFilters,
             page: {
               // num: state.runs.pages[id] ? state.runs.pages[id].current : 0,
-              size: 50,
+              size: 10,
             },
             sort: this.props.sort,
             // TODO: Don't hardcode this

@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react';
 import {Checkbox, Icon, Table} from 'semantic-ui-react';
+import TimeAgo from 'react-timeago';
 import ValueDisplay from './RunFeedValueDisplay';
 import {makeShouldUpdate} from '../util/shouldUpdate';
 import * as Selection from '../util/selections';
