@@ -329,7 +329,6 @@ class RunFeedGroupRow extends React.Component {
         },
       ],
     };
-    console.log('USING filters', run, query.filters);
     query.level = 'subgroup';
     query.disabled = !this.state.subgroupOpen;
     // Set a big page size so that we load all subgroups
@@ -448,7 +447,6 @@ class RunFeed extends PureComponent {
   render() {
     const runsLength = this.props.runCount;
     let runs = this.props.data.filtered;
-    console.log('RUNS', runs);
     if (!this.props.loading && runsLength === 0) {
       return (
         <div style={{marginTop: 30}}>No runs match the chosen filters.</div>

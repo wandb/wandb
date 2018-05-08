@@ -3,7 +3,7 @@ import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {Button, Popup} from 'semantic-ui-react';
 import {enableColumn} from '../actions/run';
-import {displayValue} from '../util/runhelpers.js';
+import {displayValue, sortableValue} from '../util/runhelpers.js';
 
 class ValueDisplay extends React.PureComponent {
   render() {

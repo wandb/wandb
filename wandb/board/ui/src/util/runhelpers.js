@@ -131,7 +131,6 @@ export function fuzzyMatch(strings, matchStr) {
       score: -1 * fuzzyMatchScore(str, matchStr),
     };
   });
-  console.log('OY', scoredStrs);
   let sortedScores = _.sortBy(scoredStrs, ['score']);
   return sortedScores.map(ss => ss.string);
 }

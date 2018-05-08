@@ -452,10 +452,11 @@ class Runs extends React.Component {
             sort: this.props.sort,
             // TODO: Don't hardcode this
             grouping: {
-              group: 'config:experiment',
-              subgroup: 'config:sub',
+              group: 'config:evaluation',
+              subgroup: 'config:machine_pool',
             },
             level: 'group',
+            disabled: this.props.loading,
           }}
         />
       </div>
