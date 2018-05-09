@@ -129,10 +129,12 @@ class RunFeedHeader extends React.Component {
 
 class RunFeedSubgroupRuns extends React.Component {
   _setup(props) {
-    if (!props.loading && props.data && props.data.filtered) {
-      props.setSubgroupLength(props.data.filtered.length);
-    } else {
-      props.setSubgroupLength(1);
+    if (props.setSubgroupLength) {
+      if (!props.loading && props.data && props.data.filtered) {
+        props.setSubgroupLength(props.data.filtered.length);
+      } else {
+        props.setSubgroupLength(1);
+      }
     }
   }
 
@@ -147,7 +149,14 @@ class RunFeedSubgroupRuns extends React.Component {
   render() {
     if (this.props.loading) {
       return (
-        <RunFeedRunRow {...this.props} loading={false} subgroupLoading={true} />
+        <RunFeedRunRow
+          {...this.props}
+          descriptionHeight={
+            this.props.subgroupCount ? this.props.descriptionHeight : 1
+          }
+          loading={this.props.subgroupCount ? false : true}
+          subgroupLoading={true}
+        />
       );
     }
     const runs = this.props.data.filtered;
@@ -313,7 +322,7 @@ class RunFeedSubgroups extends React.Component {
 
 RunFeedSubgroups = withRunsDataLoader(RunFeedSubgroups);
 
-class RunFeedGroupRow extends React.Component {
+class RunFeedGroupSubgroupRow extends React.Component {
   state = {};
 
   render() {
@@ -346,6 +355,55 @@ class RunFeedGroupRow extends React.Component {
           this.setState({subgroupOpen: !this.state.subgroupOpen})
         }
         subgroupOpen={this.state.subgroupOpen}
+        query={query}
+      />
+    );
+  }
+}
+
+class RunFeedGroupRow extends React.Component {
+  state = {};
+
+  render() {
+    if (!this.state.runsOpen) {
+      return (
+        <RunFeedRunRow
+          {...this.props}
+          descriptionHeight={1}
+          showSubgroup={false}
+          runsOpen={false}
+          runsClick={() => {
+            this.setState({runsOpen: !this.state.runsOpen});
+          }}
+        />
+      );
+    }
+    let {run, loading, columnNames, project} = this.props;
+    let query = _.cloneDeep(this.props.query);
+    const groupKey = Run.keyFromString(this.props.query.grouping.group);
+    query.filters = {
+      op: 'AND',
+      filters: [
+        query.filters,
+        {
+          key: groupKey,
+          op: '=',
+          value: Run.getValue(run, groupKey),
+        },
+      ],
+    };
+    query.level = 'run';
+    query.disabled = !this.state.runsOpen;
+    // Set a big page size so that we load all subgroups
+    query.page = {
+      size: 1000,
+    };
+    return (
+      <RunFeedSubgroupRuns
+        {...this.props}
+        descriptionHeight={this.props.runCount}
+        runsClick={() => this.setState({runsOpen: !this.state.runsOpen})}
+        runsOpen={this.state.runsOpen}
         query={query}
       />
     );
@@ -473,11 +531,16 @@ class RunFeed extends PureComponent {
             <Table.Body>
               {(this.state.pageLoading || !this.props.loading) &&
                 runs &&
-                runs.map(
-                  (run, i) =>
+                runs.map((run, i) => {
+                  if (
                     this.props.query.level &&
-                    this.props.query.level !== 'run' ? (
-                      <RunFeedGroupRow
+                    this.props.query.grouping &&
+                    this.props.query.grouping.group &&
+                    this.props.query.grouping.subgroup &&
+                    this.props.query.level === 'group'
+                  ) {
+                    return (
+                      <RunFeedGroupSubgroupRow
                         key={i}
                         groupKey={this.props.query.grouping.group}
                         subgroupKey={this.props.query.grouping.subgroup}
@@ -502,7 +565,41 @@ class RunFeed extends PureComponent {
                         query={this.props.query}
                         setFilters={this.props.setFilters}
                       />
-                    ) : (
+                    );
+                  } else if (
+                    this.props.query.level &&
+                    this.props.query.grouping &&
+                    this.props.query.grouping.group &&
+                    this.props.query.level === 'group'
+                  ) {
+                    return (
+                      <RunFeedGroupRow
+                        key={i}
+                        groupKey={this.props.query.grouping.group}
+                        subgroupKey={this.props.query.grouping.subgroup}
+                        run={run}
+                        descriptionRun={run}
+                        runCount={run.groupCounts[0]}
+                        loading={false}
+                        selections={this.props.selections}
+                        columnNames={this.columnNames}
+                        project={this.props.project}
+                        addFilter={(type, key, op, value) =>
+                          this.props.setFilters(
+                            type,
+                            Filter.Update.groupPush(this.props.filters, [0], {
+                              key,
+                              op,
+                              value,
+                            })
+                          )
+                        }
+                        query={this.props.query}
+                        setFilters={this.props.setFilters}
+                      />
+                    );
+                  } else {
+                    return (
                       <RunFeedRunRow
                         key={i}
                         run={run}
@@ -523,8 +620,9 @@ class RunFeed extends PureComponent {
                         }
                         setFilters={this.props.setFilters}
                       />
-                    )
-                )}
+                    );
+                  }
+                })}
               {this.props.loading && (
                 <RunFeedRunRow
                   descriptionHeight={1}

@@ -48,12 +48,17 @@ function withRunsData() {
       }
       let groupKeys;
       let groupLevel;
-      if (query.grouping && query.level && query.level !== 'run') {
-        groupKeys = [
-          Run.keyStringToServerPath(query.grouping.group),
-          Run.keyStringToServerPath(query.grouping.subgroup),
-        ];
-        if (query.level == 'subgroup') {
+      if (
+        query.grouping &&
+        query.grouping.group &&
+        query.level &&
+        query.level !== 'run'
+      ) {
+        groupKeys = [Run.keyStringToServerPath(query.grouping.group)];
+        if (query.grouping.subgroup) {
+          groupKeys.push(Run.keyStringToServerPath(query.grouping.subgroup));
+        }
+        if (query.grouping.subgroup && query.level == 'subgroup') {
           groupLevel = 1;
         } else {
           groupLevel = 0;
