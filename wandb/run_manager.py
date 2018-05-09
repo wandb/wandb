@@ -624,7 +624,8 @@ class RunManager(object):
                 command,
                 env=env,
                 stdout=self._stdout_tee.tee_file,
-                stderr=self._stderr_tee.tee_file
+                stderr=self._stderr_tee.tee_file,
+                shell=True
             )
         except (OSError, IOError):
             raise Exception('Could not find program: %s' % command)
