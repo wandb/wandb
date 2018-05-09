@@ -1,14 +1,22 @@
 {
-  "main.css": "static/css/main.451d4201.css",
-  "main.css.map": "static/css/main.451d4201.css.map",
-  "main.js": "static/js/main.3e524ccf.js",
-  "main.js.map": "static/js/main.3e524ccf.js.map",
+  "main.css": "static/css/main.2a27e927.css",
+  "main.css.map": "static/css/main.2a27e927.css.map",
+  "main.js": "static/js/main.14e59514.js",
+  "main.js.map": "static/js/main.14e59514.js.map",
   "static/media/flags.png": "static/media/flags.9c74e172.png",
+  "static/media/grapheinpro-bold-webfont.woff": "static/media/grapheinpro-bold-webfont.2cf4c15e.woff",
+  "static/media/grapheinpro-bolditalic-webfont.woff": "static/media/grapheinpro-bolditalic-webfont.60ca4eb5.woff",
+  "static/media/grapheinpro-book-webfont.woff": "static/media/grapheinpro-book-webfont.10877bca.woff",
+  "static/media/grapheinpro-italic-webfont.woff": "static/media/grapheinpro-italic-webfont.cdb675ea.woff",
+  "static/media/grapheinpro-light-webfont.woff": "static/media/grapheinpro-light-webfont.b5fe7c39.woff",
+  "static/media/grapheinpro-lightitalic-webfont.woff": "static/media/grapheinpro-lightitalic-webfont.cd17fa64.woff",
   "static/media/icons.eot": "static/media/icons.674f50d2.eot",
   "static/media/icons.svg": "static/media/icons.912ec66d.svg",
   "static/media/icons.ttf": "static/media/icons.b06871f2.ttf",
   "static/media/icons.woff": "static/media/icons.fee66e71.woff",
   "static/media/icons.woff2": "static/media/icons.af7ae505.woff2",
-  "static/media/logo.svg": "static/media/wandb-new.e21d98a9.svg",
-  "static/media/wandb-new.svg": "static/media/wandb-new.e21d98a9.svg"
+  "static/media/wandb-long-white.svg": "static/media/wandb-long-white.05455c9e.svg",
+  "static/media/wandb-long.svg": "static/media/wandb-long.b28c05c1.svg",
+  "static/media/wandb-pattern.svg": "static/media/wandb-pattern.6cbb0bbf.svg",
+  "static/media/wandb.svg": "static/media/wandb.c6d7637a.svg"
 }
