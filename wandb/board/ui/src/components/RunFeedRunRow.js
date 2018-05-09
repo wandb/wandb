@@ -206,7 +206,7 @@ export default class RunFeedRunRow extends React.Component {
                 <Table.Cell
                   key={columnName}
                   style={{
-                    maxWidth: 200,
+                    maxWidth: 150,
                     direction: 'rtl',
                     textOverflow: 'ellipsis',
                     overflow: 'hidden',
