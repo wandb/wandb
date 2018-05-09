@@ -74,8 +74,10 @@ const ErrorPage = ({error, history, dispatch}) => {
           "An application error occurred, close this notification to refresh the page.  We'll try reloading this page again shortly.";
         if (!window.error_dialog) {
           window.error_dialog = true;
-          window.Raven.captureException(error);
-          window.Raven.showReportDialog();
+          if (!error.reported) {
+            window.Raven.captureException(error, {extra: {fatal: true}});
+            window.Raven.showReportDialog();
+          }
         }
     }
   }

@@ -13,6 +13,10 @@ import './components/vis/ReactVis.css';
 import {mouseListenersStart} from './util/mouse';
 import pattern from './assets/wandb-pattern.svg';
 import {Offline, Online} from 'react-detect-offline';
+const values = require('object.values');
+if (!Object.values) {
+  values.shim();
+}
 
 let Nav;
 try {
@@ -25,8 +29,9 @@ class App extends Component {
   state = {loading: false, error: null};
 
   componentDidCatch(error, info) {
-    this.setState({error: error});
-    console.log('Caught an error in did catch');
+    window.Raven.captureException(error, {extra: info});
+    error.reported = true;
+    //this.setState({error: error});
   }
 
   componentDidMount() {
@@ -43,7 +48,7 @@ class App extends Component {
             {this.props.error || this.state.error ? (
               <ErrorPage
                 history={this.props.history}
-                error={this.props.error}
+                error={this.props.error || this.state.error}
               />
             ) : (
               this.props.children
