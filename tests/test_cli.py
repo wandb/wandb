@@ -18,6 +18,7 @@ import yaml
 import git
 import webbrowser
 import wandb
+import threading
 
 DUMMY_API_KEY = '1824812581259009ca9981580f8f8a9012409eee'
 
@@ -29,6 +30,15 @@ except ImportError:
     from imp import reload
 except ImportError:
     pass
+
+
+def sigint(delay=0.1):
+    """Send a SIGINT to this process, used to stop the local webserver in tests"""
+    thread = threading.Thread(target=lambda: (
+        time.sleep(delay),
+        os.kill(os.getpid(), signal.SIGINT)
+    ))
+    thread.start()
 
 
 @pytest.fixture
@@ -258,9 +268,24 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
         assert DUMMY_API_KEY in generatedNetrc
 
 
-def test_init_new_login(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer):
+def test_signup(runner, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        # If the test was run from a directory containing .wandb, then __stage_dir__
+        # was '.wandb' when imported by api.py, reload to fix. UGH!
+        reload(wandb)
+        sigint()
+        result = runner.invoke(cli.signup)
+        print('Output: ', result.output)
+        print('Exception: ', result.exception)
+        print('Traceback: ', traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Failed to complete signup" in result.output
+
+
+def test_init_new_login_no_browser(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer, monkeypatch):
     mock = query_projects(request_mocker)
     query_viewer(request_mocker)
+    monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: False)
     with runner.isolated_filesystem():
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
@@ -288,6 +313,7 @@ def test_init_multi_team(runner, empty_netrc, local_netrc, request_mocker, query
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
+        sigint()
         result = runner.invoke(
             cli.init, input="%s\nvanpelt" % DUMMY_API_KEY)
         print('Output: ', result.output)
@@ -308,6 +334,7 @@ def test_init_reinit(runner, empty_netrc, local_netrc, request_mocker, query_pro
     query_projects(request_mocker)
     with runner.isolated_filesystem():
         os.mkdir('wandb')
+        sigint()
         result = runner.invoke(
             cli.init, input="y\n%s\nvanpelt\n" % DUMMY_API_KEY)
         print(result.output)
@@ -328,6 +355,7 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
             f.write("previous config")
+        sigint()
         result = runner.invoke(cli.init, input="%s\nvanpelt\n" % DUMMY_API_KEY)
         print(result.output)
         print(result.exception)
@@ -346,7 +374,7 @@ def test_init_existing_login(runner, local_netrc, request_mocker, query_projects
     query_projects(request_mocker)
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
-            f.write("machine api.wandb.ai\n\ttest\t12345")
+            f.write("machine api.wandb.ai\n\tlogin test\tpassword 12345")
         result = runner.invoke(cli.init, input="vanpelt\n")
         print(result.output)
         print(result.exception)
@@ -360,12 +388,15 @@ def test_init_existing_login(runner, local_netrc, request_mocker, query_projects
 
 def test_run_with_error(runner, request_mocker, upsert_run, git_repo):
     upsert_run(request_mocker)
+    # Prevent syncing from happening
+    sigint(0.5)
+    sigint(0.6)
     result = runner.invoke(cli.run, ["missing.py"])
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
-    assert "Could not find program" in str(result.exception)
-    assert result.exit_code == -1
+    assert "command not found" in str(result.output)
+    assert result.exit_code == 1
 
 
 # TODO: this is hitting production

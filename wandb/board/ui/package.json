@@ -51,6 +51,7 @@
     "react-autosuggest": "^9.3.2",
     "react-content-loader": "^3.0.1",
     "react-copy-to-clipboard": "^4.2.3",
+    "react-detect-offline": "^2.0.1",
     "react-dom": "^16.1.1",
     "react-easy-chart": "^1.0.0",
     "react-grid-layout": "^0.16.5",

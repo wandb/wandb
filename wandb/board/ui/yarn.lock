@@ -8210,6 +8210,10 @@ react-copy-to-clipboard@^4.2.3:
     create-react-class "^15.5.2"
     prop-types "^15.5.8"
 
+react-detect-offline@^2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/react-detect-offline/-/react-detect-offline-2.0.1.tgz#4a05846f3b7fc0caa9cd1c444bbe21c95d38709d"
+
 react-dev-utils@^4.2.1:
   version "4.2.1"
   resolved "https://registry.yarnpkg.com/react-dev-utils/-/react-dev-utils-4.2.1.tgz#9f2763e7bafa1a1b9c52254d2a479deec280f111"

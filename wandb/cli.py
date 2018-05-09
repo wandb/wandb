@@ -97,6 +97,11 @@ class LocalServer():
     def start(self):
         self._server.serve_forever()
 
+    def stop(self, *args):
+        t = threading.Thread(target=self._server.shutdown)
+        t.daemon = True
+        t.start()
+
 
 def display_error(func):
     """Function decorator for catching common errors and re-raising as wandb.Error"""
@@ -420,10 +425,11 @@ def pull(project, run, entity):
 def signup(ctx):
     import webbrowser
     server = LocalServer()
-    url = api.app_url + "/vanpelt?invited"
+    url = api.app_url + "/login?invited"
     launched = webbrowser.open_new_tab(
         url + "&{}".format(server.qs()))
     if launched:
+        signal.signal(signal.SIGINT, server.stop)
         click.echo(
             'Opened [{0}] in your default browser, waiting for callback... (ctrl-c to cancel)'.format(url))
         server.start()
@@ -432,10 +438,12 @@ def signup(ctx):
         project = server.result.get("project", [None])[0]
         if key:
             ctx.invoke(login, key=key)
-            ctx.invoke(init)
+            # Only init if we aren't pre-configured
+            if not os.path.isdir(wandb_dir()):
+                ctx.invoke(init)
         else:
             click.echo(
-                "Failed to login after signing up, try again or run wandb login")
+                "Failed to complete signup, run wandb login to authenticate with an existing account")
     else:
         click.echo("Signup with this url in your browser: {0}".format(url))
         click.echo("Then run wandb login")
@@ -448,18 +456,24 @@ def login(key):
     key = key[0] if len(key) > 0 else None
     # Import in here for performance reasons
     import webbrowser
-    # TODO: use Oauth and a local webserver: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
-    url = api.app_url + '/profile?message=true'
+    server = LocalServer()
+    # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
+    url = api.app_url + '/profile?message=key'
     # TODO: google cloud SDK check_browser.py
     if key:
         launched = False
     else:
-        launched = webbrowser.open_new_tab(url)
+        launched = webbrowser.open_new_tab(url + "&{}".format(server.qs()))
     if launched:
+        signal.signal(signal.SIGINT, server.stop)
         click.echo(
-            'Opening [{0}] in a new tab in your default browser.'.format(url))
+            'Opening [{0}] in your default browser, waiting for callback... (ctrl-c to cancel)'.format(url))
+        server.start()
+        if server.result.get("key"):
+            key = server.result["key"][0]
     elif not key:
-        click.echo("You can find your API keys here: {0}".format(url))
+        click.echo(
+            "You can find your API keys in your browser here: {0}".format(url))
 
     key = key or click.prompt("Paste an API key from your profile".format(
         value_proc=lambda x: x.strip()))

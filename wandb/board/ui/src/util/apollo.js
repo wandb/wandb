@@ -101,7 +101,10 @@ const userTimingMiddleware = new ApolloLink((operation, forward) => {
 
 const errorLink = onError(({networkError, graphQLErrors}, store) => {
   let errorMessage = 'Application Error';
+  let errorCode = 500;
+  let messaged = false;
   if (graphQLErrors) {
+    errorMessage = '';
     graphQLErrors.forEach(error => {
       let {message, code} = error;
       if (code === 401) {
@@ -109,14 +112,19 @@ const errorLink = onError(({networkError, graphQLErrors}, store) => {
         if (document.location.pathname !== '/login') {
           localStorage.setItem('redirect', document.location.href);
         }
+        messaged = true;
         dispatch(push('/login'));
       } else {
-        dispatch(displayError(error));
+        errorMessage += message;
+        errorCode = code;
       }
     });
-    dispatch(setFlash({message: errorMessage, color: 'red'}));
+    if (!messaged) {
+      messaged = true;
+      dispatch(displayError({message: errorMessage, code: errorCode}));
+    }
   }
-  if (networkError) {
+  if (!messaged && networkError) {
     if (networkError.result) {
       console.error(networkError.result.errors);
     } else if (networkError.message === 'Failed to fetch') {

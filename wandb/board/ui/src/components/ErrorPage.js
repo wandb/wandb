@@ -1,5 +1,5 @@
 import React from 'react';
-import {Dimmer, Header, Icon} from 'semantic-ui-react';
+import {Message, Header, Icon, Container} from 'semantic-ui-react';
 import {connect} from 'react-redux';
 import {resetError, setFlash} from '../actions';
 import _ from 'lodash';
@@ -29,20 +29,22 @@ const ErrorPage = ({error, history, dispatch}) => {
     exDescription: error.message,
     exFatal: fatal === true,
   });
-  let instructions = 'Report the issue at github.com/wandb/client/issues.';
-  if (message.match('has been deemed inappropriate')) {
+  if (message.match('is a reserved word')) {
     // this is a 400 when the name is on our banned list
     icon = 'frown';
     title = 'Bad name';
-    message = 'Nice work! You found a name that is not allowed.';
-    instructions = 'Try a different name.';
+    message = "You've chosen a reserved word, please choose another name.";
   } else {
     switch (error.code) {
+      case 0:
+        icon = 'wifi';
+        title = 'Offline';
+        message = message;
+        break;
       case 400:
         icon = 'ban';
         title = 'Invalid Record';
         message = message;
-        instructions = 'Click to refresh.';
         break;
       case 403:
         icon = 'hide';
@@ -56,43 +58,47 @@ const ErrorPage = ({error, history, dispatch}) => {
             error.message ||
             'You do not have permission to access this resource.';
         }
-        instructions = '';
 
         break;
       case 404:
         icon = 'stop circle outline';
         title = 'Not Found';
         message = "We couldn't find what you're looking for.";
-        instructions = '';
 
         break;
       default:
         icon = 'bug';
         title = error.message || 'Application Error';
-        message = 'You may have found a bug.';
-        knownError = false;
+        message =
+          "An application error occurred, close this notification to refresh the page.  We'll try reloading this page again shortly.";
+        if (!window.error_dialog) {
+          window.error_dialog = true;
+          Raven.captureException(error);
+          Raven.showReportDialog();
+        }
     }
   }
 
-  if (!knownError) {
-    dispatch(setFlash({message: title, color: 'red'}));
-    return false;
-  }
-
   return (
-    <Dimmer
-      active={true}
-      onClickOutside={() => {
-        dispatch(resetError());
-        if (error.code > 400 && history) history.goBack();
-      }}>
-      <Header as="h2" icon inverted>
+    <Container text>
+      <div style={{height: 100}} />
+      <Message
+        floating
+        error={true}
+        size="small"
+        icon
+        onDismiss={() => {
+          dispatch(resetError());
+          window.error_dialog = false;
+          if (error.code > 400 && history) history.goBack();
+        }}>
         <Icon name={icon} />
-        {title}
-        <Header.Subheader>{message}</Header.Subheader>
-      </Header>
-      <p>{instructions}</p>
-    </Dimmer>
+        <Message.Content>
+          <Message.Header>{title}</Message.Header>
+          <p>{message}</p>
+        </Message.Content>
+      </Message>
+    </Container>
   );
 };
 
