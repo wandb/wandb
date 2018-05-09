@@ -22,4 +22,3 @@ pillow==5.0.0
 numpy
 pytest-flask
 mock==2.0.0
-keras

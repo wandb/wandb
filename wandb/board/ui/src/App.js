@@ -13,9 +13,14 @@ import './components/vis/ReactVis.css';
 import {mouseListenersStart} from './util/mouse';
 import pattern from './assets/wandb-pattern.svg';
 import {Offline, Online} from 'react-detect-offline';
+require('es6-symbol/implement');
 const values = require('object.values');
+const entries = require('object.entries');
 if (!Object.values) {
   values.shim();
+}
+if (!Object.entries) {
+  entries.shim();
 }
 
 let Nav;
