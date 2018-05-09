@@ -45,6 +45,7 @@ const ErrorPage = ({error, history, dispatch}) => {
         icon = 'ban';
         title = 'Invalid Record';
         message = message;
+        window.Raven.captureException(error);
         break;
       case 403:
         icon = 'hide';
@@ -73,8 +74,8 @@ const ErrorPage = ({error, history, dispatch}) => {
           "An application error occurred, close this notification to refresh the page.  We'll try reloading this page again shortly.";
         if (!window.error_dialog) {
           window.error_dialog = true;
-          Raven.captureException(error);
-          Raven.showReportDialog();
+          window.Raven.captureException(error);
+          window.Raven.showReportDialog();
         }
     }
   }
