@@ -67,6 +67,8 @@ class CallbackHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.server.result = urllib.parse.parse_qs(
             self.path.split("?")[-1])
         self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'Success')
         t = threading.Thread(target=self.server.shutdown)
         t.daemon = True
         t.start()
@@ -431,7 +433,7 @@ def signup(ctx):
     if launched:
         signal.signal(signal.SIGINT, server.stop)
         click.echo(
-            'Opened [{0}] in your default browser, waiting for callback... (ctrl-c to cancel)'.format(url))
+            'Opened [{0}] in your default browser, waiting for callback... (ctrl-c to continue manually)'.format(url))
         server.start()
         key = server.result.get("key", [])
         entity = server.result.get("entity", [None])[0]
@@ -467,7 +469,7 @@ def login(key):
     if launched:
         signal.signal(signal.SIGINT, server.stop)
         click.echo(
-            'Opening [{0}] in your default browser, waiting for callback... (ctrl-c to cancel)'.format(url))
+            'Opening [{0}] in your default browser, waiting for callback... (ctrl-c to continue manually)'.format(url))
         server.start()
         if server.result.get("key"):
             key = server.result["key"][0]
