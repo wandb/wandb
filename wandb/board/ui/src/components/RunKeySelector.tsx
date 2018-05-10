@@ -9,7 +9,9 @@ interface RunKeySelectorProps {
   storedKey: string;
   keys: string[];
   disabled: boolean;
+  allowBlank?: boolean;
   onValidSelection(key: string): void;
+  onClear?(): void;
 }
 export default class RunKeySelector extends React.Component<
   RunKeySelectorProps,
@@ -49,18 +51,25 @@ export default class RunKeySelector extends React.Component<
     ) {
       keys.unshift(this.props.storedKey);
     }
+    const options = UI.makeOptions(keys);
+    if (this.props.allowBlank) {
+      options.unshift({text: 'DISABLED', value: undefined, key: ''});
+    }
     return (
       <Dropdown
         loading={this.props.loading}
         disabled={this.props.disabled}
         ref={el => (this.dropdownEl = el)}
-        options={UI.makeOptions(keys)}
+        options={options}
         placeholder="Key"
         search={this.searchFunction}
         selection
         fluid
         value={this.state.value}
         onChange={(e, {value}) => {
+          if (this.props.allowBlank && this.props.onClear && value == null) {
+            this.props.onClear();
+          }
           if (
             _.indexOf(this.props.keys, value) >= 0 &&
             typeof value === 'string'

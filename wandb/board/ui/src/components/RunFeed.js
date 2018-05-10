@@ -30,7 +30,7 @@ import {
   sortableValue,
   stateToIcon,
   truncateString,
-  getColumns,
+  autoCols,
 } from '../util/runhelpers.js';
 import withRunsDataLoader from '../containers/RunsDataLoader';
 import ContentLoader from 'react-content-loader';
@@ -463,6 +463,7 @@ class RunFeed extends PureComponent {
   }
 
   _setup(props) {
+    const conf = props.config;
     if (props.data.length === 0 && props.loading) {
       this.columnNames = ['Description'];
     } else {
@@ -470,12 +471,22 @@ class RunFeed extends PureComponent {
       if (this.props.query.grouping && this.props.query.grouping.subgroup) {
         this.columnNames.push('Subgroup');
       }
+      let configColumns;
+      if (!conf.config || (conf.config.auto == null || conf.config.auto)) {
+        configColumns = autoCols('config', props.data.filtered, 1);
+      } else {
+        configColumns = conf.config.columns || [];
+      }
+      let summaryColumns;
+      if (!conf.summary || (conf.summary.auto == null || conf.summary.auto)) {
+        summaryColumns = autoCols('summary', props.data.filtered, 0);
+      } else {
+        summaryColumns = conf.summary.columns || [];
+      }
       this.columnNames = this.columnNames.concat(
         ['Ran', 'Runtime'],
-        getColumns(
-          props.data.filtered,
-          this.props.query.grouping && this.props.query.grouping.subgroup
-        )
+        configColumns,
+        summaryColumns
       );
     }
   }

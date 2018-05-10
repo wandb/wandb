@@ -4,6 +4,7 @@ import {
   RESET_VIEWS,
   SET_SERVER_VIEWS,
   SET_BROWSER_VIEWS,
+  UPDATE_RUNS_TABLE,
   ADD_VIEW,
   UPDATE_VIEW,
   SET_ACTIVE_VIEW,
@@ -95,6 +96,17 @@ export default function views(state = defaultViews(), action) {
           },
         },
       });
+    case UPDATE_RUNS_TABLE:
+      return update(state, {
+        browser: {
+          runs: {
+            runsTable: runsTable =>
+              update(runsTable || {}, {
+                config: {$set: action.tableConfig},
+              }),
+          },
+        },
+      });
     case UPDATE_VIEW:
       return update(state, {
         browser: {
@@ -183,7 +195,7 @@ export default function views(state = defaultViews(), action) {
     case REMOVE_VIEW:
       let tabIndex = _.findIndex(
         state.browser[action.viewType].tabs,
-        o => o === action.viewId,
+        o => o === action.viewId
       );
       return update(state, {
         browser: {

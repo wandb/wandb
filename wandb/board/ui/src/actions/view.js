@@ -1,6 +1,7 @@
 export const RESET_VIEWS = 'RESET_VIEWS';
 export const SET_SERVER_VIEWS = 'SET_SERVER_VIEWS';
 export const SET_BROWSER_VIEWS = 'SET_BROWSER_VIEWS';
+export const UPDATE_RUNS_TABLE = 'UPDATE_RUNS_TABLE';
 export const ADD_VIEW = 'ADD_VIEW';
 export const UPDATE_VIEW = 'UPDATE_VIEW';
 export const SET_ACTIVE_VIEW = 'SET_ACTIVE_VIEW';
@@ -29,6 +30,13 @@ export const setBrowserViews = views => {
   return {
     type: SET_BROWSER_VIEWS,
     views,
+  };
+};
+
+export const updateRunsTable = tableConfig => {
+  return {
+    type: UPDATE_RUNS_TABLE,
+    tableConfig,
   };
 };
 

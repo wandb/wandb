@@ -638,7 +638,7 @@ export function setupKeySuggestions(runs) {
   return keySuggestions;
 }
 
-function autoCols(section, runs, minUniq) {
+export function autoCols(section, runs, minUniq) {
   runs = runs.filter(run => run[section]);
   if (runs.length <= 1) {
     return [];

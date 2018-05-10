@@ -15,6 +15,7 @@ import {
 import RunFeed from '../components/RunFeed';
 import RunFiltersRedux from './RunFiltersRedux';
 import RunColumnsSelector from '../components/RunColumnsSelector';
+import RunFeedConfig from '../components/RunFeedConfig';
 import ViewModifier from './ViewModifier';
 import HelpIcon from '../components/HelpIcon';
 import {PROJECT_QUERY, MODIFY_RUNS} from '../graphql/runs';
@@ -37,6 +38,7 @@ import {
   setBrowserViews,
   setActiveView,
   addView,
+  updateRunsTable,
 } from '../actions/view';
 import update from 'immutability-helper';
 import {BOARD} from '../util/board';
@@ -316,21 +318,41 @@ class Runs extends React.Component {
             </Grid.Column>
           }
           <Grid.Column width={16} style={{zIndex: 2}}>
-            {/* <Popup
+            <Popup
               trigger={
                 <Button
                   disabled={this.props.loading}
                   floated="right"
-                  icon="columns"
-                  content="Columns"
+                  icon="configure"
+                  content="Edit Table"
                 />
               }
               content={
-                <RunColumnsSelector columnNames={this.props.data.columnNames} />
+                <RunFeedConfig
+                  config={this.props.tableConfig}
+                  update={this.props.updateRunsTable}
+                  isModified={this.props.isModified}
+                  saveChanges={() =>
+                    this.props.updateModel({
+                      entityName: this.props.match.params.entity,
+                      name: this.props.match.params.model,
+                      id: this.props.projectID,
+                      views: JSON.stringify(this.props.viewState),
+                    })
+                  }
+                  query={{
+                    entity: this.props.match.params.entity,
+                    project: this.props.match.params.model,
+                    filters: {},
+                    page: {
+                      size: 1,
+                    },
+                  }}
+                />
               }
               on="click"
               position="bottom left"
-            /> */}
+            />
             {!this.props.haveViews && (
               <Button
                 floated="right"
@@ -441,6 +463,7 @@ class Runs extends React.Component {
           loading={this.props.loading}
           project={this.props.project}
           onSort={this.onSort}
+          config={this.props.tableConfig}
           query={{
             entity: this.props.match.params.entity,
             project: this.props.match.params.model,
@@ -451,11 +474,7 @@ class Runs extends React.Component {
             },
             sort: this.props.sort,
             disabled: this.props.loading,
-            // TODO: Don't hardcode this
-            grouping: {
-              group: 'config:evaluation',
-              // subgroup: 'config:machine_pool',
-            },
+            grouping: this.props.tableConfig.grouping,
             level: 'group',
           }}
         />
@@ -504,6 +523,11 @@ function mapStateToProps(state, ownProps) {
     haveViews:
       !_.isEqual(state.views.browser, state.views.server) ||
       state.views.browser.runs.tabs.length > 0,
+    tableConfig: state.views.browser.runs.runsTable
+      ? state.views.browser.runs.runsTable.config
+      : {},
+    viewState: state.views.browser,
+    isModified: !_.isEqual(state.views.server.runs, state.views.browser.runs),
   };
 }
 
@@ -520,6 +544,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       setActiveView,
       resetViews,
       addView,
+      updateRunsTable,
     },
     dispatch
   );
