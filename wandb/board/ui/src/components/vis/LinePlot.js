@@ -33,6 +33,7 @@ class LinePlotPlot extends React.PureComponent {
       disabled,
       xScale,
       yAxis,
+      yDomain,
       onMouseUp,
       setRef,
       lastDrawLocation,
@@ -85,6 +86,7 @@ class LinePlotPlot extends React.PureComponent {
         xDomain={
           lastDrawLocation && [lastDrawLocation.left, lastDrawLocation.right]
         }
+        yDomain={yDomain}
         yType={yScale}
         xType={xType}
         height={height}>
@@ -409,6 +411,7 @@ export default class LinePlot extends React.PureComponent {
             height={this.props.currentHeight - 70 || 220}
             xAxis={this.props.xAxis}
             yAxis={this.props.yAxis}
+            yDomain={this.props.yDomain}
             yScale={this.props.yScale}
             lines={this.props.lines}
             disabled={this.state.disabled}

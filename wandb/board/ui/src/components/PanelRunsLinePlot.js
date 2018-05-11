@@ -90,6 +90,11 @@ class RunsLinePlotPanel extends React.Component {
     let groupByOptions = {};
     let disabled = this.props.data.histories.data.length === 0;
 
+    // Default to true.
+    const yAxisAutoRange =
+      this.props.config.yAxisAutoRange == null ||
+      this.props.config.yAxisAutoRange;
+
     return (
       <div className="runs-line-plot">
         {!this.props.data.loading &&
@@ -167,9 +172,52 @@ class RunsLinePlotPanel extends React.Component {
                       })
                     }
                   />
+                  <Form.Group inline>
+                    <Form.Field style={{width: 90}}>
+                      <label style={{marginBottom: 10}}>Range</label>
+                      <Form.Checkbox
+                        label="Auto"
+                        toggle
+                        checked={yAxisAutoRange}
+                        onClick={(e, {value}) =>
+                          this.props.updateConfig({
+                            ...this.props.config,
+                            yAxisAutoRange: !yAxisAutoRange,
+                          })
+                        }
+                      />
+                    </Form.Field>
+                    {!yAxisAutoRange && (
+                      <Form.Input
+                        label="min"
+                        value={this.props.config.yAxisMin}
+                        onChange={(e, {value}) =>
+                          this.props.updateConfig({
+                            ...this.props.config,
+                            yAxisMin: value,
+                          })
+                        }
+                      />
+                    )}
+                    {!yAxisAutoRange && (
+                      <Form.Input
+                        label="max"
+                        value={this.props.config.yAxisMax}
+                        onChange={(e, {value}) =>
+                          this.props.updateConfig({
+                            ...this.props.config,
+                            yAxisMax: value,
+                          })
+                        }
+                      />
+                    )}
+                  </Form.Group>
                 </Form.Field>
               </Grid.Column>
-              <Grid.Column width={2} verticalAlign="bottom">
+              <Grid.Column
+                width={2}
+                verticalAlign="top"
+                style={{marginTop: 18}}>
                 <Button
                   animated="vertical"
                   toggle
@@ -303,6 +351,20 @@ class RunsLinePlotPanel extends React.Component {
       }
     }
 
+    let yDomain;
+    if (
+      this.props.config.yAxisAutoRange != null &&
+      this.props.config.yAxisAutoRange === false &&
+      this.props.config.yAxisMin != null &&
+      this.props.config.yAxisMax != null
+    ) {
+      const yMin = parseFloat(this.props.config.yAxisMin);
+      const yMax = parseFloat(this.props.config.yAxisMax);
+      if (!_.isNaN(yMin) && !_.isNaN(yMax)) {
+        yDomain = [yMin, yMax];
+      }
+    }
+
     return (
       <div>
         <h4 style={{display: 'inline'}}>
@@ -362,6 +424,7 @@ class RunsLinePlotPanel extends React.Component {
             yAxis={yAxis}
             yScale={this.props.config.yLogScale ? 'log' : 'linear'}
             xScale={this.props.config.xLogScale ? 'log' : 'linear'}
+            yDomain={yDomain}
             lines={lines}
             sizeKey={this.props.sizeKey}
             currentHeight={this.props.currentHeight}
