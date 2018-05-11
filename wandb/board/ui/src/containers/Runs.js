@@ -155,6 +155,7 @@ class Runs extends React.Component {
   }
 
   componentWillMount() {
+    this.filtersReady = false;
     this._readUrl(this.props);
   }
 
@@ -165,6 +166,10 @@ class Runs extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
+    // We set the filters in componentWillMount, and need to wait for a redux pass
+    // before we actually have them. This flag is used to delay the runs table
+    // query until we've received the set filters.
+    this.filtersReady = true;
     // Columns selction is disabled now, everything is automatic. We can re-enable
     // if someone asks for it.
     // if (
@@ -248,9 +253,6 @@ class Runs extends React.Component {
                 {this.props.counts.filtered} filtered,{' '}
                 {this.props.counts.selected} selected
               </p>
-              <div style={{marginTop: 8, marginBottom: 8}}>
-                <Checkbox label="Grouping" />
-              </div>
               <p>
                 <span
                   style={{cursor: 'pointer'}}
@@ -473,7 +475,7 @@ class Runs extends React.Component {
               size: 10,
             },
             sort: this.props.sort,
-            disabled: this.props.loading,
+            disabled: !this.filtersReady,
             grouping: this.props.tableConfig.grouping,
             level: 'group',
           }}
