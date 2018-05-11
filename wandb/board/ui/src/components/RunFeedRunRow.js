@@ -71,23 +71,25 @@ export default class RunFeedRunRow extends React.Component {
             case 'Select':
               return (
                 <Table.Cell key={columnName} collapsing>
-                  <Checkbox
-                    checked={selected}
-                    onChange={() => {
-                      if (selected) {
-                        selections = Selection.Update.deselect(
-                          selections,
-                          run.name
-                        );
-                      } else {
-                        selections = Selection.Update.select(
-                          selections,
-                          run.name
-                        );
-                      }
-                      this.props.setFilters('select', selections);
-                    }}
-                  />
+                  {this.props.allowSelection && (
+                    <Checkbox
+                      checked={selected}
+                      onChange={() => {
+                        if (selected) {
+                          selections = Selection.Update.deselect(
+                            selections,
+                            run.name
+                          );
+                        } else {
+                          selections = Selection.Update.select(
+                            selections,
+                            run.name
+                          );
+                        }
+                        this.props.setFilters('select', selections);
+                      }}
+                    />
+                  )}
                 </Table.Cell>
               );
             case 'Description':

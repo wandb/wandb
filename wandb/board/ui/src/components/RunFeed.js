@@ -168,6 +168,7 @@ class RunFeedSubgroupRuns extends React.Component {
           descriptionHeight={index === 0 && this.props.descriptionHeight}
           subgroupHeight={index === 0 && runs.length}
           run={run}
+          allowSelection
         />
       );
     });
@@ -630,6 +631,7 @@ class RunFeed extends PureComponent {
                           )
                         }
                         setFilters={this.props.setFilters}
+                        allowSelection
                       />
                     );
                   }
