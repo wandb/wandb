@@ -31,7 +31,7 @@ class Models extends Component {
       <ErrorPage error={this.props.error} history={this.props.history} />
     ) : (
       <Container>
-        <Loader />
+        {this.props.loading && <Loader />}
         {this.props.user && (
           <Button
             as="a"
