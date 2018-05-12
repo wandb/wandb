@@ -96,7 +96,7 @@ export const MODEL_DELETION = gql`
 
 export const MODELS_QUERY = gql`
   query Models($cursor: String, $entityName: String) {
-    models(first: 100, after: $cursor, entityName: $entityName) {
+    models(first: 300, after: $cursor, entityName: $entityName) {
       edges {
         node {
           id
