@@ -1,6 +1,6 @@
-body {
+/* body {
   overflow-x: auto !important;
-}
+} */
 
 #root > div {
   display: flex;
