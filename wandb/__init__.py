@@ -153,7 +153,7 @@ def _init_headless(run, job_type, cloud=True):
     # TODO(adrian): make wandb the foreground process so we don't give
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
-    wandb_process = subprocess.Popen(['/usr/bin/env', 'python', internal_cli_path, json.dumps(
+    wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
         headless_args)], env=environ, **popen_kwargs)
     termlog('Started W&B process with PID {}'.format(wandb_process.pid))
     os.close(stdout_master_fd)
