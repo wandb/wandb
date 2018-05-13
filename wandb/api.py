@@ -286,9 +286,12 @@ class Api(object):
                             section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")
-            self._settings["project"] = env.get_project(self._settings.get("project"))
-            self._settings["entity"] = env.get_entity(self._settings.get("entity"))
-            self._settings["base_url"] = env.get_base_url(self._settings.get("base_url"))
+            self._settings["project"] = env.get_project(
+                self._settings.get("project"))
+            self._settings["entity"] = env.get_entity(
+                self._settings.get("entity"))
+            self._settings["base_url"] = env.get_base_url(
+                self._settings.get("base_url"))
 
         return self._settings if key is None else self._settings[key]
 
@@ -652,8 +655,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']                
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']                  : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -944,8 +946,9 @@ class Api(object):
         responses = []
         for file_name, file_info in result.items():
             try:
-                open_file = files[file_name] if isinstance(
-                    files, dict) else open(file_name, "rb")
+                normal_name = os.path.join(*file_name.split("/"))
+                open_file = files[normal_name] if isinstance(
+                    files, dict) else open(normal_name, "rb")
             except IOError:
                 print("%s does not exist" % file_name)
                 continue

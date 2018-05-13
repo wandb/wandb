@@ -5,11 +5,6 @@ import {resetError, setFlash} from '../actions';
 import _ from 'lodash';
 
 const ErrorPage = ({error, history, dispatch}) => {
-  // If production, auto-reload after 20s
-  if (process.env.NODE_ENV === 'production') {
-    setTimeout(() => window.location.reload(true), 20000);
-  }
-
   let icon,
     title,
     message,
@@ -25,6 +20,11 @@ const ErrorPage = ({error, history, dispatch}) => {
     error = error.graphQLErrors[0];
   //TODO: Temporary fix
   if (!error.code && message.indexOf('not found') >= 0) error.code = 404;
+  if (!error.code) error.code = 500;
+  // If production, auto-reload 500's after 20s
+  if (process.env.NODE_ENV === 'production' && error.code >= 500) {
+    setTimeout(() => window.location.reload(true), 20000);
+  }
   window.ga('send', 'exception', {
     exDescription: error.message,
     exFatal: fatal === true,

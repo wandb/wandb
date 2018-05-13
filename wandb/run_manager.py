@@ -167,7 +167,7 @@ class FileEventHandlerConfig(FileEventHandler):
 
         # TODO(adrian): ensure the file content will exactly match Bucket.config
         # ie. push the file content as a string
-        self._api.upsert_run(id=self._run._storage_id, config=config_dict)
+        self._api.upsert_run(id=self._run.storage_id, config=config_dict)
         self._file_pusher.file_changed(
             self.save_name, self.file_path, copy=True)
         self._last_sent = time.time()
@@ -585,7 +585,8 @@ class RunManager(object):
                 commit = None
 
             if not self._upsert_run(False, storage_id, commit, env):
-                self._upsert_run_thread = threading.Thread(target=self._upsert_run, args=(True, storage_id, commit, env))
+                self._upsert_run_thread = threading.Thread(
+                    target=self._upsert_run, args=(True, storage_id, commit, env))
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
 
@@ -604,7 +605,7 @@ class RunManager(object):
         if retry:
             num_retries = None
         else:
-            num_retries = 0 # no retries because we want to let the user process run even if the backend is down
+            num_retries = 0  # no retries because we want to let the user process run even if the backend is down
 
         try:
             upsert_result = self._api.upsert_run(id=storage_id,
@@ -628,7 +629,8 @@ class RunManager(object):
                     "resume='never' but run (%s) exists" % self._run.id)
             else:
                 if isinstance(e.exc, requests.exceptions.ConnectionError):
-                    wandb.termerror('Failed to connect to W&B. Retrying in the background.')
+                    wandb.termerror(
+                        'Failed to connect to W&B. Retrying in the background.')
                     return False
 
                 raise LaunchError(
@@ -795,7 +797,7 @@ class RunManager(object):
             self._meta.data["state"] = "failed"
         self._meta.shutdown()
         self._system_stats.shutdown()
-        self._close_stdout_stderr_streams(exitcode or 254)
+        self._close_stdout_stderr_streams(exitcode)
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:

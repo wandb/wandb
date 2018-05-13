@@ -24,6 +24,7 @@ import time
 import traceback
 import yaml
 import threading
+import random
 
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException, Abort
@@ -73,20 +74,34 @@ class CallbackHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 
 class LocalServer():
-    """A local HTTP server that asks for an open port and listens for a callback.
+    """A local HTTP server that finds an open port and listens for a callback.
     The urlencoded callback url is accessed via `.qs` the query parameters passed
     to the callback are accessed via `.result`
     """
 
     def __init__(self):
-        sock = socket.socket()
-        sock.bind(('', 0))
-        self.port = sock.getsockname()[1]
         self.blocking = True
-        self._server = BaseHTTPServer.HTTPServer(
-            ('127.0.0.1', self.port), CallbackHandler)
+        self.port = 8666
+        self.connect()
         self._server.result = {}
         self._server.stop = self.stop
+
+    def connect(self, attempts=1):
+        try:
+            self._server = BaseHTTPServer.HTTPServer(
+                ('127.0.0.1', self.port), CallbackHandler)
+        except socket.error:
+            if attempts < 5:
+                self.port += random.randint(1, 1000)
+                self.connect(attempts + 1)
+            else:
+                logging.info(
+                    "Unable to start local server, proceeding manually")
+
+                class FakeServer():
+                    def serve_forever(self):
+                        pass
+                self._server = FakeServer()
 
     def qs(self):
         return urllib.parse.urlencode({

@@ -286,7 +286,7 @@ def get_python_type():
         return 'python'
 
 
-def init(job_type='train', config=None):
+def init(job_type='train', config=None, allow_val_change=False):
     global run
     global __stage_dir__
 
@@ -335,11 +335,13 @@ def init(job_type='train', config=None):
     # we do these checks after setting the run and the config because users scripts
     # may depend on those things
     if sys.platform == 'win32' and run.mode != 'clirun':
-        termerror('Headless mode isn\'t supported on Windows. If you want to use W&B, please use "wandb run ..."; running normally.')
+        termerror(
+            'Headless mode isn\'t supported on Windows. If you want to use W&B, please use "wandb run ..."; running normally.')
         return run
 
     if get_python_type() != 'python':
-        termerror('W&B doesn\'t work in IPython or Jupyter notebooks. Running normally.')
+        termerror(
+            'W&B doesn\'t work in IPython or Jupyter notebooks. Running normally.')
         return run
 
     if run.mode == 'clirun' or run.mode == 'run':
@@ -363,7 +365,7 @@ def init(job_type='train', config=None):
         sys.exit(1)
 
     if config:
-        run.config.update(config)
+        run.config.update(config, allow_val_change=allow_val_change)
 
     atexit.register(run.close_files)
 
