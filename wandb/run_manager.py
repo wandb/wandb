@@ -670,6 +670,7 @@ class RunManager(object):
         runner = util.find_runner(program)
         if runner:
             command = runner + command
+        command = ' '.join(six.moves.shlex_quote(arg) for arg in command)
 
         try:
             self.proc = subprocess.Popen(
