@@ -15,6 +15,39 @@ import * as Run from '../util/runs';
 
 import './RunFilters.css';
 
+interface FilterTagsValueSelectorProps {
+  value: boolean;
+  setFilterValue(value: Run.Value): void;
+  close(): void;
+}
+class FilterTagValueSelector extends React.Component<
+  FilterTagsValueSelectorProps,
+  {}
+> {
+  render() {
+    return (
+      <Dropdown
+        options={[
+          {key: 'set', text: 'SET', value: 'set'},
+          {key: 'notset', text: 'NOT SET', value: 'notset'},
+        ]}
+        placeholder="value"
+        search
+        selection
+        value={this.props.value ? 'set' : 'notset'}
+        onChange={(e, {value}) => {
+          if (value === 'set') {
+            this.props.setFilterValue(true);
+          } else {
+            this.props.setFilterValue(false);
+          }
+        }}
+        onClose={() => this.props.close()}
+      />
+    );
+  }
+}
+
 interface FilterValueSuggestionsProps {
   entityName: string;
   projectName: string;
@@ -80,7 +113,7 @@ const withFilterValueSuggestions = graphql<
 
 function displayValue(filterKey: Run.Key, value: Run.Value) {
   if (filterKey.section === 'tags') {
-    return value === true ? 'Set' : 'Unset';
+    return value === true ? 'Set' : 'Not Set';
   } else {
     return Run.displayValue(value);
   }
@@ -200,6 +233,7 @@ interface FilterKeySuggestionsProps {
   filter: Filter.IndividualFilter;
   otherFilters: Filter.Filter;
   id: number;
+  setFilter(filter: Filter.IndividualFilter): void;
   setFilterKey(key: Run.Key): void;
   setFilterOp(op: Filter.IndividualOp): void;
   setFilterValue(value: Run.Value): void;
@@ -249,7 +283,19 @@ const withFilterKeySuggestions = graphql<
       : {};
     return {
       loading: data.loading,
-      keys: _.keys(keyToPath).sort(),
+      keys: _.keys(keyToPath).sort((a, b) => {
+        // Sort tags to top, otherwise lexical sort
+        const aTag = _.startsWith(a, 'tags');
+        const bTag = _.startsWith(b, 'tags');
+        if ((aTag && bTag) || (!aTag && !bTag)) {
+          return a < b ? -1 : 1;
+        } else if (aTag) {
+          return -1;
+        } else {
+          // bTag true
+          return 1;
+        }
+      }),
       keyToPath,
     };
   },
@@ -303,7 +349,15 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
               onValidSelection={keyString => {
                 const filterKey = Run.keyFromString(keyString);
                 if (filterKey != null) {
-                  this.props.setFilterKey(filterKey);
+                  if (filterKey.section === 'tags') {
+                    this.props.setFilter({
+                      key: filterKey,
+                      op: '=',
+                      value: true,
+                    });
+                  } else {
+                    this.props.setFilterKey(filterKey);
+                  }
                 }
               }}
               disabled={this.props.loading}
@@ -323,19 +377,27 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
             </Form.Field>
           )}
           <Form.Field>
-            <FilterValueSelectorWrapped
-              entityName={this.props.entityName}
-              projectName={this.props.projectName}
-              otherFilters={this.props.otherFilters}
-              keysLoading={this.props.loading}
-              keyPath={
-                this.props.keyToPath[Run.displayKey(this.props.filter.key)]
-              }
-              filter={this.props.filter}
-              setFilterValue={this.props.setFilterValue}
-              setFilterMultiValue={this.props.setFilterMultiValue}
-              close={this.props.close}
-            />
+            {this.props.filter.key.section !== 'tags' ? (
+              <FilterValueSelectorWrapped
+                entityName={this.props.entityName}
+                projectName={this.props.projectName}
+                otherFilters={this.props.otherFilters}
+                keysLoading={this.props.loading}
+                keyPath={
+                  this.props.keyToPath[Run.displayKey(this.props.filter.key)]
+                }
+                filter={this.props.filter}
+                setFilterValue={this.props.setFilterValue}
+                setFilterMultiValue={this.props.setFilterMultiValue}
+                close={this.props.close}
+              />
+            ) : (
+              <FilterTagValueSelector
+                value={this.props.filter.value as boolean}
+                setFilterValue={this.props.setFilterValue}
+                close={this.props.close}
+              />
+            )}
           </Form.Field>
         </Form>
       </div>
@@ -435,7 +497,7 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
               <Button className="filter" id={this.elementId()}>
                 {key.section === 'tags' ? (
                   <span>
-                    tags:{key.name} is {value === true ? 'Set' : 'Unset'}
+                    tags:{key.name} is {value === true ? 'Set' : 'Not Set'}
                   </span>
                 ) : (
                   <span>
@@ -471,6 +533,7 @@ class RunFilter extends React.Component<RunFilterProps, {}> {
               filter={this.props.filter}
               otherFilters={this.props.otherFilters}
               id={this.globalId}
+              setFilter={this.props.setFilter}
               setFilterKey={(filterKey: Run.Key) =>
                 this.props.setFilter({
                   ...this.props.filter,
@@ -674,25 +737,27 @@ export default class RunFilters extends React.Component<
             }
           />
         ))}
-        {!empty && <Button
-          className="orButton"
-          circular
-          icon="plus"
-          content="OR"
-          style={{marginTop: 8}}
-          size="tiny"
-          onClick={() =>
-            this.props.setFilters(
-              kind,
-              Filter.Update.groupPush(filters, [], {
-                op: 'AND',
-                filters: [
-                  {key: {section: 'run', name: ''}, op: '=', value: null},
-                ],
-              })
-            )
-          }
-        />}
+        {!empty && (
+          <Button
+            className="orButton"
+            circular
+            icon="plus"
+            content="OR"
+            style={{marginTop: 8}}
+            size="tiny"
+            onClick={() =>
+              this.props.setFilters(
+                kind,
+                Filter.Update.groupPush(filters, [], {
+                  op: 'AND',
+                  filters: [
+                    {key: {section: 'run', name: ''}, op: '=', value: null},
+                  ],
+                })
+              )
+            }
+          />
+        )}
       </div>
     ) : (
       <p>Can't render filters</p>

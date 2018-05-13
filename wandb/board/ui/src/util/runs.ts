@@ -365,7 +365,12 @@ export function serverPathToKey(pathString: string): Key | null {
   if (name == null) {
     return null;
   }
-  if (section === 'config') {
+  if (section === 'tags') {
+    return {
+      section: 'tags',
+      name,
+    };
+  } else if (section === 'config') {
     if (!_.endsWith(name, '.value')) {
       return null;
     }
