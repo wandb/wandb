@@ -1,7 +1,9 @@
 import update from 'immutability-helper';
 import * as _ from 'lodash';
+import * as Moment from 'moment';
 import * as React from 'react';
 import {graphql, OptionProps, QueryProps} from 'react-apollo';
+import * as Datetime from 'react-datetime';
 import {Button, Dropdown, Form, Popup, Select} from 'semantic-ui-react';
 import {setFilters} from '../actions/run';
 import RunKeySelector from '../components/RunKeySelector';
@@ -13,7 +15,33 @@ import * as Filter from '../util/filters';
 import * as RunHelpers from '../util/runhelpers';
 import * as Run from '../util/runs';
 
+import 'react-datetime/css/react-datetime.css';
+
 import './RunFilters.css';
+
+interface FilterDateValueSelectorProps {
+  value: string | null;
+  setFilterValue(value: Run.Value): void;
+  close(): void;
+}
+class FilterDateValueSelector extends React.Component<
+  FilterDateValueSelectorProps,
+  {}
+> {
+  render() {
+    return (
+      <Datetime
+        value={this.props.value ? new Date(this.props.value) : new Date()}
+        onChange={moment =>
+          Moment.isMoment(moment) &&
+          this.props.setFilterValue(
+            moment.utc().format('YYYY-MM-DDTHH:mm:ss') + 'Z'
+          )
+        }
+      />
+    );
+  }
+}
 
 interface FilterTagsValueSelectorProps {
   value: boolean;
@@ -281,9 +309,8 @@ const withFilterKeySuggestions = graphql<
     const keyToPath = data.project
       ? parseFilterKeySuggestions(data.project.pathCounts)
       : {};
-    return {
-      loading: data.loading,
-      keys: _.keys(keyToPath).sort((a, b) => {
+    const keys = ['createdAt'].concat(
+      _.keys(keyToPath).sort((a, b) => {
         // Sort tags to top, otherwise lexical sort
         const aTag = _.startsWith(a, 'tags');
         const bTag = _.startsWith(b, 'tags');
@@ -295,7 +322,11 @@ const withFilterKeySuggestions = graphql<
           // bTag true
           return 1;
         }
-      }),
+      })
+    );
+    return {
+      loading: data.loading,
+      keys,
       keyToPath,
     };
   },
@@ -349,7 +380,16 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
               onValidSelection={keyString => {
                 const filterKey = Run.keyFromString(keyString);
                 if (filterKey != null) {
-                  if (filterKey.section === 'tags') {
+                  if (
+                    filterKey.section === 'run' &&
+                    filterKey.name === 'createdAt'
+                  ) {
+                    this.props.setFilter({
+                      key: filterKey,
+                      op: '=',
+                      value: new Date().toISOString(),
+                    });
+                  } else if (filterKey.section === 'tags') {
                     this.props.setFilter({
                       key: filterKey,
                       op: '=',
@@ -376,32 +416,51 @@ class RunFilterEditor extends React.Component<RunFilterEditorProps, {}> {
               />
             </Form.Field>
           )}
-          <Form.Field>
-            {this.props.filter.key.section !== 'tags' ? (
-              <FilterValueSelectorWrapped
-                entityName={this.props.entityName}
-                projectName={this.props.projectName}
-                otherFilters={this.props.otherFilters}
-                keysLoading={this.props.loading}
-                keyPath={
-                  this.props.keyToPath[Run.displayKey(this.props.filter.key)]
-                }
-                filter={this.props.filter}
-                setFilterValue={this.props.setFilterValue}
-                setFilterMultiValue={this.props.setFilterMultiValue}
-                close={this.props.close}
-              />
-            ) : (
-              <FilterTagValueSelector
-                value={this.props.filter.value as boolean}
-                setFilterValue={this.props.setFilterValue}
-                close={this.props.close}
-              />
-            )}
-          </Form.Field>
+          <Form.Field>{this.renderValueSelector()}</Form.Field>
         </Form>
       </div>
     );
+  }
+
+  renderValueSelector() {
+    switch (this.props.filter.key.section) {
+      case 'run':
+        if (this.props.filter.key.name === 'createdAt') {
+          return (
+            <FilterDateValueSelector
+              value={this.props.filter.value as string}
+              setFilterValue={this.props.setFilterValue}
+              close={this.props.close}
+            />
+          );
+        } else {
+          return <div />;
+        }
+      case 'tags':
+        return (
+          <FilterTagValueSelector
+            value={this.props.filter.value as boolean}
+            setFilterValue={this.props.setFilterValue}
+            close={this.props.close}
+          />
+        );
+      default:
+        return (
+          <FilterValueSelectorWrapped
+            entityName={this.props.entityName}
+            projectName={this.props.projectName}
+            otherFilters={this.props.otherFilters}
+            keysLoading={this.props.loading}
+            keyPath={
+              this.props.keyToPath[Run.displayKey(this.props.filter.key)]
+            }
+            filter={this.props.filter}
+            setFilterValue={this.props.setFilterValue}
+            setFilterMultiValue={this.props.setFilterMultiValue}
+            close={this.props.close}
+          />
+        );
+    }
   }
 }
 
