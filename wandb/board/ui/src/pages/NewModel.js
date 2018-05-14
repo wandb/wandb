@@ -24,7 +24,6 @@ class NewModel extends React.Component {
   render() {
     return (
       <div className="model">
-        <Loader />
         <Header>Create Project</Header>
         <ModelEditor
           entityName={this.props.match.params.entity}

@@ -5,6 +5,7 @@ export const USER_QUERY = gql`
     viewer {
       id
       admin
+      email
       entity
       defaultFramework
       photoUrl
@@ -116,6 +117,9 @@ export const CREATE_ENTITY = gql`
         name
         photoUrl
         invitedTeam
+      }
+      apiKey {
+        name
       }
     }
   }

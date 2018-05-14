@@ -61,7 +61,9 @@ class Progress(object):
 
 class CommError(Error):
     """Error communicating with W&B"""
-    pass
+    def __init__(self, msg, exc=None):
+        super(CommError, self).__init__(msg)
+        self.exc = exc
 
 
 class UsageError(Error):
@@ -77,7 +79,7 @@ def normalize_exceptions(func):
         try:
             return func(*args, **kwargs)
         except requests.HTTPError as err:
-            raise CommError(err.response)
+            raise CommError(err.response, err)
         except RetryError as err:
             if "response" in dir(err.last_exception) and err.last_exception.response is not None:
                 try:
@@ -87,7 +89,7 @@ def normalize_exceptions(func):
                     message = err.last_exception.response.text
             else:
                 message = err.last_exception
-            raise CommError(message)
+            raise CommError(message, err.last_exception)
         except Exception as err:
             # gql raises server errors with dict's as strings...
             if len(err.args) > 0:
@@ -101,7 +103,7 @@ def normalize_exceptions(func):
             if os.getenv("WANDB_DEBUG") == "true":
                 raise
             else:
-                raise CommError(message)
+                raise CommError(message, err)
     return wrapper
 
 
@@ -149,18 +151,18 @@ class Api(object):
             self.settings_file = "Not found"
         self.git = GitRepo(remote=self.settings("git_remote"))
         client = Client(
-            retries=1,
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent},
                 use_json=True,
+                # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
+                # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
                 auth=("api", self.api_key),
                 url='%s/graphql' % self.settings('base_url')
             )
         )
-        # 1-day worth of retry
         self.gql = retry.Retry(client.execute, retry_timedelta=retry_timedelta,
-                               retryable_exceptions=(RetryError, requests.HTTPError))
+                               retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None
 
@@ -284,9 +286,12 @@ class Api(object):
                             section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")
-            self._settings["project"] = env.get_project(self._settings.get("project"))
-            self._settings["entity"] = env.get_entity(self._settings.get("entity"))
-            self._settings["base_url"] = env.get_base_url(self._settings.get("base_url"))
+            self._settings["project"] = env.get_project(
+                self._settings.get("project"))
+            self._settings["entity"] = env.get_entity(
+                self._settings.get("entity"))
+            self._settings["base_url"] = env.get_base_url(
+                self._settings.get("base_url"))
 
         return self._settings if key is None else self._settings[key]
 
@@ -526,7 +531,7 @@ class Api(object):
     def upsert_run(self, id=None, name=None, project=None, host=None,
                    config=None, description=None, entity=None, state=None,
                    repo=None, job_type=None, program_path=None, commit=None,
-                   sweep_name=None, summary_metrics=None):
+                   sweep_name=None, summary_metrics=None, num_retries=None):
         """Update a run
 
         Args:
@@ -590,11 +595,19 @@ class Api(object):
         if not description:
             description = None
 
-        response = self.gql(mutation, variable_values={
+        kwargs = {}
+        if num_retries is not None:
+            kwargs['num_retries'] = num_retries
+
+        variable_values = {
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'description': description, 'config': config, 'commit': commit,
             'host': host, 'debug': env.get_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
-            'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics})
+            'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
+        }
+
+        response = self.gql(mutation, variable_values=variable_values, **kwargs)
+
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -642,8 +655,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']                
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']                  : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -934,8 +946,9 @@ class Api(object):
         responses = []
         for file_name, file_info in result.items():
             try:
-                open_file = files[file_name] if isinstance(
-                    files, dict) else open(file_name, "rb")
+                normal_name = os.path.join(*file_name.split("/"))
+                open_file = files[normal_name] if isinstance(
+                    files, dict) else open(normal_name, "rb")
             except IOError:
                 print("%s does not exist" % file_name)
                 continue

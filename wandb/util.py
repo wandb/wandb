@@ -8,6 +8,7 @@ from six.moves import queue
 import requests
 import shlex
 import subprocess
+import sys
 import threading
 import time
 
@@ -112,7 +113,7 @@ def find_runner(program):
         if first_line.startswith('#!'):
             return shlex.split(first_line[2:])
         if program.endswith('.py'):
-            return ['python']
+            return [sys.executable]
     return None
 
 

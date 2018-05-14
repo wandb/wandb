@@ -8,7 +8,6 @@ import TabbedViews from '../components/TabbedViews';
 import DashboardView from '../components/DashboardView';
 import ViewModifier from '../containers/ViewModifier';
 import Loader from '../components/Loader';
-import ErrorPage from '../components/ErrorPage';
 import withHistoryLoader from '../containers/HistoryLoader';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
 import {PROJECT_QUERY} from '../graphql/runs';

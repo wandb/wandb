@@ -33,13 +33,13 @@ class ModelViewer extends React.Component {
             <ol>
               <li>
                 Visit the getting started{' '}
-                <a href="http://docs.wandb.com/#getting-started">
+                <a href="https://docs.wandb.com/docs/started.html">
                   documentation.
                 </a>
               </li>
               <li>
                 Take a look at a few{' '}
-                <a href="https://github.com/wandb/examples">
+                <a href="https://docs.wandb.com/docs/examples.html">
                   example projects.
                 </a>
               </li>

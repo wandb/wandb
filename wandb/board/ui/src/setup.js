@@ -4,7 +4,6 @@ import setupReducers from './reducers';
 import {enableBatching} from 'redux-batched-actions';
 import {routerMiddleware} from 'react-router-redux';
 import {createStore, applyMiddleware, compose} from 'redux';
-import {displayError} from './actions';
 
 export const history = createHistory();
 export const reducers = setupReducers(apolloClient);
@@ -21,7 +20,9 @@ export const connectStore = (user, auth = {loggedIn: () => true}) => {
   );
   auth.store = store;
   window.addEventListener('unhandledrejection', event => {
-    store.dispatch(displayError([event.reason]));
+    // NOTE there is no need for this error to be displayed in flash message
+    // as it is caught by apollo's `errorLink`
+    console.error('Unhandled rejection', event.reason);
   });
   connectStoreToApollo(store);
   return store;

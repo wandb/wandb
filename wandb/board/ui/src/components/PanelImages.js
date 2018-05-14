@@ -136,8 +136,8 @@ class ImagesPanel extends React.Component {
         <p>
           There are no images. For more information on how to collect history,
           check out our documentation at{' '}
-          <a href="http://docs.wandb.com/#media">
-            http://docs.wandb.com/#media
+          <a href="https://docs.wandb.com/docs/logs.html#media">
+            https://docs.wandb.com/docs/logs.html#media
           </a>
         </p>
       );

@@ -406,8 +406,8 @@ class ParCoordPanel extends React.Component {
               This project doesn't have any runs yet, or you have filtered all
               of the runs. To create a run, check out the getting started
               documentation.
-              <a href="http://docs.wandb.com/#getting-started">
-                http://docs.wandb.com/#getting-started
+              <a href="https://docs.wandb.com/docs/started.html">
+                https://docs.wandb.com/docs/started.html
               </a>.
             </div>
           ) : (
@@ -419,8 +419,8 @@ class ParCoordPanel extends React.Component {
               metrics with more than one value. You don't have any of those yet.
               To learn more about collecting summary metrics check out our
               documentation at
-              <a href="http://docs.wandb.com/#summary">
-                http://docs.wandb.com/#summary
+              <a href="https://docs.wandb.com/docs/logs.html">
+                https://docs.wandb.com/docs/logs.html
               </a>.
             </div>
           ))}
