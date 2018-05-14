@@ -418,7 +418,7 @@ class RunManager(object):
         self._get_handler(event.src_path, save_name).on_modified()
 
     def _get_handler(self, file_path, save_name):
-        if not save_name.startswith('media/'):
+        if not os.path.split(save_name)[0] == "media":
             # Don't show stats on media files
             self._stats.update_file(file_path)
         if save_name not in self._event_handlers:
