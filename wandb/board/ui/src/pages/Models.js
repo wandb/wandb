@@ -6,7 +6,6 @@ import {Container, Header, Item, Button} from 'semantic-ui-react';
 import Loader from '../components/Loader';
 import ModelHeader from '../components/ModelHeader';
 import Markdown from '../components/Markdown';
-import ErrorPage from '../components/ErrorPage';
 import {MODELS_QUERY} from '../graphql/models';
 import {updateLocationParams} from '../actions/location';
 
@@ -27,9 +26,7 @@ class Models extends Component {
   }
 
   render() {
-    return this.props.error ? (
-      <ErrorPage error={this.props.error} history={this.props.history} />
-    ) : (
+    return (
       <Container>
         {this.props.loading && <Loader />}
         {this.props.user && (
@@ -59,13 +56,13 @@ class Models extends Component {
                 <ol>
                   <li>
                     Visit the getting started{' '}
-                    <a href="http://docs.wandb.com/#getting-started">
+                    <a href="https://docs.wandb.com/docs/started.html">
                       documentation.
                     </a>
                   </li>
                   <li>
                     Take a look at our{' '}
-                    <a href="https://github.com/wandb/examples">
+                    <a href="https://docs.wandb.com/docs/examples.html">
                       example projects.
                     </a>
                   </li>

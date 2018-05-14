@@ -66,7 +66,8 @@ class TorchHistory(object):
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
         """
-        if not hasattr(tensor, 'shape'):  # checking for inheritance from _TensorBase didn't work for some reason
+        # checking for inheritance from _TensorBase didn't work for some reason
+        if not hasattr(tensor, 'shape'):
             cls = type(tensor)
             raise TypeError('Expected Tensor, not {}.{}'.format(
                 cls.__module__, cls.__name__))

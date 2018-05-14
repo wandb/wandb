@@ -8,7 +8,8 @@ from six.moves import queue
 import wandb
 
 
-EventFileChanged = collections.namedtuple('EventFileChanged', ('path', 'save_name', 'copy'))
+EventFileChanged = collections.namedtuple(
+    'EventFileChanged', ('path', 'save_name', 'copy'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
@@ -52,10 +53,13 @@ class FilePusher(object):
     The finish() method will block until all events have been processed and all
     uploads are complete.
     """
+    RATE_LIMIT_SECONDS = 1
+
     def __init__(self, push_function, max_jobs=4):
         self._push_function = push_function
         self._max_jobs = max_jobs
         self._queue = queue.Queue()
+        self._last_sent = time.time() - self.RATE_LIMIT_SECONDS
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
         self._thread.start()
@@ -87,7 +91,8 @@ class FilePusher(object):
             self._jobs.pop(job.save_name)
             if job.needs_restart:
                 #wandb.termlog('File changed while uploading, restarting: %s' % event.job.save_name)
-                self._start_job(event.job.save_name, event.job.path, event.job.copy)
+                self._start_job(event.job.save_name,
+                                event.job.path, event.job.copy)
             elif self._pending:
                 event = self._pending.pop()
                 self._start_job(event.save_name, event.path, event.copy)
@@ -100,9 +105,15 @@ class FilePusher(object):
                 self._start_job(event.save_name, event.path, event.copy)
 
     def _start_job(self, save_name, path, copy):
-        job = UploadJob(self._queue, self._push_function, save_name, path, copy)
-        job.start()
-        self._jobs[save_name] = job
+        job = UploadJob(self._queue, self._push_function,
+                        save_name, path, copy)
+        if self._last_sent < time.time() - self.RATE_LIMIT_SECONDS:
+            job.start()
+            self._jobs[save_name] = job
+            self._last_sent = time.time()
+        else:
+            time.sleep(self.RATE_LIMIT_SECONDS)
+            self._start_job(save_name, path, copy)
 
     def file_changed(self, save_name, path, copy=False):
         self._queue.put(EventFileChanged(path, save_name, copy))

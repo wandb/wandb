@@ -25,64 +25,63 @@ RUN = 'WANDB_RUN'
 
 
 def is_debug():
-	return get_debug == 'true'
+    return get_debug == 'true'
 
 
 def get_debug(default=None, env=None):
-	if env is None:
-		env = os.environ
+    if env is None:
+        env = os.environ
 
-	return env.get(DEBUG, default)
+    return env.get(DEBUG, default)
 
 
 def get_run(default=None, env=None):
-	if env is None:
-		env = os.environ
+    if env is None:
+        env = os.environ
 
-	return env.get(RUN, default)
+    return env.get(RUN, default)
 
 
 def get_project(default=None, env=None):
-	if env is None:
-		env = os.environ
+    if env is None:
+        env = os.environ
 
-	return env.get(PROJECT, default)
+    return env.get(PROJECT, default)
 
 
 def get_entity(default=None, env=None):
-	if env is None:
-		env = os.environ
+    if env is None:
+        env = os.environ
 
-	return env.get(ENTITY, default)
+    return env.get(ENTITY, default)
 
 
 def get_base_url(default=None, env=None):
-	if env is None:
-		env = os.environ
+    if env is None:
+        env = os.environ
 
-	return env.get(BASE_URL, default)
+    return env.get(BASE_URL, default)
 
 
 def get_show_run(default=None, env=None):
-	if env is None:
-		env = os.environ
+    if env is None:
+        env = os.environ
 
-	return bool(env.get(SHOW_RUN, default))
+    return bool(env.get(SHOW_RUN, default))
 
 
 def get_description(default=None, env=None):
-	if env is None:
-		env = os.environ
+    if env is None:
+        env = os.environ
 
-	return env.get(DESCRIPTION, default)
+    return env.get(DESCRIPTION, default)
 
 
 def get_dir(default=None, env=None):
-	if env is None:
-		env = os.environ
-
-	return env.get(DIR, default)
+    if env is None:
+        env = os.environ
+    return env.get(DIR, default)
 
 
 def get_config_paths():
-	pass
+    pass

@@ -24,10 +24,13 @@ import time
 import traceback
 import yaml
 import threading
+import random
 
 from click.utils import LazyFile
-from click.exceptions import BadParameter, ClickException
+from click.exceptions import BadParameter, ClickException, Abort
 import whaaaaat
+from six.moves import BaseHTTPServer, urllib
+import socket
 
 import wandb
 from wandb.api import Api
@@ -54,6 +57,75 @@ class ClickWandbException(ClickException):
         else:
             return ('An Exception was raised, see %s for full traceback.\n'
                     '%s: %s' % (log_file, orig_type, self.message))
+
+
+class CallbackHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    """Simple callback handler that stores query string parameters and 
+    shuts down the server.
+    """
+
+    def do_GET(self):
+        self.server.result = urllib.parse.parse_qs(
+            self.path.split("?")[-1])
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'Success')
+        self.server.stop()
+
+
+class LocalServer():
+    """A local HTTP server that finds an open port and listens for a callback.
+    The urlencoded callback url is accessed via `.qs` the query parameters passed
+    to the callback are accessed via `.result`
+    """
+
+    def __init__(self):
+        self.blocking = True
+        self.port = 8666
+        self.connect()
+        self._server.result = {}
+        self._server.stop = self.stop
+
+    def connect(self, attempts=1):
+        try:
+            self._server = BaseHTTPServer.HTTPServer(
+                ('127.0.0.1', self.port), CallbackHandler)
+        except socket.error:
+            if attempts < 5:
+                self.port += random.randint(1, 1000)
+                self.connect(attempts + 1)
+            else:
+                logging.info(
+                    "Unable to start local server, proceeding manually")
+
+                class FakeServer():
+                    def serve_forever(self):
+                        pass
+                self._server = FakeServer()
+
+    def qs(self):
+        return urllib.parse.urlencode({
+            "callback": "http://127.0.0.1:{}/callback".format(self.port)})
+
+    @property
+    def result(self):
+        return self._server.result
+
+    def start(self, blocking=True):
+        self.blocking = blocking
+        if self.blocking:
+            self._server.serve_forever()
+        else:
+            t = threading.Thread(target=self._server.serve_forever)
+            t.daemon = True
+            t.start()
+
+    def stop(self, *args):
+        t = threading.Thread(target=self._server.shutdown)
+        t.daemon = True
+        t.start()
+        if not self.blocking:
+            os.kill(os.getpid(), signal.SIGINT)
 
 
 def display_error(func):
@@ -372,34 +444,73 @@ def pull(project, run, entity):
                         bar.update(len(data))
 
 
+@cli.command(context_settings=CONTEXT, help="Signup for Weights & Biases")
+@click.pass_context
+@display_error
+def signup(ctx):
+    import webbrowser
+    server = LocalServer()
+    url = api.app_url + "/login?invited"
+    launched = webbrowser.open_new_tab(
+        url + "&{}".format(server.qs()))
+    if launched:
+        signal.signal(signal.SIGINT, server.stop)
+        click.echo(
+            'Opened [{0}] in your default browser'.format(url))
+        server.start(blocking=False)
+        key = ctx.invoke(login, server=server, browser=False)
+        if key:
+            # Only init if we aren't pre-configured
+            if not os.path.isdir(wandb_dir()):
+                ctx.invoke(init)
+    else:
+        click.echo("Signup with this url in your browser: {0}".format(url))
+        click.echo("Then run wandb login")
+
+
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @display_error
-def login(key):
+def login(key, server=LocalServer(), browser=True):
     key = key[0] if len(key) > 0 else None
     # Import in here for performance reasons
     import webbrowser
-    # TODO: use Oauth and a local webserver: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
-    url = api.app_url + '/profile?message=true'
+    # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
+    url = api.app_url + '/profile?message=key'
     # TODO: google cloud SDK check_browser.py
-    if key:
+    if key or not browser:
         launched = False
     else:
-        launched = webbrowser.open_new_tab(url)
+        launched = webbrowser.open_new_tab(url + "&{}".format(server.qs()))
     if launched:
         click.echo(
-            'Opening [{0}] in a new tab in your default browser.'.format(url))
-    elif not key:
-        click.echo("You can find your API keys here: {0}".format(url))
+            'Opening [{0}] in your default browser'.format(url))
+        server.start(blocking=False)
+    elif not key and browser:
+        click.echo(
+            "You can find your API keys in your browser here: {0}".format(url))
 
-    key = key or click.prompt("Paste an API key from your profile".format(
-        value_proc=lambda x: x.strip()))
+    def cancel_prompt(*args):
+        raise KeyboardInterrupt()
+    # if not os.getenv("WANDB_TEST"):
+    # Hijacking this signal was broke tests
+    signal.signal(signal.SIGINT, cancel_prompt)
+    try:
+        key = key or click.prompt("Paste an API key from your profile",
+                                  value_proc=lambda x: x.strip())
+    except Abort:
+        if server.result.get("key"):
+            key = server.result["key"][0]
+
     if key:
         # TODO: get the username here...
         # username = api.viewer().get('entity', 'models')
         if write_netrc(api.api_url, "user", key):
             click.secho(
                 "Successfully logged in to Weights & Biases!", fg="green")
+    else:
+        click.echo("No key provided, please try again")
+    return key
 
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
@@ -472,7 +583,7 @@ def init(ctx):
         """).format(
         code1=click.style("import wandb", bold=True),
         code2=click.style("wandb.init()", bold=True),
-        run=click.style("wandb run <train.py>", bold=True),
+        run=click.style("python <train.py>", bold=True),
         # saving this here so I can easily put it back when we re-enable
         # push/pull
         #"""

@@ -62,11 +62,7 @@ class Retry(object):
         if os.environ.get('WANDB_TEST'):
             num_retries = 0
 
-        sleep_base = 1
-        try:
-            sleep_base = kwargs.pop('retry_sleep_base')
-        except KeyError:
-            pass
+        sleep_base = kwargs.pop('retry_sleep_base', 1)
 
         first = True
         sleep = sleep_base

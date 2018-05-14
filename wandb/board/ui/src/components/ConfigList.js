@@ -22,7 +22,7 @@ class ConfigList extends React.Component {
         <p>
           {' '}
           Check the{' '}
-          <a href="http://docs.wandb.com/#configurations">
+          <a href="https://docs.wandb.com/docs/configs.html">
             configuration documentation
           </a>{' '}
           for more information.
