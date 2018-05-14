@@ -13,6 +13,7 @@ import time
 from tempfile import NamedTemporaryFile
 import threading
 import yaml
+import numbers
 
 import click
 from shortuuid import ShortUUID
@@ -820,6 +821,8 @@ class RunManager(object):
             max_len = max([len(k) for k in history_keys])
             for key in history_keys:
                 vals = util.downsample(self._run.history.column(key), 40)
+                if any((not isinstance(v, numbers.Number) for v in vals)):
+                    continue
                 line = sparkline.sparkify(vals)
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
