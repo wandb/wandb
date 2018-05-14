@@ -121,8 +121,8 @@ class RunsLinePlotPanel extends React.Component {
               This project doesn't have any runs with history data, so you can't
               make a history line chart. For more information on how to collect
               history, check out our documentation at{' '}
-              <a href="http://docs.wandb.com/#history">
-                http://docs.wandb.com/#history
+              <a href="https://docs.wandb.com/docs/logs.html">
+                https://docs.wandb.com/docs/logs.html
               </a>.
             </div>
           )}

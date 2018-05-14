@@ -21,8 +21,10 @@ class SummaryList extends React.Component {
         <p>
           {' '}
           Check the{' '}
-          <a href="http://docs.wandb.com/#summary">summary documentation</a> for
-          more information.
+          <a href="https://docs.wandb.com/docs/logs.html">
+            summary documentation
+          </a>{' '}
+          for more information.
         </p>
       </div>
     );

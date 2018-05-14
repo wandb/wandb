@@ -50,19 +50,19 @@ class ScatterPlotPanel extends React.Component {
       if (xAxis) {
         this.xSelect = Selection.bounds(
           nextProps.selections,
-          Run.keyFromString(xAxis),
+          Run.keyFromString(xAxis)
         );
       }
       if (yAxis) {
         this.ySelect = Selection.bounds(
           nextProps.selections,
-          Run.keyFromString(yAxis),
+          Run.keyFromString(yAxis)
         );
       }
       if (zAxis) {
         this.zSelect = Selection.bounds(
           nextProps.selections,
-          Run.keyFromString(zAxis),
+          Run.keyFromString(zAxis)
         );
       }
     }
@@ -102,8 +102,8 @@ class ScatterPlotPanel extends React.Component {
               This project doesn't have any runs yet, or you have filtered all
               of the runs. To create a run, check out the getting started
               documentation.
-              <a href="http://docs.wandb.com/#getting-started">
-                http://docs.wandb.com/#getting-started
+              <a href="https://docs.wandb.com/docs/started.html">
+                https://docs.wandb.com/docs/started.html
               </a>.
             </div>
           ) : (
@@ -115,8 +115,8 @@ class ScatterPlotPanel extends React.Component {
               more than one value. You don't have any of those yet. To learn
               more about collecting summary metrics check out our documentation
               at
-              <a href="http://docs.wandb.com/#summary">
-                http://docs.wandb.com/#summary
+              <a href="https://docs.wandb.com/docs/logs.html">
+                https://docs.wandb.com/docs/logs.html
               </a>.
             </div>
           ))}
@@ -201,7 +201,7 @@ class ScatterPlotPanel extends React.Component {
       }
       let highlight = _.find(
         data,
-        point => point.runId === this.props.highlight,
+        point => point.runId === this.props.highlight
       );
       return (
         <div>
@@ -230,25 +230,25 @@ class ScatterPlotPanel extends React.Component {
                   selections,
                   Run.keyFromString(xAxis),
                   '>=',
-                  xSelect.low,
+                  xSelect.low
                 );
                 selections = Selection.Update.addBound(
                   selections,
                   Run.keyFromString(xAxis),
                   '<=',
-                  xSelect.high,
+                  xSelect.high
                 );
                 selections = Selection.Update.addBound(
                   selections,
                   Run.keyFromString(yAxis),
                   '>=',
-                  ySelect.low,
+                  ySelect.low
                 );
                 selections = Selection.Update.addBound(
                   selections,
                   Run.keyFromString(yAxis),
                   '<=',
-                  ySelect.high,
+                  ySelect.high
                 );
                 this.props.setFilters('select', selections);
               }}
@@ -302,7 +302,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
 };
 
 let ConnectScatterPlotPanel = connect(mapStateToProps, mapDispatchToProps)(
-  ScatterPlotPanel,
+  ScatterPlotPanel
 );
 ConnectScatterPlotPanel.type = ScatterPlotPanel.type;
 ConnectScatterPlotPanel.options = ScatterPlotPanel.options;
