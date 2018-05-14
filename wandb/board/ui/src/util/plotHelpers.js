@@ -177,7 +177,8 @@ export function appropriateTimestep(lines) {
   }
   let maxTime = 0;
   lines.map(l => {
-    if (_.last(l.data).x > maxTime) {
+    const last = _.last(l.data);
+    if (last && last.x > maxTime) {
       maxTime = _.last(l.data).x;
     }
   });
