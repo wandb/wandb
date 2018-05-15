@@ -1,0 +1,14 @@
+.panelImagesWrapper :focus {
+  outline: none;
+}
+.panelImagesWrapper .slick-dots {
+  bottom: 0;
+  margin-top: 10px;
+  position: relative;
+}
+.slick-initialized.slickEnabled .slick-slide {
+  cursor: move;
+}
+.panelImagesWrapper input[type='range'] {
+  cursor: pointer;
+}

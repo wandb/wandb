@@ -3,6 +3,10 @@ import _ from 'lodash';
 import {Form, Icon} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {BOARD} from '../util/board';
+import Slider from 'react-slick';
+import 'slick-carousel/slick/slick-theme.css';
+import 'slick-carousel/slick/slick.css';
+import './PanelImages.css';
 
 class ImagesPanel extends React.Component {
   state = {epoch: 0};
@@ -168,36 +172,48 @@ class ImagesPanel extends React.Component {
       if (ticks < 8) tickMarks.push(i);
       else tickMarks.push(Math.ceil(i * (history.length / 8)));
     }
+    let enableSlick = captions.length > 1;
+    let settings = {
+      dots: true,
+      className: (enableSlick ? 'slickEnabled ' : '') + 'center',
+      centerMode: true,
+      infinite: true,
+      speed: 500,
+      slidesToShow: 1,
+      rows: 4,
+      slidesPerRow: 2,
+      unslick: !enableSlick,
+    };
     return (
-      <div>
+      <div className="panelImagesWrapper">
         <h3>Step {this.state.epoch}</h3>
-        {console.log('Captions', captions)}
         {captions ? (
-          captions.map((label, i) => {
-            return (
-              <div
-                key={i}
-                style={{
-                  float: 'left',
-                  zoom: this.props.config.zoom || 1,
-                  filter: this.props.config.filter || 'none',
-                  padding: 5,
-                  textAlign: 'center',
-                }}>
+          <Slider {...settings}>
+            {captions.map((label, i) => {
+              return (
                 <div
+                  key={i}
                   style={{
-                    backgroundImage: `url(${sprite})`,
-                    width: width,
-                    height: height,
-                    backgroundPosition: `-${i * width}px 0`,
-                  }}
-                />
-                <span style={{fontSize: '0.6em', lineHeight: '1em'}}>
-                  {label}
-                </span>
-              </div>
-            );
-          })
+                    zoom: this.props.config.zoom || 1,
+                    filter: this.props.config.filter || 'none',
+                    padding: 5,
+                    textAlign: 'center',
+                  }}>
+                  <div
+                    style={{
+                      backgroundImage: `url(${sprite})`,
+                      width: width,
+                      height: height,
+                      backgroundPosition: `-${i * width}px 0`,
+                    }}
+                  />
+                  <span style={{fontSize: '0.6em', lineHeight: '1em'}}>
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+          </Slider>
         ) : (
           <p>No Images Uploaded for epoch {this.state.epoch}</p>
         )}
