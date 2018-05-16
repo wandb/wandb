@@ -168,6 +168,7 @@ class RunFeedSubgroupRuns extends React.Component {
           descriptionHeight={index === 0 && this.props.descriptionHeight}
           subgroupHeight={index === 0 && runs.length}
           run={run}
+          isSingleRun
           allowSelection
         />
       );
@@ -471,6 +472,9 @@ class RunFeed extends PureComponent {
       this.columnNames = ['Select', 'Description'];
       if (this.props.query.grouping && this.props.query.grouping.subgroup) {
         this.columnNames.push('Subgroup');
+      }
+      if (this.props.query.grouping) {
+        this.columnNames.push('Run');
       }
       let configColumns;
       if (!conf.config || (conf.config.auto == null || conf.config.auto)) {
