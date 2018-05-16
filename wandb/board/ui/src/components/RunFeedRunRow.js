@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react';
 import {Checkbox, Icon, Table} from 'semantic-ui-react';
 import TimeAgo from 'react-timeago';
+import {NavLink} from 'react-router-dom';
 import ValueDisplay from './RunFeedValueDisplay';
 import {makeShouldUpdate} from '../util/shouldUpdate';
 import * as Selection from '../util/selections';
@@ -31,6 +32,7 @@ export default class RunFeedRunRow extends React.Component {
 
   render() {
     let {
+      isSingleRun,
       run,
       descriptionRun,
       loading,
@@ -180,6 +182,21 @@ export default class RunFeedRunRow extends React.Component {
                     )}
                   </Table.Cell>
                 )
+              );
+            case 'Run':
+              return (
+                <Table.Cell key={columnName} collapsing>
+                  {isSingleRun ? (
+                    <NavLink
+                      to={`/${project.entityName}/${project.name}/runs/${
+                        run.name
+                      }`}>
+                      {run.name ? run.name.split('\n')[0] : ''}{' '}
+                    </NavLink>
+                  ) : (
+                    '-'
+                  )}
+                </Table.Cell>
               );
             case 'Ran':
               return (

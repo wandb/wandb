@@ -4,6 +4,7 @@ import withRunsDataLoader from '../containers/RunsDataLoader';
 import RunKeySelector from '../components/RunKeySelector';
 import * as Run from '../util/runs';
 import * as UIHelpers from '../util/uihelpers';
+import * as _ from 'lodash';
 
 class RunFeedConfig extends React.Component {
   render() {

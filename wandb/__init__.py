@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.5.20'
+__version__ = '0.5.21'
 
 import atexit
 import click
@@ -231,17 +231,19 @@ def save(path):
     return os.symlink(os.path.abspath(path), os.path.join(run.dir, file_name))
 
 
-def log(history_row, complete=True):
-    """Log a dict to the global run's history.  If complete is false, enables multiple calls before commiting.
+def log(row=None, commit=True):
+    """Log a dict to the global run's history.  If commit is false, enables multiple calls before commiting.
 
     Eg.
 
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
     """
-    if complete:
-        run.history.add(history_row)
+    if row is None:
+        row = {}
+    if commit:
+        run.history.add(row)
     else:
-        run.history.row.update(history_row)
+        run.history.row.update(row)
 
 
 def ensure_configured():

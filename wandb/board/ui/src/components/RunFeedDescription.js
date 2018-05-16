@@ -5,6 +5,18 @@ import {stateToIcon} from '../util/runhelpers.js';
 import Tags from '../components/Tags';
 
 export default class RunFeedDescription extends React.Component {
+  renderRunName() {
+    const {run} = this.props;
+    return (
+      <span style={{whiteSpace: 'nowrap'}}>
+        {run.description || run.name
+          ? (run.description || run.name).split('\n')[0]
+          : ''}{' '}
+        {stateToIcon(run.state)}
+      </span>
+    );
+  }
+
   render() {
     const {
       loading,
@@ -35,15 +47,16 @@ export default class RunFeedDescription extends React.Component {
               </Item.Image>
               <Item.Content>
                 <Item.Header>
-                  <NavLink
-                    to={`/${project.entityName}/${project.name}/runs/${
-                      run.name
-                    }`}>
-                    {run.description || run.name
-                      ? (run.description || run.name).split('\n')[0]
-                      : ''}{' '}
-                    {stateToIcon(run.state)}
-                  </NavLink>
+                  {subgroupCount || runCount ? (
+                    this.renderRunName()
+                  ) : (
+                    <NavLink
+                      to={`/${project.entityName}/${project.name}/runs/${
+                        run.name
+                      }`}>
+                      {this.renderRunName()}
+                    </NavLink>
+                  )}
                 </Item.Header>
                 <Item.Extra style={{marginTop: 0}}>
                   <strong>{run.user && run.user.username}</strong>
