@@ -4,12 +4,12 @@ import {Form, Icon} from 'semantic-ui-react';
 import {registerPanelClass} from '../util/registry.js';
 import {BOARD} from '../util/board';
 import Slider from 'react-slick';
-import 'slick-carousel/slick/slick-theme.css';
 import 'slick-carousel/slick/slick.css';
+import 'slick-carousel/slick/slick-theme.css';
 import './PanelImages.css';
 
 class ImagesPanel extends React.Component {
-  state = {epoch: 0};
+  state = {epoch: 0, containerWidth: 0};
   static type = 'Images';
   static options = {};
 
@@ -73,6 +73,21 @@ class ImagesPanel extends React.Component {
         text: f,
       };
     });
+  }
+
+  getImageSize(images) {
+    const minHeight = 60,
+      maxHeight = 440;
+    let image = images[0];
+    if (image.height < minHeight) {
+      image.width = image.width * (minHeight / image.height);
+      image.height = minHeight;
+    }
+    if (image.height > maxHeight) {
+      image.width = image.width / (image.height / maxHeight);
+      image.height = maxHeight;
+    }
+    return image;
   }
 
   renderConfig() {
@@ -151,7 +166,7 @@ class ImagesPanel extends React.Component {
       ? images[this.state.epoch].captions ||
         new Array(images[this.state.epoch].count)
       : '';
-    let {width, height} = images[0];
+    let {width, height, count} = this.getImageSize(images);
     let sprite;
     if (BOARD) {
       sprite =
@@ -172,7 +187,13 @@ class ImagesPanel extends React.Component {
       if (ticks < 8) tickMarks.push(i);
       else tickMarks.push(Math.ceil(i * (history.length / 8)));
     }
+    // minus the top margin with Step label, and bottom pager and range
+    let containerHeight = this.props.currentHeight - 80;
     let enableSlick = captions.length > 1;
+    let zoom = this.props.config.zoom || 1;
+    let rowNumber = Math.floor(containerHeight / ((height + 20) * zoom)) || 1;
+    let slideNumber =
+      Math.floor(this.state.containerWidth / ((width + 20) * zoom)) || 1;
     let settings = {
       dots: true,
       className: (enableSlick ? 'slickEnabled ' : '') + 'center',
@@ -180,34 +201,38 @@ class ImagesPanel extends React.Component {
       infinite: true,
       speed: 500,
       slidesToShow: 1,
-      rows: 4,
-      slidesPerRow: 2,
+      rows: enableSlick ? rowNumber : 1,
+      slidesPerRow: enableSlick ? slideNumber : 1,
       unslick: !enableSlick,
     };
     return (
-      <div className="panelImagesWrapper">
+      <div
+        className="panelImagesWrapper"
+        ref={container => (this.container = container)}>
         <h3>Step {this.state.epoch}</h3>
         {captions ? (
           <Slider {...settings}>
             {captions.map((label, i) => {
               return (
-                <div
-                  key={i}
-                  style={{
-                    zoom: this.props.config.zoom || 1,
-                    filter: this.props.config.filter || 'none',
-                    padding: 5,
-                    textAlign: 'center',
-                  }}>
+                <div key={i} className="imageWrapper">
                   <div
                     style={{
-                      backgroundImage: `url(${sprite})`,
-                      width: width,
-                      height: height,
-                      backgroundPosition: `-${i * width}px 0`,
-                    }}
-                  />
-                  <span style={{fontSize: '0.6em', lineHeight: '1em'}}>
+                      zoom: zoom,
+                      filter: this.props.config.filter || 'none',
+                      padding: 5,
+                    }}>
+                    <div
+                      style={{
+                        backgroundImage: `url(${sprite})`,
+                        width: width,
+                        height: height,
+                        backgroundPosition: `-${i * width}px 0`,
+                        backgroundSize: 'cover',
+                        margin: '0 auto',
+                      }}
+                    />
+                  </div>
+                  <span style={{fontSize: '1em', lineHeight: '1em'}}>
                     {label}
                   </span>
                 </div>
@@ -225,7 +250,6 @@ class ImagesPanel extends React.Component {
           max={history.length - 2}
           step={1}
           value={this.state.epoch}
-          style={{width: '100%'}}
           onChange={e => {
             this.setState({epoch: e.target.value});
           }}
@@ -237,6 +261,10 @@ class ImagesPanel extends React.Component {
         </datalist>
       </div>
     );
+  }
+
+  componentDidMount() {
+    this.setState({containerWidth: this.container.clientWidth});
   }
 
   render() {
