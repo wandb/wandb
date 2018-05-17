@@ -107,6 +107,7 @@ class ExitHooks(object):
 
 
 def _init_headless(run, job_type, cloud=True):
+    global join
     run.description = env.get_description(run.description)
 
     environ = dict(os.environ)
@@ -192,13 +193,26 @@ def _init_headless(run, job_type, cloud=True):
     atexit.register(_user_process_finished, server, hooks,
                     wandb_process, stdout_redirector, stderr_redirector)
 
+    def _wandb_join():
+        _user_process_finished(server, hooks,
+                               wandb_process, stdout_redirector, stderr_redirector)
+    join = _wandb_join
     # redirect output last of all so we don't miss out on error messages
     stdout_redirector.redirect()
     if not env.get_debug():
         stderr_redirector.redirect()
 
 
+join = None
+_user_processs_finished_called = False
+
+
 def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stderr_redirector):
+    global _user_processs_finished_called
+    if _user_processs_finished_called:
+        return
+    _user_processs_finished_called = True
+
     stdout_redirector.restore()
     if not env.get_debug():
         stderr_redirector.restore()
@@ -374,4 +388,4 @@ def init(job_type='train', config=None, allow_val_change=False):
     return run
 
 
-__all__ = ['init', 'config', 'termlog', 'run', 'types', 'callbacks']
+__all__ = ['init', 'config', 'termlog', 'run', 'types', 'callbacks', 'join']
