@@ -24,6 +24,8 @@ try:
 except ImportError:
     pass
 
+MAX_SLEEP_SECONDS = 60 * 5
+
 
 class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
@@ -67,12 +69,11 @@ def request_with_retry(func, *args, **kwargs):
 
     Args:
         func: An http-requesting function to call, like requests.post
-        max_retries: Maximum retries before giving up. By default we retry 18 times in 60 minutes before dropping the chunk
+        max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
         *args: passed through to func
         **kwargs: passed through to func
     """
-    MAX_SLEEP_SECONDS = 60 * 5
-    MAX_RETRIES = kwargs.pop('max_retries', 18)
+    max_retries = kwargs.pop('max_retries', 30)
     sleep = 2
     retry_count = 0
     while True:
@@ -85,7 +86,7 @@ def request_with_retry(func, *args, **kwargs):
                 requests.exceptions.Timeout) as e:
             logger.warning('requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s',
                            e, args, kwargs)
-            if retry_count == MAX_RETRIES:
+            if retry_count == max_retries:
                 return e
             retry_count += 1
             time.sleep(sleep + random.random() * 0.25 * sleep)
