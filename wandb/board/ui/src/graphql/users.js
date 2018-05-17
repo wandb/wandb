@@ -9,6 +9,7 @@ export const USER_QUERY = gql`
       entity
       defaultFramework
       photoUrl
+      flags
       teams {
         edges {
           node {

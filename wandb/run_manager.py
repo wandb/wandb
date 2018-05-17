@@ -182,28 +182,19 @@ class FileEventHandlerConfig(FileEventHandler):
 
 
 class FileEventHandlerSummary(FileEventHandler):
-    """Set the summary instead of uploading the file"""
-    RATE_LIMIT_SECONDS = 10
+    """Read the file and add to the file push api"""
 
     def __init__(self, file_path, save_name, api, file_pusher, run, *args, **kwargs):
         super(FileEventHandlerSummary, self).__init__(
             file_path, save_name, api, *args, **kwargs)
-        self._last_sent = time.time() - self.RATE_LIMIT_SECONDS
-        self._run = run
+        self._api = api
         self._file_pusher = file_pusher
 
     def on_created(self):
         self.on_modified()
 
     def on_modified(self):
-        if time.time() - self._last_sent >= self.RATE_LIMIT_SECONDS:
-            try:
-                self._last_sent = time.time()
-                json.load(open(self.file_path))
-                self._api.upsert_run(id=self._run.storage_id,
-                                     summary_metrics=open(self.file_path).read())
-            except ValueError:
-                logger.error("Unable to parse summary json")
+        self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
 
     def finish(self):
         self._file_pusher.file_changed(self.save_name, self.file_path)
@@ -376,7 +367,7 @@ class RunManager(object):
 
         self._stats = stats.Stats()
         # This starts a thread to write system stats every 30 seconds
-        self._system_stats = stats.SystemStats(run)
+        self._system_stats = stats.SystemStats(run, api)
         self._meta = meta.Meta(api, self._run.dir)
         self._meta.data["jobType"] = job_type
         if self._run.program:

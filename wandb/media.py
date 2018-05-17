@@ -1,4 +1,5 @@
 import os
+import logging
 from wandb import util
 
 
@@ -64,18 +65,21 @@ class Image(object):
         from PIL import Image as PILImage
         base = os.path.join(out_dir, "media", "images")
         width, height = images[0].image.size
+        if len(images) > 50:
+            logging.warn(
+                "The maximum number of images to store per step is 50.")
         sprite = PILImage.new(
             mode='RGB',
             size=(width * len(images), height),
             color=(0, 0, 0, 0))
-        for i, image in enumerate(images):
+        for i, image in enumerate(images[0:50]):
             location = width * i
             sprite.paste(image.image, (location, 0))
         util.mkdir_exists_ok(base)
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
                 "count": len(images), "_type": "images"}
-        captions = Image.captions(images)
+        captions = Image.captions(images[0:50])
         if captions:
             meta["captions"] = captions
         return meta

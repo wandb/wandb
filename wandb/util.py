@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import time
+import random
 
 import wandb
 from wandb import io_wrap
@@ -62,32 +63,35 @@ def mkdir_exists_ok(path):
 
 
 def request_with_retry(func, *args, **kwargs):
-    """Perform a requests http call, retrying with exponetial backoff.
+    """Perform a requests http call, retrying with exponential backoff.
 
     Args:
         func: An http-requesting function to call, like requests.post
-        retries: Maximum retries before giving up.
+        max_retries: Maximum retries before giving up. By default we retry 18 times in 60 minutes before dropping the chunk
         *args: passed through to func
         **kwargs: passed through to func
     """
-    retries = kwargs.get('retries', 5)
-    retry_delay = 2
+    MAX_SLEEP_SECONDS = 60 * 5
+    MAX_RETRIES = kwargs.pop('max_retries', 18)
+    sleep = 2
     retry_count = 0
     while True:
         try:
             response = func(*args, **kwargs)
             response.raise_for_status()
-            return True
+            return response
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.HTTPError,  # XXX 500s aren't retryable
                 requests.exceptions.Timeout) as e:
             logger.warning('requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s',
                            e, args, kwargs)
-            if retry_count == retries:
+            if retry_count == MAX_RETRIES:
                 return e
             retry_count += 1
-            time.sleep(retry_delay)
-            retry_delay *= 2
+            time.sleep(sleep + random.random() * 0.25 * sleep)
+            sleep *= 2
+            if sleep > MAX_SLEEP_SECONDS:
+                sleep = MAX_SLEEP_SECONDS
         except requests.exceptions.RequestException as e:
             logger.error(response.json()['error'])  # XXX clean this up
             logger.exception(

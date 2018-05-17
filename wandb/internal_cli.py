@@ -83,8 +83,6 @@ def agent_run(args):
         rm.run_user_process(args['program'], args['args'], env)
 
 
-
-
 def main():
     wandb.try_to_set_up_logging()
 
