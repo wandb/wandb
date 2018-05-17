@@ -1,6 +1,7 @@
 import React from 'react';
 import {List, Input, Icon, Modal, Button, Grid} from 'semantic-ui-react';
 import FixedLengthString from '../components/FixedLengthString';
+import flatten from 'flat';
 
 import {
   displayValue,
@@ -27,7 +28,7 @@ class DataList extends React.Component {
     }
 
     if (props.data && Object.keys(props.data).length > 0) {
-      this.flatData = this._flatten(props.data);
+      this.flatData = flatten(props.data);
     }
   }
 
@@ -46,29 +47,6 @@ class DataList extends React.Component {
       !(v instanceof Array) &&
       !(v instanceof Date)
     );
-  }
-
-  _flattenInternal(prefix, data) {
-    var prefixStr = prefix.join('.');
-    var retData = {};
-    var newPrefix;
-    Object.keys(data).map(
-      (key, i) =>
-        this.isDict(data[key])
-          ? ((newPrefix = prefix.concat([key])),
-            (retData = Object.assign(
-              retData,
-              this._flattenInternal(newPrefix, data[key])
-            )))
-          : (retData[prefix.concat([key]).join('.')] = data[key])
-    );
-
-    return retData;
-  }
-
-  _flatten(data) {
-    var flatData = this._flattenInternal([], data);
-    return flatData;
   }
 
   prepDataDefault(data) {

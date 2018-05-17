@@ -482,7 +482,7 @@ class Api(object):
         query = gql('''
         query Model($project: String!, $entity: String!, $name: String!) {
             model(name: $project, entityName: $entity) {
-                bucket(name: $name) {
+                bucket(name: $name, missingOk: true) {
                     id
                     name
                     logLineCount
@@ -495,14 +495,9 @@ class Api(object):
         }
         ''')
 
-        try:
-            response = self.gql(query, variable_values={
-                'entity': entity, 'project': project, 'name': name,
-            })
-        except Exception as e:
-            if '404' in str(e):
-                return None
-            raise
+        response = self.gql(query, variable_values={
+            'entity': entity, 'project': project, 'name': name,
+        })
         run = response['model']['bucket']
         return run
 
