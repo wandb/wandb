@@ -94,13 +94,20 @@ class LinePlotPlot extends React.PureComponent {
           .map(
             (line, i) =>
               !disabled[line.title] ? (
-                line.area ? (
+                line.type === 'area' ? (
                   <AreaSeries
                     key={i}
                     color={line.color}
                     data={line.data}
                     getNull={d => d.y !== null}
                     stroke={'#0000'}
+                  />
+                ) : line.type === 'scatter' ? (
+                  <MarkSeries
+                    key={i}
+                    color={line.color}
+                    data={line.data}
+                    nullAccessor={d => d.y !== null}
                   />
                 ) : (
                   <LineSeries

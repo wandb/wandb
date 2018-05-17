@@ -13,6 +13,7 @@ import SystemList from '../components/SystemList';
 import ViewModifier from '../containers/ViewModifier';
 import './Run.css';
 import {JSONparseNaN} from '../util/jsonnan';
+import flatten from 'flat';
 import _ from 'lodash';
 
 /*
@@ -82,9 +83,12 @@ export default class RunViewer extends React.Component {
           return null;
         }
       })
+      .map((row, i) => {
+        return flatten(row);
+      })
       .filter(row => row !== null);
     let keys = _.flatMap(data, row =>
-      _.keys(row).filter(key => !row[key] || !row[key]._type),
+      _.keys(row).filter(key => !row[key] || !row[key]._type)
     );
     keys = _.uniq(keys);
     keys = _.sortBy(keys);

@@ -354,7 +354,7 @@ export function smoothLines(lines, smoothingWeight) {
 
   let smoothedLines = lines.map((line, i) => ({
     ...line,
-    data: smoothLine(line.data, smoothingWeight, line.area),
+    data: smoothLine(line.data, smoothingWeight, line.type == 'area'),
   }));
 
   return _.concat(smoothedLines);
@@ -492,7 +492,7 @@ export function aggregateLines(
     aux: true,
     color: color(idx, 0.15),
     data: areaData,
-    area: true,
+    type: 'area',
   };
 
   prefix = 'Mean ' + name;
@@ -535,14 +535,26 @@ export function linesFromDataRunPlot(
 
   let historyLines = historyNames
     .map((lineName, i) => {
-      let lineData = data.history
-        .map((row, j) => ({
-          // __index is a legacy name - we should remove it from the logic
-          // here at some point.
-          x: xAxis === '__index' || xAxis === '_step' ? j : row[xAxis],
-          y: row[lineName],
-        }))
-        .filter(point => !_.isNil(point.x) && !_.isNil(point.y));
+      let lineData = [];
+      if (Array.isArray(data.history[0])) {
+        // if index
+      } else {
+        // this is the common case where y values are scalars
+        lineData = data.history
+          .map((row, j) => ({
+            // __index is a legacy name - we should remove it from the logic
+            // here at some point.
+            x: xAxis === '__index' || xAxis === '_step' ? j : row[xAxis],
+            y: row[lineName],
+          }))
+          .filter(
+            point =>
+              !_.isNil(point.x) &&
+              !_.isNil(point.y) &&
+              !_.isNaN(point.x) &&
+              !_.isNaN(point.y)
+          );
+      }
       return {
         title: lineName,
         color: color(i),
@@ -560,7 +572,13 @@ export function linesFromDataRunPlot(
           x: xAxis === '__index' || xAxis === '_step' ? j : row[xAxis],
           y: row[lineName],
         }))
-        .filter(point => !_.isNil(point.x) && !_.isNil(point.y));
+        .filter(
+          point =>
+            !_.isNil(point.x) &&
+            !_.isNil(point.y) &&
+            !_.isNaN(point.x) &&
+            !_.isNaN(point.y)
+        );
       return {
         title: lineName,
         color: color(i + maxHistoryKeyCount),
@@ -593,7 +611,10 @@ export function linesFromDataRunsPlot(
   rawData,
   yAxisLog = false
 ) {
-  /** Takes in data points and returns lines ready for passing
+  /**
+   * This is called by PanelRunsLinePlot
+   *
+   * Takes in data points and returns lines ready for passing
    * in to react-vis.
    * Inputs
    * data - data structure with all the runs
@@ -612,7 +633,6 @@ export function linesFromDataRunsPlot(
   }
 
   let xAxisKey = xAxis || '_step';
-
   let lines = data.map((runHistory, i) => ({
     name: runHistory.name,
     data: runHistory.history
@@ -620,7 +640,7 @@ export function linesFromDataRunsPlot(
         x: row[xAxisKey] || j, // Old runs might not have xAxisKey set
         y: row[key],
       }))
-      .filter(point => !_.isNil(point.y)),
+      .filter(point => !_.isNil(point.y) && !_.isNaN(point.y)),
   }));
 
   if (xAxisKey == '_timestamp') {

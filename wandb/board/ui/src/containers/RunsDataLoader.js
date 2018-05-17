@@ -23,6 +23,8 @@ import {
   sortRuns,
   getColumns,
 } from '../util/runhelpers.js';
+import flatten from 'flat';
+
 import withHistoryLoader from '../containers/HistoryLoader';
 // TODO: read this from query
 import {MAX_HISTORIES_LOADED} from '../util/constants.js';
@@ -238,6 +240,9 @@ function withDerivedRunsData(WrappedComponent) {
                     );
                     return null;
                   }
+                })
+                .map((row, i) => {
+                  return flatten(row);
                 })
                 .filter(row => row !== null)
             : null,

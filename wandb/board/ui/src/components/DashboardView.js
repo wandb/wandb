@@ -136,7 +136,10 @@ class DashboardView extends Component {
         // Specific fields
         query.historyFields = ['_step', '_runtime', '_timestamp'];
         if (panelConfig.config && panelConfig.config.key) {
-          query.historyFields.push(panelConfig.config.key);
+          // handle the case of a nested history key by removing everything
+          // after the first .
+          const flatKey = panelConfig.config.key.split('.')[0];
+          query.historyFields.push(flatKey);
         }
         if (panelConfig.config && panelConfig.config.aggregate) {
           query.page.size = 30;
