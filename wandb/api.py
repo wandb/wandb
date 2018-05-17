@@ -61,6 +61,7 @@ class Progress(object):
 
 class CommError(Error):
     """Error communicating with W&B"""
+
     def __init__(self, msg, exc=None):
         super(CommError, self).__init__(msg)
         self.exc = exc
@@ -476,7 +477,7 @@ class Api(object):
         query = gql('''
         query Model($project: String!, $entity: String!, $name: String!) {
             model(name: $project, entityName: $entity) {
-                bucket(name: $name) {
+                bucket(name: $name, missingOk: true) {
                     id
                     name
                     logLineCount
@@ -489,14 +490,9 @@ class Api(object):
         }
         ''')
 
-        try:
-            response = self.gql(query, variable_values={
-                'entity': entity, 'project': project, 'name': name,
-            })
-        except Exception as e:
-            if '404' in str(e):
-                return None
-            raise
+        response = self.gql(query, variable_values={
+            'entity': entity, 'project': project, 'name': name,
+        })
         run = response['model']['bucket']
         return run
 
@@ -606,7 +602,8 @@ class Api(object):
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
         }
 
-        response = self.gql(mutation, variable_values=variable_values, **kwargs)
+        response = self.gql(
+            mutation, variable_values=variable_values, **kwargs)
 
         return response['upsertBucket']['bucket']
 
@@ -655,7 +652,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']                  : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']: file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
