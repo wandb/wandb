@@ -7,6 +7,7 @@ from click.testing import CliRunner
 
 from wandb.history import History
 from wandb import media
+from wandb import data_types
 import torch
 
 
@@ -86,6 +87,22 @@ def test_list_of_images(history):
     h = disk_history()
     assert h[0]["images"] == {'_type': 'images',
                               'count': 1, 'height': 28, 'width': 28}
+
+
+def test_single_image(history):
+    image = np.random.randint(255, size=(28, 28))
+    history.add({"images": media.Image(image)})
+    h = disk_history()
+    assert h[0]["images"] == {'_type': 'images',
+                              'count': 1, 'height': 28, 'width': 28}
+
+
+def test_histogram(history):
+    data = np.random.randint(255, size=500)
+    history.add({"hist": data_types.Histogram(data)})
+    h = disk_history()
+    assert h[0]["hist"]['_type'] == 'histogram'
+    assert len(h[0]["hist"]['values']) == 64
 
 
 def test_stream(history):

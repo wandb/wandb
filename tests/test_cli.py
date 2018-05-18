@@ -477,7 +477,7 @@ def test_resume_must(runner, request_mocker, query_run_resume_status, git_repo):
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
-    assert "resume='must'" in str(result.output)
+    assert "An Exception was raised during setup" in str(result.output)
     assert result.exit_code == 1
 
 # TODO: test actual resume
