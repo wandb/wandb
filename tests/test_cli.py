@@ -471,13 +471,14 @@ def test_resume_never(runner, request_mocker, upsert_run, query_run_resume_statu
     assert result.exit_code == 1
 
 
+@pytest.mark("Shawn will fix this as we're returning None now instead of throwing 404")
 def test_resume_must(runner, request_mocker, query_run_resume_status, git_repo):
     query_run_resume_status(request_mocker, status_code=404)
     result = runner.invoke(cli.run, ["--resume=must", "missing.py"])
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
-    assert "An Exception was raised during setup" in str(result.output)
+    assert "resume='must'" in str(result.output)
     assert result.exit_code == 1
 
 # TODO: test actual resume
