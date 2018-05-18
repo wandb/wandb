@@ -139,6 +139,7 @@ class Api(object):
         self.retries = 3
         self._settings_parser = configparser.ConfigParser()
         self.tagged = False
+        self.update_available = False
         if load_settings:
             potential_settings_paths = [
                 os.path.expanduser('~/.wandb/settings')
@@ -588,6 +589,7 @@ class Api(object):
                     description
                     config
                 }
+                updateAvailable
             }
         }
         ''')
@@ -610,6 +612,7 @@ class Api(object):
         response = self.gql(
             mutation, variable_values=variable_values, **kwargs)
 
+        self.update_available = response['upsertBucket']['updateAvailable']
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -1146,7 +1149,7 @@ class FileStreamApi(object):
                 self._send(ready_chunks)
                 ready_chunks = []
 
-            if cur_time - posted_anything_time > self.HEARTBEAT_SECONDS:
+            if cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
                 self._handle_response(util.request_with_retry(self._client.post,
                                                               self._endpoint, json={'complete': False, 'failed': False}))

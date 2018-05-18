@@ -156,7 +156,8 @@ def _init_headless(run, job_type, cloud=True):
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
     wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
         headless_args)], env=environ, **popen_kwargs)
-    termlog('Started W&B process with PID {}'.format(wandb_process.pid))
+    termlog('Started W&B process version {} with PID {}'.format(
+        __version__, wandb_process.pid))
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
 
