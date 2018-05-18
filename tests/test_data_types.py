@@ -17,13 +17,13 @@ def test_np_histogram():
 
 
 def test_manual_histogram():
-    wbhist = wandb.Histogram([1, 2, 4], [3, 10, 20, 0])
+    wbhist = wandb.Histogram(([1, 2, 4], [3, 10, 20, 0]))
     assert len(wbhist.histogram) == 3
 
 
 def test_fucked_up_histogram():
     with pytest.raises(ValueError):
-        wbhist = wandb.Histogram([1, 2, 3], [1])
+        wbhist = wandb.Histogram(([1, 2, 3], [1]))
 
 
 def test_transform():
