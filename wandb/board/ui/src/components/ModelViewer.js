@@ -54,6 +54,7 @@ class ModelViewer extends React.Component {
             jobFilter={this.state.jobId}
             limit={10}
             requestSubscribe={true}
+            views={this.props.views}
           />
         )}
       </div>

@@ -570,7 +570,6 @@ const withData = graphql(PROJECT_QUERY, {
     // if (project && projects.runs && loading) loading = false;
     return {
       loading,
-      views: project && project.views && JSON.parse(project.views),
       projectID: project && project.id,
       counts: {
         runs: project && project.runCount,
