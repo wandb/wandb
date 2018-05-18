@@ -773,7 +773,6 @@ class RunManager(object):
           File "/Users/adrian/.pyenv/versions/3.6.0/Python.framework/Versions/3.6/lib/python3.6/subprocess.py", line 760, in __del__
         AttributeError: 'NoneType' object has no attribute 'warn'
         """
-        wandb.termlog()
 
         if exitcode is None:
             exitcode = 254

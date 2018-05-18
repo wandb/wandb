@@ -218,6 +218,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     if not env.get_debug():
         stderr_redirector.restore()
 
+    wandb.termlog()
     termlog("Waiting for wandb process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
     try:
@@ -371,8 +372,7 @@ def init(job_type='train', config=None, allow_val_change=False):
         run.config.set_run_dir(run.dir)
     elif run.mode == 'dryrun':
         termlog(
-            'wandb dry run mode. Run `wandb board` from this directory to see results')
-        termlog()
+            'dryrun mode, run directory: %s' % run.dir)
         run.config.set_run_dir(run.dir)
         _init_headless(run, job_type, False)
     else:

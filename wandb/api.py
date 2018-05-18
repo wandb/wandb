@@ -137,7 +137,7 @@ class Api(object):
         self.default_settings.update(default_settings or {})
         self._settings = None
         self.retries = 3
-        self._settings_parser = configparser.ConfigParser()
+        self.settings_parser = configparser.ConfigParser()
         self.tagged = False
         self.update_available = False
         if load_settings:
@@ -146,7 +146,7 @@ class Api(object):
             ]
             potential_settings_paths.append(
                 os.path.join(wandb_dir(), 'settings'))
-            files = self._settings_parser.read(potential_settings_paths)
+            files = self.settings_parser.read(potential_settings_paths)
             self.settings_file = files[0] if len(files) > 0 else "Not found"
         else:
             self.settings_file = "Not found"
@@ -287,9 +287,9 @@ class Api(object):
             self._settings = self.default_settings.copy()
             section = section or self._settings['section']
             try:
-                if section in self._settings_parser.sections():
-                    for option in self._settings_parser.options(section):
-                        self._settings[option] = self._settings_parser.get(
+                if section in self.settings_parser.sections():
+                    for option in self.settings_parser.options(section):
+                        self._settings[option] = self.settings_parser.get(
                             section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")

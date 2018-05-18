@@ -29,7 +29,7 @@ import random
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException, Abort
 import whaaaaat
-from six.moves import BaseHTTPServer, urllib
+from six.moves import BaseHTTPServer, urllib, configparser
 import socket
 
 import wandb
@@ -636,6 +636,39 @@ def docs(ctx):
     else:
         click.echo(click.style(
             "You can find our documentation here: %s" % DOCS_URL, fg="green"))
+
+
+@cli.command("on", help="Ensure W&B is enabled in this directory")
+@display_error
+def on():
+    wandb.ensure_configured()
+    api = Api()
+    parser = api.settings_parser
+    try:
+        parser.remove_option('default', 'disabled')
+        with open(api.settings_file, "w") as f:
+            parser.write(f)
+    except configparser.Error:
+        pass
+    click.echo(
+        "W&B enabled, running your script from this directory will now sync to the cloud.")
+
+
+@cli.command("off", help="Disable W&B in this directory, useful for testing")
+@display_error
+def off():
+    wandb.ensure_configured()
+    api = Api()
+    parser = api.settings_parser
+    try:
+        parser.set('default', 'disabled', 'true')
+        with open(api.settings_file, "w") as f:
+            parser.write(f)
+        click.echo(
+            "W&B disabled, running your script from this directory will only write metadata locally.")
+    except configparser.Error as e:
+        click.echo(
+            'Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=dryrun')
 
 
 RUN_CONTEXT = copy.copy(CONTEXT)

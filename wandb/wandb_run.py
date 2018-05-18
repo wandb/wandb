@@ -11,6 +11,7 @@ from wandb import meta
 from wandb import typedtable
 from wandb import util
 from wandb.wandb_config import Config
+from six.moves import configparser
 import atexit
 import sys
 
@@ -86,6 +87,20 @@ class Run(object):
         resume = environment.get('WANDB_RESUME')
         storage_id = environment.get('WANDB_RUN_STORAGE_ID')
         mode = environment.get('WANDB_MODE')
+        # TODO: this interface sucks
+        try:
+            disabled = wandb.api.Api().settings_parser.get('default', 'disabled')
+        except configparser.Error:
+            disabled = False
+        if not mode and disabled:
+            mode = "dryrun"
+        elif disabled and mode != "dryrun":
+            wandb.termlog(
+                "WARNING: WANDB_MODE is set to run, but W&B was disabled.  Run `wandb on` to remove this message")
+        elif disabled:
+            wandb.termlog(
+                'W&B is disabled in this directory.  Run `wandb on` to enable cloud syncing.')
+
         run_dir = environment.get('WANDB_RUN_DIR')
         sweep_id = environment.get('WANDB_SWEEP_ID')
         program = environment.get('WANDB_PROGRAM')
