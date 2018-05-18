@@ -205,6 +205,11 @@ def test_default_settings():
     }
 
 
+def test_dynamic_settings():
+    assert wandb_api.Api({}).dynamic_settings == {
+        'heartbeat_seconds': 30, 'system_sample_seconds': 2, 'system_samples': 15}
+
+
 @pytest.mark.skip('This tries to upsert run and fails')
 def test_init(git_repo, upsert_run, request_mocker):
     upsert_run(request_mocker)
