@@ -384,7 +384,7 @@ class RunsLinePlotPanel extends React.Component {
     if (this.props.pageQuery.entity && this.props.panelQuery.model) {
       title = (
         <Link
-          style={{color: '#000'}}
+          style={{color: '#000', ':hover': {color: '#999'}}}
           to={`/${this.props.pageQuery.entity}/${
             this.props.panelQuery.model
           }/runs`}>

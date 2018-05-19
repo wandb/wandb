@@ -385,10 +385,16 @@ export class RunFancyName {
     let run = Array.isArray(this._runs) ? this._runs[0] : this._runs;
 
     if (rootUrl && run.name) {
-      fancySpan = <Link to={rootUrl + '/' + run['name']}>{fancySpan}</Link>;
+      fancySpan = (
+        <Link
+          to={rootUrl + '/' + run['name']}
+          style={{color: '#000', ':hover': {color: '#999'}}}>
+          {fancySpan}
+        </Link>
+      );
     }
 
-    return <div>{fancySpan}</div>;
+    return fancySpan;
   }
 
   toString() {
