@@ -178,7 +178,7 @@ def test_upload_failure_resumable(request_mocker, upload_url):
 
 def test_settings(mocker):
     api._settings = None
-    parser = mocker.patch.object(api, "_settings_parser")
+    parser = mocker.patch.object(api, "settings_parser")
     parser.sections.return_value = ["default"]
     parser.options.return_value = ["project", "entity"]
     parser.get.side_effect = ["test_model", "test_entity"]

@@ -137,15 +137,16 @@ class Api(object):
         self.default_settings.update(default_settings or {})
         self._settings = None
         self.retries = 3
-        self._settings_parser = configparser.ConfigParser()
+        self.settings_parser = configparser.ConfigParser()
         self.tagged = False
+        self.update_available = False
         if load_settings:
             potential_settings_paths = [
                 os.path.expanduser('~/.wandb/settings')
             ]
             potential_settings_paths.append(
                 os.path.join(wandb_dir(), 'settings'))
-            files = self._settings_parser.read(potential_settings_paths)
+            files = self.settings_parser.read(potential_settings_paths)
             self.settings_file = files[0] if len(files) > 0 else "Not found"
         else:
             self.settings_file = "Not found"
@@ -171,6 +172,12 @@ class Api(object):
                                retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None
+
+    def disabled(self):
+        try:
+            return self.settings_parser.get('default', 'disabled')
+        except configparser.Error:
+            return False
 
     def save_patches(self, out_dir):
         """Save the current state of this repository to one or more patches.
@@ -286,9 +293,9 @@ class Api(object):
             self._settings = self.default_settings.copy()
             section = section or self._settings['section']
             try:
-                if section in self._settings_parser.sections():
-                    for option in self._settings_parser.options(section):
-                        self._settings[option] = self._settings_parser.get(
+                if section in self.settings_parser.sections():
+                    for option in self.settings_parser.options(section):
+                        self._settings[option] = self.settings_parser.get(
                             section, option)
             except configparser.InterpolationSyntaxError:
                 print("WARNING: Unable to parse settings file")
@@ -588,6 +595,7 @@ class Api(object):
                     description
                     config
                 }
+                updateAvailable
             }
         }
         ''')
@@ -610,6 +618,7 @@ class Api(object):
         response = self.gql(
             mutation, variable_values=variable_values, **kwargs)
 
+        self.update_available = response['upsertBucket']['updateAvailable']
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
@@ -1146,7 +1155,7 @@ class FileStreamApi(object):
                 self._send(ready_chunks)
                 ready_chunks = []
 
-            if cur_time - posted_anything_time > self.HEARTBEAT_SECONDS:
+            if cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
                 self._handle_response(util.request_with_retry(self._client.post,
                                                               self._endpoint, json={'complete': False, 'failed': False}))

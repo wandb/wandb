@@ -395,6 +395,41 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo):
     assert result.exit_code == 1
 
 
+@pytest.mark.updateAvailable(True)
+def test_run_update(runner, request_mocker, upsert_run, git_repo):
+    upsert_run(request_mocker)
+    # TODO: Prevent syncing from happening
+    sigint(0.5)
+    with open("simple.py", "w") as f:
+        f.write('print("Done!")')
+    result = runner.invoke(cli.run, ["simple.py"])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "An update is available!" in str(result.output)
+
+
+def test_enable_on(runner, git_repo):
+    with open("wandb/settings", "w") as f:
+        f.write("[default]\nproject=rad")
+    result = runner.invoke(cli.on)
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "W&B enabled" in str(result.output)
+
+
+def test_enable_off(runner, git_repo):
+    with open("wandb/settings", "w") as f:
+        f.write("[default]\nproject=rad")
+    result = runner.invoke(cli.off)
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "W&B disabled" in str(result.output)
+    assert "disabled" in open("wandb/settings").read()
+
+
 # TODO: this is hitting production
 def test_run_simple(runner, monkeypatch, request_mocker, upsert_run, query_project, git_repo, upload_logs, upload_url):
     run_id = "abc123"
@@ -424,7 +459,8 @@ def test_sweep_no_config(runner):
     assert result.exit_code == 0
 
 
-def test_board_error(runner, mocker, git_repo):
+@pytest.mark.skip("Bring the board back")
+def test_board_error(runner, git_repo):
     result = runner.invoke(cli.board)
     print(result.output)
     print(result.exception)
@@ -433,6 +469,7 @@ def test_board_error(runner, mocker, git_repo):
     assert "No runs found in this directory" in result.output
 
 
+@pytest.mark.skip("Bring the board back")
 def test_board_bad_dir(runner, mocker):
     result = runner.invoke(cli.board, ["--logdir", "non-existent"])
     print("F", result.output)
@@ -442,6 +479,7 @@ def test_board_bad_dir(runner, mocker):
     assert "Directory does not exist" in str(result.output)
 
 
+@pytest.mark.skip("Bring the board back")
 def test_board_custom_dir(runner, mocker, monkeypatch):
     from wandb.board.tests.util import basic_fixture_path
     from wandb.board.app.graphql.loader import load
@@ -471,8 +509,8 @@ def test_resume_never(runner, request_mocker, upsert_run, query_run_resume_statu
     assert result.exit_code == 1
 
 
-def test_resume_must(runner, request_mocker, query_run_resume_status, git_repo):
-    query_run_resume_status(request_mocker, status_code=404)
+def test_resume_must(runner, request_mocker, query_no_run_resume_status, git_repo):
+    query_no_run_resume_status(request_mocker)
     result = runner.invoke(cli.run, ["--resume=must", "missing.py"])
     print(result.output)
     print(result.exception)

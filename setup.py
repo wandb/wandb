@@ -17,10 +17,11 @@ requirements = [
     'GitPython>=1.0.0',
     'shortuuid>=0.5.0',
     'nvidia-ml-py3>=7.352.0',
-    'flask-cors>=3.0.3',
-    'flask-graphql>=1.4.0',
-    'graphene>=2.0.0',
-    'python-dateutil>=2.6.1'
+    'python-dateutil>=2.6.1',
+    # Removed until we bring back the board
+    #'flask-cors>=3.0.3',
+    #'flask-graphql>=1.4.0',
+    #'graphene>=2.0.0',
 ]
 
 test_requirements = [
