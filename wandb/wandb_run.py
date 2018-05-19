@@ -109,6 +109,7 @@ class Run(object):
             environment['WANDB_RUN_STORAGE_ID'] = self.storage_id
         environment['WANDB_MODE'] = self.mode
         environment['WANDB_RUN_DIR'] = self.dir
+
         if self.wandb_dir:
             environment['WANDB_DIR'] = self.wandb_dir
         if self.sweep_id is not None:

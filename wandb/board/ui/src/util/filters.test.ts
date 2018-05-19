@@ -432,7 +432,7 @@ describe('toMongo', () => {
         {host: 'angry.local'},
         {
           $and: [
-            {$or: [{tags: null}, {tags: 'hidden'}]},
+            {$or: [{tags: null}, {tags: {$ne: 'hidden'}}]},
             {tags: 'good'},
             {'config.lr.value': {$gte: 0.9}},
           ],

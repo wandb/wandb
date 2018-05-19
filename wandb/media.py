@@ -1,4 +1,5 @@
 import os
+import logging
 from wandb import util
 
 
@@ -8,7 +9,11 @@ class Media(object):
         pass
 
 
+MAX_IMAGES = 50
+
+
 class Image(object):
+
     def __init__(self, data, mode=None, caption=None):
         """
         Accepts numpy array of image data, or a PIL image. The class attempts to infer
@@ -64,18 +69,21 @@ class Image(object):
         from PIL import Image as PILImage
         base = os.path.join(out_dir, "media", "images")
         width, height = images[0].image.size
+        if len(images) > MAX_IMAGES:
+            logging.warn(
+                "The maximum number of images to store per step is %i." % MAX_IMAGES)
         sprite = PILImage.new(
             mode='RGB',
             size=(width * len(images), height),
             color=(0, 0, 0, 0))
-        for i, image in enumerate(images):
+        for i, image in enumerate(images[:MAX_IMAGES]):
             location = width * i
             sprite.paste(image.image, (location, 0))
         util.mkdir_exists_ok(base)
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
                 "count": len(images), "_type": "images"}
-        captions = Image.captions(images)
+        captions = Image.captions(images[:MAX_IMAGES])
         if captions:
             meta["captions"] = captions
         return meta
