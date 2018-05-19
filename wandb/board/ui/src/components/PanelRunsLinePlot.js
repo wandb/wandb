@@ -7,7 +7,7 @@ import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {registerPanelClass} from '../util/registry.js';
 import '../components/PanelRunsLinePlot.css';
-import {NavLink} from 'react-router-dom';
+import {Link} from 'react-router-dom';
 
 import {
   linesFromDataRunsPlot,
@@ -383,13 +383,13 @@ class RunsLinePlotPanel extends React.Component {
     // Make a clickable title link if we're on the dashboard page
     if (this.props.pageQuery.entity && this.props.panelQuery.model) {
       title = (
-        <NavLink
+        <Link
           style={{color: '#000'}}
           to={`/${this.props.pageQuery.entity}/${
             this.props.panelQuery.model
           }/runs`}>
           {title}
-        </NavLink>
+        </Link>
       );
     }
 
