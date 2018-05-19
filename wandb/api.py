@@ -173,6 +173,12 @@ class Api(object):
         self._current_run_id = None
         self._file_stream_api = None
 
+    def disabled(self):
+        try:
+            return self.settings_parser.get('default', 'disabled')
+        except configparser.Error:
+            return False
+
     def save_patches(self, out_dir):
         """Save the current state of this repository to one or more patches.
 

@@ -87,11 +87,7 @@ class Run(object):
         resume = environment.get('WANDB_RESUME')
         storage_id = environment.get('WANDB_RUN_STORAGE_ID')
         mode = environment.get('WANDB_MODE')
-        # TODO: this interface sucks
-        try:
-            disabled = wandb.api.Api().settings_parser.get('default', 'disabled')
-        except configparser.Error:
-            disabled = False
+        disabled = wandb.api.Api().disabled()
         if not mode and disabled:
             mode = "dryrun"
         elif disabled and mode != "dryrun":
