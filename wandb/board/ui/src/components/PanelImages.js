@@ -264,7 +264,9 @@ class ImagesPanel extends React.Component {
   }
 
   componentDidMount() {
-    this.setState({containerWidth: this.container.clientWidth});
+    //TODO: Window resize?
+    if (this.container)
+      this.setState({containerWidth: this.container.clientWidth});
   }
 
   render() {
