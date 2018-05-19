@@ -156,7 +156,8 @@ def _init_headless(run, job_type, cloud=True):
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
     wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
         headless_args)], env=environ, **popen_kwargs)
-    termlog('Started W&B process with PID {}'.format(wandb_process.pid))
+    termlog('Started W&B process version {} with PID {}'.format(
+        __version__, wandb_process.pid))
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
 
@@ -217,6 +218,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     if not env.get_debug():
         stderr_redirector.restore()
 
+    wandb.termlog()
     termlog("Waiting for wandb process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
     try:
@@ -370,8 +372,7 @@ def init(job_type='train', config=None, allow_val_change=False):
         run.config.set_run_dir(run.dir)
     elif run.mode == 'dryrun':
         termlog(
-            'wandb dry run mode. Run `wandb board` from this directory to see results')
-        termlog()
+            'dryrun mode, run directory: %s' % run.dir)
         run.config.set_run_dir(run.dir)
         _init_headless(run, job_type, False)
     else:

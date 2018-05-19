@@ -105,8 +105,10 @@ def _mutate(key, json):
 
 
 @pytest.fixture
-def upsert_run():
-    return _mutate('upsertBucket', {'bucket': _bucket("default")})
+def upsert_run(request):
+    updateAvailable = True if request.node.get_marker(
+        'updateAvailable') else False
+    return _mutate('upsertBucket', {'bucket': _bucket("default"), 'updateAvailable': updateAvailable})
 
 
 @pytest.fixture
@@ -116,13 +118,13 @@ def query_project():
 
 
 @pytest.fixture
-def query_run_resume_status():
+def query_run_resume_status(request):
     return _query('model', _run_resume_status(), body_match="historyTail")
 
 
 @pytest.fixture
 def query_no_run_resume_status():
-    return _query('model', None, body_match="historyTail")
+    return _query('model', {'bucket': None}, body_match="historyTail")
 
 
 @pytest.fixture
