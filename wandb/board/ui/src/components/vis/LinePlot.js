@@ -13,6 +13,7 @@ import {
   Borders,
 } from 'react-vis';
 import {Segment} from 'semantic-ui-react';
+import {Link} from 'react-router-dom';
 
 import {truncateString, displayValue} from '../../util/runhelpers.js';
 import {smartNames} from '../../util/plotHelpers.js';
@@ -361,7 +362,13 @@ export default class LinePlot extends React.PureComponent {
     const {lastDrawLocation} = this.state;
     let filteredLines = this.props.lines.filter(line => !line.aux);
     let lines = [];
+
     lines = filteredLines;
+    let rootUrl =
+      this.props.entity && this.props.model
+        ? `/${this.props.entity}/${this.props.model}/runs`
+        : null;
+
     return (
       <Segment attached="bottom" basic style={{border: 'none'}}>
         <div
@@ -403,7 +410,7 @@ export default class LinePlot extends React.PureComponent {
                 </span>{' '}
                 <span className="line-plot-title">
                   {line.title.toComponent
-                    ? line.title.toComponent()
+                    ? line.title.toComponent(rootUrl)
                     : line.title}
                 </span>
               </span>

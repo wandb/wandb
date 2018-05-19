@@ -446,6 +446,8 @@ class RunsLinePlotPanel extends React.Component {
             lines={lines}
             sizeKey={this.props.sizeKey}
             currentHeight={this.props.currentHeight}
+            entity={this.props.pageQuery.entity}
+            model={this.props.panelQuery.model}
           />
         </div>
       </div>

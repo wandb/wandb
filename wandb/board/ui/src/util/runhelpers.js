@@ -9,6 +9,7 @@ import TimeAgo from 'react-timeago';
 import {Icon} from 'semantic-ui-react';
 import * as Run from './runs';
 import * as Filters from './filters';
+import {Link} from 'react-router-dom';
 
 export function convertValue(string) {
   let val = Number.parseFloat(string);
@@ -325,7 +326,7 @@ export class RunsFancyName {
     this._spec = spec;
     this._prefix = prefix;
   }
-  toComponent() {
+  toComponent(rootUrl = null) {
     if (!this._spec) {
       return runDisplayName(this._run);
     }
@@ -358,11 +359,11 @@ export class RunFancyName {
         : null,
   };
 
-  toComponent() {
+  toComponent(rootUrl = null) {
     if (!this._spec) {
       return runDisplayName(this._runs[0]);
     }
-    return (
+    let fancySpan = (
       <span>
         {this._prefix}{' '}
         {this._spec
@@ -381,6 +382,13 @@ export class RunFancyName {
           .filter(o => o)}
       </span>
     );
+    let run = Array.isArray(this._runs) ? this._runs[0] : this._runs;
+
+    if (rootUrl && run.name) {
+      fancySpan = <Link to={rootUrl + '/' + run['name']}>{fancySpan}</Link>;
+    }
+
+    return <div>{fancySpan}</div>;
   }
 
   toString() {
