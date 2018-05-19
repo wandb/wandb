@@ -390,23 +390,7 @@ export class RunFancyName {
       </span>
     );
     let run = Array.isArray(this._runs) ? this._runs[0] : this._runs;
-    if (false && groupQuery) {
-      const filter = {
-        op: 'OR',
-        filters: [
-          {
-            op: 'AND',
-            filters: [
-              {key: Run.key('run', 'state'), op: '=', value: 'running'},
-            ],
-          },
-        ],
-      };
 
-      let query = {};
-      queryString.stringify(query);
-      query.filters = Filter.toURL(props.runFilters);
-    }
     if (rootUrl && run.name) {
       fancySpan = (
         <Link
