@@ -36,7 +36,7 @@ class App extends Component {
   componentDidCatch(error, info) {
     window.Raven.captureException(error, {extra: info});
     error.reported = true;
-    //this.setState({error: error});
+    this.setState({error: error});
   }
 
   componentDidMount() {

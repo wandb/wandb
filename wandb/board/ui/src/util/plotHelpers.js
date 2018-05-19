@@ -65,6 +65,53 @@ export function friendlyMetricDefaults(metricNames) {
     .slice(0, 4);
 }
 
+export function defaultRunCharts(metricNames) {
+  const charts = [],
+    big = {},
+    small = [];
+  let y = 0,
+    x = 0,
+    width = 12;
+  metricNames.forEach(name => {
+    if (name.match(/loss/)) {
+      big.loss = big.loss || [];
+      big.loss.push(name);
+    } else if (name.match(/accuracy|acc$/)) {
+      big.accuracy = big.accuracy || [];
+      big.accuracy.push(name);
+    } else if (['examples', 'epoch', 'global_step'].indexOf(name) < 0) {
+      small.push(name);
+    }
+  });
+  if (big.accuracy) {
+    if (big.loss) width = 6;
+    charts.push({
+      config: {lines: big.accuracy},
+      layout: {y: y, h: 2, w: width, x: x},
+    });
+    if (big.loss) x += 6;
+    else y += 1;
+  }
+  if (big.loss) {
+    charts.push({
+      config: {lines: big.loss},
+      layout: {y: y, h: 2, w: width, x: x},
+    });
+    y += 1;
+    x = 0;
+  }
+  small.forEach((name, i) => {
+    charts.push({
+      config: {lines: [name]},
+      layout: {y: y, x: x, w: 3, h: 2},
+    });
+    x += 3;
+    if (x == 12) y += 1;
+    x = 0;
+  });
+  return charts;
+}
+
 export function numericKeysFromHistories(histories) {
   /**
    * Removed image and other media types from histories object that looks like:

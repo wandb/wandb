@@ -3,6 +3,7 @@ import React from 'react';
 import _ from 'lodash';
 import numeral from 'numeral';
 import {JSONparseNaN} from '../util/jsonnan';
+import {defaultRunCharts} from '../util/plotHelpers';
 import flatten from 'flat';
 import {fragments} from '../graphql/runs';
 import TimeAgo from 'react-timeago';
@@ -440,7 +441,13 @@ export class RunFancyName {
 export function defaultViews(run) {
   //TODO: do we need to handle this case?
   if (!run) run = {summaryMetrics: '{}'};
-  const scalars = Object.keys(JSONparseNaN(run.summaryMetrics));
+  const scalars = Object.keys(
+    JSONparseNaN(
+      run.history && run.history.length > 0
+        ? run.history[0]
+        : run.summaryMetrics
+    )
+  );
   let lossy = scalars.find(s => s.match(/loss/));
   if (!lossy) {
     lossy = scalars[0];
@@ -475,17 +482,7 @@ export function defaultViews(run) {
         '0': {
           defaults: [],
           name: 'Charts',
-          config: [
-            {
-              layout: {
-                x: 0,
-                y: 0,
-                w: 12,
-                h: 2,
-              },
-              config: {},
-            },
-          ],
+          config: defaultRunCharts(scalars),
         },
       },
       tabs: [0],
