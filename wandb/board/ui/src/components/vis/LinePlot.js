@@ -223,7 +223,10 @@ class LinePlotCrosshair extends React.PureComponent {
       // we're going to calculate every point exactly
       for (var line of enabledLines) {
         for (var point of line.data) {
-          if (_.isNil(this.highlights[point.x])) {
+          if (
+            _.isNil(this.highlights[point.x]) ||
+            _.isNaN(this.highlights[point.x])
+          ) {
             this.highlights[point.x] = [];
           }
           this.highlights[point.x].push({

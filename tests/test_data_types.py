@@ -12,18 +12,18 @@ def test_raw_data():
 
 
 def test_np_histogram():
-    wbhist = wandb.Histogram(np.histogram(data))
+    wbhist = wandb.Histogram(np_histogram=np.histogram(data))
     assert len(wbhist.histogram) == 10
 
 
 def test_manual_histogram():
-    wbhist = wandb.Histogram(([1, 2, 4], [3, 10, 20, 0]))
+    wbhist = wandb.Histogram(np_histogram=([1, 2, 4], [3, 10, 20, 0]))
     assert len(wbhist.histogram) == 3
 
 
 def test_fucked_up_histogram():
     with pytest.raises(ValueError):
-        wbhist = wandb.Histogram(([1, 2, 3], [1]))
+        wbhist = wandb.Histogram(np_histogram=([1, 2, 3], [1]))
 
 
 def test_transform():

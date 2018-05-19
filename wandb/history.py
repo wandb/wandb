@@ -145,7 +145,7 @@ class History(object):
         for key, val in six.iteritems(self.row):
             if isinstance(val, media.Image):
                 val = [val]
-            if type(val) in (list, tuple) and len(val) > 0:
+            if isinstance(val, collections.Sequence) and len(val) > 0:
                 is_image = [isinstance(v, media.Image) for v in val]
                 if all(is_image):
                     self.row[key] = media.Image.transform(val, self.out_dir,

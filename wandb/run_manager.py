@@ -385,7 +385,6 @@ class RunManager(object):
 
             wandb.termlog("Syncing %s" % self.url)
             wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
-            wandb.termlog()
 
             self._api.get_file_stream_api().set_file_policy(
                 OUTPUT_FNAME, CRDedupeFilePolicy())
@@ -620,13 +619,15 @@ class RunManager(object):
                 raise LaunchError(
                     "resume='never' but run (%s) exists" % self._run.id)
             else:
-                if isinstance(e.exc, requests.exceptions.ConnectionError):
+                if isinstance(e.exc, (requests.exceptions.HTTPError,
+                                      requests.exceptions.Timeout,
+                                      requests.exceptions.ConnectionError)):
                     wandb.termerror(
                         'Failed to connect to W&B. Retrying in the background.')
                     return False
 
                 raise LaunchError(
-                    'Launch exception: {}, see {} for details'.format(e, util.get_log_file_path()))
+                    'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path()))
 
         self._run.storage_id = upsert_result['id']
         self._run.set_environment(environment=env)
@@ -716,6 +717,12 @@ class RunManager(object):
         except AttributeError:  # SIGQUIT doesn't exist on windows
             pass
 
+        if self._api.update_available:
+            wandb.termlog(
+                "An update is available!  To upgrade, please run:\n $ pip install wandb --upgrade")
+        # Add a space before user output
+        wandb.termlog()
+
         if env.get_show_run():
             webbrowser.open_new_tab(self._run.get_url(self._api))
 
@@ -766,7 +773,6 @@ class RunManager(object):
           File "/Users/adrian/.pyenv/versions/3.6.0/Python.framework/Versions/3.6/lib/python3.6/subprocess.py", line 760, in __del__
         AttributeError: 'NoneType' object has no attribute 'warn'
         """
-        wandb.termlog()
 
         if exitcode is None:
             exitcode = 254

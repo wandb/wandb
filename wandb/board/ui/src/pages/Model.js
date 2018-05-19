@@ -64,6 +64,7 @@ const withData = graphql(MODEL_QUERY, {
       project,
       error,
       viewer,
+      views: project && project.views && JSON.parse(project.views),
     };
   },
 });

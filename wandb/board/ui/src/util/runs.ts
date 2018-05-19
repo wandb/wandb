@@ -371,12 +371,14 @@ export function serverPathToKey(pathString: string): Key | null {
       name,
     };
   } else if (section === 'config') {
-    if (!_.endsWith(name, '.value')) {
+    const fields = name.split('.');
+    if (fields[1] !== 'value') {
       return null;
     }
+    fields.splice(1, 1);
     return {
       section: 'config',
-      name: name.slice(0, name.length - 6),
+      name: fields.join('.'),
     };
   } else if (section === 'summary_metrics') {
     return {
@@ -397,7 +399,12 @@ export function serverPathToKeyString(pathString: string): string | null {
 
 export function keyToServerPath(k: Key): string | null {
   if (k.section === 'config') {
-    return 'config.' + k.name + '.value';
+    const fields = k.name.split('.');
+    let path = 'config.' + fields[0] + '.value';
+    if (fields.length > 1) {
+      path += '.' + fields.slice(1).join('.');
+    }
+    return path;
   } else if (k.section === 'summary') {
     return 'summary_metrics.' + k.name;
   } else if (k.section === 'run') {

@@ -29,6 +29,7 @@ export default class Panel extends React.Component {
     data,
     sizeKey,
     panelQuery,
+    pageQuery,
     currentHeight
   ) {
     if (!data) {
@@ -42,6 +43,7 @@ export default class Panel extends React.Component {
           updateConfig={this.props.updateConfig}
           sizeKey={sizeKey}
           panelQuery={panelQuery}
+          pageQuery={pageQuery}
           currentHeight={currentHeight}
           data={data}
         />
@@ -147,6 +149,7 @@ export default class Panel extends React.Component {
         data,
         sizeKey,
         this.props.panelQuery,
+        this.props.pageQuery,
         this.props.currentHeight
       );
     }

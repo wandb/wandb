@@ -1,17 +1,24 @@
+import collections
+
+
 class Histogram(object):
     MAX_LENGTH = 512
 
-    def __init__(self, list_or_tuple, num_bins=64):
-        """Accepts a tuple of (values, bins_edges) as np.histogram returns i.e.
+    def __init__(self, sequence=None, np_histogram=None, num_bins=64):
+        """Accepts a sequence to be converted into a histogram or np_histogram can be set
+        to a tuple of (values, bins_edges) as np.histogram returns i.e.
 
-        wandb.log({"histogram": wandb.Histogram(np.histogram(data))})
+        wandb.log({"histogram": wandb.Histogram(np_histogram=np.histogram(data))})
 
-        Or a list of values in which case they will be automatically binned into num_bins.
         The maximum number of bins currently supported is 512
         """
-        if isinstance(list_or_tuple, tuple) and len(list_or_tuple) == 2:
-            self.histogram = list_or_tuple[0]
-            self.bins = list_or_tuple[1]
+        if np_histogram:
+            if len(np_histogram) == 2:
+                self.histogram = np_histogram[0]
+                self.bins = np_histogram[1]
+            else:
+                raise ValueError(
+                    'Expected np_histogram to be a tuple of (values, bin_edges) or sequence to be specified')
         else:
             try:
                 import numpy as np
@@ -19,7 +26,7 @@ class Histogram(object):
                 raise ValueError(
                     "Auto creation of histograms requires numpy")
             self.histogram, self.bins = np.histogram(
-                list_or_tuple, bins=num_bins)
+                sequence, bins=num_bins)
         if len(self.histogram) > self.MAX_LENGTH:
             raise ValueError(
                 "The maximum length of a histogram is %i" % MAX_LENGTH)
