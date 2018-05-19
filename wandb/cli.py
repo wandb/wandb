@@ -771,35 +771,35 @@ def agent(sweep_id):
     #                'args': ['--max_epochs=10']})
 
 
-@cli.command(context_settings=CONTEXT, help="Start a local WandB Board server")
-@click.option('--port', '-p', default=7177,
-              help='The port to start the server on')
-@click.option('--host', '-h', default="localhost",
-              help='The host to bind to')
-@click.option('--logdir', default=".",
-              help='The directory to find wandb logs')
-@display_error
-def board(port, host, logdir):
-    import webbrowser
-    import werkzeug.serving
-    path = os.path.abspath(logdir) if logdir != "." else None
-    if path and os.path.exists(path + "/wandb"):
-        path = path + "/wandb"
-    from wandb.board import create_app, data
-    app = create_app("default", path)
-    if len(data['Runs']) == 0:
-        raise ClickException(
-            "No runs found in this directory, specify a different directory with --logdir")
-    dev = os.getenv('WANDB_ENV', "").startswith("dev")
-    extra = "(dev)" if dev else ""
-    if not werkzeug.serving.is_running_from_reloader():
-        click.echo(
-            'Started wandb board on http://{0}:{1} ✨ {2}'.format(host, port, extra))
-        threading.Timer(1, webbrowser.open_new_tab,
-                        ("http://{0}:{1}".format(host, port),)).start()
-    elif dev:
-        click.echo("Reloading backend...")
-    app.run(host, port, threaded=True, debug=dev)
+#@cli.command(context_settings=CONTEXT, help="Start a local WandB Board server")
+#@click.option('--port', '-p', default=7177,
+#              help='The port to start the server on')
+#@click.option('--host', '-h', default="localhost",
+#              help='The host to bind to')
+#@click.option('--logdir', default=".",
+#              help='The directory to find wandb logs')
+#@display_error
+# def board(port, host, logdir):
+#    import webbrowser
+#    import werkzeug.serving
+#    path = os.path.abspath(logdir) if logdir != "." else None
+#    if path and os.path.exists(path + "/wandb"):
+#        path = path + "/wandb"
+#    from wandb.board import create_app, data
+#    app = create_app("default", path)
+#    if len(data['Runs']) == 0:
+#        raise ClickException(
+#            "No runs found in this directory, specify a different directory with --logdir")
+#    dev = os.getenv('WANDB_ENV', "").startswith("dev")
+#    extra = "(dev)" if dev else ""
+#    if not werkzeug.serving.is_running_from_reloader():
+#        click.echo(
+#            'Started wandb board on http://{0}:{1} ✨ {2}'.format(host, port, extra))
+#        threading.Timer(1, webbrowser.open_new_tab,
+#                        ("http://{0}:{1}".format(host, port),)).start()
+#    elif dev:
+#        click.echo("Reloading backend...")
+#    app.run(host, port, threaded=True, debug=dev)
 
 
 if __name__ == "__main__":

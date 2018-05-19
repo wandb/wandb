@@ -459,6 +459,7 @@ def test_sweep_no_config(runner):
     assert result.exit_code == 0
 
 
+@pytest.mark.skip("Bring the board back")
 def test_board_error(runner, git_repo):
     result = runner.invoke(cli.board)
     print(result.output)
@@ -468,6 +469,7 @@ def test_board_error(runner, git_repo):
     assert "No runs found in this directory" in result.output
 
 
+@pytest.mark.skip("Bring the board back")
 def test_board_bad_dir(runner, mocker):
     result = runner.invoke(cli.board, ["--logdir", "non-existent"])
     print("F", result.output)
@@ -477,6 +479,7 @@ def test_board_bad_dir(runner, mocker):
     assert "Directory does not exist" in str(result.output)
 
 
+@pytest.mark.skip("Bring the board back")
 def test_board_custom_dir(runner, mocker, monkeypatch):
     from wandb.board.tests.util import basic_fixture_path
     from wandb.board.app.graphql.loader import load
