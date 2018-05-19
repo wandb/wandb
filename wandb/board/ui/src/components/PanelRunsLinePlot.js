@@ -7,6 +7,7 @@ import HelpIcon from '../components/HelpIcon';
 import LinePlot from '../components/vis/LinePlot';
 import {registerPanelClass} from '../util/registry.js';
 import '../components/PanelRunsLinePlot.css';
+import {NavLink} from 'react-router-dom';
 
 import {
   linesFromDataRunsPlot,
@@ -365,19 +366,36 @@ class RunsLinePlotPanel extends React.Component {
       }
     }
 
+    title = (
+      <h4 style={{display: 'inline'}}>
+        {title}
+        {loading && (
+          <Loader
+            style={{marginLeft: 6, marginBottom: 2}}
+            active
+            inline
+            size="small"
+          />
+        )}
+      </h4>
+    );
+
+    // Make a clickable title link if we're on the dashboard page
+    if (this.props.pageQuery.entity && this.props.panelQuery.model) {
+      title = (
+        <NavLink
+          style={{color: '#000'}}
+          to={`/${this.props.pageQuery.entity}/${
+            this.props.panelQuery.model
+          }/runs`}>
+          {title}
+        </NavLink>
+      );
+    }
+
     return (
       <div>
-        <h4 style={{display: 'inline'}}>
-          {title}
-          {loading && (
-            <Loader
-              style={{marginLeft: 6, marginBottom: 2}}
-              active
-              inline
-              size="small"
-            />
-          )}
-        </h4>
+        {title}
         <div style={{float: 'right', marginRight: 15}}>
           {totalRuns > maxRuns && (
             <span style={{fontSize: 13}}>
