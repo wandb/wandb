@@ -137,7 +137,9 @@ export default class Panel extends React.Component {
             config,
             data,
             sizeKey,
-            this.props.panelQuery
+            this.props.panelQuery,
+            this.props.pageQuery,
+            this.props.currentHeight
           )}
         </div>
       );

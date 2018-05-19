@@ -360,6 +360,13 @@ export class RunFancyName {
   };
 
   toComponent(rootUrl = null) {
+    /*
+    * We write out the values in _runs based on values set by user in _spec.
+    * If the line corresponds to a single run and rootUrl is passed in we will
+    * link to that run.
+    * If the line corresponds to multiple runs we will link to that group.
+    */
+
     if (!this._spec) {
       return runDisplayName(this._runs[0]);
     }
@@ -383,7 +390,23 @@ export class RunFancyName {
       </span>
     );
     let run = Array.isArray(this._runs) ? this._runs[0] : this._runs;
+    if (false && groupQuery) {
+      const filter = {
+        op: 'OR',
+        filters: [
+          {
+            op: 'AND',
+            filters: [
+              {key: Run.key('run', 'state'), op: '=', value: 'running'},
+            ],
+          },
+        ],
+      };
 
+      let query = {};
+      queryString.stringify(query);
+      query.filters = Filter.toURL(props.runFilters);
+    }
     if (rootUrl && run.name) {
       fancySpan = (
         <Link
