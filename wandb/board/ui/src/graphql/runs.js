@@ -7,7 +7,6 @@ export const fragments = {
       description
       createdAt
       heartbeatAt
-      github
       commit
       host
       state
@@ -26,6 +25,7 @@ export const fragments = {
   detailedRun: gql`
     fragment DetailedRunFragment on Run {
       history
+      github
       events
       exampleTableColumns
       exampleTableTypes
