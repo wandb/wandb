@@ -13,6 +13,7 @@ import './PanelLinePlot';
 import './PanelImages';
 import './PanelScatterPlot';
 import './PanelParallelCoord';
+import './PanelHistogram';
 
 export default class Panel extends React.Component {
   state = {configMode: false, showQuery: false};

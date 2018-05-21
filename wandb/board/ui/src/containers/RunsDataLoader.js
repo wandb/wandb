@@ -242,7 +242,7 @@ function withDerivedRunsData(WrappedComponent) {
                   }
                 })
                 .map((row, i) => {
-                  return flatten(row);
+                  return flatten(row, {safe: true});
                 })
                 .filter(row => row !== null)
             : null,

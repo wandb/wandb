@@ -18,6 +18,7 @@ from wandb.wandb_torch import TorchHistory
 import wandb
 from wandb import util
 from wandb import media
+from wandb import data_types
 
 
 class History(object):
@@ -142,7 +143,9 @@ class History(object):
     def _transform(self):
         """Transforms media classes into the proper format before writing"""
         for key, val in six.iteritems(self.row):
-            if type(val) in (list, tuple) and len(val) > 0:
+            if isinstance(val, media.Image):
+                val = [val]
+            if isinstance(val, collections.Sequence) and len(val) > 0:
                 is_image = [isinstance(v, media.Image) for v in val]
                 if all(is_image):
                     self.row[key] = media.Image.transform(val, self.out_dir,
@@ -150,6 +153,8 @@ class History(object):
                 elif any(is_image):
                     raise ValueError(
                         "Mixed media types in the same list aren't supported")
+            elif isinstance(val, data_types.Histogram):
+                self.row[key] = data_types.Histogram.transform(val)
 
     def _write(self):
         if self.row:

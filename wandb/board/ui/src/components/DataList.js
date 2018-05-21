@@ -28,7 +28,7 @@ class DataList extends React.Component {
     }
 
     if (props.data && Object.keys(props.data).length > 0) {
-      this.flatData = flatten(props.data);
+      this.flatData = flatten(props.data, {safe: true});
     }
   }
 

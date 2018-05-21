@@ -4,7 +4,6 @@ import _ from 'lodash';
 import numeral from 'numeral';
 import {JSONparseNaN} from '../util/jsonnan';
 import {defaultRunCharts} from '../util/plotHelpers';
-import flatten from 'flat';
 import {fragments} from '../graphql/runs';
 import TimeAgo from 'react-timeago';
 import {Icon} from 'semantic-ui-react';
@@ -391,23 +390,7 @@ export class RunFancyName {
       </span>
     );
     let run = Array.isArray(this._runs) ? this._runs[0] : this._runs;
-    if (false && groupQuery) {
-      const filter = {
-        op: 'OR',
-        filters: [
-          {
-            op: 'AND',
-            filters: [
-              {key: Run.key('run', 'state'), op: '=', value: 'running'},
-            ],
-          },
-        ],
-      };
 
-      let query = {};
-      queryString.stringify(query);
-      query.filters = Filter.toURL(props.runFilters);
-    }
     if (rootUrl && run.name) {
       fancySpan = (
         <Link

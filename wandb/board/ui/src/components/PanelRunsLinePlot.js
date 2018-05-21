@@ -17,6 +17,8 @@ import {
   numericKeysFromHistories,
 } from '../util/plotHelpers.js';
 
+import * as Filters from '../util/filters';
+
 import * as Query from '../util/query';
 import * as Run from '../util/runs';
 import * as RunHelpers from '../util/runhelpers.js';
@@ -382,12 +384,17 @@ class RunsLinePlotPanel extends React.Component {
 
     // Make a clickable title link if we're on the dashboard page
     if (this.props.pageQuery.entity && this.props.panelQuery.model) {
+      let targetUrl = `/${this.props.pageQuery.entity}/${
+        this.props.panelQuery.model
+      }/runs`;
+      if (this.props.panelQuery.filters) {
+        targetUrl =
+          targetUrl +
+          '?filters=' +
+          Filters.toURL(this.props.panelQuery.filters);
+      }
       title = (
-        <Link
-          style={{color: '#000', ':hover': {color: '#999'}}}
-          to={`/${this.props.pageQuery.entity}/${
-            this.props.panelQuery.model
-          }/runs`}>
+        <Link style={{color: '#000', ':hover': {color: '#999'}}} to={targetUrl}>
           {title}
         </Link>
       );

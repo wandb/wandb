@@ -52,6 +52,7 @@ from wandb import streaming_log
 from wandb import util
 from wandb import jupyter
 from wandb.media import Image
+from wandb.data_types import Histogram
 
 
 logger = logging.getLogger(__name__)

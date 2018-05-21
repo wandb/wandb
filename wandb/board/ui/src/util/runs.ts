@@ -180,7 +180,7 @@ function parseConfig(confJson: any, runName: string): KeyVal | null {
     return null;
   }
   config = removeEmptyListsAndObjects(
-    flatten(_.mapValues(config, extractConfigValue))
+    flatten(_.mapValues(config, extractConfigValue), {safe: true})
   );
   return config;
 }
