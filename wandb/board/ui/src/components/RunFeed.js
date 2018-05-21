@@ -439,12 +439,16 @@ class RunFeed extends PureComponent {
     );
     const windowBottom = windowHeight + window.pageYOffset;
     if (windowBottom >= docHeight) {
-      if (this.props.data.loadMore) {
-        this.setState({pageLoading: true});
-        this.props.data.loadMore(() => {
-          this.setState({pageLoading: false});
-        });
-      }
+      this.loadMore();
+    }
+  }
+
+  loadMore() {
+    if (this.props.data.loadMore) {
+      this.setState({pageLoading: true});
+      this.props.data.loadMore(() => {
+        this.setState({pageLoading: false});
+      });
     }
   }
 
@@ -651,7 +655,7 @@ class RunFeed extends PureComponent {
             </Table.Body>
           </Table>
         </div>
-        <Button content="Load More" onClick={() => this.handleScroll()} />
+        <Button content="Load More" onClick={() => this.loadMore()} />
       </div>
     );
   }
