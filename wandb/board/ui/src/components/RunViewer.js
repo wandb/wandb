@@ -84,7 +84,7 @@ export default class RunViewer extends React.Component {
         }
       })
       .map((row, i) => {
-        return flatten(row);
+        return flatten(row, {safe: true});
       })
       .filter(row => row !== null);
     let keys = _.flatMap(data, row =>
@@ -136,6 +136,7 @@ export default class RunViewer extends React.Component {
                 eventKeys: eventKeys,
                 events: eventData,
                 match: this.props.match,
+                summaryMetrics: summaryMetrics, // for histograms
               }}
               blank={!histData || histData.length === 0}
               updateViews={this.props.updateViews}

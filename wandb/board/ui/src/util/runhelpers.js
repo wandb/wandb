@@ -3,7 +3,6 @@ import React from 'react';
 import _ from 'lodash';
 import numeral from 'numeral';
 import {JSONparseNaN} from '../util/jsonnan';
-import flatten from 'flat';
 import {fragments} from '../graphql/runs';
 import TimeAgo from 'react-timeago';
 import {Icon} from 'semantic-ui-react';
