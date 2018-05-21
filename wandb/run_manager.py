@@ -14,6 +14,7 @@ from tempfile import NamedTemporaryFile
 import threading
 import yaml
 import numbers
+import inspect
 
 import click
 from shortuuid import ShortUUID
@@ -459,7 +460,8 @@ class RunManager(object):
 
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
-        if six.PY2 or sys.stdout.__module__ == "ipykernel.iostream":
+        custom = inspect.getmodule(sys.stdout)
+        if six.PY2 or (custom and custom.__name__ == "ipykernel.iostream"):
             stdout = sys.stdout
             stderr = sys.stderr
         else:  # we write binary so grab the raw I/O objects in python 3
