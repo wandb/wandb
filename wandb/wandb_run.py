@@ -10,6 +10,7 @@ from wandb import summary
 from wandb import meta
 from wandb import typedtable
 from wandb import util
+from wandb.api import Api
 from wandb.wandb_config import Config
 from six.moves import configparser
 import atexit
@@ -131,13 +132,25 @@ class Run(object):
     def _mkdir(self):
         util.mkdir_exists_ok(self._dir)
 
-    def get_url(self, api):
+    def get_url(self, api=None):
+        api = api or Api()
         return "{base}/{entity}/{project}/runs/{run}".format(
             base=api.app_url,
             entity=api.settings('entity'),
             project=api.settings('project'),
             run=self.id
         )
+
+    def __repr__(self):
+        return "W&B Run %s" % self.get_url()
+
+    def _repr_html_(self):
+        if self.storage_id:
+            url = self.get_url() + "/edit?jupyter=true"
+            return '''<iframe src="%s" style="border:none;width:100%%;height:300px">
+            </iframe>''' % url
+        else:
+            return '''Not logged in or configured, see https://docs.wandb.com'''
 
     @property
     def host(self):

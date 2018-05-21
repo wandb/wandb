@@ -46,7 +46,11 @@ from wandb import wandb_types as types
 from wandb import wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
+from wandb import run_manager
+from wandb import io_wrap
+from wandb import streaming_log
 from wandb import util
+from wandb import jupyter
 from wandb.media import Image
 
 
@@ -204,6 +208,27 @@ def _init_headless(run, job_type, cloud=True):
         stderr_redirector.redirect()
 
 
+def _init_ipython(run, job_type, cloud=True):
+    api = wandb.api.Api()
+    if not api.api_key:
+        termerror(
+            "Not authenticated. Run `wandb login` or set the WANDB_API_KEY environment variable.")
+        return run
+    elif not api.settings('project'):
+        termerror("This process isn't configured for W&B.")
+        termlog(
+            "Run `wandb init` from this directory, or set the WANDB_PROJECT & WANDB_ENTITY environment variables.")
+        return run
+    api.set_current_run_id(run.id)
+    rm = run_manager.RunManager(api, run, output=False)
+    print("W&B Run: %s" % rm.url)
+    print("Call wandb.show() in it's own cell before training to display live results.")
+    rm.init_run(dict(os.environ))
+    stdout_streams, stderr_streams = rm._get_stdout_stderr_streams()
+    io_wrap.SimpleTee(stdout_streams[0], stdout_streams[1:])
+    io_wrap.SimpleTee(stderr_streams[0], stderr_streams[1:])
+
+
 join = None
 _user_processs_finished_called = False
 
@@ -245,6 +270,11 @@ def save(path):
     """
     file_name = os.path.basename(path)
     return os.symlink(os.path.abspath(path), os.path.join(run.dir, file_name))
+
+
+def show():
+    """Display your W&B charts live in a jupyter notebook"""
+    return jupyter.Run()
 
 
 def log(row=None, commit=True):
@@ -296,12 +326,13 @@ def try_to_set_up_logging():
 
 
 def get_python_type():
-    if 'ipykernel' in sys.modules:
-        return 'jupyter'
-    elif 'IPython' in sys.modules:
-        return 'ipython'
-    else:
-        return 'python'
+    try:
+        if 'terminal' in get_ipython().__module__:
+            return 'ipython'
+        else:
+            return 'jupyter'
+    except (NameError, AttributeError):
+        return "python"
 
 
 def init(job_type='train', config=None, allow_val_change=False):
@@ -358,22 +389,15 @@ def init(job_type='train', config=None, allow_val_change=False):
         return run
 
     if get_python_type() != 'python':
-        termerror(
-            'W&B doesn\'t work in IPython or Jupyter notebooks. Running normally.')
-        return run
-
-    if run.mode == 'clirun' or run.mode == 'run':
+        _init_ipython(run, job_type, run.mode == 'run')
+    elif run.mode == 'clirun' or run.mode == 'run':
         ensure_configured()
 
         if run.mode == 'run':
             _init_headless(run, job_type)
-
-        # set the run directory in the config so it actually gets persisted
-        run.config.set_run_dir(run.dir)
     elif run.mode == 'dryrun':
         termlog(
             'dryrun mode, run directory: %s' % run.dir)
-        run.config.set_run_dir(run.dir)
         _init_headless(run, job_type, False)
     else:
         termlog(
@@ -381,6 +405,8 @@ def init(job_type='train', config=None, allow_val_change=False):
         termlog('run with "wandb run" to do a real run.')
         sys.exit(1)
 
+    # set the run directory in the config so it actually gets persisted
+    run.config.set_run_dir(run.dir)
     if config:
         run.config.update(config, allow_val_change=allow_val_change)
 

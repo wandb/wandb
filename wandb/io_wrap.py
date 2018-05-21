@@ -55,6 +55,25 @@ from six.moves import queue, shlex_quote
 logger = logging.getLogger(__name__)
 
 
+class SimpleTee(object):
+    """Monkey patches the given io to write to itself and the objects passed in"""
+
+    def __init__(self, source_io, destination_ios):
+        self.source_write = source_io.write
+        self.destinations = destination_ios
+        source_io.write = self.write
+
+    def write(self, data):
+        self.source_write(data)
+        try:
+            # We need bytes, but sometimes we get strings
+            data = data.encode('utf-8')
+        except AttributeError:
+            pass
+        for destination in self.destinations:
+            destination.write(data)
+
+
 class Tee(object):
     """Reads raw data from a file and writes it to other files.
 
@@ -207,13 +226,13 @@ class FileRedirector(object):
         self.redir_file.flush()  # flush library buffers that dup2 knows nothing about
         os.dup2(self._to_fd, self._from_fd)  # $ exec >&to
 
-    #This isn't tested properly:
+    # This isn't tested properly:
     def restore(self):
         """Restore `self.redir_file` to its original state.
         """
-        #NOTE: dup2 makes `self._from_fd` inheritable unconditionally
+        # NOTE: dup2 makes `self._from_fd` inheritable unconditionally
         self.redir_file.flush()
         os.dup2(self.orig_file.fileno(), self._from_fd)  # $ exec >&copied
-        #self.orig_file.close()
+        # self.orig_file.close()
         #self.orig_file = None
         #self.redir_file = None

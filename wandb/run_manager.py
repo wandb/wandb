@@ -322,7 +322,7 @@ class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train", port=None):
+    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train", output=True, port=None):
         self._api = api
         self._run = run
         self._cloud = cloud
@@ -383,8 +383,9 @@ class RunManager(object):
 
             self._api.save_patches(self._watch_dir)
 
-            wandb.termlog("Syncing %s" % self.url)
-            wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
+            if output:
+                wandb.termlog("Syncing %s" % self.url)
+                wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
 
             self._api.get_file_stream_api().set_file_policy(
                 OUTPUT_FNAME, CRDedupeFilePolicy())
@@ -458,7 +459,7 @@ class RunManager(object):
 
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
-        if six.PY2:
+        if six.PY2 or sys.stdout.__module__ == "ipykernel.iostream":
             stdout = sys.stdout
             stderr = sys.stderr
         else:  # we write binary so grab the raw I/O objects in python 3
