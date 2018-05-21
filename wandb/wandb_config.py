@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import yaml
+import inspect
 
 import wandb
 
@@ -172,26 +173,25 @@ class Config(object):
         if not isinstance(params, dict):
             # Handle some cases where params is not a dictionary
             # by trying to convert it into a dictionary
-            if "__name__" in dir(params) and params.__name__ in ('tensorflow.python.platform.flags', 'absl.flags'):
+            meta = inspect.getmodule(params)
+            if meta and meta.__name__ in ('tensorflow.python.platform.flags', 'absl.flags'):
                 params = params.FLAGS
+                meta = inspect.getmodule(params)
 
-            if not hasattr(params, '__dict__'):
+            # newer tensorflow flags (post 1.4) uses absl.flags
+            if meta and meta.__name__ == "absl.flags._flagvalues":
+                params = {name: params[name].value for name in dir(params)}
+            elif "__flags" in vars(params):
+                # for older tensorflow flags (pre 1.4)
+                if not '__parsed' in vars(params):
+                    params._parse_flags()
+                params = vars(params)['__flags']
+            elif not hasattr(params, '__dict__'):
                 raise TypeError(
                     "config must be a dict or have a __dict__ attribute.")
-            try:
-                if params.__module__ == "absl.flags._flagvalues":
-                    # newer tensorflow flags (post 1.4) uses absl.flags
-                    params = {name: params[name].value for name in dir(params)}
-                elif "__flags" in vars(params):
-                    # for older tensorflow flags (pre 1.4)
-                    if not '__parsed' in vars(params):
-                        params._parse_flags()
-                    params = vars(params)['__flags']
-                else:
-                    # params is a Namespace object (argparse)
-                    # or something else
-                    params = vars(params)
-            except AttributeError:
+            else:
+                # params is a Namespace object (argparse)
+                # or something else
                 params = vars(params)
 
         if not isinstance(params, dict):
