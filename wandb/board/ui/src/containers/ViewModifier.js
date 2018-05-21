@@ -50,7 +50,7 @@ class ViewModifier extends React.Component {
             this.props.viewType,
             viewId,
             panelIndex,
-            panelConfig,
+            panelConfig
           )
         }
         addPanel={panel =>
@@ -80,7 +80,7 @@ function mapStateToProps(state, ownProps) {
     activeView: (state.views.other[ownProps.viewType] || {}).activeView,
     isModified: !_.isEqual(
       state.views.server[ownProps.viewType],
-      state.views.browser[ownProps.viewType],
+      state.views.browser[ownProps.viewType]
     ),
   };
 }
@@ -100,7 +100,7 @@ const mapDispatchToProps = (dispatch, ownProps) => {
       moveActiveViewLeft,
       moveActiveViewRight,
     },
-    dispatch,
+    dispatch
   );
 };
 

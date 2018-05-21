@@ -15,8 +15,8 @@ export const connectStore = (user, auth = {loggedIn: () => true}) => {
       applyMiddleware(routerMiddleware(history)),
       typeof window.__REDUX_DEVTOOLS_EXTENSION__ !== 'undefined'
         ? window.__REDUX_DEVTOOLS_EXTENSION__()
-        : f => f,
-    ),
+        : f => f
+    )
   );
   auth.store = store;
   window.addEventListener('unhandledrejection', event => {

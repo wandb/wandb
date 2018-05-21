@@ -21,13 +21,16 @@ function PrivateRoute({component: Component, user, auth, routeCache, ...rest}) {
   return (
     <Route
       {...rest}
-      render={props =>
-        auth.loggedIn() ? (
-          <AuthComponent {...props} />
+      render={props => {
+        return auth.loggedIn() ? (
+          <AuthComponent
+            {...props}
+            jupyter={localStorage.getItem('mode') === 'jupyter'}
+          />
         ) : (
           <Redirect to={{pathname: '/login', state: {from: props.location}}} />
-        )
-      }
+        );
+      }}
     />
   );
 }

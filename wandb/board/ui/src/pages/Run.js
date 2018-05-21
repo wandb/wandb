@@ -4,6 +4,7 @@ import {Container} from 'semantic-ui-react';
 import Loader from '../components/Loader';
 import RunEditor from '../components/RunEditor';
 import RunViewer from '../components/RunViewer';
+import StreamingRun from '../containers/StreamingRun';
 import {MODEL_QUERY, MODEL_UPSERT} from '../graphql/models';
 import {RUN_UPSERT, RUN_DELETION, RUN_STOP, fragments} from '../graphql/runs';
 import {bindActionCreators} from 'redux';
@@ -82,16 +83,18 @@ class Run extends React.Component {
             project={this.props.project}
             run={this.props.run}
             submit={this.props.submit}
+            jupyter={this.props.jupyter}
             history={this.props.history}
           />
         ) : (
-          <RunViewer
+          <StreamingRun
             onDelete={this.props.delete}
             onStop={this.props.stop}
             openFiles={e => {
               e.preventDefault();
               this.setState({activeIndex: 1});
             }}
+            jupyter={this.props.jupyter}
             user={this.props.user}
             project={this.props.project}
             run={this.props.run}

@@ -4,14 +4,6 @@ import './Log.css';
 import {AutoSizer, List as VirtualList} from 'react-virtualized';
 import AU from 'ansi_up';
 import _ from 'lodash';
-import {pusherRunSlug} from '../util/runhelpers';
-
-let unsubscribe;
-try {
-  unsubscribe = require('Cloud/util/pusher').unsubscribe;
-} catch (e) {
-  unsubscribe = require('../util/pusher').unsubscribe;
-}
 
 class Log extends React.Component {
   state = {
@@ -31,25 +23,8 @@ class Log extends React.Component {
     return losses;
   }
 
-  componentWillUnmount() {
-    unsubscribe(pusherRunSlug(this.props.match.params));
-    unsubscribe('logs-' + this.props.match.params.run);
-  }
-
-  updateCallback = () => {
-    //TODO: performance for big logs / why is this null sometimes?
-    if (this.list) this.list.forceUpdateGrid();
-  };
-
   componentDidMount() {
     this.scrollToBottom();
-    //TODO: this likely belongs higher up in the chain
-    this.props.stream(
-      this.props.client,
-      this.props.match.params,
-      this.props.run,
-      this.updateCallback,
-    );
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -62,6 +37,7 @@ class Log extends React.Component {
   }
 
   scrollToBottom = () => {
+    if (this.list) this.list.forceUpdateGrid();
     if (this.props.logLines && this.state.autoScroll) {
       setTimeout(() => {
         if (this.list) this.list.scrollToRow(this.props.logLines.edges.length);

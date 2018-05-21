@@ -5,7 +5,7 @@ import numeral from 'numeral';
 import ReactTable from 'react-table';
 import 'react-table/react-table.css';
 import Breadcrumbs from '../components/Breadcrumbs';
-import StreamingLog from '../containers/StreamingLog';
+import Log from '../components/Log';
 import Files from '../components/Files';
 import ConfigList from '../components/ConfigList';
 import SummaryList from '../components/SummaryList';
@@ -15,6 +15,14 @@ import './Run.css';
 import {JSONparseNaN} from '../util/jsonnan';
 import flatten from 'flat';
 import _ from 'lodash';
+import {pusherRunSlug} from '../util/runhelpers';
+
+let unsubscribe;
+try {
+  unsubscribe = require('Cloud/util/pusher').unsubscribe;
+} catch (e) {
+  unsubscribe = require('../util/pusher').unsubscribe;
+}
 
 /*
  * This component shows a big table of runs
@@ -30,6 +38,20 @@ export default class RunViewer extends React.Component {
     });
   };
 
+  componentDidMount() {
+    this.props.stream(
+      this.props.client,
+      this.props.match.params,
+      this.props.run,
+      () => {}
+    );
+  }
+
+  componentWillUnmount() {
+    unsubscribe(pusherRunSlug(this.props.match.params));
+    unsubscribe('logs-' + this.props.match.params.run);
+  }
+
   panes() {
     // NOTE as an alternative, fc value can be extracted directly from files length
     const fc = this.props.run.fileCount,
@@ -39,7 +61,7 @@ export default class RunViewer extends React.Component {
         menuItem: 'Training Log',
         render: () => (
           <Tab.Pane>
-            <StreamingLog
+            <Log
               match={this.props.match}
               run={this.props.run}
               logLines={this.props.run.logLines}
@@ -106,6 +128,22 @@ export default class RunViewer extends React.Component {
     let exampleTableTypes = JSONparseNaN(run.exampleTableTypes);
     let exampleTable = JSONparseNaN(run.exampleTable);
     let exampleTableColumns = JSONparseNaN(run.exampleTableColumns);
+    const graphs = (
+      <ViewModifier
+        viewType="run"
+        data={{
+          historyKeys: histKeys,
+          history: histData,
+          eventKeys: eventKeys,
+          events: eventData,
+          match: this.props.match,
+        }}
+        blank={!histData || histData.length === 0}
+        updateViews={this.props.updateViews}
+        loader={true}
+      />
+    );
+    if (this.props.jupyter) return graphs;
     return (
       <Grid stackable className="run">
         <Grid.Row>
@@ -127,21 +165,7 @@ export default class RunViewer extends React.Component {
           </Grid.Column>
         </Grid.Row>
         <Grid.Row columns={1}>
-          <Grid.Column>
-            <ViewModifier
-              viewType="run"
-              data={{
-                historyKeys: histKeys,
-                history: histData,
-                eventKeys: eventKeys,
-                events: eventData,
-                match: this.props.match,
-              }}
-              blank={!histData || histData.length === 0}
-              updateViews={this.props.updateViews}
-              loader={true}
-            />
-          </Grid.Column>
+          <Grid.Column>{graphs}</Grid.Column>
         </Grid.Row>
         {exampleTable &&
           exampleTable.length !== 0 && (

@@ -73,14 +73,16 @@ export function defaultRunCharts(metricNames) {
     x = 0,
     width = 12;
   metricNames.forEach(name => {
-    if (name.match(/loss/)) {
-      big.loss = big.loss || [];
-      big.loss.push(name);
-    } else if (name.match(/accuracy|acc$/)) {
-      big.accuracy = big.accuracy || [];
-      big.accuracy.push(name);
-    } else if (['examples', 'epoch', 'global_step'].indexOf(name) < 0) {
-      small.push(name);
+    if (!name.startsWith('_')) {
+      if (name.match(/loss/)) {
+        big.loss = big.loss || [];
+        big.loss.push(name);
+      } else if (name.match(/accuracy|acc$/)) {
+        big.accuracy = big.accuracy || [];
+        big.accuracy.push(name);
+      } else if (['examples', 'epoch', 'global_step'].indexOf(name) < 0) {
+        small.push(name);
+      }
     }
   });
   if (big.accuracy) {
@@ -90,14 +92,14 @@ export function defaultRunCharts(metricNames) {
       layout: {y: y, h: 2, w: width, x: x},
     });
     if (big.loss) x += 6;
-    else y += 1;
+    else y += 2;
   }
   if (big.loss) {
     charts.push({
       config: {lines: big.loss},
       layout: {y: y, h: 2, w: width, x: x},
     });
-    y += 1;
+    y += 2;
     x = 0;
   }
   small.forEach((name, i) => {
@@ -106,9 +108,17 @@ export function defaultRunCharts(metricNames) {
       layout: {y: y, x: x, w: 3, h: 2},
     });
     x += 3;
-    if (x == 12) y += 1;
-    x = 0;
+    if (x == 12) {
+      y += 2;
+      x = 0;
+    }
   });
+  if (charts.length == 0) {
+    charts.push({
+      config: {lines: ['loss']},
+      layout: {y: 0, x: 0, w: 16, h: 2},
+    });
+  }
   return charts;
 }
 
