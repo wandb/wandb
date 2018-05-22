@@ -68,6 +68,8 @@ class SystemStats(object):
         }
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
+
+    def start(self):
         self._thread.start()
 
     @property
@@ -96,7 +98,11 @@ class SystemStats(object):
 
     def shutdown(self):
         self._shutdown = True
-        self._thread.join()
+        try:
+            self._thread.join()
+        # Incase we never start it
+        except RuntimeError:
+            pass
 
     def flush(self):
         stats = self.stats()

@@ -25,6 +25,7 @@ except ImportError:  # windows
     pty = None
 import signal
 import six
+import getpass
 import socket
 import subprocess
 import sys
@@ -211,21 +212,33 @@ def _init_headless(run, job_type, cloud=True):
 
 def _init_ipython(run, job_type, cloud=True):
     api = wandb.api.Api()
-    if not api.api_key:
+    if True:  # not api.api_key:
         termerror(
-            "Not authenticated. Run `wandb login` or set the WANDB_API_KEY environment variable.")
-        return run
-    elif not api.settings('project'):
-        termerror("This process isn't configured for W&B.")
-        termlog(
-            "Run `wandb init` from this directory, or set the WANDB_PROJECT & WANDB_ENTITY environment variables.")
-        return run
+            "Not authenticated.  Copy a key from https://app.wandb.ai/profile?message=true")
+        os.environ["WANDB_API_KEY"] = getpass.getpass("API Key: ")
+    if True:  # not api.settings('project'):
+        termerror("No W&B project configured.")
+        slug = six.moves.input("Enter username/project: ")
+        os.environ["WANDB_ENTITY"], os.environ["WANDB_PROJECT"] = slug.split(
+            "/")
     api.set_current_run_id(run.id)
-    rm = run_manager.RunManager(api, run, output=False)
-    print("W&B Run: %s" % rm.url)
-    print("Call wandb.show() in it's own cell before training to display live results.")
-    rm.init_run(dict(os.environ))
-    stdout_streams, stderr_streams = rm._get_stdout_stderr_streams()
+    run = wandb.run
+    print("W&B Run: %s" % run.get_url(api))
+    print("Wrap your training loop with wandb.display() to display live results.")
+    # TODO: This should be `upsert` on run
+    upsert_result = api.upsert_run(id=run.storage_id,
+                                   name=run.id,
+                                   project=api.settings("project"),
+                                   entity=api.settings("entity"),
+                                   config=run.config.as_dict(), description=run.description, host=socket.gethostname(),
+                                   program_path="jupyter", repo=None)
+    run.storage_id = upsert_result['id']
+    # TODO: should be a method on RunManager, may want to store RunManager as a global
+    fs_api = api.get_file_stream_api()
+    stdout_streams = (sys.stdout, streaming_log.TextStreamPusher(
+        fs_api, "output.log", prepend_timestamp=True))
+    stderr_streams = (sys.stderr, streaming_log.TextStreamPusher(
+        fs_api, "output.log", prepend_timestamp=True, line_prepend='ERROR'))
     io_wrap.SimpleTee(stdout_streams[0], stdout_streams[1:])
     io_wrap.SimpleTee(stderr_streams[0], stderr_streams[1:])
 
@@ -273,9 +286,35 @@ def save(path):
     return os.symlink(os.path.abspath(path), os.path.join(run.dir, file_name))
 
 
-def show():
+def monitor(options={}):
     """Display your W&B charts live in a jupyter notebook"""
-    return jupyter.Run()
+    try:
+        from IPython.display import display
+    except ImportError:
+        termerror("wandb.monitor only works in IPython contexts")
+        return
+
+    class Monitor():
+        def __init__(self, options={}):
+            self.api = wandb.api.Api()
+            self.api.set_current_run_id(wandb.run.id)
+            self.options = options
+            self.rm = run_manager.RunManager(self.api, wandb.run, output=False)
+            self.rm.init_run(dict(os.environ))
+            display(jupyter.Run())
+
+        def __enter__(self):
+            pass
+
+        def __exit__(self, *args):
+            return self.stop()
+
+        def stop(self):
+            self.rm.shutdown()
+            wandb.run.close_files()
+            return wandb.run
+
+    return Monitor(options)
 
 
 def log(row=None, commit=True):

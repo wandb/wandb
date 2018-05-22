@@ -367,7 +367,7 @@ class RunManager(object):
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
         self._stats = stats.Stats()
-        # This starts a thread to write system stats every 30 seconds
+        # Calling .start() will spin a thread that reports system stats every 30 seconds
         self._system_stats = stats.SystemStats(run, api)
         self._meta = meta.Meta(api, self._run.dir)
         self._meta.data["jobType"] = job_type
@@ -451,6 +451,10 @@ class RunManager(object):
                     file_path, save_name, self._api, self._file_pusher)
         return self._event_handlers[save_name]
 
+    def _finish_handlers(self):
+        for handler in self._event_handlers.values():
+            handler.finish()
+
     def _push_function(self, save_name, path):
         with open(path, 'rb') as f:
             self._api.push(self._project, {save_name: f}, run=self._run.id,
@@ -460,8 +464,7 @@ class RunManager(object):
 
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
-        custom = inspect.getmodule(sys.stdout)
-        if six.PY2 or (custom and custom.__name__ == "ipykernel.iostream"):
+        if six.PY2 or "buffer" not in dir(sys.stdout):
             stdout = sys.stdout
             stderr = sys.stderr
         else:  # we write binary so grab the raw I/O objects in python 3
@@ -558,6 +561,7 @@ class RunManager(object):
             self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=True)
 
     def init_run(self, env=None):
+        self._system_stats.start()
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
@@ -583,6 +587,12 @@ class RunManager(object):
                     target=self._upsert_run, args=(True, storage_id, commit, env))
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
+
+    def shutdown():
+        """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""
+        self.rm._system_stats.shutdown()
+        self.rm._finish_handlers()
+        self.rm._file_pusher.finish()
 
     def _upsert_run(self, retry, storage_id, commit, env):
         """Upsert the Run (ie. for the first time with all its attributes)
@@ -848,8 +858,7 @@ class RunManager(object):
         except SystemError:
             pass
 
-        for handler in self._event_handlers.values():
-            handler.finish()
+        self._finish_handlers()
         self._file_pusher.finish()
 
         wandb.termlog('Syncing files in %s:' %
