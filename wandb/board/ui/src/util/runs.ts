@@ -1,4 +1,4 @@
-import {flatten} from 'flat';
+import {flatten} from '../util/flatten';
 import * as _ from 'lodash';
 import * as numeral from 'numeral';
 import {JSONparseNaN} from './jsonnan';
@@ -231,7 +231,7 @@ function parseSummary(confSummary: any, runName: string): KeyVal | null {
     console.warn(`Invalid summary for run ${runName}:`, confSummary);
     return null;
   }
-  summary = removeEmptyListsAndObjects(flatten(summary));
+  summary = removeEmptyListsAndObjects(flatten(summary, {safe: true}));
   return summary;
 }
 
