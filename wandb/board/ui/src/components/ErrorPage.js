@@ -45,9 +45,11 @@ const ErrorPage = ({error, history, dispatch}) => {
         icon = 'ban';
         title = 'Invalid Record';
         message = message;
-        window.Raven.captureException(new Error(error.message), {
-          extra: {code: error.code},
-        });
+        if (window.Raven.installed) {
+          window.Raven.captureException(new Error(error.message), {
+            extra: {code: error.code},
+          });
+        }
         break;
       case 403:
         icon = 'hide';
@@ -76,7 +78,7 @@ const ErrorPage = ({error, history, dispatch}) => {
           "An application error occurred, close this notification to refresh the page.  We'll try reloading this page again shortly.";
         if (!window.error_dialog) {
           window.error_dialog = true;
-          if (!error.reported) {
+          if (!error.reported && window.Raven.installed) {
             window.Raven.captureException(new Error(error.message), {
               extra: {fatal: true, code: error.code},
             });
@@ -97,7 +99,7 @@ const ErrorPage = ({error, history, dispatch}) => {
         onDismiss={() => {
           dispatch(resetError());
           window.error_dialog = false;
-          if (error.code > 400 && history) history.goBack();
+          if (error.code > 400) window.location.reload();
         }}>
         <Icon name={icon} />
         <Message.Content>

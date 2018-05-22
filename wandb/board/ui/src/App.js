@@ -34,20 +34,32 @@ class App extends Component {
   state = {loading: false, error: null};
 
   componentDidCatch(error, info) {
-    window.Raven.captureException(error, {extra: info});
+    if (window.Raven.installed)
+      window.Raven.captureException(error, {extra: info});
     error.reported = true;
-    //this.setState({error: error});
+    this.setState({error: error});
   }
 
   componentDidMount() {
     mouseListenersStart();
   }
 
+  componentWillReceiveProps(nextProps) {
+    //TODO: From resetting global state, should just set global state from didcatch
+    if (this.props.error && !nextProps.error) {
+      this.setState({error: null});
+    }
+  }
+
   render() {
     return (
       <div className={this.props.fullScreen ? 'fullScreen' : ''}>
         <AutoReload setFlash={this.props.setFlash} />
-        <Nav user={this.props.user} history={this.props.history} />
+        <Nav
+          user={this.props.user}
+          history={this.props.history}
+          pushState={!this.state.error}
+        />
         <div className="main" style={{padding: '20px'}}>
           <Online>
             {this.props.error || this.state.error ? (
