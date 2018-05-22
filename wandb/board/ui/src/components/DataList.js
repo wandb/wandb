@@ -1,7 +1,7 @@
 import React from 'react';
 import {List, Input, Icon, Modal, Button, Grid} from 'semantic-ui-react';
 import FixedLengthString from '../components/FixedLengthString';
-import flatten from 'flat';
+import {flatten} from '../util/flatten';
 
 import {
   displayValue,

@@ -8,6 +8,9 @@ import {
   HorizontalGridLines,
   LineSeries,
   AreaSeries,
+  MarkSeries,
+  HeatmapSeries,
+  ContourSeries,
   DiscreteColorLegend,
   Crosshair,
   Borders,
@@ -109,6 +112,15 @@ class LinePlotPlot extends React.PureComponent {
                     color={line.color}
                     data={line.data}
                     nullAccessor={d => d.y !== null}
+                    size={2}
+                  />
+                ) : line.type === 'heatmap' ? (
+                  <HeatmapSeries
+                    key={i}
+                    colorRange={['white', line.color]}
+                    data={line.data}
+                    nullAccessor={d => d.y !== null}
+                    size={2}
                   />
                 ) : (
                   <LineSeries
