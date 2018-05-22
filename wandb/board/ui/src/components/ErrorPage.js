@@ -45,7 +45,9 @@ const ErrorPage = ({error, history, dispatch}) => {
         icon = 'ban';
         title = 'Invalid Record';
         message = message;
-        window.Raven.captureException(error);
+        window.Raven.captureException(new Error(error.message), {
+          extra: {code: error.code},
+        });
         break;
       case 403:
         icon = 'hide';
@@ -75,7 +77,9 @@ const ErrorPage = ({error, history, dispatch}) => {
         if (!window.error_dialog) {
           window.error_dialog = true;
           if (!error.reported) {
-            window.Raven.captureException(error, {extra: {fatal: true}});
+            window.Raven.captureException(new Error(error.message), {
+              extra: {fatal: true, code: error.code},
+            });
             window.Raven.showReportDialog();
           }
         }
