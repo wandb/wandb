@@ -28,18 +28,24 @@ class Summary(object):
             f.write(s)
             f.write('\n')
 
+    def _transform(self, v):
+        if isinstance(v, wandb.Histogram):
+            return wandb.Histogram.transform(v)
+        else:
+            return v
+
     def __getitem__(self, k):
         return self._summary[k]
 
     def __setitem__(self, k, v):
-        self._summary[k] = v
+        self._summary[k] = self._transform(v)
         self._write()
 
     def __setattr__(self, k, v):
         if k.startswith("_"):
             super(Summary, self).__setattr__(k, v)
         else:
-            self._summary[k] = v
+            self._summary[k] = self._transform(v)
             self._write()
 
     def __getattr__(self, k):
@@ -61,7 +67,10 @@ class Summary(object):
     def update(self, key_vals):
         if not isinstance(key_vals, dict):
             raise wandb.Error('summary.update expects dict')
-        # TODO: This removes media from the summary, but will silently remove a user provided dict with _type
-        self._summary.update(
-            {k: v for k, v in six.iteritems(key_vals) if not (isinstance(v, dict) and v.get("_type"))})
+        summary = {}
+        for k, v in six.iteritems(key_vals):
+            if isinstance(v, dict) and v.get("_type") == "image":
+                continue
+            summary[k] = self._transform(v)
+        self._summary.update(summary)
         self._write()

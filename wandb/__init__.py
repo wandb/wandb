@@ -48,6 +48,7 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import util
 from wandb.media import Image
+from wandb.data_types import Histogram
 
 
 logger = logging.getLogger(__name__)

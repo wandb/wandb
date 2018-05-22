@@ -3,6 +3,7 @@ import {NavLink} from 'react-router-dom';
 import {Icon, Item, Image, Table} from 'semantic-ui-react';
 import {stateToIcon} from '../util/runhelpers.js';
 import Tags from '../components/Tags';
+import HelpIcon from '../components/HelpIcon';
 
 export default class RunFeedDescription extends React.Component {
   renderRunName() {
@@ -90,6 +91,16 @@ export default class RunFeedDescription extends React.Component {
                       />
                       {runCount} Runs
                     </a>
+                  )}
+                  {runCount === 300 && (
+                    <span style={{color: 'orange', fontStyle: 'italic'}}>
+                      <HelpIcon
+                        preText="limited!"
+                        color="#ecbb33"
+                        size="small"
+                        text="Group results are currently limited to 300 runs per group. Please contact team@wandb.com if you'd like a higher limit."
+                      />
+                    </span>
                   )}
                 </Item.Extra>
               </Item.Content>
