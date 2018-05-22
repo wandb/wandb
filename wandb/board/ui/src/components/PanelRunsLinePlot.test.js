@@ -29,6 +29,13 @@ describe('Panel components test', () => {
       },
       configMode: false,
       updateConfig: sinon.spy(),
+      pageQuery: {
+        entity: 'test',
+        model: 'test-model',
+      },
+      panelQuery: {
+        model: 'test-model',
+      },
     },
     container,
     dropdown,
@@ -40,7 +47,7 @@ describe('Panel components test', () => {
     container = mount(
       <MockAppWrapper store={store}>
         <PanelType {...props} />
-      </MockAppWrapper>,
+      </MockAppWrapper>
     );
     expect(container.find('LinePlot')).toHaveLength(1);
     // header from config is not rendered
@@ -65,12 +72,14 @@ describe('Panel components test', () => {
       data: {
         ...props.data,
         selectedRuns: [{run1: 'test'}, {run2: 'test'}],
+        keys: ['loss', 'acc'],
+        axisOptions: ['loss', 'acc'],
       },
     };
     container = mount(
       <MockAppWrapper store={store}>
         <PanelType {...props} />
-      </MockAppWrapper>,
+      </MockAppWrapper>
     );
 
     expect(container.find('div.header').text()).toContain('No history data');

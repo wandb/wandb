@@ -121,9 +121,6 @@ const withMutations = graphql(MODEL_UPSERT, {
   }),
 });
 
-// export dumb component for testing purposes
-//export {Dashboard};
-
 function mapStateToProps(state, ownProps) {
   return {
     jobId: state.runs.currentJob,

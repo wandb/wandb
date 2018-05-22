@@ -31,8 +31,6 @@ describe('Models page components test', () => {
 
     // test ErrorPage component
     expect(container.find(ErrorPage)).toHaveLength(0);
-    container.setProps({error: {}});
-    expect(container.find(ErrorPage)).toHaveLength(1);
 
     // finds Create new project button
     container.setProps({error: null, user: {}});

@@ -426,7 +426,6 @@ describe('toMongo', () => {
         },
       ],
     };
-    console.log(JSON.stringify(Filter.toMongo(filters)));
     expect(Filter.toMongo(filters)).toEqual({
       $or: [
         {host: 'angry.local'},

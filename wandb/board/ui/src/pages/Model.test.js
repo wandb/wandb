@@ -14,6 +14,7 @@ describe('Model page components test', () => {
         currentJob: 'test',
         filters: {
           filter: {op: 'OR', filters: [{op: 'AND', filters: []}]},
+          select: {op: 'OR', filters: [{op: 'AND', filters: []}]},
         },
         sort: {},
         columns: {},
@@ -67,8 +68,6 @@ describe('Model page components test', () => {
 
     // test ErrorPage component
     expect(container.find(ErrorPage)).toHaveLength(0);
-    container.setProps({error: {}});
-    expect(container.find(ErrorPage)).toHaveLength(1);
 
     // test Loader component
     container.setProps({loading: true, error: null});
