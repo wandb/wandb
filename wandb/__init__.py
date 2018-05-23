@@ -297,12 +297,13 @@ def try_to_set_up_logging():
 
 
 def get_python_type():
-    if 'ipykernel' in sys.modules:
-        return 'jupyter'
-    elif 'IPython' in sys.modules:
-        return 'ipython'
-    else:
-        return 'python'
+    try:
+        if 'terminal' in get_ipython().__module__:
+            return 'ipython'
+        else:
+            return 'jupyter'
+    except (NameError, AttributeError):
+        return "python"
 
 
 def init(job_type='train', config=None, allow_val_change=False):
