@@ -85,21 +85,7 @@ ifeq ($(GIT_TREE_STATE),dirty)
 	$(error un-committed changes, commit before continuing)
 endif
 
-ui: gitdirty
-	cd wandb/board/ui && yarn build
-ifeq ($(strip $(shell git status --untracked-files=no --porcelain 2>/dev/null)),)
-	GIT_TREE_STATE=clean
-else
-	GIT_TREE_STATE=dirty
-endif
-ifeq ($(GIT_TREE_STATE),dirty)
-	git add .
-	git commit -m 'New frontend build'
-else
-	@echo "No frontend changes to commit"
-endif
-
-release: clean ui## package and upload a release
+release: clean ## package and upload a release
 	git push
 	python setup.py sdist upload
 	python setup.py bdist_wheel upload

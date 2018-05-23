@@ -1,8 +1,0 @@
-[
-  {
-    "origin": ["https://app.wandb.ai", "https://beta.wandb.ai", "http://app.test"],
-    "responseHeader": ["Content-Type"],
-    "method": ["GET", "HEAD", "PUT"],
-    "maxAgeSeconds": 3600
-  }
-]

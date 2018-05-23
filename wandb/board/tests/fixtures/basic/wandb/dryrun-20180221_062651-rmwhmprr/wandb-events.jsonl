@@ -1,5 +1,0 @@
-{"system.cpu": 81.6, "system.memory": 72.94, "system.disk": 33.7, "system.network.sent": 80896, "system.network.recv": 94208, "_wandb": true, "_timestamp": 1519194439, "_runtime": 28}
-{"system.cpu": 88.79, "system.memory": 73.57, "system.disk": 33.7, "system.network.sent": 113664, "system.network.recv": 126976, "_wandb": true, "_timestamp": 1519194469, "_runtime": 58}
-{"system.cpu": 89.77, "system.memory": 73.63, "system.disk": 33.7, "system.network.sent": 209920, "system.network.recv": 288768, "_wandb": true, "_timestamp": 1519194499, "_runtime": 88}
-{"system.cpu": 89.47, "system.memory": 73.72, "system.disk": 33.7, "system.network.sent": 273408, "system.network.recv": 362496, "_wandb": true, "_timestamp": 1519194529, "_runtime": 118}
-{"system.cpu": 79.23, "system.memory": 73.08, "system.disk": 33.7, "system.network.sent": 304128, "system.network.recv": 396288, "_wandb": true, "_timestamp": 1519194553, "_runtime": 142}
