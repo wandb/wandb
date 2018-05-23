@@ -32,7 +32,7 @@ class ModelViewer extends React.Component {
             <p>New to wandb?</p>
             <ol>
               <li>
-                Visit the getting started
+                Visit the getting started{' '}
                 <a href="https://docs.wandb.com/docs/started.html">
                   documentation.
                 </a>

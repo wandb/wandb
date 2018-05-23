@@ -18,3 +18,22 @@ global.render = render;
 global.mount = mount;
 global.mockStore = configureStore();
 global.localStorage = localStorageMock;
+
+///// From react-slick test-setup.js
+window.matchMedia =
+  window.matchMedia ||
+  function() {
+    return {
+      matches: false,
+      addListener: function() {},
+      removeListener: function() {},
+    };
+  };
+
+window.requestAnimationFrame =
+  window.requestAnimationFrame ||
+  function(callback) {
+    setTimeout(callback, 0);
+  };
+
+///// End react-slick test-setup.js

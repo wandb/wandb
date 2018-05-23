@@ -23,7 +23,7 @@ import {
   sortRuns,
   getColumns,
 } from '../util/runhelpers.js';
-import flatten from 'flat';
+import {flatten} from '../util/flatten';
 
 import withHistoryLoader from '../containers/HistoryLoader';
 // TODO: read this from query

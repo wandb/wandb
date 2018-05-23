@@ -13,7 +13,7 @@ import SystemList from '../components/SystemList';
 import ViewModifier from '../containers/ViewModifier';
 import './Run.css';
 import {JSONparseNaN} from '../util/jsonnan';
-import flatten from 'flat';
+import {flatten} from '../util/flatten';
 import _ from 'lodash';
 import {pusherRunSlug} from '../util/runhelpers';
 

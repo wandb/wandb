@@ -10,6 +10,7 @@ import {
   xAxisLabel,
   xAxisChoices,
   friendlyMetricDefaults,
+  makeHistogram,
 } from '../util/plotHelpers.js';
 import {
   XAxis,
@@ -21,7 +22,7 @@ import {
   VerticalRectSeries,
   Hint,
 } from 'react-vis';
-import flatten from 'flat';
+import {flatten} from '../util/flatten.js';
 
 import {displayValue} from '../util/runhelpers.js';
 
@@ -84,38 +85,12 @@ class HistogramPanel extends React.Component {
     return <div>{message}</div>;
   }
 
-  makeHistogram(values, buckets = 10) {
-    /* 
-      * LB: This could be made way more efficient if people start really using it 
-      */
-    let min = _.min(values);
-    let max = _.max(values);
-    if (min == max) {
-      min = min - 1;
-    }
-    let counts = Array(buckets)
-      .fill()
-      .map(e => 0);
-    let binEdges = [];
-    binEdges.push(min);
-
-    for (let i = 1; i < buckets + 1; i++) {
-      binEdges.push(min + i / buckets * (max - min));
-      values.map(v => {
-        if (v <= binEdges[i] && (i == 1 || v > binEdges[i - 1])) {
-          counts[i - 1]++;
-        }
-      });
-    }
-    return {counts: counts, binEdges: binEdges};
-  }
-
   renderNormal() {
     if (!this.props.config.selectedMetrics) {
       return this.renderErrorChart('Need to choose a metric');
     }
 
-    let {counts, binEdges} = this.makeHistogram(
+    let {counts, binEdges} = makeHistogram(
       this.flatSummaryMetrics[this.props.config.selectedMetrics]
     );
     let data = [];

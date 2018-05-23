@@ -589,11 +589,48 @@ export function linesFromDataRunPlot(
   let eventNames = eventKeys
     .filter(lineName => !_.startsWith(lineName, '_') && !(lineName === 'epoch'))
     .slice(0, maxEventKeyCount);
+  let lineType = '';
 
   let historyLines = historyNames
     .map((lineName, i) => {
       let lineData = [];
-      if (Array.isArray(data.history[0])) {
+      if (
+        data.history &&
+        data.history[0] &&
+        data.history[0][lineName] &&
+        Array.isArray(data.history[0][lineName])
+      ) {
+        /* Handle the case where history is an array */
+        /* TODO: handle the case where history is a mix of arrays and scalars */
+
+        let min = _.min(
+          data.history.map((row, j) => {
+            return _.min(row[lineName]);
+          })
+        );
+        let max = _.max(
+          data.history.map((row, j) => {
+            return _.max(row[lineName]);
+          })
+        );
+        let numBuckets = 32;
+
+        data.history.map((row, j) => {
+          // __index is a legacy name - we should remove it from the logic
+          // here at some point.
+          let x = xAxis === '__index' || xAxis === '_step' ? j : row[xAxis];
+          let values = row[lineName];
+          let {counts, binEdges} = makeHistogram(values, numBuckets, min, max);
+          counts.map((count, i) => {
+            lineData.push({
+              x: x,
+              y: binEdges[i],
+              color: count,
+            });
+          });
+        });
+        lineType = 'heatmap';
+
         // if index
       } else {
         // this is the common case where y values are scalars
@@ -611,11 +648,13 @@ export function linesFromDataRunPlot(
               !_.isNaN(point.x) &&
               !_.isNaN(point.y)
           );
+        lineType = 'line';
       }
       return {
         title: lineName,
         color: color(i),
         data: lineData,
+        type: lineType,
       };
     })
     .filter(line => line.data.length > 0);
@@ -818,3 +857,45 @@ export function smartNames(names, minRunSize, replaceStr) {
 }
 
 export function runToLegendLabels(run, fields) {}
+
+export function makeHistogram(values, numBuckets = 10, min = null, max = null) {
+  /*
+   * builds a histogram of values for evenly spaced buckets from max to min.
+   * If max and min unspecified, set to max and min of values.
+   */
+
+  if (min == null) {
+    min = _.min(values);
+  }
+  if (max == null) {
+    max = _.max(values);
+  }
+
+  if (min == max) {
+    binEdges = [min, min + 1];
+    counts = [values.length];
+    return {counts: counts, binEdges: binEdges};
+  }
+
+  let binEdges = [];
+  let bucketWidth = (max - min) / numBuckets;
+
+  let counts = Array(numBuckets)
+    .fill()
+    .map(e => 0);
+
+  for (let i = 0; i < numBuckets + 1; i++) {
+    binEdges.push(min + i * bucketWidth);
+  }
+
+  values.map(v => {
+    let bucket = Math.floor((v - min) / bucketWidth);
+    if (bucket >= numBuckets) {
+      bucket = numBuckets - 1;
+    } else if (bucket < 0) {
+      bucket = 0;
+    }
+    counts[bucket]++;
+  });
+  return {counts: counts, binEdges: binEdges};
+}

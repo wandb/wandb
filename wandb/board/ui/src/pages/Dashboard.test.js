@@ -1,7 +1,7 @@
 import React from 'react';
 import MockAppWrapper from '../util/test/mockAppWrapper';
 import DashboardWrapper, {Dashboard} from './Dashboard';
-import wLoader from '../components/Loader';
+import Loader from '../components/Loader';
 import ViewModifier from '../containers/ViewModifier';
 
 describe('Dashboard page components test', () => {
@@ -9,7 +9,8 @@ describe('Dashboard page components test', () => {
       global: {},
       runs: {
         filters: {
-          filter: [],
+          filter: {op: 'OR', filters: []},
+          select: {op: 'OR', filters: []},
         },
       },
       views: {

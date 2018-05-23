@@ -11,6 +11,9 @@ describe('Panel components test', () => {
       updateType: sinon.spy(),
       updateSize: sinon.spy(),
       removePanel: sinon.spy(),
+      pageQuery: {
+        entity: 'test',
+      },
     },
     data = {
       columnNames: ['Description', 'Ran', 'Runtime', 'Config', 'Summary'],
