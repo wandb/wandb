@@ -285,16 +285,16 @@ class LinePlotPanel extends React.Component {
         </p>
       );
     }
+    if (selectedMetrics.length == 0) {
+      return this.renderErrorChart(<div>This chart isn't configured yet.</div>);
+    }
+
     if (lines.every(l => l.data.length == 0)) {
       return this.renderErrorChart(
         <div>
           This chart has no data, waiting for a call to <b>wandb.log</b>
         </div>
       );
-    }
-
-    if (selectedMetrics.length == 0) {
-      return this.renderErrorChart(<div>This chart isn't configured yet.</div>);
     }
 
     return (

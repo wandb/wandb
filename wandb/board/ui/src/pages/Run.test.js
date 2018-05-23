@@ -51,17 +51,19 @@ describe('Run page components test', () => {
     };
 
   beforeEach(() => {
-    container = shallow(
-      <Run
-        match={match}
-        views={views}
-        loss={loss}
-        user={user}
-        loading={loading}
-        updateLocationParams={() => {}}
-        setBrowserViews={() => {}}
-        setServerViews={() => {}}
-      />
+    container = mount(
+      <MockAppWrapper store={store}>
+        <Run
+          match={match}
+          views={views}
+          loss={loss}
+          user={user}
+          loading={loading}
+          updateLocationParams={() => {}}
+          setBrowserViews={() => {}}
+          setServerViews={() => {}}
+        />
+      </MockAppWrapper>
     );
   });
 
@@ -70,8 +72,23 @@ describe('Run page components test', () => {
   });
 
   it('finds <RunViewer /> component', () => {
-    expect(container.find(RunViewer)).toHaveLength(0);
-    container.setProps({project: model, run: model.bucket});
+    //TODO: Unfortunate...
+    container = mount(
+      <MockAppWrapper store={store}>
+        <Run
+          run={model.bucket}
+          project={model}
+          match={match}
+          views={views}
+          loss={loss}
+          user={user}
+          loading={loading}
+          updateLocationParams={() => {}}
+          setBrowserViews={() => {}}
+          setServerViews={() => {}}
+        />
+      </MockAppWrapper>
+    );
     expect(container.find(RunViewer)).toHaveLength(1);
   });
 });

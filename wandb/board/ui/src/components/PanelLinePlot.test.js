@@ -50,12 +50,12 @@ describe('Panel components test', () => {
 
   it('checks if panel is rendered without config', () => {
     expect(container.text()).toContain(
-      'This plot type is not supported on this page',
+      'This plot type is not supported on this page'
     );
 
     container.setProps({data: {}});
     expect(container.text()).toContain(
-      "This run doesn't have any history data",
+      "This run doesn't have any history data"
     );
 
     data = {
@@ -111,14 +111,14 @@ describe('Panel components test', () => {
     dropdown = container.find('FormDropdown[placeholder="X-Axis"]');
     dropdown.simulate('change', null, {value: value});
     expect(
-      props.updateConfig.calledWith(sinon.match({xAxis: value})),
+      props.updateConfig.calledWith(sinon.match({xAxis: value}))
     ).toBeTruthy();
 
     // trigger Lines dropdown change event with exact param
     dropdown = container.find('FormDropdown[placeholder="metrics"]');
     dropdown.simulate('change', null, {value: value});
     expect(
-      props.updateConfig.calledWith(sinon.match({lines: value})),
+      props.updateConfig.calledWith(sinon.match({lines: value}))
     ).toBeTruthy();
 
     // trigger Button log click event to switch flag
@@ -126,8 +126,8 @@ describe('Panel components test', () => {
     button.simulate('click', null, {value: true});
     expect(
       props.updateConfig.calledWith(
-        sinon.match({yLogScale: !props.config.yLogScale}),
-      ),
+        sinon.match({yLogScale: !props.config.yLogScale})
+      )
     ).toBeTruthy();
 
     // trigger Smoothness range input change event
@@ -135,7 +135,7 @@ describe('Panel components test', () => {
     range = container.find('input[type="range"]');
     range.simulate('change', {target: {value: value}});
     expect(
-      props.updateConfig.calledWith(sinon.match({smoothingWeight: value})),
+      props.updateConfig.calledWith(sinon.match({smoothingWeight: value}))
     ).toBeTruthy();
   });
 });

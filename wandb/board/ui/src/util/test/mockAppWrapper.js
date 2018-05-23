@@ -7,11 +7,11 @@ import {Provider} from 'react-redux';
 import {ConnectedRouter} from 'react-router-redux';
 import createHistory from 'history/createMemoryHistory';
 
-const link = new ApolloLink(),
-  client = new ApolloClient({
-    link: link,
-    cache: new InMemoryCache(),
-  });
+const link = new ApolloLink();
+export const client = new ApolloClient({
+  link: link,
+  cache: new InMemoryCache(),
+});
 
 const MockAppWrapper = ({store, children}) => (
   <Provider store={store}>
