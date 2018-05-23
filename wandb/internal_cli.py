@@ -54,7 +54,7 @@ def agent_run(args):
         root = os.path.abspath(os.getcwd())
         remote_url = 'file://%s%s' % (host, root)
 
-    run.save(program=args['program'])
+    run.save(program=args['program'], api=api)
     env = dict(os.environ)
     run.set_environment(env)
 

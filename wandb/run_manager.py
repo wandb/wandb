@@ -617,7 +617,7 @@ class RunManager(object):
 
         try:
             upsert_result = self._run.save(
-                id=storage_id, num_retries=num_retries)
+                id=storage_id, num_retries=num_retries, api=self._api)
         except wandb.api.CommError as e:
             # TODO: Get rid of str contains check
             if self._run.resume == 'never' and 'exists' in str(e):

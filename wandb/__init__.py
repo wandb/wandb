@@ -236,7 +236,7 @@ def _init_ipython(run, job_type, cloud=True, logging=True):
     api.set_current_run_id(run.id)
     print("W&B Run: %s" % run.get_url(api))
     print("Wrap your training loop with `with wandb.monitor():` to display live results.")
-    run.save()
+    run.save(api=api)
     run.set_environment()
     if logging:
         RunManager.mirror_stdout_stderr(api)
@@ -256,7 +256,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     if not env.get_debug():
         stderr_redirector.restore()
 
-    wandb.termlog()
+    termlog()
     termlog("Waiting for wandb process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
     try:

@@ -252,9 +252,10 @@ class Api(object):
     @property
     def api_key(self):
         auth = requests.utils.get_netrc_auth(self.api_url)
+        key = None
         if auth:
             key = auth[-1]
-        #Environment should take precedence
+        # Environment should take precedence
         if os.getenv("WANDB_API_KEY"):
             key = os.environ["WANDB_API_KEY"]
         return key
@@ -667,7 +668,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions

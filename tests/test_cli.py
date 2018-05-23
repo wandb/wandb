@@ -273,7 +273,7 @@ def test_signup(runner, empty_netrc, local_netrc):
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
-        sigint(0.1)
+        sigint(0.05)
         result = runner.invoke(cli.signup)
         print('Output: ', result.output)
         print('Exception: ', result.exception)
@@ -396,13 +396,14 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo):
 
 
 @pytest.mark.updateAvailable(True)
-def test_run_update(runner, request_mocker, upsert_run, git_repo):
+def test_run_update(runner, request_mocker, upsert_run, git_repo, upload_logs):
+    upload_logs(request_mocker, "abc123")
     upsert_run(request_mocker)
     # TODO: Prevent syncing from happening
     sigint(0.5)
     with open("simple.py", "w") as f:
         f.write('print("Done!")')
-    result = runner.invoke(cli.run, ["simple.py"])
+    result = runner.invoke(cli.run, ["--id=abc123", "--", "simple.py"])
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))

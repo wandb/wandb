@@ -70,6 +70,7 @@ def test_jupyter_init(wandb_init_run, capfd):
         print("Train")
     out, err = capfd.readouterr()
     assert "Resuming" in out
+    # TODO: saw some global state issues here...
     assert "" == err
 
 
