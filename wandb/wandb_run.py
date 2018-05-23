@@ -111,6 +111,8 @@ class Run(object):
 
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None, job_type="train"):
         api = api or Api()
+        if api.settings("project") is None:
+            raise ValueError("Project must be configured.")
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
                                        project=api.settings("project"), entity=api.settings("entity"),
                                        config=self.config.as_dict(), description=self.description, host=socket.gethostname(),

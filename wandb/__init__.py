@@ -42,7 +42,7 @@ from .core import *
 
 # These imports need to be below "from .core import *" until we remove
 # 'from wandb import __stage_dir__' from api.py etc.
-from wandb.api import Api
+from wandb.api import Api, CommError
 from wandb import wandb_types as types
 from wandb import wandb_config
 from wandb import wandb_run
@@ -241,7 +241,10 @@ def _init_jupyter(run, job_type):
     http_api.set_current_run_id(run.id)
     print("W&B Run: %s" % run.get_url(http_api))
     print("Wrap your training loop with `with wandb.monitor():` to display live results.")
-    run.save(api=http_api, job_type=job_type)
+    try:
+        run.save(api=http_api, job_type=job_type)
+    except (CommError, ValueError) as e:
+        termerror(str(e))
     run.set_environment()
 
 
