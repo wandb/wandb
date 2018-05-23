@@ -295,7 +295,6 @@ def monitor(display=True, options={}):
 
     class Monitor():
         def __init__(self, options={}):
-            # TODO: Funky shared state?
             self.api = http_api
             self.api.set_current_run_id(run.id)
             self.options = options
