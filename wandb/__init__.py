@@ -213,10 +213,9 @@ def _init_jupyter(run, job_type):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
     Log pushing and system stats don't start until `wandb.monitor()` is called.
     """
-    # TODO: Should we not log to jupyter?
-    # try_to_set_up_logging()
-    api = Api()
-    if not api.api_key:
+    # TODO: Should we log to jupyter?
+    try_to_set_up_logging()
+    if not http_api.api_key:
         termerror(
             "Not authenticated.  Copy a key from https://app.wandb.ai/profile?message=true")
         key = getpass.getpass("API Key: ").strip()
@@ -224,7 +223,7 @@ def _init_jupyter(run, job_type):
             os.environ["WANDB_API_KEY"] = key
         else:
             raise ValueError("API Key must be 40 characters long")
-    if not api.settings('project'):
+    if not http_api.settings('project'):
         termerror("No W&B project configured.")
         slug = six.moves.input("Enter username/project: ").strip()
         if "/" not in slug:
@@ -234,10 +233,10 @@ def _init_jupyter(run, job_type):
             "/")
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
-    api.set_current_run_id(run.id)
-    print("W&B Run: %s" % run.get_url(api))
+    http_api.set_current_run_id(run.id)
+    print("W&B Run: %s" % run.get_url(http_api))
     print("Wrap your training loop with `with wandb.monitor():` to display live results.")
-    run.save(api=api, job_type=job_type)
+    run.save(api=http_api, job_type=job_type)
     run.set_environment()
 
 
@@ -275,6 +274,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # pass the run into WandbCallback)
 run = None
 config = None  # config object shared with the global run
+http_api = Api()
 
 
 def save(path):
@@ -295,7 +295,8 @@ def monitor(display=True, options={}):
 
     class Monitor():
         def __init__(self, options={}):
-            self.api = Api()
+            # TODO: Funky shared state?
+            self.api = http_api
             self.api.set_current_run_id(run.id)
             self.options = options
             if os.getenv("WANDB_JUPYTER"):
@@ -306,7 +307,8 @@ def monitor(display=True, options={}):
                     display(jupyter.Run())
             else:
                 self.rm = False
-                termerror("wandb.monitor is only usefull in Jupyter notebooks")
+                termerror(
+                    "wandb.monitor is only functional in Jupyter notebooks")
 
         def __enter__(self):
             pass
@@ -339,6 +341,7 @@ def log(row=None, commit=True):
 
 
 def ensure_configured():
+    # We re-initialize here for tests
     api = Api()
     # The WANDB_DEBUG check ensures tests still work.
     if not env.is_debug() and not api.settings('project'):

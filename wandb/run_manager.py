@@ -64,11 +64,12 @@ class FileTailer(object):
         if seek_end:
             self._file.seek(0, 2)  # seek to 0 bytes from end (2 means end)
         self._on_read_fn = on_read_fn
+        self.running = True
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.start()
 
     def _thread_body(self):
-        while True:
+        while self.running:
             where = self._file.tell()
             data = self._file.read(1024)
             if not data:
@@ -77,6 +78,11 @@ class FileTailer(object):
                 self._file.seek(where)
             else:
                 self._on_read_fn(data)
+
+    def stop(self):
+        self._file.seek(0)
+        self.running = False
+        self._thread.join()
 
 
 class FileEventHandler(object):
@@ -228,6 +234,11 @@ class FileEventHandlerTextStream(FileEventHandler):
 
         self._tailer = FileTailer(
             self.file_path, on_read, seek_end=self._seek_end)
+
+    def finish(self):
+        if self._tailer:
+            self._tailer.stop()
+            self._tailer = None
 
 
 class FileEventHandlerBinaryStream(FileEventHandler):
@@ -530,6 +541,8 @@ class RunManager(object):
             self._stdout_stream.close()
             self._stderr_stream.close()
             self._api.get_file_stream_api().finish(exitcode)
+            # Ensures we get a new file stream thread
+            self._api._file_stream_api = None
 
     def _setup_resume(self, resume_status):
         # write the tail of the history file
@@ -573,8 +586,7 @@ class RunManager(object):
     def init_run(self, env=None):
         self._system_stats.start()
         self._meta.start()
-        # TODO: ensuring we start the file_stream thread?
-        self._api.get_file_stream_api()
+        self._api.get_file_stream_api().start()
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
@@ -603,7 +615,7 @@ class RunManager(object):
         self._finish_handlers()
         self._file_pusher.shutdown()
         self._api.get_file_stream_api().finish(exitcode)
-        # TODO: file stream api memoization belongs in here
+        # Ensures we get a new file stream thread
         self._api._file_stream_api = None
 
     def _upsert_run(self, retry, storage_id, env):
