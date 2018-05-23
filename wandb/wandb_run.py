@@ -253,8 +253,10 @@ class Run(object):
         """
         if self._events is not None:
             self._events.close()
+            self._events = None
         if self._history is not None:
             self._history.close()
+            self._history = None
 
 
 def generate_id():
