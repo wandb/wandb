@@ -8,11 +8,13 @@ import os
 import socket
 import sys
 import time
+import traceback
 
 import wandb
 import wandb.api
 import wandb.run_manager
 import wandb.wandb_run
+from wandb import util
 
 
 def headless(args):
@@ -52,6 +54,7 @@ def agent_run(args):
     # handle non-git directories
     if not root:
         root = os.path.abspath(os.getcwd())
+        host = socket.gethostname()
         remote_url = 'file://%s%s' % (host, root)
 
     run.save(program=args['program'], api=api, job_type=args['job_type'])
@@ -70,7 +73,7 @@ def agent_run(args):
                 'Are you sure you provided the correct API key to "wandb login"?')
         lines = traceback.format_exception(
             exc_type, exc_value, exc_traceback)
-        logger.error('\n'.join(lines))
+        logging.error('\n'.join(lines))
     else:
         rm.run_user_process(args['program'], args['args'], env)
 

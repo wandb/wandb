@@ -198,48 +198,6 @@ def prompt_for_project(ctx, entity):
     return project
 
 
-def write_netrc(host, entity, key):
-    """Add our host and key to .netrc"""
-    if len(key) != 40:
-        click.secho(
-            'API-key must be exactly 40 characters long: %s (%s chars)' % (key, len(key)))
-        return None
-    try:
-        print("Appending key to your netrc file: %s" %
-              os.path.expanduser('~/.netrc'))
-        normalized_host = host.split("/")[-1].split(":")[0]
-        machine_line = 'machine %s' % normalized_host
-        path = os.path.expanduser('~/.netrc')
-        orig_lines = None
-        try:
-            with open(path) as f:
-                orig_lines = f.read().strip().split('\n')
-        except (IOError, OSError) as e:
-            pass
-        with open(path, 'w') as f:
-            if orig_lines:
-                # delete this machine from the file if it's already there.
-                skip = 0
-                for line in orig_lines:
-                    if machine_line in line:
-                        skip = 2
-                    elif skip:
-                        skip -= 1
-                    else:
-                        f.write('%s\n' % line)
-            f.write(textwrap.dedent("""\
-            machine {host}
-              login {entity}
-              password {key}
-            """).format(host=normalized_host, entity=entity, key=key))
-        os.chmod(os.path.expanduser('~/.netrc'),
-                 stat.S_IRUSR | stat.S_IWUSR)
-        return True
-    except IOError as e:
-        click.secho("Unable to read ~/.netrc", fg="red")
-        return None
-
-
 def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
     message = click.edit(content + '\n\n' + marker)
     if message is not None:
@@ -505,7 +463,7 @@ def login(key, server=LocalServer(), browser=True):
     if key:
         # TODO: get the username here...
         # username = api.viewer().get('entity', 'models')
-        if write_netrc(api.api_url, "user", key):
+        if util.write_netrc(api.api_url, "user", key):
             click.secho(
                 "Successfully logged in to Weights & Biases!", fg="green")
     else:
@@ -562,14 +520,7 @@ def init(ctx):
     except wandb.cli.ClickWandbException:
         raise ClickException('Could not find team: %s' % entity)
 
-    if not os.path.isdir(wandb_dir()):
-        os.mkdir(wandb_dir())
-
-    with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
-        print('[default]', file=file)
-        print('entity: {}'.format(entity), file=file)
-        print('project: {}'.format(project), file=file)
-        print('base_url: {}'.format(api.settings()['base_url']), file=file)
+    util.write_settings(entity, project, api.settings()['base_url'])
 
     with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")

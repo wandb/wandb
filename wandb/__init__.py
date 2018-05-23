@@ -221,6 +221,7 @@ def _init_jupyter(run, job_type):
         key = getpass.getpass("API Key: ").strip()
         if len(key) == 40:
             os.environ["WANDB_API_KEY"] = key
+            util.write_netrc(http_api.api_url, "user", key)
         else:
             raise ValueError("API Key must be 40 characters long")
     if not http_api.settings('project'):
@@ -229,8 +230,10 @@ def _init_jupyter(run, job_type):
         if "/" not in slug:
             raise ValueError(
                 "Input must contain a slash between username and project")
-        os.environ["WANDB_ENTITY"], os.environ["WANDB_PROJECT"] = slug.split(
-            "/")
+        entity, project = slug.split("/")
+        os.environ["WANDB_ENTITY"] = entity
+        os.environ["WANDB_PROJECT"] = project
+        util.write_settings(entity, project, http_api.settings()['base_url'])
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
     http_api.set_current_run_id(run.id)
