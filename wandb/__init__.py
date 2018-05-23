@@ -234,6 +234,8 @@ def _init_jupyter(run, job_type):
         os.environ["WANDB_ENTITY"] = entity
         os.environ["WANDB_PROJECT"] = project
         util.write_settings(entity, project, http_api.settings()['base_url'])
+        # Reset settings so they reload
+        http_api._settings = None
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
     http_api.set_current_run_id(run.id)
