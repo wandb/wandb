@@ -217,9 +217,4 @@ def test_init(git_repo, upsert_run, request_mocker):
     os.environ['WANDB_MODE'] = 'run'
     run = wandb.init()
     assert run.mode == "run"
-    # TODO: make a fixture?  This is gross
-    del os.environ['WANDB_MODE']
-    del os.environ['WANDB_INITED']
-    del os.environ['WANDB_RUN_STORAGE_ID']
-    del os.environ['WANDB_RUN_ID']
-    del os.environ['WANDB_RUN_DIR']
+    wandb.reset_env()

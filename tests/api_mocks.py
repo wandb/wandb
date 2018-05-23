@@ -38,6 +38,7 @@ def _run_resume_status(name='test', empty=False, files=None):
     return {
         'bucket': {
             'name': name,
+            'id': name,
             'logLineCount': 14,
             'historyLineCount': 5,
             'eventsLineCount': 2,

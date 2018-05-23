@@ -28,14 +28,14 @@ def test_update(summary):
 
 
 def test_update_histogram(summary):
-    summary.update({"hist": Histogram(([1, 2, 3], [1, 2, 3, 4]))})
+    summary.update({"hist": Histogram(np_histogram=([1, 2, 3], [1, 2, 3, 4]))})
     assert json.load(open("wandb-summary.json")) == {
         'foo': 'init',
         "hist": {"_type": "histogram", "values": [1, 2, 3], "bins": [1, 2, 3, 4]}}
 
 
 def test_set_histogram(summary):
-    summary["hist"] = Histogram(([1, 2, 3], [1, 2, 3, 4]))
+    summary["hist"] = Histogram(np_histogram=([1, 2, 3], [1, 2, 3, 4]))
     assert json.load(open("wandb-summary.json")) == {
         'foo': 'init',
         "hist": {"_type": "histogram", "values": [1, 2, 3], "bins": [1, 2, 3, 4]}}

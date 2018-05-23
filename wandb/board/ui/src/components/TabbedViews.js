@@ -75,6 +75,7 @@ class TabbedViews extends React.Component {
         activeIndex = 0;
       }
     }
+    const jupyter = localStorage.getItem('mode') === 'jupyter';
     return (
       <div>
         {this.state.editMode && (
@@ -89,15 +90,24 @@ class TabbedViews extends React.Component {
             }}
           />
         )}
-        {this.props.viewType !== 'dashboards' && (
+        {this.props.viewType !== 'dashboards' &&
+          !jupyter && (
+            <Button
+              content={this.state.editMode ? 'View Charts' : 'Edit Charts'}
+              floated="right"
+              icon={this.state.editMode ? 'unhide' : 'configure'}
+              onClick={() => this.setState({editMode: !this.state.editMode})}
+            />
+          )}
+        {jupyter && (
           <Button
-            content={this.state.editMode ? 'View Charts' : 'Edit Charts'}
+            as="a"
             floated="right"
-            icon={this.state.editMode ? 'unhide' : 'configure'}
-            onClick={() => this.setState({editMode: !this.state.editMode})}
+            icon="expand"
+            href={'https://app.wandb.ai'}
+            target="_blank"
           />
         )}
-
         {!this.props.fullScreen &&
           (this.props.viewType === 'dashboards' && (
             <Popup

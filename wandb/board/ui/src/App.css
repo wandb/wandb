@@ -18,6 +18,9 @@
 .main {
   margin-top: 5em;
 }
+.jupyter .main {
+  margin-top: 0;
+}
 
 .main .ui.large.breadcrumb {
   height: 40px;

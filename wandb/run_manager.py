@@ -14,6 +14,7 @@ from tempfile import NamedTemporaryFile
 import threading
 import yaml
 import numbers
+import inspect
 
 import click
 from shortuuid import ShortUUID
@@ -63,11 +64,12 @@ class FileTailer(object):
         if seek_end:
             self._file.seek(0, 2)  # seek to 0 bytes from end (2 means end)
         self._on_read_fn = on_read_fn
+        self.running = True
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.start()
 
     def _thread_body(self):
-        while True:
+        while self.running:
             where = self._file.tell()
             data = self._file.read(1024)
             if not data:
@@ -76,6 +78,11 @@ class FileTailer(object):
                 self._file.seek(where)
             else:
                 self._on_read_fn(data)
+
+    def stop(self):
+        self._file.seek(0)
+        self.running = False
+        self._thread.join()
 
 
 class FileEventHandler(object):
@@ -228,6 +235,11 @@ class FileEventHandlerTextStream(FileEventHandler):
         self._tailer = FileTailer(
             self.file_path, on_read, seek_end=self._seek_end)
 
+    def finish(self):
+        if self._tailer:
+            self._tailer.stop()
+            self._tailer = None
+
 
 class FileEventHandlerBinaryStream(FileEventHandler):
     def __init__(self, *args, **kwargs):
@@ -322,7 +334,7 @@ class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train", port=None):
+    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train", output=True, port=None):
         self._api = api
         self._run = run
         self._cloud = cloud
@@ -333,6 +345,7 @@ class RunManager(object):
         self._watch_dir = self._run.dir
 
         self._config = run.config
+        self.job_type = job_type
         self.url = self._run.get_url(api)
 
         # We lock this when the backend is down so Watchdog will keep track of all
@@ -366,7 +379,7 @@ class RunManager(object):
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
         self._stats = stats.Stats()
-        # This starts a thread to write system stats every 30 seconds
+        # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
         self._system_stats = stats.SystemStats(run, api)
         self._meta = meta.Meta(api, self._run.dir)
         self._meta.data["jobType"] = job_type
@@ -383,8 +396,9 @@ class RunManager(object):
 
             self._api.save_patches(self._watch_dir)
 
-            wandb.termlog("Syncing %s" % self.url)
-            wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
+            if output:
+                wandb.termlog("Syncing %s" % self.url)
+                wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
 
             self._api.get_file_stream_api().set_file_policy(
                 OUTPUT_FNAME, CRDedupeFilePolicy())
@@ -449,6 +463,10 @@ class RunManager(object):
                     file_path, save_name, self._api, self._file_pusher)
         return self._event_handlers[save_name]
 
+    def _finish_handlers(self):
+        for handler in self._event_handlers.values():
+            handler.finish()
+
     def _push_function(self, save_name, path):
         with open(path, 'rb') as f:
             self._api.push(self._project, {save_name: f}, run=self._run.id,
@@ -456,9 +474,18 @@ class RunManager(object):
 
     """ RUN MANAGEMENT STUFF """
 
+    def mirror_stdout_stderr(self):
+        """Simple STDOUT and STDERR mirroring used by _init_jupyter"""
+        # TODO: Ideally we could start collecting logs without pushing
+        fs_api = self._api.get_file_stream_api()
+        io_wrap.SimpleTee(sys.stdout, streaming_log.TextStreamPusher(
+            fs_api, OUTPUT_FNAME, prepend_timestamp=True))
+        io_wrap.SimpleTee(sys.stderr, streaming_log.TextStreamPusher(
+            fs_api, OUTPUT_FNAME, prepend_timestamp=True, line_prepend='ERROR'))
+
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
-        if six.PY2:
+        if six.PY2 or "buffer" not in dir(sys.stdout):
             stdout = sys.stdout
             stderr = sys.stderr
         else:  # we write binary so grab the raw I/O objects in python 3
@@ -514,6 +541,8 @@ class RunManager(object):
             self._stdout_stream.close()
             self._stderr_stream.close()
             self._api.get_file_stream_api().finish(exitcode)
+            # Ensures we get a new file stream thread
+            self._api._file_stream_api = None
 
     def _setup_resume(self, resume_status):
         # write the tail of the history file
@@ -555,6 +584,9 @@ class RunManager(object):
             self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=True)
 
     def init_run(self, env=None):
+        self._system_stats.start()
+        self._meta.start()
+        self._api.get_file_stream_api().start()
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
@@ -566,22 +598,27 @@ class RunManager(object):
                     raise LaunchError(
                         "resume='must' but run (%s) doesn't exist" % self._run.id)
                 if resume_status:
-                    print('Resuming run: %s' % self._run.id)
+                    print('Resuming run: %s' % self._run.get_url(self._api))
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
 
-            if self._api.git.enabled:
-                commit = self._api.git.last_commit
-            else:
-                commit = None
-
-            if not self._upsert_run(False, storage_id, commit, env):
+            if not self._upsert_run(False, storage_id, env):
                 self._upsert_run_thread = threading.Thread(
-                    target=self._upsert_run, args=(True, storage_id, commit, env))
+                    target=self._upsert_run, args=(True, storage_id, env))
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
 
-    def _upsert_run(self, retry, storage_id, commit, env):
+    def shutdown(self, exitcode=0):
+        """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""
+        self._system_stats.shutdown()
+        self._meta.shutdown()
+        self._finish_handlers()
+        self._file_pusher.shutdown()
+        self._api.get_file_stream_api().finish(exitcode)
+        # Ensures we get a new file stream thread
+        self._api._file_stream_api = None
+
+    def _upsert_run(self, retry, storage_id, env):
         """Upsert the Run (ie. for the first time with all its attributes)
 
         Arguments:
@@ -599,20 +636,8 @@ class RunManager(object):
             num_retries = 0  # no retries because we want to let the user process run even if the backend is down
 
         try:
-            upsert_result = self._api.upsert_run(id=storage_id,
-                                                 commit=commit,
-                                                 name=self._run.id,
-                                                 project=self._api.settings(
-                                                     "project"),
-                                                 entity=self._api.settings(
-                                                     "entity"),
-                                                 config=self._run.config.as_dict(),
-                                                 description=self._run.description,
-                                                 host=self._run.host,
-                                                 program_path=self._run.program,
-                                                 repo=self._api.repo_remote_url(),
-                                                 sweep_name=self._run.sweep_id,
-                                                 num_retries=num_retries)
+            upsert_result = self._run.save(
+                id=storage_id, num_retries=num_retries, job_type=self.job_type, api=self._api)
         except wandb.api.CommError as e:
             # TODO: Get rid of str contains check
             if self._run.resume == 'never' and 'exists' in str(e):
@@ -629,7 +654,6 @@ class RunManager(object):
                 raise LaunchError(
                     'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path()))
 
-        self._run.storage_id = upsert_result['id']
         self._run.set_environment(environment=env)
 
         # unblock file syncing and console streaming, which need the Run to have a .storage_id
@@ -845,8 +869,7 @@ class RunManager(object):
         except SystemError:
             pass
 
-        for handler in self._event_handlers.values():
-            handler.finish()
+        self._finish_handlers()
         self._file_pusher.finish()
 
         wandb.termlog('Syncing files in %s:' %

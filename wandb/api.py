@@ -252,10 +252,12 @@ class Api(object):
     @property
     def api_key(self):
         auth = requests.utils.get_netrc_auth(self.api_url)
+        key = None
         if auth:
             key = auth[-1]
-        else:
-            key = os.environ.get("WANDB_API_KEY")
+        # Environment should take precedence
+        if os.getenv("WANDB_API_KEY"):
+            key = os.environ["WANDB_API_KEY"]
         return key
 
     @property
@@ -265,7 +267,7 @@ class Api(object):
     @property
     def app_url(self):
         api_url = self.api_url
-        if api_url.endswith('.test'):
+        if api_url.endswith('.test') or self.settings().get("dev_prod"):
             return 'http://app.test'
         elif api_url.endswith('wandb.ai'):
             return 'https://app.wandb.ai'
@@ -666,7 +668,8 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
+        result = {file['name']
+            : file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -979,6 +982,7 @@ class Api(object):
         return responses
 
     def get_file_stream_api(self):
+        """This creates a new file pusher thread.  Call start to initiate the thread that talks to W&B"""
         if not self._file_stream_api:
             if self._current_run_id is None:
                 raise UsageError(
@@ -1101,6 +1105,8 @@ class FileStreamApi(object):
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
         self._thread.daemon = True
+
+    def start(self):
         self._thread.start()
 
     def set_file_policy(self, filename, file_policy):
@@ -1207,4 +1213,5 @@ class FileStreamApi(object):
             exitcode: The exitcode of the watched process.
         """
         self._queue.put(self.Finish(exitcode))
+        # TODO: This can hang for upto 30 seconds...
         self._thread.join()

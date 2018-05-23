@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import yaml
+import inspect
 
 import wandb
 
@@ -172,18 +173,22 @@ class Config(object):
         if not isinstance(params, dict):
             # Handle some cases where params is not a dictionary
             # by trying to convert it into a dictionary
+            meta = inspect.getmodule(params)
+            if meta and meta.__name__ in ('tensorflow.python.platform.flags', 'absl.flags'):
+                params = params.FLAGS
+                meta = inspect.getmodule(params)
 
-            if not hasattr(params, '__dict__'):
-                raise TypeError(
-                    "config must be a dict or have a __dict__ attribute.")
-            if "__flags" in vars(params):
+            # newer tensorflow flags (post 1.4) uses absl.flags
+            if meta and meta.__name__ == "absl.flags._flagvalues":
+                params = {name: params[name].value for name in dir(params)}
+            elif "__flags" in vars(params):
                 # for older tensorflow flags (pre 1.4)
                 if not '__parsed' in vars(params):
                     params._parse_flags()
                 params = vars(params)['__flags']
-            elif "__wrapped" in vars(params):
-                # newer tensorflow flags (post 1.4) uses absl.flags in a wrapper
-                params = {name: params[name].value for name in dir(params)}
+            elif not hasattr(params, '__dict__'):
+                raise TypeError(
+                    "config must be a dict or have a __dict__ attribute.")
             else:
                 # params is a Namespace object (argparse)
                 # or something else

@@ -25,6 +25,7 @@ except ImportError:  # windows
     pty = None
 import signal
 import six
+import getpass
 import socket
 import subprocess
 import sys
@@ -41,12 +42,15 @@ from .core import *
 
 # These imports need to be below "from .core import *" until we remove
 # 'from wandb import __stage_dir__' from api.py etc.
-import wandb.api
+from wandb.api import Api
 from wandb import wandb_types as types
 from wandb import wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
+from wandb import streaming_log
 from wandb import util
+from wandb import jupyter
+from wandb.run_manager import RunManager
 from wandb.media import Image
 from wandb.data_types import Histogram
 
@@ -205,6 +209,37 @@ def _init_headless(run, job_type, cloud=True):
         stderr_redirector.redirect()
 
 
+def _init_jupyter(run, job_type):
+    """Asks for user input to configure the machine if it isn't already and creates a new run.
+    Log pushing and system stats don't start until `wandb.monitor()` is called.
+    """
+    # TODO: Should we log to jupyter?
+    try_to_set_up_logging()
+    if not http_api.api_key:
+        termerror(
+            "Not authenticated.  Copy a key from https://app.wandb.ai/profile?message=true")
+        key = getpass.getpass("API Key: ").strip()
+        if len(key) == 40:
+            os.environ["WANDB_API_KEY"] = key
+        else:
+            raise ValueError("API Key must be 40 characters long")
+    if not http_api.settings('project'):
+        termerror("No W&B project configured.")
+        slug = six.moves.input("Enter username/project: ").strip()
+        if "/" not in slug:
+            raise ValueError(
+                "Input must contain a slash between username and project")
+        os.environ["WANDB_ENTITY"], os.environ["WANDB_PROJECT"] = slug.split(
+            "/")
+    os.environ["WANDB_JUPYTER"] = "true"
+    run.resume = "allow"
+    http_api.set_current_run_id(run.id)
+    print("W&B Run: %s" % run.get_url(http_api))
+    print("Wrap your training loop with `with wandb.monitor():` to display live results.")
+    run.save(api=http_api, job_type=job_type)
+    run.set_environment()
+
+
 join = None
 _user_processs_finished_called = False
 
@@ -219,7 +254,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     if not env.get_debug():
         stderr_redirector.restore()
 
-    wandb.termlog()
+    termlog()
     termlog("Waiting for wandb process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
     try:
@@ -239,6 +274,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # pass the run into WandbCallback)
 run = None
 config = None  # config object shared with the global run
+http_api = Api()
 
 
 def save(path):
@@ -246,6 +282,46 @@ def save(path):
     """
     file_name = os.path.basename(path)
     return os.symlink(os.path.abspath(path), os.path.join(run.dir, file_name))
+
+
+def monitor(display=True, options={}):
+    """Starts syncing with W&B if you're in Jupyter.  Displays your W&B charts live in a Jupyter notebook
+    by default.  Display can be disabled by passing display=False.
+    """
+    try:
+        from IPython.display import display
+    except ImportError:
+        def display(stuff): return None
+
+    class Monitor():
+        def __init__(self, options={}):
+            self.api = http_api
+            self.api.set_current_run_id(run.id)
+            self.options = options
+            if os.getenv("WANDB_JUPYTER"):
+                self.rm = RunManager(self.api, run, output=False)
+                self.rm.mirror_stdout_stderr()
+                self.rm.init_run(dict(os.environ))
+                if display:
+                    display(jupyter.Run())
+            else:
+                self.rm = False
+                termerror(
+                    "wandb.monitor is only functional in Jupyter notebooks")
+
+        def __enter__(self):
+            pass
+
+        def __exit__(self, *args):
+            return self.stop()
+
+        def stop(self):
+            if self.rm:
+                self.rm.shutdown()
+                run.close_files()
+            return run
+
+    return Monitor(options)
 
 
 def log(row=None, commit=True):
@@ -264,7 +340,8 @@ def log(row=None, commit=True):
 
 
 def ensure_configured():
-    api = wandb.api.Api()
+    # We re-initialize here for tests
+    api = Api()
     # The WANDB_DEBUG check ensures tests still work.
     if not env.is_debug() and not api.settings('project'):
         termlog('wandb.init() called but system not configured.\n'
@@ -277,6 +354,18 @@ def uninit():
     """
     global run, config
     run = config = None
+
+
+def reset_env(exclude=[]):
+    """Remove environment variables, used in Jupyter notebooks"""
+    if os.getenv('WANDB_INITED'):
+        wandb_keys = [key for key in os.environ.keys() if key.startswith(
+            'WANDB_') and key not in exclude]
+        for key in wandb_keys:
+            del os.environ[key]
+        return True
+    else:
+        return False
 
 
 def try_to_set_up_logging():
@@ -296,7 +385,7 @@ def try_to_set_up_logging():
     return True
 
 
-def get_python_type():
+def _get_python_type():
     try:
         if 'terminal' in get_ipython().__module__:
             return 'ipython'
@@ -306,9 +395,30 @@ def get_python_type():
         return "python"
 
 
-def init(job_type='train', config=None, allow_val_change=False):
+def init(job_type='train', config=None, allow_val_change=False, reinit=None):
+    """Initialize W&B
+
+    If called from within Jupyter, initializes a new run and waits for a call to
+    `wandb.monitor` to begin pushing metrics.  Otherwise, spawns a new process
+    to communicate with W&B.
+
+    Args:
+        job_type (str, optional): The type of job running, defaults to 'train' 
+        config (dict, argparse, or tf.FLAGS, optional): The hyper parameters to store with the run
+        reinit (bool, optional): Allow multiple calls to init in the same process
+
+    Returns:
+        A wandb.run object for metric and config logging.
+    """
     global run
     global __stage_dir__
+
+    # We allow re-initialization when we're in Jupyter
+    in_jupyter = _get_python_type() != "python"
+    if reinit or (in_jupyter and reinit != False):
+        reset_env(exclude=["WANDB_DIR", "WANDB_ENTITY",
+                           "WANDB_PROJECT", "WANDB_API_KEY"])
+        run = None
 
     # the following line is useful to ensure that no W&B logging happens in the user
     # process that might interfere with what they do
@@ -359,23 +469,16 @@ def init(job_type='train', config=None, allow_val_change=False):
             'Headless mode isn\'t supported on Windows. If you want to use W&B, please use "wandb run ..."; running normally.')
         return run
 
-    if get_python_type() != 'python':
-        termerror(
-            'W&B doesn\'t work in IPython or Jupyter notebooks. Running normally.')
-        return run
-
-    if run.mode == 'clirun' or run.mode == 'run':
+    if in_jupyter:
+        _init_jupyter(run, job_type)
+    elif run.mode == 'clirun' or run.mode == 'run':
         ensure_configured()
 
         if run.mode == 'run':
             _init_headless(run, job_type)
-
-        # set the run directory in the config so it actually gets persisted
-        run.config.set_run_dir(run.dir)
     elif run.mode == 'dryrun':
         termlog(
             'dryrun mode, run directory: %s' % run.dir)
-        run.config.set_run_dir(run.dir)
         _init_headless(run, job_type, False)
     else:
         termlog(
@@ -383,6 +486,8 @@ def init(job_type='train', config=None, allow_val_change=False):
         termlog('run with "wandb run" to do a real run.')
         sys.exit(1)
 
+    # set the run directory in the config so it actually gets persisted
+    run.config.set_run_dir(run.dir)
     if config:
         run.config.update(config, allow_val_change=allow_val_change)
 

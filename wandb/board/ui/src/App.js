@@ -52,14 +52,23 @@ class App extends Component {
   }
 
   render() {
+    const classes = [];
+    if (this.props.fullScreen) {
+      classes.push('fullscreen');
+    }
+    if (this.props.jupyter) {
+      classes.push('jupyter');
+    }
     return (
-      <div className={this.props.fullScreen ? 'fullScreen' : ''}>
+      <div className={classes.join(' ')}>
         <AutoReload setFlash={this.props.setFlash} />
-        <Nav
-          user={this.props.user}
-          history={this.props.history}
-          pushState={!this.state.error}
-        />
+        {!this.props.jupyter && (
+          <Nav
+            user={this.props.user}
+            history={this.props.history}
+            pushState={!this.state.error}
+          />
+        )}
         <div className="main" style={{padding: '20px'}}>
           <Online>
             {this.props.error || this.state.error ? (
@@ -77,7 +86,7 @@ class App extends Component {
             />
           </Offline>
         </div>
-        <Footer />
+        {!this.props.jupyter && <Footer />}
       </div>
     );
   }

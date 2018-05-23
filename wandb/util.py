@@ -84,12 +84,17 @@ def request_with_retry(func, *args, **kwargs):
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.HTTPError,  # XXX 500s aren't retryable
                 requests.exceptions.Timeout) as e:
-            logger.warning('requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s',
-                           e, args, kwargs)
             if retry_count == max_retries:
                 return e
             retry_count += 1
-            time.sleep(sleep + random.random() * 0.25 * sleep)
+            delay = sleep + random.random() * 0.25 * sleep
+            if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 429:
+                logger.info(
+                    "Rate limit exceeded, retrying in %s seconds" % delay)
+            else:
+                logger.warning('requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s',
+                               e, args, kwargs)
+            time.sleep(delay)
             sleep *= 2
             if sleep > MAX_SLEEP_SECONDS:
                 sleep = MAX_SLEEP_SECONDS

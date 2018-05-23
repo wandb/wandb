@@ -24,11 +24,15 @@ class RunEditor extends React.Component {
 
   componentWillReceiveProps(props) {
     if (!this.state.canSubmit) {
+      let description = props.run.description;
+      if (description == props.run.name) {
+        description = '';
+      }
       this.setState({
         tags: _.sortedUniq(props.run.tags),
         preview: props.preview,
         name: props.run.name || '',
-        content: props.run.description,
+        content: description,
       });
     }
   }
@@ -37,29 +41,33 @@ class RunEditor extends React.Component {
     return (
       <Form className="ui form">
         <Grid>
-          <Grid.Row>
-            <Grid.Column>
-              <Breadcrumbs
-                entity={this.props.project.entityName}
-                model={this.props.project.name}
-                run={this.props.run.name}
-              />
-            </Grid.Column>
-          </Grid.Row>
+          {!this.props.jupyter && (
+            <Grid.Row>
+              <Grid.Column>
+                <Breadcrumbs
+                  entity={this.props.project.entityName}
+                  model={this.props.project.name}
+                  run={this.props.run.name}
+                />
+              </Grid.Column>
+            </Grid.Row>
+          )}
           <Grid.Row>
             <Grid.Column>
               <Form.Field>
                 <label>Description</label>
                 {this.state.preview ? (
-                  <Markdown content={this.state.content} />
+                  <div style={{minHeight: 120}}>
+                    <Markdown content={this.state.content} />
+                  </div>
                 ) : (
                   <Form.TextArea
                     name="description"
-                    rows={12}
+                    rows={6}
                     onChange={e =>
                       this.setState({canSubmit: true, content: e.target.value})
                     }
-                    placeholder="Provide a description about this project"
+                    placeholder="Provide a description of this experiment"
                     value={this.state.content}
                   />
                 )}
@@ -67,64 +75,7 @@ class RunEditor extends React.Component {
             </Grid.Column>
           </Grid.Row>
           <Grid.Row>
-            <Grid.Column>
-              <Form.Group>
-                <Form.Field>
-                  <label>Tags</label>
-                </Form.Field>
-                <Form.Input
-                  width={6}
-                  value={this.state.newTag}
-                  onChange={(e, {value}) => {
-                    this.setState({newTag: value});
-                  }}
-                />
-
-                <Button
-                  icon="plus"
-                  content="Add"
-                  className="labeled"
-                  onClick={e => {
-                    e.preventDefault();
-                    if (this.state.newTag.length) {
-                      this.setState({
-                        canSubmit: true,
-                        tags: _.sortedUniq(
-                          _.concat(this.state.tags, this.state.newTag),
-                        ),
-                        newTag: '',
-                      });
-                    }
-                  }}
-                />
-              </Form.Group>
-            </Grid.Column>
-          </Grid.Row>
-
-          <Grid.Row>
-            {' '}
-            <Grid.Column>
-              <Form.Group>
-                {this.state.tags.map(tag => (
-                  <Label key={tag}>
-                    {tag}
-                    <Icon
-                      name="delete"
-                      onClick={e => {
-                        e.preventDefault();
-                        this.setState({
-                          canSubmit: true,
-                          tags: this.state.tags.filter(t => t !== tag),
-                        });
-                      }}
-                    />
-                  </Label>
-                ))}
-              </Form.Group>
-            </Grid.Column>
-          </Grid.Row>
-          <Grid.Row>
-            <Grid.Column>
+            <Grid.Column width={4}>
               <Button.Group>
                 <Button
                   onClick={() => this.setState({preview: !this.state.preview})}>
@@ -145,15 +96,71 @@ class RunEditor extends React.Component {
                         id: this.props.run.id,
                       })
                       .then(res => {
-                        this.props.history.push(
-                          `/${this.props.project.entityName}/${
-                            this.props.project.name
-                          }/runs/${res.data.upsertBucket.bucket.name}`,
-                        );
+                        if (this.props.jupyter) {
+                          this.setState({preview: true});
+                        } else {
+                          this.props.history.push(
+                            `/${this.props.project.entityName}/${
+                              this.props.project.name
+                            }/runs/${res.data.upsertBucket.bucket.name}`
+                          );
+                        }
                       });
                   }}
                 />
               </Button.Group>
+            </Grid.Column>
+            {!this.state.preview && (
+              <Grid.Column width={6}>
+                <Form.Group>
+                  <Form.Field>
+                    <label>Tags</label>
+                  </Form.Field>
+                  <Form.Input
+                    width={13}
+                    value={this.state.newTag}
+                    onChange={(e, {value}) => {
+                      this.setState({newTag: value});
+                    }}
+                  />
+                  <Button
+                    icon="plus"
+                    content="Add"
+                    className="labeled"
+                    onClick={e => {
+                      e.preventDefault();
+                      if (this.state.newTag.length) {
+                        this.setState({
+                          canSubmit: true,
+                          tags: _.sortedUniq(
+                            _.concat(this.state.tags, this.state.newTag)
+                          ),
+                          newTag: '',
+                        });
+                      }
+                    }}
+                  />
+                </Form.Group>
+              </Grid.Column>
+            )}
+            <Grid.Column width={6}>
+              <Form.Group>
+                {this.state.tags.map(tag => (
+                  <Label key={tag}>
+                    {tag}
+                    <Icon
+                      name="delete"
+                      onClick={e => {
+                        e.preventDefault();
+                        this.setState({
+                          canSubmit: true,
+                          tags: this.state.tags.filter(t => t !== tag),
+                        });
+                      }}
+                    />
+                  </Label>
+                ))}
+              </Form.Group>
             </Grid.Column>
           </Grid.Row>
         </Grid>

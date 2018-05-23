@@ -1,6 +1,6 @@
 import {withApollo} from 'react-apollo';
 import {connect} from 'react-redux';
-import Log from '../components/Log';
+import RunViewer from '../components/RunViewer';
 import {fragments} from '../graphql/runs';
 import {pusherRunSlug, pusherProjectSlug} from '../util/runhelpers';
 
@@ -30,6 +30,7 @@ function stream(client, params, run, callback) {
       fragment: fragments.detailedRun,
       variables: {bucketName: run.name},
     });
+    console.log('Streamed history');
     //TODO: this has duplicates sometimes
     data.history = Array.from(new Set(data.history.concat(payload)));
     client.writeFragment({
@@ -119,5 +120,4 @@ function stream(client, params, run, callback) {
 function mapStateToProps(state, ownProps) {
   return {stream};
 }
-
-export default withApollo(connect(mapStateToProps)(Log));
+export default withApollo(connect(mapStateToProps)(RunViewer));
