@@ -85,4 +85,6 @@ def write_jsonl_file(fname, data):
         return
     with open(fname, 'w') as of:
         for row in data:
-            of.write('%s\n' % row.strip())
+            # TODO: other malformed cases?
+            if row.strip():
+                of.write('%s\n' % row.strip())

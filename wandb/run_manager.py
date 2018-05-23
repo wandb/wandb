@@ -334,6 +334,7 @@ class RunManager(object):
         self._watch_dir = self._run.dir
 
         self._config = run.config
+        self.job_type = job_type
         self.url = self._run.get_url(api)
 
         # We lock this when the backend is down so Watchdog will keep track of all
@@ -367,7 +368,7 @@ class RunManager(object):
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
 
         self._stats = stats.Stats()
-        # Calling .start() will spin a thread that reports system stats every 30 seconds
+        # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
         self._system_stats = stats.SystemStats(run, api)
         self._meta = meta.Meta(api, self._run.dir)
         self._meta.data["jobType"] = job_type
@@ -462,10 +463,10 @@ class RunManager(object):
 
     """ RUN MANAGEMENT STUFF """
 
-    @classmethod
-    def mirror_stdout_stderr(cls, api):
-        """Simple STDOUT and STDERR mirroring used by _init_ipython"""
-        fs_api = api.get_file_stream_api()
+    def mirror_stdout_stderr(self):
+        """Simple STDOUT and STDERR mirroring used by _init_jupyter"""
+        # TODO: Ideally we could start collecting logs without pushing
+        fs_api = self._api.get_file_stream_api()
         io_wrap.SimpleTee(sys.stdout, streaming_log.TextStreamPusher(
             fs_api, OUTPUT_FNAME, prepend_timestamp=True))
         io_wrap.SimpleTee(sys.stderr, streaming_log.TextStreamPusher(
@@ -571,6 +572,9 @@ class RunManager(object):
 
     def init_run(self, env=None):
         self._system_stats.start()
+        self._meta.start()
+        # TODO: ensuring we start the file_stream thread?
+        self._api.get_file_stream_api()
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
@@ -592,11 +596,15 @@ class RunManager(object):
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
 
-    def shutdown(self):
+    def shutdown(self, exitcode=0):
         """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""
         self._system_stats.shutdown()
+        self._meta.shutdown()
         self._finish_handlers()
-        self._file_pusher.finish()
+        self._file_pusher.shutdown()
+        self._api.get_file_stream_api().finish(exitcode)
+        # TODO: file stream api memoization belongs in here
+        self._api._file_stream_api = None
 
     def _upsert_run(self, retry, storage_id, env):
         """Upsert the Run (ie. for the first time with all its attributes)
@@ -617,7 +625,7 @@ class RunManager(object):
 
         try:
             upsert_result = self._run.save(
-                id=storage_id, num_retries=num_retries, api=self._api)
+                id=storage_id, num_retries=num_retries, job_type=self.job_type, api=self._api)
         except wandb.api.CommError as e:
             # TODO: Get rid of str contains check
             if self._run.resume == 'never' and 'exists' in str(e):

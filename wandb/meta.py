@@ -29,6 +29,8 @@ class Meta(object):
         self.setup()
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
+
+    def start(self):
         self._thread.start()
 
     def setup(self):
@@ -66,7 +68,11 @@ class Meta(object):
 
     def shutdown(self):
         self._shutdown = True
-        self._thread.join()
+        try:
+            self._thread.join()
+        # Incase we never start it
+        except RuntimeError:
+            pass
 
     def _thread_body(self):
         seconds = 0

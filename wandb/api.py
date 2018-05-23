@@ -982,6 +982,7 @@ class Api(object):
         return responses
 
     def get_file_stream_api(self):
+        """This creates a new file pusher thread.  Be careful not to call this on multiple instances of Api()"""
         if not self._file_stream_api:
             if self._current_run_id is None:
                 raise UsageError(

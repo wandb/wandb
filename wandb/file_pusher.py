@@ -121,5 +121,9 @@ class FilePusher(object):
     def finish(self):
         self._queue.put(EventFinish())
 
+    def shutdown(self):
+        self.finish()
+        self._thread.join()
+
     def is_alive(self):
         return self._thread.is_alive()

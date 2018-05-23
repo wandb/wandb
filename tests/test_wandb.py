@@ -65,7 +65,7 @@ def test_log(wandb_init_run):
 
 @pytest.mark.jupyter
 def test_jupyter_init(wandb_init_run, capfd):
-    assert os.getenv("WANDB_INITED") is None
+    assert os.getenv("WANDB_JUPYTER")
     with wandb.monitor():
         print("Train")
     out, err = capfd.readouterr()
