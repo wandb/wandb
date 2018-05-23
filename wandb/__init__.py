@@ -42,16 +42,15 @@ from .core import *
 
 # These imports need to be below "from .core import *" until we remove
 # 'from wandb import __stage_dir__' from api.py etc.
-import wandb.api
+from wandb.api import Api
 from wandb import wandb_types as types
 from wandb import wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
-from wandb import run_manager
-from wandb import io_wrap
 from wandb import streaming_log
 from wandb import util
 from wandb import jupyter
+from wandb.run_manager import RunManager
 from wandb.media import Image
 from wandb.data_types import Histogram
 
@@ -210,37 +209,37 @@ def _init_headless(run, job_type, cloud=True):
         stderr_redirector.redirect()
 
 
-def _init_ipython(run, job_type, cloud=True):
-    api = wandb.api.Api()
-    if True:  # not api.api_key:
+def _init_ipython(run, job_type, cloud=True, logging=True):
+    api = Api()
+    if not api.api_key:
         termerror(
             "Not authenticated.  Copy a key from https://app.wandb.ai/profile?message=true")
-        os.environ["WANDB_API_KEY"] = getpass.getpass("API Key: ")
-    if True:  # not api.settings('project'):
+        key = getpass.getpass("API Key: ").strip()
+        if len(key) == 40:
+            os.environ["WANDB_API_KEY"] = key
+        else:
+            raise ValueError("API Key must be 40 characters long")
+    if not api.settings('project'):
         termerror("No W&B project configured.")
-        slug = six.moves.input("Enter username/project: ")
+        slug = six.moves.input("Enter username/project: ").strip()
+        if "/" not in slug:
+            raise ValueError(
+                "Input must contain a slash between username and project")
         os.environ["WANDB_ENTITY"], os.environ["WANDB_PROJECT"] = slug.split(
             "/")
+    # We re-init in iPython
+    del os.environ['WANDB_INITED']
+    run.storage_id = None
+    run.resume = "allow"
+    run.regenerate_id()
+    run.description = os.getenv("WANDB_DESCRIPTION", run.id)
     api.set_current_run_id(run.id)
-    run = wandb.run
     print("W&B Run: %s" % run.get_url(api))
-    print("Wrap your training loop with wandb.display() to display live results.")
-    # TODO: This should be `upsert` on run
-    upsert_result = api.upsert_run(id=run.storage_id,
-                                   name=run.id,
-                                   project=api.settings("project"),
-                                   entity=api.settings("entity"),
-                                   config=run.config.as_dict(), description=run.description, host=socket.gethostname(),
-                                   program_path="jupyter", repo=None)
-    run.storage_id = upsert_result['id']
-    # TODO: should be a method on RunManager, may want to store RunManager as a global
-    fs_api = api.get_file_stream_api()
-    stdout_streams = (sys.stdout, streaming_log.TextStreamPusher(
-        fs_api, "output.log", prepend_timestamp=True))
-    stderr_streams = (sys.stderr, streaming_log.TextStreamPusher(
-        fs_api, "output.log", prepend_timestamp=True, line_prepend='ERROR'))
-    io_wrap.SimpleTee(stdout_streams[0], stdout_streams[1:])
-    io_wrap.SimpleTee(stderr_streams[0], stderr_streams[1:])
+    print("Wrap your training loop with `with wandb.monitor():` to display live results.")
+    run.save()
+    run.set_environment()
+    if logging:
+        RunManager.mirror_stdout_stderr(api)
 
 
 join = None
@@ -291,17 +290,21 @@ def monitor(options={}):
     try:
         from IPython.display import display
     except ImportError:
-        termerror("wandb.monitor only works in IPython contexts")
-        return
+        def display(stuff): return None
 
     class Monitor():
         def __init__(self, options={}):
-            self.api = wandb.api.Api()
-            self.api.set_current_run_id(wandb.run.id)
+            self.api = Api()
+            self.api.set_current_run_id(run.id)
             self.options = options
-            self.rm = run_manager.RunManager(self.api, wandb.run, output=False)
-            self.rm.init_run(dict(os.environ))
-            display(jupyter.Run())
+            # We delete the initialization flag in ipython
+            if os.getenv("WANDB_INITED"):
+                self.rm = False
+                termerror("wandb.monitor only works in IPython contexts")
+            else:
+                self.rm = RunManager(self.api, run, output=False)
+                self.rm.init_run(dict(os.environ))
+                display(jupyter.Run())
 
         def __enter__(self):
             pass
@@ -310,9 +313,10 @@ def monitor(options={}):
             return self.stop()
 
         def stop(self):
-            self.rm.shutdown()
-            wandb.run.close_files()
-            return wandb.run
+            if self.rm:
+                self.rm.shutdown()
+                run.close_files()
+            return run
 
     return Monitor(options)
 
@@ -333,7 +337,7 @@ def log(row=None, commit=True):
 
 
 def ensure_configured():
-    api = wandb.api.Api()
+    api = Api()
     # The WANDB_DEBUG check ensures tests still work.
     if not env.is_debug() and not api.settings('project'):
         termlog('wandb.init() called but system not configured.\n'

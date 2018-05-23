@@ -56,11 +56,11 @@ logger = logging.getLogger(__name__)
 
 
 class SimpleTee(object):
-    """Monkey patches the given io to write to itself and the objects passed in"""
+    """Monkey patches the given io to write to itself and the object passed in"""
 
-    def __init__(self, source_io, destination_ios):
+    def __init__(self, source_io, destination_io):
         self.source_write = source_io.write
-        self.destinations = destination_ios
+        self.destination = destination_io
         source_io.write = self.write
 
     def write(self, data):
@@ -70,8 +70,7 @@ class SimpleTee(object):
             data = data.encode('utf-8')
         except AttributeError:
             pass
-        for destination in self.destinations:
-            destination.write(data)
+        self.destination.write(data)
 
 
 class Tee(object):

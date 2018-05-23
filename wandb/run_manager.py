@@ -462,6 +462,15 @@ class RunManager(object):
 
     """ RUN MANAGEMENT STUFF """
 
+    @classmethod
+    def mirror_stdout_stderr(cls, api):
+        """Simple STDOUT and STDERR mirroring used by _init_ipython"""
+        fs_api = api.get_file_stream_api()
+        io_wrap.SimpleTee(sys.stdout, streaming_log.TextStreamPusher(
+            fs_api, OUTPUT_FNAME, prepend_timestamp=True))
+        io_wrap.SimpleTee(sys.stderr, streaming_log.TextStreamPusher(
+            fs_api, OUTPUT_FNAME, prepend_timestamp=True, line_prepend='ERROR'))
+
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
         if six.PY2 or "buffer" not in dir(sys.stdout):
@@ -577,24 +586,19 @@ class RunManager(object):
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
 
-            if self._api.git.enabled:
-                commit = self._api.git.last_commit
-            else:
-                commit = None
-
-            if not self._upsert_run(False, storage_id, commit, env):
+            if not self._upsert_run(False, storage_id, env):
                 self._upsert_run_thread = threading.Thread(
-                    target=self._upsert_run, args=(True, storage_id, commit, env))
+                    target=self._upsert_run, args=(True, storage_id, env))
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
 
-    def shutdown():
+    def shutdown(self):
         """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""
-        self.rm._system_stats.shutdown()
-        self.rm._finish_handlers()
-        self.rm._file_pusher.finish()
+        self._system_stats.shutdown()
+        self._finish_handlers()
+        self._file_pusher.finish()
 
-    def _upsert_run(self, retry, storage_id, commit, env):
+    def _upsert_run(self, retry, storage_id, env):
         """Upsert the Run (ie. for the first time with all its attributes)
 
         Arguments:
@@ -612,20 +616,8 @@ class RunManager(object):
             num_retries = 0  # no retries because we want to let the user process run even if the backend is down
 
         try:
-            upsert_result = self._api.upsert_run(id=storage_id,
-                                                 commit=commit,
-                                                 name=self._run.id,
-                                                 project=self._api.settings(
-                                                     "project"),
-                                                 entity=self._api.settings(
-                                                     "entity"),
-                                                 config=self._run.config.as_dict(),
-                                                 description=self._run.description,
-                                                 host=self._run.host,
-                                                 program_path=self._run.program,
-                                                 repo=self._api.repo_remote_url(),
-                                                 sweep_name=self._run.sweep_id,
-                                                 num_retries=num_retries)
+            upsert_result = self._run.save(
+                id=storage_id, num_retries=num_retries)
         except wandb.api.CommError as e:
             # TODO: Get rid of str contains check
             if self._run.resume == 'never' and 'exists' in str(e):
@@ -642,7 +634,6 @@ class RunManager(object):
                 raise LaunchError(
                     'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path()))
 
-        self._run.storage_id = upsert_result['id']
         self._run.set_environment(environment=env)
 
         # unblock file syncing and console streaming, which need the Run to have a .storage_id

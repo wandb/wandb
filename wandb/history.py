@@ -183,7 +183,8 @@ class History(object):
         self._write()
         self._lock.acquire()
         try:
-            self._file.close()
-            self._file = None
+            if self._file:
+                self._file.close()
+                self._file = None
         finally:
             self._lock.release()

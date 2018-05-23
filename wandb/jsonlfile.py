@@ -67,8 +67,9 @@ class JsonlEventsFile(object):
     def close(self):
         self.lock.acquire()
         try:
-            self._file.close()
-            self._file = None
+            if self._file:
+                self._file.close()
+                self._file = None
         finally:
             self.lock.release()
 

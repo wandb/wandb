@@ -49,20 +49,12 @@ def agent_run(args):
 
     # TODO: better failure handling
     root = api.git.root
-    remote_url = api.git.remote_url
-    host = socket.gethostname()
     # handle non-git directories
     if not root:
         root = os.path.abspath(os.getcwd())
         remote_url = 'file://%s%s' % (host, root)
 
-    upsert_result = api.upsert_run(id=run.storage_id,
-                                   name=run.id,
-                                   project=api.settings("project"),
-                                   entity=api.settings("entity"),
-                                   config=run.config.as_dict(), description=run.description, host=host,
-                                   program_path=args['program'], repo=remote_url, sweep_name=run.sweep_id)
-    run.storage_id = upsert_result['id']
+    run.save(program=args['program'])
     env = dict(os.environ)
     run.set_environment(env)
 

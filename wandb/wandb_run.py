@@ -71,6 +71,9 @@ class Run(object):
         self._user_accessed_summary = False
         self._examples = None
 
+    def regenerate_id(self):
+        self.id = generate_id()
+
     @classmethod
     def from_environment_or_defaults(cls, environment=None):
         """Create a Run object taking values from the local environment where possible.
@@ -88,7 +91,7 @@ class Run(object):
         resume = environment.get('WANDB_RESUME')
         storage_id = environment.get('WANDB_RUN_STORAGE_ID')
         mode = environment.get('WANDB_MODE')
-        disabled = wandb.api.Api().disabled()
+        disabled = Api().disabled()
         if not mode and disabled:
             mode = "dryrun"
         elif disabled and mode != "dryrun":
@@ -108,6 +111,16 @@ class Run(object):
                   wandb_dir=wandb_dir,
                   resume=resume)
         return run
+
+    def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
+        api = api or Api()
+        upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
+                                       project=api.settings("project"), entity=api.settings("entity"),
+                                       config=self.config.as_dict(), description=self.description, host=socket.gethostname(),
+                                       program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
+                                       summary_metrics=summary_metrics, num_retries=num_retries)
+        self.storage_id = upsert_result['id']
+        return upsert_result
 
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside

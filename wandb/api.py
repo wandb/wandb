@@ -254,8 +254,9 @@ class Api(object):
         auth = requests.utils.get_netrc_auth(self.api_url)
         if auth:
             key = auth[-1]
-        else:
-            key = os.environ.get("WANDB_API_KEY")
+        #Environment should take precedence
+        if os.getenv("WANDB_API_KEY"):
+            key = os.environ["WANDB_API_KEY"]
         return key
 
     @property
@@ -265,7 +266,7 @@ class Api(object):
     @property
     def app_url(self):
         api_url = self.api_url
-        if api_url.endswith('.test'):
+        if api_url.endswith('.test') or self.settings().get("dev_prod"):
             return 'http://app.test'
         elif api_url.endswith('wandb.ai'):
             return 'https://app.wandb.ai'
