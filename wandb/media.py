@@ -27,6 +27,7 @@ class Image(object):
         if type(data) == PILImage.Image:
             self.image = data
         else:
+            data = data.squeeze()  # get rid of trivial dimensions as a convenience
             self.image = PILImage.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data))
         self.caption = caption
@@ -36,7 +37,7 @@ class Image(object):
         Guess what type of image the np.array is representing 
         """
         # TODO: do we want to support dimensions being at the beginning of the array?
-        if data.shape[-1] == 1 or len(data.shape) == 2:
+        if data.ndims == 2:
             return "L"
         elif data.shape[-1] == 3:
             return "RGB"
