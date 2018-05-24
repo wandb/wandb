@@ -36,6 +36,16 @@ echo
 dirModified wandb
 wandb_modified="$is_modified"
 
+# Unset all the env variables that are set during git commit hooks,
+# which break the tests currently.
+unset GIT_DIR
+unset GIT_INDEX_FILE
+unset GIT_AUTHOR_DATE
+unset GIT_AUTHOR_NAME
+unset GIT_PREFIX
+unset GIT_AUTHOR_EMAIL
+
+
 if [ "$wandb_modified" = true ]; then
     log "Running wandb tests."
     pytest
