@@ -546,33 +546,33 @@ def init(ctx):
     ))
 
 
-@cli.group()
-def config():
-    """Manage this projects configuration."""
-    pass
+# @cli.group()
+# def config():
+#     """Manage this project's configuration."""
+#     pass
 
 
-@config.command("init", help="Initialize a directory with wandb configuration")
-@display_error
-def config_init():
-    config_defaults_path = 'config-defaults.yaml'
-    if not os.path.exists(config_defaults_path):
-        with open(config_defaults_path, 'w') as file:
-            file.write(textwrap.dedent("""\
-                wandb_version: 1
+# @config.command("init", help="Initialize a directory with wandb configuration")
+# @display_error
+# def config_init():
+#     config_defaults_path = 'config-defaults.yaml'
+#     if not os.path.exists(config_defaults_path):
+#         with open(config_defaults_path, 'w') as file:
+#             file.write(textwrap.dedent("""\
+#                 wandb_version: 1
 
-                # Example variables below. Uncomment (remove leading '# ') to use them, or just
-                # delete and create your own.
+#                 # Example variables below. Uncomment (remove leading '# ') to use them, or just
+#                 # delete and create your own.
 
-                # epochs:
-                #   desc: Number of epochs to train over
-                #   value: 100
-                # batch_size:
-                #   desc: Size of each mini-batch
-                #   value: 32
-                """))
-    click.echo(
-        "Edit config-defaults.yaml with your default configuration parameters.")
+#                 # epochs:
+#                 #   desc: Number of epochs to train over
+#                 #   value: 100
+#                 # batch_size:
+#                 #   desc: Size of each mini-batch
+#                 #   value: 32
+#                 """))
+#     click.echo(
+#         "Edit config-defaults.yaml with your default configuration parameters.")
 
 
 @cli.command(context_settings=CONTEXT, help="Open documentation in a browser")
@@ -685,41 +685,41 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
     rm.run_user_process(program, args, environ)
 
 
-@cli.command(context_settings=CONTEXT, help="Create a sweep")
-@click.pass_context
-@require_init
-@click.argument('config_yaml')
-@display_error
-def sweep(ctx, config_yaml):
-    click.echo('Creating sweep from: %s' % config_yaml)
-    try:
-        yaml_file = open(config_yaml)
-    except (OSError, IOError):
-        wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
-        return
-    try:
-        config = yaml.load(yaml_file)
-    except yaml.YAMLError as err:
-        wandb.termerror('Error in configuration file: %s' % err)
-        return
-    if config is None:
-        wandb.termerror('Configuration file is empty')
-        return
-    sweep_id = api.upsert_sweep(config)
-    print('Create sweep with ID:', sweep_id)
+# @cli.command(context_settings=CONTEXT, help="Create a sweep")
+# @click.pass_context
+# @require_init
+# @click.argument('config_yaml')
+# @display_error
+# def sweep(ctx, config_yaml):
+#     click.echo('Creating sweep from: %s' % config_yaml)
+#     try:
+#         yaml_file = open(config_yaml)
+#     except (OSError, IOError):
+#         wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
+#         return
+#     try:
+#         config = yaml.load(yaml_file)
+#     except yaml.YAMLError as err:
+#         wandb.termerror('Error in configuration file: %s' % err)
+#         return
+#     if config is None:
+#         wandb.termerror('Configuration file is empty')
+#         return
+#     sweep_id = api.upsert_sweep(config)
+#     print('Create sweep with ID:', sweep_id)
 
 
-@cli.command(context_settings=CONTEXT, help="Run the WandB agent")
-@click.argument('sweep_id')
-@require_init
-@display_error
-def agent(sweep_id):
-    click.echo('Starting wandb agent 🕵️')
-    wandb_agent.run_agent(sweep_id)
+# @cli.command(context_settings=CONTEXT, help="Run the WandB agent")
+# @click.argument('sweep_id')
+# @require_init
+# @display_error
+# def agent(sweep_id):
+#     click.echo('Starting wandb agent 🕵️')
+#     wandb_agent.run_agent(sweep_id)
 
-    # you can send local commands like so:
-    # agent_api.command({'type': 'run', 'program': 'train.py',
-    #                'args': ['--max_epochs=10']})
+#     # you can send local commands like so:
+#     # agent_api.command({'type': 'run', 'program': 'train.py',
+#     #                'args': ['--max_epochs=10']})
 
 
 if __name__ == "__main__":

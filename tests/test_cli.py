@@ -451,6 +451,7 @@ def test_run_simple(runner, monkeypatch, request_mocker, upsert_run, query_proje
     assert result.exit_code == 0
 
 
+@pytest.mark.skip("Sweep command is disabled")
 def test_sweep_no_config(runner):
     result = runner.invoke(cli.sweep, ["missing.yaml"])
     print(result.output)
