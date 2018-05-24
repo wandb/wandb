@@ -72,10 +72,10 @@ def write_settings(entity, project, url):
     if not os.path.isdir(wandb_dir()):
         os.mkdir(wandb_dir())
     with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
-        print('[default]', file=file)
-        print('entity: {}'.format(entity), file=file)
-        print('project: {}'.format(project), file=file)
-        print('base_url: {}'.format(url), file=file)
+        file.write('[default]')
+        file.write('entity: {}'.format(entity))
+        file.write('project: {}'.format(project))
+        file.write('base_url: {}'.format(url))
 
 
 def write_netrc(host, entity, key):
