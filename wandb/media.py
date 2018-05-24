@@ -37,7 +37,7 @@ class Image(object):
         Guess what type of image the np.array is representing 
         """
         # TODO: do we want to support dimensions being at the beginning of the array?
-        if data.ndims == 2:
+        if data.ndim == 2:
             return "L"
         elif data.shape[-1] == 3:
             return "RGB"
