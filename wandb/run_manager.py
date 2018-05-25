@@ -833,7 +833,13 @@ class RunManager(object):
             max_len = max([len(k) for k in summary.keys()])
             format_str = '  {:>%s} {}' % max_len
             for k, v in summary.items():
-                wandb.termlog(format_str.format(k, v))
+                # arrays etc. might be too large. for now we just don't print them
+                if isinstance(v, six.string_types):
+                    if len(v) >= 20:
+                        v = v[:20] + '...'
+                    wandb.termlog(format_str.format(k, v))
+                elif isinstance(v, numbers.Number):
+                    wandb.termlog(format_str.format(k, v))
 
         self._run.history.load()
         history_keys = self._run.history.keys()
