@@ -20,7 +20,7 @@ def stats(api):
 def test_defaults(stats):
     stats.shutdown()
     print(stats.stats().keys())
-    assert list(stats.stats().keys()) == ['cpu', 'memory', 'network', 'disk']
+    assert sorted(stats.stats().keys()) == sorted(['cpu', 'memory', 'network', 'disk'])
     assert stats.sample_rate_seconds == 2
     assert stats.samples_to_average == 15
 

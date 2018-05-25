@@ -97,14 +97,16 @@ class FilePusher(object):
                 event = self._pending.pop()
                 self._start_job(event.save_name, event.path, event.copy)
         elif isinstance(event, EventFileChanged):
-            if event.save_name in self._jobs:
-                self._jobs[event.save_name].restart()
-            elif len(self._jobs) == self._max_jobs:
+            if len(self._jobs) == self._max_jobs:
                 self._pending.append(event)
             else:
                 self._start_job(event.save_name, event.path, event.copy)
 
     def _start_job(self, save_name, path, copy):
+        if save_name in self._jobs:
+            self._jobs[save_name].restart()
+            return
+
         job = UploadJob(self._queue, self._push_function,
                         save_name, path, copy)
         if self._last_sent < time.time() - self.RATE_LIMIT_SECONDS:
