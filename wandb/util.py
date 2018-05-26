@@ -1,20 +1,24 @@
+from __future__ import print_function
+
 import base64
 import errno
 import hashlib
 import json
 import logging
 import os
-from six.moves import queue
-import requests
 import shlex
 import subprocess
 import sys
 import threading
 import time
 import random
-import textwrap
-import click
 import stat
+
+import click
+import requests
+import six
+from six.moves import queue
+import textwrap
 
 import wandb
 from wandb import io_wrap
@@ -72,10 +76,10 @@ def write_settings(entity, project, url):
     if not os.path.isdir(wandb_dir()):
         os.mkdir(wandb_dir())
     with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
-        file.write('[default]')
-        file.write('entity: {}'.format(entity))
-        file.write('project: {}'.format(project))
-        file.write('base_url: {}'.format(url))
+        print('[default]', file=file)
+        print('entity: {}'.format(entity), file=file)
+        print('project: {}'.format(project), file=file)
+        print('base_url: {}'.format(url), file=file)
 
 
 def write_netrc(host, entity, key):
