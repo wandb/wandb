@@ -34,6 +34,7 @@ setup(
     version='0.6.1',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
+    long_description_content_type='text/markdown',
     author="Weights & Biases",
     author_email='support@wandb.com',
     url='https://github.com/wandb/client',
