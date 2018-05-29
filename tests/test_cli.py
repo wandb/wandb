@@ -392,7 +392,7 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert "command not found" in str(result.output)
-    assert result.exit_code == 1
+    assert result.exit_code == 255
 
 
 @pytest.mark.updateAvailable(True)

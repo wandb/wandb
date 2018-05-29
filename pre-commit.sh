@@ -48,7 +48,7 @@ unset GIT_AUTHOR_EMAIL
 
 if [ "$wandb_modified" = true ]; then
     log "Running wandb tests."
-    pytest --no-gae
+    pytest
     if [ $? -ne 0 ]; then
         wandb_failed=true
     fi
@@ -57,7 +57,7 @@ fi
 failed=false
 if [ "$wandb_failed" = true ]; then
     log "wandb tests failed."
-    log "\"cd $ROOT_DIR; pytest --no-gae\" to run the tests."
+    log "\"cd $ROOT_DIR; pytest\" to run the tests."
     failed=true
 fi
 

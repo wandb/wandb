@@ -34,6 +34,7 @@ from wandb import io_wrap
 from wandb import jsonlfile
 from wandb import file_pusher
 from wandb import meta
+from wandb.core import START_TIME
 import wandb.rwlock
 from wandb import sparkline
 from wandb import stats
@@ -398,7 +399,8 @@ class RunManager(object):
 
             if output:
                 wandb.termlog("Syncing %s" % self.url)
-                wandb.termlog('Run directory: %s' % os.path.relpath(run.dir))
+                wandb.termlog("Run `wandb off` to turn off syncing.")
+                wandb.termlog("Local directory: %s" % os.path.relpath(run.dir))
 
             self._api.get_file_stream_api().set_file_policy(
                 OUTPUT_FNAME, CRDedupeFilePolicy())
@@ -817,13 +819,20 @@ class RunManager(object):
             self._meta.data["state"] = "killed"
         else:
             self._meta.data["state"] = "failed"
+
         self._meta.shutdown()
         self._system_stats.shutdown()
+
+        if exitcode != 0 and START_TIME - time.time() < 30:
+            wandb.termlog("Process crashed early, not syncing files")
+            sys.exit(exitcode)
+
+        # TODO: these can be slow to complete
         self._close_stdout_stderr_streams(exitcode)
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
-            return None
+            sys.exit(exitcode)
 
         # Show run summary/history
         self._run.summary.load()
@@ -942,3 +951,4 @@ class RunManager(object):
             wandb.termerror('Sync failed %s' % self.url)
         else:
             wandb.termlog('Synced %s' % self.url)
+        sys.exit(exitcode)

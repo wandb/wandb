@@ -94,7 +94,12 @@ class SystemStats(object):
                 self.flush()
                 if self._shutdown:
                     break
-            time.sleep(self.sample_rate_seconds)
+            seconds = 0
+            while seconds < self.sample_rate_seconds:
+                time.sleep(0.1)
+                seconds += 0.1
+                if self._shutdown:
+                    seconds = self.sample_rate_seconds
 
     def shutdown(self):
         self._shutdown = True
