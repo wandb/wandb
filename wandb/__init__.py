@@ -213,6 +213,7 @@ def _init_jupyter(run, job_type):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
     Log pushing and system stats don't start until `wandb.monitor()` is called.
     """
+    global http_api
     # TODO: Should we log to jupyter?
     try_to_set_up_logging()
     if not http_api.api_key:
@@ -224,7 +225,8 @@ def _init_jupyter(run, job_type):
             util.write_netrc(http_api.api_url, "user", key)
         else:
             raise ValueError("API Key must be 40 characters long")
-        http_api._settings = None
+        # Ensure our api client picks up the new key
+        http_api = Api()
     if not http_api.settings('project'):
         termerror("No W&B project configured.")
         slug = six.moves.input("Enter username/project: ").strip()
