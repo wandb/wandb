@@ -308,6 +308,8 @@ def monitor(display=True, options={}):
     class Monitor():
         def __init__(self, options={}):
             self.api = http_api
+            # TODO: there's an edge case where shutdown isn't called
+            self.api._file_stream_api = None
             self.api.set_current_run_id(run.id)
             self.options = options
             if os.getenv("WANDB_JUPYTER"):
