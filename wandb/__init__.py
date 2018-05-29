@@ -224,6 +224,7 @@ def _init_jupyter(run, job_type):
             util.write_netrc(http_api.api_url, "user", key)
         else:
             raise ValueError("API Key must be 40 characters long")
+        http_api._settings = None
     if not http_api.settings('project'):
         termerror("No W&B project configured.")
         slug = six.moves.input("Enter username/project: ").strip()
@@ -282,6 +283,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # pass the run into WandbCallback)
 run = None
 config = None  # config object shared with the global run
+summary = None  # summary object shared with the global run
 http_api = Api()
 
 
@@ -461,10 +463,13 @@ def init(job_type='train', config=None, allow_val_change=False, reinit=None):
     run.job_type = job_type
     run.set_environment()
 
-    def set_global_config(c):
+    def set_global_config_and_summary(run):
         global config  # because we already have a local config
-        config = c
-    set_global_config(run.config)
+        global summary
+        config = run.config
+        summary = run.summary
+        run._user_accessed_summary = False
+    set_global_config_and_summary(run)
 
     # set this immediately after setting the run and the config. if there is an
     # exception after this it'll probably break the user script anyway

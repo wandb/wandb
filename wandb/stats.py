@@ -99,7 +99,7 @@ class SystemStats(object):
                 time.sleep(0.1)
                 seconds += 0.1
                 if self._shutdown:
-                    seconds = self.sample_rate_seconds
+                    break
 
     def shutdown(self):
         self._shutdown = True

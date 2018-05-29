@@ -11,12 +11,12 @@ train_py = open(os.path.join(os.path.dirname(
 
 
 def test_dry_run(runner):
-    print("OH NO", dict(os.environ))
     with runner.isolated_filesystem():
         with open("train.py", "w") as f:
             f.write(train_py)
         os.environ["WANDB_MODE"] = "dryrun"
         res = sh.python("train.py")
+        print("RUN", res)
         run_dir = glob.glob("wandb/dry*")[0]
         assert "loss:" in res
         meta = json.loads(open(run_dir + "/wandb-metadata.json").read())
