@@ -21,3 +21,4 @@ pillow==5.0.0
 numpy
 pytest-flask
 mock==2.0.0
+twine==1.11.0

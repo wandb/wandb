@@ -85,18 +85,15 @@ ifeq ($(GIT_TREE_STATE),dirty)
 	$(error un-committed changes, commit before continuing)
 endif
 
-release: clean ## package and upload a release
+release: dist ## package and upload a release
 	git push
-	python setup.py sdist upload
-	python setup.py bdist_wheel upload
+	twine upload dist/*
 
-release-test: clean ## package and upload test release
-	python setup.py sdist upload -r pypitest
-	python setup.py bdist_wheel upload -r pypitest
+release-test: dist ## package and upload test release
+	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 
 dist: clean ## builds source and wheel package
-	python setup.py sdist
-	python setup.py bdist_wheel
+	python setup.py sdist bdist_wheel
 	ls -l dist
 
 install: clean ## install the package to the active Python's site-packages
