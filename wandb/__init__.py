@@ -285,7 +285,6 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # pass the run into WandbCallback)
 run = None
 config = None  # config object shared with the global run
-summary = None  # summary object shared with the global run
 http_api = Api()
 
 
@@ -467,13 +466,10 @@ def init(job_type='train', config=None, allow_val_change=False, reinit=None):
     run.job_type = job_type
     run.set_environment()
 
-    def set_global_config_and_summary(run):
+    def set_global_config(run):
         global config  # because we already have a local config
-        global summary
         config = run.config
-        summary = run.summary
-        run._user_accessed_summary = False
-    set_global_config_and_summary(run)
+    set_global_config(run)
 
     # set this immediately after setting the run and the config. if there is an
     # exception after this it'll probably break the user script anyway
