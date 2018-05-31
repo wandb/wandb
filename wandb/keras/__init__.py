@@ -99,7 +99,8 @@ class WandbCallback(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         # history
-        row = {'epoch': epoch}
+        row = copy.copy(wandb.run.history.row)
+        row['epoch'] = epoch
         row.update(logs)
 
         if self.log_weights:
