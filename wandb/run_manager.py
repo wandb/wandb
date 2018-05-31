@@ -425,7 +425,8 @@ class RunManager(object):
         self._get_handler(event.src_path, save_name).on_modified()
 
     def _get_handler(self, file_path, save_name):
-        if not os.path.split(save_name)[0] == "media":
+        if not os.path.split(save_name)[0] == "media" and save_name not in [
+                'wandb-history.jsonl', 'wandb-events.jsonl', 'wandb-summary.json']:
             # Don't show stats on media files
             self._stats.update_file(file_path)
         if save_name not in self._event_handlers:
