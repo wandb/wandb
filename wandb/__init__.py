@@ -329,7 +329,8 @@ def monitor(display=True, options={}):
             pass
 
         def __exit__(self, *args):
-            return self.stop()
+            self.stop()
+            return False
 
         def stop(self):
             if self.rm:

@@ -60,6 +60,7 @@ class FilePusher(object):
         self._max_jobs = max_jobs
         self._queue = queue.Queue()
         self._last_sent = time.time() - self.RATE_LIMIT_SECONDS
+        self._finished = False
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
         self._thread.start()
@@ -70,6 +71,7 @@ class FilePusher(object):
         while True:
             event = self._queue.get()
             if isinstance(event, EventFinish):
+                self._finished = True
                 break
             self._handle_event(event)
 
@@ -109,7 +111,7 @@ class FilePusher(object):
 
         job = UploadJob(self._queue, self._push_function,
                         save_name, path, copy)
-        if self._last_sent < time.time() - self.RATE_LIMIT_SECONDS:
+        if self._finished or self._last_sent < time.time() - self.RATE_LIMIT_SECONDS:
             job.start()
             self._jobs[save_name] = job
             self._last_sent = time.time()
