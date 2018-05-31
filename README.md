@@ -50,10 +50,6 @@ Run your script with `python my_script.py` and all metadata will be synced to th
     <img src="https://github.com/wandb/client/raw/master/docs/screenshot.jpg?raw=true" alt="Runs screenshot" style="max-width:100%;">
 </p>
 
-## Cloud Usage
-
-[Signup](https://app.wandb.ai/login?signup=true) for an account, then run `wandb init` from the directory with your training script. You can checkin _wandb/settings_ to version control to enable other users on your team to share experiments. Run your script with `wandb run my_script.py` and all metadata will be synced to the cloud.
-
 ## Detailed Usage
 
 Framework specific and detailed usage can be found in our [documentation](http://docs.wandb.com/).
