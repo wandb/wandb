@@ -429,6 +429,8 @@ def signup(ctx):
 @click.argument("key", nargs=-1)
 @display_error
 def login(key, server=LocalServer(), browser=True):
+    global api
+
     key = key[0] if len(key) > 0 else None
     # Import in here for performance reasons
     import webbrowser
@@ -467,6 +469,10 @@ def login(key, server=LocalServer(), browser=True):
                 "Successfully logged in to Weights & Biases!", fg="green")
     else:
         click.echo("No key provided, please try again")
+
+    # reinitialize API to create the new client
+    api = Api()
+
     return key
 
 
@@ -484,11 +490,10 @@ def init(ctx):
         click.echo(click.style(
             "Let's setup this directory for W&B!", fg="green", bold=True))
 
-    global api, IS_INIT
+    global IS_INIT
 
     if api.api_key is None:
         ctx.invoke(login)
-        api = Api()
 
     IS_INIT = True
 
