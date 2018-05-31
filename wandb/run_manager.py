@@ -466,7 +466,8 @@ class RunManager(object):
         return self._event_handlers[save_name]
 
     def _finish_handlers(self):
-        for handler in self._event_handlers.values():
+        # TODO: there was a case where _event_handlers was getting modified in the loop.
+        for handler in list(self._event_handlers.values()):
             handler.finish()
 
     def _push_function(self, save_name, path):

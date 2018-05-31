@@ -306,6 +306,9 @@ def monitor(display=True, options={}):
 
     class Monitor():
         def __init__(self, options={}):
+            # So much for our constant...
+            global START_TIME
+            START_TIME = time.time()
             self.api = http_api
             # TODO: there's an edge case where shutdown isn't called
             self.api._file_stream_api = None

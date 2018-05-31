@@ -1155,7 +1155,7 @@ class FileStreamApi(object):
 
             cur_time = time.time()
 
-            if ready_chunks and cur_time - posted_data_time > self.rate_limit_seconds():
+            if ready_chunks and (finished or cur_time - posted_data_time > self.rate_limit_seconds()):
                 posted_data_time = cur_time
                 posted_anything_time = cur_time
                 self._send(ready_chunks)
@@ -1172,7 +1172,7 @@ class FileStreamApi(object):
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
-            logging.error("dropped chunk %s" % files)
+            logging.error("dropped chunk %s" % response)
         elif response.json().get("limits"):
             parsed = response.json()
             self._api.dynamic_settings.update(parsed["limits"])
@@ -1213,5 +1213,4 @@ class FileStreamApi(object):
             exitcode: The exitcode of the watched process.
         """
         self._queue.put(self.Finish(exitcode))
-        # TODO: This can hang for upto 30 seconds...
         self._thread.join()
