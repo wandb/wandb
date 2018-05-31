@@ -408,7 +408,7 @@ def pull(project, run, entity):
 def signup(ctx):
     import webbrowser
     server = LocalServer()
-    url = api.app_url + "/login?invited"
+    url = api.app_url + "/login?signup=true"
     launched = webbrowser.open_new_tab(
         url + "&{}".format(server.qs()))
     if launched:
@@ -416,14 +416,13 @@ def signup(ctx):
         click.echo(
             'Opened [{0}] in your default browser'.format(url))
         server.start(blocking=False)
-        key = ctx.invoke(login, server=server, browser=False)
-        if key:
-            # Only init if we aren't pre-configured
-            if not os.path.isdir(wandb_dir()):
-                ctx.invoke(init)
     else:
         click.echo("Signup with this url in your browser: {0}".format(url))
-        click.echo("Then run wandb login")
+    key = ctx.invoke(login, server=server, browser=False)
+    if key:
+        # Only init if we aren't pre-configured
+        if not os.path.isdir(wandb_dir()):
+            ctx.invoke(init)
 
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
