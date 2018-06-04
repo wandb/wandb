@@ -27,7 +27,7 @@ import webbrowser
 
 import wandb
 import wandb.api
-from .api import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy
+from .api import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy, OverwriteFilePolicy
 from wandb import env
 from wandb import Error
 from wandb import io_wrap
@@ -455,6 +455,7 @@ class RunManager(object):
             elif save_name == 'wandb-summary.json':
                 # Load the summary into the syncer process for meta etc to work
                 self._run.summary.load()
+                self._api.get_file_stream_api().set_file_policy(save_name, OverwriteFilePolicy())
                 self._event_handlers[save_name] = FileEventHandlerSummary(
                     file_path, save_name, self._api, self._file_pusher, self._run)
             elif save_name.startswith('media/'):

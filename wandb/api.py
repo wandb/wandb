@@ -1034,6 +1034,11 @@ class DefaultFilePolicy(object):
             'content': [c.data for c in chunks]
         }
 
+class OverwriteFilePolicy(object):
+    def process_chunks(self, chunks):
+        return {
+            'offset': 0, 'content': [chunks[-1].data]
+        }
 
 class CRDedupeFilePolicy(object):
     def __init__(self, start_chunk_id=0):
