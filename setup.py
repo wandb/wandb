@@ -18,6 +18,7 @@ requirements = [
     'shortuuid>=0.5.0',
     'nvidia-ml-py3>=7.352.0',
     'python-dateutil>=2.6.1',
+    'prompt_toolkit==1.0.15',
     # Removed until we bring back the board
     #'flask-cors>=3.0.3',
     #'flask-graphql>=1.4.0',
@@ -31,7 +32,7 @@ test_requirements = [
 
 setup(
     name='wandb',
-    version='0.6.4',
+    version='0.6.6',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
