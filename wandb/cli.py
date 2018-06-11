@@ -33,7 +33,7 @@ from six.moves import BaseHTTPServer, urllib, configparser
 import socket
 
 import wandb
-from wandb.api import Api
+from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 from wandb import agent as wandb_agent
 from wandb import env
@@ -192,7 +192,7 @@ def prompt_for_project(ctx, entity):
                 #description = editor()
                 project = api.upsert_project(project, entity=entity)["name"]
 
-    except wandb.api.CommError as e:
+    except wandb.apis.CommError as e:
         raise ClickException(str(e))
 
     return project
@@ -204,7 +204,7 @@ def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
         return message.split(marker, 1)[0].rstrip('\n')
 
 
-api = Api()
+api = InternalApi()
 
 
 # Some commands take project/entity etc. as arguments. We provide default
@@ -471,7 +471,7 @@ def login(key, server=LocalServer(), browser=True):
         click.echo("No key provided, please try again")
 
     # reinitialize API to create the new client
-    api = Api()
+    api = InternalApi()
 
     return key
 
@@ -597,7 +597,7 @@ def docs(ctx):
 @display_error
 def on():
     wandb.ensure_configured()
-    api = Api()
+    api = InternalApi()
     parser = api.settings_parser
     try:
         parser.remove_option('default', 'disabled')
@@ -613,7 +613,7 @@ def on():
 @display_error
 def off():
     wandb.ensure_configured()
-    api = Api()
+    api = InternalApi()
     parser = api.settings_parser
     try:
         parser.set('default', 'disabled', 'true')

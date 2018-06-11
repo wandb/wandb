@@ -37,8 +37,6 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             os.environ['WANDB_ENTITY'] = 'test'
             os.environ['WANDB_PROJECT'] = 'unit-test-project'
         os.environ['WANDB_RUN_DIR'] = str(tmpdir)
-        # Re-initialize the Api
-        monkeypatch.setattr(wandb, "http_api", wandb.api.Api())
 
         assert wandb.run is None
         assert wandb.config is None

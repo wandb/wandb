@@ -10,7 +10,7 @@ from wandb import summary
 from wandb import meta
 from wandb import typedtable
 from wandb import util
-from wandb.api import Api
+from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 from six.moves import configparser
 import atexit
@@ -88,7 +88,7 @@ class Run(object):
         resume = environment.get('WANDB_RESUME')
         storage_id = environment.get('WANDB_RUN_STORAGE_ID')
         mode = environment.get('WANDB_MODE')
-        disabled = Api().disabled()
+        disabled = InternalApi().disabled()
         if not mode and disabled:
             mode = "dryrun"
         elif disabled and mode != "dryrun":
@@ -110,7 +110,7 @@ class Run(object):
         return run
 
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None, job_type="train"):
-        api = api or Api()
+        api = api or InternalApi()
         if api.settings("project") is None:
             raise ValueError("Project must be configured.")
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
@@ -145,7 +145,7 @@ class Run(object):
         util.mkdir_exists_ok(self._dir)
 
     def get_url(self, api=None):
-        api = api or Api()
+        api = api or InternalApi()
         return "{base}/{entity}/{project}/runs/{run}".format(
             base=api.app_url,
             entity=api.settings('entity'),
@@ -180,7 +180,7 @@ class Run(object):
         # We use this to track whether user has accessed summary
         self._user_accessed_summary = True
         if self._summary is None:
-            self._summary = summary.Summary(self._dir)
+            self._summary = summary.FileSummary(self._dir)
         return self._summary
 
     @property
@@ -189,7 +189,7 @@ class Run(object):
 
     def _history_added(self, row):
         if self._summary is None:
-            self._summary = summary.Summary(self._dir)
+            self._summary = summary.FileSummary(self._dir)
         if not self._user_accessed_summary:
             self._summary.update(row)
 

@@ -42,7 +42,7 @@ from .core import *
 
 # These imports need to be below "from .core import *" until we remove
 # 'from wandb import __stage_dir__' from api.py etc.
-from wandb.api import Api, CommError
+from wandb.apis import InternalApi, PublicApi, CommError
 from wandb import wandb_types as types
 from wandb import wandb_config
 from wandb import wandb_run
@@ -213,21 +213,21 @@ def _init_jupyter(run, job_type):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
     Log pushing and system stats don't start until `wandb.monitor()` is called.
     """
-    global http_api
     # TODO: Should we log to jupyter?
     try_to_set_up_logging()
-    if not http_api.api_key:
+    api = InternalApi()
+    if not api.api_key:
         termerror(
             "Not authenticated.  Copy a key from https://app.wandb.ai/profile?message=true")
         key = getpass.getpass("API Key: ").strip()
         if len(key) == 40:
             os.environ["WANDB_API_KEY"] = key
-            util.write_netrc(http_api.api_url, "user", key)
+            util.write_netrc(api.api_url, "user", key)
         else:
             raise ValueError("API Key must be 40 characters long")
         # Ensure our api client picks up the new key
-        http_api = Api()
-    if not http_api.settings('project'):
+        api = InternalApi()
+    if not api.settings('project'):
         termerror("No W&B project configured.")
         slug = six.moves.input("Enter username/project: ").strip()
         if "/" not in slug:
@@ -236,16 +236,16 @@ def _init_jupyter(run, job_type):
         entity, project = slug.split("/")
         os.environ["WANDB_ENTITY"] = entity
         os.environ["WANDB_PROJECT"] = project
-        util.write_settings(entity, project, http_api.settings()['base_url'])
+        util.write_settings(entity, project, api.settings()['base_url'])
         # Reset settings so they reload
-        http_api._settings = None
+        api._settings = None
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
-    http_api.set_current_run_id(run.id)
-    print("W&B Run: %s" % run.get_url(http_api))
+    api.set_current_run_id(run.id)
+    print("W&B Run: %s" % run.get_url(api))
     print("Wrap your training loop with `with wandb.monitor():` to display live results.")
     try:
-        run.save(api=http_api, job_type=job_type)
+        run.save(api=api, job_type=job_type)
     except (CommError, ValueError) as e:
         termerror(str(e))
     run.set_environment()
@@ -285,7 +285,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # pass the run into WandbCallback)
 run = None
 config = None  # config object shared with the global run
-http_api = Api()
+Api = PublicApi
 
 
 def save(path):
@@ -309,7 +309,7 @@ def monitor(display=True, options={}):
             # So much for our constant...
             global START_TIME
             START_TIME = time.time()
-            self.api = http_api
+            self.api = InternalApi()
             # TODO: there's an edge case where shutdown isn't called
             self.api._file_stream_api = None
             self.api.set_current_run_id(run.id)
@@ -358,7 +358,7 @@ def log(row=None, commit=True):
 
 def ensure_configured():
     # We re-initialize here for tests
-    api = Api()
+    api = InternalApi()
     # The WANDB_DEBUG check ensures tests still work.
     if not env.is_debug() and not api.settings('project'):
         termlog('wandb.init() called but system not configured.\n'

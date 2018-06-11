@@ -26,8 +26,7 @@ from watchdog.events import PatternMatchingEventHandler
 import webbrowser
 
 import wandb
-import wandb.api
-from .api import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy, OverwriteFilePolicy
+from wandb.apis.file_stream import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy, OverwriteFilePolicy
 from wandb import env
 from wandb import Error
 from wandb import io_wrap
@@ -643,7 +642,7 @@ class RunManager(object):
         try:
             upsert_result = self._run.save(
                 id=storage_id, num_retries=num_retries, job_type=self.job_type, api=self._api)
-        except wandb.api.CommError as e:
+        except wandb.apis.CommError as e:
             # TODO: Get rid of str contains check
             if self._run.resume == 'never' and 'exists' in str(e):
                 raise LaunchError(

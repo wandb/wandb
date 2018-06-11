@@ -4,7 +4,7 @@ import os
 import traceback
 import click
 from wandb import __version__
-from wandb import api as wandb_api
+from wandb.apis import InternalApi
 from wandb import cli
 from .utils import runner, git_repo
 from .api_mocks import *
@@ -230,7 +230,7 @@ def test_restore(runner, request_mocker, query_run, git_repo, monkeypatch):
         f.write("test")
     git_repo.repo.index.add(["patch.txt"])
     git_repo.repo.commit()
-    monkeypatch.setattr(cli, 'api', wandb_api.Api({'project': 'test'}))
+    monkeypatch.setattr(cli, 'api', InternalApi({'project': 'test'}))
     result = runner.invoke(cli.restore, ["test/abcdef"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))

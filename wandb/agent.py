@@ -11,7 +11,7 @@ import traceback
 import six
 
 import wandb
-from wandb.api import Api
+from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 from wandb import util
 from wandb import wandb_run
@@ -201,7 +201,7 @@ def run_agent(sweep_id=None):
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    api = Api()
+    api = InternalApi()
     queue = multiprocessing.Queue()
     agent = Agent(api, queue, sweep_id=sweep_id)
     agent.run()

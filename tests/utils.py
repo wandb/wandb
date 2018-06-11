@@ -4,7 +4,7 @@ import click
 from click.testing import CliRunner
 import git
 from wandb import cli
-from wandb import api as wandb_api
+from wandb.apis import InternalApi
 
 import webbrowser
 import whaaaaat
@@ -13,7 +13,7 @@ from wandb.git_repo import GitRepo
 
 @pytest.fixture
 def runner(monkeypatch):
-    monkeypatch.setattr(cli, 'api', wandb_api.Api(
+    monkeypatch.setattr(cli, 'api', InternalApi(
         default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
     monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {
