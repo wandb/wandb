@@ -58,6 +58,27 @@ def _bucket(name='test'):
     }
 
 
+def _run(name='test'):
+    return {
+        'id': 'test',
+        'name': name,
+        'state': "running",
+        'config': '{"epochs": {"value": 10}}',
+        'systemMetrics': '{"cpu": 100}',
+        'summaryMetrics': '{"acc": 100, "loss": 0}',
+        'history': [
+            '{"acc": 10, "loss": 90}',
+            '{"acc": 20, "loss": 80}',
+            '{"acc": 30, "loss": 70}'
+        ],
+        'events': [
+            '{"cpu": 10}',
+            '{"cpu": 20}',
+            '{"cpu": 30}'
+        ]
+    }
+
+
 def _bucket_config():
     return {
         'patch': '''
@@ -146,6 +167,27 @@ def query_runs():
 @pytest.fixture
 def query_run():
     return _query('model', {'bucket': _bucket_config()})
+
+
+@pytest.fixture
+def query_run_v2():
+    return _query('project', {'run': _run()})
+
+
+@pytest.fixture
+def query_runs_v2():
+    return _query('project', {
+        'runCount': 4,
+        'runs': {
+            'pageInfo': {
+                'hasNextPage': True,
+                'endCursor': 'end'
+            },
+            'edges': [{'node': _run(),
+                       'cursor': 'cursor'}, {'node': _run(),
+                                             'cursor': 'cursor'}]
+        }
+    })
 
 
 @pytest.fixture
