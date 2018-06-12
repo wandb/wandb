@@ -42,7 +42,7 @@ class Api(object):
 
     HTTP_TIMEOUT = 10
 
-    def __init__(self, setting_overrides={}):
+    def __init__(self, overrides={}):
         self.settings = {
             'username': None,
             'project': None,
@@ -50,7 +50,7 @@ class Api(object):
             'base_url': "https://api.wandb.ai"
         }
         self._runs = {}
-        self.settings.update(setting_overrides)
+        self.settings.update(overrides)
 
     @property
     def client(self):
@@ -178,8 +178,10 @@ class Runs(object):
         return True
 
     def __getitem__(self, index):
-        self.index = index - 1
-        return self.__next__()
+        loaded = True
+        while loaded and index > len(self.runs):
+            loaded = self._load_page()
+        return self.runs[index]
 
     def __next__(self):
         self.index += 1
@@ -233,7 +235,6 @@ class Run(object):
 
     def __getattr__(self, name):
         key = self.snake_to_camel(name)
-        print("GETTING", name, key)
         if key in self._attrs.keys():
             return self._attrs[key]
         elif name in self._attrs.keys():

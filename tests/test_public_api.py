@@ -55,3 +55,13 @@ def test_runs_from_path(request_mocker, query_runs_v2):
     assert len(runs) == 4
     assert len(runs.runs) == 2
     assert runs[0].summary_metrics == {"acc": 100, "loss": 0}
+
+
+def test_runs_from_path_index(mocker, request_mocker, query_runs_v2):
+    runs_mock = query_runs_v2(request_mocker)
+    runs = api.runs("test/test")
+    assert len(runs) == 4
+    run_mock = mocker.patch.object(runs, 'more')
+    run_mock.side_effect = [True, False]
+    assert runs[3]
+    assert len(runs.runs) == 4
