@@ -214,7 +214,12 @@ def md5_file(path):
 
 
 def get_log_file_path():
-    return wandb.log_fname
+    """Log file path used in error messages.
+
+    It would probably be better if this pointed to a log file in a
+    run directory.
+    """
+    return wandb.GLOBAL_LOG_FNAME
 
 
 def read_many_from_queue(q, max_items, queue_timeout):

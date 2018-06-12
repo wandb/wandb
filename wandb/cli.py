@@ -232,7 +232,7 @@ def cli(ctx):
 
     Run "wandb docs" for full documentation.
     """
-    wandb.try_to_set_up_logging()
+    wandb.try_to_set_up_global_logging()
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
@@ -661,6 +661,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
                         config=config, description=message,
                         program=program,
                         resume=resume)
+    run.enable_logging()
 
     api.set_current_run_id(run.id)
 

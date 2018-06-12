@@ -29,6 +29,7 @@ def headless(args):
     stderr_master_fd = args['stderr_master_fd']
 
     run = wandb.wandb_run.Run.from_environment_or_defaults()
+    run.enable_logging()
 
     api = wandb.apis.InternalApi()
     api.set_current_run_id(run.id)
@@ -44,6 +45,7 @@ def agent_run(args):
     """A version of `wandb run` that the agent uses to run things.
     """
     run = wandb.wandb_run.Run.from_environment_or_defaults()
+    run.enable_logging()
 
     api = wandb.apis.InternalApi()
     api.set_current_run_id(run.id)
@@ -78,7 +80,7 @@ def agent_run(args):
 
 
 def main():
-    wandb.try_to_set_up_logging()
+    wandb.try_to_set_up_global_logging()
 
     args = json.loads(sys.argv[1])
     command = args['command']

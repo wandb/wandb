@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import shortuuid
 import socket
@@ -171,6 +172,24 @@ class Run(object):
     @property
     def dir(self):
         return self._dir
+
+    @property
+    def log_fname(self):
+        return os.path.join(self.dir, 'wandb-debug.log')
+
+    def enable_logging(self):
+        """Enable Python logging to a file in this Run's directory.
+
+        Currently no way to disable logging after it's enabled.
+        """
+        handler = logging.FileHandler(self.log_fname)
+        handler.setLevel(logging.DEBUG)
+
+        formatter = logging.Formatter('%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+        handler.setFormatter(formatter)
+
+        root = logging.getLogger()
+        root.addHandler(handler)
 
     @property
     def summary(self):

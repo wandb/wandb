@@ -25,7 +25,7 @@ RUN = 'WANDB_RUN'
 
 
 def is_debug():
-    return get_debug == 'true'
+    return bool(get_debug())
 
 
 def get_debug(default=None, env=None):

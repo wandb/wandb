@@ -58,11 +58,12 @@ from wandb.data_types import Histogram
 logger = logging.getLogger(__name__)
 
 
+# this global W&B debug log gets re-written by every W&B process
 if __stage_dir__ is not None:
-    log_fname = wandb_dir() + 'debug.log'
+    GLOBAL_LOG_FNAME = wandb_dir() + 'debug.log'
 else:
-    log_fname = './wandb-debug.log'
-log_fname = os.path.relpath(log_fname, os.getcwd())
+    GLOBAL_LOG_FNAME = './wandb-debug.log'
+GLOBAL_LOG_FNAME = os.path.relpath(GLOBAL_LOG_FNAME, os.getcwd())
 
 
 def _debugger(*args):
@@ -214,7 +215,9 @@ def _init_jupyter(run, job_type):
     Log pushing and system stats don't start until `wandb.monitor()` is called.
     """
     # TODO: Should we log to jupyter?
-    try_to_set_up_logging()
+    try_to_set_up_global_logging()
+    run.enable_logging()
+
     api = InternalApi()
     if not api.api_key:
         termerror(
@@ -385,19 +388,31 @@ def reset_env(exclude=[]):
         return False
 
 
-def try_to_set_up_logging():
+def try_to_set_up_global_logging():
+    """Try to set up global W&B debug log that gets re-written by every W&B process.
+
+    It may fail (and return False) eg. if the current directory isn't user-writable
+    """
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+
+    if env.is_debug():
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(formatter)
+
+        root.addHandler(handler)
+
     try:
-        logging.basicConfig(
-            filemode="w",
-            format='%(asctime)s %(levelname)-7s %(threadName)-10s [%(filename)s:%(funcName)s():%(lineno)s] %(message)s',
-            filename=log_fname,
-            level=logging.DEBUG)
+        handler = logging.FileHandler(GLOBAL_LOG_FNAME, mode='w')
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(formatter)
+
+        root.addHandler(handler)
     except IOError as e:  # eg. in case wandb directory isn't writable
-        if env.is_debug():
-            raise
-        else:
-            termerror('Failed to set up logging: {}'.format(e))
-            return False
+        termerror('Failed to set up logging: {}'.format(e))
+        return False
 
     return True
 
