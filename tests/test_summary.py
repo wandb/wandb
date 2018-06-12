@@ -1,5 +1,5 @@
 import pytest
-from wandb.summary import Summary
+from wandb.summary import FileSummary
 from click.testing import CliRunner
 from wandb import Histogram
 import json
@@ -8,7 +8,7 @@ import json
 @pytest.fixture
 def summary():
     with CliRunner().isolated_filesystem():
-        s = Summary()
+        s = FileSummary()
         s.update({"foo": "init"})
         yield s
 

@@ -11,7 +11,6 @@ import time
 import traceback
 
 import wandb
-import wandb.api
 import wandb.run_manager
 import wandb.wandb_run
 from wandb import util
@@ -31,7 +30,7 @@ def headless(args):
 
     run = wandb.wandb_run.Run.from_environment_or_defaults()
 
-    api = wandb.api.Api()
+    api = wandb.apis.InternalApi()
     api.set_current_run_id(run.id)
 
     rm = wandb.run_manager.RunManager(
@@ -46,7 +45,7 @@ def agent_run(args):
     """
     run = wandb.wandb_run.Run.from_environment_or_defaults()
 
-    api = wandb.api.Api()
+    api = wandb.apis.InternalApi()
     api.set_current_run_id(run.id)
 
     # TODO: better failure handling
