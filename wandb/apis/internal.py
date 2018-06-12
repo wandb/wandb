@@ -18,6 +18,7 @@ import socket
 import subprocess
 import time
 import sys
+import random
 
 from six import b
 
@@ -61,7 +62,7 @@ class Api(object):
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self._settings = None
-        self.retries = 3
+        self.retry_uploads = 10
         self.settings_parser = configparser.ConfigParser()
         self.tagged = False
         self.update_available = False
@@ -593,8 +594,7 @@ class Api(object):
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']
-            : file for file in self._flatten_edges(run['files'])}
+        result = {file['name']: file for file in self._flatten_edges(run['files'])}
         return run['id'], result
 
     @normalize_exceptions
@@ -692,7 +692,7 @@ class Api(object):
         extra_headers = {}
         if os.stat(file.name).st_size == 0:
             raise CommError("%s is an empty file" % file.name)
-        while attempts < self.retries:
+        while attempts < self.retry_uploads:
             try:
                 progress = Progress(file, callback=callback)
                 response = requests.put(
@@ -702,16 +702,19 @@ class Api(object):
             except requests.exceptions.RequestException as e:
                 total = progress.len
                 status = self._status_request(url, total)
+                attempts += 1
                 if status.status_code == 308:
-                    attempts += 1
-                    completed = int(status.headers['Range'].split("-")[-1])
-                    extra_headers = {
-                        'Content-Range': 'bytes {completed}-{total}/{total}'.format(
-                            completed=completed,
-                            total=total
-                        ),
-                        'Content-Length': str(total - completed)
-                    }
+                    if status.headers.get("Range"):
+                        completed = int(status.headers['Range'].split("-")[-1])
+                        extra_headers = {
+                            'Content-Range': 'bytes {completed}-{total}/{total}'.format(
+                                completed=completed,
+                                total=total
+                            ),
+                            'Content-Length': str(total - completed)
+                        }
+                elif status.status_code in (500, 502, 503, 504):
+                    time.sleep(random.randint(1, 10))
                 else:
                     raise e
         return response
