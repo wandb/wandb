@@ -34,6 +34,12 @@ def test_run_history(request_mocker, query_run_v2):
     assert run.history(pandas=False)[0] == {'acc': 10, 'loss': 90}
 
 
+def test_run_config(request_mocker, query_run_v2):
+    run_mock = query_run_v2(request_mocker)
+    run = api.run("test/test/test")
+    assert run.config == {'epochs': 10}
+
+
 def test_run_history_system(request_mocker, query_run_v2):
     run_mock = query_run_v2(request_mocker)
     run = api.run("test/test/test")

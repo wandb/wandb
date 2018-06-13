@@ -5,6 +5,7 @@ import sys
 import os
 import json
 import re
+import six
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
@@ -227,6 +228,13 @@ class Run(object):
         # TODO: convert arrays into nparrays
         self._attrs['summaryMetrics'] = summary_metrics
         self._attrs['systemMetrics'] = json.loads(self._attrs['systemMetrics'])
+        config = {}
+        for key, value in six.iteritems(json.loads(self._attrs['config'])):
+            if value.get("value"):
+                config[key] = value["value"]
+            else:
+                config[key] = value
+        self._attrs['config'] = config
         return self._attrs
 
     def snake_to_camel(self, string):
