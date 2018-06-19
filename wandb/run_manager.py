@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 OUTPUT_FNAME = 'output.log'
+DEBUG_FNAME = 'wandb-debug.log'
 
 
 class LaunchError(Error):
@@ -372,7 +373,8 @@ class RunManager(object):
         self._handler._ignore_patterns = [
             '*/.*',
             '*.tmp',
-            os.path.join(self._run.dir, OUTPUT_FNAME)
+            os.path.join(self._run.dir, OUTPUT_FNAME),
+            os.path.join(self._run.dir, DEBUG_FNAME)
         ]
 
         self._observer = Observer()
@@ -390,6 +392,9 @@ class RunManager(object):
         self._socket = wandb_socket.Client(self._port)
 
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
+        # Manually initialize the debug handler
+        self._get_handler(os.path.join(
+            self._run.dir, DEBUG_FNAME), DEBUG_FNAME).on_created()
 
         if self._cloud:
             self._observer.start()

@@ -230,7 +230,7 @@ class Run(object):
         self._attrs['systemMetrics'] = json.loads(self._attrs['systemMetrics'])
         config = {}
         for key, value in six.iteritems(json.loads(self._attrs['config'])):
-            if value.get("value"):
+            if isinstance(value, dict) and value.get("value"):
                 config[key] = value["value"]
             else:
                 config[key] = value
