@@ -183,9 +183,10 @@ class Run(object):
         Currently no way to disable logging after it's enabled.
         """
         handler = logging.FileHandler(self.log_fname)
-        handler.setLevel(logging.DEBUG)
+        handler.setLevel(logging.INFO)
 
-        formatter = logging.Formatter('%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+        formatter = logging.Formatter(
+            '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
         handler.setFormatter(formatter)
 
         root = logging.getLogger()

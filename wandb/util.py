@@ -26,11 +26,13 @@ from wandb import wandb_dir
 
 logger = logging.getLogger(__name__)
 
-# TODO: get rid of this
+# TODO: handle no numpy?
 try:
     import numpy as np
+    from torch import Tensor
 except ImportError:
-    pass
+    class Tensor(object):
+        pass
 
 MAX_SLEEP_SECONDS = 60 * 5
 
@@ -40,7 +42,7 @@ class WandBJSONEncoder(json.JSONEncoder):
 
     def default(self, obj):
         # TODO: Some of this is just guessing. Be smarter.
-        if isinstance(obj, np.ndarray):
+        if isinstance(obj, (np.ndarray, Tensor)):
             return obj.tolist()
         if isinstance(obj, np.generic):
             return np.asscalar(obj)
