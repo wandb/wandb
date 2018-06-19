@@ -60,7 +60,10 @@ class Summary(object):
         summary = {}
         if key_vals:
             for k, v in six.iteritems(key_vals):
-                if isinstance(v, Image) or (isinstance(v, dict) and v.get("_type") == "image"):
+                # TODO: proper image support in summary
+                is_image = isinstance(v, Image) or (
+                    isinstance(v, list) and isinstance(v[0], Image))
+                if is_image or (isinstance(v, dict) and v.get("_type") == "image"):
                     continue
                 summary[k] = self._transform(v)
         self._summary.update(summary)
