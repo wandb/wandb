@@ -4,6 +4,7 @@ import os
 import wandb
 from wandb import util
 from wandb.meta import Meta
+from wandb.media import Image
 from gql import gql
 import six
 
@@ -59,7 +60,7 @@ class Summary(object):
         summary = {}
         if key_vals:
             for k, v in six.iteritems(key_vals):
-                if isinstance(v, dict) and v.get("_type") == "image":
+                if isinstance(v, Image) or (isinstance(v, dict) and v.get("_type") == "image"):
                     continue
                 summary[k] = self._transform(v)
         self._summary.update(summary)
