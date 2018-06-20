@@ -32,6 +32,8 @@ import whaaaaat
 from six.moves import BaseHTTPServer, urllib, configparser
 import socket
 
+from .core import termlog
+
 import wandb
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
@@ -284,9 +286,15 @@ def runs(ctx, project, entity):
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
 @display_error
 def status(run, settings, project):
-    if settings:
-        click.echo(click.style("Logged in?", bold=True) + " %s" %
-                   bool(api.api_key))
+    logged_in = bool(api.api_key)
+    if not os.path.isdir(wandb_dir()):
+        if logged_in:
+            msg = "Directory not initialized. Please run %s to get started." % click.style("wandb init", bold=True)
+        else:
+            msg = "You are not logged in. Please run %s to get started." % click.style("wandb login", bold=True)
+        termlog(msg)
+    elif settings:
+        click.echo(click.style("Logged in?", bold=True) + " %s" % logged_in)
         click.echo(click.style("Current Settings", bold=True) +
                    " (%s)" % api.settings_file)
         settings = api.settings()
