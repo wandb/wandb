@@ -112,23 +112,14 @@ class WandbCallback(keras.callbacks.Callback):
             row.update(gradients_metrics)
 
         if self.data_type == "image" and len(self._validation_data) > 0:
-            wandb.run.history.row.update({"examples": self._log_images()})
-        wandb.run.history.add(row)
+            wandb.log({"examples": self._log_images()}, commit=False)
+        wandb.log(row)
 
-        # summary
         self.current = logs.get(self.monitor)
-        if self.current is None:    # validation data wasn't set
-            #            print('Can save best model only with %s available, '
-            #                  'skipping.' % (self.monitor))
-            wandb.run.summary.update(row)
+        if self.current is None:  # validation data wasn't set
             return
-
-        copied = copy.copy(row)
-        if self.monitor_op(self.current, self.best):
-            copied.pop('epoch')
-            wandb.run.summary.update(copied)
-            if self.save_model:
-                self._save_model(epoch)
+        elif self.monitor_op(self.current, self.best) and self.save_model:
+            self._save_model(epoch)
 
     def on_batch_begin(self, batch, logs=None):
         pass

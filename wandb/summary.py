@@ -91,11 +91,9 @@ class FileSummary(Summary):
 
 class HTTPSummary(Summary):
     def __init__(self, client, run_storage_id, summary={}):
-        print("SUPER", summary)
         super(HTTPSummary, self).__init__(summary=summary)
         self._run_storage_id = run_storage_id
         self._client = client
-        print("INIT SUMMARY")
 
     def _write(self, commit=False):
         mutation = gql('''
