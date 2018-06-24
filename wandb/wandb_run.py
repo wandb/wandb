@@ -29,6 +29,7 @@ class Run(object):
         self.id = run_id if run_id else generate_id()
         self.resume = resume if resume else 'never'
         self.mode = mode if mode else 'run'
+        self.pid = os.getpid()
 
         self.program = program
         if not self.program:

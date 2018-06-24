@@ -194,6 +194,7 @@ def test_projects(runner, request_mocker, query_projects):
 
 def test_status(runner, request_mocker, query_project):
     with runner.isolated_filesystem():
+        os.mkdir("wandb")
         query_project(request_mocker)
         result = runner.invoke(cli.status, ["-p", "foo"])
         print(result.output)

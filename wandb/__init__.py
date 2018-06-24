@@ -395,7 +395,8 @@ def try_to_set_up_global_logging():
     """
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+    formatter = logging.Formatter(
+        '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
 
     if env.is_debug():
         handler = logging.StreamHandler()
@@ -427,7 +428,7 @@ def _get_python_type():
         return "python"
 
 
-def init(job_type='train', config=None, allow_val_change=False, reinit=None):
+def init(job_type='train', config=None, project=None, entity=None, allow_val_change=False, reinit=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -435,8 +436,10 @@ def init(job_type='train', config=None, allow_val_change=False, reinit=None):
     to communicate with W&B.
 
     Args:
-        job_type (str, optional): The type of job running, defaults to 'train' 
+        job_type (str, optional): The type of job running, defaults to 'train'
         config (dict, argparse, or tf.FLAGS, optional): The hyper parameters to store with the run
+        project (str, optional): The project to push metrics to
+        entity (str, optional): The entity to push metrics to
         reinit (bool, optional): Allow multiple calls to init in the same process
 
     Returns:
@@ -451,6 +454,11 @@ def init(job_type='train', config=None, allow_val_change=False, reinit=None):
         reset_env(exclude=["WANDB_DIR", "WANDB_ENTITY",
                            "WANDB_PROJECT", "WANDB_API_KEY"])
         run = None
+
+    if project:
+        os.environ['WANDB_PROJECT'] = project
+    if entity:
+        os.environ['WANDB_ENTITY'] = entity
 
     # the following line is useful to ensure that no W&B logging happens in the user
     # process that might interfere with what they do

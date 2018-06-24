@@ -21,7 +21,7 @@ def test_defaults(stats):
     stats.shutdown()
     print(stats.stats().keys())
     assert sorted(stats.stats().keys()) == sorted(
-        ['cpu', 'memory', 'network', 'disk'])
+        ['cpu', 'memory', 'network', 'disk', 'proc.memory.rssMB', 'proc.memory.availableMB', 'proc.memory.percent', 'proc.cpu.threads'])
     assert stats.sample_rate_seconds == 2
     assert stats.samples_to_average == 15
 

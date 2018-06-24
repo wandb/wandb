@@ -708,6 +708,7 @@ class RunManager(object):
                 stderr=self._stderr_tee.tee_file,
                 shell=True,
             )
+            self._run.pid = self.proc.pid
         except (OSError, IOError):
             raise Exception('Could not find program: %s' % command)
 
@@ -726,6 +727,7 @@ class RunManager(object):
         self._stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
 
         self.proc = Process(pid)
+        self._run.pid = pid
 
         try:
             self.init_run()

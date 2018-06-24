@@ -73,6 +73,10 @@ class SystemStats(object):
         self._thread.start()
 
     @property
+    def proc(self):
+        return psutil.Process(pid=self.run.pid)
+
+    @property
     def sample_rate_seconds(self):
         """Sample system stats every this many seconds, defaults to 2, min is 0.5"""
         return max(0.5, self._api.dynamic_settings["system_sample_seconds"])
@@ -134,12 +138,17 @@ class SystemStats(object):
             except NVMLError as err:
                 pass
         net = psutil.net_io_counters()
+        sysmem = psutil.virtual_memory()
         stats["cpu"] = psutil.cpu_percent()
-        stats["memory"] = psutil.virtual_memory().percent
+        stats["memory"] = sysmem.percent
         stats["network"] = {
             "sent": net.bytes_sent - self.network_init["sent"],
             "recv": net.bytes_recv - self.network_init["recv"]
         }
         # TODO: maybe show other partitions, will likely need user to configure
         stats["disk"] = psutil.disk_usage('/').percent
+        stats["proc.memory.rssMB"] = self.proc.memory_info().rss / 1048576.0
+        stats["proc.memory.availableMB"] = sysmem.available / 1048576.0
+        stats["proc.memory.percent"] = self.proc.memory_percent()
+        stats["proc.cpu.threads"] = self.proc.num_threads()
         return stats
