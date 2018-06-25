@@ -14,7 +14,10 @@ class FileStats(object):
         self.uploaded = 0
 
     def update_size(self):
-        self.size = os.path.getsize(self._file_path)
+        try:
+            self.size = os.path.getsize(self._file_path)
+        except (OSError, IOError):
+            pass
 
 
 class Stats(object):

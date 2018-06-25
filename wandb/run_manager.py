@@ -477,9 +477,12 @@ class RunManager(object):
             handler.finish()
 
     def _push_function(self, save_name, path):
-        with open(path, 'rb') as f:
-            self._api.push(self._project, {save_name: f}, run=self._run.id,
-                           progress=lambda _, total: self._stats.update_progress(path, total))
+        try:
+            with open(path, 'rb') as f:
+                self._api.push(self._project, {save_name: f}, run=self._run.id,
+                               progress=lambda _, total: self._stats.update_progress(path, total))
+        except (OSError, IOError):
+            pass
 
     """ RUN MANAGEMENT STUFF """
 
