@@ -24,7 +24,7 @@ class WandbCallback(keras.callbacks.Callback):
     def __init__(self, monitor='val_loss', verbose=0, mode='auto',
                  save_weights_only=False, log_weights=False, log_gradients=False,
                  save_model=True, training_data=None, validation_data=None,
-                 labels=[], data_type="image"
+                 labels=[], data_type=None
                  ):
         """Constructor.
 
@@ -52,8 +52,10 @@ class WandbCallback(keras.callbacks.Callback):
             raise wandb.Error(
                 'You must call wandb.init() before WandbCallback()')
         if validation_data is not None:
+            # For backwards compatability
+            self.data_type = data_type or "image"
             self.validation_data = validation_data
-       
+
         self.labels = labels
         self.data_type = data_type
 
@@ -139,7 +141,7 @@ class WandbCallback(keras.callbacks.Callback):
     def _log_images(self, num_images=36):
         validation_X = self.validation_data[0]
         validation_length = len(validation_X)
-        
+
         indices = np.random.choice(validation_length, num_images)
 
         test_data = []

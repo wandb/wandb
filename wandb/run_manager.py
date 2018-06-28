@@ -376,6 +376,9 @@ class RunManager(object):
             os.path.join(self._run.dir, OUTPUT_FNAME),
             os.path.join(self._run.dir, DEBUG_FNAME)
         ]
+        for glob in self._api.settings("ignore_globs"):
+            self._handler._ignore_patterns.append(
+                os.path.join(self._run.dir, glob))
 
         self._observer = Observer()
         self._observer.schedule(self._handler, self._watch_dir, recursive=True)
@@ -429,7 +432,7 @@ class RunManager(object):
         self._get_handler(event.src_path, save_name).on_modified()
 
     def _get_handler(self, file_path, save_name):
-        if not os.path.split(save_name)[0] == "media" and save_name not in [
+        if not save_name.startswith("media/") and save_name not in [
                 'wandb-history.jsonl', 'wandb-events.jsonl', 'wandb-summary.json']:
             # Don't show stats on media files
             self._stats.update_file(file_path)

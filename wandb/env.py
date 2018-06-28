@@ -22,6 +22,7 @@ PROJECT = 'WANDB_PROJECT'
 ENTITY = 'WANDB_ENTITY'
 BASE_URL = 'WANDB_BASE_URL'
 RUN = 'WANDB_RUN'
+IGNORE = 'WANDB_IGNORE_GLOBS'
 
 
 def is_debug():
@@ -40,6 +41,16 @@ def get_run(default=None, env=None):
         env = os.environ
 
     return env.get(RUN, default)
+
+
+def get_ignore(default=None, env=None):
+    if env is None:
+        env = os.environ
+
+    if env.get(IGNORE, default):
+        return env.get(IGNORE, default).split(",")
+    else:
+        return []
 
 
 def get_project(default=None, env=None):

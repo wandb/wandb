@@ -182,14 +182,16 @@ def test_settings(mocker):
     api._settings = None
     parser = mocker.patch.object(api, "settings_parser")
     parser.sections.return_value = ["default"]
-    parser.options.return_value = ["project", "entity"]
-    parser.get.side_effect = ["test_model", "test_entity"]
+    parser.options.return_value = ["project", "entity", "ignore_globs"]
+    parser.get.side_effect = ["test_model",
+                              "test_entity", "diff.patch,*.secure"]
     assert api.settings() == {
         'base_url': 'https://api.wandb.ai',
         'entity': 'test_entity',
         'project': 'test_model',
         'section': 'default',
         'run': 'latest',
+        'ignore_globs': ["diff.patch", "*.secure"],
         'git_remote': 'origin',
         'git_tag': False
     }
@@ -201,6 +203,7 @@ def test_default_settings():
         'entity': 'models',
         'section': 'default',
         'run': 'latest',
+        'ignore_globs': [],
         'git_remote': 'origin',
         'git_tag': False,
         'project': None,

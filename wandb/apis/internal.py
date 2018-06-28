@@ -57,6 +57,7 @@ class Api(object):
             'run': "latest",
             'git_remote': "origin",
             'git_tag': False,
+            'ignore_globs': [],
             'base_url': "https://api.wandb.ai"
         }
         self.retry_timedelta = retry_timedelta
@@ -233,6 +234,9 @@ class Api(object):
                 self._settings.get("entity"))
             self._settings["base_url"] = env.get_base_url(
                 self._settings.get("base_url"))
+            self._settings["ignore_globs"] = env.get_ignore(
+                self._settings.get("ignore_globs")
+            )
 
         return self._settings if key is None else self._settings[key]
 
