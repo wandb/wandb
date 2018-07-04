@@ -17,11 +17,6 @@ H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor",
             "pytorch.Tensor", "pandas.DataFrame")
 
 try:
-    import numpy as np
-except ImportError:
-    np = None
-
-try:
     import h5py
 except ImportError:
     h5py = None
