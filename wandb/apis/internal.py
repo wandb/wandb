@@ -28,7 +28,7 @@ from wandb import env
 from wandb.git_repo import GitRepo
 from wandb import retry
 from wandb import util
-from wandb.apis import FileStreamApi, normalize_exceptions, CommError, Progress
+from wandb.apis import FileStreamApi, normalize_exceptions, CommError, Progress, UsageError
 
 logger = logging.getLogger(__name__)
 
@@ -643,6 +643,46 @@ class Api(object):
         return {file['name']: file for file in files}
 
     @normalize_exceptions
+    def download_url(self, project, file_name, run=None, entity=None):
+        """Generate download urls
+
+        Args:
+            project (str): The project to download
+            file_name (str): The name of the file to download
+            run (str, optional): The run to upload to
+            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
+
+        Returns:
+            A dict of extensions and urls
+
+                { "url": "https://weights.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' }
+
+        """
+        query = gql('''
+        query Model($name: String!, $fileName: String!, $entity: String!, $run: String!)  {
+            model(name: $name, entityName: $entity) {
+                bucket(name: $run) {
+                    files(names: [$fileName]) {
+                        edges {
+                            node {
+                                name
+                                url
+                                md5
+                                updatedAt
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ''')
+        query_result = self.gql(query, variable_values={
+            'name': project, 'run': run or self.settings('run'), 'fileName': file_name,
+            'entity': entity or self.settings('entity')})
+        files = self._flatten_edges(query_result['model']['bucket']['files'])
+        return files[0] if len(files) > 0 else None
+
+    @normalize_exceptions
     def download_file(self, url):
         """Initiate a streaming download
 
@@ -657,7 +697,7 @@ class Api(object):
         return (int(response.headers.get('content-length', 0)), response)
 
     @normalize_exceptions
-    def download_write_file(self, metadata):
+    def download_write_file(self, metadata, out_dir=None):
         """Download a file from a run and write it to wandb/
 
         Args:
@@ -667,7 +707,7 @@ class Api(object):
             A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
         """
         fileName = metadata['name']
-        path = os.path.join(wandb_dir(), fileName)
+        path = os.path.join(out_dir or wandb_dir(), fileName)
         if self.file_current(fileName, metadata['md5']):
             return path, None
 

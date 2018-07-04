@@ -2,6 +2,8 @@ import pytest
 from wandb.summary import FileSummary
 from click.testing import CliRunner
 from wandb import Histogram
+import numpy as np
+import os
 import json
 
 
@@ -54,3 +56,20 @@ def test_delete(summary):
     summary.update({"foo": "bar", "bad": True})
     del summary["bad"]
     assert json.load(open("wandb-summary.json")) == {"foo": "bar"}
+
+
+def test_big_numpy(summary):
+    summary.update({"rad": np.random.rand(1000)})
+    assert json.load(open("wandb-summary.json"))["rad"]["max"] > 0
+    assert os.path.exists("wandb.h5")
+
+
+def test_small_numpy(summary):
+    summary.update({"rad": np.random.rand(10)})
+    assert len(json.load(open("wandb-summary.json"))["rad"]) == 10
+
+
+def rest_read_numpy(summary):
+    summary.update({"rad": np.random.rand(1000)})
+    s = FileSummary()
+    assert len(s["rad"]) == 1000

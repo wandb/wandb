@@ -6,6 +6,7 @@ import os
 import json
 import re
 import six
+import tempfile
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
@@ -13,7 +14,8 @@ from gql.transport.requests import RequestsHTTPTransport
 import wandb
 from wandb import Error, __version__
 from wandb import util
-from wandb.summary import HTTPSummary
+from wandb.summary import HTTPSummary, download_h5
+from wandb.env import get_dir
 from wandb.apis import normalize_exceptions
 
 logger = logging.getLogger(__name__)
@@ -81,6 +83,10 @@ class Api(object):
         if os.getenv("WANDB_API_KEY"):
             key = os.environ["WANDB_API_KEY"]
         return key
+
+    def flush(self):
+        """Clear the local cache"""
+        self._runs = {}
 
     def _parse_path(self, path):
         run = self.settings['run']
@@ -205,6 +211,12 @@ class Run(object):
         self.username = username
         self.project = project
         self.name = name
+        self._base_dir = get_dir(tempfile.gettempdir())
+        self.dir = os.path.join(self._base_dir, *self.path)
+        try:
+            os.makedirs(self.dir)
+        except OSError:
+            pass
         self._summary = None
         self._attrs = attrs
         self.load()
@@ -223,10 +235,10 @@ class Run(object):
         if force or not self._attrs:
             response = self._exec(query)
             self._attrs = response['project']['run']
-        summary_metrics = json.loads(
+        download_h5(self.name, entity=self.username,
+                    project=self.project, out_dir=self.dir)
+        self._attrs['summaryMetrics'] = json.loads(
             self._attrs['summaryMetrics'])
-        # TODO: convert arrays into nparrays
-        self._attrs['summaryMetrics'] = summary_metrics
         self._attrs['systemMetrics'] = json.loads(self._attrs['systemMetrics'])
         config = {}
         for key, value in six.iteritems(json.loads(self._attrs['config'])):
@@ -289,9 +301,14 @@ class Run(object):
     @property
     def summary(self):
         if self._summary is None:
+            # TODO: fix the outdir issue
             self._summary = HTTPSummary(
-                self.client, self.id, self.summary_metrics)
+                self.client, self.id, summary=self.summary_metrics, path="/".join(self.path), out_dir=self.dir)
         return self._summary
 
+    @property
+    def path(self):
+        return [self.username, self.project, self.name]
+
     def __repr__(self):
-        return "<Run {}/{}/{} ({})>".format(self.username, self.project, self.name, self.state)
+        return "<Run {} ({})>".format("/".join(self.path), self.state)

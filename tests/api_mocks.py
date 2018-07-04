@@ -150,6 +150,32 @@ def query_no_run_resume_status():
 
 
 @pytest.fixture
+def query_download_h5():
+    def wrapper(mocker, status_code=200, error=None, content=None):
+        mocker.register_uri('GET', 'https://h5py.url',
+                            content=content, status_code=status_code)
+        return _query('model', _download_urls(files={'edges': [{'node': {
+            'name': 'wandb.h5',
+                    'url': 'https://h5py.url',
+                    'md5': 'fakemd5'
+        }}]}), body_match="files(names: [")(mocker, status_code, error)
+
+    return wrapper
+
+
+@pytest.fixture
+def query_upload_h5(mocker):
+    def wrapper(mocker, status_code=200, error=None, content=None):
+        mocker.register_uri('PUT', "https://h5py.url")
+        return _query('model', _download_urls(files={'edges': [{'node': {
+            'name': 'wandb.h5',
+                    'url': 'https://h5py.url',
+                    'md5': 'fakemd5'
+        }}]}), body_match='files(names: ')(mocker, status_code, error)
+    return wrapper
+
+
+@pytest.fixture
 def query_empty_project():
     return _query('model', _download_urls(empty=True))
 

@@ -19,6 +19,8 @@ import requests
 import six
 from six.moves import queue
 import textwrap
+from sys import getsizeof
+from collections import namedtuple
 
 import wandb
 from wandb import io_wrap
@@ -26,28 +28,73 @@ from wandb import wandb_dir
 
 logger = logging.getLogger(__name__)
 
-# TODO: handle no numpy?
 try:
-    import numpy as np
     from torch import Tensor
 except ImportError:
     class Tensor(object):
         pass
 
+try:
+    from tensorflow import Tensor
+except ImportError:
+    class Tensor(object):
+        pass
+
+try:
+    import numpy as np
+except ImportError:
+    np = namedtuple('np', ['ndarray', 'generic'])
+
+try:
+    import pandas
+except ImportError:
+    pandas = namedtuple('pandas', ['DataFrame'])
+
 MAX_SLEEP_SECONDS = 60 * 5
+# TODO: Revisit these limits
+VALUE_BYTES_LIMIT = 100000
+NP_BYTES_LIMIT = 1000
+
+
+def fullname(o):
+    return o.__class__.__module__ + "." + o.__class__.__name__
+
+
+def json_friendly(obj):
+    """Convert an object into something that's more becoming of JSON"""
+    converted = True
+    transformed = False
+    if isinstance(obj, (np.ndarray, Tensor, pandas.DataFrame)):
+        if getsizeof(obj) > NP_BYTES_LIMIT:
+            obj = {
+                "_type": fullname(obj),
+                "var": np.var(obj),
+                "mean": np.mean(obj),
+                "min": np.amin(obj),
+                "max": np.amax(obj),
+                "len": len(obj)
+            }
+            transformed = True
+        else:
+            obj = obj.tolist()
+    elif isinstance(obj, np.generic):
+        obj = np.asscalar(obj)
+    elif isinstance(obj, bytes):
+        obj = obj.decode('utf-8')
+    else:
+        converted = False
+    if getsizeof(obj) > VALUE_BYTES_LIMIT:
+        logger.warn("Object %s is %i bytes", obj, getsizeof(obj))
+    return obj, converted, transformed
 
 
 class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
     def default(self, obj):
-        # TODO: Some of this is just guessing. Be smarter.
-        if isinstance(obj, (np.ndarray, Tensor)):
-            return obj.tolist()
-        if isinstance(obj, np.generic):
-            return np.asscalar(obj)
-        if isinstance(obj, bytes):
-            return obj.decode('utf-8')
+        obj, converted, transformed = json_friendly(obj)
+        if converted:
+            return obj
         return json.JSONEncoder.default(self, obj)
 
 

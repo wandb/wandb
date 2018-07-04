@@ -150,8 +150,12 @@ class SystemStats(object):
         }
         # TODO: maybe show other partitions, will likely need user to configure
         stats["disk"] = psutil.disk_usage('/').percent
-        stats["proc.memory.rssMB"] = self.proc.memory_info().rss / 1048576.0
         stats["proc.memory.availableMB"] = sysmem.available / 1048576.0
-        stats["proc.memory.percent"] = self.proc.memory_percent()
-        stats["proc.cpu.threads"] = self.proc.num_threads()
+        try:
+            stats["proc.memory.rssMB"] = self.proc.memory_info().rss / \
+                1048576.0
+            stats["proc.memory.percent"] = self.proc.memory_percent()
+            stats["proc.cpu.threads"] = self.proc.num_threads()
+        except psutil.NoSuchProcess:
+            pass
         return stats
