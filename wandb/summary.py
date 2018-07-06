@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import time
+import requests
 
 import wandb
 from wandb import util
@@ -92,6 +93,10 @@ class Summary(object):
         if not self._h5:
             wandb.termerror("Storing tensors in summary requires h5py")
         else:
+            try:
+                del self._h5["summary/" + key]
+            except KeyError:
+                pass
             self._h5["summary/" + key] = val
             self._h5.flush()
 
@@ -145,7 +150,8 @@ def upload_h5(file, run, entity=None, project=None):
     api = Api()
     #TODO: unfortunate
     slug = "/".join([project or api.settings("project"), run])
-    api.push(slug, [file], entity=entity, progress=sys.stdout)
+    api.push(slug, {os.path.basename(file): open(file, 'rb')},
+             entity=entity, progress=sys.stdout)
 
 
 class FileSummary(Summary):

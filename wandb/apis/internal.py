@@ -680,7 +680,7 @@ class Api(object):
             'name': project, 'run': run or self.settings('run'), 'fileName': file_name,
             'entity': entity or self.settings('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
-        return files[0] if len(files) > 0 else None
+        return files[0] if len(files) > 0 and files[0].get('updatedAt') else None
 
     @normalize_exceptions
     def download_file(self, url):
@@ -932,6 +932,8 @@ class Api(object):
         responses = []
         for file_name, file_info in result.items():
             try:
+                # To handle Windows paths
+                # TODO: this doesn't handle absolute paths...
                 normal_name = os.path.join(*file_name.split("/"))
                 open_file = files[normal_name] if isinstance(
                     files, dict) else open(normal_name, "rb")

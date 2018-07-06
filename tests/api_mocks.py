@@ -10,12 +10,14 @@ def _files():
             {'node': {
                 'name': 'weights.h5',
                 'url': 'https://weights.url',
-                'md5': 'fakemd5'
+                'md5': 'fakemd5',
+                'updatedAt': None
             }},
             {'node': {
                 'name': 'model.json',
                 'url': 'https://model.url',
-                'md5': 'mZFLkyvTelC5g8XnyQrpOw=='
+                'md5': 'mZFLkyvTelC5g8XnyQrpOw==',
+                'updatedAt': None
             }},
         ]
     }
