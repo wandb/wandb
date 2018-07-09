@@ -6,6 +6,7 @@ import os
 import textwrap
 import yaml
 import mock
+import glob
 from .api_mocks import *
 
 import wandb
@@ -42,7 +43,14 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
         assert wandb.config is None
         orig_namespace = vars(wandb)
 
-        run = wandb.init()
+        if request.node.get_marker('args'):
+            kwargs = request.node.get_marker('args').kwargs
+            # Unfortunate to enable the test to work
+            if kwargs.get("dir"):
+                del os.environ['WANDB_RUN_DIR']
+        else:
+            kwargs = {}
+        run = wandb.init(**kwargs)
         upload_logs(request_mocker, run)
         assert run is wandb.run
         assert run.config is wandb.config
@@ -61,6 +69,11 @@ def test_log(wandb_init_run):
     wandb.log(history_row)
     assert len(wandb.run.history.rows) == 1
     assert set(history_row.items()) <= set(wandb.run.history.rows[0].items())
+
+
+@pytest.mark.args(dir="/tmp")
+def test_custom_dir(wandb_init_run):
+    assert len(glob.glob("/tmp/wandb/run-*")) > 0
 
 
 @pytest.mark.jupyter
