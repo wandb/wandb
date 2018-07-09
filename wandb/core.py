@@ -15,12 +15,10 @@ from . import env
 from . import io_wrap
 
 
-__root_dir__ = env.get_dir('./')
-
 # We use the hidden version if it already exists, otherwise non-hidden.
-if os.path.exists(os.path.join(__root_dir__, '.wandb')):
+if os.path.exists(os.path.join(env.get_dir('./'), '.wandb')):
     __stage_dir__ = '.wandb/'
-elif os.path.exists(os.path.join(__root_dir__, 'wandb')):
+elif os.path.exists(os.path.join(env.get_dir('./'), 'wandb')):
     __stage_dir__ = "wandb/"
 else:
     __stage_dir__ = None
@@ -30,7 +28,7 @@ START_TIME = time.time()
 
 
 def wandb_dir():
-    return os.path.join(__root_dir__, __stage_dir__ or "wandb/")
+    return os.path.join(env.get_dir('./'), __stage_dir__ or "wandb/")
 
 
 def _set_stage_dir(stage_dir):
@@ -67,7 +65,8 @@ def termerror(string):
                         for s in string.split('\n')])
     termlog(string=string, newline=True)
 
+
 __all__ = [
-	'__root_dir__', '__stage_dir__', 'SCRIPT_PATH', 'START_TIME', 'wandb_dir',
-	'_set_stage_dir', 'Error', 'LOG_STRING', 'ERROR_STRING', 'termlog', 'termerror'
+    '__stage_dir__', 'SCRIPT_PATH', 'START_TIME', 'wandb_dir',
+    '_set_stage_dir', 'Error', 'LOG_STRING', 'ERROR_STRING', 'termlog', 'termerror'
 ]

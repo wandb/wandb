@@ -428,7 +428,7 @@ def _get_python_type():
         return "python"
 
 
-def init(job_type='train', config=None, project=None, entity=None, allow_val_change=False, reinit=None):
+def init(job_type='train', dir=None, config=None, project=None, entity=None, allow_val_change=False, reinit=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -459,6 +459,9 @@ def init(job_type='train', config=None, project=None, entity=None, allow_val_cha
         os.environ['WANDB_PROJECT'] = project
     if entity:
         os.environ['WANDB_ENTITY'] = entity
+    if dir:
+        os.environ['WANDB_DIR'] = dir
+        util.mkdir_exists_ok(wandb_dir())
 
     # the following line is useful to ensure that no W&B logging happens in the user
     # process that might interfere with what they do
