@@ -182,6 +182,9 @@ class FileSummary(Summary):
             s = util.json_dumps_safer(self.convert_json(), indent=4)
             f.write(s)
             f.write('\n')
+        if self._h5:
+            self._h5.close()
+            self._h5 = None
 
 
 class HTTPSummary(Summary):
@@ -201,6 +204,9 @@ class HTTPSummary(Summary):
         }
         ''')
         if commit:
+            if self._h5:
+                self._h5.close()
+                self._h5 = None
             res = self._client.execute(mutation, variable_values={
                 'id': self._run_storage_id, 'summaryMetrics': util.json_dumps_safer(self.convert_json())})
             assert res['upsertBucket']['bucket']['id']
