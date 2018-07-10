@@ -29,6 +29,11 @@ class Stats(object):
             self._files[file_path] = FileStats(file_path)
         self._files[file_path].update_size()
 
+    def rename_file(self, old_path, new_path):
+        if old_path in self._files:
+            del self._files[old_path]
+        self.update_file(new_path)
+
     def update_all_files(self):
         for file_stats in self._files.values():
             file_stats.update_size()
