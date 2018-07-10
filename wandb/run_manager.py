@@ -98,6 +98,10 @@ class FileEventHandler(object):
     def on_modified(self):
         pass
 
+    def on_renamed(self, new_path, new_name):
+        self.file_path = new_path
+        self.save_name = new_name
+
     def finish(self):
         pass
 
@@ -367,6 +371,7 @@ class RunManager(object):
         self._handler = PatternMatchingEventHandler()
         self._handler.on_created = self._on_file_created
         self._handler.on_modified = self._on_file_modified
+        self._handler.on_moved = self._on_file_moved
         self._handler._patterns = [
             os.path.join(self._watch_dir, os.path.normpath('*'))]
         # Ignore hidden files/folders and output.log because we stream it specially
@@ -430,6 +435,22 @@ class RunManager(object):
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._file_event_lock.await_readable()
         self._get_handler(event.src_path, save_name).on_modified()
+
+    def _on_file_moved(self, event):
+        logger.info('file/dir moved: %s -> %s', event.src_path, event.dest_path)
+        if os.path.isdir(event.dest_path):
+            return None
+        old_save_name = os.path.relpath(event.src_path, self._watch_dir)
+        new_save_name = os.path.relpath(event.dest_path, self._watch_dir)
+        self._file_event_lock.await_readable()
+
+        # We have to move the existing file handler to the new name, and update the stats
+        handler = self._get_handler(event.src_path, old_save_name)
+        self._event_handlers[new_save_name] = handler
+        del self._event_handlers[old_save_name]
+        self._stats.rename_file(event.src_path, event.dest_path)
+
+        handler.on_renamed(event.dest_path, new_save_name)
 
     def _get_handler(self, file_path, save_name):
         if not save_name.startswith("media/") and save_name not in [
