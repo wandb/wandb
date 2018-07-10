@@ -859,7 +859,7 @@ class RunManager(object):
         self._meta.shutdown()
         self._system_stats.shutdown()
 
-        if exitcode != 0 and START_TIME - time.time() < 30:
+        if exitcode != 0 and time.time() - START_TIME < 30:
             wandb.termlog("Process crashed early, not syncing files")
             sys.exit(exitcode)
 
