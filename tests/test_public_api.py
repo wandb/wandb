@@ -88,20 +88,24 @@ def test_runs_from_path_index(mocker, request_mocker, query_runs_v2, query_downl
 
 def test_advanced_summary(request_mocker, upsert_run, query_download_h5, query_upload_h5):
     run = _run()
-    run["summaryMetrics"] = json.dumps(
-        {"special": {"_type": "numpy.ndarray", "min": 0, "max": 20}, "normal": 32})
+    run["summaryMetrics"] = json.dumps({
+        "special": {"_type": "numpy.ndarray", "min": 0, "max": 20},
+        "normal": 32,
+        "nested": {"deep":{"_type": "numpy.ndarray", "min": 0, "max": 20}}})
     _query('project', {'run': run})(request_mocker)
     file = os.path.join(tempfile.gettempdir(), "test.h5")
     with h5py.File(file, 'w') as h5:
         h5["summary/special"] = np.random.rand(100)
+        h5["summary/nested/deep"] = np.random.rand(100)
     query_download_h5(request_mocker, content=open(file, "rb").read())
     api.flush()
     run = api.run("test/test/test")
     assert len(run.summary["special"]) == 100
+    assert len(run.summary["nested"]["deep"]) == 100
     update_mock = upsert_run(request_mocker)
     h5_mock = query_upload_h5(request_mocker)
     run.summary.update({"nd_time": np.random.rand(1000)})
     assert len(run.summary["nd_time"]) == 1000
     assert h5_mock.called
     del run.summary["nd_time"]
-    assert list(run.summary._h5["summary"].keys()) == ["special"]
+    assert list(run.summary._h5["summary"].keys()) == ["nested", "special"]
