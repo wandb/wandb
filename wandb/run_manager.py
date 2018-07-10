@@ -101,7 +101,6 @@ class FileEventHandler(object):
     def on_renamed(self, new_path, new_name):
         self.file_path = new_path
         self.save_name = new_name
-        pass
 
     def finish(self):
         pass
