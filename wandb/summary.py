@@ -31,10 +31,8 @@ class Summary(object):
         self._summary = kwargs.get("summary") or {}
         self._h5_path = os.path.join(
             self._out_dir, DEEP_SUMMARY_FNAME)
-        if h5py:
-            self._h5 = h5py.File(self._h5_path, 'a', libver='latest')
-        else:
-            self._h5 = None
+        # Lazy load the h5 file
+        self._h5 = None
 
     def _write(self, commit=False):
         raise NotImplementedError
@@ -47,7 +45,7 @@ class Summary(object):
             if v.get("_type") in H5_TYPES:
                 return self.read_h5(k, v)
             else:
-                return {key:self._transform(k+"/"+key, value, write=False) for (key, value) in v.items()}
+                return {key: self._transform(k+"/"+key, value, write=False) for (key, value) in v.items()}
         else:
             return v
 
@@ -92,6 +90,9 @@ class Summary(object):
         return self._summary.get(k, default)
 
     def write_h5(self, key, val):
+        # ensure the file is open
+        self.open_h5()
+
         if not self._h5:
             wandb.termerror("Storing tensors in summary requires h5py")
         else:
@@ -103,10 +104,17 @@ class Summary(object):
             self._h5.flush()
 
     def read_h5(self, key, val):
+        # ensure the file is open
+        self.open_h5()
+
         if not self._h5:
             wandb.termerror("Reading tensors from summary requires h5py")
         else:
             return self._h5["summary/" + key]
+
+    def open_h5(self):
+        if not self._h5 and h5py:
+            self._h5 = h5py.File(self._h5_path, 'a', libver='latest')
 
     def convert_json(self, obj=None, root_path=[]):
         """Convert obj to json, summarizing larger arrays in JSON and storing them in h5."""
@@ -150,7 +158,7 @@ def download_h5(run, entity=None, project=None, out_dir=None):
 
 def upload_h5(file, run, entity=None, project=None):
     api = Api()
-    #TODO: unfortunate
+    # TODO: unfortunate
     slug = "/".join([project or api.settings("project"), run])
     api.push(slug, {os.path.basename(file): open(file, 'rb')},
              entity=entity, progress=sys.stdout)
