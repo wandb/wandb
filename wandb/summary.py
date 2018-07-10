@@ -45,7 +45,7 @@ class Summary(object):
             if v.get("_type") in H5_TYPES:
                 return self.read_h5(k, v)
             else:
-                return {key: self._transform(k+"/"+key, value, write=False) for (key, value) in v.items()}
+                return {key: self._transform(k+"."+key, value, write=False) for (key, value) in v.items()}
         else:
             return v
 

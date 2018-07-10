@@ -22,4 +22,4 @@ numpy
 pytest-flask
 mock==2.0.0
 twine==1.11.0
-h5py
+h5py==2.8.0
