@@ -4,7 +4,7 @@ machine:
 
 dependencies:
   override:
-    - apt-get install libhdf5-7
+    - sudo apt-get install libhdf5-7
     - pip -V
     - pip install -U 'pip<8.0' 'virtualenv<14.0' ipdb tox tox-pyenv
     - pyenv local 2.7.11 3.5.3 3.6.0
