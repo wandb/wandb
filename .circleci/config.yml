@@ -33,7 +33,10 @@ jobs:
           name: Run tests
           command: |
             . venv/bin/activate
-            pytest --cov=wandb --junitxml="{env:CIRCLE_TEST_REPORTS}/results.xml"
+            mkdir -p results
+            pytest --cov=wandb --junitxml="results/pytest.xml"
+      - store_test_results:
+          path: results
   test-3.5:
     <<: *test-template
     docker:
