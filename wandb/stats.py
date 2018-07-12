@@ -160,7 +160,7 @@ class SystemStats(object):
                 1048576.0
             stats["proc.memory.availableMB"] = sysmem.available / 1048576.0
             stats["proc.memory.percent"] = self.proc.memory_percent()
+            stats["proc.cpu.threads"] = self.proc.num_threads()
         except psutil.NoSuchProcess:
             pass
-        stats["proc.cpu.threads"] = self.proc.num_threads()
         return stats
