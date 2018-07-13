@@ -54,7 +54,6 @@ class WandbCallback(keras.callbacks.Callback):
         if validation_data is not None:
             # For backwards compatability
             self.data_type = data_type or "image"
-            self.validation_data = validation_data
 
         self.labels = labels
         self.data_type = data_type
