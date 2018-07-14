@@ -7,7 +7,6 @@ from six.moves import queue
 
 import wandb
 
-
 EventFileChanged = collections.namedtuple(
     'EventFileChanged', ('path', 'save_name', 'copy'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
@@ -26,15 +25,21 @@ class UploadJob(threading.Thread):
 
     def run(self):
         try:
-            #wandb.termlog('Uploading file: %s' % self.save_name)
+            #wandb.termlog('Uploading file: %s' % self.save_name
             save_path = self.path
             if self.copy:
                 save_path = self.path + '.tmp'
+                # LB: Why does this happen?  CVP told me to put this here
+                #if (os.path.getsize(save_path) == 0):
+                #    return
                 shutil.copy2(self.path, save_path)
+            
             self._push_function(self.save_name, save_path)
             if self.copy:
                 os.remove(save_path)
             #wandb.termlog('Done uploading file: %s' % self.save_name)
+        #except OSError as e:
+        #    pass
         finally:
             self._done_queue.put(EventJobDone(self))
 

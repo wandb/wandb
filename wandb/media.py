@@ -57,9 +57,13 @@ class Image(object):
         except ImportError:
             raise ValueError(
                 "wandb.Image requires numpy if not supplying PIL Images: pip install numpy")
-        if issubclass(data.dtype.type, np.floating):
+        #if issubclass(data.dtype.type, np.floating):
+        #    data = (data * 255).astype(np.int32)
+        # some images have range 0-1
+        if np.max(data) <= 1.0:
             data = (data * 255).astype(np.int32)
-        assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
+
+        #assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
         return data.clip(0, 255).astype(np.uint8)
 
     @staticmethod

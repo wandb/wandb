@@ -6,6 +6,7 @@ import wandb
 import sys
 from importlib import import_module
 import keras
+from itertools import chain
 import keras.backend as K
 
 
@@ -141,7 +142,11 @@ class WandbCallback(keras.callbacks.Callback):
         validation_X = self.validation_data[0]
         validation_length = len(validation_X)
 
-        indices = np.random.choice(validation_length, num_images)
+
+        if num_images > validation_length:
+            indices = np.random.choice(validation_length, num_images)
+        else:
+            indices = range(validation_length)
 
         test_data = []
         labels = []
@@ -151,19 +156,47 @@ class WandbCallback(keras.callbacks.Callback):
 
         predictions = self.model.predict(np.stack(test_data))
 
-        labels = np.argmax(np.stack(predictions), axis=1)
+        if (len(predictions[0].shape) == 1):
+            if (predictions[0].shape[0] == 1):
+                # Scalar output from the model
+                if len(self.labels) == 2:
+                    # User has named true and false
+                    print(predictions)
+                    captions = [self.labels[1] if prediction[0] > 0.5 else self.labels[0] for prediction in predictions]
+                else:
+                    if len(self.labels) != 0:
+                        print("Warning: keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
+                    captions = [prediction[0] for prediction in predictions]
 
-        if len(self.labels) > 0:
-            captions = []
-            for label in labels:
-                try:
-                    captions.append(self.labels[label])
-                except IndexError:
-                    captions.append(label)
+                return [wandb.Image(data, caption=str(captions[i])) for i, data in enumerate(test_data)]
+            else:
+                # Vector output from the model
+                labels = np.argmax(np.stack(predictions), axis=1)
+
+                if len(self.labels) > 0:
+                    # User has named the categories in self.labels
+                    captions = []
+                    for label in labels:
+                        try:
+                            captions.append(self.labels[label])
+                        except IndexError:
+                            captions.append(label)
+                else:
+                    captions = labels
+                return [wandb.Image(data, caption=captions[i]) for i, data in enumerate(test_data)]
+        elif (len(predictions[0].shape) == 2 or 
+            (len(predictions[0].shape) == 3 and predictions[0].shape[2] in [0,1,3,4])):
+            # Looks like the model is outputting an image
+            input_images = [wandb.Image(data) for i, data in enumerate(test_data)]
+            output_images = [wandb.Image(prediction) for i, prediction in enumerate(predictions)]
+            return list(chain.from_iterable(zip(input_images,output_images)))
         else:
-            captions = labels
+            # More complicated output from the model, we'll just show the input
+            return [wandb.Image(data) for i, data in enumerate(test_data)]
 
-        return [wandb.Image(data, caption=captions[i]) for i, data in enumerate(test_data)]
+            
+
+
 
     def _log_weights(self):
         metrics = {}
