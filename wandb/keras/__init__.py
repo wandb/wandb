@@ -102,9 +102,7 @@ class WandbCallback(keras.callbacks.Callback):
     def set_model(self, model):
         self.model = model
         # TODO should this be _graph??
-        print(wandb.Graph.transform(wandb.Graph.from_keras(self.model)))
-        wandb.log({'graph': wandb.Graph.from_keras(self.model)})
-        #wandb.log({'a': 2})
+        wandb.log({'graph': wandb.Graph.from_keras(self.model)}, commit=False)
 
     def on_epoch_begin(self, epoch, logs=None):
         pass
