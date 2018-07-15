@@ -53,7 +53,6 @@ class Graph(object):
                 relevant_nodes += v
 
         layers = model.layers
-        print("here", layers)
         for i in range(len(layers)):
             node = Node.from_keras(layers[i], relevant_nodes)
             graph.nodes.append(node)
@@ -62,7 +61,7 @@ class Graph(object):
 
     @staticmethod
     def transform(graph):
-        return {"_type": "graph", "_subtype": "keras", "nodes": [Node.transform(node) for node in graph.nodes]}
+        return {"_type": "graph", "format": "keras", "nodes": [Node.transform(node) for node in graph.nodes]}
 
 
 class Node(object):
@@ -100,7 +99,6 @@ class Node(object):
 
     @staticmethod
     def transform(node):
-        node.attributes['_type'] = 'node'
         return node.attributes
 
 
