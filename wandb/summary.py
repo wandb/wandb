@@ -154,6 +154,7 @@ def download_h5(run, entity=None, project=None, out_dir=None):
         "project"), DEEP_SUMMARY_FNAME, entity=entity or api.settings("entity"), run=run)
     if meta:
         # TODO: make this non-blocking
+        wandb.termlog("Downloading summary data...")
         path, res = api.download_write_file(meta, out_dir=out_dir)
         return path
 
@@ -162,8 +163,9 @@ def upload_h5(file, run, entity=None, project=None):
     api = Api()
     # TODO: unfortunate
     slug = "/".join([project or api.settings("project"), run])
+    wandb.termlog("Uploading summary data...")
     api.push(slug, {os.path.basename(file): open(file, 'rb')},
-             entity=entity, progress=sys.stdout)
+             entity=entity)
 
 
 class FileSummary(Summary):
