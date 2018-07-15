@@ -53,6 +53,7 @@ from wandb import jupyter
 from wandb.run_manager import RunManager
 from wandb.media import Image
 from wandb.data_types import Histogram
+from wandb.data_types import Graph
 
 
 logger = logging.getLogger(__name__)

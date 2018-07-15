@@ -47,7 +47,10 @@ class WandbCallback(keras.callbacks.Callback):
             validation_data: tuple (X,y) for showing validation (not usually necessary
                 since this is saved in self.validation_data)
             data_type: the type of data we're saving, set to "image" for saving images
-            labels: list of labels
+            labels: list of labels to convert numeric output to if you are building a 
+                multiclass classifier.  If you are making a binary classifier you can pass in
+                a list of two labels ["label for false", "label for true"]
+
         """
         if wandb.run is None:
             raise wandb.Error(
@@ -98,6 +101,10 @@ class WandbCallback(keras.callbacks.Callback):
 
     def set_model(self, model):
         self.model = model
+        # TODO should this be _graph??
+        print(wandb.Graph.transform(wandb.Graph.from_keras(self.model)))
+        wandb.log({'graph': wandb.Graph.from_keras(self.model)})
+        #wandb.log({'a': 2})
 
     def on_epoch_begin(self, epoch, logs=None):
         pass
@@ -118,6 +125,8 @@ class WandbCallback(keras.callbacks.Callback):
 
         if self.data_type == "image" and self.validation_data and len(self.validation_data) > 0:
             wandb.log({"examples": self._log_images()}, commit=False)
+
+        print("Logging")
         wandb.log(row)
 
         self.current = logs.get(self.monitor)
@@ -140,37 +149,44 @@ class WandbCallback(keras.callbacks.Callback):
 
     def _log_images(self, num_images=36):
         validation_X = self.validation_data[0]
+        validation_y = self.validation_data[1]
+
         validation_length = len(validation_X)
 
-
-        if num_images > validation_length:
+        if validation_length > num_images:
+            # pick some data at random
             indices = np.random.choice(validation_length, num_images)
         else:
             indices = range(validation_length)
 
         test_data = []
+        test_output = []
         labels = []
         for i in indices:
             test_example = validation_X[i]
             test_data.append(test_example)
+            test_output.append(validation_y[i])
 
         predictions = self.model.predict(np.stack(test_data))
 
         if (len(predictions[0].shape) == 1):
             if (predictions[0].shape[0] == 1):
                 # Scalar output from the model
+                # TODO: handle validation_y
                 if len(self.labels) == 2:
                     # User has named true and false
-                    print(predictions)
-                    captions = [self.labels[1] if prediction[0] > 0.5 else self.labels[0] for prediction in predictions]
+                    captions = [self.labels[1] if prediction[0] >
+                                0.5 else self.labels[0] for prediction in predictions]
                 else:
                     if len(self.labels) != 0:
-                        print("Warning: keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
+                        print(
+                            "Warning: keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
                     captions = [prediction[0] for prediction in predictions]
 
                 return [wandb.Image(data, caption=str(captions[i])) for i, data in enumerate(test_data)]
             else:
                 # Vector output from the model
+                # TODO: handle validation_y
                 labels = np.argmax(np.stack(predictions), axis=1)
 
                 if len(self.labels) > 0:
@@ -184,19 +200,19 @@ class WandbCallback(keras.callbacks.Callback):
                 else:
                     captions = labels
                 return [wandb.Image(data, caption=captions[i]) for i, data in enumerate(test_data)]
-        elif (len(predictions[0].shape) == 2 or 
-            (len(predictions[0].shape) == 3 and predictions[0].shape[2] in [0,1,3,4])):
+        elif (len(predictions[0].shape) == 2 or
+              (len(predictions[0].shape) == 3 and predictions[0].shape[2] in [0, 1, 3, 4])):
             # Looks like the model is outputting an image
-            input_images = [wandb.Image(data) for i, data in enumerate(test_data)]
-            output_images = [wandb.Image(prediction) for i, prediction in enumerate(predictions)]
-            return list(chain.from_iterable(zip(input_images,output_images)))
+            input_images = [wandb.Image(data)
+                            for data in test_data]
+            output_images = [wandb.Image(prediction)
+                             for prediction in predictions]
+            reference_images = [wandb.Image(data)
+                                for data in test_output]
+            return list(chain.from_iterable(zip(input_images, output_images, reference_images)))
         else:
             # More complicated output from the model, we'll just show the input
-            return [wandb.Image(data) for i, data in enumerate(test_data)]
-
-            
-
-
+            return [wandb.Image(data) for data in test_data]
 
     def _log_weights(self):
         metrics = {}
@@ -205,8 +221,8 @@ class WandbCallback(keras.callbacks.Callback):
             if len(weights) == 1:
                 metrics[layer.name] = np.mean(weights[0])
             elif len(weights) == 2:
-                metrics[layer.name + ".weights-mean"] = np.mean(weights[0])
-                metrics[layer.name + ".bias-mean"] = np.mean(weights[1])
+                metrics[layer.name + ".weights"] = wandb.Histogram(weights[0])
+                metrics[layer.name + ".bias"] = wandb.Histogram(weights[1])
         return metrics
 
     def _log_gradients(self):
@@ -236,8 +252,9 @@ class WandbCallback(keras.callbacks.Callback):
         grads = get_gradients([X_train, np.ones(len(y_train)), y_train])
 
         for (weight, grad) in zip(weights, grads):
-            metrics[weight.name.split(':')[0] + ".grad-mean"] = np.mean(grad)
-            metrics[weight.name.split(':')[0] + ".grad-stddev"] = np.std(grad)
+            metrics[weight.name.split(
+                ':')[0] + ".gradient"] = wandb.Histogram(grad)
+
         return metrics
 
     def _save_model(self, epoch):

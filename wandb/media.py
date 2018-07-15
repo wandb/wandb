@@ -23,7 +23,7 @@ class Image(object):
             from PIL import Image as PILImage
         except ImportError:
             raise ValueError(
-                "wandb.Image requires the PIL package: pip install pillow")
+                "wandb.Image requires the PIL package, to get it run: pip install pillow")
         if type(data) == PILImage.Image:
             self.image = data
         else:
@@ -57,7 +57,11 @@ class Image(object):
         except ImportError:
             raise ValueError(
                 "wandb.Image requires numpy if not supplying PIL Images: pip install numpy")
-        #if issubclass(data.dtype.type, np.floating):
+
+        # I think it's better to check the image range vs the data type, since many
+        # image libraries will return floats between 0 and 255
+
+        # if issubclass(data.dtype.type, np.floating):
         #    data = (data * 255).astype(np.int32)
         # some images have range 0-1
         if np.max(data) <= 1.0:
