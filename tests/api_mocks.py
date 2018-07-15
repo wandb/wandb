@@ -158,8 +158,9 @@ def query_download_h5():
                             content=content, status_code=status_code)
         return _query('model', _download_urls(files={'edges': [{'node': {
             'name': 'wandb.h5',
-                    'url': 'https://h5py.url',
-                    'md5': 'fakemd5'
+            'url': 'https://h5py.url',
+            'md5': 'fakemd5',
+            'updatedAt': 'now',
         }}]}), body_match="files(names: [")(mocker, status_code, error)
 
     return wrapper
@@ -171,8 +172,8 @@ def query_upload_h5(mocker):
         mocker.register_uri('PUT', "https://h5py.url")
         return _query('model', _download_urls(files={'edges': [{'node': {
             'name': 'wandb.h5',
-                    'url': 'https://h5py.url',
-                    'md5': 'fakemd5'
+            'url': 'https://h5py.url',
+            'md5': 'fakemd5'
         }}]}), body_match='files(names: ')(mocker, status_code, error)
     return wrapper
 

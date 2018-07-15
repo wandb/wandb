@@ -64,12 +64,24 @@ def test_big_numpy(summary):
     assert os.path.exists("wandb.h5")
 
 
+def test_big_nested_numpy(summary):
+    summary.update({"rad": {"deep": np.random.rand(1000)}})
+    assert json.load(open("wandb-summary.json"))["rad"]["deep"]["max"] > 0
+    assert os.path.exists("wandb.h5")
+
+
 def test_small_numpy(summary):
     summary.update({"rad": np.random.rand(10)})
     assert len(json.load(open("wandb-summary.json"))["rad"]) == 10
 
 
-def rest_read_numpy(summary):
+def test_read_numpy(summary):
     summary.update({"rad": np.random.rand(1000)})
     s = FileSummary()
     assert len(s["rad"]) == 1000
+
+
+def test_read_nested_numpy(summary):
+    summary.update({"rad": {"deep": np.random.rand(1000)}})
+    s = FileSummary()
+    assert len(s["rad"]["deep"]) == 1000
