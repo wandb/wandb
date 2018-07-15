@@ -1,6 +1,107 @@
 import collections
 
 
+class Graph(object):
+    def __init__(self):
+        self.nodes = []
+
+    @classmethod
+    def from_keras(cls, model):
+        graph = cls()
+
+        # Shamelessly copied from keras/keras/utils/layer_utils.py
+
+        if model.__class__.__name__ == 'Sequential':
+            sequential_like = True
+        elif not model._is_graph_network:
+            # We treat subclassed models as a simple sequence of layers,
+            # for logging purposes.
+            sequential_like = True
+        else:
+            sequential_like = True
+            nodes_by_depth = model._nodes_by_depth.values()
+            nodes = []
+            for v in nodes_by_depth:
+                if (len(v) > 1) or (len(v) == 1 and len(v[0].inbound_layers) > 1):
+                    # if the model has multiple nodes
+                    # or if the nodes have multiple inbound_layers
+                    # the model is no longer sequential
+                    sequential_like = False
+                    break
+                nodes += v
+            if sequential_like:
+                # search for shared layers
+                for layer in model.layers:
+                    flag = False
+                    for node in layer._inbound_nodes:
+                        if node in nodes:
+                            if flag:
+                                sequential_like = False
+                                break
+                            else:
+                                flag = True
+                    if not sequential_like:
+                        break
+
+        relevant_nodes = None
+        if sequential_like:
+            # header names for the different log elements
+            to_display = ['Layer (type)', 'Output Shape', 'Param #']
+        else:
+            relevant_nodes = []
+            for v in model._nodes_by_depth.values():
+                relevant_nodes += v
+
+        layers = model.layers
+        for i in range(len(layers)):
+            node = Node.from_keras(layers[i], relevant_nodes)
+            graph.nodes.append(node)
+
+        return graph
+
+    @staticmethod
+    def transform(graph):
+        return {"_type": "graph", "format": "keras", "nodes": [Node.transform(node) for node in graph.nodes]}
+
+
+class Node(object):
+    def __init__(self):
+        self.attributes = {}
+
+    @classmethod
+    def from_keras(cls, layer, relevant_nodes=None):
+        node = cls()
+
+        try:
+            output_shape = layer.output_shape
+        except AttributeError:
+            output_shape = 'multiple'
+
+        node.attributes['name'] = layer.name
+        node.attributes['class_name'] = layer.__class__.__name__
+        node.attributes['output_shape'] = output_shape
+        node.attributes['num_parameters'] = layer.count_params()
+
+        connections = []
+        for in_node in layer._inbound_nodes:
+            if relevant_nodes and in_node not in relevant_nodes:
+                # node is not part of the current network
+                continue
+            for i in range(len(in_node.inbound_layers)):
+                inbound_layer = in_node.inbound_layers[i].name
+                inbound_node_index = in_node.node_indices[i]
+                inbound_tensor_index = in_node.tensor_indices[i]
+                connections.append(inbound_layer +
+                                   '[' + str(inbound_node_index) + '][' +
+                                   str(inbound_tensor_index) + ']')
+        node.attributes['inbound_nodes'] = connections
+        return node
+
+    @staticmethod
+    def transform(node):
+        return node.attributes
+
+
 class Histogram(object):
     MAX_LENGTH = 512
 

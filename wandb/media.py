@@ -14,22 +14,25 @@ MAX_IMAGES = 50
 
 class Image(object):
 
-    def __init__(self, data, mode=None, caption=None):
+    def __init__(self, data, mode=None, caption=None, grouping=None):
         """
         Accepts numpy array of image data, or a PIL image. The class attempts to infer
         the data format and converts it.
+
+        If grouping is set to a number the interface combines N images.
         """
         try:
             from PIL import Image as PILImage
         except ImportError:
             raise ValueError(
-                "wandb.Image requires the PIL package: pip install pillow")
+                "wandb.Image requires the PIL package, to get it run: pip install pillow")
         if type(data) == PILImage.Image:
             self.image = data
         else:
             data = data.squeeze()  # get rid of trivial dimensions as a convenience
             self.image = PILImage.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data))
+        self.grouping = grouping
         self.caption = caption
 
     def guess_mode(self, data):
@@ -57,9 +60,17 @@ class Image(object):
         except ImportError:
             raise ValueError(
                 "wandb.Image requires numpy if not supplying PIL Images: pip install numpy")
-        if issubclass(data.dtype.type, np.floating):
+
+        # I think it's better to check the image range vs the data type, since many
+        # image libraries will return floats between 0 and 255
+
+        # if issubclass(data.dtype.type, np.floating):
+        #    data = (data * 255).astype(np.int32)
+        # some images have range 0-1
+        if np.max(data) <= 1.0:
             data = (data * 255).astype(np.int32)
-        assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
+
+        #assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
         return data.clip(0, 255).astype(np.uint8)
 
     @staticmethod
@@ -84,6 +95,10 @@ class Image(object):
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
                 "count": len(images), "_type": "images"}
+        # TODO: hacky way to enable image grouping for now
+        grouping = images[0].grouping
+        if grouping:
+            meta["grouping"] = grouping
         captions = Image.captions(images[:MAX_IMAGES])
         if captions:
             meta["captions"] = captions
@@ -91,7 +106,7 @@ class Image(object):
 
     @staticmethod
     def captions(images):
-        if images[0].caption:
+        if images[0].caption != None:
             return [i.caption for i in images]
         else:
             return False

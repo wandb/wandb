@@ -40,12 +40,14 @@ class Summary(object):
         raise NotImplementedError
 
     def _transform(self, k, v=None, write=True):
-        if isinstance(v, wandb.Histogram):
-            return wandb.Histogram.transform(v)
         if not write and isinstance(v, dict):
-            # TODO: support nesting
             if v.get("_type") in H5_TYPES:
                 return self.read_h5(k, v)
+
+        if isinstance(v, wandb.Histogram):
+            return wandb.Histogram.transform(v)
+        elif isinstance(v, wandb.Graph):
+            return wandb.Graph.transform(v)
         else:
             return v
 

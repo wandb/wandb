@@ -7,7 +7,6 @@ from six.moves import queue
 
 import wandb
 
-
 EventFileChanged = collections.namedtuple(
     'EventFileChanged', ('path', 'save_name', 'copy'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
@@ -26,7 +25,7 @@ class UploadJob(threading.Thread):
 
     def run(self):
         try:
-            #wandb.termlog('Uploading file: %s' % self.save_name)
+            # wandb.termlog('Uploading file: %s' % self.save_name
             save_path = self.path
             if self.copy:
                 save_path = self.path + '.tmp'
@@ -120,7 +119,8 @@ class FilePusher(object):
             self._start_job(save_name, path, copy)
 
     def file_changed(self, save_name, path, copy=False):
-        self._queue.put(EventFileChanged(path, save_name, copy))
+        if os.path.getsize(path) != 0:
+            self._queue.put(EventFileChanged(path, save_name, copy))
 
     def finish(self):
         self._queue.put(EventFinish())

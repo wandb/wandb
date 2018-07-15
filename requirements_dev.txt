@@ -25,3 +25,4 @@ numpy==1.14.2
 h5py==2.7.1
 keras==2.1.6
 tensorflow==1.7.1
+pillow
