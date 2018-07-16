@@ -5,6 +5,9 @@ from wandb import Histogram
 import numpy as np
 import os
 import json
+import torch
+import tensorflow as tf
+import pandas as pd
 
 
 @pytest.fixture
@@ -70,9 +73,27 @@ def test_big_nested_numpy(summary):
     assert os.path.exists("wandb.h5")
 
 
-def test_small_numpy(summary):
-    summary.update({"rad": np.random.rand(10)})
-    assert len(json.load(open("wandb-summary.json"))["rad"]) == 10
+def test_torch_tensor(summary):
+    summary.update({"pytorch": torch.rand(1000, 1000)})
+    assert os.path.exists("wandb.h5")
+    assert json.load(open("wandb-summary.json")
+                     )["pytorch"]["_type"] == "torch.Tensor"
+
+
+def test_tensorflow_tensor(summary):
+    with tf.Session().as_default():
+        summary.update({"tensorflow": tf.random_normal([1000])})
+    assert os.path.exists("wandb.h5")
+    assert json.load(open("wandb-summary.json")
+                     )["tensorflow"]["_type"] == "tensorflow.Tensor"
+
+
+def test_pandas(summary):
+    summary.update({"pandas": pd.DataFrame(data=np.random.rand(1000))})
+    assert os.path.exists("wandb.h5")
+    parsed = json.load(open("wandb-summary.json"))
+    print(parsed)
+    assert parsed["pandas"]["_type"] == "pandas.DataFrame"
 
 
 def test_read_numpy(summary):

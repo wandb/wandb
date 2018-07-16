@@ -128,6 +128,8 @@ class Histogram(object):
                     "Auto creation of histograms requires numpy")
             self.histogram, self.bins = np.histogram(
                 sequence, bins=num_bins)
+            self.histogram = self.histogram.tolist()
+            self.bins = self.bins.tolist()
         if len(self.histogram) > self.MAX_LENGTH:
             raise ValueError(
                 "The maximum length of a histogram is %i" % MAX_LENGTH)

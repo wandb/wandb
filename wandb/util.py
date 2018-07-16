@@ -35,9 +35,9 @@ except ImportError:
         pass
 
 try:
-    from tensorflow import Tensor
+    from tensorflow import Tensor as TFTensor
 except ImportError:
-    class Tensor(object):
+    class TFTensor(object):
         pass
 
 try:
@@ -53,30 +53,31 @@ except ImportError:
 MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
-NP_BYTES_LIMIT = 1000
 
 
 def fullname(o):
-    return o.__class__.__module__ + "." + o.__class__.__name__
+    return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
 
 
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
     converted = True
     transformed = False
-    if isinstance(obj, (np.ndarray, Tensor, pandas.DataFrame)):
-        if getsizeof(obj) > NP_BYTES_LIMIT:
-            obj = {
-                "_type": fullname(obj),
-                "var": np.var(obj),
-                "mean": np.mean(obj),
-                "min": np.amin(obj),
-                "max": np.amax(obj),
-                "len": len(obj)
-            }
-            transformed = True
-        else:
-            obj = obj.tolist()
+    if isinstance(obj, (np.ndarray, Tensor, TFTensor, pandas.DataFrame)):
+        name = fullname(obj)
+        if isinstance(obj, Tensor):
+            obj = obj.numpy()
+        elif isinstance(obj, TFTensor):
+            obj = obj.eval()
+        obj = {
+            "_type": name,
+            "var": np.var(obj).item(),
+            "mean": np.mean(obj).item(),
+            "min": np.amin(obj).item(),
+            "max": np.amax(obj).item(),
+            "len": len(obj)
+        }
+        transformed = True
     elif isinstance(obj, np.generic):
         obj = np.asscalar(obj)
     elif isinstance(obj, bytes):

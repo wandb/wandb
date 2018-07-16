@@ -130,6 +130,10 @@ class Summary(object):
             else:
                 res[key], converted, transformed = util.json_friendly(value)
                 if transformed:
+                    if res[key]["_type"] == "pytorch.Tensor":
+                        value = value.numpy()
+                    elif res[key]["_type"] == "tensorflow.Tensor":
+                        value = value.eval()
                     self.write_h5(path, value)
         self._summary = res
         return res
