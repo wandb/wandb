@@ -640,7 +640,7 @@ class Api(object):
             'name': project, 'run': run or self.settings('run'),
             'entity': entity or self.settings('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
-        return {file['name']: file for file in files}
+        return {file['name']: file for file in files if file}
 
     @normalize_exceptions
     def download_url(self, project, file_name, run=None, entity=None):
@@ -714,7 +714,7 @@ class Api(object):
         size, response = self.download_file(metadata['url'])
 
         with open(path, "wb") as file:
-            for data in response.iter_content():
+            for data in response.iter_content(chunk_size=1024):
                 file.write(data)
 
         return path, response
