@@ -23,6 +23,8 @@ class Summary(object):
     def _transform(self, v):
         if isinstance(v, wandb.Histogram):
             return wandb.Histogram.transform(v)
+        elif isinstance(v, wandb.Graph):
+            return wandb.Graph.transform(v)
         else:
             return v
 

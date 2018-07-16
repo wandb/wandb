@@ -155,8 +155,6 @@ class History(object):
                         "Mixed media types in the same list aren't supported")
             elif isinstance(val, data_types.Histogram):
                 self.row[key] = data_types.Histogram.transform(val)
-            elif isinstance(val, data_types.Graph):
-                self.row[key] = data_types.Graph.transform(val)
 
     def _write(self):
         if self.row:

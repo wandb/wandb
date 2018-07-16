@@ -14,10 +14,12 @@ MAX_IMAGES = 50
 
 class Image(object):
 
-    def __init__(self, data, mode=None, caption=None):
+    def __init__(self, data, mode=None, caption=None, grouping=None):
         """
         Accepts numpy array of image data, or a PIL image. The class attempts to infer
         the data format and converts it.
+
+        If grouping is set to a number the interface combines N images.
         """
         try:
             from PIL import Image as PILImage
@@ -30,6 +32,7 @@ class Image(object):
             data = data.squeeze()  # get rid of trivial dimensions as a convenience
             self.image = PILImage.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data))
+        self.grouping = grouping
         self.caption = caption
 
     def guess_mode(self, data):
@@ -92,6 +95,10 @@ class Image(object):
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
                 "count": len(images), "_type": "images"}
+        # TODO: hacky way to enable image grouping for now
+        grouping = images[0].grouping
+        if grouping:
+            meta["grouping"] = grouping
         captions = Image.captions(images[:MAX_IMAGES])
         if captions:
             meta["captions"] = captions
@@ -99,7 +106,7 @@ class Image(object):
 
     @staticmethod
     def captions(images):
-        if images[0].caption:
+        if images[0].caption != None:
             return [i.caption for i in images]
         else:
             return False
