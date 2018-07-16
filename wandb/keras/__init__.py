@@ -209,7 +209,7 @@ class WandbCallback(keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.get_weights()
             if len(weights) == 1:
-                metrics[layer.name] = np.mean(weights[0])
+                metrics[layer.name + ".weights"] = wandb.Histogram(weights[0])
             elif len(weights) == 2:
                 metrics[layer.name + ".weights"] = wandb.Histogram(weights[0])
                 metrics[layer.name + ".bias"] = wandb.Histogram(weights[1])
