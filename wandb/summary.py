@@ -219,7 +219,7 @@ class HTTPSummary(Summary):
                 'id': self._run_storage_id, 'summaryMetrics': util.json_dumps_safer(self.convert_json())})
             assert res['upsertBucket']['bucket']['id']
             entity, project, run = self._path.split("/")
-            if os.path.exists(self._h5_path) and os.path.getmtime(self._h5_path) > self._started:
+            if os.path.exists(self._h5_path) and os.path.getmtime(self._h5_path) >= self._started:
                 upload_h5(self._h5_path, run, entity=entity, project=project)
         else:
             return False
