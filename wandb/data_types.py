@@ -33,13 +33,14 @@ class Graph(object):
                 # search for shared layers
                 for layer in model.layers:
                     flag = False
-                    for node in layer._inbound_nodes:
-                        if node in nodes:
-                            if flag:
-                                sequential_like = False
-                                break
-                            else:
-                                flag = True
+                    if hasattr(layer, "_inbound_nodes"):
+                        for node in layer._inbound_nodes:
+                            if node in nodes:
+                                if flag:
+                                    sequential_like = False
+                                    break
+                                else:
+                                    flag = True
                     if not sequential_like:
                         break
 
@@ -83,17 +84,18 @@ class Node(object):
         node.attributes['num_parameters'] = layer.count_params()
 
         connections = []
-        for in_node in layer._inbound_nodes:
-            if relevant_nodes and in_node not in relevant_nodes:
-                # node is not part of the current network
-                continue
-            for i in range(len(in_node.inbound_layers)):
-                inbound_layer = in_node.inbound_layers[i].name
-                inbound_node_index = in_node.node_indices[i]
-                inbound_tensor_index = in_node.tensor_indices[i]
-                connections.append(inbound_layer +
-                                   '[' + str(inbound_node_index) + '][' +
-                                   str(inbound_tensor_index) + ']')
+        if hasattr(layer, '_inbound_nodes'):
+            for in_node in layer._inbound_nodes:
+                if relevant_nodes and in_node not in relevant_nodes:
+                    # node is not part of the current network
+                    continue
+                for i in range(len(in_node.inbound_layers)):
+                    inbound_layer = in_node.inbound_layers[i].name
+                    inbound_node_index = in_node.node_indices[i]
+                    inbound_tensor_index = in_node.tensor_indices[i]
+                    connections.append(inbound_layer +
+                                       '[' + str(inbound_node_index) + '][' +
+                                       str(inbound_tensor_index) + ']')
         node.attributes['inbound_nodes'] = connections
         return node
 

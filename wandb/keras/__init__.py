@@ -114,9 +114,13 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.data_type == "image" and self.validation_data and len(self.validation_data) > 0:
-            wandb.log({"examples": self._log_images(
-                num_images=self.predictions)}, commit=False)
+        if self.data_type == "image":
+            if not hasattr(self, "validation_data"):
+                termlog(
+                    "WARNING: No validation_data set, set it in your call to `model.fit`")
+            elif self.validation_data and len(self.validation_data) > 0:
+                wandb.log({"examples": self._log_images(
+                    num_images=self.predictions)}, commit=False)
 
         logs.update({'epoch': epoch})
         wandb.log(logs)
