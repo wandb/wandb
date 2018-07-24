@@ -47,7 +47,6 @@ def json_friendly(obj):
     converted = True
     transformed = False
     name = fullname(obj)
-    print("WHOA", name)
     if name in ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor", "pandas.DataFrame"):
         if name == "torch.Tensor":
             obj = obj.numpy()
@@ -59,6 +58,7 @@ def json_friendly(obj):
             "mean": np.mean(obj).item(),
             "min": np.amin(obj).item(),
             "max": np.amax(obj).item(),
+            "10%": np.percentile(obj, 10),
             "25%": np.percentile(obj, 25),
             "75%": np.percentile(obj, 75),
             "90%": np.percentile(obj, 90),
