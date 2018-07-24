@@ -5,11 +5,15 @@ import numpy as np
 import wandb
 import sys
 from importlib import import_module
-import keras
 from itertools import chain
-import keras.backend as K
+try:
+    import keras
+    import keras.backend as K
+except ImportError:
+    import tensorflow.keras as keras
+    import tensorflow.keras.backend as K
 
-
+    
 class WandbCallback(keras.callbacks.Callback):
     """WandB Keras Callback.
 
