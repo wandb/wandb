@@ -11,6 +11,7 @@ import time
 import traceback
 
 import wandb
+import wandb.io_wrap
 import wandb.run_manager
 import wandb.wandb_run
 from wandb import util
