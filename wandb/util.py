@@ -29,26 +29,9 @@ from wandb import wandb_dir
 logger = logging.getLogger(__name__)
 
 try:
-    from torch import Tensor
-except ImportError:
-    class Tensor(object):
-        pass
-
-try:
-    from tensorflow import Tensor as TFTensor
-except ImportError:
-    class TFTensor(object):
-        pass
-
-try:
     import numpy as np
 except ImportError:
     np = namedtuple('np', ['ndarray', 'generic'])
-
-try:
-    import pandas
-except ImportError:
-    pandas = namedtuple('pandas', ['DataFrame'])
 
 MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
@@ -63,11 +46,12 @@ def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
     converted = True
     transformed = False
-    if isinstance(obj, (np.ndarray, Tensor, TFTensor, pandas.DataFrame)):
-        name = fullname(obj)
-        if isinstance(obj, Tensor):
+    name = fullname(obj)
+    print("WHOA", name)
+    if name in ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor", "pandas.DataFrame"):
+        if name == "torch.Tensor":
             obj = obj.numpy()
-        elif isinstance(obj, TFTensor):
+        elif name == "tensorflow.Tensor":
             obj = obj.eval()
         obj = {
             "_type": name,
@@ -75,6 +59,9 @@ def json_friendly(obj):
             "mean": np.mean(obj).item(),
             "min": np.amin(obj).item(),
             "max": np.amax(obj).item(),
+            "25%": np.percentile(obj, 25),
+            "75%": np.percentile(obj, 75),
+            "90%": np.percentile(obj, 90),
             "len": len(obj)
         }
         transformed = True
