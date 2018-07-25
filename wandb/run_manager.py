@@ -620,6 +620,7 @@ class RunManager(object):
             self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=True)
 
     def init_run(self, env=None):
+        io_wrap.init_sigwinch_handler()
         self._system_stats.start()
         self._meta.start()
         self._api.get_file_stream_api().start()
@@ -762,6 +763,11 @@ class RunManager(object):
             wandb.termerror(str(e))
             self._socket.launch_error()
             return
+
+        if io_wrap.SIGWINCH_HANDLER is not None:
+            # SIGWINCH_HANDLER (maybe) gets set in self.init_run()
+            io_wrap.SIGWINCH_HANDLER.add_fd(stdout_read_fd)
+            io_wrap.SIGWINCH_HANDLER.add_fd(stderr_read_fd)
 
         # Signal the main process that we're all hooked up
         self._socket.ready()

@@ -19,10 +19,6 @@ import logging
 import time
 import os
 import contextlib
-try:
-    import pty
-except ImportError:  # windows
-    pty = None
 import signal
 import six
 import getpass
@@ -30,10 +26,6 @@ import socket
 import subprocess
 import sys
 import traceback
-try:
-    import tty
-except ImportError:  # windows
-    tty = None
 import types
 
 from . import env
@@ -130,12 +122,8 @@ def _init_headless(run, job_type, cloud=True):
         stdout_master_fd, stdout_slave_fd = os.pipe()
         stderr_master_fd, stderr_slave_fd = os.pipe()
     else:
-        stdout_master_fd, stdout_slave_fd = pty.openpty()
-        stderr_master_fd, stderr_slave_fd = pty.openpty()
-
-        # raw mode so carriage returns etc. don't get added by the terminal driver
-        tty.setraw(stdout_master_fd)
-        tty.setraw(stderr_master_fd)
+        stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
+        stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
 
     headless_args = {
         'command': 'headless',

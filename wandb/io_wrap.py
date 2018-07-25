@@ -32,18 +32,22 @@ https://eli.thegreenplace.net/2015/redirecting-all-kinds-of-stdout-in-python/
 https://stackoverflow.com/questions/34186035/can-you-fool-isatty-and-log-stdout-and-stderr-separately?rq=1
 """
 
+import array
 import atexit
 import functools
 import io
 import logging
 import os
 try:
+    import fcntl
     import pty
     import tty
     import termios
 except ImportError:  # windows
-    pass
+    pty = tty = termios = fcntl = None
 
+import signal
+import struct
 import subprocess
 import sys
 import tempfile
@@ -53,6 +57,8 @@ import six
 from six.moves import queue, shlex_quote
 
 logger = logging.getLogger(__name__)
+
+SIGWINCH_HANDLER = None
 
 
 class SimpleTee(object):
@@ -73,6 +79,81 @@ class SimpleTee(object):
         self.destination.write(data)
 
 
+class WindowSizeChangeHandler(object):
+    """A SIGWINCH handler that keeps a list of FDs to update any time the
+    window size changes.
+
+    This is a singleton initialized by init_sigwinch_handler().
+    """
+    def __init__(self):
+        self.fds = []
+        # bind one of these so we can compare instances to each other
+        self._handler = self._handle_function
+
+    def register(self):
+        try:
+            old_handler = signal.signal(signal.SIGWINCH, self._handler)
+        except ValueError:  # windows
+            logger.warn('Setting SIGWINCH handler failed')
+        else:
+            if old_handler is not None:
+                logger.warn('SIGWINCH handler was not None: %r', old_handler)
+
+    def unregister(self):
+        try:
+            old_handler = signal.signal(signal.SIGWINCH, None)
+        except ValueError:  # windows
+            logger.warn('Setting SIGWINCH handler failed')
+        else:
+            if old_handler is not self._handler:
+                logger.warn('SIGWINCH handler was not from W&B: %r', old_handler)
+
+    def add_fd(self, fd):
+        self.fds.append(fd)
+        self._set_win_sizes()
+
+    def _handle_function(self, signum, frame):
+        try:
+            self._set_win_sizes()
+        except:
+            logger.exception('Exception during SIGWINCH')
+
+    def _set_win_sizes(self):
+        win_size = fcntl.ioctl(sys.stdin.fileno(), termios.TIOCGWINSZ, '\0' * 8)
+        rows, cols, xpix, ypix = array.array('h', win_size)
+        if cols == 0:
+            cols = 80
+        win_size = struct.pack("HHHH", rows, cols, xpix, ypix)
+        for fd in self.fds:
+            fcntl.ioctl(fd, termios.TIOCSWINSZ, win_size)
+
+
+def init_sigwinch_handler():
+    global SIGWINCH_HANDLER
+    if SIGWINCH_HANDLER is None and sys.platform != "win32" and not os.environ.get('WANDB_TEST') and not os.environ.get('WANDB_DEBUG'):
+        SIGWINCH_HANDLER = WindowSizeChangeHandler()
+        SIGWINCH_HANDLER.register()
+
+
+def wandb_pty(resize=True):
+    """Get a PTY set to raw mode and registered to hear about window size changes.
+    """
+    master_fd, slave_fd = pty.openpty()
+    # raw mode so carriage returns etc. don't get added by the terminal driver,
+    # bash for windows blows up on this so we catch the error and do nothing
+    # TODO(adrian): (when) will this be called on windows?
+    try:
+        tty.setraw(master_fd)
+    except termios.error:
+        pass
+
+    if resize:
+        if SIGWINCH_HANDLER is not None:
+            SIGWINCH_HANDLER.add_fd(master_fd)
+
+    return master_fd, slave_fd
+
+
 class Tee(object):
     """Reads raw data from a file and writes it to other files.
 
@@ -81,13 +162,7 @@ class Tee(object):
 
     @classmethod
     def pty(cls, sync_dst_file, *async_dst_files):
-        master_fd, slave_fd = pty.openpty()
-        # raw mode so carriage returns etc. don't get added by the terminal driver,
-        # bash for windows blows up on this so we catch the error and do nothing
-        try:
-            tty.setraw(master_fd)
-        except termios.error:
-            pass
+        master_fd, slave_fd = wandb_pty()
         master = os.fdopen(master_fd, 'rb')
         tee = cls(master, sync_dst_file, *async_dst_files)
         tee.tee_file = os.fdopen(slave_fd, 'wb')
@@ -143,7 +218,6 @@ class Tee(object):
         self._read_thread = spawn_reader_writer(read, self._write_to_all)
 
     def _write_to_all(self, data):
-        #print('writing', repr(data))
         self._write(self._sync_dst_file, data)
 
         for q in self._write_queues:
