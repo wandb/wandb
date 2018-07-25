@@ -34,17 +34,17 @@ https://stackoverflow.com/questions/34186035/can-you-fool-isatty-and-log-stdout-
 
 import array
 import atexit
-import fcntl
 import functools
 import io
 import logging
 import os
 try:
+    import fcntl
     import pty
     import tty
     import termios
 except ImportError:  # windows
-    pty = tty = termios = None
+    pty = tty = termios = fcntl = None
 
 import signal
 import struct
