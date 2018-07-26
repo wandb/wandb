@@ -119,13 +119,23 @@ class WindowSizeChangeHandler(object):
             logger.exception('Exception during SIGWINCH')
 
     def _set_win_sizes(self):
-        win_size = fcntl.ioctl(sys.stdin.fileno(), termios.TIOCGWINSZ, '\0' * 8)
-        rows, cols, xpix, ypix = array.array('h', win_size)
+        try:
+            win_size = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '\0' * 8)
+        except OSError:  # eg. in MPI we can't do this
+            rows, cols, xpix, ypix = 25, 80, 0, 0
+        else:
+            rows, cols, xpix, ypix = array.array('h', win_size)
+
         if cols == 0:
             cols = 80
+
         win_size = struct.pack("HHHH", rows, cols, xpix, ypix)
+
         for fd in self.fds:
-            fcntl.ioctl(fd, termios.TIOCSWINSZ, win_size)
+            try:
+                fcntl.ioctl(fd, termios.TIOCSWINSZ, win_size)
+            except OSError:  # eg. in MPI we can't do this
+                pass
 
 
 def init_sigwinch_handler():
