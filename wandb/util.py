@@ -39,7 +39,11 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def fullname(o):
-    return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
+    name = o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
+    # TODO: There are definitely other cases to handle here
+    if name == "tensorflow.Variable":
+        name = "tensorflow.Tensor"
+    return name
 
 
 def json_friendly(obj):
@@ -52,19 +56,24 @@ def json_friendly(obj):
             obj = obj.numpy()
         elif name == "tensorflow.Tensor":
             obj = obj.eval()
-        obj = {
-            "_type": name,
-            "var": np.var(obj).item(),
-            "mean": np.mean(obj).item(),
-            "min": np.amin(obj).item(),
-            "max": np.amax(obj).item(),
-            "10%": np.percentile(obj, 10),
-            "25%": np.percentile(obj, 25),
-            "75%": np.percentile(obj, 75),
-            "90%": np.percentile(obj, 90),
-            "len": len(obj)
-        }
-        transformed = True
+        if obj.size == 1:
+            obj = obj.item()
+        elif obj.size <= 10:
+            obj = obj.tolist()
+        else:
+            obj = {
+                "_type": name,
+                "var": np.var(obj).item(),
+                "mean": np.mean(obj).item(),
+                "min": np.amin(obj).item(),
+                "max": np.amax(obj).item(),
+                "10%": np.percentile(obj, 10),
+                "25%": np.percentile(obj, 25),
+                "75%": np.percentile(obj, 75),
+                "90%": np.percentile(obj, 90),
+                "size": obj.size
+            }
+            transformed = True
     elif isinstance(obj, np.generic):
         obj = np.asscalar(obj)
     elif isinstance(obj, bytes):

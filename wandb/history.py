@@ -175,7 +175,7 @@ class History(object):
                 self.row = {}
             finally:
                 self._lock.release()
-                return True
+            return True
         else:
             return False
 

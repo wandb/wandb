@@ -9,6 +9,7 @@ from wandb.history import History
 from wandb import media
 from wandb import data_types
 import torch
+import tensorflow as tf
 
 
 @pytest.fixture
@@ -109,6 +110,44 @@ def test_stream(history):
     history.stream("foo").add({"acc": 1})
     h = disk_history()
     assert di({"_stream": "foo", "acc": 1}) <= di(h[0])
+
+
+def test_torch_in_log(history):
+    history.add({
+        "single_tensor": torch.tensor(0.63245),
+        "multi_tensor": torch.tensor([0, 2, 3, 4])
+    })
+    h = disk_history()
+    assert len(h) == 1
+    assert round(h[0]["single_tensor"], 1) == 0.6
+    assert h[0]["multi_tensor"] == [0, 2, 3, 4]
+
+
+def test_tensorflow_in_log(history):
+    single = tf.Variable(543.01, tf.float32)
+    multi = tf.Variable([[2, 3], [7, 11]], tf.int32)
+    with tf.Session().as_default() as sess:
+        sess.run(tf.global_variables_initializer())
+        history.add({
+            "single": single,
+            "multi": multi
+        })
+    h = disk_history()
+    assert len(h) == 1
+    assert round(h[0]["single"], 1) == 543.0
+    assert h[0]["multi"] == [[2, 3], [7, 11]]
+
+
+def test_log_blows_up(history):
+    class Foo():
+        def init(bar):
+            self.bar = bar
+    raised = False
+    try:
+        history.add({"foo": Foo("rad")})
+    except:
+        raised = True
+    assert raised
 
 
 @pytest.mark.skip("This stopped working for reasons not clear to me...")
