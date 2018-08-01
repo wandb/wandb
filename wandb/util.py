@@ -40,9 +40,11 @@ VALUE_BYTES_LIMIT = 100000
 
 def fullname(o):
     name = o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
-    # TODO: There are definitely other cases to handle here
-    if name == "tensorflow.Variable":
+    # TODO: There are likely other cases to handle here
+    if name.startswith("tensorflow"):
         name = "tensorflow.Tensor"
+    elif name.startswith("torch"):
+        name = "torch.Tensor"
     return name
 
 
