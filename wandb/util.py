@@ -39,10 +39,16 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def fullname(o):
-    return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
+    name = o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
+    # TODO: There are likely other cases to handle here
+    if name.startswith("tensorflow."):
+        name = "tensorflow.Tensor"
+    elif name.startswith("torch."):
+        name = "torch.Tensor"
+    return name
 
 
-def json_friendly(obj):
+def json_friendly(obj, history=False):
     """Convert an object into something that's more becoming of JSON"""
     converted = True
     transformed = False
@@ -52,19 +58,26 @@ def json_friendly(obj):
             obj = obj.numpy()
         elif name == "tensorflow.Tensor":
             obj = obj.eval()
-        obj = {
-            "_type": name,
-            "var": np.var(obj).item(),
-            "mean": np.mean(obj).item(),
-            "min": np.amin(obj).item(),
-            "max": np.amax(obj).item(),
-            "10%": np.percentile(obj, 10),
-            "25%": np.percentile(obj, 25),
-            "75%": np.percentile(obj, 75),
-            "90%": np.percentile(obj, 90),
-            "len": len(obj)
-        }
-        transformed = True
+        if obj.size == 1:
+            obj = obj.item()
+        elif obj.size <= 32:
+            obj = obj.tolist()
+        elif history:
+            obj = wandb.Histogram(obj, num_bins=32).to_json()
+        else:
+            obj = {
+                "_type": name,
+                "var": np.var(obj).item(),
+                "mean": np.mean(obj).item(),
+                "min": np.amin(obj).item(),
+                "max": np.amax(obj).item(),
+                "10%": np.percentile(obj, 10),
+                "25%": np.percentile(obj, 25),
+                "75%": np.percentile(obj, 75),
+                "90%": np.percentile(obj, 90),
+                "size": obj.size
+            }
+            transformed = True
     elif isinstance(obj, np.generic):
         obj = np.asscalar(obj)
     elif isinstance(obj, bytes):
@@ -86,9 +99,25 @@ class WandBJSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
+class WandBHistoryJSONEncoder(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types.  
+    This encoder turns numpy like objects with a size > 32 into histograms"""
+
+    def default(self, obj):
+        obj, converted, transformed = json_friendly(obj, history=True)
+        if converted:
+            return obj
+        return json.JSONEncoder.default(self, obj)
+
+
 def json_dumps_safer(obj, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+
+
+def json_dumps_safer_history(obj, **kwargs):
+    """Convert obj to json, with some extra encodable types, including histograms"""
+    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
 def make_json_if_not_number(v):
