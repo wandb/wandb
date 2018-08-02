@@ -48,7 +48,7 @@ def fullname(o):
     return name
 
 
-def json_friendly(obj):
+def json_friendly(obj, history=False):
     """Convert an object into something that's more becoming of JSON"""
     converted = True
     transformed = False
@@ -60,8 +60,10 @@ def json_friendly(obj):
             obj = obj.eval()
         if obj.size == 1:
             obj = obj.item()
-        elif obj.size <= 10:
+        elif obj.size <= 32:
             obj = obj.tolist()
+        elif history:
+            obj = wandb.Histogram(obj, num_bins=32).to_json()
         else:
             obj = {
                 "_type": name,
@@ -97,9 +99,25 @@ class WandBJSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
+class WandBHistoryJSONEncoder(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types.  
+    This encoder turns numpy like objects with a size > 32 into histograms"""
+
+    def default(self, obj):
+        obj, converted, transformed = json_friendly(obj, history=True)
+        if converted:
+            return obj
+        return json.JSONEncoder.default(self, obj)
+
+
 def json_dumps_safer(obj, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+
+
+def json_dumps_safer_history(obj, **kwargs):
+    """Convert obj to json, with some extra encodable types, including histograms"""
+    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
 def make_json_if_not_number(v):

@@ -112,6 +112,12 @@ def test_stream(history):
     assert di({"_stream": "foo", "acc": 1}) <= di(h[0])
 
 
+def test_history_big_list(history):
+    history.add({"boom": torch.randn(5, 7)})
+    h = disk_history()
+    assert h[0]["boom"]["_type"] == "histogram"
+
+
 def test_torch_in_log(history):
     history.add({
         "single_tensor": torch.tensor(0.63245),

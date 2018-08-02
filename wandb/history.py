@@ -166,7 +166,7 @@ class History(object):
                 if self.stream_name != "default":
                     self.row["_stream"] = self.stream_name
                 self._transform()
-                self._file.write(util.json_dumps_safer(self.row))
+                self._file.write(util.json_dumps_safer_history(self.row))
                 self._file.write('\n')
                 self._file.flush()
                 self._index(self.row)

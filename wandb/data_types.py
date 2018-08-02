@@ -138,6 +138,9 @@ class Histogram(object):
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
+    def to_json(self):
+        return Histogram.transform(self)
+
     @staticmethod
     def transform(histogram):
         return {"_type": "histogram", "values": histogram.histogram, "bins": histogram.bins}
