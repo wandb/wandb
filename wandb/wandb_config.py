@@ -1,9 +1,10 @@
 from collections import OrderedDict
+import inspect
 import logging
 import os
 import sys
+import types
 import yaml
-import inspect
 
 import wandb
 
@@ -176,9 +177,11 @@ class Config(object):
             # Handle some cases where params is not a dictionary
             # by trying to convert it into a dictionary
             meta = inspect.getmodule(params)
-            if meta and meta.__name__ in ('tensorflow.python.platform.flags', 'absl.flags'):
-                params = params.FLAGS
-                meta = inspect.getmodule(params)
+            if meta:
+                is_tf_flags_module = isinstance(params, types.ModuleType) and meta.__name__ == 'tensorflow.python.platform.flags'
+                if is_tf_flags_module or meta.__name__ == 'absl.flags':
+                    params = params.FLAGS
+                    meta = inspect.getmodule(params)
 
             # newer tensorflow flags (post 1.4) uses absl.flags
             if meta and meta.__name__ == "absl.flags._flagvalues":
@@ -211,6 +214,8 @@ class Config(object):
         return defaults
 
     def __str__(self):
-        s = "wandb_version: 1\n\n"
-        s += yaml.dump(self.as_dict(), default_flow_style=False)
+        s = "wandb_version: 1"
+        as_dict = self.as_dict()
+        if as_dict:  # adding an empty dictionary here causes a parse error
+            s += '\n\n' + yaml.dump(as_dict, default_flow_style=False)
         return s
