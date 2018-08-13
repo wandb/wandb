@@ -31,9 +31,10 @@ class History(object):
         self.rows = []
         self.row = {}
         self.stream_name = stream_name
-        # during a batched context logging may still be disabled. we do it this way
-        # so people don't have to litter their code with conditionals
-        self.compute = False
+        # This enables / disables history logging. It's used by the
+        # History.step() context manager to avoid compute-heavy computations
+        # that are only necessary for logging.
+        self.compute = True
         self.batched = False
         # not all rows have the same keys. this is the union of them all.
         self._keys = set()
