@@ -158,10 +158,12 @@ class FileStreamApi(object):
             if ready_chunks and (finished or cur_time - posted_data_time > self.rate_limit_seconds()):
                 posted_data_time = cur_time
                 posted_anything_time = cur_time
+                print("SENDING: ", [
+                      r.data for r in ready_chunks if r.filename == "wandb-history.jsonl"])
                 self._send(ready_chunks)
                 ready_chunks = []
 
-            if cur_time - posted_anything_time > self.heartbeat_seconds:
+            if not self._paused and cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
                 self._handle_response(util.request_with_retry(self._client.post,
                                                               self._endpoint, json={'complete': False, 'failed': False}))

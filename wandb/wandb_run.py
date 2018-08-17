@@ -13,6 +13,7 @@ from wandb import typedtable
 from wandb import util
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
+from wandb.jupyter import JupyterAgent
 from six.moves import configparser
 import atexit
 import sys
@@ -70,8 +71,15 @@ class Run(object):
         self._events = None
         self._summary = None
         self._meta = None
+        self._jupyter_agent = None
         self._user_accessed_summary = False
         self._examples = None
+
+    def _init_jupyter_agent(self, api):
+        self._jupyter_agent = JupyterAgent(api)
+
+    def _stop_jupyter_agent(self):
+        self._jupyter_agent.stop()
 
     @classmethod
     def from_environment_or_defaults(cls, environment=None):
@@ -211,6 +219,8 @@ class Run(object):
     def _history_added(self, row):
         if self._summary is None:
             self._summary = summary.FileSummary(self._dir)
+        if self._jupyter_agent:
+            self._jupyter_agent.start()
         if not self._user_accessed_summary:
             self._summary.update(row)
 

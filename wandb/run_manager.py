@@ -635,6 +635,7 @@ class RunManager(object):
                     raise LaunchError(
                         "resume='must' but run (%s) doesn't exist" % self._run.id)
                 if resume_status:
+                    print('Threads: ', threading.enumerate())
                     print('Resuming run: %s' % self._run.get_url(self._api))
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
