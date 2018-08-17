@@ -13,7 +13,7 @@ except ImportError:
     import tensorflow.keras as keras
     import tensorflow.keras.backend as K
 
-    
+
 class WandbCallback(keras.callbacks.Callback):
     """WandB Keras Callback.
 
@@ -29,7 +29,7 @@ class WandbCallback(keras.callbacks.Callback):
     def __init__(self, monitor='val_loss', verbose=0, mode='auto',
                  save_weights_only=False, log_weights=False, log_gradients=False,
                  save_model=True, training_data=None, validation_data=None,
-                 labels=[], data_type=None, predictions=36
+                 labels=[], data_type=None, predictions=36, generator=None
                  ):
         """Constructor.
 
@@ -53,7 +53,7 @@ class WandbCallback(keras.callbacks.Callback):
                 multiclass classifier.  If you are making a binary classifier you can pass in
                 a list of two labels ["label for false", "label for true"]
             predictions: the number of predictions to make each epic if data_type is set, max is 100.
-
+            generator: a generator to use for making predictions
         """
         if wandb.run is None:
             raise wandb.Error(
@@ -77,6 +77,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_weights = log_weights
         self.log_gradients = log_gradients
         self.training_data = training_data
+        self.generator = generator
 
         if self.training_data:
             if len(self.training_data) != 2:
@@ -119,9 +120,11 @@ class WandbCallback(keras.callbacks.Callback):
             wandb.log(self._log_gradients(), commit=False)
 
         if self.data_type == "image":
+            if self.generator:
+                self.validation_data = next(self.generator)
             if not hasattr(self, "validation_data"):
-                termlog(
-                    "WARNING: No validation_data set, set it in your call to `model.fit`")
+                wandb.termlog(
+                    "WARNING: No validation_data set, if you're using a generator pass it to the callback.")
             elif self.validation_data and len(self.validation_data) > 0:
                 wandb.log({"examples": self._log_images(
                     num_images=self.predictions)}, commit=False)

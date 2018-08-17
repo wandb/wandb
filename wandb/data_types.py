@@ -13,7 +13,7 @@ class Graph(object):
 
         if model.__class__.__name__ == 'Sequential':
             sequential_like = True
-        elif not model._is_graph_network:
+        elif not hasattr(self, "_is_graph_network") or not model._is_graph_network:
             # We treat subclassed models as a simple sequence of layers,
             # for logging purposes.
             sequential_like = True
@@ -76,7 +76,7 @@ class Node(object):
         try:
             output_shape = layer.output_shape
         except AttributeError:
-            output_shape = 'multiple'
+            output_shape = ['multiple']
 
         node.attributes['name'] = layer.name
         node.attributes['class_name'] = layer.__class__.__name__

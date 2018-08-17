@@ -32,6 +32,7 @@ try:
     import numpy as np
 except ImportError:
     np = namedtuple('np', ['ndarray', 'generic'])
+    np.generic = ValueError
 
 MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits

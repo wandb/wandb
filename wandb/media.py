@@ -9,8 +9,7 @@ class Media(object):
         pass
 
 
-MAX_IMAGES = 50
-
+MAX_IMAGES = 100
 
 class Image(object):
 
@@ -64,9 +63,10 @@ class Image(object):
         # I think it's better to check the image range vs the data type, since many
         # image libraries will return floats between 0 and 255
 
-        # if issubclass(data.dtype.type, np.floating):
-        #    data = (data * 255).astype(np.int32)
-        # some images have range 0-1
+        # some images have range -1...1 or 0-1
+        dmin = np.min(data)
+        if dmin < 0:
+            data = (data - np.min(data)) / np.ptp(data)
         if np.max(data) <= 1.0:
             data = (data * 255).astype(np.int32)
 
