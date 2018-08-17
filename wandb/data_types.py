@@ -13,7 +13,7 @@ class Graph(object):
 
         if model.__class__.__name__ == 'Sequential':
             sequential_like = True
-        elif not hasattr(self, "_is_graph_network") or not model._is_graph_network:
+        elif not hasattr(model, "_is_graph_network") or not model._is_graph_network:
             # We treat subclassed models as a simple sequence of layers,
             # for logging purposes.
             sequential_like = True
