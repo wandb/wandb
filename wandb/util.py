@@ -39,46 +39,80 @@ MAX_SLEEP_SECONDS = 60 * 5
 VALUE_BYTES_LIMIT = 100000
 
 
-def fullname(o):
-    name = o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
-    # TODO: There are likely other cases to handle here
-    if name.startswith("tensorflow."):
-        name = "tensorflow.Tensor"
-    elif name.startswith("torch."):
-        name = "torch.Tensor"
-    return name
+def get_full_type_name(o):
+    """We determine types based on type names so we don't have to import
+    (and therefore depend on) PyTorch, TensorFlow, etc.
+    """
+    return o.__class__.__module__ + "." + o.__class__.__name__
 
 
-def json_friendly(obj, history=False):
+def get_h5_type_name(o):
+    type_name = get_full_type_name(o)
+    if is_tf_tensor_typename(type_name):
+        return "tensorflow.Tensor"
+    elif is_pytorch_tensor_typename(type_name):
+        return "torch.Tensor"
+    else:
+        return o.__class__.__module__.split('.')[0] + "." + o.__class__.__name__
+
+
+def is_tf_tensor(obj):
+    import tensorflow
+    return isinstance(obj, tensorflow.Tensor)
+
+
+def is_tf_tensor_typename(type_name):
+    return type_name.startswith('tensorflow.') and ('Tensor' in type_name or 'Variable' in type_name)
+
+
+def is_pytorch_tensor(obj):
+    import torch
+    return isinstance(obj, torch.Tensor)
+
+
+def is_pytorch_tensor_typename(type_name):
+    return type_name.startswith('torch.') and ('Tensor' in type_name or 'Variable' in type_name)
+
+
+def is_pandas_dataframe_typename(type_name):
+    return type_name.startswith('pandas.') and 'DataFrame' in type_name
+
+
+def is_pandas_dataframe(obj):
+    return is_pandas_dataframe_typename(get_full_type_name(obj))
+
+
+def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
     converted = True
-    transformed = False
-    name = fullname(obj)
-    if name in ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor", "pandas.DataFrame"):
-        if name == "torch.Tensor":
+    type_name = get_full_type_name(obj)
+
+    if is_tf_tensor_typename(type_name):
+        obj = obj.eval()
+    elif is_pandas_dataframe_typename(type_name):
+        obj = obj.get_values()
+    elif is_pytorch_tensor_typename(type_name):
+        try:
+            if obj.requires_grad:
+                obj = obj.detach()
+        except AttributeError:
+            pass # before 0.4 is only present on variables
+
+        try:
+            obj = obj.data
+        except RuntimeError:
+            pass # happens for Tensors before 0.4
+
+        if obj.size():
             obj = obj.numpy()
-        elif name == "tensorflow.Tensor":
-            obj = obj.eval()
+        else:
+            return obj.item(), True
+
+    if isinstance(obj, np.ndarray):
         if obj.size == 1:
-            obj = obj.item()
+            obj = obj.flatten()[0]
         elif obj.size <= 32:
             obj = obj.tolist()
-        elif history:
-            obj = wandb.Histogram(obj, num_bins=32).to_json()
-        else:
-            obj = {
-                "_type": name,
-                "var": np.var(obj).item(),
-                "mean": np.mean(obj).item(),
-                "min": np.amin(obj).item(),
-                "max": np.amax(obj).item(),
-                "10%": np.percentile(obj, 10),
-                "25%": np.percentile(obj, 25),
-                "75%": np.percentile(obj, 75),
-                "90%": np.percentile(obj, 90),
-                "size": obj.size
-            }
-            transformed = True
     elif isinstance(obj, np.generic):
         obj = np.asscalar(obj)
     elif isinstance(obj, bytes):
@@ -87,17 +121,44 @@ def json_friendly(obj, history=False):
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
         logger.warn("Object %s is %i bytes", obj, getsizeof(obj))
-    return obj, converted, transformed
+
+    return obj, converted
+
+
+def maybe_compress_history(obj):
+    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe(obj):
+        return wandb.Histogram(obj, num_bins=32).to_json(), True
+    else:
+        return obj, False
+
+
+def maybe_compress_summary(obj, h5_type_name):
+    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe(obj):
+        return {
+            "_type": h5_type_name,  # may not be ndarray
+            "var": np.var(obj).item(),
+            "mean": np.mean(obj).item(),
+            "min": np.amin(obj).item(),
+            "max": np.amax(obj).item(),
+            "10%": np.percentile(obj, 10),
+            "25%": np.percentile(obj, 25),
+            "75%": np.percentile(obj, 75),
+            "90%": np.percentile(obj, 90),
+            "size": obj.size
+        }, True
+    else:
+        return obj, False
 
 
 class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
     def default(self, obj):
-        obj, converted, transformed = json_friendly(obj)
+        tmp_obj, converted = json_friendly(obj)
+        tmp_obj, compressed = maybe_compress_summary(tmp_obj, get_h5_type_name(obj))
         if converted:
-            return obj
-        return json.JSONEncoder.default(self, obj)
+            return tmp_obj
+        return json.JSONEncoder.default(self, tmp_obj)
 
 
 class WandBHistoryJSONEncoder(json.JSONEncoder):
@@ -105,7 +166,8 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
     This encoder turns numpy like objects with a size > 32 into histograms"""
 
     def default(self, obj):
-        obj, converted, transformed = json_friendly(obj, history=True)
+        obj, converted = json_friendly(obj)
+        obj, compressed = maybe_compress_history(obj)
         if converted:
             return obj
         return json.JSONEncoder.default(self, obj)

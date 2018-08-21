@@ -6,9 +6,20 @@ import git
 from wandb import cli
 from wandb.apis import InternalApi
 
+import torch
 import webbrowser
 import whaaaaat
 from wandb.git_repo import GitRepo
+
+
+PYTORCH_VERSION = tuple(int(i) for i in torch.__version__.split('.'))
+
+
+if PYTORCH_VERSION < (0, 4):
+    pytorch_tensor = torch.Tensor
+else:
+    # supports 0d tensors but is a module before 0.4
+    pytorch_tensor = torch.tensor
 
 
 @pytest.fixture
@@ -35,3 +46,27 @@ def git_repo():
         r.index.add(["README"])
         r.index.commit("Initial commit")
         yield GitRepo(lazy=False)
+
+
+def assert_deep_lists_equal(a, b, indices=None):
+    try:
+        assert a == b
+    except ValueError:
+        assert len(a) == len(b)
+
+        # pytest's list diffing breaks at 4d so we track them ourselves
+        if indices is None:
+            indices = []
+            top = True
+        else:
+            top = False
+
+        for i, (x, y) in enumerate(zip(a, b)):
+            try:
+                assert_deep_lists_equal(x, y, indices)
+            except AssertionError:
+                indices.append(i)
+                raise
+            finally:
+                if top and indices:
+                    print(f'Diff at index: {list(reversed(indices))}')
