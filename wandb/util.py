@@ -96,12 +96,12 @@ def json_friendly(obj):
             if obj.requires_grad:
                 obj = obj.detach()
         except AttributeError:
-            pass # before 0.4 is only present on variables
+            pass  # before 0.4 is only present on variables
 
         try:
             obj = obj.data
         except RuntimeError:
-            pass # happens for Tensors before 0.4
+            pass  # happens for Tensors before 0.4
 
         if obj.size():
             obj = obj.numpy()
@@ -150,12 +150,37 @@ def maybe_compress_summary(obj, h5_type_name):
         return obj, False
 
 
+def launch_browser(attempt_launch_browser=True):
+    """Decide if we should launch a browser"""
+    _DISPLAY_VARIABLES = ['DISPLAY', 'WAYLAND_DISPLAY', 'MIR_SOCKET']
+    _WEBBROWSER_NAMES_BLACKLIST = [
+        'www-browser', 'lynx', 'links', 'elinks', 'w3m']
+
+    import webbrowser
+
+    launch_browser = attempt_launch_browser
+    if launch_browser:
+        if ('linux' in sys.platform and
+                not any(os.getenv(var) for var in _DISPLAY_VARIABLES)):
+            launch_browser = False
+        try:
+            browser = webbrowser.get()
+            if (hasattr(browser, 'name')
+                    and browser.name in _WEBBROWSER_NAMES_BLACKLIST):
+                launch_browser = False
+        except webbrowser.Error:
+            launch_browser = False
+
+    return launch_browser
+
+
 class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
     def default(self, obj):
         tmp_obj, converted = json_friendly(obj)
-        tmp_obj, compressed = maybe_compress_summary(tmp_obj, get_h5_type_name(obj))
+        tmp_obj, compressed = maybe_compress_summary(
+            tmp_obj, get_h5_type_name(obj))
         if converted:
             return tmp_obj
         return json.JSONEncoder.default(self, tmp_obj)

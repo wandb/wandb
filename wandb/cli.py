@@ -289,9 +289,11 @@ def status(run, settings, project):
     logged_in = bool(api.api_key)
     if not os.path.isdir(wandb_dir()):
         if logged_in:
-            msg = "Directory not initialized. Please run %s to get started." % click.style("wandb init", bold=True)
+            msg = "Directory not initialized. Please run %s to get started." % click.style(
+                "wandb init", bold=True)
         else:
-            msg = "You are not logged in. Please run %s to get started." % click.style("wandb login", bold=True)
+            msg = "You are not logged in. Please run %s to get started." % click.style(
+                "wandb login", bold=True)
         termlog(msg)
     elif settings:
         click.echo(click.style("Logged in?", bold=True) + " %s" % logged_in)
@@ -417,8 +419,11 @@ def signup(ctx):
     import webbrowser
     server = LocalServer()
     url = api.app_url + "/login?signup=true"
-    launched = webbrowser.open_new_tab(
-        url + "&{}".format(server.qs()))
+    if util.launch_browser():
+        launched = webbrowser.open_new_tab(
+            url + "&{}".format(server.qs()))
+    else:
+        launched = False
     if launched:
         signal.signal(signal.SIGINT, server.stop)
         click.echo(
@@ -435,6 +440,7 @@ def signup(ctx):
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
+@click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
 @display_error
 def login(key, server=LocalServer(), browser=True):
     global api
@@ -444,7 +450,7 @@ def login(key, server=LocalServer(), browser=True):
     import webbrowser
     # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
     url = api.app_url + '/profile?message=key'
-    # TODO: google cloud SDK check_browser.py
+    browser = util.launch_browser(browser)
     if key or not browser:
         launched = False
     else:
@@ -592,7 +598,10 @@ def init(ctx):
 @display_error
 def docs(ctx):
     import webbrowser
-    launched = webbrowser.open_new_tab(DOCS_URL)
+    if util.launch_browser():
+        launched = webbrowser.open_new_tab(DOCS_URL)
+    else:
+        launched = False
     if launched:
         click.echo(click.style(
             "Opening %s in your default browser" % DOCS_URL, fg="green"))
