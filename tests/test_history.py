@@ -11,6 +11,8 @@ from wandb import data_types
 import torch
 import tensorflow as tf
 
+from . import utils
+
 
 @pytest.fixture
 def history():
@@ -118,14 +120,22 @@ def test_history_big_list(history):
     assert h[0]["boom"]["_type"] == "histogram"
 
 
-def test_torch_in_log(history):
+@pytest.mark.skipif(utils.PYTORCH_VERSION < (0, 4), reason='0d tensors not supported until 0.4')
+def test_torch_single_in_log(history):
     history.add({
         "single_tensor": torch.tensor(0.63245),
-        "multi_tensor": torch.tensor([0, 2, 3, 4])
     })
     h = disk_history()
     assert len(h) == 1
     assert round(h[0]["single_tensor"], 1) == 0.6
+
+
+def test_torch_multi_in_log(history):
+    history.add({
+        "multi_tensor": utils.pytorch_tensor([0, 2, 3, 4])
+    })
+    h = disk_history()
+    assert len(h) == 1
     assert h[0]["multi_tensor"] == [0, 2, 3, 4]
 
 
@@ -156,7 +166,6 @@ def test_log_blows_up(history):
     assert raised
 
 
-@pytest.mark.skip("This stopped working for reasons not clear to me...")
 def test_torch(history):
     with history.step():
         history.torch.log_stats(

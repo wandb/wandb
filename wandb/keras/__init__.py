@@ -129,7 +129,7 @@ class WandbCallback(keras.callbacks.Callback):
                 wandb.log({"examples": self._log_images(
                     num_images=self.predictions)}, commit=False)
 
-        logs.update({'epoch': epoch})
+        wandb.log({'epoch': epoch}, commit=False)
         wandb.log(logs)
 
         self.current = logs.get(self.monitor)

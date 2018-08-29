@@ -4,13 +4,15 @@ import sys
 import time
 import requests
 
+from gql import gql
+import numpy as np
+import six
+
 import wandb
 from wandb import util
 from wandb.meta import Meta
 from wandb.media import Image
 from wandb.apis.internal import Api
-from gql import gql
-import six
 
 SUMMARY_FNAME = 'wandb-summary.json'
 DEEP_SUMMARY_FNAME = 'wandb.h5'
@@ -105,14 +107,14 @@ class Summary(object):
             self._h5["summary/" + key] = val
             self._h5.flush()
 
-    def read_h5(self, key, val):
+    def read_h5(self, key, val=None):
         # ensure the file is open
         self.open_h5()
 
         if not self._h5:
             wandb.termerror("Reading tensors from summary requires h5py")
         else:
-            return self._h5["summary/" + key]
+            return self._h5.get("summary/" + key, val)
 
     def open_h5(self):
         if not self._h5 and h5py:
@@ -125,16 +127,14 @@ class Summary(object):
         for key, value in six.iteritems(obj):
             path = ".".join(root_path + [key])
             if isinstance(value, dict):
-                res[key], converted, transformed = util.json_friendly(
+                res[key], converted = util.json_friendly(
                     self.convert_json(value, root_path + [key]))
             else:
-                res[key], converted, transformed = util.json_friendly(value)
-                if transformed:
-                    if res[key]["_type"] == "pytorch.Tensor":
-                        value = value.numpy()
-                    elif res[key]["_type"] == "tensorflow.Tensor":
-                        value = value.eval()
-                    self.write_h5(path, value)
+                tmp_obj, converted = util.json_friendly(value)
+                res[key], compressed = util.maybe_compress_summary(tmp_obj, util.get_h5_type_name(value))
+                if compressed:
+                    self.write_h5(path, tmp_obj)
+
         self._summary = res
         return res
 

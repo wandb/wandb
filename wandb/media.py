@@ -11,6 +11,7 @@ class Media(object):
 
 MAX_IMAGES = 100
 
+
 class Image(object):
 
     def __init__(self, data, mode=None, caption=None, grouping=None):
@@ -25,7 +26,7 @@ class Image(object):
         except ImportError:
             raise ValueError(
                 "wandb.Image requires the PIL package, to get it run: pip install pillow")
-        if type(data) == PILImage.Image:
+        if isinstance(data, PILImage.Image):
             self.image = data
         else:
             data = data.squeeze()  # get rid of trivial dimensions as a convenience
