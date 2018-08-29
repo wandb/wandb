@@ -245,9 +245,15 @@ def _init_jupyter(run, job_type):
     except (CommError, ValueError) as e:
         termerror(str(e))
     run.set_environment()
-    run._init_jupyter_agent(api)
+    run._init_jupyter_agent()
     ipython = get_ipython()
     ipython.register_magics(jupyter.WandBMagics)
+
+    def reset_start():
+        """Reset START_TIME to when the cell starts"""
+        global START_TIME
+        START_TIME = time.time()
+    ipython.events.register("pre_run_cell", reset_start)
     ipython.events.register('post_run_cell', run._stop_jupyter_agent)
 
 

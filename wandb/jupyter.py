@@ -1,4 +1,5 @@
 import wandb
+from wandb.apis import InternalApi
 from wandb.run_manager import RunManager
 import time
 import os
@@ -39,15 +40,12 @@ class WandBMagics(Magics):
 class JupyterAgent(object):
     """A class that only logs metrics after `wandb.log` has been called and stops logging at cell completion"""
 
-    def __init__(self, api):
-        self.api = api
+    def __init__(self):
         self.paused = True
 
     def start(self):
         if self.paused:
-            # So much for our constant...
-            global START_TIME
-            START_TIME = time.time()
+            self.api = InternalApi()
             # TODO: there's an edge case where shutdown isn't called
             self.api._file_stream_api = None
             self.api.set_current_run_id(wandb.run.id)
@@ -58,7 +56,7 @@ class JupyterAgent(object):
 
     def stop(self):
         if not self.paused:
-            print("System metrics logging paused")
+            self.rm.unmirror_stdout_stderr()
             self.rm.shutdown()
             wandb.run.close_files()
             self.paused = True

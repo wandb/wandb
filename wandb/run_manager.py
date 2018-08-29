@@ -437,7 +437,8 @@ class RunManager(object):
         self._get_handler(event.src_path, save_name).on_modified()
 
     def _on_file_moved(self, event):
-        logger.info('file/dir moved: %s -> %s', event.src_path, event.dest_path)
+        logger.info('file/dir moved: %s -> %s',
+                    event.src_path, event.dest_path)
         if os.path.isdir(event.dest_path):
             return None
         old_save_name = os.path.relpath(event.src_path, self._watch_dir)
@@ -518,6 +519,10 @@ class RunManager(object):
             fs_api, OUTPUT_FNAME, prepend_timestamp=True))
         io_wrap.SimpleTee(sys.stderr, streaming_log.TextStreamPusher(
             fs_api, OUTPUT_FNAME, prepend_timestamp=True, line_prepend='ERROR'))
+
+    def unmirror_stdout_stderr(self):
+        sys.stdout.write = sys.stdout.orig_write
+        sys.stderr.write = sys.stderr.orig_write
 
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
@@ -635,7 +640,6 @@ class RunManager(object):
                     raise LaunchError(
                         "resume='must' but run (%s) doesn't exist" % self._run.id)
                 if resume_status:
-                    print('Threads: ', threading.enumerate())
                     print('Resuming run: %s' % self._run.get_url(self._api))
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
@@ -650,11 +654,25 @@ class RunManager(object):
         """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""
         self._system_stats.shutdown()
         self._meta.shutdown()
+        self._stop_watchdog()
         self._finish_handlers()
         self._file_pusher.shutdown()
         self._api.get_file_stream_api().finish(exitcode)
         # Ensures we get a new file stream thread
         self._api._file_stream_api = None
+
+    def _stop_watchdog(self):
+        try:
+            # avoid hanging if we crashed before the observer was started
+            if self._observer.is_alive():
+                self._observer.stop()
+                self._observer.join()
+        # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
+        except TypeError:
+            pass
+        # TODO: py3 SystemError: <built-in function stop> returned a result with an error set
+        except SystemError:
+            pass
 
     def _upsert_run(self, retry, storage_id, env):
         """Upsert the Run (ie. for the first time with all its attributes)
@@ -914,18 +932,8 @@ class RunManager(object):
         # the end of the script.
         # TODO: ensure we catch all saved files.
         # TODO(adrian): do we need this?
-        time.sleep(2)
-        try:
-            # avoid hanging if we crashed before the observer was started
-            if self._observer.is_alive():
-                self._observer.stop()
-                self._observer.join()
-        # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
-        except TypeError:
-            pass
-        # TODO: py3 SystemError: <built-in function stop> returned a result with an error set
-        except SystemError:
-            pass
+        time.sleep(1)
+        self._stop_watchdog()
 
         self._finish_handlers()
         self._file_pusher.finish()

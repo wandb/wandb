@@ -961,7 +961,6 @@ class Api(object):
             if self._current_run_id is None:
                 raise UsageError(
                     'Must have a current run to use file stream API.')
-            print("Initialized File Stream", self._current_run_id)
             self._file_stream_api = FileStreamApi(self, self._current_run_id)
         return self._file_stream_api
 
