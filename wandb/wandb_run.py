@@ -13,7 +13,6 @@ from wandb import typedtable
 from wandb import util
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
-from wandb.jupyter import JupyterAgent
 from six.moves import configparser
 import atexit
 import sys
@@ -76,6 +75,7 @@ class Run(object):
         self._examples = None
 
     def _init_jupyter_agent(self):
+        from wandb.jupyter import JupyterAgent
         self._jupyter_agent = JupyterAgent()
 
     def _stop_jupyter_agent(self):
