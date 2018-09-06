@@ -69,4 +69,4 @@ def assert_deep_lists_equal(a, b, indices=None):
                 raise
             finally:
                 if top and indices:
-                    print(f'Diff at index: {list(reversed(indices))}')
+                    print('Diff at index: %s' % list(reversed(indices)))
