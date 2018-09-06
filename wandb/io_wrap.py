@@ -67,6 +67,7 @@ class SimpleTee(object):
     def __init__(self, source_io, destination_io):
         self.source_write = source_io.write
         self.destination = destination_io
+        source_io.orig_write = self.source_write
         source_io.write = self.write
 
     def write(self, data):
@@ -85,6 +86,7 @@ class WindowSizeChangeHandler(object):
 
     This is a singleton initialized by init_sigwinch_handler().
     """
+
     def __init__(self):
         self.fds = []
         # bind one of these so we can compare instances to each other
@@ -106,7 +108,8 @@ class WindowSizeChangeHandler(object):
             logger.warn('Setting SIGWINCH handler failed')
         else:
             if old_handler is not self._handler:
-                logger.warn('SIGWINCH handler was not from W&B: %r', old_handler)
+                logger.warn(
+                    'SIGWINCH handler was not from W&B: %r', old_handler)
 
     def add_fd(self, fd):
         self.fds.append(fd)
@@ -120,7 +123,8 @@ class WindowSizeChangeHandler(object):
 
     def _set_win_sizes(self):
         try:
-            win_size = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '\0' * 8)
+            win_size = fcntl.ioctl(sys.stdout.fileno(),
+                                   termios.TIOCGWINSZ, '\0' * 8)
         except OSError:  # eg. in MPI we can't do this
             rows, cols, xpix, ypix = 25, 80, 0, 0
         else:

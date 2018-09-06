@@ -41,7 +41,6 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
-from wandb import jupyter
 from wandb.run_manager import RunManager
 from wandb.media import Image
 from wandb.data_types import Histogram
@@ -199,10 +198,15 @@ def _init_headless(run, job_type, cloud=True):
         stderr_redirector.redirect()
 
 
+def load_ipython_extension(ipython):
+    pass
+
+
 def _init_jupyter(run, job_type):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
     Log pushing and system stats don't start until `wandb.monitor()` is called.
     """
+    from wandb import jupyter
     # TODO: Should we log to jupyter?
     try_to_set_up_global_logging()
     run.enable_logging()
@@ -235,12 +239,22 @@ def _init_jupyter(run, job_type):
     run.resume = "allow"
     api.set_current_run_id(run.id)
     print("W&B Run: %s" % run.get_url(api))
-    print("Wrap your training loop with `with wandb.monitor():` to display live results.")
+    print("Call `%%wandb` in the cell containing your training loop to display live results.")
     try:
         run.save(api=api, job_type=job_type)
     except (CommError, ValueError) as e:
         termerror(str(e))
     run.set_environment()
+    run._init_jupyter_agent()
+    ipython = get_ipython()
+    ipython.register_magics(jupyter.WandBMagics)
+
+    def reset_start():
+        """Reset START_TIME to when the cell starts"""
+        global START_TIME
+        START_TIME = time.time()
+    ipython.events.register("pre_run_cell", reset_start)
+    ipython.events.register('post_run_cell', run._stop_jupyter_agent)
 
 
 join = None
@@ -287,9 +301,9 @@ def save(path):
     return os.symlink(os.path.abspath(path), os.path.join(run.dir, file_name))
 
 
-def monitor(display=True, options={}):
-    """Starts syncing with W&B if you're in Jupyter.  Displays your W&B charts live in a Jupyter notebook
-    by default.  Display can be disabled by passing display=False.
+def monitor(options={}):
+    """Starts syncing with W&B if you're in Jupyter.  Displays your W&B charts live in a Jupyter notebook.
+    It's currently a context manager for legacy reasons.
     """
     try:
         from IPython.display import display
@@ -298,37 +312,20 @@ def monitor(display=True, options={}):
 
     class Monitor():
         def __init__(self, options={}):
-            # So much for our constant...
-            global START_TIME
-            START_TIME = time.time()
-            self.api = InternalApi()
-            # TODO: there's an edge case where shutdown isn't called
-            self.api._file_stream_api = None
-            self.api.set_current_run_id(run.id)
-            self.options = options
             if os.getenv("WANDB_JUPYTER"):
-                self.rm = RunManager(self.api, run, output=False)
-                self.rm.mirror_stdout_stderr()
-                self.rm.init_run(dict(os.environ))
-                if display:
-                    display(jupyter.Run())
+                display(jupyter.Run())
             else:
                 self.rm = False
                 termerror(
                     "wandb.monitor is only functional in Jupyter notebooks")
 
         def __enter__(self):
+            termlog(
+                "DEPRECATED: with wandb.monitor(): is deprecated, just call wandb.monitor() to see live results.")
             pass
 
         def __exit__(self, *args):
-            self.stop()
-            return False
-
-        def stop(self):
-            if self.rm:
-                self.rm.shutdown()
-                run.close_files()
-            return run
+            pass
 
     return Monitor(options)
 

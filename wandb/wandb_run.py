@@ -70,8 +70,16 @@ class Run(object):
         self._events = None
         self._summary = None
         self._meta = None
+        self._jupyter_agent = None
         self._user_accessed_summary = False
         self._examples = None
+
+    def _init_jupyter_agent(self):
+        from wandb.jupyter import JupyterAgent
+        self._jupyter_agent = JupyterAgent()
+
+    def _stop_jupyter_agent(self):
+        self._jupyter_agent.stop()
 
     @classmethod
     def from_environment_or_defaults(cls, environment=None):
@@ -158,14 +166,6 @@ class Run(object):
     def __repr__(self):
         return "W&B Run %s" % self.get_url()
 
-    def _repr_html_(self):
-        if self.storage_id:
-            url = self.get_url() + "/edit?jupyter=true"
-            return '''<iframe src="%s" style="border:none;width:100%%;height:300px">
-            </iframe>''' % url
-        else:
-            return '''Not logged in or configured, see https://docs.wandb.com'''
-
     @property
     def host(self):
         return socket.gethostname()
@@ -211,6 +211,8 @@ class Run(object):
     def _history_added(self, row):
         if self._summary is None:
             self._summary = summary.FileSummary(self._dir)
+        if self._jupyter_agent:
+            self._jupyter_agent.start()
         if not self._user_accessed_summary:
             self._summary.update(row)
 

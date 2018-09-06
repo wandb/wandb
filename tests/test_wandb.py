@@ -26,9 +26,17 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             query_run_resume_status(request_mocker)
 
             def get_ipython():
-                class Jupyter():
+                class Jupyter(object):
                     __module__ = "jupyter"
-                    pass
+
+                    def __init__(self):
+                        class Hook(object):
+                            def register(self, what, where):
+                                pass
+                        self.events = Hook()
+
+                    def register_magics(self, magic):
+                        pass
                 return Jupyter()
             wandb.get_ipython = get_ipython
         # no i/o wrapping - it breaks pytest
@@ -79,8 +87,7 @@ def test_custom_dir(wandb_init_run):
 @pytest.mark.jupyter
 def test_jupyter_init(wandb_init_run, capfd):
     assert os.getenv("WANDB_JUPYTER")
-    with wandb.monitor():
-        print("Train")
+    wandb.log({"stat": 1})
     out, err = capfd.readouterr()
     assert "Resuming" in out
     # TODO: saw some global state issues here...

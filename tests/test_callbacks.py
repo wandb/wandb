@@ -106,9 +106,9 @@ def test_keras_image_multiclass(dummy_model, dummy_data, git_repo, run):
 def test_keras_image_multiclass_captions(dummy_model, dummy_data, git_repo, run):
     wandb.run = run
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
-                    callbacks=[WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice"])])
+                    callbacks=[WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice", "Fun"])])
     print(run.history.rows[0])
-    assert run.history.rows[0]["examples"]['captions'][0] in ["Rad", "Nice"]
+    assert run.history.rows[0]["examples"]['captions'][0] in ["Rad", "Nice", "Fun"]
 
 
 @pytest.mark.image_output
