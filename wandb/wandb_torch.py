@@ -1,6 +1,24 @@
+#!/usr/bin/env python
+
+"""PyTorch-specific functionality
+"""
+
+from collections import namedtuple
 import weakref
+
+from distutils.version import LooseVersion
 import wandb
-torch = None
+torch = None  # gets imported lazily by import_torch()
+
+HOOKS = None
+
+
+def init_torch():
+    """Lazily import PyTorch only when we need it to instantiate TorchHistory or something
+    """
+    global torch, HOOKS
+    import torch
+    #HOOKS = TorchHooks()
 
 
 class TorchHistory(object):
@@ -8,8 +26,7 @@ class TorchHistory(object):
     """
 
     def __init__(self, history):
-        global torch
-        import torch
+        init_torch()
         self._history = weakref.ref(history)
         self._hook_handles = {}
 
@@ -103,17 +120,28 @@ class TorchHistory(object):
             raise ValueError(
                 'A hook has already been set under name "{}"'.format(name))
 
-        def callback(grad):
+        def _callback(grad):
+            #_callback()
             self.log_tensor_stats(grad.data, name)
             self.unhook(name)
 
-        handle = var.register_hook(callback)
+        handle = var.register_hook(_callback)
         self._hook_handles[name] = handle
         return handle
+        #return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
 
     def unhook(self, name):
         handle = self._hook_handles.pop(name)
         handle.remove()
+
+
+class TorchHooks(object):
+    def __init__(self):
+        self._hook_handles = {}
+
+
+    def hook(name, callback):
+        pass
 
 
 def _torch_hook_handle_is_valid(handle):
