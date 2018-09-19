@@ -2,10 +2,12 @@
 # -*- coding: future_fstrings -*-
 
 
-import collections
+import itertools
 import pprint
+import queue
 
 import numpy
+torch = None  # lazy import
 
 
 class Graph(object):
@@ -14,7 +16,10 @@ class Graph(object):
         self.nodes_by_id = {}
         self.edges = []
 
-    def print(self):
+    def __getitem__(self, nid):
+        return self.nodes_by_id[nid]
+
+    def pprint(self):
         for edge in self.edges:
             pprint.pprint(edge.attributes)
         for node in self.nodes:
@@ -95,50 +100,219 @@ class Graph(object):
         return graph
 
     @classmethod
-    def from_torch(cls, var, module=None):
+    def from_torch_layers(cls, module, variable):
+        g = cls.from_torch_module(module)
+        h, node_vars = cls.from_torch_var(variable)
+
+        g_parameter_nodes = [n for n in g.nodes if isinstance(n.obj, torch.nn.Parameter)]
+        g_parameter_node_ids = set(n.id for n in g_parameter_nodes)
+        g_parameters = [n.obj for n in g_parameter_nodes]
+        g_parameter_ids = set(id(p) for p in g_parameters)
+        g_tensor_ids = set(id(p.data) for p in g_parameters)
+        param_names = {id(n.obj): n.name for n in g_parameter_nodes}
+
+        h_parameter_nodes = [n for n in h.nodes if isinstance(node_vars.get(n.id), torch.nn.Parameter)]
+        h_parameter_node_ids = set(n.id for n in h_parameter_nodes)
+        h_parameters = [node_vars[n.id] for n in h_parameter_nodes]
+        h_parameter_ids = set(id(p) for p in h_parameters)
+        h_tensor_ids = set(id(p.data) for p in h_parameters)
+        param_ancestors = [n for n in h[0].ancestors() if n.id in h_parameter_node_ids]
+
+        def h_node_name(n):
+            return param_names.get(id(node_vars.get(n.id)))
+
+        g_nodes_by_hash = {id(n): n for n in g.nodes}
+
+        param_ancestor_names = [h_node_name(n) for n in param_ancestors]
+        reachable_param_nodes = g[0].reachable_descendents()
+        reachable_params = {}
+        module_reachable_params = {}
+        names = {}
+        for h, reachable_nodes in reachable_param_nodes.items():
+            node = g_nodes_by_hash[h]
+            if not isinstance(node.obj, torch.nn.Module):
+                continue
+            module = node.obj
+            reachable_params = {}  # by object id
+            module_reachable_params[id(module)] = reachable_params
+            names[node.name] = set()
+            for reachable_hash in reachable_nodes:
+                reachable = g_nodes_by_hash[reachable_hash]
+                if isinstance(reachable.obj, torch.nn.Parameter):
+                    param = reachable.obj
+                    reachable_params[id(param)] = param
+                    names[node.name].add(param_names[id(param)])
+
+        import pprint
+        pprint.pprint(names)
+
+        node_depths = {id(n): d for n, d in g[0].descendent_bfs()}
+        param_nodes = {id(n.obj): n for n in g_parameter_nodes}
+        g_nodes = {id(n): n for n in g.nodes}
+        parameter_modules = {}
+        for param_h, param_node in param_nodes.items():
+            best_node = None
+            best_depth = None
+            best_reachable_params = None
+            for node in g.nodes:
+                if not isinstance(node.obj, torch.nn.Module):
+                    continue
+                module = node.obj
+                reachable_params = module_reachable_params[id(module)]
+                if param_h in reachable_params:
+                    depth = node_depths[id(node)]
+                    if best_node is None or (len(reachable_params), depth) <= (len(best_reachable_params), best_depth):
+                        print(param_node.name, node.name)
+                        best_node = node
+                        best_depth = depth
+                        best_reachable_params = reachable_params
+
+            parameter_modules[param_node.name] = best_node.name
+
+        for param, module in parameter_modules.items():
+            print(module, param)
+
+        pprint.pprint(parameter_modules)
+
+
+    @classmethod
+    def from_torch_module(cls, root_module):
+        """Create a Module-Parameter graph from a PyTorch Module
+        """
+        global torch
+        import torch
+
+        node_ids = itertools.count()
+
+        root_node = Node.from_torch_module(next(node_ids), root_module)
+        nodes_by_obj_id = { id(root_module): root_node }  # indexed by object identity
+
+        graph = cls()
+        graph.add_node(root_node)
+
+        def add_module(module):
+            node = nodes_by_obj_id[id(module)]
+
+            for name, child in sorted(module.named_children()):
+                if id(child) in nodes_by_obj_id:
+                    child_node = nodes_by_obj_id[id(child)]
+                else:
+                    if node.name:
+                        name = node.name + '.' + name
+
+                    child_node = Node.from_torch_module(next(node_ids), child)
+                    child_node.name = name
+                    child_node.obj = child
+                    nodes_by_obj_id[id(child)] = child_node
+                    graph.add_node(child_node)
+                    add_module(child)
+
+                edge = graph.add_edge(node, child_node)
+                edge.name = name
+
+            for name, child in sorted(module.named_parameters()):
+                if '.' in name:
+                    """
+                    We use this hack to avoid adding Param's that are inside ModuleList's
+                    and ModuleDict's. They should be considered children of their
+                    respective modules, not of this one. It's possible we'll make mistakes
+                    if the Param's name has dots in it.
+
+                    TODO(adrian): check / fix this
+
+                    Here's how a ModuleList should behave:
+                    param rnns.3.linear.param bias
+                    param rnns.3.linear.param weight_raw
+
+                    Here are some incorrect cases we're preventing:
+                    dropping param rnns.3.linear param.bias
+                    dropping param rnns.3.linear param.weight_raw
+                    dropping param rnns.3 linear.param.bias
+                    dropping param rnns.3 linear.param.weight_raw
+                    """
+                    #print('dropping param', node.name, name)
+                    continue
+                #print('param', node.name, name)
+
+                if id(child) in nodes_by_obj_id:
+                    child_node = nodes_by_obj_id[id(child)]
+                else:
+                    if node.name:
+                        name = node.name + '.' + name
+
+                    child_node = Node()
+                    child_node.id = next(node_ids)
+                    child_node.name = name
+                    child_node.class_name = type(child).__name__
+                    child_node.size = tuple(child.size())
+                    child_node.num_parameters = numpy.prod(child.size())
+                    child_node.obj = child  # XXX should only do this for debugging because it'll mess up garbage collection
+
+                    nodes_by_obj_id[id(child)] = child_node
+                    graph.add_node(child_node)
+
+                edge = graph.add_edge(node, child_node)
+                edge.name = name
+
+        add_module(root_module)
+
+        return graph
+
+    @classmethod
+    def from_torch_var(cls, var):
         """Create a Graph from a PyTorch compute graph
 
         From https://github.com/szagoruyko/pytorchviz/blob/8960dbc6f3cbe8a6a5f0191f77f5d6e34a542d6b/torchviz/dot.py
 
-        Produces Graphviz representation of PyTorch autograd graph.
-        Blue nodes are the Variables that require grad, orange are Tensors
-        saved for backward in torch.autograd.Function
+        Produces Graph from a PyTorch autograd graph.
+        Nodes are the Variables that require gradients and the Tensors
+        saved for backpropagation in torch.autograd.Function
         Args:
-            var: output Variable
-            params: dict of (name, Variable) to add names to node that
-                require grad (TODO: make optional)
+            var: Variable (eg. loss) for which to create a compute graph
         """
+        global torch
         import torch
 
-        if params is not None:
-            assert all(isinstance(p, torch.autograd.Variable) for p in params.values())
-            param_map = {id(v): k for k, v in params.items()}
-
-        dot = cls()
+        graph = cls()
         seen = set()
+        node_ids = itertools.count()
+        nodes_by_var_id = {}
+        # we keep this separate because we want to be able to keep the graph around but let this be garbage collected
+        node_vars = {}
 
         def size_to_str(size):
             return '(' + (', ').join(['%d' % v for v in size]) + ')'
 
-        output_nodes = (var.grad_fn,) if not isinstance(var, tuple) else tuple(v.grad_fn for v in var)
+        output_nodes = (id(var.grad_fn),) if not isinstance(var, tuple) else tuple(id(v.grad_fn) for v in var)
 
         def add_node(var):
-            if id(var) in dot.nodes_by_id:
-                return dot.nodes_by_id[id(var)]
-            else:
-                if torch.is_tensor(var):
+            orig_var = var
+            if hasattr(var, 'variable'):
+                var = var.variable
+
+            if id(var) not in nodes_by_var_id:
+                node = Node()
+
+                node.id = next(node_ids)
+                node.class_name = type(orig_var).__name__
+                node_vars[node.id] = var
+
+                if id(var) in output_nodes:
+                    node.is_output = True
+
+                if hasattr(var, 'size'):
+                    node.size = var.size()
+
+                if torch.is_tensor(var) and not (hasattr(var, 'requires_grad') and var.requires_grad):
                     # note: this used to show .saved_tensors in pytorch0.2, but stopped
                     # working as it was moved to ATen and Variable-Tensor merged
-                    return dot.add_node(id=id(var), size=var.size())
-                elif hasattr(var, 'variable'):
-                    u = var.variable
-                    name = param_map[id(u)] if params is not None else ''
-                    return dot.add_node(id=id(var), name=name, size=u.size())
-                elif var in output_nodes:
-                    return dot.add_node(id=id(var), class_name=type(var).__name__, is_output=True)
-                else:
-                    return dot.add_node(id=id(var), class_name=type(var).__name__)
+                    node.is_constant = True
 
+                nodes_by_var_id[id(var)] = node
+
+                graph.add_node(node)
+
+            return nodes_by_var_id[id(var)]
 
         def add_nodes(var):
             if var not in seen:
@@ -148,12 +322,12 @@ class Graph(object):
                     for u in var.next_functions:
                         if u[0] is not None:
                             u_node = add_node(u[0])
-                            dot.add_edge(u_node, var_node)
+                            graph.add_edge(u_node, var_node)
                             add_nodes(u[0])
                 if hasattr(var, 'saved_tensors'):
                     for t in var.saved_tensors:
                         t_node = add_node(t)
-                        dot.add_edge(t_node, var_node)
+                        graph.add_edge(t_node, var_node)
                         add_nodes(t)
 
         # handle multiple outputs
@@ -163,7 +337,7 @@ class Graph(object):
         else:
             add_nodes(var.grad_fn)
 
-        return dot
+        return graph, node_vars
 
     @staticmethod
     def transform(graph):
@@ -172,9 +346,11 @@ class Graph(object):
 
 class Node(object):
     def __init__(self, id=None, name=None, class_name=None, size=None, output_shape=None, is_output=None, num_parameters=None):
-        self.attributes = {'name': None}
-        self.out_edges = {}  # indexed by dest node id
+        self._attributes = {'name': None}
         self.in_edges = {}  # indexed by source node id
+        self.out_edges = {}  # indexed by dest node id
+        # optional object (eg. PyTorch Parameter or Module) that this Node represents
+        self.obj = None
 
         if id is not None:
             self.id = id
@@ -188,76 +364,180 @@ class Node(object):
             self.output_shape = output_shape
         if is_output is not None:
             self.is_output = is_output
+        if num_parameters is not None:
+            self.num_parameters = num_parameters
+
+    def __repr__(self):
+        return str((self._attributes, list(self.in_edges.keys()), list(self.out_edges.keys())))
+
+    def descendents(self):
+        """Get descedents topologically sorted"""
+        nodes = []
+        self._add_descendents(set(), nodes, self)
+        return nodes
+
+    def _add_descendents(self, visited_ids, nodes, node):
+        visited_ids.add(node.id)
+        nodes.append(node)
+        for edge in node.out_edges.values():
+            if edge.to_node.id not in visited_ids:
+                self._add_descendents(visited_ids, nodes, edge.to_node)
+
+    def reachable_descendents(self, by_node=None):
+        if by_node is None:
+            by_node = {}
+
+        h = id(self)
+        if h not in by_node:
+            by_node[h] = set([h])
+            for edge in self.out_edges.values():
+                edge.to_node.reachable_descendents(by_node=by_node)
+                by_node[h] |= by_node[id(edge.to_node)]
+
+        return by_node
+
+    def descendent_bfs(self):
+        q = queue.Queue()
+        q.put(self)
+        node_depths = {id(self): 0}
+        while not q.empty():
+            node = q.get()
+            depth = node_depths[id(node)]
+            yield node, depth
+            for edge in node.out_edges.values():
+                h = id(edge.to_node)
+                if h in node_depths:
+                    node_depths[h] = min(node_depths[h], depth + 1)
+                else:
+                    node_depths[h] = depth + 1
+                    q.put(edge.to_node)
+
+
+    def descendent_dfs(self):
+        visited_nodes = set([id(self)])
+        node = self
+        yield node
+        edge_iter = iter(self.out_edges.values())
+        node_edges_stack = [(node, edge_iter)]
+        while node_edges_stack:
+            node, edge_iter = node_edges_stack[-1]
+            try:
+                edge = next(edge_iter)
+            except StopIteration:
+                # We'll hit this when there are no edges left to iterate over.
+                # When we've added a node to the stack we break out of the loop
+                # above, but won't run this block.
+                node_edges_stack.pop()
+            else:
+                if id(edge.to_node) not in visited_nodes:
+                    node = edge.to_node
+                    yield node
+                    edge_iter = iter(node.out_edges.values())
+                    visited_nodes.add(id(node))
+                    node_edges_stack.append((node, edge_iter))
+
+    def ancestors(self):
+        """Get descedents topologically sorted"""
+        nodes = []
+        self._add_ancestors(set(), nodes, self)
+        return nodes
+
+    def _add_ancestors(self, visited_ids, nodes, node):
+        visited_ids.add(node.id)
+        nodes.append(node)
+        for edge in node.in_edges.values():
+            if edge.from_node.id not in visited_ids:
+                self._add_ancestors(visited_ids, nodes, edge.from_node)
 
     @property
     def id(self):
         """Must be unique in the graph"""
-        return self.attributes.get('id', self.name)
+        return self._attributes.get('id')
 
     @id.setter
     def id(self, val):
-        self.attributes['id'] = val
+        self._attributes['id'] = val
         return val
 
     @property
     def name(self):
-        """Optional, not necessarily unique"""
-        return self.attributes.get('name')
+        """Usually the type of layer or sublayer"""
+        return self._attributes.get('name')
 
     @name.setter
     def name(self, val):
-        self.attributes['name'] = val
+        self._attributes['name'] = val
         return val
 
     @property
     def class_name(self):
         """Usually the type of layer or sublayer"""
-        return self.attributes.get('class_name')
+        return self._attributes.get('class_name')
 
     @class_name.setter
     def class_name(self, val):
-        self.attributes['class_name'] = val
+        self._attributes['class_name'] = val
         return val
 
     @property
     def size(self):
-        return self.attributes.get('size')
+        return self._attributes.get('size')
 
     @size.setter
     def size(self, val):
         """Tensor size"""
-        self.attributes['size'] = tuple(val)
+        self._attributes['size'] = tuple(val)
         self.num_parameters = numpy.prod(self.size)
         return val
 
     @property
     def output_shape(self):
-        return self.attributes.get('output_shape')
+        return self._attributes.get('output_shape')
 
     @output_shape.setter
     def output_shape(self, val):
         """Tensor output_shape"""
-        self.attributes['output_shape'] = val
+        self._attributes['output_shape'] = val
         return val
 
     @property
     def is_output(self):
-        return self.attributes.get('is_output')
+        return self._attributes.get('is_output')
 
     @is_output.setter
     def is_output(self, val):
         """Tensor is_output"""
-        self.attributes['is_output'] = val
+        self._attributes['is_output'] = val
         return val
 
     @property
     def num_parameters(self):
-        return self.attributes.get('num_parameters')
+        return self._attributes.get('num_parameters')
 
     @num_parameters.setter
     def num_parameters(self, val):
         """Tensor num_parameters"""
-        self.attributes['num_parameters'] = val
+        self._attributes['num_parameters'] = val
+        return val
+
+    @property
+    def child_parameters(self):
+        return self._attributes.get('child_parameters')
+
+    @child_parameters.setter
+    def child_parameters(self, val):
+        """Tensor child_parameters"""
+        self._attributes['child_parameters'] = val
+        return val
+
+    @property
+    def is_constant(self):
+        return self._attributes.get('is_constant')
+
+    @is_constant.setter
+    def is_constant(self, val):
+        """Tensor is_constant"""
+        self._attributes['is_constant'] = val
         return val
 
     @classmethod
@@ -287,37 +567,69 @@ class Node(object):
                     connections.append(inbound_layer +
                                        '[' + str(inbound_node_index) + '][' +
                                        str(inbound_tensor_index) + ']')
-        node.attributes['inbound_nodes'] = connections
+        node._attributes['inbound_nodes'] = connections
+        return node
+
+
+    @classmethod
+    def from_torch_module(cls, nid, module):
+        global torch
+        import torch
+
+        node = cls()
+        node.id = nid
+        node.child_parameters = 0
+        for parameter in module.parameters():
+            node.child_parameters += numpy.prod(parameter.size())
+        node.class_name = type(module).__name__
+
         return node
 
     @staticmethod
     def transform(node):
-        return node.attributes
+        return node._attributes
 
 
 class Edge(object):
     def __init__(self, from_node, to_node):
-        pass
-        self.attributes = {}
-        self.from_node = from_node.id
-        self.to_node = to_node.id
+        self._attributes = {}
+        self.from_node = from_node
+        self.to_node = to_node
+
+    def __repr__(self):
+        temp_attr = dict(self._attributes)
+        del temp_attr['from_node']
+        del temp_attr['to_node']
+        temp_attr['from_id'] = self.from_node.id
+        temp_attr['to_id'] = self.to_node.id
+        return str(temp_attr)
+
+    @property
+    def name(self):
+        """Optional, not necessarily unique"""
+        return self._attributes.get('name')
+
+    @name.setter
+    def name(self, val):
+        self._attributes['name'] = val
+        return val
 
     @property
     def from_node(self):
-        return self.attributes.get('from_node')
+        return self._attributes.get('from_node')
 
     @from_node.setter
     def from_node(self, val):
-        self.attributes['from_node'] = val
+        self._attributes['from_node'] = val
         return val
 
     @property
     def to_node(self):
-        return self.attributes.get('to_node')
+        return self._attributes.get('to_node')
 
     @to_node.setter
     def to_node(self, val):
-        self.attributes['to_node'] = val
+        self._attributes['to_node'] = val
         return val
 
 

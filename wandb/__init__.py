@@ -263,6 +263,7 @@ _user_processs_finished_called = False
 
 def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stderr_redirector):
     global _user_processs_finished_called
+    termlog('user process finished')
     if _user_processs_finished_called:
         return
     _user_processs_finished_called = True

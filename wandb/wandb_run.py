@@ -273,12 +273,15 @@ class Run(object):
         Exception ignored in: <_io.FileIO name='wandb/dryrun-20180130_144602-9vmqjhgy/wandb-history.jsonl' mode='wb' closefd=True>
         ResourceWarning: unclosed file <_io.TextIOWrapper name='wandb/dryrun-20180130_144602-9vmqjhgy/wandb-history.jsonl' mode='w' encoding='UTF-8'>
         """
+        wandb.termlog('asdf')
         if self._events is not None:
             self._events.close()
             self._events = None
+        wandb.termlog('asdf')
         if self._history is not None:
             self._history.close()
             self._history = None
+        wandb.termlog('asdf')
 
 
 def generate_id():
