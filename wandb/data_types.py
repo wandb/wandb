@@ -100,89 +100,6 @@ class Graph(object):
         return graph
 
     @classmethod
-    def from_torch_layers(cls, module, variable):
-        global torch
-        import torch
-
-        module_graph = cls.from_torch_module(module)
-        compute_graph, node_vars = cls.from_torch_compute_graph(variable)
-
-        # establishes the parameter ordering
-        compute_graph_parameter_nodes = reversed([n for n, _ in compute_graph[0].ancestor_bfs() if isinstance(node_vars.get(n.id), torch.nn.Parameter)])
-        compute_graph_parameters = [node_vars[n.id] for n in compute_graph_parameter_nodes]
-
-        module_parameter_nodes = [n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)]
-
-        param_names = {id(n.obj): n.name for n in module_parameter_nodes}
-
-        def h_node_name(n):
-            return param_names.get(id(node_vars.get(n.id)))
-
-        module_nodes_by_hash = {id(n): n for n in module_graph.nodes}
-
-        reachable_param_nodes = module_graph[0].reachable_descendents()
-        reachable_params = {}
-        module_reachable_params = {}
-        names = {}
-        for h, reachable_nodes in reachable_param_nodes.items():
-            node = module_nodes_by_hash[h]
-            if not isinstance(node.obj, torch.nn.Module):
-                continue
-            module = node.obj
-            reachable_params = {}  # by object id
-            module_reachable_params[id(module)] = reachable_params
-            names[node.name] = set()
-            for reachable_hash in reachable_nodes:
-                reachable = module_nodes_by_hash[reachable_hash]
-                if isinstance(reachable.obj, torch.nn.Parameter):
-                    param = reachable.obj
-                    reachable_params[id(param)] = param
-                    names[node.name].add(param_names[id(param)])
-
-        # we look for correspondences between sets of parameters used in subtrees of the
-        # computation graph and sets of parameters contained in subtrees of the module
-        # graph
-        node_depths = {id(n): d for n, d in module_graph[0].descendent_bfs()}
-        param_nodes = {id(n.obj): n for n in module_parameter_nodes}
-        parameter_module_names = {}
-        parameter_modules = {}
-        for param_h, param_node in param_nodes.items():
-            best_node = None
-            best_depth = None
-            best_reachable_params = None
-            for node in module_graph.nodes:
-                if not isinstance(node.obj, torch.nn.Module):
-                    continue
-                module = node.obj
-                reachable_params = module_reachable_params[id(module)]
-                if param_h in reachable_params:
-                    depth = node_depths[id(node)]
-                    if best_node is None or (len(reachable_params), depth) <= (len(best_reachable_params), best_depth):
-                        #print(param_node.name, node.name)
-                        best_node = node
-                        best_depth = depth
-                        best_reachable_params = reachable_params
-
-
-            parameter_modules[param_h] = best_node.name
-            parameter_module_names[param_node.name] = best_node.name
-
-        #pprint.pprint(names)
-        #pprint.pprint(parameter_modules)
-
-        #for param, module in parameter_modules.items():
-        #    print(module, param)
-
-        # contains all parameters but only a minimal set of modules necessary
-        # to contain them (and ideally corresponding to layers)
-        reduced_module_graph = cls()
-        for param in compute_graph_parameters:
-
-            h = id(param)
-            print(param_names.get(h), parameter_modules.get(h))
-
-
-    @classmethod
     def from_torch_module(cls, root_module):
         """Create a Module-Parameter graph from a PyTorch Module
         """
@@ -345,6 +262,91 @@ class Graph(object):
             add_nodes(var.grad_fn)
 
         return graph, node_vars
+
+    @classmethod
+    def from_torch_layers(cls, module, variable):
+        """Recover something like neural net layers from PyTorch Module's and the
+        compute graph from a Variable
+        """
+        global torch
+        import torch
+
+        module_graph = cls.from_torch_module(module)
+        compute_graph, node_vars = cls.from_torch_compute_graph(variable)
+
+        # establishes the parameter ordering
+        compute_graph_parameter_nodes = reversed([n for n, _ in compute_graph[0].ancestor_bfs() if isinstance(node_vars.get(n.id), torch.nn.Parameter)])
+        compute_graph_parameters = [node_vars[n.id] for n in compute_graph_parameter_nodes]
+
+        module_parameter_nodes = [n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)]
+
+        param_names = {id(n.obj): n.name for n in module_parameter_nodes}
+
+        def h_node_name(n):
+            return param_names.get(id(node_vars.get(n.id)))
+
+        module_nodes_by_hash = {id(n): n for n in module_graph.nodes}
+
+        reachable_param_nodes = module_graph[0].reachable_descendents()
+        reachable_params = {}
+        module_reachable_params = {}
+        names = {}
+        for h, reachable_nodes in reachable_param_nodes.items():
+            node = module_nodes_by_hash[h]
+            if not isinstance(node.obj, torch.nn.Module):
+                continue
+            module = node.obj
+            reachable_params = {}  # by object id
+            module_reachable_params[id(module)] = reachable_params
+            names[node.name] = set()
+            for reachable_hash in reachable_nodes:
+                reachable = module_nodes_by_hash[reachable_hash]
+                if isinstance(reachable.obj, torch.nn.Parameter):
+                    param = reachable.obj
+                    reachable_params[id(param)] = param
+                    names[node.name].add(param_names[id(param)])
+
+        # we look for correspondences between sets of parameters used in subtrees of the
+        # computation graph and sets of parameters contained in subtrees of the module
+        # graph
+        node_depths = {id(n): d for n, d in module_graph[0].descendent_bfs()}
+        param_nodes = {id(n.obj): n for n in module_parameter_nodes}
+        parameter_module_names = {}
+        parameter_modules = {}
+        for param_h, param_node in param_nodes.items():
+            best_node = None
+            best_depth = None
+            best_reachable_params = None
+            for node in module_graph.nodes:
+                if not isinstance(node.obj, torch.nn.Module):
+                    continue
+                module = node.obj
+                reachable_params = module_reachable_params[id(module)]
+                if param_h in reachable_params:
+                    depth = node_depths[id(node)]
+                    if best_node is None or (len(reachable_params), depth) <= (len(best_reachable_params), best_depth):
+                        #print(param_node.name, node.name)
+                        best_node = node
+                        best_depth = depth
+                        best_reachable_params = reachable_params
+
+
+            parameter_modules[param_h] = best_node.name
+            parameter_module_names[param_node.name] = best_node.name
+
+        #pprint.pprint(names)
+        #pprint.pprint(parameter_modules)
+
+        #for param, module in parameter_modules.items():
+        #    print(module, param)
+
+        # contains all parameters but only a minimal set of modules necessary
+        # to contain them (and ideally corresponding to layers)
+        reduced_module_graph = cls()
+        for param in compute_graph_parameters:
+
+            h = id(param)
+            print(param_names.get(h), parameter_modules.get(h))
 
     @staticmethod
     def transform(graph):
