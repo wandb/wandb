@@ -340,6 +340,19 @@ class Graph(object):
 
         module_nodes_by_pid = {id(n.obj): n for n in module_graph.nodes}
 
+        """Example output for a multi-layer RNN. We confusingly assign shared embedding values
+        to the encoder, but ordered next to the decoder.
+        rnns.0.linear.module.weight_raw rnns.0
+        rnns.0.linear.module.bias rnns.0
+        rnns.1.linear.module.weight_raw rnns.1
+        rnns.1.linear.module.bias rnns.1
+        rnns.2.linear.module.weight_raw rnns.2
+        rnns.2.linear.module.bias rnns.2
+        rnns.3.linear.module.weight_raw rnns.3
+        rnns.3.linear.module.bias rnns.3
+        decoder.weight encoder
+        decoder.bias decoder
+        """
         compute_graph, compute_node_vars = cls.from_torch_compute_graph(variable)
         for node, _ in reversed(list(compute_graph[0].ancestor_bfs())):
             param = compute_node_vars.get(node.id)
