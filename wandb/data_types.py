@@ -272,27 +272,18 @@ class Graph(object):
         import torch
 
         module_graph = cls.from_torch_module(module)
-        compute_graph, node_vars = cls.from_torch_compute_graph(variable)
-
-        # establishes the parameter ordering
-        compute_graph_parameter_nodes = reversed([n for n, _ in compute_graph[0].ancestor_bfs() if isinstance(node_vars.get(n.id), torch.nn.Parameter)])
-        compute_graph_parameters = [node_vars[n.id] for n in compute_graph_parameter_nodes]
-
-        module_parameter_nodes = [n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)]
-
-        param_names = {id(n.obj): n.name for n in module_parameter_nodes}
-
-        def h_node_name(n):
-            return param_names.get(id(node_vars.get(n.id)))
 
         module_nodes_by_hash = {id(n): n for n in module_graph.nodes}
+        module_parameter_nodes = [n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)]
+
+        names_by_pid = {id(n.obj): n.name for n in module_parameter_nodes}
 
         reachable_param_nodes = module_graph[0].reachable_descendents()
         reachable_params = {}
         module_reachable_params = {}
         names = {}
-        for h, reachable_nodes in reachable_param_nodes.items():
-            node = module_nodes_by_hash[h]
+        for pid, reachable_nodes in reachable_param_nodes.items():
+            node = module_nodes_by_hash[pid]
             if not isinstance(node.obj, torch.nn.Module):
                 continue
             module = node.obj
@@ -304,16 +295,16 @@ class Graph(object):
                 if isinstance(reachable.obj, torch.nn.Parameter):
                     param = reachable.obj
                     reachable_params[id(param)] = param
-                    names[node.name].add(param_names[id(param)])
+                    names[node.name].add(names_by_pid[id(param)])
 
         # we look for correspondences between sets of parameters used in subtrees of the
         # computation graph and sets of parameters contained in subtrees of the module
         # graph
         node_depths = {id(n): d for n, d in module_graph[0].descendent_bfs()}
-        param_nodes = {id(n.obj): n for n in module_parameter_nodes}
         parameter_module_names = {}
         parameter_modules = {}
-        for param_h, param_node in param_nodes.items():
+        for param_node in (n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)):
+            pid = id(param_node.obj)
             best_node = None
             best_depth = None
             best_reachable_params = None
@@ -322,7 +313,7 @@ class Graph(object):
                     continue
                 module = node.obj
                 reachable_params = module_reachable_params[id(module)]
-                if param_h in reachable_params:
+                if pid in reachable_params:
                     depth = node_depths[id(node)]
                     if best_node is None or (len(reachable_params), depth) <= (len(best_reachable_params), best_depth):
                         #print(param_node.name, node.name)
@@ -330,8 +321,7 @@ class Graph(object):
                         best_depth = depth
                         best_reachable_params = reachable_params
 
-
-            parameter_modules[param_h] = best_node.name
+            parameter_modules[pid] = best_node.name
             parameter_module_names[param_node.name] = best_node.name
 
         #pprint.pprint(names)
@@ -341,12 +331,24 @@ class Graph(object):
         #    print(module, param)
 
         # contains all parameters but only a minimal set of modules necessary
-        # to contain them (and ideally corresponding to layers)
+        # to contain them (and which ideally correspond to conceptual layers)
         reduced_module_graph = cls()
-        for param in compute_graph_parameters:
+        rmg_ids = itertools.count()
+        root = Node(id=next(rmg_ids), node=module_graph[0])
+        reduced_module_graph.add_node(root)
+        rmg_nodes_by_pid = {}
 
-            h = id(param)
-            print(param_names.get(h), parameter_modules.get(h))
+        module_nodes_by_pid = {id(n.obj): n for n in module_graph.nodes}
+
+        compute_graph, compute_node_vars = cls.from_torch_compute_graph(variable)
+        for node, _ in reversed(list(compute_graph[0].ancestor_bfs())):
+            param = compute_node_vars.get(node.id)
+            pid = id(param)
+            if isinstance(param, torch.nn.Parameter):
+                if pid in module_nodes_by_pid:
+                    # not all Parameters that occur in the compute graph come from the Module graph
+                    rmg_node = Node(id=next(rmg_ids), node=module_nodes_by_pid[pid])
+                    print(names_by_pid.get(pid), parameter_modules.get(pid))
 
     @staticmethod
     def transform(graph):
@@ -354,12 +356,17 @@ class Graph(object):
 
 
 class Node(object):
-    def __init__(self, id=None, name=None, class_name=None, size=None, output_shape=None, is_output=None, num_parameters=None):
+    def __init__(self, id=None, name=None, class_name=None, size=None, output_shape=None, is_output=None, num_parameters=None, node=None):
         self._attributes = {'name': None}
         self.in_edges = {}  # indexed by source node id
         self.out_edges = {}  # indexed by dest node id
         # optional object (eg. PyTorch Parameter or Module) that this Node represents
         self.obj = None
+
+        if node is not None:
+            self._attributes.update(node._attributes)
+            del self._attributes['id']
+            self.obj = node.obj
 
         if id is not None:
             self.id = id
