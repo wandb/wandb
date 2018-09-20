@@ -15,6 +15,7 @@ class Graph(object):
         self.nodes = []
         self.nodes_by_id = {}
         self.edges = []
+        self.root = None  # optional root Node if applicable
 
     def __getitem__(self, nid):
         return self.nodes_by_id[nid]
@@ -266,7 +267,21 @@ class Graph(object):
     @classmethod
     def from_torch_layers(cls, module, variable):
         """Recover something like neural net layers from PyTorch Module's and the
-        compute graph from a Variable
+        compute graph from a Variable.
+
+        Example output for a multi-layer RNN. We confusingly assign shared embedding values
+        to the encoder, but ordered next to the decoder.
+
+        rnns.0.linear.module.weight_raw rnns.0
+        rnns.0.linear.module.bias rnns.0
+        rnns.1.linear.module.weight_raw rnns.1
+        rnns.1.linear.module.bias rnns.1
+        rnns.2.linear.module.weight_raw rnns.2
+        rnns.2.linear.module.bias rnns.2
+        rnns.3.linear.module.weight_raw rnns.3
+        rnns.3.linear.module.bias rnns.3
+        decoder.weight encoder
+        decoder.bias decoder
         """
         global torch
         import torch
@@ -321,7 +336,7 @@ class Graph(object):
                         best_depth = depth
                         best_reachable_params = reachable_params
 
-            parameter_modules[pid] = best_node.name
+            parameter_modules[pid] = best_node
             parameter_module_names[param_node.name] = best_node.name
 
         #pprint.pprint(names)
@@ -334,34 +349,42 @@ class Graph(object):
         # to contain them (and which ideally correspond to conceptual layers)
         reduced_module_graph = cls()
         rmg_ids = itertools.count()
-        root = Node(id=next(rmg_ids), node=module_graph[0])
-        reduced_module_graph.add_node(root)
+        rmg_root = Node(id=next(rmg_ids), node=module_graph[0])
+        reduced_module_graph.add_node(rmg_root)
+        reduced_module_graph.root = rmg_root
         rmg_nodes_by_pid = {}
 
         module_nodes_by_pid = {id(n.obj): n for n in module_graph.nodes}
 
-        """Example output for a multi-layer RNN. We confusingly assign shared embedding values
-        to the encoder, but ordered next to the decoder.
-        rnns.0.linear.module.weight_raw rnns.0
-        rnns.0.linear.module.bias rnns.0
-        rnns.1.linear.module.weight_raw rnns.1
-        rnns.1.linear.module.bias rnns.1
-        rnns.2.linear.module.weight_raw rnns.2
-        rnns.2.linear.module.bias rnns.2
-        rnns.3.linear.module.weight_raw rnns.3
-        rnns.3.linear.module.bias rnns.3
-        decoder.weight encoder
-        decoder.bias decoder
-        """
         compute_graph, compute_node_vars = cls.from_torch_compute_graph(variable)
         for node, _ in reversed(list(compute_graph[0].ancestor_bfs())):
             param = compute_node_vars.get(node.id)
             pid = id(param)
-            if isinstance(param, torch.nn.Parameter):
-                if pid in module_nodes_by_pid:
-                    # not all Parameters that occur in the compute graph come from the Module graph
-                    rmg_node = Node(id=next(rmg_ids), node=module_nodes_by_pid[pid])
-                    print(names_by_pid.get(pid), parameter_modules.get(pid))
+            if not isinstance(param, torch.nn.Parameter):
+                continue
+            if pid not in module_nodes_by_pid:
+                # not all Parameters that occur in the compute graph come from the Module graph
+                continue
+
+            # add the nodes in the order we want to display them on the frontend
+            mid = id(parameter_modules[pid].obj)
+            if mid in rmg_nodes_by_pid:
+                rmg_module = rmg_nodes_by_pid[mid]
+            else:
+                rmg_module = rmg_nodes_by_pid[mid] = Node(id=next(rmg_ids), node=module_nodes_by_pid[mid])
+                reduced_module_graph.add_node(rmg_module)
+                reduced_module_graph.add_edge(rmg_root, rmg_module)
+
+            rmg_param = Node(id=next(rmg_ids), node=module_nodes_by_pid[pid])
+            rmg_nodes_by_pid[pid] = rmg_param
+            reduced_module_graph.add_node(rmg_param)
+
+            reduced_module_graph.add_edge(rmg_module, rmg_param)
+
+            #print(names_by_pid.get(pid), parameter_modules.get(pid))
+
+        return reduced_module_graph
+        #pprint.pprint(reduced_module_graph.nodes)
 
     @staticmethod
     def transform(graph):
