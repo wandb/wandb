@@ -14,7 +14,9 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: v2-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+          keys:
+          - v1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+          - v1-dependencies-
       - run:
           name: Install dependencies
           command: |
@@ -26,7 +28,7 @@ jobs:
       - save_cache:
           paths:
             - ./venv
-          key: v2-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+          key: v1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
       - run:
           name: Run tests
           command: |
