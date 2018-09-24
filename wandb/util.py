@@ -243,9 +243,9 @@ def write_netrc(host, entity, key):
             'API-key must be exactly 40 characters long: %s (%s chars)' % (key, len(key)))
         return None
     try:
-        print("Appending key to your netrc file: %s" %
-              os.path.expanduser('~/.netrc'))
         normalized_host = host.split("/")[-1].split(":")[0]
+        print("Appending key for %s to your netrc file: %s" %
+              (normalized_host, os.path.expanduser('~/.netrc')))
         machine_line = 'machine %s' % normalized_host
         path = os.path.expanduser('~/.netrc')
         orig_lines = None
