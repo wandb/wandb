@@ -522,7 +522,7 @@ def init(ctx):
     # This shouldn't happen.
     viewer = api.viewer()
     if not viewer:
-        click.echo(click.style("We're sorry, there was a problem logging you in. Please email support@wandb.com.", fg="red", bold=True))
+        click.echo(click.style("We're sorry, there was a problem logging you in. Please send us a note at support@wandb.com and tell us how this happened.", fg="red", bold=True))
         sys.exit(1)
 
     # At this point we should be logged in successfully.
