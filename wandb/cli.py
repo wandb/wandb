@@ -512,6 +512,20 @@ def init(ctx):
     IS_INIT = True
 
     viewer = api.viewer()
+
+    # Viewer can be `None` in case your API information became invalid, or
+    # in testing if you switch hosts.
+    if not viewer:
+        click.echo(click.style("Your login information seems to be invalid: can you log in again please?", fg="red", bold=True))
+        ctx.invoke(login)
+
+    # This shouldn't happen.
+    viewer = api.viewer()
+    if not viewer:
+        click.echo(click.style("We're sorry, there was a problem logging you in. Please send us a note at support@wandb.com and tell us how this happened.", fg="red", bold=True))
+        sys.exit(1)
+
+    # At this point we should be logged in successfully.
     if len(viewer["teams"]["edges"]) > 1:
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]]
         question = {
