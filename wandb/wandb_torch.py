@@ -75,13 +75,17 @@ class TorchHistory(object):
             if name is not None:
                 prefix = prefix + name
             self.log_module_stats(module, prefix)
-            for name, parameter in module.named_parameters():
-                self.log_stats(parameter, name=name, prefix=prefix,
-                               values=values, gradients=gradients)
         else:
             cls = type(var)
             raise TypeError('Expected torch.autograd.Variable or torch.nn.Module, not {}.{}'.format(
                 cls.__module__, cls.__name__))
+
+    def log_module_parameters(self, module, name=None, prefix='', values=True, gradients=True):
+        if name is not None:
+            prefix = prefix + name
+        for name, parameter in module.named_parameters():
+            self.log_stats(parameter, name=name, prefix=prefix,
+                           values=values, gradients=gradients)
 
     def log_module_stats(self, module, name):
         print('name', name)
@@ -204,7 +208,7 @@ class TorchHistory(object):
         def _callback(grad):
             #_callback()
             self.log_tensor_stats(grad.data, name)
-            self.unhook(name)
+            #self.unhook(name)
 
         handle = var.register_hook(_callback)
         self._hook_handles[name] = handle
