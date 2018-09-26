@@ -122,7 +122,7 @@ class History(object):
                 # Something expensive here
         """
         self.row = {}
-        self.batched = True
+        #self.batched = True
         self.compute = compute
         yield self
         if compute:
