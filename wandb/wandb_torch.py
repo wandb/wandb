@@ -88,11 +88,9 @@ class TorchHistory(object):
                            values=values, gradients=gradients)
 
     def log_module_stats(self, module, name):
-        print('name', name)
         self._hook_module_input_output_stats(module, name)
         self._hook_module_input_output_gradient_stats(module, name)
         for child_name, child in module.named_children():
-            print('child name', child_name)
             self.log_module_stats(child, name + '.' + child_name)
 
 
