@@ -936,9 +936,7 @@ class RunManager(object):
         self._stop_watchdog()
 
         self._finish_handlers()
-        wandb.termlog('Handlers done')
         self._file_pusher.finish()
-        wandb.termlog('Pusher done')
 
         wandb.termlog('Syncing files in %s:' %
                       os.path.relpath(self._watch_dir))

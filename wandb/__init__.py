@@ -75,6 +75,10 @@ class Callbacks():
 callbacks = Callbacks()
 
 
+def hook_torch(model):
+    run.history.torch.log_module_parameters(model, values=False)
+
+
 class ExitHooks(object):
     def __init__(self):
         self.exit_code = 0
@@ -263,7 +267,6 @@ _user_processs_finished_called = False
 
 def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stderr_redirector):
     global _user_processs_finished_called
-    termlog('user process finished')
     if _user_processs_finished_called:
         return
     _user_processs_finished_called = True
