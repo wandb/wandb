@@ -1,7 +1,65 @@
 import collections
+import os
+import logging
+import six
+import wandb
+from wandb import util
 
 
-class Graph(object):
+class Base(object):
+    @staticmethod
+    def convert_key(key, val, mode="summary", step=None):
+        """Converts a wandb datatype to its JSON representation"""
+        converted = val
+        typename = util.get_full_typename(val)
+        if util.is_matplotlib_typename(typename):
+            # This handles plots with images in it because plotly doesn't support it
+            # TODO: should we handle a list of plots?
+            val = util.ensure_matplotlib_figure(val)
+            if any(len(ax.images) > 0 for ax in val.axes):
+                PILImage = util.get_module(
+                    "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
+                buf = six.BytesIO()
+                val.savefig(buf)
+                val = Image(PILImage.open(buf))
+            else:
+                converted = util.convert_plots(val)
+        elif util.is_plotly_typename(typename):
+            converted = util.convert_plots(val)
+        if isinstance(val, Image):
+            val = [val]
+
+        if isinstance(val, collections.Sequence) and len(val) > 0:
+            is_image = [isinstance(v, Image) for v in val]
+            if all(is_image):
+                cwd = wandb.run.dir if wandb.run else "."
+                converted = Image.transform(val, cwd,
+                                            "{}_{}.jpg".format(key, step or "summary"))
+            elif any(is_image):
+                raise ValueError(
+                    "Mixed media types in the same list aren't supported")
+        elif isinstance(val, Histogram):
+            converted = Histogram.transform(val)
+        elif isinstance(val, Graph):
+            if mode == "history":
+                raise ValueError("Graphs are only supported in summary")
+            converted = Graph.transform(val)
+        elif isinstance(val, Table):
+            converted = Table.transform(val)
+        return converted
+
+    @staticmethod
+    def convert(payload, mode="history"):
+        for key, val in six.iteritems(payload):
+            if isinstance(val, dict):
+                payload[key] = Base.convert(val, mode)
+            else:
+                payload[key] = Base.convert_key(
+                    key, val, mode, step=payload.get("_step"))
+        return payload
+
+
+class Graph(Base):
     def __init__(self):
         self.nodes = []
 
@@ -104,7 +162,7 @@ class Node(object):
         return node.attributes
 
 
-class Histogram(object):
+class Histogram(Base):
     MAX_LENGTH = 512
 
     def __init__(self, sequence=None, np_histogram=None, num_bins=64):
@@ -123,11 +181,9 @@ class Histogram(object):
                 raise ValueError(
                     'Expected np_histogram to be a tuple of (values, bin_edges) or sequence to be specified')
         else:
-            try:
-                import numpy as np
-            except ImportError:
-                raise ValueError(
-                    "Auto creation of histograms requires numpy")
+            np = util.get_module(
+                "numpy", required="Auto creation of histograms requires numpy")
+
             self.histogram, self.bins = np.histogram(
                 sequence, bins=num_bins)
             self.histogram = self.histogram.tolist()
@@ -144,3 +200,127 @@ class Histogram(object):
     @staticmethod
     def transform(histogram):
         return {"_type": "histogram", "values": histogram.histogram, "bins": histogram.bins}
+
+
+class Table(Base):
+    MAX_ROWS = 300
+
+    def __init__(self, columns=["Input", "Output", "Expected"], rows=[]):
+        self.columns = columns
+        self.rows = list(rows)
+
+    def add_row(self, *row):
+        if len(row) != len(self.columns):
+            raise ValueError("This table expects {} columns: {}".format(
+                len(self.columns), self.columns))
+        self.rows.append(list(row))
+
+    @staticmethod
+    def transform(table):
+        if len(table.rows) > Table.MAX_ROWS:
+            logging.warn(
+                "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
+        return {"_type": "table", "columns": table.columns, "data": table.rows[:Table.MAX_ROWS]}
+
+
+class Image(Base):
+    MAX_IMAGES = 100
+
+    def __init__(self, data, mode=None, caption=None, grouping=None):
+        """
+        Accepts numpy array of image data, or a PIL image. The class attempts to infer
+        the data format and converts it.
+
+        If grouping is set to a number the interface combines N images.
+        """
+        PILImage = util.get_module(
+            "PIL.Image", required="wandb.Image requires the PIL package, to get it run: pip install pillow")
+        if util.is_matplotlib_typename(util.get_full_typename(data)):
+            buf = six.BytesIO()
+            util.ensure_matplotlib_figure(data).savefig(buf)
+            self.image = PILImage.open(buf)
+        elif isinstance(data, PILImage.Image):
+            self.image = data
+        else:
+            data = data.squeeze()  # get rid of trivial dimensions as a convenience
+            self.image = PILImage.fromarray(
+                self.to_uint8(data), mode=mode or self.guess_mode(data))
+        self.grouping = grouping
+        self.caption = caption
+
+    def guess_mode(self, data):
+        """
+        Guess what type of image the np.array is representing 
+        """
+        # TODO: do we want to support dimensions being at the beginning of the array?
+        if data.ndim == 2:
+            return "L"
+        elif data.shape[-1] == 3:
+            return "RGB"
+        elif data.shape[-1] == 4:
+            return "RGBA"
+        else:
+            raise ValueError(
+                "Un-supported shape for image conversion %s" % list(data.shape))
+
+    def to_uint8(self, data):
+        """
+        Converts floating point image on the range [0,1] and integer images
+        on the range [0,255] to uint8, clipping if necessary.
+        """
+        np = util.get_module(
+            "numpy", required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy")
+
+        # I think it's better to check the image range vs the data type, since many
+        # image libraries will return floats between 0 and 255
+
+        # some images have range -1...1 or 0-1
+        dmin = np.min(data)
+        if dmin < 0:
+            data = (data - np.min(data)) / np.ptp(data)
+        if np.max(data) <= 1.0:
+            data = (data * 255).astype(np.int32)
+
+        #assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
+        return data.clip(0, 255).astype(np.uint8)
+
+    def to_json(self):
+        Image.transform([self], wandb.run.dir, "summary.jpg")
+
+    @staticmethod
+    def transform(images, out_dir, fname):
+        """
+        Combines a list of images into a single sprite returning meta information
+        """
+        from PIL import Image as PILImage
+        base = os.path.join(out_dir, "media", "images")
+        width, height = images[0].image.size
+        if len(images) > Image.MAX_IMAGES:
+            logging.warn(
+                "The maximum number of images to store per step is %i." % Image.MAX_IMAGES)
+        sprite = PILImage.new(
+            mode='RGB',
+            size=(width * len(images), height),
+            color=(0, 0, 0, 0))
+        for i, image in enumerate(images[:Image.MAX_IMAGES]):
+            location = width * i
+            sprite.paste(image.image, (location, 0))
+        util.mkdir_exists_ok(base)
+        sprite.save(os.path.join(base, fname), transparency=0)
+        meta = {"width": width, "height": height,
+                "count": len(images), "_type": "images"}
+        # TODO: hacky way to enable image grouping for now
+        grouping = images[0].grouping
+        if grouping:
+            meta["grouping"] = grouping
+        captions = Image.captions(images[:Image.MAX_IMAGES])
+        if captions:
+            meta["captions"] = captions
+        return meta
+
+    @staticmethod
+    def captions(images):
+        if images[0].caption != None:
+            return [i.caption for i in images]
+        else:
+            return False

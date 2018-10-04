@@ -42,7 +42,8 @@ from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
 from wandb.run_manager import RunManager
-from wandb.media import Image
+from wandb.data_types import Image
+from wandb.data_types import Table
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 

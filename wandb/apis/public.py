@@ -291,10 +291,10 @@ class Run(object):
         lines = [json.loads(line)
                  for line in response['project']['run'][node]]
         if pandas:
-            try:
-                import pandas
+            pandas = util.get_module("pandas")
+            if pandas:
                 lines = pandas.DataFrame.from_records(lines)
-            except ImportError:
+            else:
                 print("Unable to load pandas, call history with pandas=False")
         return lines
 
