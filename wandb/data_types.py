@@ -6,60 +6,59 @@ import wandb
 from wandb import util
 
 
-class Base(object):
-    @staticmethod
-    def convert_key(key, val, mode="summary", step=None):
-        """Converts a wandb datatype to its JSON representation"""
-        converted = val
-        typename = util.get_full_typename(val)
-        if util.is_matplotlib_typename(typename):
-            # This handles plots with images in it because plotly doesn't support it
-            # TODO: should we handle a list of plots?
-            val = util.ensure_matplotlib_figure(val)
-            if any(len(ax.images) > 0 for ax in val.axes):
-                PILImage = util.get_module(
-                    "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
-                buf = six.BytesIO()
-                val.savefig(buf)
-                val = Image(PILImage.open(buf))
-            else:
-                converted = util.convert_plots(val)
-        elif util.is_plotly_typename(typename):
+def val_to_json(key, val, mode="summary", step=None):
+    """Converts a wandb datatype to its JSON representation"""
+    converted = val
+    typename = util.get_full_typename(val)
+    if util.is_matplotlib_typename(typename):
+        # This handles plots with images in it because plotly doesn't support it
+        # TODO: should we handle a list of plots?
+        val = util.ensure_matplotlib_figure(val)
+        if any(len(ax.images) > 0 for ax in val.axes):
+            PILImage = util.get_module(
+                "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
+            buf = six.BytesIO()
+            val.savefig(buf)
+            val = Image(PILImage.open(buf))
+        else:
             converted = util.convert_plots(val)
-        if isinstance(val, Image):
-            val = [val]
+    elif util.is_plotly_typename(typename):
+        converted = util.convert_plots(val)
+    if isinstance(val, Image):
+        val = [val]
 
-        if isinstance(val, collections.Sequence) and len(val) > 0:
-            is_image = [isinstance(v, Image) for v in val]
-            if all(is_image):
-                cwd = wandb.run.dir if wandb.run else "."
-                converted = Image.transform(val, cwd,
-                                            "{}_{}.jpg".format(key, step or "summary"))
-            elif any(is_image):
-                raise ValueError(
-                    "Mixed media types in the same list aren't supported")
-        elif isinstance(val, Histogram):
-            converted = Histogram.transform(val)
-        elif isinstance(val, Graph):
-            if mode == "history":
-                raise ValueError("Graphs are only supported in summary")
-            converted = Graph.transform(val)
-        elif isinstance(val, Table):
-            converted = Table.transform(val)
-        return converted
-
-    @staticmethod
-    def convert(payload, mode="history"):
-        for key, val in six.iteritems(payload):
-            if isinstance(val, dict):
-                payload[key] = Base.convert(val, mode)
-            else:
-                payload[key] = Base.convert_key(
-                    key, val, mode, step=payload.get("_step"))
-        return payload
+    if isinstance(val, collections.Sequence) and len(val) > 0:
+        is_image = [isinstance(v, Image) for v in val]
+        if all(is_image):
+            cwd = wandb.run.dir if wandb.run else "."
+            converted = Image.transform(val, cwd,
+                                        "{}_{}.jpg".format(key, step or "summary"))
+        elif any(is_image):
+            raise ValueError(
+                "Mixed media types in the same list aren't supported")
+    elif isinstance(val, Histogram):
+        converted = Histogram.transform(val)
+    elif isinstance(val, Graph):
+        if mode == "history":
+            raise ValueError("Graphs are only supported in summary")
+        converted = Graph.transform(val)
+    elif isinstance(val, Table):
+        converted = Table.transform(val)
+    return converted
 
 
-class Graph(Base):
+def to_json(payload, mode="history"):
+    """Converts all keys in a potentially nested array into their JSON representation"""
+    for key, val in six.iteritems(payload):
+        if isinstance(val, dict):
+            payload[key] = to_json(val, mode)
+        else:
+            payload[key] = val_to_json(
+                key, val, mode, step=payload.get("_step"))
+    return payload
+
+
+class Graph(object):
     def __init__(self):
         self.nodes = []
 
@@ -162,7 +161,7 @@ class Node(object):
         return node.attributes
 
 
-class Histogram(Base):
+class Histogram(object):
     MAX_LENGTH = 512
 
     def __init__(self, sequence=None, np_histogram=None, num_bins=64):
@@ -202,7 +201,7 @@ class Histogram(Base):
         return {"_type": "histogram", "values": histogram.histogram, "bins": histogram.bins}
 
 
-class Table(Base):
+class Table(object):
     MAX_ROWS = 300
 
     def __init__(self, columns=["Input", "Output", "Expected"], rows=[]):
@@ -223,7 +222,7 @@ class Table(Base):
         return {"_type": "table", "columns": table.columns, "data": table.rows[:Table.MAX_ROWS]}
 
 
-class Image(Base):
+class Image(object):
     MAX_IMAGES = 100
 
     def __init__(self, data, mode=None, caption=None, grouping=None):

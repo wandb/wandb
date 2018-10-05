@@ -142,7 +142,7 @@ class History(object):
 
     def _transform(self):
         """Transforms special classes into the proper format before writing"""
-        self.row = data_types.Base.convert(self.row)
+        self.row = data_types.to_json(self.row)
 
     def _write(self):
         if self.row:

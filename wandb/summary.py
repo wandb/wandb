@@ -125,7 +125,7 @@ class Summary(object):
                     self.convert_json(value, root_path + [key]))
             else:
                 tmp_obj, converted = util.json_friendly(
-                    data_types.Base.convert_key(key, value))
+                    data_types.val_to_json(key, value))
                 res[key], compressed = util.maybe_compress_summary(
                     tmp_obj, util.get_h5_typename(value))
                 if compressed:
