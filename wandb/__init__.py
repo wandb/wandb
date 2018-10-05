@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.6.18'
+__version__ = '0.6.19'
 
 import atexit
 import click
@@ -42,7 +42,8 @@ from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
 from wandb.run_manager import RunManager
-from wandb.media import Image
+from wandb.data_types import Image
+from wandb.data_types import Table
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 

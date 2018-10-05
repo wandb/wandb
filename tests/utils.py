@@ -4,11 +4,12 @@ import click
 from click.testing import CliRunner
 import git
 from wandb import cli
+from wandb import util
 from wandb.apis import InternalApi
 
 import torch
 import webbrowser
-import whaaaaat
+whaaaaat = util.vendor_import("whaaaaat")
 from wandb.git_repo import GitRepo
 
 

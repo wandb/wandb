@@ -16,6 +16,7 @@ from wandb import Error, __version__
 from wandb import util
 from wandb.summary import HTTPSummary, download_h5
 from wandb.env import get_dir
+from wandb.env import get_base_url
 from wandb.apis import normalize_exceptions
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ class Api(object):
             'username': None,
             'project': None,
             'run': "latest",
-            'base_url': "https://api.wandb.ai"
+            'base_url': get_base_url("https://api.wandb.ai")
         }
         self._runs = {}
         self.settings.update(overrides)
@@ -103,19 +104,22 @@ class Api(object):
                 username = parts[0]
         return (username, project, run)
 
-    def runs(self, path="", filters={}):
+    def runs(self, path="", filters={}, order="created_at", per_page=None):
         """Return a set of runs from a project that match the filters provided.
         You can filter by config.*, summary.*, state, username, createdAt, etc.
 
         The filters use the same query language as MongoDB:
 
         https://docs.mongodb.com/manual/reference/operator/query
+
+        Order can be created_at, heartbeat_at, config.*.value, or summary.*.  By default
+        the order is descending, if you prepend order with a + order becomes ascending.
         """
         username, project, run = self._parse_path(path)
         if not self._runs.get(path):
-            self._runs[path + str(filters)] = Runs(self.client,
-                                                   username, project, filters)
-        return self._runs[path + str(filters)]
+            self._runs[path + str(filters) + str(order)] = Runs(self.client, username, project,
+                                                                filters=filters, order=order, per_page=per_page)
+        return self._runs[path + str(filters) + str(order)]
 
     @normalize_exceptions
     def run(self, path=""):
@@ -130,11 +134,11 @@ class Api(object):
 
 class Runs(object):
     QUERY = gql('''
-        query Runs($project: String!, $entity: String!, $cursor: String, $filters: JSONString) {
+        query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
             project(name: $project, entityName: $entity) {
                 runCount(filters: $filters)
                 readOnly
-                runs(filters: $filters, after: $cursor) {
+                runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
                     edges {
                         node {
                             ...RunFragment
@@ -151,11 +155,13 @@ class Runs(object):
         %s
         ''' % RUN_FRAGMENT)
 
-    def __init__(self, client, username, project, filters={}):
+    def __init__(self, client, username, project, filters={}, order=None, per_page=50):
         self.client = client
         self.username = username
         self.project = project
         self.filters = filters
+        self.order = order
+        self.per_page = per_page
         self.runs = []
         self.length = None
         self.index = -1
@@ -174,7 +180,7 @@ class Runs(object):
         if not self.more:
             return False
         res = self.client.execute(self.QUERY, variable_values={
-            'project': self.project, 'entity': self.username,
+            'project': self.project, 'entity': self.username, 'order': self.order, 'perPage': self.per_page,
             'filters': json.dumps(self.filters), 'cursor': self.cursor})
         self.length = res['project']['runCount']
         self.more = res['project']['runs']['pageInfo']['hasNextPage']
@@ -186,7 +192,7 @@ class Runs(object):
 
     def __getitem__(self, index):
         loaded = True
-        while loaded and index > len(self.runs):
+        while loaded and index > len(self.runs) - 1:
             loaded = self._load_page()
         return self.runs[index]
 
@@ -235,8 +241,6 @@ class Run(object):
         if force or not self._attrs:
             response = self._exec(query)
             self._attrs = response['project']['run']
-        download_h5(self.name, entity=self.username,
-                    project=self.project, out_dir=self.dir)
         self._attrs['summaryMetrics'] = json.loads(
             self._attrs['summaryMetrics'])
         self._attrs['systemMetrics'] = json.loads(self._attrs['systemMetrics'])
@@ -291,16 +295,18 @@ class Run(object):
         lines = [json.loads(line)
                  for line in response['project']['run'][node]]
         if pandas:
-            try:
-                import pandas
+            pandas = util.get_module("pandas")
+            if pandas:
                 lines = pandas.DataFrame.from_records(lines)
-            except ImportError:
+            else:
                 print("Unable to load pandas, call history with pandas=False")
         return lines
 
     @property
     def summary(self):
         if self._summary is None:
+            download_h5(self.name, entity=self.username,
+                        project=self.project, out_dir=self.dir)
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(
                 self.client, self.id, summary=self.summary_metrics, path="/".join(self.path), out_dir=self.dir)
