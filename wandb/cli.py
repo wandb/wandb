@@ -26,9 +26,12 @@ import yaml
 import threading
 import random
 
+from wandb import util
+
+
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException, Abort
-import whaaaaat
+whaaaaat = util.vendor_import("whaaaaat")
 from six.moves import BaseHTTPServer, urllib, configparser
 import socket
 
@@ -41,7 +44,6 @@ from wandb import agent as wandb_agent
 from wandb import env
 from wandb import wandb_run
 from wandb import wandb_dir
-from wandb import util
 from wandb import run_manager
 from wandb import Error
 

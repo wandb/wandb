@@ -13,7 +13,6 @@ import signal
 import time
 import six
 import time
-import whaaaaat
 import yaml
 import git
 import webbrowser
