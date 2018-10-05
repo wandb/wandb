@@ -35,7 +35,7 @@ _not_importable = set()
 def vendor_import(name):
     """This enables us to use the vendor directory for packages we don't depend on"""
     parent_dir = os.path.abspath(os.path.dirname(__file__))
-    vendor_dir = os.path.join(parent_dir, '..', 'vendor')
+    vendor_dir = os.path.join(parent_dir, 'vendor')
 
     sys.path.insert(1, vendor_dir)
     return import_module(name)
