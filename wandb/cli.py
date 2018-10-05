@@ -31,6 +31,8 @@ from wandb import util
 
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException, Abort
+# whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
+# DANGER this changes the sys.path so we should never do this in a user script
 whaaaaat = util.vendor_import("whaaaaat")
 from six.moves import BaseHTTPServer, urllib, configparser
 import socket
@@ -406,7 +408,7 @@ def pull(project, run, entity):
             click.echo("File %s is up to date" % name)
         else:
             length, response = api.download_file(urls[name]['url'])
-            #TODO: I had to add this because some versions in CI broke click.progressbar
+            # TODO: I had to add this because some versions in CI broke click.progressbar
             sys.stdout.write("File %s\r" % name)
             with click.progressbar(length=length, label='File %s' % name,
                                    fill_char=click.style('&', fg='green')) as bar:
@@ -520,13 +522,15 @@ def init(ctx):
     # Viewer can be `None` in case your API information became invalid, or
     # in testing if you switch hosts.
     if not viewer:
-        click.echo(click.style("Your login information seems to be invalid: can you log in again please?", fg="red", bold=True))
+        click.echo(click.style(
+            "Your login information seems to be invalid: can you log in again please?", fg="red", bold=True))
         ctx.invoke(login)
 
     # This shouldn't happen.
     viewer = api.viewer()
     if not viewer:
-        click.echo(click.style("We're sorry, there was a problem logging you in. Please send us a note at support@wandb.com and tell us how this happened.", fg="red", bold=True))
+        click.echo(click.style(
+            "We're sorry, there was a problem logging you in. Please send us a note at support@wandb.com and tell us how this happened.", fg="red", bold=True))
         sys.exit(1)
 
     # At this point we should be logged in successfully.
