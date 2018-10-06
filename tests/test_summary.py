@@ -101,6 +101,14 @@ def test_plotly_plot(summary):
     assert plot["plot"]['type'] == 'scatter'
 
 
+def test_newline(summary):
+    summary["rad \n"] = 1
+    summary.update({"bad \n ": 2})
+    summ = disk_summary()
+    assert summ["rad"] == 1
+    assert summ["bad"] == 2
+
+
 def test_big_numpy(summary):
     summary.update({"rad": np.random.rand(1000)})
     assert disk_summary()["rad"]["max"] > 0

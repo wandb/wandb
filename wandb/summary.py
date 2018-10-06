@@ -51,31 +51,31 @@ class Summary(object):
         return self._transform(k, self._summary[k], write=False)
 
     def __setitem__(self, k, v):
-        self._summary[k] = self._transform(k, v)
+        self._summary[k.strip()] = self._transform(k.strip(), v)
         self._write()
 
     def __setattr__(self, k, v):
         if k.startswith("_"):
             super(Summary, self).__setattr__(k, v)
         else:
-            self._summary[k] = self._transform(k, v)
+            self._summary[k.strip()] = self._transform(k.strip(), v)
             self._write()
 
     def __getattr__(self, k):
         if k.startswith("_"):
             return super(Summary, self).__getattr__(k)
         else:
-            return self._transform(k, self._summary[k], write=False)
+            return self._transform(k.strip(), self._summary[k.strip()], write=False)
 
     def __delitem__(self, k):
-        val = self._summary[k]
+        val = self._summary[k.strip()]
         if isinstance(val, dict) and val.get("_type") in H5_TYPES:
             if not self._h5:
                 wandb.termerror("Deleting tensors in summary requires h5py")
             else:
-                del self._h5["summary/" + k]
+                del self._h5["summary/" + k.strip()]
                 self._h5.flush()
-        del self._summary[k]
+        del self._summary[k.strip()]
         self._write()
 
     def __repr__(self):
@@ -85,7 +85,7 @@ class Summary(object):
         return self._summary.keys()
 
     def get(self, k, default=None):
-        return self._summary.get(k, default)
+        return self._summary.get(k.strip(), default)
 
     def write_h5(self, key, val):
         # ensure the file is open
@@ -138,7 +138,7 @@ class Summary(object):
         summary = {}
         if key_vals:
             for k, v in six.iteritems(key_vals):
-                summary[k] = self._transform(k, v)
+                summary[k.strip()] = self._transform(k.strip(), v)
         self._summary.update(summary)
         self._write(commit=True)
 

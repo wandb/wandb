@@ -105,7 +105,7 @@ class History(object):
         """
         if not isinstance(row, collections.Mapping):
             raise wandb.Error('history.add expects dict-like object')
-        self.row.update(row)
+        self.row.update({k.strip(): v for k, v in row.items()})
         if not self.batched:
             self._write()
 

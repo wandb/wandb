@@ -101,6 +101,13 @@ def test_single_image(history):
     h = disk_history()
     assert h[0]["images"] == {'_type': 'images',
                               'count': 1, 'height': 28, 'width': 28}
+    assert os.path.exists("media/images/images_0.jpg")
+
+
+def test_newline(history):
+    history.add({"wild_key \n": 10})
+    h = disk_history()
+    assert h[0]["wild_key"] == 10
 
 
 def test_histogram(history):

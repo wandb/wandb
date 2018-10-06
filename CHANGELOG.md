@@ -1,3 +1,10 @@
+## 0.16.20 (October 5, 2018)
+
+#### :bug: Bug Fix
+
+- The first image when calling wandb.log was not being written, now it is
+- `wandb.log` and `run.summary` now remove whitespace from keys
+
 ## 0.16.19 (October 5, 2018)
 
 #### :bug: Bug Fix

@@ -31,8 +31,10 @@ def val_to_json(key, val, mode="summary", step=None):
         is_image = [isinstance(v, Image) for v in val]
         if all(is_image):
             cwd = wandb.run.dir if wandb.run else "."
+            if step is None:
+                step = "summary"
             converted = Image.transform(val, cwd,
-                                        "{}_{}.jpg".format(key, step or "summary"))
+                                        "{}_{}.jpg".format(key, step))
         elif any(is_image):
             raise ValueError(
                 "Mixed media types in the same list aren't supported")
