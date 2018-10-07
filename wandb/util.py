@@ -1,4 +1,5 @@
 from __future__ import print_function
+from __future__ import absolute_import
 
 import base64
 import errno
@@ -21,16 +22,47 @@ from six.moves import queue
 import textwrap
 from sys import getsizeof
 from collections import namedtuple
+from importlib import import_module
 
 import wandb
 from wandb import io_wrap
 from wandb import wandb_dir
 
 logger = logging.getLogger(__name__)
+_not_importable = set()
 
-try:
-    import numpy as np
-except ImportError:
+
+def vendor_import(name):
+    """This enables us to use the vendor directory for packages we don't depend on"""
+    parent_dir = os.path.abspath(os.path.dirname(__file__))
+    vendor_dir = os.path.join(parent_dir, 'vendor')
+
+    sys.path.insert(1, vendor_dir)
+    return import_module(name)
+
+
+def get_module(name, required=None):
+    """
+    Return module or None. Absolute import is required.
+    :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
+    :param (str) required: A string to raise a ValueError if missing
+    :return: (module|None) If import succeeds, the module will be returned.
+    """
+    if name not in _not_importable:
+        try:
+            return import_module(name)
+        except ImportError:
+            _not_importable.add(name)
+            if required:
+                raise ValueError(required)
+        except Exception as e:
+            _not_importable.add(name)
+            msg = "Error importing optional module {}".format(name)
+            logger.exception(msg)
+
+
+np = get_module('numpy')
+if np is None:
     np = namedtuple('np', ['ndarray', 'generic'])
     np.generic = ValueError
 
@@ -39,18 +71,22 @@ MAX_SLEEP_SECONDS = 60 * 5
 VALUE_BYTES_LIMIT = 100000
 
 
-def get_full_type_name(o):
+def get_full_typename(o):
     """We determine types based on type names so we don't have to import
     (and therefore depend on) PyTorch, TensorFlow, etc.
     """
-    return o.__class__.__module__ + "." + o.__class__.__name__
+    instance_name = o.__class__.__module__ + "." + o.__class__.__name__
+    if instance_name in ["builtins.module", "__builtin__.module"]:
+        return o.__name__
+    else:
+        return instance_name
 
 
-def get_h5_type_name(o):
-    type_name = get_full_type_name(o)
-    if is_tf_tensor_typename(type_name):
+def get_h5_typename(o):
+    typename = get_full_typename(o)
+    if is_tf_tensor_typename(typename):
         return "tensorflow.Tensor"
-    elif is_pytorch_tensor_typename(type_name):
+    elif is_pytorch_tensor_typename(typename):
         return "torch.Tensor"
     else:
         return o.__class__.__module__.split('.')[0] + "." + o.__class__.__name__
@@ -61,8 +97,8 @@ def is_tf_tensor(obj):
     return isinstance(obj, tensorflow.Tensor)
 
 
-def is_tf_tensor_typename(type_name):
-    return type_name.startswith('tensorflow.') and ('Tensor' in type_name or 'Variable' in type_name)
+def is_tf_tensor_typename(typename):
+    return typename.startswith('tensorflow.') and ('Tensor' in typename or 'Variable' in typename)
 
 
 def is_pytorch_tensor(obj):
@@ -70,28 +106,53 @@ def is_pytorch_tensor(obj):
     return isinstance(obj, torch.Tensor)
 
 
-def is_pytorch_tensor_typename(type_name):
-    return type_name.startswith('torch.') and ('Tensor' in type_name or 'Variable' in type_name)
+def is_pytorch_tensor_typename(typename):
+    return typename.startswith('torch.') and ('Tensor' in typename or 'Variable' in typename)
 
 
-def is_pandas_dataframe_typename(type_name):
-    return type_name.startswith('pandas.') and 'DataFrame' in type_name
+def is_pandas_dataframe_typename(typename):
+    return typename.startswith('pandas.') and 'DataFrame' in typename
 
 
-def is_pandas_dataframe(obj):
-    return is_pandas_dataframe_typename(get_full_type_name(obj))
+def is_matplotlib_typename(typename):
+    return typename.startswith("matplotlib.")
+
+
+def is_plotly_typename(typename):
+    return typename.startswith("plotly.")
+
+
+def ensure_matplotlib_figure(obj):
+    """Extract the current figure from a matplotlib object or return the object if it's a figure.
+    raises ValueError if the object can't be converted.
+    """
+    import matplotlib
+    from matplotlib.figure import Figure
+    if obj == matplotlib.pyplot:
+        obj = obj.gcf()
+    elif not isinstance(obj, Figure):
+        if hasattr(obj, "figure"):
+            obj = obj.figure
+            # Some matplotlib objects have a figure function
+            if not isinstance(obj, Figure):
+                raise ValueError(
+                    "Only matplotlib.pyplot or matplotlib.pyplot.Figure objects are accepted.")
+    if not obj.gca().has_data():
+        raise ValueError(
+            "You attempted to log an empty plot, pass a figure directly or ensure the global plot isn't closed.")
+    return obj
 
 
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
     converted = True
-    type_name = get_full_type_name(obj)
+    typename = get_full_typename(obj)
 
-    if is_tf_tensor_typename(type_name):
+    if is_tf_tensor_typename(typename):
         obj = obj.eval()
-    elif is_pandas_dataframe_typename(type_name):
+    elif is_pandas_dataframe_typename(typename):
         obj = obj.get_values()
-    elif is_pytorch_tensor_typename(type_name):
+    elif is_pytorch_tensor_typename(typename):
         try:
             if obj.requires_grad:
                 obj = obj.detach()
@@ -125,17 +186,29 @@ def json_friendly(obj):
     return obj, converted
 
 
+def convert_plots(obj):
+    if is_matplotlib_typename(get_full_typename(obj)):
+        tools = get_module(
+            "plotly.tools", required="plotly is required to log plots, install with: pip install plotly")
+        obj = tools.mpl_to_plotly(obj)
+
+    if is_plotly_typename(get_full_typename(obj)):
+        return {"_type": "plotly", "plot": obj.to_plotly_json()}
+    else:
+        return obj
+
+
 def maybe_compress_history(obj):
-    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe(obj):
+    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe_typename(get_full_typename(obj)):
         return wandb.Histogram(obj, num_bins=32).to_json(), True
     else:
         return obj, False
 
 
-def maybe_compress_summary(obj, h5_type_name):
-    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe(obj):
+def maybe_compress_summary(obj, h5_typename):
+    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe_typename(get_full_typename(obj)):
         return {
-            "_type": h5_type_name,  # may not be ndarray
+            "_type": h5_typename,  # may not be ndarray
             "var": np.var(obj).item(),
             "mean": np.mean(obj).item(),
             "min": np.amin(obj).item(),
@@ -180,7 +253,7 @@ class WandBJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         tmp_obj, converted = json_friendly(obj)
         tmp_obj, compressed = maybe_compress_summary(
-            tmp_obj, get_h5_type_name(obj))
+            tmp_obj, get_h5_typename(obj))
         if converted:
             return tmp_obj
         return json.JSONEncoder.default(self, tmp_obj)
@@ -243,9 +316,9 @@ def write_netrc(host, entity, key):
             'API-key must be exactly 40 characters long: %s (%s chars)' % (key, len(key)))
         return None
     try:
-        print("Appending key to your netrc file: %s" %
-              os.path.expanduser('~/.netrc'))
         normalized_host = host.split("/")[-1].split(":")[0]
+        print("Appending key for %s to your netrc file: %s" %
+              (normalized_host, os.path.expanduser('~/.netrc')))
         machine_line = 'machine %s' % normalized_host
         path = os.path.expanduser('~/.netrc')
         orig_lines = None

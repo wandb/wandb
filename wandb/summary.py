@@ -10,8 +10,8 @@ import six
 
 import wandb
 from wandb import util
+from wandb import data_types
 from wandb.meta import Meta
-from wandb.media import Image
 from wandb.apis.internal import Api
 
 SUMMARY_FNAME = 'wandb-summary.json'
@@ -19,10 +19,7 @@ DEEP_SUMMARY_FNAME = 'wandb.h5'
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor",
             "pytorch.Tensor", "pandas.DataFrame")
 
-try:
-    import h5py
-except ImportError:
-    h5py = None
+h5py = util.get_module("h5py")
 
 
 class Summary(object):
@@ -40,48 +37,45 @@ class Summary(object):
         raise NotImplementedError
 
     def _transform(self, k, v=None, write=True):
+        """Transforms keys json into rich objects for the data api"""
         if not write and isinstance(v, dict):
             if v.get("_type") in H5_TYPES:
                 return self.read_h5(k, v)
+            # TODO: transform wandb objects and plots
             else:
                 return {key: self._transform(k + "." + key, value, write=False) for (key, value) in v.items()}
 
-        if isinstance(v, wandb.Histogram):
-            return wandb.Histogram.transform(v)
-        elif isinstance(v, wandb.Graph):
-            return wandb.Graph.transform(v)
-        else:
-            return v
+        return v
 
     def __getitem__(self, k):
         return self._transform(k, self._summary[k], write=False)
 
     def __setitem__(self, k, v):
-        self._summary[k] = self._transform(k, v)
+        self._summary[k.strip()] = self._transform(k.strip(), v)
         self._write()
 
     def __setattr__(self, k, v):
         if k.startswith("_"):
             super(Summary, self).__setattr__(k, v)
         else:
-            self._summary[k] = self._transform(k, v)
+            self._summary[k.strip()] = self._transform(k.strip(), v)
             self._write()
 
     def __getattr__(self, k):
         if k.startswith("_"):
             return super(Summary, self).__getattr__(k)
         else:
-            return self._transform(k, self._summary[k], write=False)
+            return self._transform(k.strip(), self._summary[k.strip()], write=False)
 
     def __delitem__(self, k):
-        val = self._summary[k]
+        val = self._summary[k.strip()]
         if isinstance(val, dict) and val.get("_type") in H5_TYPES:
             if not self._h5:
                 wandb.termerror("Deleting tensors in summary requires h5py")
             else:
-                del self._h5["summary/" + k]
+                del self._h5["summary/" + k.strip()]
                 self._h5.flush()
-        del self._summary[k]
+        del self._summary[k.strip()]
         self._write()
 
     def __repr__(self):
@@ -91,7 +85,7 @@ class Summary(object):
         return self._summary.keys()
 
     def get(self, k, default=None):
-        return self._summary.get(k, default)
+        return self._summary.get(k.strip(), default)
 
     def write_h5(self, key, val):
         # ensure the file is open
@@ -130,8 +124,10 @@ class Summary(object):
                 res[key], converted = util.json_friendly(
                     self.convert_json(value, root_path + [key]))
             else:
-                tmp_obj, converted = util.json_friendly(value)
-                res[key], compressed = util.maybe_compress_summary(tmp_obj, util.get_h5_type_name(value))
+                tmp_obj, converted = util.json_friendly(
+                    data_types.val_to_json(key, value))
+                res[key], compressed = util.maybe_compress_summary(
+                    tmp_obj, util.get_h5_typename(value))
                 if compressed:
                     self.write_h5(path, tmp_obj)
 
@@ -142,12 +138,7 @@ class Summary(object):
         summary = {}
         if key_vals:
             for k, v in six.iteritems(key_vals):
-                # TODO: proper image support in summary
-                is_image = isinstance(v, Image) or (
-                    isinstance(v, list) and isinstance(v[0], Image))
-                if is_image or (isinstance(v, dict) and v.get("_type") == "image"):
-                    continue
-                summary[k] = self._transform(k, v)
+                summary[k.strip()] = self._transform(k.strip(), v)
         self._summary.update(summary)
         self._write(commit=True)
 

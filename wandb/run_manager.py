@@ -819,8 +819,12 @@ class RunManager(object):
                 res = bytearray()
                 try:
                     res = self._socket.recv(2)
-                except socket.timeout:
-                    pass
+                except socket.error as e:
+                    # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
+                    if e.errno == errno.EINTR or isinstance(e, socket.timeout):
+                        pass
+                    else:
+                        raise e
                 if len(res) == 2 and res[0] == 2:
                     exitcode = res[1]
                     break

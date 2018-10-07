@@ -7,7 +7,6 @@ from threading import Lock
 
 import wandb
 from wandb import util
-from wandb import media
 
 
 class JsonlEventsFile(object):

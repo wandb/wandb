@@ -26,9 +26,14 @@ import yaml
 import threading
 import random
 
+from wandb import util
+
+
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException, Abort
-import whaaaaat
+# whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
+# DANGER this changes the sys.path so we should never do this in a user script
+whaaaaat = util.vendor_import("whaaaaat")
 from six.moves import BaseHTTPServer, urllib, configparser
 import socket
 
@@ -41,7 +46,6 @@ from wandb import agent as wandb_agent
 from wandb import env
 from wandb import wandb_run
 from wandb import wandb_dir
-from wandb import util
 from wandb import run_manager
 from wandb import Error
 
@@ -404,6 +408,8 @@ def pull(project, run, entity):
             click.echo("File %s is up to date" % name)
         else:
             length, response = api.download_file(urls[name]['url'])
+            # TODO: I had to add this because some versions in CI broke click.progressbar
+            sys.stdout.write("File %s\r" % name)
             with click.progressbar(length=length, label='File %s' % name,
                                    fill_char=click.style('&', fg='green')) as bar:
                 with open(name, "wb") as f:
@@ -512,6 +518,22 @@ def init(ctx):
     IS_INIT = True
 
     viewer = api.viewer()
+
+    # Viewer can be `None` in case your API information became invalid, or
+    # in testing if you switch hosts.
+    if not viewer:
+        click.echo(click.style(
+            "Your login information seems to be invalid: can you log in again please?", fg="red", bold=True))
+        ctx.invoke(login)
+
+    # This shouldn't happen.
+    viewer = api.viewer()
+    if not viewer:
+        click.echo(click.style(
+            "We're sorry, there was a problem logging you in. Please send us a note at support@wandb.com and tell us how this happened.", fg="red", bold=True))
+        sys.exit(1)
+
+    # At this point we should be logged in successfully.
     if len(viewer["teams"]["edges"]) > 1:
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]]
         question = {

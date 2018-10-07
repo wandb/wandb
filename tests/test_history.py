@@ -3,10 +3,13 @@ import os
 import json
 import six
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import plotly.graph_objs as go
 from click.testing import CliRunner
 
 from wandb.history import History
-from wandb import media
 from wandb import data_types
 import torch
 import tensorflow as tf
@@ -86,7 +89,7 @@ def test_stream_step(history):
 
 def test_list_of_images(history):
     image = np.random.randint(255, size=(28, 28))
-    history.add({"images": [media.Image(image)]})
+    history.add({"images": [data_types.Image(image)]})
     h = disk_history()
     assert h[0]["images"] == {'_type': 'images',
                               'count': 1, 'height': 28, 'width': 28}
@@ -94,10 +97,17 @@ def test_list_of_images(history):
 
 def test_single_image(history):
     image = np.random.randint(255, size=(28, 28))
-    history.add({"images": media.Image(image)})
+    history.add({"images": data_types.Image(image)})
     h = disk_history()
     assert h[0]["images"] == {'_type': 'images',
                               'count': 1, 'height': 28, 'width': 28}
+    assert os.path.exists("media/images/images_0.jpg")
+
+
+def test_newline(history):
+    history.add({"wild_key \n": 10})
+    h = disk_history()
+    assert h[0]["wild_key"] == 10
 
 
 def test_histogram(history):
@@ -106,6 +116,30 @@ def test_histogram(history):
     h = disk_history()
     assert h[0]["hist"]['_type'] == 'histogram'
     assert len(h[0]["hist"]['values']) == 64
+
+
+def test_matplotlib(history):
+    plt.imshow(np.random.rand(28, 28), cmap='gray')
+    history.add({"plt": plt})
+    h = disk_history()
+    assert h[0]["plt"] == {'_type': 'images',
+                           'count': 1, 'height': 480, 'width': 640}
+
+
+def test_table(history):
+    history.add({"tbl": data_types.Table(
+        rows=[["a", "b", "c"], ["d", "e", "f"]])})
+    h = disk_history()
+    assert h[0]["tbl"] == {'_type': 'table',
+                           'columns': [u'Input', u'Output', u'Expected'],
+                           'data': [[u'a', u'b', u'c'], [u'd', u'e', u'f']]}
+
+
+def test_plotly(history):
+    history.add({"plot": go.Scatter(x=[0, 1, 2])})
+    plot = disk_history()[0]["plot"]
+    assert plot["_type"] == "plotly"
+    assert plot["plot"]['type'] == 'scatter'
 
 
 def test_stream(history):

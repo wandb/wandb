@@ -17,7 +17,6 @@ import traceback
 from wandb.wandb_torch import TorchHistory
 import wandb
 from wandb import util
-from wandb import media
 from wandb import data_types
 
 
@@ -70,11 +69,11 @@ class History(object):
             pass
 
     def keys(self):
-        media_keys = []
+        rich_keys = []
         if self.rows:
-            media_keys = [k for k, v in six.iteritems(
+            rich_keys = [k for k, v in six.iteritems(
                 self.rows[-1]) if isinstance(v, dict) and v.get("_type")]
-        return [k for k in self._keys - set(media_keys) if not k.startswith("_")]
+        return [k for k in self._keys - set(rich_keys) if not k.startswith("_")]
 
     def stream(self, name):
         """stream can be used to record different time series:
@@ -106,7 +105,7 @@ class History(object):
         """
         if not isinstance(row, collections.Mapping):
             raise wandb.Error('history.add expects dict-like object')
-        self.row.update(row)
+        self.row.update({k.strip(): v for k, v in row.items()})
         if not self.batched:
             self._write()
 
@@ -142,20 +141,8 @@ class History(object):
         self._steps += 1
 
     def _transform(self):
-        """Transforms media classes into the proper format before writing"""
-        for key, val in six.iteritems(self.row):
-            if isinstance(val, media.Image):
-                val = [val]
-            if isinstance(val, collections.Sequence) and len(val) > 0:
-                is_image = [isinstance(v, media.Image) for v in val]
-                if all(is_image):
-                    self.row[key] = media.Image.transform(val, self.out_dir,
-                                                          "{}_{}.jpg".format(key, self.row["_step"]))
-                elif any(is_image):
-                    raise ValueError(
-                        "Mixed media types in the same list aren't supported")
-            elif isinstance(val, data_types.Histogram):
-                self.row[key] = data_types.Histogram.transform(val)
+        """Transforms special classes into the proper format before writing"""
+        self.row = data_types.to_json(self.row)
 
     def _write(self):
         if self.row:

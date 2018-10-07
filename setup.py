@@ -12,14 +12,12 @@ requirements = [
     'GitPython>=1.0.0',
     'gql>=0.1.0',
     'nvidia-ml-py3>=7.352.0',
-    'prompt_toolkit==1.0.15',
     'psutil>=5.2.2',
     'python-dateutil>=2.6.1',
     'requests>=2.0.0',
     'shortuuid>=0.5.0',
     'six>=1.10.0',
     'watchdog>=0.8.3',
-    'whaaaaat>=0.5.2',
     # Removed until we bring back the board
     #'flask-cors>=3.0.3',
     #'flask-graphql>=1.4.0',
@@ -33,7 +31,7 @@ test_requirements = [
 
 setup(
     name='wandb',
-    version='0.6.18',
+    version='0.6.20',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
