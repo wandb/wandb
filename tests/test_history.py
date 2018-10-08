@@ -206,7 +206,7 @@ def test_torch(history):
             torch.autograd.Variable(torch.randn(
                 2, 2).type(torch.FloatTensor), requires_grad=True), "layer1")
     h = disk_history()
-    assert "_layer1-0.50" in h[0].keys()
+    assert "layer1" in h[0].keys()
 
 
 def test_torch_no_compute(history):

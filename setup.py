@@ -8,7 +8,6 @@ with open('README.md') as readme_file:
 
 requirements = [
     'Click>=6.0',
-    'future-fstrings',
     'GitPython>=1.0.0',
     'gql>=0.1.0',
     'nvidia-ml-py3>=7.352.0',

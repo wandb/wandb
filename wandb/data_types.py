@@ -1,8 +1,6 @@
-#!/usr/bin/env python
-# -*- coding: future_fstrings -*-
 import itertools
 import pprint
-import queue
+from six.moves import queue
 
 # lazy imports
 numpy = None
@@ -89,9 +87,10 @@ class Graph(object):
         if node is None:
             node = Node(**node_kwargs)
         elif node_kwargs:
-            raise ValueError(f'Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})')
+            raise ValueError('Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})'.format(node=node, node_kwargs=node_kwargs))
         self.nodes.append(node)
-        assert node.id not in self.nodes_by_id
+        #TODO: Adrian, why was this here?
+        #assert node.id not in self.nodes_by_id
         self.nodes_by_id[node.id] = node
 
         return node

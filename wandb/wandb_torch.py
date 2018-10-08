@@ -93,7 +93,6 @@ class TorchHistory(object):
         for child_name, child in module.named_children():
             self.log_module_stats(child, name + '.' + child_name)
 
-
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
         """
@@ -111,7 +110,7 @@ class TorchHistory(object):
         if history is None or not history.compute:
             return
         flat = tensor.view(-1)
-        #wandb.termlog(name)
+        # wandb.termlog(name)
         history.row.update({
             name: wandb.Histogram(flat.cpu().clone().detach())
         })
@@ -131,28 +130,30 @@ class TorchHistory(object):
                 'A hook has already been set under name "{}"'.format(hook_name))
 
         def _hook(something, input_, output):
-            #if len(input_) != 1:  # we seem to always get a 1-element tuple here
+            # if len(input_) != 1:  # we seem to always get a 1-element tuple here
             #    print(name, len(input_), module)
             #input_ = input_[0]
 
             if isinstance(input_, tuple) or isinstance(input_, list):
                 for i, inp in enumerate(input_):
-                    self.log_tensor_stats(inp, f'{input_name}.{i}')
+                    self.log_tensor_stats(
+                        inp, '{input_name}.{i}'.format(input_name=input_name, i=i))
             else:
                 self.log_tensor_stats(input_, input_name)
 
             if isinstance(output, tuple) or isinstance(output, list):
                 for i, out in enumerate(output):
-                    self.log_tensor_stats(out, f'{output_name}.{i}')
+                    self.log_tensor_stats(
+                        out, '{output_name}.{i}'.format(input_name=input_name, i=i))
             else:
                 self.log_tensor_stats(output, output_name)
 
-            #self.unhook(hook_name)
+            # self.unhook(hook_name)
 
         handle = module.register_forward_hook(_hook)
         self._hook_handles[hook_name] = handle
         return handle
-        #return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
+        # return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
 
     def _hook_module_input_output_gradient_stats(self, module, name):
         if not isinstance(module, torch.nn.Module):
@@ -168,26 +169,29 @@ class TorchHistory(object):
                 'A hook has already been set under name "{}"'.format(hook_name))
 
         def _hook(something, input_, output):
-            #if len(input_) != 1:  # we seem to always get a 1-element tuple here
+            # if len(input_) != 1:  # we seem to always get a 1-element tuple here
             #    print(name, len(input_), module)
             #input_ = input_[0]
 
             if isinstance(input_, tuple) or isinstance(input_, list):
                 for i, inp in enumerate(input_):
-                    self.log_tensor_stats(inp, f'{name}:input.{i}:grad')
+                    self.log_tensor_stats(
+                        inp, '{name}:input.{i}:grad'.format(name=name, i=i))
             else:
-                self.log_tensor_stats(input_, f'{name}:input:grad')
+                self.log_tensor_stats(
+                    input_, '{name}:input:grad'.format(name=name))
 
             if isinstance(output, tuple) or isinstance(output, list):
                 for i, out in enumerate(output):
-                    self.log_tensor_stats(out, f'{name}.{i}:grad')
+                    self.log_tensor_stats(
+                        out, '{name}.{i}:grad'.format(name=name, i=i))
             else:
-                self.log_tensor_stats(output, f'{name}:output:grad')
+                self.log_tensor_stats(output, '{name}:output:grad'.format(i=i))
 
         handle = module.register_forward_hook(_hook)
         self._hook_handles[hook_name] = handle
         return handle
-        #return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
+        # return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
 
     def _hook_variable_gradient_stats(self, var, name):
         """Logs a Variable's gradient's distribution statistics next time backward()
@@ -206,12 +210,12 @@ class TorchHistory(object):
         def _callback(grad):
             #_callback()
             self.log_tensor_stats(grad.data, name)
-            #self.unhook(name)
+            # self.unhook(name)
 
         handle = var.register_hook(_callback)
         self._hook_handles[name] = handle
         return handle
-        #return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
+        # return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
 
     def unhook(self, name):
         handle = self._hook_handles.pop(name)
@@ -221,7 +225,6 @@ class TorchHistory(object):
 class TorchHooks(object):
     def __init__(self):
         self._hook_handles = {}
-
 
     def hook(name, callback):
         pass
