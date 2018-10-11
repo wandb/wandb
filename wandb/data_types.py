@@ -11,6 +11,8 @@ import logging
 import six
 import wandb
 from wandb import util
+from operator import mul
+from six.moves import reduce
 
 
 def val_to_json(key, val, mode="summary", step=None):
@@ -73,6 +75,7 @@ class Graph(object):
         self.nodes_by_id = {}
         self.edges = []
         self.root = None  # optional root Node if applicable
+        self.loaded = False
 
     def __getitem__(self, nid):
         return self.nodes_by_id[nid]
@@ -241,6 +244,45 @@ class Graph(object):
         add_module(root_module)
 
         return graph
+
+    @classmethod
+    def from_torch(cls, model):
+        graph = cls()
+        graph.hook_modules(model)
+        return graph
+
+    def hook_modules(self, module):
+        global torch
+        import torch
+
+        graph = self
+
+        for name, sub_module in module._modules.items():
+            if sub_module is None or isinstance(sub_module, torch.nn.Module) is False:
+                break
+
+            if isinstance(sub_module, torch.nn.Container) or isinstance(sub_module, torch.nn.Sequential):
+                #
+                # nn.Container or nn.Sequential who have sub nn.Module. Recursively visit and hook their decendants.
+                #
+                self.hook_modules(sub_module)
+            else:
+                def after_forward_hook(module, input, output):
+                    if not graph.loaded:
+                        sizes = [list(param.size()) for param in module.parameters()]
+                        graph.add_node(Node(
+                            id=id(module),
+                            name=str(module),
+                            output_shape=list(output.shape),
+                            size=sizes,
+                            num_parameters=[reduce(mul, size) for size in sizes]
+                        ))
+
+                def backward_hook(module, input, output):
+                    graph.loaded = True
+
+                sub_module.register_forward_hook(after_forward_hook)
+                sub_module.register_backward_hook(backward_hook)
 
     @classmethod
     def from_torch_compute_graph(cls, var):
