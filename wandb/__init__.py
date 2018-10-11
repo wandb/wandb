@@ -42,6 +42,7 @@ from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
 from wandb.run_manager import RunManager
+from wandb.run_manager import LaunchError
 from wandb.data_types import Image
 from wandb.data_types import Table
 from wandb.data_types import Histogram
@@ -175,7 +176,8 @@ def _init_headless(run, job_type, cloud=True):
         if wandb_process.poll() is None:
             termerror('Failed to kill wandb process, PID {}'.format(
                 wandb_process.pid))
-        sys.exit(1)
+        raise LaunchError("W&B process failed to launch, see: {}".format(
+            os.path.join(run.dir, "output.log")))
 
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
@@ -352,8 +354,9 @@ def ensure_configured():
     # The WANDB_DEBUG check ensures tests still work.
     if not env.is_debug() and not api.settings('project'):
         termlog('wandb.init() called but system not configured.\n'
-                'Run "wandb init" or set environment variables to get started')
-        sys.exit(1)
+                'Run `wandb init` or set environment variables to get started')
+        raise LaunchError(
+            "W&B not configured, run `wandb init` or set environment variables.")
 
 
 def uninit():
@@ -478,7 +481,7 @@ def init(job_type='train', dir=None, config=None, project=None, entity=None, all
         run = wandb_run.Run.from_environment_or_defaults()
     except IOError as e:
         termerror('Failed to create run directory: {}'.format(e))
-        sys.exit(1)
+        raise LaunchError("Could not write to filesystem.")
 
     run.job_type = job_type
     run.set_environment()
@@ -511,10 +514,9 @@ def init(job_type='train', dir=None, config=None, project=None, entity=None, all
             'dryrun mode, run directory: %s' % run.dir)
         _init_headless(run, job_type, False)
     else:
-        termlog(
-            'Invalid run mode "%s". Please unset WANDB_MODE to do a dry run or' % run.mode)
-        termlog('run with "wandb run" to do a real run.')
-        sys.exit(1)
+        termerror(
+            'Invalid run mode "%s". Please unset WANDB_MODE.' % run.mode)
+        raise LaunchError("The WANDB_MODE environment is invalid.")
 
     # set the run directory in the config so it actually gets persisted
     run.config.set_run_dir(run.dir)

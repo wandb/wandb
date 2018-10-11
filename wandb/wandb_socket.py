@@ -41,12 +41,16 @@ class Server(object):
         """Waits to receive up to two bytes for up to max_seconds"""
         if not self.connection:
             self.connect()
-        # TODO: handle errs
+        start = time.time()
         conn, _, err = select([self.connection], [], [
                               self.connection], max_seconds)
         try:
+            if len(err) > 0:
+                raise socket.error()
             message = b''
             while True:
+                if time.time() - start > max_seconds:
+                    raise socket.error()
                 res = self.connection.recv(1024)
                 term = res.find(b'\0')
                 if term != -1:
