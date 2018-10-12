@@ -189,7 +189,7 @@ class Graph(object):
                              for param in module.parameters()]
                     graph.add_node(Node(
                         id=id(module),
-                        name=str(type(module)),
+                        name=module.name,
                         class_name=str(module),
                         output_shape=list(output.shape),
                         size=sizes,
