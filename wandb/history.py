@@ -146,7 +146,6 @@ class History(object):
 
     def _write(self):
         if self.row:
-            print("WRITE!")
             self._lock.acquire()
             try:
                 self.row['_runtime'] = time.time() - self._start_time

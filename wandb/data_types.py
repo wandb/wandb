@@ -187,7 +187,8 @@ class Graph(object):
                     sizes = [list(param.size()) for param in module.parameters()]
                     graph.add_node(Node(
                         id=id(module),
-                        name=str(module),
+                        name=module.__name__,
+                        class_name=str(module),
                         output_shape=list(output.shape),
                         size=sizes,
                         num_parameters=[reduce(mul, size) for size in sizes]
