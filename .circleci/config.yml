@@ -21,7 +21,7 @@ jobs:
           name: Install dependencies
           command: |
             rm -rf venv
-            python -m venv venv || virtualenv -p python2.7 venv
+            python -m venv venv || virtualenv venv
             . venv/bin/activate
             pip install -r requirements_dev.txt
             python install-ml.py

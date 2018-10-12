@@ -516,7 +516,7 @@ def init(job_type='train', dir=None, config=None, project=None, entity=None, all
     else:
         termerror(
             'Invalid run mode "%s". Please unset WANDB_MODE.' % run.mode)
-        raise LaunchError("The WANDB_MODE environment is invalid.")
+        raise LaunchError("The WANDB_MODE environment variable is invalid.")
 
     # set the run directory in the config so it actually gets persisted
     run.config.set_run_dir(run.dir)
