@@ -7,6 +7,7 @@ import textwrap
 import yaml
 import mock
 import glob
+import socket
 from .api_mocks import *
 
 import wandb
@@ -56,12 +57,30 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             # Unfortunate to enable the test to work
             if kwargs.get("dir"):
                 del os.environ['WANDB_RUN_DIR']
+            if kwargs.get("error"):
+                err = kwargs["error"]
+                del kwargs['error']
+
+                if err == "io":
+                    @classmethod
+                    def error(cls):
+                        raise IOError
+                    monkeypatch.setattr(
+                        'wandb.wandb_run.Run.from_environment_or_defaults', error)
+                elif err == "socket":
+                    class Error(object):
+                        def listen(self, secs):
+                            return False, None
+                    monkeypatch.setattr("wandb.wandb_socket.Server", Error)
         else:
             kwargs = {}
-        run = wandb.init(**kwargs)
-        upload_logs(request_mocker, run)
-        assert run is wandb.run
-        assert run.config is wandb.config
+        try:
+            run = wandb.init(**kwargs)
+            upload_logs(request_mocker, run)
+            assert run is wandb.run
+            assert run.config is wandb.config
+        except wandb.LaunchError as e:
+            run = e
         yield run
 
         wandb.uninit()
@@ -77,6 +96,17 @@ def test_log(wandb_init_run):
     wandb.log(history_row)
     assert len(wandb.run.history.rows) == 1
     assert set(history_row.items()) <= set(wandb.run.history.rows[0].items())
+
+
+@pytest.mark.args(error="io")
+def test_io_error(wandb_init_run):
+    assert isinstance(wandb_init_run, wandb.LaunchError)
+
+
+@pytest.mark.skip("Need to figure out the headless fun")
+@pytest.mark.args(error="socket")
+def test_io_error(wandb_init_run):
+    assert isinstance(wandb_init_run, wandb.LaunchError)
 
 
 @pytest.mark.args(dir="/tmp")

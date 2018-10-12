@@ -17,6 +17,7 @@ requirements = [
     'shortuuid>=0.5.0',
     'six>=1.10.0',
     'watchdog>=0.8.3',
+    'sentry-sdk==0.4.0',
     # Removed until we bring back the board
     #'flask-cors>=3.0.3',
     #'flask-graphql>=1.4.0',
@@ -30,7 +31,7 @@ test_requirements = [
 
 setup(
     name='wandb',
-    version='0.6.20',
+    version='0.6.21',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

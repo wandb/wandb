@@ -3,6 +3,7 @@ import time
 import json
 import socket
 from select import select
+from wandb import util
 import threading
 
 
@@ -41,12 +42,17 @@ class Server(object):
         """Waits to receive up to two bytes for up to max_seconds"""
         if not self.connection:
             self.connect()
-        # TODO: handle errs
+        start = time.time()
         conn, _, err = select([self.connection], [], [
                               self.connection], max_seconds)
         try:
+            if len(err) > 0:
+                raise socket.error("Couldn't open socket")
             message = b''
             while True:
+                if time.time() - start > max_seconds:
+                    raise socket.error(
+                        "Timeout of %s seconds waiting for W&B process" % max_seconds)
                 res = self.connection.recv(1024)
                 term = res.find(b'\0')
                 if term != -1:
@@ -62,8 +68,9 @@ class Server(object):
             elif message['status'] == 'launch_error':
                 return False, None
             else:
-                raise socket.error()
-        except socket.error as e:
+                raise socket.error("Invalid status: %s" % message['status'])
+        except (socket.error, ValueError) as e:
+            util.sentry_exc(e)
             return False, None
 
     def done(self, exitcode=None):
