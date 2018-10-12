@@ -82,7 +82,8 @@ def hook_torch(model):
         raise ValueError(
             "You must call `wandb.init` before calling hook_torch")
     run.history.torch.log_module_parameters(model, values=False)
-    run.history.row.update({"graph": Graph.from_torch(model)})
+    run.summary["graph"] = Graph.from_torch(model)
+    wandb.run._user_accessed_summary = False
 
 
 class ExitHooks(object):
