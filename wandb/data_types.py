@@ -174,7 +174,7 @@ class Graph(object):
         torch = util.get_module("torch", "Could not import torch")
         graph = self
 
-        for name, sub_module in module._modules.items():
+        for name, sub_module in module.named_modules():
             if sub_module is None or isinstance(sub_module, torch.nn.Module) is False:
                 break
 
@@ -189,7 +189,7 @@ class Graph(object):
                              for param in module.parameters()]
                     graph.add_node(Node(
                         id=id(module),
-                        name=module.name,
+                        name=name,
                         class_name=str(module),
                         output_shape=list(output.shape),
                         size=sizes,
