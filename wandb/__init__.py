@@ -78,7 +78,11 @@ callbacks = Callbacks()
 
 
 def hook_torch(model):
+    if run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling hook_torch")
     run.history.torch.log_module_parameters(model, values=False)
+    run.history.row.update({"graph": Graph.from_torch(model)})
 
 
 class ExitHooks(object):

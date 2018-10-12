@@ -8,17 +8,7 @@ import weakref
 
 from distutils.version import LooseVersion
 import wandb
-torch = None  # gets imported lazily by import_torch()
-
-HOOKS = None
-
-
-def init_torch():
-    """Lazily import PyTorch only when we need it to instantiate TorchHistory or something
-    """
-    global torch, HOOKS
-    import torch
-    #HOOKS = TorchHooks()
+torch = None
 
 
 class TorchHistory(object):
@@ -26,7 +16,8 @@ class TorchHistory(object):
     """
 
     def __init__(self, history):
-        init_torch()
+        global torch
+        torch = wandb.util.get_module("torch", "Could not import torch")
         self._history = weakref.ref(history)
         self._hook_handles = {}
 
@@ -130,10 +121,6 @@ class TorchHistory(object):
                 'A hook has already been set under name "{}"'.format(hook_name))
 
         def _hook(something, input_, output):
-            # if len(input_) != 1:  # we seem to always get a 1-element tuple here
-            #    print(name, len(input_), module)
-            #input_ = input_[0]
-
             if isinstance(input_, tuple) or isinstance(input_, list):
                 for i, inp in enumerate(input_):
                     self.log_tensor_stats(
@@ -148,12 +135,9 @@ class TorchHistory(object):
             else:
                 self.log_tensor_stats(output, output_name)
 
-            # self.unhook(hook_name)
-
         handle = module.register_forward_hook(_hook)
         self._hook_handles[hook_name] = handle
         return handle
-        # return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
 
     def _hook_module_input_output_gradient_stats(self, module, name):
         if not isinstance(module, torch.nn.Module):
@@ -169,10 +153,6 @@ class TorchHistory(object):
                 'A hook has already been set under name "{}"'.format(hook_name))
 
         def _hook(something, input_, output):
-            # if len(input_) != 1:  # we seem to always get a 1-element tuple here
-            #    print(name, len(input_), module)
-            #input_ = input_[0]
-
             if isinstance(input_, tuple) or isinstance(input_, list):
                 for i, inp in enumerate(input_):
                     self.log_tensor_stats(
@@ -191,7 +171,6 @@ class TorchHistory(object):
         handle = module.register_forward_hook(_hook)
         self._hook_handles[hook_name] = handle
         return handle
-        # return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
 
     def _hook_variable_gradient_stats(self, var, name):
         """Logs a Variable's gradient's distribution statistics next time backward()
@@ -215,19 +194,10 @@ class TorchHistory(object):
         handle = var.register_hook(_callback)
         self._hook_handles[name] = handle
         return handle
-        # return HOOKS.register(name, lambda: self.log_tensor_stats(grad.data, name))
 
     def unhook(self, name):
         handle = self._hook_handles.pop(name)
         handle.remove()
-
-
-class TorchHooks(object):
-    def __init__(self):
-        self._hook_handles = {}
-
-    def hook(name, callback):
-        pass
 
 
 def _torch_hook_handle_is_valid(handle):

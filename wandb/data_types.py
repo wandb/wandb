@@ -76,6 +76,8 @@ class Graph(object):
         self.edges = []
         self.root = None  # optional root Node if applicable
         self.loaded = False
+        self.hooks = []
+        self.var = None
 
     def __getitem__(self, nid):
         return self.nodes_by_id[nid]
@@ -162,99 +164,13 @@ class Graph(object):
         return graph
 
     @classmethod
-    def from_torch_module(cls, root_module):
-        """Create a Module-Parameter graph from a PyTorch Module
-        """
-        global torch, numpy
-        import torch
-        import numpy
-
-        node_ids = itertools.count()
-
-        root_node = Node.from_torch_module(next(node_ids), root_module)
-        nodes_by_obj_id = { id(root_module): root_node }  # indexed by object identity
-
-        graph = cls()
-        graph.add_node(root_node)
-
-        def add_module(module):
-            node = nodes_by_obj_id[id(module)]
-
-            for name, child in sorted(module.named_children()):
-                if id(child) in nodes_by_obj_id:
-                    child_node = nodes_by_obj_id[id(child)]
-                else:
-                    if node.name:
-                        name = node.name + '.' + name
-
-                    child_node = Node.from_torch_module(next(node_ids), child)
-                    child_node.name = name
-                    child_node.obj = child
-                    nodes_by_obj_id[id(child)] = child_node
-                    graph.add_node(child_node)
-                    add_module(child)
-
-                edge = graph.add_edge(node, child_node)
-                edge.name = name
-
-            for name, child in sorted(module.named_parameters()):
-                if '.' in name:
-                    """
-                    We use this hack to avoid adding Param's that are inside ModuleList's
-                    and ModuleDict's. They should be considered children of their
-                    respective modules, not of this one. It's possible we'll make mistakes
-                    if the Param's name has dots in it.
-
-                    TODO(adrian): check / fix this
-
-                    Here's how a ModuleList should behave:
-                    param rnns.3.linear.param bias
-                    param rnns.3.linear.param weight_raw
-
-                    Here are some incorrect cases we're preventing:
-                    dropping param rnns.3.linear param.bias
-                    dropping param rnns.3.linear param.weight_raw
-                    dropping param rnns.3 linear.param.bias
-                    dropping param rnns.3 linear.param.weight_raw
-                    """
-                    #print('dropping param', node.name, name)
-                    continue
-                #print('param', node.name, name)
-
-                if id(child) in nodes_by_obj_id:
-                    child_node = nodes_by_obj_id[id(child)]
-                else:
-                    if node.name:
-                        name = node.name + '.' + name
-
-                    child_node = Node()
-                    child_node.id = next(node_ids)
-                    child_node.name = name
-                    child_node.class_name = type(child).__name__
-                    child_node.size = tuple(child.size())
-                    child_node.num_parameters = numpy.prod(child.size())
-                    child_node.obj = child  # XXX should only do this for debugging because it'll mess up garbage collection
-
-                    nodes_by_obj_id[id(child)] = child_node
-                    graph.add_node(child_node)
-
-                edge = graph.add_edge(node, child_node)
-                edge.name = name
-
-        add_module(root_module)
-
-        return graph
-
-    @classmethod
     def from_torch(cls, model):
         graph = cls()
-        graph.hook_modules(model)
+        graph.hook_torch_modules(model)
         return graph
 
-    def hook_modules(self, module):
-        global torch
-        import torch
-
+    def hook_torch_modules(self, module):
+        torch = util.get_module("torch", "Could not import torch")
         graph = self
 
         for name, sub_module in module._modules.items():
@@ -268,102 +184,36 @@ class Graph(object):
                 self.hook_modules(sub_module)
             else:
                 def after_forward_hook(module, input, output):
-                    if not graph.loaded:
-                        sizes = [list(param.size()) for param in module.parameters()]
-                        graph.add_node(Node(
-                            id=id(module),
-                            name=str(module),
-                            output_shape=list(output.shape),
-                            size=sizes,
-                            num_parameters=[reduce(mul, size) for size in sizes]
-                        ))
+                    sizes = [list(param.size()) for param in module.parameters()]
+                    graph.add_node(Node(
+                        id=id(module),
+                        name=str(module),
+                        output_shape=list(output.shape),
+                        size=sizes,
+                        num_parameters=[reduce(mul, size) for size in sizes]
+                    ))
+                    self.var = output.grad_fn
 
                 def backward_hook(module, input, output):
+                    [hook.remove() for hook in self.hooks]
                     graph.loaded = True
+                    #TODO: We may want to traverse the graph someday...
+                    if not graph.loaded:
+                        def traverse(node):
+                            print(node)
+                            if hasattr(node, 'variable'):
+                                print(node.variable)
+                            if hasattr(node, 'next_functions'):
+                                for f in node.next_functions:
+                                    if f[0]:
+                                        traverse(f[0])
+                            if hasattr(node, 'saved_tensors'):
+                                for t in node.saved_tensors:
+                                    traverse(t)
+                        traverse(self.var)
 
-                sub_module.register_forward_hook(after_forward_hook)
-                sub_module.register_backward_hook(backward_hook)
-
-    @classmethod
-    def from_torch_compute_graph(cls, var):
-        """Create a Graph from a PyTorch compute graph
-
-        From https://github.com/szagoruyko/pytorchviz/blob/8960dbc6f3cbe8a6a5f0191f77f5d6e34a542d6b/torchviz/dot.py
-
-        Produces Graph from a PyTorch autograd graph.
-        Nodes are the Variables that require gradients and the Tensors
-        saved for backpropagation in torch.autograd.Function
-        Args:
-            var: Variable (eg. loss) for which to create a compute graph
-        """
-        global torch
-        import torch
-
-        graph = cls()
-        seen = set()
-        node_ids = itertools.count()
-        nodes_by_var_id = {}
-        # we keep this separate because we want to be able to keep the graph around but let this be garbage collected
-        node_vars = {}
-
-        def size_to_str(size):
-            return '(' + (', ').join(['%d' % v for v in size]) + ')'
-
-        output_nodes = (id(var.grad_fn),) if not isinstance(var, tuple) else tuple(id(v.grad_fn) for v in var)
-
-        def add_node(var):
-            orig_var = var
-            if hasattr(var, 'variable'):
-                var = var.variable
-
-            if id(var) not in nodes_by_var_id:
-                node = Node()
-
-                node.id = next(node_ids)
-                node.class_name = type(orig_var).__name__
-                node_vars[node.id] = var
-
-                if id(var) in output_nodes:
-                    node.is_output = True
-
-                if hasattr(var, 'size'):
-                    node.size = var.size()
-
-                if torch.is_tensor(var) and not (hasattr(var, 'requires_grad') and var.requires_grad):
-                    # note: this used to show .saved_tensors in pytorch0.2, but stopped
-                    # working as it was moved to ATen and Variable-Tensor merged
-                    node.is_constant = True
-
-                nodes_by_var_id[id(var)] = node
-
-                graph.add_node(node)
-
-            return nodes_by_var_id[id(var)]
-
-        def add_nodes(var):
-            if var not in seen:
-                var_node = add_node(var)
-                seen.add(var)
-                if hasattr(var, 'next_functions'):
-                    for u in var.next_functions:
-                        if u[0] is not None:
-                            u_node = add_node(u[0])
-                            graph.add_edge(u_node, var_node)
-                            add_nodes(u[0])
-                if hasattr(var, 'saved_tensors'):
-                    for t in var.saved_tensors:
-                        t_node = add_node(t)
-                        graph.add_edge(t_node, var_node)
-                        add_nodes(t)
-
-        # handle multiple outputs
-        if isinstance(var, tuple):
-            for v in var:
-                add_nodes(v.grad_fn)
-        else:
-            add_nodes(var.grad_fn)
-
-        return graph, node_vars
+                self.hooks.append(sub_module.register_forward_hook(after_forward_hook))
+                self.hooks.append(sub_module.register_backward_hook(backward_hook))
 
     @classmethod
     def from_torch_layers(cls, module, variable):
@@ -485,7 +335,6 @@ class Graph(object):
             #print(names_by_pid.get(pid), parameter_modules.get(pid))
 
         return reduced_module_graph
-        #pprint.pprint(reduced_module_graph.nodes)
 
     @staticmethod
     def transform(graph):
@@ -521,102 +370,7 @@ class Node(object):
             self.num_parameters = num_parameters
 
     def __repr__(self):
-        return str((self._attributes, list(self.in_edges.keys()), list(self.out_edges.keys())))
-
-    def descendents(self):
-        """Get descedents topologically sorted"""
-        nodes = []
-        self._add_descendents(set(), nodes, self)
-        return nodes
-
-    def _add_descendents(self, visited_ids, nodes, node):
-        visited_ids.add(node.id)
-        nodes.append(node)
-        for edge in node.out_edges.values():
-            if edge.to_node.id not in visited_ids:
-                self._add_descendents(visited_ids, nodes, edge.to_node)
-
-    def reachable_descendents(self, by_node=None):
-        if by_node is None:
-            by_node = {}
-
-        h = id(self)
-        if h not in by_node:
-            by_node[h] = set([h])
-            for edge in self.out_edges.values():
-                edge.to_node.reachable_descendents(by_node=by_node)
-                by_node[h] |= by_node[id(edge.to_node)]
-
-        return by_node
-
-    def ancestor_bfs(self):
-        q = queue.Queue()
-        q.put(self)
-        node_depths = {id(self): 0}
-        while not q.empty():
-            node = q.get()
-            depth = node_depths[id(node)]
-            yield node, depth
-            for edge in node.in_edges.values():
-                h = id(edge.from_node)
-                if h in node_depths:
-                    node_depths[h] = min(node_depths[h], depth + 1)
-                else:
-                    node_depths[h] = depth + 1
-                    q.put(edge.from_node)
-
-    def descendent_bfs(self):
-        q = queue.Queue()
-        q.put(self)
-        node_depths = {id(self): 0}
-        while not q.empty():
-            node = q.get()
-            depth = node_depths[id(node)]
-            yield node, depth
-            for edge in node.out_edges.values():
-                h = id(edge.to_node)
-                if h in node_depths:
-                    node_depths[h] = min(node_depths[h], depth + 1)
-                else:
-                    node_depths[h] = depth + 1
-                    q.put(edge.to_node)
-
-
-    def descendent_dfs(self):
-        visited_nodes = set([id(self)])
-        node = self
-        yield node
-        edge_iter = iter(self.out_edges.values())
-        node_edges_stack = [(node, edge_iter)]
-        while node_edges_stack:
-            node, edge_iter = node_edges_stack[-1]
-            try:
-                edge = next(edge_iter)
-            except StopIteration:
-                # We'll hit this when there are no edges left to iterate over.
-                # When we've added a node to the stack we break out of the loop
-                # above, but won't run this block.
-                node_edges_stack.pop()
-            else:
-                if id(edge.to_node) not in visited_nodes:
-                    node = edge.to_node
-                    yield node
-                    edge_iter = iter(node.out_edges.values())
-                    visited_nodes.add(id(node))
-                    node_edges_stack.append((node, edge_iter))
-
-    def ancestors(self):
-        """Get descedents topologically sorted"""
-        nodes = []
-        self._add_ancestors(set(), nodes, self)
-        return nodes
-
-    def _add_ancestors(self, visited_ids, nodes, node):
-        visited_ids.add(node.id)
-        nodes.append(node)
-        for edge in node.in_edges.values():
-            if edge.from_node.id not in visited_ids:
-                self._add_ancestors(visited_ids, nodes, edge.from_node)
+        return str(self._attributes)
 
     @property
     def id(self):
@@ -658,7 +412,6 @@ class Node(object):
         global numpy
         import numpy
         self._attributes['size'] = tuple(val)
-        self.num_parameters = numpy.prod(self.size)
         return val
 
     @property
