@@ -23,6 +23,10 @@ import textwrap
 from sys import getsizeof
 from collections import namedtuple
 from importlib import import_module
+import sentry_sdk
+from sentry_sdk import capture_exception
+from sentry_sdk import capture_message
+from wandb.env import error_reporting_enabled
 
 import wandb
 from wandb import io_wrap
@@ -30,6 +34,20 @@ from wandb import wandb_dir
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
+
+
+sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
+                release=wandb.__version__, default_integrations=False)
+
+
+def sentry_message(message):
+    if error_reporting_enabled():
+        capture_message(message)
+
+
+def sentry_exc(exc):
+    if error_reporting_enabled():
+        capture_exception(exc)
 
 
 def vendor_import(name):

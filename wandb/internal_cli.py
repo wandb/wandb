@@ -29,17 +29,21 @@ def headless(args):
     stdout_master_fd = args['stdout_master_fd']
     stderr_master_fd = args['stderr_master_fd']
 
-    run = wandb.wandb_run.Run.from_environment_or_defaults()
-    run.enable_logging()
+    try:
+        run = wandb.wandb_run.Run.from_environment_or_defaults()
+        run.enable_logging()
 
-    api = wandb.apis.InternalApi()
-    api.set_current_run_id(run.id)
+        api = wandb.apis.InternalApi()
+        api.set_current_run_id(run.id)
 
-    rm = wandb.run_manager.RunManager(
-        api, run, cloud=args['cloud'], job_type=args['job_type'],
-        port=args['port'])
-    rm.wrap_existing_process(
-        user_process_pid, stdout_master_fd, stderr_master_fd)
+        rm = wandb.run_manager.RunManager(
+            api, run, cloud=args['cloud'], job_type=args['job_type'],
+            port=args['port'])
+        rm.wrap_existing_process(
+            user_process_pid, stdout_master_fd, stderr_master_fd)
+    except Exception as e:
+        util.sentry_exc(e)
+        raise e
 
 
 def agent_run(args):

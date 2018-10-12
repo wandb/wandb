@@ -780,6 +780,7 @@ class RunManager(object):
             self.init_run()
         except LaunchError as e:
             wandb.termerror(str(e))
+            util.sentry_exc(e)
             self._socket.launch_error()
             return
 
@@ -829,8 +830,9 @@ class RunManager(object):
                     exitcode = res[1]
                     break
                 elif len(res) > 0:
-                    wandb.termerror(
-                        "Invalid message received from child process: %s" % str(res))
+                    message = "Invalid message received from child process: %s" % str(res)
+                    wandb.termerror(message)
+                    util.sentry_message(message)
                     break
                 else:
                     exitcode = self.proc.poll()
@@ -1003,7 +1005,9 @@ class RunManager(object):
             print('verified!')
 
         if error:
-            wandb.termerror('Sync failed %s' % self.url)
+            message = 'Sync failed %s' % self.url
+            wandb.termerror(message)
+            util.sentry_message(message)
         else:
             wandb.termlog('Synced %s' % self.url)
         sys.exit(exitcode)
