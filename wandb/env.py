@@ -23,6 +23,7 @@ ENTITY = 'WANDB_ENTITY'
 BASE_URL = 'WANDB_BASE_URL'
 RUN = 'WANDB_RUN'
 IGNORE = 'WANDB_IGNORE_GLOBS'
+ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
 
 
 def is_debug():
@@ -34,6 +35,17 @@ def get_debug(default=None, env=None):
         env = os.environ
 
     return env.get(DEBUG, default)
+
+
+def error_reporting_enabled():
+    return bool(get_error_reporting())
+
+
+def get_error_reporting(default=True, env=None):
+    if env is None:
+        env = os.environ
+
+    return env.get(ERROR_REPORTING, default)
 
 
 def get_run(default=None, env=None):

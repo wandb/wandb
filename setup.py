@@ -17,6 +17,7 @@ requirements = [
     'shortuuid>=0.5.0',
     'nvidia-ml-py3>=7.352.0',
     'python-dateutil>=2.6.1',
+    'sentry-sdk==0.4.0',
     # Removed until we bring back the board
     #'flask-cors>=3.0.3',
     #'flask-graphql>=1.4.0',

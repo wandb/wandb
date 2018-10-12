@@ -3,6 +3,7 @@ import logging
 import os
 import shortuuid
 import socket
+from sentry_sdk import configure_scope
 
 import wandb
 from wandb import history
@@ -40,6 +41,12 @@ class Run(object):
                 # probably `python -c`, an embedded interpreter or something
                 self.program = '<python with no main file>'
         self.wandb_dir = wandb_dir
+
+        with configure_scope() as scope:
+            api = InternalApi()
+            scope.set_tag("project", api.settings("project"))
+            scope.set_tag("entity", api.settings("entity"))
+            scope.set_tag("url", self.get_url(api))
 
         if dir is None:
             self._dir = run_dir_path(self.id, dry=self.mode == 'dryrun')
