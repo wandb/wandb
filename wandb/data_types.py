@@ -92,9 +92,10 @@ class Graph(object):
         if node is None:
             node = Node(**node_kwargs)
         elif node_kwargs:
-            raise ValueError('Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})'.format(node=node, node_kwargs=node_kwargs))
+            raise ValueError('Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})'.format(
+                node=node, node_kwargs=node_kwargs))
         self.nodes.append(node)
-        #TODO: Adrian, why was this here?
+        # TODO: Adrian, why was this here?
         #assert node.id not in self.nodes_by_id
         self.nodes_by_id[node.id] = node
 
@@ -184,10 +185,11 @@ class Graph(object):
                 self.hook_modules(sub_module)
             else:
                 def after_forward_hook(module, input, output):
-                    sizes = [list(param.size()) for param in module.parameters()]
+                    sizes = [list(param.size())
+                             for param in module.parameters()]
                     graph.add_node(Node(
                         id=id(module),
-                        name=type(module),
+                        name=str(type(module)),
                         class_name=str(module),
                         output_shape=list(output.shape),
                         size=sizes,
@@ -198,7 +200,7 @@ class Graph(object):
                 def backward_hook(module, input, output):
                     [hook.remove() for hook in self.hooks]
                     graph.loaded = True
-                    #TODO: We may want to traverse the graph someday...
+                    # TODO: We may want to traverse the graph someday...
                     if not graph.loaded:
                         def traverse(node):
                             print(node)
@@ -213,8 +215,10 @@ class Graph(object):
                                     traverse(t)
                         traverse(self.var)
 
-                self.hooks.append(sub_module.register_forward_hook(after_forward_hook))
-                self.hooks.append(sub_module.register_backward_hook(backward_hook))
+                self.hooks.append(
+                    sub_module.register_forward_hook(after_forward_hook))
+                self.hooks.append(
+                    sub_module.register_backward_hook(backward_hook))
 
     @classmethod
     def from_torch_layers(cls, module, variable):
@@ -241,7 +245,8 @@ class Graph(object):
         module_graph = cls.from_torch_module(module)
 
         module_nodes_by_hash = {id(n): n for n in module_graph.nodes}
-        module_parameter_nodes = [n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)]
+        module_parameter_nodes = [
+            n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)]
 
         names_by_pid = {id(n.obj): n.name for n in module_parameter_nodes}
 
@@ -291,10 +296,10 @@ class Graph(object):
             parameter_modules[pid] = best_node
             parameter_module_names[param_node.name] = best_node.name
 
-        #pprint.pprint(names)
-        #pprint.pprint(parameter_modules)
+        # pprint.pprint(names)
+        # pprint.pprint(parameter_modules)
 
-        #for param, module in parameter_modules.items():
+        # for param, module in parameter_modules.items():
         #    print(module, param)
 
         # contains all parameters but only a minimal set of modules necessary
@@ -308,7 +313,8 @@ class Graph(object):
 
         module_nodes_by_pid = {id(n.obj): n for n in module_graph.nodes}
 
-        compute_graph, compute_node_vars = cls.from_torch_compute_graph(variable)
+        compute_graph, compute_node_vars = cls.from_torch_compute_graph(
+            variable)
         for node, _ in reversed(list(compute_graph[0].ancestor_bfs())):
             param = compute_node_vars.get(node.id)
             pid = id(param)
@@ -323,7 +329,8 @@ class Graph(object):
             if mid in rmg_nodes_by_pid:
                 rmg_module = rmg_nodes_by_pid[mid]
             else:
-                rmg_module = rmg_nodes_by_pid[mid] = Node(id=next(rmg_ids), node=module_nodes_by_pid[mid])
+                rmg_module = rmg_nodes_by_pid[mid] = Node(
+                    id=next(rmg_ids), node=module_nodes_by_pid[mid])
                 reduced_module_graph.add_node(rmg_module)
                 reduced_module_graph.add_edge(rmg_root, rmg_module)
 
@@ -494,7 +501,6 @@ class Node(object):
                                        str(inbound_tensor_index) + ']')
         node._attributes['inbound_nodes'] = connections
         return node
-
 
     @classmethod
     def from_torch_module(cls, nid, module):
