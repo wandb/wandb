@@ -12,8 +12,10 @@ import webbrowser
 whaaaaat = util.vendor_import("whaaaaat")
 from wandb.git_repo import GitRepo
 
-
-PYTORCH_VERSION = tuple(int(i) for i in torch.__version__.split('.'))
+try:
+    PYTORCH_VERSION = tuple(int(i) for i in torch.__version__.split('.'))
+except ValueError:
+    PYTORCH_VERSION = (1, 0)
 
 
 if PYTORCH_VERSION < (0, 4):
