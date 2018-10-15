@@ -674,6 +674,8 @@ class Image(object):
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
             vis_util = util.get_module(
                 "torchvision.utils", "torchvision is required to render images")
+            if hasattr(data, "requires_grad") and data.requires_grad:
+                data = data.detach()
             data = vis_util.make_grid(data, normalize=True)
             self.image = PILImage.fromarray(data.mul(255).clamp(
                 0, 255).byte().permute(1, 2, 0).cpu().numpy())
