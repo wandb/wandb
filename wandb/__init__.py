@@ -82,7 +82,9 @@ def hook_torch(model, criterion=None, values=False):
         raise ValueError(
             "You must call `wandb.init` before calling hook_torch")
     run.history.torch.log_module_parameters(model, values=values)
+    # We access the raw summary because we don't want transform called until after the forward pass
     run.summary._summary["graph"] = Graph.hook_torch(model, criterion)
+    run._user_accessed_summary = False
 
 
 class ExitHooks(object):
