@@ -70,14 +70,15 @@ def to_json(payload, mode="history"):
 
 
 class Graph(object):
-    def __init__(self):
+    def __init__(self, format="keras"):
+        self.format = format
         self.nodes = []
         self.nodes_by_id = {}
         self.edges = []
-        self.root = None  # optional root Node if applicable
         self.loaded = False
-        self.hooks = []
-        self.var = None
+        self.criterion = None
+        self.criterion_passed = False
+        self.root = None  # optional root Node if applicable
 
     def __getitem__(self, nid):
         return self.nodes_by_id[nid]
@@ -165,59 +166,86 @@ class Graph(object):
         return graph
 
     @classmethod
-    def from_torch(cls, model):
-        graph = cls()
-        graph.hook_torch_modules(model)
+    def hook_torch(cls, model, criterion=None):
+        graph = cls("torch")
+        graph.hook_torch_modules(model, criterion)
         return graph
 
-    def hook_torch_modules(self, module):
+    def hook_torch_modules(self, module, criterion=None, prefix=None):
         torch = util.get_module("torch", "Could not import torch")
+        names = []
+        hooks = []
+        layers = 0
         graph = self
+        if criterion:
+            graph.criterion = criterion
+            graph.criterion_passed = True
 
-        for name, sub_module in module.named_modules():
-            if sub_module is None or isinstance(sub_module, torch.nn.Module) is False:
+        for name, sub_module in module._modules.items():
+            name = name or str(layers)
+            if prefix:
+                name = prefix + "." + name
+            names.append(name)
+            layers += 1
+            if not isinstance(sub_module, torch.nn.Module):
                 break
 
-            if isinstance(sub_module, torch.nn.Container) or isinstance(sub_module, torch.nn.Sequential):
+            if isinstance(sub_module, (torch.nn.Container, torch.nn.Sequential)):
                 #
                 # nn.Container or nn.Sequential who have sub nn.Module. Recursively visit and hook their decendants.
                 #
-                self.hook_modules(sub_module)
+                self.hook_torch_modules(sub_module, prefix=names[-1])
             else:
                 def after_forward_hook(module, input, output):
                     sizes = [list(param.size())
                              for param in module.parameters()]
-                    graph.add_node(Node(
+                    name = names.pop(0)
+                    node = Node(
                         id=id(module),
                         name=name,
                         class_name=str(module),
                         output_shape=list(output.shape),
                         size=sizes,
                         num_parameters=[reduce(mul, size) for size in sizes]
-                    ))
-                    self.var = output.grad_fn
+                    )
+                    graph.nodes_by_id[id(module)] = node
+                    for param in module.parameters():
+                        graph.nodes_by_id[id(param)] = node
+                    graph.add_node(node)
+                    if not graph.criterion_passed:
+                        graph.criterion = output.grad_fn
 
                 def backward_hook(module, input, output):
-                    [hook.remove() for hook in self.hooks]
+                    [hook.remove() for hook in hooks]
                     graph.loaded = True
-                    # TODO: We may want to traverse the graph someday...
+                    # TODO: Keeping this here as a starting point for adding graph data
                     if not graph.loaded:
-                        def traverse(node):
-                            print(node)
+                        def traverse(node, functions=[]):
+                            if hasattr(node, 'grad_fn'):
+                                node = node.grad_fn
+
                             if hasattr(node, 'variable'):
-                                print(node.variable)
+                                node = graph.nodes_by_id.get(id(node.variable))
+                                if node:
+                                    node.functions = list(functions)
+                                    del functions[:]
+
                             if hasattr(node, 'next_functions'):
+                                functions.append(type(node).__name__)
                                 for f in node.next_functions:
                                     if f[0]:
-                                        traverse(f[0])
+                                        functions.append(type(f[0]).__name__)
+                                        traverse(f[0], functions)
+
                             if hasattr(node, 'saved_tensors'):
                                 for t in node.saved_tensors:
                                     traverse(t)
-                        traverse(self.var)
+                        traverse(graph.criterion)
 
-                self.hooks.append(
+
+                hooks.append(
                     sub_module.register_forward_hook(after_forward_hook))
-                self.hooks.append(
+                hooks.append(
                     sub_module.register_backward_hook(backward_hook))
 
     @classmethod
@@ -296,12 +324,6 @@ class Graph(object):
             parameter_modules[pid] = best_node
             parameter_module_names[param_node.name] = best_node.name
 
-        # pprint.pprint(names)
-        # pprint.pprint(parameter_modules)
-
-        # for param, module in parameter_modules.items():
-        #    print(module, param)
-
         # contains all parameters but only a minimal set of modules necessary
         # to contain them (and which ideally correspond to conceptual layers)
         reduced_module_graph = cls()
@@ -339,14 +361,11 @@ class Graph(object):
             reduced_module_graph.add_node(rmg_param)
 
             reduced_module_graph.add_edge(rmg_module, rmg_param)
-
-            #print(names_by_pid.get(pid), parameter_modules.get(pid))
-
         return reduced_module_graph
 
     @staticmethod
     def transform(graph):
-        return {"_type": "graph", "format": "keras", "nodes": [Node.transform(node) for node in graph.nodes]}
+        return {"_type": "graph", "format": graph.format, "nodes": [Node.transform(node) for node in graph.nodes]}
 
 
 class Node(object):
@@ -408,6 +427,15 @@ class Node(object):
     @class_name.setter
     def class_name(self, val):
         self._attributes['class_name'] = val
+        return val
+
+    @property
+    def functions(self):
+        return self._attributes.get('functions', [])
+
+    @functions.setter
+    def functions(self, val):
+        self._attributes["functions"] = val
         return val
 
     @property
