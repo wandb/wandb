@@ -242,7 +242,6 @@ class Graph(object):
                                     traverse(t)
                         traverse(graph.criterion)
 
-
                 hooks.append(
                     sub_module.register_forward_hook(after_forward_hook))
                 hooks.append(
@@ -672,6 +671,12 @@ class Image(object):
             self.image = PILImage.open(buf)
         elif isinstance(data, PILImage.Image):
             self.image = data
+        elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
+            vis_util = util.get_module(
+                "torchvision.utils", "torchvision is required to render images")
+            data = vis_util.make_grid(data, normalize=True)
+            self.image = PILImage.fromarray(data.mul(255).clamp(
+                0, 255).byte().permute(1, 2, 0).cpu().numpy())
         else:
             data = data.squeeze()  # get rid of trivial dimensions as a convenience
             self.image = PILImage.fromarray(
