@@ -104,7 +104,7 @@ class Api(object):
                 username = parts[0]
         return (username, project, run)
 
-    def runs(self, path="", filters={}, order="created_at", per_page=None):
+    def runs(self, path="", filters={}, order="-created_at", per_page=None):
         """Return a set of runs from a project that match the filters provided.
         You can filter by config.*, summary.*, state, username, createdAt, etc.
 

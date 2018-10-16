@@ -471,8 +471,8 @@ def login(key, server=LocalServer(), browser=True):
 
     def cancel_prompt(*args):
         raise KeyboardInterrupt()
+    # Hijacking this signal broke tests...
     # if not os.getenv("WANDB_TEST"):
-    # Hijacking this signal was broke tests
     signal.signal(signal.SIGINT, cancel_prompt)
     try:
         key = key or click.prompt("Paste an API key from your profile",
