@@ -471,7 +471,7 @@ def login(key, server=LocalServer(), browser=True):
 
     def cancel_prompt(*args):
         raise KeyboardInterrupt()
-    # Hijacking this signal broke tests...
+    # Hijacking this signal broke tests in py2...
     # if not os.getenv("WANDB_TEST"):
     signal.signal(signal.SIGINT, cancel_prompt)
     try:
