@@ -526,9 +526,13 @@ class RunManager(object):
 
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
-        if six.PY2 or "buffer" not in dir(sys.stdout):
-            stdout = sys.stdout
-            stderr = sys.stderr
+        if six.PY2 or not hasattr(sys.stdout, "buffer"):
+            if hasattr(sys.stdout, "fileno") and not os.getenv("WANDB_TEST"):
+                stdout = os.fdopen(sys.stdout.fileno(), "w+", 0)
+                stderr = os.fdopen(sys.stderr.fileno(), "w+", 0)
+            else:
+                stdout = sys.stdout
+                stderr = sys.stderr
         else:  # we write binary so grab the raw I/O objects in python 3
             try:
                 stdout = sys.stdout.buffer.raw
@@ -830,7 +834,8 @@ class RunManager(object):
                     exitcode = res[1]
                     break
                 elif len(res) > 0:
-                    message = "Invalid message received from child process: %s" % str(res)
+                    message = "Invalid message received from child process: %s" % str(
+                        res)
                     wandb.termerror(message)
                     util.sentry_message(message)
                     break
