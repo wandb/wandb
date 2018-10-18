@@ -205,7 +205,7 @@ class Graph(object):
                     if isinstance(output, tuple):
                         output = output[0]
                     parameters = [(name, list(param.size()))
-                             for name, param in module.named_parameters()]
+                                  for name, param in module.named_parameters()]
                     name = names.pop(0)
                     node = Node(
                         id=id(module),
@@ -213,7 +213,8 @@ class Graph(object):
                         class_name=str(module),
                         output_shape=list(output.shape),
                         parameters=parameters,
-                        num_parameters=[reduce(mul, size) for (name, size) in parameters]
+                        num_parameters=[reduce(mul, size)
+                                        for (name, size) in parameters]
                     )
                     graph.nodes_by_id[id(module)] = node
                     for param in module.parameters():
@@ -255,7 +256,7 @@ class Graph(object):
                     sub_module.register_backward_hook(backward_hook))
 
     @classmethod
-    def from_torch_layers(cls, module, variable):
+    def from_torch_layers(cls, module_graph, variable):
         """Recover something like neural net layers from PyTorch Module's and the
         compute graph from a Variable.
 
@@ -273,10 +274,8 @@ class Graph(object):
         decoder.weight encoder
         decoder.bias decoder
         """
-        global torch
-        import torch
-
-        module_graph = cls.from_torch_module(module)
+        # TODO: We're currently not using this, but I left it here incase we want to resurrect! - CVP
+        torch = util.get_module("torch", "Could not import torch")
 
         module_nodes_by_hash = {id(n): n for n in module_graph.nodes}
         module_parameter_nodes = [
@@ -462,8 +461,6 @@ class Node(object):
     @size.setter
     def size(self, val):
         """Tensor size"""
-        global numpy
-        import numpy
         self._attributes['size'] = tuple(val)
         return val
 
@@ -549,9 +546,7 @@ class Node(object):
 
     @classmethod
     def from_torch_module(cls, nid, module):
-        global torch, numpy
-        import torch
-        import numpy
+        numpy = util.get_module("numpy", "Could not import numpy")
 
         node = cls()
         node.id = nid
