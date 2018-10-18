@@ -207,7 +207,7 @@ def json_friendly(obj):
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(
-            "plotly.tools", required="plotly is required to log plots, install with: pip install plotly")
+            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
         obj = tools.mpl_to_plotly(obj)
 
     if is_plotly_typename(get_full_typename(obj)):

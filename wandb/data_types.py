@@ -175,6 +175,7 @@ class Graph(object):
         torch = util.get_module("torch", "Could not import torch")
         names = []
         hooks = []
+        modules = set()
         layers = 0
         graph = self
         if criterion:
@@ -197,16 +198,22 @@ class Graph(object):
                 self.hook_torch_modules(sub_module, prefix=names[-1])
             else:
                 def after_forward_hook(module, input, output):
-                    sizes = [list(param.size())
-                             for param in module.parameters()]
+                    if id(module) in modules:
+                        return
+                    modules.add(id(module))
+                    # TODO: What's the right thing to do here?
+                    if isinstance(output, tuple):
+                        output = output[0]
+                    parameters = [(name, list(param.size()))
+                             for name, param in module.named_parameters()]
                     name = names.pop(0)
                     node = Node(
                         id=id(module),
                         name=name,
                         class_name=str(module),
                         output_shape=list(output.shape),
-                        size=sizes,
-                        num_parameters=[reduce(mul, size) for size in sizes]
+                        parameters=parameters,
+                        num_parameters=[reduce(mul, size) for (name, size) in parameters]
                     )
                     graph.nodes_by_id[id(module)] = node
                     for param in module.parameters():
@@ -368,7 +375,7 @@ class Graph(object):
 
 
 class Node(object):
-    def __init__(self, id=None, name=None, class_name=None, size=None, output_shape=None, is_output=None, num_parameters=None, node=None):
+    def __init__(self, id=None, name=None, class_name=None, size=None, parameters=None, output_shape=None, is_output=None, num_parameters=None, node=None):
         self._attributes = {'name': None}
         self.in_edges = {}  # indexed by source node id
         self.out_edges = {}  # indexed by dest node id
@@ -388,6 +395,8 @@ class Node(object):
             self.class_name = class_name
         if size is not None:
             self.size = size
+        if parameters is not None:
+            self.parameters = parameters
         if output_shape is not None:
             self.output_shape = output_shape
         if is_output is not None:
@@ -435,6 +444,15 @@ class Node(object):
     @functions.setter
     def functions(self, val):
         self._attributes["functions"] = val
+        return val
+
+    @property
+    def parameters(self):
+        return self._attributes.get('parameters', [])
+
+    @parameters.setter
+    def parameters(self, val):
+        self._attributes["parameters"] = val
         return val
 
     @property
