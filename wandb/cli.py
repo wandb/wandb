@@ -348,8 +348,7 @@ def restore(run, branch, project, entity):
                     "Falling back to upstream commit: {}".format(commit))
                 patch_path, _ = api.download_write_file(files[filename])
             else:
-                    raise ClickException(
-                        "Can't find commit from which to restore code")
+                raise ClickException("Can't find commit from which to restore code")
         else:
             if patch_content:
                 patch_path = os.path.join(wandb.wandb_dir(), 'diff.patch')
