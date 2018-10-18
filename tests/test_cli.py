@@ -240,6 +240,18 @@ def test_restore(runner, request_mocker, query_run, git_repo, monkeypatch):
     assert "Restored config variables" in result.output
 
 
+def test_restore_not_git(runner, request_mocker, query_run, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    with runner.isolated_filesystem():
+        mock = query_run(request_mocker)
+        monkeypatch.setattr(cli, 'api', InternalApi({'project': 'test'}))
+        result = runner.invoke(cli.restore, ["test/abcdef"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 1
+        assert "existing git repository" in result.output
+
+
 def test_projects_error(runner, request_mocker, query_projects):
     query_projects(request_mocker, status_code=400)
     # Ugly, reach in to APIs request Retry object and tell it to only

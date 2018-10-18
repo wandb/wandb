@@ -319,6 +319,8 @@ def status(run, settings, project):
 @click.option("--entity", "-e", default="models", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 def restore(run, branch, project, entity):
+    if not api.git.enabled:
+        raise ClickException("`wandb restore` can only be called from within an existing git repository.")
     project, run = api.parse_slug(run, project=project)
     commit, json_config, patch_content = api.run_config(
         project, run=run, entity=entity)
@@ -346,8 +348,8 @@ def restore(run, branch, project, entity):
                     "Falling back to upstream commit: {}".format(commit))
                 patch_path, _ = api.download_write_file(files[filename])
             else:
-                raise ClickException(
-                    "Can't find commit from which to restore code")
+                    raise ClickException(
+                        "Can't find commit from which to restore code")
         else:
             if patch_content:
                 patch_path = os.path.join(wandb.wandb_dir(), 'diff.patch')
