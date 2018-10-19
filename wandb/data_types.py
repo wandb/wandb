@@ -174,16 +174,15 @@ class Graph(object):
             if id(module) in modules:
                 return
             modules.add(id(module))
-            # TODO: What's the right thing to do here?
-            if isinstance(output, tuple):
-                output = output[0]
+            if not isinstance(output, tuple):
+                output = (output,)
             parameters = [(pname, list(param.size()))
                           for pname, param in module.named_parameters()]
             node = Node(
                 id=id(module),
                 name=name,
                 class_name=str(module),
-                output_shape=list(output.shape),
+                output_shape=[list(o.shape) for o in outputs],
                 parameters=parameters,
                 num_parameters=[reduce(mul, size)
                                 for (pname, size) in parameters]
