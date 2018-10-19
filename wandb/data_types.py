@@ -170,6 +170,7 @@ class Graph(object):
 
     def create_forward_hook(self, name, modules):
         graph = self
+
         def after_forward_hook(module, input, output):
             if id(module) in modules:
                 return
@@ -182,7 +183,7 @@ class Graph(object):
                 id=id(module),
                 name=name,
                 class_name=str(module),
-                output_shape=[list(o.shape) for o in outputs],
+                output_shape=[list(o.shape) for o in output],
                 parameters=parameters,
                 num_parameters=[reduce(mul, size)
                                 for (pname, size) in parameters]
@@ -192,7 +193,7 @@ class Graph(object):
                 graph.nodes_by_id[id(param)] = node
             graph.add_node(node)
             if not graph.criterion_passed:
-                graph.criterion = output.grad_fn
+                graph.criterion = output[0].grad_fn
         return after_forward_hook
 
     def hook_torch_modules(self, module, criterion=None, prefix=None):

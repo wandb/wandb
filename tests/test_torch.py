@@ -80,6 +80,19 @@ def test_sequence_net():
     assert graph["nodes"][0]['name'] == "lstm1"
 
 
+def test_multi_net():
+    net = Net()
+    wandb.run = wandb.wandb_run.Run.from_environment_or_defaults()
+    graphs = wandb.hook_torch((net, net))
+    output = net.forward(torch.ones((64, 1, 28, 28), requires_grad=True))
+    grads = torch.ones(64, 10)
+    output.backward(grads)
+    graph1 = wandb.Graph.transform(graphs[0])
+    graph2 = wandb.Graph.transform(graphs[1])
+    assert len(graph1["nodes"]) == 5
+    assert len(graph2["nodes"]) == 5
+
+
 def test_alex_net():
     alex = models.AlexNet()
     graph = wandb.Graph.hook_torch(alex)

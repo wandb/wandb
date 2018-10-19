@@ -77,10 +77,11 @@ class Callbacks():
 callbacks = Callbacks()
 
 
-def hook_torch(model, criterion=None, log="gradients"):
+def hook_torch(models, criterion=None, log="gradients"):
     """
     Hooks into the torch model to collect gradients and the topology.
 
+    :param (torch.Module) models: The model to hook, can be a tuple
     :param (torch.F) criterion: An optional loss value being optimized
     :param (str) log: One of "gradients", "parameters", "all", or None
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
@@ -97,13 +98,21 @@ def hook_torch(model, criterion=None, log="gradients"):
         gradients = False
     elif log is None:
         gradients = False
-    run.history.torch.log_module_parameters(
-        model, values=values, gradients=gradients)
-    # We access the raw summary because we don't want transform called until after the forward pass
-    graph = Graph.hook_torch(model, criterion)
-    run.summary._summary["graph"] = graph
+    if not isinstance(models, (tuple, list)):
+        models = (models,)
+    graphs = []
+    prefix = ''
+    for i, model in enumerate(models):
+        if i > 0:
+            prefix = "graph_%i" % i
+        run.history.torch.log_module_parameters(
+            model, values=values, gradients=gradients, prefix=prefix)
+        graph = Graph.hook_torch(model, criterion)
+        graphs.append(graph)
+        # We access the raw summary because we don't want transform called until after the forward pass
+        run.summary._summary["graph_%i" % i] = graph
     run._user_accessed_summary = False
-    return graph
+    return graphs
 
 
 class ExitHooks(object):
