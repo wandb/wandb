@@ -154,7 +154,7 @@ def test_history_big_list(history):
     assert h[0]["boom"]["_type"] == "histogram"
 
 
-@pytest.mark.skipif(utils.PYTORCH_VERSION < (0, 4), reason='0d tensors not supported until 0.4')
+@pytest.mark.skipif(utils.OLD_PYTORCH, reason='0d tensors not supported until 0.4')
 def test_torch_single_in_log(history):
     history.add({
         "single_tensor": torch.tensor(0.63245),
@@ -203,10 +203,10 @@ def test_log_blows_up(history):
 def test_torch(history):
     with history.step():
         history.torch.log_stats(
-            torch.autograd.Variable(torch.randn(
-                2, 2).type(torch.FloatTensor), requires_grad=True), "layer1")
+            torch.randn(
+                (2, 2), requires_grad=True), "layer1")
     h = disk_history()
-    assert "_layer1-0.50" in h[0].keys()
+    assert "parameters/layer1" in h[0].keys()
 
 
 def test_torch_no_compute(history):

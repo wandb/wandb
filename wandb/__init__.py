@@ -77,6 +77,44 @@ class Callbacks():
 callbacks = Callbacks()
 
 
+def hook_torch(models, criterion=None, log="gradients"):
+    """
+    Hooks into the torch model to collect gradients and the topology.
+
+    :param (torch.Module) models: The model to hook, can be a tuple
+    :param (torch.F) criterion: An optional loss value being optimized
+    :param (str) log: One of "gradients", "parameters", "all", or None
+    :return: (wandb.Graph) The graph object that will populate after the first backward pass
+    """
+    if run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling hook_torch")
+    values = False
+    gradients = True
+    if log == "all":
+        values = True
+    elif log == "parameters":
+        values = True
+        gradients = False
+    elif log is None:
+        gradients = False
+    if not isinstance(models, (tuple, list)):
+        models = (models,)
+    graphs = []
+    prefix = ''
+    for i, model in enumerate(models):
+        if i > 0:
+            prefix = "graph_%i" % i
+        run.history.torch.log_module_parameters(
+            model, values=values, gradients=gradients, prefix=prefix)
+        graph = Graph.hook_torch(model, criterion)
+        graphs.append(graph)
+        # We access the raw summary because we don't want transform called until after the forward pass
+        run.summary._summary["graph_%i" % i] = graph
+    run._user_accessed_summary = False
+    return graphs
+
+
 class ExitHooks(object):
     def __init__(self):
         self.exit_code = 0

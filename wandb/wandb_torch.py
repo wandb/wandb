@@ -1,4 +1,12 @@
+#!/usr/bin/env python
+
+"""PyTorch-specific functionality
+"""
+
+from collections import namedtuple
 import weakref
+
+from distutils.version import LooseVersion
 import wandb
 torch = None
 
@@ -9,11 +17,11 @@ class TorchHistory(object):
 
     def __init__(self, history):
         global torch
-        import torch
+        torch = wandb.util.get_module("torch", "Could not import torch")
         self._history = weakref.ref(history)
         self._hook_handles = {}
 
-    def log_stats(self, variable_or_module, name=None, prefix='_', values=True, gradients=True):
+    def log_stats(self, variable_or_module, name=None, prefix='', values=True, gradients=True):
         """Log distribution statistics for a torch Variable or Module and its next
         gradient in History.
 
@@ -41,31 +49,49 @@ class TorchHistory(object):
         history = self._history()
         if history is None or not history.compute:
             return
+        if name is None:
+            name = ''
 
         if isinstance(variable_or_module, torch.autograd.Variable):
             if name is None:
                 raise wandb.Error('Need a name to log stats for a Variable.')
             var = variable_or_module
             if values:
-                self.log_tensor_stats(var.data, prefix + name)
+                self.log_tensor_stats(var.data, 'parameters/' + prefix + name)
             if gradients:
                 self._hook_variable_gradient_stats(
-                    var, prefix + name + ':grad')
+                    var, 'gradients/' + prefix + name)
         elif isinstance(variable_or_module, torch.nn.Module):
             module = variable_or_module
             if name is not None:
                 prefix = prefix + name
-            for name, parameter in module.named_parameters():
-                self.log_stats(parameter, name=name, prefix=prefix,
-                               values=values, gradients=gradients)
+            self.log_module_stats(module, prefix)
         else:
             cls = type(var)
             raise TypeError('Expected torch.autograd.Variable or torch.nn.Module, not {}.{}'.format(
                 cls.__module__, cls.__name__))
 
+    def log_module_parameters(self, module, name=None, prefix='', values=True, gradients=True):
+        if name is not None:
+            prefix = prefix + name
+        for name, parameter in module.named_parameters():
+            self.log_stats(parameter, name=name, prefix=prefix,
+                           values=values, gradients=gradients)
+
+    def log_module_stats(self, module, name):
+        self._hook_module_input_output_stats(module, name)
+        self._hook_module_input_output_gradient_stats(module, name)
+        for child_name, child in module.named_children():
+            self.log_module_stats(child, name + '.' + child_name)
+
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
         """
+        if (isinstance(tensor, tuple) or isinstance(tensor, list)):
+            while (isinstance(tensor, tuple) or isinstance(tensor, list)) and (isinstance(tensor[0], tuple) or isinstance(tensor[0], list)):
+                tensor = [item for sublist in tensor for item in sublist]
+            tensor = torch.cat([t.view(-1) for t in tensor])
+
         # checking for inheritance from _TensorBase didn't work for some reason
         if not hasattr(tensor, 'shape'):
             cls = type(tensor)
@@ -75,19 +101,77 @@ class TorchHistory(object):
         if history is None or not history.compute:
             return
         flat = tensor.view(-1)
-        l = len(flat)
-        # kthvalue uses 1-based indexing for some reason
-        i0_05 = max(1, min(int(round(0.05 * l)), l))
-        i0_95 = max(1, min(int(round(0.95 * l)), l))
+        # wandb.termlog(name)
         history.row.update({
-            name + '-0.00': tensor.min(),
-            name + '-0.05': flat.kthvalue(i0_05)[0][0],
-            name + '-0.50': tensor.median(),
-            name + '-0.95': flat.kthvalue(i0_95)[0][0],
-            name + '-1.00': tensor.max(),
-            name + '-mean': tensor.mean(),
-            name + '-stddev': tensor.std()
+            name: wandb.Histogram(flat.cpu().clone().detach())
         })
+
+    def _hook_module_input_output_stats(self, module, name):
+        if not isinstance(module, torch.nn.Module):
+            cls = type(module)
+            raise TypeError('Expected torch.nn.Module, not {}.{}'.format(
+                cls.__module__, cls.__name__))
+        hook_name = name + ':io'
+        input_name = 'input/' + name
+        output_name = 'output/' + name
+
+        handle = self._hook_handles.get(hook_name)
+        if handle is not None and _torch_hook_handle_is_valid(handle):
+            raise ValueError(
+                'A hook has already been set under name "{}"'.format(hook_name))
+
+        def _hook(something, input_, output):
+            if isinstance(input_, tuple) or isinstance(input_, list):
+                for i, inp in enumerate(input_):
+                    self.log_tensor_stats(
+                        inp, '{input_name}.{i}'.format(input_name=input_name, i=i))
+            else:
+                self.log_tensor_stats(input_, input_name)
+
+            if isinstance(output, tuple) or isinstance(output, list):
+                for i, out in enumerate(output):
+                    self.log_tensor_stats(
+                        out, '{output_name}.{i}'.format(input_name=input_name, i=i))
+            else:
+                self.log_tensor_stats(output, output_name)
+
+        handle = module.register_forward_hook(_hook)
+        self._hook_handles[hook_name] = handle
+        return handle
+
+    def _hook_module_input_output_gradient_stats(self, module, name):
+        if not isinstance(module, torch.nn.Module):
+            cls = type(module)
+            raise TypeError('Expected torch.nn.Module, not {}.{}'.format(
+                cls.__module__, cls.__name__))
+
+        hook_name = name + ':io:grad'
+
+        handle = self._hook_handles.get(hook_name)
+        if handle is not None and _torch_hook_handle_is_valid(handle):
+            raise ValueError(
+                'A hook has already been set under name "{}"'.format(hook_name))
+
+        def _hook(something, input_, output):
+            if isinstance(input_, tuple) or isinstance(input_, list):
+                for i, inp in enumerate(input_):
+                    self.log_tensor_stats(
+                        inp, 'input/gradients/{name}.{i}'.format(name=name, i=i))
+            else:
+                self.log_tensor_stats(
+                    input_, 'input/gradients/{name}'.format(name=name))
+
+            if isinstance(output, tuple) or isinstance(output, list):
+                for i, out in enumerate(output):
+                    self.log_tensor_stats(
+                        out, 'output/gradients/{name}.{i}'.format(name=name, i=i))
+            else:
+                self.log_tensor_stats(
+                    output, 'output/gradients/{name}'.format(i=i))
+
+        handle = module.register_forward_hook(_hook)
+        self._hook_handles[hook_name] = handle
+        return handle
 
     def _hook_variable_gradient_stats(self, var, name):
         """Logs a Variable's gradient's distribution statistics next time backward()
@@ -103,11 +187,12 @@ class TorchHistory(object):
             raise ValueError(
                 'A hook has already been set under name "{}"'.format(name))
 
-        def callback(grad):
+        def _callback(grad):
+            #_callback()
             self.log_tensor_stats(grad.data, name)
-            self.unhook(name)
+            # self.unhook(name)
 
-        handle = var.register_hook(callback)
+        handle = var.register_hook(_callback)
         self._hook_handles[name] = handle
         return handle
 

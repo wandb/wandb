@@ -8,15 +8,15 @@ with open('README.md') as readme_file:
 
 requirements = [
     'Click>=6.0',
-    'gql>=0.1.0',
-    'requests>=2.0.0',
-    'six>=1.10.0',
-    'psutil>=5.2.2',
-    'watchdog>=0.8.3',
     'GitPython>=1.0.0',
-    'shortuuid>=0.5.0',
+    'gql>=0.1.0',
     'nvidia-ml-py3>=7.352.0',
+    'psutil>=5.2.2',
     'python-dateutil>=2.6.1',
+    'requests>=2.0.0',
+    'shortuuid>=0.5.0',
+    'six>=1.10.0',
+    'watchdog>=0.8.3',
     'sentry-sdk==0.4.0',
     # Removed until we bring back the board
     #'flask-cors>=3.0.3',

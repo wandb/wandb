@@ -119,7 +119,7 @@ class FileStreamApi(object):
 
     def rate_limit_seconds(self):
         run_time = time.time() - wandb.START_TIME
-        if run_time < 30:
+        if run_time < 60:
             return max(1, self.heartbeat_seconds / 15)
         elif run_time < 300:
             return max(2.5, self.heartbeat_seconds / 3)
