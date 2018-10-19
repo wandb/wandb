@@ -82,7 +82,7 @@ def hook_torch(model, criterion=None, log="gradients"):
     Hooks into the torch model to collect gradients and the topology.
 
     :param (torch.F) criterion: An optional loss value being optimized
-    :param (str) log: One of "gradients", "values", "all", or None
+    :param (str) log: One of "gradients", "parameters", "all", or None
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
     if run is None:
@@ -92,7 +92,7 @@ def hook_torch(model, criterion=None, log="gradients"):
     gradients = True
     if log == "all":
         values = True
-    elif log == "values":
+    elif log == "parameters":
         values = True
         gradients = False
     elif log is None:

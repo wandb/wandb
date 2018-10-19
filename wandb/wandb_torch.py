@@ -57,10 +57,10 @@ class TorchHistory(object):
                 raise wandb.Error('Need a name to log stats for a Variable.')
             var = variable_or_module
             if values:
-                self.log_tensor_stats(var.data, prefix + name)
+                self.log_tensor_stats(var.data, 'parameters/' + prefix + name)
             if gradients:
                 self._hook_variable_gradient_stats(
-                    var, prefix + name + ':grad')
+                    var, 'gradients/' + prefix + name)
         elif isinstance(variable_or_module, torch.nn.Module):
             module = variable_or_module
             if name is not None:
@@ -112,8 +112,8 @@ class TorchHistory(object):
             raise TypeError('Expected torch.nn.Module, not {}.{}'.format(
                 cls.__module__, cls.__name__))
         hook_name = name + ':io'
-        input_name = name + ':input'
-        output_name = name + ':output'
+        input_name = 'input/' + name
+        output_name = 'output/' + name
 
         handle = self._hook_handles.get(hook_name)
         if handle is not None and _torch_hook_handle_is_valid(handle):
@@ -156,17 +156,18 @@ class TorchHistory(object):
             if isinstance(input_, tuple) or isinstance(input_, list):
                 for i, inp in enumerate(input_):
                     self.log_tensor_stats(
-                        inp, '{name}:input.{i}:grad'.format(name=name, i=i))
+                        inp, 'input/gradients/{name}.{i}'.format(name=name, i=i))
             else:
                 self.log_tensor_stats(
-                    input_, '{name}:input:grad'.format(name=name))
+                    input_, 'input/gradients/{name}'.format(name=name))
 
             if isinstance(output, tuple) or isinstance(output, list):
                 for i, out in enumerate(output):
                     self.log_tensor_stats(
-                        out, '{name}.{i}:grad'.format(name=name, i=i))
+                        out, 'output/gradients/{name}.{i}'.format(name=name, i=i))
             else:
-                self.log_tensor_stats(output, '{name}:output:grad'.format(i=i))
+                self.log_tensor_stats(
+                    output, 'output/gradients/{name}'.format(i=i))
 
         handle = module.register_forward_hook(_hook)
         self._hook_handles[hook_name] = handle

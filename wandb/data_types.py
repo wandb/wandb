@@ -2,9 +2,6 @@ import itertools
 import pprint
 from six.moves import queue
 
-# lazy imports
-numpy = None
-torch = None
 import collections
 import os
 import logging
@@ -171,9 +168,36 @@ class Graph(object):
         graph.hook_torch_modules(model, criterion)
         return graph
 
+    def create_forward_hook(self, name, modules):
+        graph = self
+        def after_forward_hook(module, input, output):
+            if id(module) in modules:
+                return
+            modules.add(id(module))
+            # TODO: What's the right thing to do here?
+            if isinstance(output, tuple):
+                output = output[0]
+            parameters = [(pname, list(param.size()))
+                          for pname, param in module.named_parameters()]
+            node = Node(
+                id=id(module),
+                name=name,
+                class_name=str(module),
+                output_shape=list(output.shape),
+                parameters=parameters,
+                num_parameters=[reduce(mul, size)
+                                for (pname, size) in parameters]
+            )
+            graph.nodes_by_id[id(module)] = node
+            for param in module.parameters():
+                graph.nodes_by_id[id(param)] = node
+            graph.add_node(node)
+            if not graph.criterion_passed:
+                graph.criterion = output.grad_fn
+        return after_forward_hook
+
     def hook_torch_modules(self, module, criterion=None, prefix=None):
         torch = util.get_module("torch", "Could not import torch")
-        names = []
         hooks = []
         modules = set()
         layers = 0
@@ -186,43 +210,17 @@ class Graph(object):
             name = name or str(layers)
             if prefix:
                 name = prefix + "." + name
-            names.append(name)
             layers += 1
             if not isinstance(sub_module, torch.nn.Module):
+                # TODO: Why does this happen?
                 break
 
             if isinstance(sub_module, (torch.nn.Container, torch.nn.Sequential)):
                 #
                 # nn.Container or nn.Sequential who have sub nn.Module. Recursively visit and hook their decendants.
                 #
-                self.hook_torch_modules(sub_module, prefix=names[-1])
+                self.hook_torch_modules(sub_module, prefix=name)
             else:
-                def after_forward_hook(module, input, output):
-                    if id(module) in modules:
-                        return
-                    modules.add(id(module))
-                    # TODO: What's the right thing to do here?
-                    if isinstance(output, tuple):
-                        output = output[0]
-                    parameters = [(name, list(param.size()))
-                                  for name, param in module.named_parameters()]
-                    name = names.pop(0)
-                    node = Node(
-                        id=id(module),
-                        name=name,
-                        class_name=str(module),
-                        output_shape=list(output.shape),
-                        parameters=parameters,
-                        num_parameters=[reduce(mul, size)
-                                        for (name, size) in parameters]
-                    )
-                    graph.nodes_by_id[id(module)] = node
-                    for param in module.parameters():
-                        graph.nodes_by_id[id(param)] = node
-                    graph.add_node(node)
-                    if not graph.criterion_passed:
-                        graph.criterion = output.grad_fn
-
                 def backward_hook(module, input, output):
                     [hook.remove() for hook in hooks]
                     graph.loaded = True
@@ -251,7 +249,7 @@ class Graph(object):
                         traverse(graph.criterion)
 
                 hooks.append(
-                    sub_module.register_forward_hook(after_forward_hook))
+                    sub_module.register_forward_hook(self.create_forward_hook(name, modules)))
                 hooks.append(
                     sub_module.register_backward_hook(backward_hook))
 
