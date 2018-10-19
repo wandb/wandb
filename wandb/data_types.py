@@ -93,8 +93,6 @@ class Graph(object):
             raise ValueError('Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})'.format(
                 node=node, node_kwargs=node_kwargs))
         self.nodes.append(node)
-        # TODO: Adrian, why was this here?
-        #assert node.id not in self.nodes_by_id
         self.nodes_by_id[node.id] = node
 
         return node
@@ -206,6 +204,7 @@ class Graph(object):
             graph.criterion = criterion
             graph.criterion_passed = True
 
+        # TODO: We might be able to use `named_children()` here, need to verify the API in older version
         for name, sub_module in module._modules.items():
             name = name or str(layers)
             if prefix:

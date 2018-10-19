@@ -84,6 +84,7 @@ def test_multi_net():
     net = Net()
     wandb.run = wandb.wandb_run.Run.from_environment_or_defaults()
     graphs = wandb.hook_torch((net, net))
+    wandb.run = None
     output = net.forward(torch.ones((64, 1, 28, 28), requires_grad=True))
     grads = torch.ones(64, 10)
     output.backward(grads)

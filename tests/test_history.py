@@ -154,7 +154,7 @@ def test_history_big_list(history):
     assert h[0]["boom"]["_type"] == "histogram"
 
 
-@pytest.mark.skipif(utils.PYTORCH_VERSION < (0, 4), reason='0d tensors not supported until 0.4')
+@pytest.mark.skipif(utils.OLD_PYTORCH, reason='0d tensors not supported until 0.4')
 def test_torch_single_in_log(history):
     history.add({
         "single_tensor": torch.tensor(0.63245),

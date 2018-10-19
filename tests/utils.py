@@ -11,18 +11,16 @@ import torch
 import webbrowser
 whaaaaat = util.vendor_import("whaaaaat")
 from wandb.git_repo import GitRepo
-
-try:
-    PYTORCH_VERSION = tuple(int(i) for i in torch.__version__.split('.'))
-except ValueError:
-    PYTORCH_VERSION = (1, 0)
+from distutils.version import LooseVersion
 
 
-if PYTORCH_VERSION < (0, 4):
+if LooseVersion(torch.__version__) < LooseVersion("0.4"):
     pytorch_tensor = torch.Tensor
+    OLD_PYTORCH = True
 else:
     # supports 0d tensors but is a module before 0.4
     pytorch_tensor = torch.tensor
+    OLD_PYTORCH = False
 
 
 @pytest.fixture
