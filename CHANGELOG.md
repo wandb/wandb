@@ -1,15 +1,20 @@
-## 0.16.22 (October 18, 2018)
-
-#### :bug: Bug Fix
-
-- `wandb restore` handles the case of not being run from within a git repo.
-- We now open stdout and stderr in raw mode in Python 2 ensuring tools like bpdb work.
+## 0.16.23 (October 19, 2018)
 
 #### :nail_care: Enhancement
 
 - PyTorch
-  - Added a new `wandb.hook_torch` method which records the graph and logs gradients & values of pytorch models
-  - `wandb.Image` detects pytorch tensors and uses **torchvision.utils.make_grid** to render the image. 
+  - Added a new `wandb.hook_torch` method which records the graph and logs gradients & parameters of pytorch models
+  - `wandb.Image` detects pytorch tensors and uses **torchvision.utils.make_grid** to render the image.
+
+#### :bug: Bug Fix
+
+- `wandb restore` handles the case of not being run from within a git repo.
+
+## 0.16.22 (October 18, 2018)
+
+#### :bug: Bug Fix
+
+- We now open stdout and stderr in raw mode in Python 2 ensuring tools like bpdb work.
 
 ## 0.16.21 (October 12, 2018)
 
