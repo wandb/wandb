@@ -144,7 +144,7 @@ class ExitHooks(object):
         traceback.print_exception(exc_type, exc, *tb)
 
 
-def _init_headless(run, job_type, cloud=True):
+def _init_headless(run, cloud=True):
     global join
     run.description = env.get_description(run.description)
 
@@ -170,7 +170,6 @@ def _init_headless(run, job_type, cloud=True):
         'stdout_master_fd': stdout_master_fd,
         'stderr_master_fd': stderr_master_fd,
         'cloud': cloud,
-        'job_type': job_type,
         'port': server.port
     }
     internal_cli_path = os.path.join(
@@ -243,7 +242,7 @@ def load_ipython_extension(ipython):
     pass
 
 
-def _init_jupyter(run, job_type):
+def _init_jupyter(run):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
     Log pushing and system stats don't start until `wandb.monitor()` is called.
     """
@@ -282,7 +281,7 @@ def _init_jupyter(run, job_type):
     print("W&B Run: %s" % run.get_url(api))
     print("Call `%%wandb` in the cell containing your training loop to display live results.")
     try:
-        run.save(api=api, job_type=job_type)
+        run.save(api=api)
     except (CommError, ValueError) as e:
         termerror(str(e))
     run.set_environment()
@@ -456,7 +455,7 @@ def _get_python_type():
         return "python"
 
 
-def init(job_type='train', dir=None, config=None, project=None, entity=None, allow_val_change=False, reinit=None):
+def init(job_type=None, dir=None, config=None, project=None, entity=None, group=None, allow_val_change=False, reinit=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -487,6 +486,10 @@ def init(job_type='train', dir=None, config=None, project=None, entity=None, all
         os.environ['WANDB_PROJECT'] = project
     if entity:
         os.environ['WANDB_ENTITY'] = entity
+    if group:
+        os.environ['WANDB_RUN_GROUP'] = group
+    if job_type:
+        os.environ['WANDB_JOB_TYPE'] = job_type
     if dir:
         os.environ['WANDB_DIR'] = dir
         util.mkdir_exists_ok(wandb_dir())
@@ -521,7 +524,6 @@ def init(job_type='train', dir=None, config=None, project=None, entity=None, all
         termerror('Failed to create run directory: {}'.format(e))
         raise LaunchError("Could not write to filesystem.")
 
-    run.job_type = job_type
     run.set_environment()
 
     def set_global_config(run):
@@ -541,16 +543,16 @@ def init(job_type='train', dir=None, config=None, project=None, entity=None, all
         return run
 
     if in_jupyter:
-        _init_jupyter(run, job_type)
+        _init_jupyter(run)
     elif run.mode == 'clirun' or run.mode == 'run':
         ensure_configured()
 
         if run.mode == 'run':
-            _init_headless(run, job_type)
+            _init_headless(run)
     elif run.mode == 'dryrun':
         termlog(
             'dryrun mode, run directory: %s' % run.dir)
-        _init_headless(run, job_type, False)
+        _init_headless(run, False)
     else:
         termerror(
             'Invalid run mode "%s". Please unset WANDB_MODE.' % run.mode)
