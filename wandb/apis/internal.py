@@ -66,7 +66,6 @@ class Api(object):
         self.retry_uploads = 10
         self.settings_parser = configparser.ConfigParser()
         self.tagged = False
-        self.update_available = False
         if load_settings:
             potential_settings_paths = [
                 os.path.expanduser('~/.wandb/settings')
@@ -527,7 +526,6 @@ class Api(object):
                     description
                     config
                 }
-                updateAvailable
             }
         }
         ''')
@@ -550,7 +548,6 @@ class Api(object):
         response = self.gql(
             mutation, variable_values=variable_values, **kwargs)
 
-        self.update_available = response['upsertBucket']['updateAvailable']
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
