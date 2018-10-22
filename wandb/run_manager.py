@@ -17,6 +17,7 @@ import numbers
 import inspect
 
 import click
+from pkg_resources import parse_version
 from shortuuid import ShortUUID
 import six
 from six.moves import queue
@@ -27,6 +28,7 @@ import webbrowser
 
 import wandb
 from wandb.apis.file_stream import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy, OverwriteFilePolicy
+from wandb import __version__
 from wandb import env
 from wandb import Error
 from wandb import io_wrap
@@ -654,6 +656,8 @@ class RunManager(object):
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
 
+        self._check_update_available()
+
     def shutdown(self, exitcode=0):
         """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""
         self._system_stats.shutdown()
@@ -798,6 +802,22 @@ class RunManager(object):
 
         self._sync_etc(headless=True)
 
+    def _check_update_available(self):
+        try:
+            data = requests.get('https://pypi.org/pypi/wandb/json').json()
+            latest_version = data['info']['version']
+        except:
+            # Any issues whatsoever, just skip the latest version check.
+            return
+
+        # Return if no update is available
+        if parse_version(latest_version) <= parse_version(__version__):
+            return
+
+        # A new version is available!
+        wandb.termlog(
+            "Wandb version %s is available!  To upgrade, please run:\n $ pip install wandb --upgrade" % latest_version)
+
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will # handle it, and we'll
         # exit when the child process does.
@@ -809,9 +829,6 @@ class RunManager(object):
         except AttributeError:  # SIGQUIT doesn't exist on windows
             pass
 
-        if self._api.update_available:
-            wandb.termlog(
-                "An update is available!  To upgrade, please run:\n $ pip install wandb --upgrade")
         # Add a space before user output
         wandb.termlog()
 
