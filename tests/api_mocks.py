@@ -130,10 +130,7 @@ def _mutate(key, json):
 
 @pytest.fixture
 def upsert_run(request):
-    updateAvailable = True if request.node.get_marker(
-        'updateAvailable') else False
-    return _mutate('upsertBucket', {'bucket': _bucket("default"), 'updateAvailable': updateAvailable})
-
+    return _mutate('upsertBucket', {'bucket': _bucket("default")})
 
 @pytest.fixture
 def query_project():

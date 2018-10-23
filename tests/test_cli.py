@@ -420,8 +420,6 @@ def test_run_update(runner, request_mocker, upsert_run, git_repo, upload_logs):
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
-    assert "An update is available!" in str(result.output)
-
 
 def test_enable_on(runner, git_repo):
     with open("wandb/settings", "w") as f:

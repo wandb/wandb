@@ -7,7 +7,6 @@ import os
 # def no_requests(monkeypatch):
 #    monkeypatch.delattr("requests.sessions.Session.request")
 
-
 @pytest.fixture
 def request_mocker(request):
     """
