@@ -656,7 +656,7 @@ class RunManager(object):
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
 
-        self._check_update_available()
+        self._check_update_available(__version__)
 
     def shutdown(self, exitcode=0):
         """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""
@@ -802,7 +802,7 @@ class RunManager(object):
 
         self._sync_etc(headless=True)
 
-    def _check_update_available(self):
+    def _check_update_available(self, current_version):
         try:
             data = requests.get('https://pypi.org/pypi/wandb/json').json()
             latest_version = data['info']['version']
@@ -811,7 +811,7 @@ class RunManager(object):
             return
 
         # Return if no update is available
-        if parse_version(latest_version) <= parse_version(__version__):
+        if parse_version(latest_version) <= parse_version(current_version):
             return
 
         # A new version is available!
