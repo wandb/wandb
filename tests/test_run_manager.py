@@ -6,7 +6,7 @@ from wandb.apis import internal
 from wandb.wandb_run import Run
 
 def test_check_update_available_equal(request_mocker, capsys):
-    "No update message on equal messages"
+    "Test update availability in different cases."
     test_cases = [
         ('0.8.10', '0.8.10', False),
         ('0.8.9', '0.8.10', True),
@@ -24,6 +24,7 @@ def test_check_update_available_equal(request_mocker, capsys):
         assert is_avail == is_expected, "expected %s compared to %s to yield update availability of %s" % (current, latest, is_expected)
 
 def _is_update_avail(request_mocker, capsys, current, latest):
+    "Set up the run manager and detect if the upgrade message is printed."
     api = internal.Api(
         load_settings=False,
         retry_timedelta=datetime.timedelta(0, 0, 50))
@@ -31,10 +32,14 @@ def _is_update_avail(request_mocker, capsys, current, latest):
     run = Run()
     run_manager = wandb.run_manager.RunManager(api, run)
 
+    # Without this mocking, during other tests, the _check_update_available
+    # function will throw a "mock not found" error, then silently fail without
+    # output (just like it would in a normal network failure).
     response = b'{ "info": { "version": "%s" } }' % bytearray(latest, 'utf-8')
     request_mocker.register_uri('GET', 'https://pypi.org/pypi/wandb/json',
         content=response, status_code=200)
     run_manager._check_update_available(current)
 
     captured_out, captured_err = capsys.readouterr()
+    print(captured_out, captured_err)
     return "To upgrade, please run:" in captured_err
