@@ -803,8 +803,10 @@ class RunManager(object):
         self._sync_etc(headless=True)
 
     def _check_update_available(self, current_version):
+        timeout = 2  # Two seconds.
+        pypi_url = 'https://pypi.org/pypi/wandb/json'
         try:
-            data = requests.get('https://pypi.org/pypi/wandb/json').json()
+            data = requests.get(pypi_url, timeout=timeout).json()
             latest_version = data['info']['version']
         except:
             # Any issues whatsoever, just skip the latest version check.
