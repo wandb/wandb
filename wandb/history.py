@@ -14,6 +14,7 @@ import weakref
 import six
 import traceback
 
+import wandb.wandb_tensorflow
 from wandb.wandb_torch import TorchHistory
 import wandb
 from wandb import util
@@ -132,6 +133,9 @@ class History(object):
         if self._torch is None:
             self._torch = TorchHistory(self)
         return self._torch
+
+    def log_tf_summary(self, summary_pb_bin):
+        self.add(wandb.wandb_tensorflow.tf_summary_to_dict(summary_pb_bin))
 
     def _index(self, row):
         """Internal row adding method that updates step, and keys"""
