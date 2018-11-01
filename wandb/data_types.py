@@ -52,6 +52,9 @@ def val_to_json(key, val, mode="summary", step=None):
         converted = Graph.transform(val)
     elif isinstance(val, Table):
         converted = Table.transform(val)
+    elif isinstance(val, Audio):
+        converted = Audio.transform(
+            val, wandb.run.dir, "{}_{}.wav".format(key, step))
     return converted
 
 
@@ -661,6 +664,27 @@ class Table(object):
             logging.warn(
                 "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
         return {"_type": "table", "columns": table.columns, "data": table.rows[:Table.MAX_ROWS]}
+
+
+class Audio(object):
+
+    def __init__(self, data, sample_rate=None, caption=None):
+        """
+        Accepts numpy array of audio data. 
+        """
+        self.audio = data
+        self.sample_rate = sample_rate
+        self.caption = caption
+
+    @staticmethod
+    def transform(audio, out_dir, fname):
+        sf = util.get_module(
+            "soundfile", required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile")
+        base = os.path.join(out_dir, "media", "audio")
+        util.mkdir_exists_ok(base)
+        sf.write(os.path.join(base, fname), audio.audio, audio.sample_rate)
+        meta = {"_type": "audio", "sampleRate": audio.sample_rate, "caption": audio.caption}
+        return meta
 
 
 class Image(object):
