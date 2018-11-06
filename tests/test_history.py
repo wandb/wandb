@@ -7,7 +7,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import plotly.graph_objs as go
-from click.testing import CliRunner
 
 from wandb.history import History
 from wandb import data_types
@@ -15,12 +14,6 @@ import torch
 import tensorflow as tf
 
 from . import utils
-
-
-@pytest.fixture
-def history():
-    with CliRunner().isolated_filesystem():
-        yield History("wandb-history.jsonl")
 
 
 def di(row):
