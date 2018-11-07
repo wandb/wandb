@@ -55,6 +55,32 @@ def test_transform():
         assert os.path.exists("media/images/test.jpg")
 
 
+def test_audio_sample_rates():
+    audio1 = np.random.uniform(-1, 1, 44100)
+    audio2 = np.random.uniform(-1, 1, 88200)
+    wbaudio1 = wandb.Audio(audio1, sample_rate=44100)
+    wbaudio2 = wandb.Audio(audio2, sample_rate=88200)
+    assert wandb.Audio.sample_rates([wbaudio1, wbaudio2]) == [44100, 88200]
+
+
+def test_audio_captions():
+    audio = np.random.uniform(-1, 1, 44100)
+    caption1 = "This is what a dog sounds like"
+    caption2 = "This is what a chicken sounds like"
+    wbaudio1 = wandb.Audio(audio, caption=caption1)
+    wbaudio2 = wandb.Audio(audio, caption=caption2)
+    assert wandb.Audio.captions([wbaudio1, wbaudio2]) == [caption1, caption2]
+
+
+def test_audio_transform():
+    audio = np.random.uniform(-1, 1, 44100)
+    with CliRunner().isolated_filesystem():
+        meta = wandb.Audio.transform([wandb.Audio(audio, sample_rate=44100)], ".", "test", 0)
+        assert meta == {'_type': 'audio',
+                        'count': 1, 'sampleRates': [44100]}
+        assert os.path.exists("media/audio/test_0_0.wav")
+
+
 def test_guess_mode():
     image = np.random.randint(255, size=(28, 28, 3))
     wbimg = wandb.Image(image)

@@ -30,18 +30,22 @@ def val_to_json(key, val, mode="summary", step=None):
             converted = util.convert_plots(val)
     elif util.is_plotly_typename(typename):
         converted = util.convert_plots(val)
-    if isinstance(val, Image):
+    if isinstance(val, Image) or isinstance(val, Audio):
         val = [val]
 
     if isinstance(val, collections.Sequence) and len(val) > 0:
         is_image = [isinstance(v, Image) for v in val]
-        if all(is_image):
+        is_audio = [isinstance(v, Audio) for v in val]
+        if all(is_image) or all(is_audio):
             cwd = wandb.run.dir if wandb.run else "."
             if step is None:
                 step = "summary"
-            converted = Image.transform(val, cwd,
-                                        "{}_{}.jpg".format(key, step))
-        elif any(is_image):
+            if isinstance(val[0], Image):
+                converted = Image.transform(val, cwd,
+                                            "{}_{}.jpg".format(key, step))
+            elif isinstance(val[0], Audio):
+                converted = Audio.transform(val, cwd, key, step)
+        elif any(is_image) or any(is_audio):
             raise ValueError(
                 "Mixed media types in the same list aren't supported")
     elif isinstance(val, Histogram):
@@ -52,9 +56,6 @@ def val_to_json(key, val, mode="summary", step=None):
         converted = Graph.transform(val)
     elif isinstance(val, Table):
         converted = Table.transform(val)
-    elif isinstance(val, Audio):
-        converted = Audio.transform(
-            val, wandb.run.dir, "{}_{}.wav".format(key, step))
     return converted
 
 
@@ -667,24 +668,49 @@ class Table(object):
 
 
 class Audio(object):
+    MAX_AUDIO_COUNT = 100
 
     def __init__(self, data, sample_rate=None, caption=None):
         """
         Accepts numpy array of audio data. 
         """
-        self.audio = data
+        self.audio_data = data
         self.sample_rate = sample_rate
         self.caption = caption
 
     @staticmethod
-    def transform(audio, out_dir, fname):
+    def transform(audio_list, out_dir, key, step):
+        if len(audio_list) > Audio.MAX_AUDIO_COUNT:
+            logging.warn(
+                "The maximum number of audio files to store per step is %i." % Audio.MAX_AUDIO_COUNT)
         sf = util.get_module(
             "soundfile", required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile")
-        base = os.path.join(out_dir, "media", "audio")
-        util.mkdir_exists_ok(base)
-        sf.write(os.path.join(base, fname), audio.audio, audio.sample_rate)
-        meta = {"_type": "audio", "sampleRate": audio.sample_rate, "caption": audio.caption}
+        base_path = os.path.join(out_dir, "media", "audio")
+        util.mkdir_exists_ok(base_path)
+        for i, audio in enumerate(audio_list[:Audio.MAX_AUDIO_COUNT]):
+            sf.write(os.path.join(base_path, "{}_{}_{}.wav".format(key, step, i)), audio.audio_data, audio.sample_rate)
+        meta = {"_type": "audio", "count": min(len(audio_list), Audio.MAX_AUDIO_COUNT)}
+        sample_rates = Audio.sample_rates(audio_list[:Audio.MAX_AUDIO_COUNT])
+        if sample_rates:
+            meta["sampleRates"] = sample_rates
+        captions = Audio.captions(audio_list[:Audio.MAX_AUDIO_COUNT])
+        if captions:
+            meta["captions"] = captions
         return meta
+
+    @staticmethod
+    def sample_rates(audio_list):
+        if audio_list[0].sample_rate != None:
+            return [a.sample_rate for a in audio_list]
+        else:
+            return False
+
+    @staticmethod
+    def captions(audio_list):
+        if audio_list[0].caption != None:
+            return [a.caption for a in audio_list]
+        else:
+            return False
 
 
 class Image(object):
