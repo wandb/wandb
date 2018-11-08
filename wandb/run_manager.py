@@ -529,7 +529,7 @@ class RunManager(object):
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
         if six.PY2 or not hasattr(sys.stdout, "buffer"):
-            if hasattr(sys.stdout, "fileno") and not os.getenv("WANDB_TEST"):
+            if hasattr(sys.stdout, "fileno") and sys.stdout.isatty():
                 stdout = os.fdopen(sys.stdout.fileno(), "w+", 0)
                 stderr = os.fdopen(sys.stderr.fileno(), "w+", 0)
             else:
@@ -943,7 +943,8 @@ class RunManager(object):
 
         self._run.history.load()
         history_keys = self._run.history.keys()
-        if len(history_keys):
+        # Only print sparklines if the terminal is utf-8
+        if len(history_keys) and sys.stdout.encoding == "UTF_8":
             wandb.termlog('Run history:')
             max_len = max([len(k) for k in history_keys])
             for key in history_keys:
