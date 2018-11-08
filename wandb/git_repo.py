@@ -157,13 +157,10 @@ class GitRepo(object):
                 return None
 
 
-class FakeGitRepo(object):
-    def __init__(self, *args, **kargs):
-        pass
-
+class FakeGitRepo(GitRepo):
     @property
-    def enabled(self):
-        return False
+    def repo(self):
+        return None
 
 
 try:
