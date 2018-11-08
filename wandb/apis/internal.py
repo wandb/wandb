@@ -85,7 +85,7 @@ class Api(object):
         }
         self.client = Client(
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': self.user_agent},
+                headers={'User-Agent': self.user_agent, 'X-WANDB-USERNAME': env.get_username()},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
