@@ -29,3 +29,4 @@ pandas==0.22.0
 ipython
 matplotlib
 plotly
+soundfile==0.10.2

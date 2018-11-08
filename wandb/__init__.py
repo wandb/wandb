@@ -44,6 +44,7 @@ from wandb import util
 from wandb.run_manager import RunManager
 from wandb.run_manager import LaunchError
 from wandb.data_types import Image
+from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
