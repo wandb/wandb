@@ -156,7 +156,8 @@ class WandbCallback(keras.callbacks.Callback):
 
         if validation_length > num_images:
             # pick some data at random
-            indices = np.random.choice(validation_length, num_images)
+            indices = np.random.choice(
+                validation_length, num_images, replace=False)
         else:
             indices = range(validation_length)
 
