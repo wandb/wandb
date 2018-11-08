@@ -52,7 +52,10 @@ class FilePusher(object):
     The finish() method will block until all events have been processed and all
     uploads are complete.
     """
-    RATE_LIMIT_SECONDS = 1
+    # We set this down to zero to avoid delays when uploading a lot of images. In one case we
+    # saw logging 12 image keys per step, for 240 steps, over a 14-minute period. With 1 second
+    # delay that means 48 minutes of idle.
+    RATE_LIMIT_SECONDS = 0
 
     def __init__(self, push_function, max_jobs=4):
         self._push_function = push_function
