@@ -341,7 +341,7 @@ class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True, job_type="train", output=True, port=None):
+    def __init__(self, api, run, project=None, tags=[], cloud=True, output=True, port=None):
         self._api = api
         self._run = run
         self._cloud = cloud
@@ -352,7 +352,6 @@ class RunManager(object):
         self._watch_dir = self._run.dir
 
         self._config = run.config
-        self.job_type = job_type
         self.url = self._run.get_url(api)
 
         # We lock this when the backend is down so Watchdog will keep track of all
@@ -394,7 +393,7 @@ class RunManager(object):
         # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
         self._system_stats = stats.SystemStats(run, api)
         self._meta = meta.Meta(api, self._run.dir)
-        self._meta.data["jobType"] = job_type
+        self._meta.data["jobType"] = self._run.job_type
         if self._run.program:
             self._meta.data["program"] = self._run.program
         self._file_pusher = file_pusher.FilePusher(self._push_function)
@@ -701,7 +700,7 @@ class RunManager(object):
 
         try:
             upsert_result = self._run.save(
-                id=storage_id, num_retries=num_retries, job_type=self.job_type, api=self._api)
+                id=storage_id, num_retries=num_retries, api=self._api)
         except wandb.apis.CommError as e:
             # TODO: Get rid of str contains check
             if self._run.resume == 'never' and 'exists' in str(e):

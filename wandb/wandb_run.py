@@ -25,11 +25,13 @@ DESCRIPTION_FNAME = 'description.md'
 
 
 class Run(object):
-    def __init__(self, run_id=None, mode=None, dir=None, config=None, sweep_id=None, storage_id=None, description=None, resume=None, program=None, wandb_dir=None):
+    def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None, config=None, sweep_id=None, storage_id=None, description=None, resume=None, program=None, wandb_dir=None):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else generate_id()
         self.resume = resume if resume else 'never'
         self.mode = mode if mode else 'run'
+        self.group = group
+        self.job_type = job_type
         self.pid = os.getpid()
 
         self.program = program
@@ -115,26 +117,30 @@ class Run(object):
             wandb.termlog(
                 'W&B is disabled in this directory.  Run `wandb on` to enable cloud syncing.')
 
+        group = environment.get('WANDB_RUN_GROUP')
+        job_type = environment.get('WANDB_JOB_TYPE')
         run_dir = environment.get('WANDB_RUN_DIR')
         sweep_id = environment.get('WANDB_SWEEP_ID')
         program = environment.get('WANDB_PROGRAM')
         wandb_dir = environment.get('WANDB_DIR')
         config = Config.from_environment_or_defaults()
-        run = cls(run_id, mode, run_dir, config,
+        run = cls(run_id, mode, run_dir,
+                  group, job_type, config,
                   sweep_id, storage_id, program=program,
                   wandb_dir=wandb_dir,
                   resume=resume)
         return run
 
-    def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None, job_type="train"):
+    def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
         api = api or InternalApi()
         if api.settings("project") is None:
             raise ValueError("Project must be configured.")
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
                                        project=api.settings("project"), entity=api.settings("entity"),
+                                       group=self.group,
                                        config=self.config.as_dict(), description=self.description, host=socket.gethostname(),
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
-                                       summary_metrics=summary_metrics, job_type=job_type, num_retries=num_retries)
+                                       summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
         self.storage_id = upsert_result['id']
         return upsert_result
 
@@ -151,6 +157,10 @@ class Run(object):
         environment['WANDB_MODE'] = self.mode
         environment['WANDB_RUN_DIR'] = self.dir
 
+        if self.group:
+            environment['WANDB_RUN_GROUP'] = self.group
+        if self.job_type:
+            environment['WANDB_JOB_TYPE'] = self.job_type
         if self.wandb_dir:
             environment['WANDB_DIR'] = self.wandb_dir
         if self.sweep_id is not None:
