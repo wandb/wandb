@@ -23,7 +23,7 @@ jobs:
                       rm -rf venv
                       python -m venv venv || virtualenv venv
                       . venv/bin/activate
-                      apt-get update && apt-get install -y libsndfile1
+                      apt-get update && apt-get install -y libsndfile
                       pip install -r requirements_dev.txt
                       python install-ml.py
                       pip install -e .[dev]
