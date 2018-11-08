@@ -15,22 +15,22 @@ jobs:
             - checkout
             - restore_cache:
                   keys:
-                      - v2-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
-                      - v2-dependencies-
+                      - v3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+                      - v3-dependencies-
             - run:
                   name: Install dependencies
                   command: |
                       rm -rf venv
                       python -m venv venv || virtualenv venv
                       . venv/bin/activate
-                      apt-get update && apt-get install -y libsndfile
+                      sudo apt-get update && sudo apt-get install -y libsndfile1
                       pip install -r requirements_dev.txt
                       python install-ml.py
                       pip install -e .[dev]
             - save_cache:
                   paths:
                       - ./venv
-                  key: v2-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+                  key: v3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
             - run:
                   name: Run tests
                   command: |
