@@ -674,6 +674,8 @@ class Audio(object):
         """
         Accepts numpy array of audio data. 
         """
+        if sample_rate == None:
+            raise ValueError('Missing argument "sample_rate" in wandb.Audio')
         self.audio_data = data
         self.sample_rate = sample_rate
         self.caption = caption
@@ -700,12 +702,7 @@ class Audio(object):
 
     @staticmethod
     def sample_rates(audio_list):
-        sample_rates = [a.sample_rate for a in audio_list]
-        # ensure that all files specify a sample rate
-        if None in sample_rates:
-            return False
-        else:
-            return sample_rates
+        return [a.sample_rate for a in audio_list]
 
     @staticmethod
     def captions(audio_list):
