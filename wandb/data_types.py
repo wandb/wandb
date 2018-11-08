@@ -700,17 +700,20 @@ class Audio(object):
 
     @staticmethod
     def sample_rates(audio_list):
-        if audio_list[0].sample_rate != None:
-            return [a.sample_rate for a in audio_list]
-        else:
+        sample_rates = [a.sample_rate for a in audio_list]
+        # ensure that all files specify a sample rate
+        if None in sample_rates:
             return False
+        else:
+            return sample_rates
 
     @staticmethod
     def captions(audio_list):
-        if audio_list[0].caption != None:
-            return [a.caption for a in audio_list]
-        else:
+        captions = [a.caption for a in audio_list]
+        if all(c is None for c in captions):
             return False
+        else:
+            return ['' if c==None else c for c in captions]
 
 
 class Image(object):

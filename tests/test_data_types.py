@@ -6,6 +6,7 @@ import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import soundfile
 from click.testing import CliRunner
 
 data = np.random.randint(255, size=(1000))
@@ -61,15 +62,28 @@ def test_audio_sample_rates():
     wbaudio1 = wandb.Audio(audio1, sample_rate=44100)
     wbaudio2 = wandb.Audio(audio2, sample_rate=88200)
     assert wandb.Audio.sample_rates([wbaudio1, wbaudio2]) == [44100, 88200]
+    # test with missing sample rate
+    wbaudio3 = wandb.Audio(audio1)
+    wbaudio4 = wandb.Audio(audio2, sample_rate=88200)
+    assert wandb.Audio.sample_rates([wbaudio3, wbaudio4]) == False
 
 
 def test_audio_captions():
     audio = np.random.uniform(-1, 1, 44100)
     caption1 = "This is what a dog sounds like"
     caption2 = "This is what a chicken sounds like"
+    # test with all captions
     wbaudio1 = wandb.Audio(audio, caption=caption1)
     wbaudio2 = wandb.Audio(audio, caption=caption2)
     assert wandb.Audio.captions([wbaudio1, wbaudio2]) == [caption1, caption2]
+    # test with no captions
+    wbaudio3 = wandb.Audio(audio)
+    wbaudio4 = wandb.Audio(audio)
+    assert wandb.Audio.captions([wbaudio3, wbaudio4]) == False
+    # test with some captions
+    wbaudio5 = wandb.Audio(audio)
+    wbaudio6 = wandb.Audio(audio, caption=caption2)
+    assert wandb.Audio.captions([wbaudio5, wbaudio6]) == ['', caption2]
 
 
 def test_audio_transform():
