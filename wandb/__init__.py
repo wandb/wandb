@@ -371,7 +371,7 @@ def monitor(options={}):
     return Monitor(options)
 
 
-def log(row=None, commit=True):
+def log(row=None, commit=True, *args, **kargs):
     """Log a dict to the global run's history.  If commit is false, enables multiple calls before commiting.
 
     Eg.
@@ -381,9 +381,9 @@ def log(row=None, commit=True):
     if row is None:
         row = {}
     if commit:
-        run.history.add(row)
+        run.history.add(row, *args, **kargs)
     else:
-        run.history.row.update(row)
+        run.history.update(row, *args, **kargs)
 
 
 def ensure_configured():
