@@ -98,6 +98,14 @@ def test_log(wandb_init_run):
     assert set(history_row.items()) <= set(wandb.run.history.rows[0].items())
 
 
+def test_log_step(wandb_init_run):
+    history_row = {'stuff': 5}
+    wandb.log(history_row, step=5)
+    wandb.log()
+    assert len(wandb.run.history.rows) == 1
+    assert wandb.run.history.rows[0]['_step'] == 5
+
+
 @pytest.mark.args(error="io")
 def test_io_error(wandb_init_run):
     assert isinstance(wandb_init_run, wandb.LaunchError)

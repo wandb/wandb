@@ -45,6 +45,11 @@ class Error(Exception):
         return self.message
 
 
+class WandbWarning(Warning):
+    """Base W&B Warning"""
+    pass
+
+
 LOG_STRING = click.style('wandb', fg='blue', bold=True)
 ERROR_STRING = click.style('ERROR', bg='red', fg='green')
 
@@ -68,5 +73,5 @@ def termerror(string):
 
 __all__ = [
     '__stage_dir__', 'SCRIPT_PATH', 'START_TIME', 'wandb_dir',
-    '_set_stage_dir', 'Error', 'LOG_STRING', 'ERROR_STRING', 'termlog', 'termerror'
+    '_set_stage_dir', 'Error', 'WandbWarning', 'LOG_STRING', 'ERROR_STRING', 'termlog', 'termerror'
 ]
