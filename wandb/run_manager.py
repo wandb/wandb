@@ -530,8 +530,13 @@ class RunManager(object):
         """Sets up STDOUT and STDERR streams. Only call this once."""
         if six.PY2 or not hasattr(sys.stdout, "buffer"):
             if hasattr(sys.stdout, "fileno") and sys.stdout.isatty():
-                stdout = os.fdopen(sys.stdout.fileno(), "w+", 0)
-                stderr = os.fdopen(sys.stderr.fileno(), "w+", 0)
+                try:
+                    stdout = os.fdopen(sys.stdout.fileno(), "w+", 0)
+                    stderr = os.fdopen(sys.stderr.fileno(), "w+", 0)
+                # OSError [Errno 22] Invalid argument wandb
+                except OSError:
+                    stdout = sys.stdout
+                    stderr = sys.stderr
             else:
                 stdout = sys.stdout
                 stderr = sys.stderr
