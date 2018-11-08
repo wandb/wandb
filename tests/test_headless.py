@@ -20,12 +20,12 @@ def test_dry_run(runner):
             res = sh.python("train.py")
             print("RUN", res)
             run_dir = glob.glob("wandb/dry*")[0]
-            assert "loss:" in res
             meta = json.loads(open(run_dir + "/wandb-metadata.json").read())
             assert meta["state"] == "finished"
             assert meta["program"] == "train.py"
             assert meta["exitcode"] == 0
             assert os.path.exists(run_dir + "/output.log")
+            assert "loss:" in open(run_dir + "/output.log").read()
             assert os.path.exists(run_dir + "/wandb-history.jsonl")
             assert os.path.exists(run_dir + "/wandb-events.jsonl")
             assert os.path.exists(run_dir + "/wandb-summary.json")
