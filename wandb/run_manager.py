@@ -719,8 +719,11 @@ class RunManager(object):
                         'Failed to connect to W&B. Retrying in the background.')
                     return False
 
-                raise LaunchError(
-                    'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path()))
+                launch_error_s = 'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path())
+                if 'Permission denied' in str(e):
+                    launch_error_s += '\nRun "wandb login", or provide your API key with the WANDB_API_KEY environment variable.'
+
+                raise LaunchError(launch_error_s)
 
         self._run.set_environment(environment=env)
 
