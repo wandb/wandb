@@ -1,4 +1,4 @@
-## 0.6.24 (November 8, 2018)
+## 0.6.25 (November 8, 2018)
 
 #### :nail_care: Enhancement
 
