@@ -695,10 +695,18 @@ class Audio(object):
         sample_rates = Audio.sample_rates(audio_list[:Audio.MAX_AUDIO_COUNT])
         if sample_rates:
             meta["sampleRates"] = sample_rates
+        durations = Audio.durations(audio_list[:Audio.MAX_AUDIO_COUNT])
+        if durations:
+            meta["durations"] = durations
         captions = Audio.captions(audio_list[:Audio.MAX_AUDIO_COUNT])
         if captions:
             meta["captions"] = captions
         return meta
+
+    @staticmethod
+    def durations(audio_list):
+        durations = [(len(a.audio_data) / float(a.sample_rate)) for a in audio_list]
+        return durations
 
     @staticmethod
     def sample_rates(audio_list):

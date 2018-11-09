@@ -67,6 +67,14 @@ def test_audio_sample_rates():
         wbaudio3 = wandb.Audio(audio1)
 
 
+def test_audio_durations():
+    audio1 = np.random.uniform(-1, 1, 44100)
+    audio2 = np.random.uniform(-1, 1, 88200)
+    wbaudio1 = wandb.Audio(audio1, sample_rate=44100)
+    wbaudio2 = wandb.Audio(audio2, sample_rate=44100)
+    assert wandb.Audio.durations([wbaudio1, wbaudio2]) == [1.0, 2.0]
+
+
 def test_audio_captions():
     audio = np.random.uniform(-1, 1, 44100)
     sample_rate = 44100
@@ -91,7 +99,7 @@ def test_audio_transform():
     with CliRunner().isolated_filesystem():
         meta = wandb.Audio.transform([wandb.Audio(audio, sample_rate=44100)], ".", "test", 0)
         assert meta == {'_type': 'audio',
-                        'count': 1, 'sampleRates': [44100]}
+                        'count': 1, 'sampleRates': [44100], 'durations': [1.0]}
         assert os.path.exists("media/audio/test_0_0.wav")
 
 
