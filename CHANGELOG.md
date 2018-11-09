@@ -1,4 +1,22 @@
-## 0.16.23 (October 19, 2018)
+## 0.6.24 (November 8, 2018)
+
+#### :nail_care: Enhancement
+
+- New wandb.Audio data type.
+- New step keyword argument when logging metrics
+- Ability to specify run group and job type when calling wandb.init() or via
+  environment variables. This enables automatic grouping of distributed training runs
+  in the UI
+- Ability to override username when using a service account API key
+
+#### :bug: Bug Fix
+
+- Handle non-tty environments in Python2
+- Handle non-existing git binary
+- Fix issue where sometimes the same image was logged twice during a Keras step
+
+
+## 0.6.23 (October 19, 2018)
 
 #### :nail_care: Enhancement
 
@@ -10,27 +28,27 @@
 
 - `wandb restore` handles the case of not being run from within a git repo.
 
-## 0.16.22 (October 18, 2018)
+## 0.6.22 (October 18, 2018)
 
 #### :bug: Bug Fix
 
 - We now open stdout and stderr in raw mode in Python 2 ensuring tools like bpdb work.
 
-## 0.16.21 (October 12, 2018)
+## 0.6.21 (October 12, 2018)
 
 #### :nail_care: Enhancement
 
 - Catastrophic errors are now reported to Sentry unless WANDB_ERROR_REPORTING is set to false
 - Improved error handling and messaging on startup
 
-## 0.16.20 (October 5, 2018)
+## 0.6.20 (October 5, 2018)
 
 #### :bug: Bug Fix
 
 - The first image when calling wandb.log was not being written, now it is
 - `wandb.log` and `run.summary` now remove whitespace from keys
 
-## 0.16.19 (October 5, 2018)
+## 0.6.19 (October 5, 2018)
 
 #### :bug: Bug Fix
 
