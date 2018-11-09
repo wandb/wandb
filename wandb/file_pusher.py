@@ -57,7 +57,7 @@ class FilePusher(object):
     # delay that means 48 minutes of idle.
     RATE_LIMIT_SECONDS = 0
 
-    def __init__(self, push_function, max_jobs=4):
+    def __init__(self, push_function, max_jobs=16):
         self._push_function = push_function
         self._max_jobs = max_jobs
         self._queue = queue.Queue()
