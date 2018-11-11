@@ -70,7 +70,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb):
             values[value.tag] = value.simple_value
         elif kind == "image":
             from PIL import Image
-            image = wandb.Image(PIL.Image.open(
+            image = wandb.Image(Image.open(
                 six.BytesIO(value.image.encoded_image_string)))
             tag_idx = value.tag.rsplit('/', 1)
             if len(tag_idx) > 1 and tag_idx[1].isdigit():

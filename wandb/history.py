@@ -15,7 +15,6 @@ import traceback
 import warnings
 import weakref
 
-import wandb.wandb_tensorflow
 from wandb.wandb_torch import TorchHistory
 import wandb
 from wandb import util
@@ -121,14 +120,17 @@ class History(object):
                 self._write()
         else:
             if not isinstance(step, numbers.Integral):
-                raise wandb.Error("Step must be an integer, not {}".format(step))
+                raise wandb.Error(
+                    "Step must be an integer, not {}".format(step))
             elif step < self._steps:
-                warnings.warn("Adding to old History rows isn't currently supported. Dropping.", wandb.WandbWarning)
+                warnings.warn(
+                    "Adding to old History rows isn't currently supported. Dropping.", wandb.WandbWarning)
                 return
             elif step == self._steps:
                 pass
             elif self.batched:
-                raise wandb.Error("Can't log to a particular History step ({}) while in batched mode.".format(step))
+                raise wandb.Error(
+                    "Can't log to a particular History step ({}) while in batched mode.".format(step))
             else:  # step > self._steps
                 self._write()
                 self._steps = step
@@ -141,7 +143,8 @@ class History(object):
         for k, v in six.iteritems(new_vals):
             k = k.strip()
             if k in self.row:
-                warnings.warn("Adding history key ({}) that is already set in this step".format(k), wandb.WandbWarning)
+                warnings.warn("Adding history key ({}) that is already set in this step".format(
+                    k), wandb.WandbWarning)
             self.row[k] = v
 
     @contextlib.contextmanager
@@ -171,7 +174,7 @@ class History(object):
         return self._torch
 
     def log_tf_summary(self, summary_pb_bin):
-        self.add(wandb.wandb_tensorflow.tf_summary_to_dict(summary_pb_bin))
+        self.add(wandb.tensorflow.tf_summary_to_dict(summary_pb_bin))
 
     def _index(self, row):
         """Add a row to the internal list of rows without writing it to disk.

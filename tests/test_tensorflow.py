@@ -6,7 +6,7 @@ from click.testing import CliRunner
 import pytest
 import six
 import wandb
-from wandb import wandb_tensorflow
+from wandb import tensorflow as wandb_tensorflow
 
 import tensorflow
 
@@ -14,7 +14,9 @@ import tensorflow
 @pytest.fixture
 def history():
     with CliRunner().isolated_filesystem():
-        yield wandb.history.History("wandb-history.jsonl")
+        wandb.run = wandb.wandb_run.Run.from_environment_or_defaults()
+        wandb.util.mkdir_exists_ok(wandb.run.dir)
+        yield wandb.run.history
 
 
 def test_tf_summary():
@@ -66,7 +68,7 @@ def test_hook(history):
             tensorflow.summary.scalar('c1', c1)
             summary_op = tensorflow.summary.merge_all()
 
-            hook = wandb_tensorflow.WandbHook(summary_op, history=history)
+            hook = wandb_tensorflow.WandbHook(summary_op)
             with tensorflow.train.MonitoredTrainingSession(hooks=[hook]) as sess:
                 summary, acc = sess.run([summary_op, c1])
 
