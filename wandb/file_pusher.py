@@ -25,7 +25,7 @@ class UploadJob(threading.Thread):
 
     def run(self):
         try:
-            # wandb.termlog('Uploading file: %s' % self.save_name
+            #wandb.termlog('Uploading file: %s' % self.save_name)
             save_path = self.path
             if self.copy:
                 save_path = self.path + '.tmp'

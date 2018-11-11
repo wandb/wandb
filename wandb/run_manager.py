@@ -450,15 +450,13 @@ class RunManager(object):
         handler = self._get_handler(event.src_path, old_save_name)
         self._event_handlers[new_save_name] = handler
         del self._event_handlers[old_save_name]
-        self._stats.rename_file(event.src_path, event.dest_path)
+        self._stats.rename_file(old_save_name, new_save_name, event.dest_path)
 
         handler.on_renamed(event.dest_path, new_save_name)
 
     def _get_handler(self, file_path, save_name):
-        if not save_name.startswith("media/") and save_name not in [
-                'wandb-history.jsonl', 'wandb-events.jsonl', 'wandb-summary.json']:
-            # Don't show stats on media files
-            self._stats.update_file(file_path)
+        self._stats.update_file(save_name, file_path)  # track upload progress
+
         if save_name not in self._event_handlers:
             if save_name == 'wandb-history.jsonl':
                 self._event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
@@ -506,8 +504,9 @@ class RunManager(object):
         try:
             with open(path, 'rb') as f:
                 self._api.push(self._project, {save_name: f}, run=self._run.id,
-                               progress=lambda _, total: self._stats.update_progress(path, total))
-        except (OSError, IOError):
+                               progress=lambda _, total: self._stats.update_progress(save_name, total))
+        except (OSError, IOError) as e:
+            #wandb.termlog('error: {}'.format(e))
             pass
 
     """ RUN MANAGEMENT STUFF """
@@ -969,17 +968,26 @@ class RunManager(object):
         # This is a a heuristic delay to catch files that were written just before
         # the end of the script.
         # TODO: ensure we catch all saved files.
-        # TODO(adrian): do we need this?
+        # TODO(adrian): do we need this? This might have made more sense when this code
+        # ran in the same process as the user stuff and so we couldn't count on writes
+        # being committed by the time we got here
         time.sleep(1)
         self._stop_watchdog()
 
         self._finish_handlers()
         self._file_pusher.finish()
 
-        wandb.termlog('Syncing files in %s:' %
-                      os.path.relpath(self._watch_dir))
-        for file_path in self._stats.files():
-            wandb.termlog('  %s' % os.path.relpath(file_path, self._watch_dir))
+        wandb_files = set([save_name for save_name in self._stats.files() if save_name.startswith('wandb') or save_name == config.FNAME])
+        media_files = set([save_name for save_name in self._stats.files() if save_name.startswith('media')])
+        other_files = set(self._stats.files()) - wandb_files - media_files
+        if other_files:
+            wandb.termlog('Syncing files in %s:' % os.path.relpath(self._watch_dir))
+            for save_name in sorted(other_files):
+                wandb.termlog('  %s' % save_name)
+            wandb.termlog('plus {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
+        else:
+            wandb.termlog('Syncing {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
+
         step = 0
         spinner_states = ['-', '\\', '|', '/']
         stop = False
