@@ -35,6 +35,26 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     summaryMetrics
 }'''
 
+FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
+    files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+        edges {
+            node {
+                id
+                name
+                url(upload: $upload)
+                sizeBytes
+                mimetype
+                updatedAt
+                md5
+            }
+        }
+        pageInfo {
+            endCursor
+            hasNextPage
+        }
+    }
+}'''
+
 
 class Api(object):
     """W&B Public API
@@ -132,7 +152,67 @@ class Api(object):
         return self._runs[path]
 
 
-class Runs(object):
+class Paginator(object):
+    QUERY = None
+
+    def __init__(self, client, variables, per_page=50):
+        self.client = client
+        self.variables = variables
+        self.per_page = per_page
+        self.objects = []
+        self.index = -1
+        self.last_response = None
+
+    def __iter__(self):
+        return self
+
+    def __len__(self):
+        if self.length is None:
+            self._load_page()
+        return self.length
+
+    @property
+    def length(self):
+        raise NotImplementedError()
+
+    @property
+    def more(self):
+        raise NotImplementedError()
+
+    @property
+    def cursor(self):
+        raise NotImplementedError()
+
+    def convert_objects(self):
+        raise NotImplementedError()
+
+    def _load_page(self):
+        if not self.more:
+            return False
+        self.variables.update(
+            {'perPage': self.per_page, 'cursor': self.cursor})
+        self.last_response = self.client.execute(
+            self.QUERY, variable_values=self.variables)
+        self.objects.extend(self.convert_objects())
+        return True
+
+    def __getitem__(self, index):
+        loaded = True
+        while loaded and index > len(self.objects) - 1:
+            loaded = self._load_page()
+        return self.objects[index]
+
+    def __next__(self):
+        self.index += 1
+        if len(self.objects) <= self.index:
+            if not self._load_page():
+                raise StopIteration
+        return self.objects[self.index]
+
+    next = __next__
+
+
+class Runs(Paginator):
     QUERY = gql('''
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
             project(name: $project, entityName: $entity) {
@@ -156,54 +236,40 @@ class Runs(object):
         ''' % RUN_FRAGMENT)
 
     def __init__(self, client, username, project, filters={}, order=None, per_page=50):
-        self.client = client
         self.username = username
         self.project = project
         self.filters = filters
         self.order = order
-        self.per_page = per_page
-        self.runs = []
-        self.length = None
-        self.index = -1
-        self.cursor = None
-        self.more = True
+        variables = {
+            'project': self.project, 'entity': self.username, 'order': self.order,
+            'filters': json.dumps(self.filters)
+        }
+        super(Runs, self).__init__(client, variables, per_page)
 
-    def __iter__(self):
-        return self
+    @property
+    def length(self):
+        if self.last_response:
+            return self.last_response['project']['runCount']
+        else:
+            return None
 
-    def __len__(self):
-        if self.length is None:
-            self._load_page()
-        return self.length
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response['project']['runs']['pageInfo']['hasNextPage']
+        else:
+            return True
 
-    def _load_page(self):
-        if not self.more:
-            return False
-        res = self.client.execute(self.QUERY, variable_values={
-            'project': self.project, 'entity': self.username, 'order': self.order, 'perPage': self.per_page,
-            'filters': json.dumps(self.filters), 'cursor': self.cursor})
-        self.length = res['project']['runCount']
-        self.more = res['project']['runs']['pageInfo']['hasNextPage']
+    @property
+    def cursor(self):
         if self.length > 0:
-            self.cursor = res['project']['runs']['edges'][-1]['cursor']
-        self.runs.extend([Run(self.client, self.username, self.project, r["node"]["name"], r["node"])
-                          for r in res['project']['runs']['edges']])
-        return True
+            return self.last_response['project']['runs']['edges'][-1]['cursor']
+        else:
+            return None
 
-    def __getitem__(self, index):
-        loaded = True
-        while loaded and index > len(self.runs) - 1:
-            loaded = self._load_page()
-        return self.runs[index]
-
-    def __next__(self):
-        self.index += 1
-        if len(self.runs) <= self.index:
-            if not self._load_page():
-                raise StopIteration
-        return self.runs[self.index]
-
-    next = __next__
+    def convert_objects(self):
+        return [Run(self.client, self.username, self.project, r["node"]["name"], r["node"])
+                for r in self.last_response['project']['runs']['edges']]
 
     def __repr__(self):
         return "<Runs {}/{} ({})>".format(self.username, self.project, len(self))
@@ -217,6 +283,7 @@ class Run(object):
         self.username = username
         self.project = project
         self.name = name
+        self._files = {}
         self._base_dir = get_dir(tempfile.gettempdir())
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
@@ -274,6 +341,14 @@ class Run(object):
         return self.client.execute(query, variable_values=variables)
 
     @normalize_exceptions
+    def files(self, names=[], per_page=50):
+        return Files(self.client, self, names, per_page)
+
+    @normalize_exceptions
+    def file(self, name):
+        return Files(self.client, self, [name])[0]
+
+    @normalize_exceptions
     def history(self, samples=500, pandas=True, stream="default"):
         """Return history metrics for a run
 
@@ -318,3 +393,106 @@ class Run(object):
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
+
+
+class Files(Paginator):
+    QUERY = gql('''
+        query Run($project: String!, $entity: String!, $name: String!, $fileCursor: String,
+            $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) {
+                    fileCount
+                    ...RunFilesFragment
+                }
+            }
+        }
+        %s
+        ''' % FILE_FRAGMENT)
+
+    def __init__(self, client, run, names=[], per_page=50, upload=False):
+        self.run = run
+        variables = {
+            'project': run.project, 'entity': run.username, 'name': run.name,
+            'fileNames': names, 'upload': upload
+        }
+        super(Files, self).__init__(client, variables, per_page)
+
+    @property
+    def length(self):
+        if self.last_response:
+            return self.last_response['project']['run']['fileCount']
+        else:
+            return None
+
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response['project']['run']['files']['pageInfo']['hasNextPage']
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.length > 0:
+            return self.last_response['project']['run']['files']['edges'][-1]['cursor']
+        else:
+            return None
+
+    def convert_objects(self):
+        return [File(self.client, r["node"])
+                for r in self.last_response['project']['run']['files']['edges']]
+
+    def __repr__(self):
+        return "<Files {} ({})>".format("/".join(self.run.path), len(self))
+
+
+class File(object):
+    def __init__(self, client, attrs):
+        self.client = client
+        self._attrs = attrs
+        if self.size == 0:
+            raise AttributeError(
+                "File {} does not exist.".format(self._attrs["name"]))
+
+    @property
+    def name(self):
+        return self._attrs["name"]
+
+    @property
+    def url(self):
+        return self._attrs["url"]
+
+    @property
+    def md5(self):
+        return self._attrs["md5"]
+
+    @property
+    def mimetype(self):
+        return self._attrs["mimetype"]
+
+    @property
+    def updated_at(self):
+        return self._attrs["updatedAt"]
+
+    @property
+    def size(self):
+        return int(self._attrs["sizeBytes"])
+
+    @normalize_exceptions
+    def download(self, replace=False):
+        response = requests.get(self._attrs["url"], stream=True)
+        response.raise_for_status()
+        path = self._attrs["name"]
+        if os.path.exists(path) and not replace:
+            raise ValueError(
+                "File already exists, pass replace=True to overwrite")
+        if "/" in path:
+            dir = "/".join(path.split("/")[0:-1])
+            util.mkdir_exists_ok(dir)
+        with open(path, "wb") as file:
+            for data in response.iter_content(chunk_size=1024):
+                file.write(data)
+        return open(path, "r")
+
+    def __repr__(self):
+        return "<File {} ({})>".format(self.name, self.mimetype)
