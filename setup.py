@@ -11,7 +11,6 @@ requirements = [
     'GitPython>=1.0.0',
     'gql>=0.1.0',
     'nvidia-ml-py3>=7.352.0',
-    'psutil>=5.2.2',
     'python-dateutil>=2.6.1',
     'requests>=2.0.0',
     'shortuuid>=0.5.0',

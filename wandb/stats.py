@@ -1,10 +1,12 @@
 import collections
 import os
-import psutil
 from pynvml import *
 import time
 from numbers import Number
 import threading
+from wandb import util
+from wandb import termlog
+psutil = util.get_module("psutil")
 
 
 class FileStats(object):
@@ -31,6 +33,7 @@ class Stats(object):
 
     Indexed by files' `save_name`'s, which are their ID's in the Run.
     """
+
     def __init__(self):
         self._files = {}
 
@@ -81,11 +84,15 @@ class SystemStats(object):
         self.sampler = {}
         self.samples = 0
         self._shutdown = False
-        net = psutil.net_io_counters()
-        self.network_init = {
-            "sent": net.bytes_sent,
-            "recv": net.bytes_recv
-        }
+        if psutil:
+            net = psutil.net_io_counters()
+            self.network_init = {
+                "sent": net.bytes_sent,
+                "recv": net.bytes_recv
+            }
+        else:
+            termlog(
+                "psutil not installed, only GPU stats will be reported.  Install with pip install psutil")
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
 
@@ -157,22 +164,23 @@ class SystemStats(object):
                 stats["gpu.{0}.{1}".format(i, "temp")] = temp
             except NVMLError as err:
                 pass
-        net = psutil.net_io_counters()
-        sysmem = psutil.virtual_memory()
-        stats["cpu"] = psutil.cpu_percent()
-        stats["memory"] = sysmem.percent
-        stats["network"] = {
-            "sent": net.bytes_sent - self.network_init["sent"],
-            "recv": net.bytes_recv - self.network_init["recv"]
-        }
-        # TODO: maybe show other partitions, will likely need user to configure
-        stats["disk"] = psutil.disk_usage('/').percent
-        stats["proc.memory.availableMB"] = sysmem.available / 1048576.0
-        try:
-            stats["proc.memory.rssMB"] = self.proc.memory_info().rss / \
-                1048576.0
-            stats["proc.memory.percent"] = self.proc.memory_percent()
-            stats["proc.cpu.threads"] = self.proc.num_threads()
-        except psutil.NoSuchProcess:
-            pass
+        if psutil:
+            net = psutil.net_io_counters()
+            sysmem = psutil.virtual_memory()
+            stats["cpu"] = psutil.cpu_percent()
+            stats["memory"] = sysmem.percent
+            stats["network"] = {
+                "sent": net.bytes_sent - self.network_init["sent"],
+                "recv": net.bytes_recv - self.network_init["recv"]
+            }
+            # TODO: maybe show other partitions, will likely need user to configure
+            stats["disk"] = psutil.disk_usage('/').percent
+            stats["proc.memory.availableMB"] = sysmem.available / 1048576.0
+            try:
+                stats["proc.memory.rssMB"] = self.proc.memory_info().rss / \
+                    1048576.0
+                stats["proc.memory.percent"] = self.proc.memory_percent()
+                stats["proc.cpu.threads"] = self.proc.num_threads()
+            except psutil.NoSuchProcess:
+                pass
         return stats
