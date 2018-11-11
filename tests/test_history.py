@@ -7,20 +7,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import plotly.graph_objs as go
-from click.testing import CliRunner
 
+import wandb
 from wandb.history import History
 from wandb import data_types
 import torch
 import tensorflow as tf
 
 from . import utils
-
-
-@pytest.fixture
-def history():
-    with CliRunner().isolated_filesystem():
-        yield History("wandb-history.jsonl")
 
 
 def di(row):
@@ -85,6 +79,46 @@ def test_stream_step(history):
         h.add({"foo": "bar"})
     h = disk_history()
     assert di({"_stream": "batch", "foo": "bar"}) <= di(h[0])
+
+
+def test_no_nested_steps(history):
+    with pytest.raises(wandb.Error):
+        with history.step():
+            with history.step():
+                pass
+
+
+def test_add_explicit_index(history):
+    history.add({'a': 10}, step=10)
+    history.add({'a': 20}, step=20)
+    history.add()
+    assert len(history.rows) == 2
+    assert history.rows[0]['a'] == 10
+    assert history.rows[0]['_step'] == 10
+    assert history.rows[1]['a'] == 20
+    assert history.rows[1]['_step'] == 20
+
+
+def test_add_implicit_then_explicit_index(history):
+    history.add({'a': 0})
+    history.add({'a': 20}, step=20)
+    history.add()
+    assert len(history.rows) == 2
+    assert history.rows[0]['a'] == 0
+    assert history.rows[0]['_step'] == 0
+    assert history.rows[1]['a'] == 20
+    assert history.rows[1]['_step'] == 20
+
+
+def test_add_explicit_index_then_implicit_index(history):
+    history.add({'a': -1}, step=10)
+    history.add({'a': 10})
+    history.add({'a': 11})
+    assert len(history.rows) == 2
+    assert history.rows[0]['a'] == 10
+    assert history.rows[0]['_step'] == 10
+    assert history.rows[1]['a'] == 11
+    assert history.rows[1]['_step'] == 11
 
 
 def test_list_of_images(history):

@@ -58,7 +58,7 @@ class TorchHistory(object):
             var = variable_or_module
             if values:
                 self.log_tensor_stats(var.data, 'parameters/' + prefix + name)
-            if gradients:
+            if gradients and var.requires_grad:
                 self._hook_variable_gradient_stats(
                     var, 'gradients/' + prefix + name)
         elif isinstance(variable_or_module, torch.nn.Module):

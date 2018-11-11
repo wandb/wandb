@@ -53,6 +53,12 @@ class Sequence(nn.Module):
         return outputs
 
 
+def test_no_requires_grad(history):
+    # log_stats() used to fail on tensors that didn't have .require_grad = True
+    history.torch.log_stats(torch.randn(3, 3))
+    history.torch.log_stats(torch.autograd.Variable(torch.randn(3, 3)))
+
+
 def test_simple_net():
     net = Net()
     graph = wandb.Graph.hook_torch(net)

@@ -85,7 +85,7 @@ class Api(object):
         }
         self.client = Client(
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': self.user_agent},
+                headers={'User-Agent': self.user_agent, 'X-WANDB-USERNAME': env.get_username()},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
@@ -468,6 +468,7 @@ class Api(object):
 
     @normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None,
+                   group=None,
                    config=None, description=None, entity=None, state=None,
                    repo=None, job_type=None, program_path=None, commit=None,
                    sweep_name=None, summary_metrics=None, num_retries=None):
@@ -476,6 +477,7 @@ class Api(object):
         Args:
             id (str, optional): The existing run to update
             name (str, optional): The name of the run to create
+            group (str, optional): Name of the group this run is a part of
             project (str, optional): The name of the project
             config (dict, optional): The latest config params
             description (str, optional): A description of this project
@@ -492,6 +494,7 @@ class Api(object):
             $id: String, $name: String,
             $project: String,
             $entity: String!,
+            $groupName: String,
             $description: String,
             $commit: String,
             $config: JSONString,
@@ -505,7 +508,9 @@ class Api(object):
             $summaryMetrics: JSONString,
         ) {
             upsertBucket(input: {
-                id: $id, name: $name,
+                id: $id,
+                name: $name,
+                groupName: $groupName,
                 modelName: $project,
                 entityName: $entity,
                 description: $description,
@@ -540,6 +545,7 @@ class Api(object):
 
         variable_values = {
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
+            'groupName': group,
             'description': description, 'config': config, 'commit': commit,
             'host': host, 'debug': env.get_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics

@@ -9,6 +9,7 @@ import wandb
 import itertools
 from six.moves import queue
 from wandb import util
+from wandb import env
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,7 @@ class FileStreamApi(object):
         self._client.timeout = self.HTTP_TIMEOUT
         self._client.headers.update({
             'User-Agent': api.user_agent,
+            'X-WANDB-USERNAME': env.get_username()
         })
         self._file_policies = {}
         self._queue = queue.Queue()

@@ -37,7 +37,7 @@ def headless(args):
         api.set_current_run_id(run.id)
 
         rm = wandb.run_manager.RunManager(
-            api, run, cloud=args['cloud'], job_type=args['job_type'],
+            api, run, cloud=args['cloud'],
             port=args['port'])
         rm.wrap_existing_process(
             user_process_pid, stdout_master_fd, stderr_master_fd)

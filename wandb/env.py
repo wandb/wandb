@@ -18,6 +18,7 @@ DEBUG = 'WANDB_DEBUG'
 INITED = 'WANDB_INITED'
 DIR = 'WANDB_DIR'
 DESCRIPTION = 'WANDB_DESCRIPTION'
+USERNAME = 'WANDB_USERNAME'
 PROJECT = 'WANDB_PROJECT'
 ENTITY = 'WANDB_ENTITY'
 BASE_URL = 'WANDB_BASE_URL'
@@ -70,6 +71,13 @@ def get_project(default=None, env=None):
         env = os.environ
 
     return env.get(PROJECT, default)
+
+
+def get_username(default=None, env=None):
+    if env is None:
+        env = os.environ
+
+    return env.get(USERNAME, default)
 
 
 def get_entity(default=None, env=None):

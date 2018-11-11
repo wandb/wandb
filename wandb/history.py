@@ -5,14 +5,15 @@ from __future__ import print_function
 import collections
 import contextlib
 import copy
+import numbers
 import json
 import os
-import time
+import six
 from threading import Lock
+import time
+import traceback
 import warnings
 import weakref
-import six
-import traceback
 
 import wandb.wandb_tensorflow
 from wandb.wandb_torch import TorchHistory
@@ -22,7 +23,10 @@ from wandb import data_types
 
 
 class History(object):
-    """Used to store data that changes over time during runs. """
+    """Time series data for Runs.
+
+    See the documentation online: https://docs.wandb.com/docs/logs.html
+    """
 
     def __init__(self, fname, out_dir='.', add_callback=None, stream_name="default"):
         self._start_time = wandb.START_TIME
@@ -40,7 +44,7 @@ class History(object):
         self._keys = set()
         self._process = "user" if os.getenv("WANDB_INITED") else "wandb"
         self._streams = {}
-        self._steps = 0
+        self._steps = 0  # index of the step to which we are currently logging
         self._lock = Lock()
         self._torch = None
         self.load()
@@ -77,7 +81,7 @@ class History(object):
         return [k for k in self._keys - set(rich_keys) if not k.startswith("_")]
 
     def stream(self, name):
-        """stream can be used to record different time series:
+        """Stream can be used to record different time series:
 
         run.history.stream("batch").add({"gradients": 1})
         """
@@ -89,15 +93,19 @@ class History(object):
         return self._streams[name]
 
     def column(self, key):
-        """Iterator over a given column, skipping rows that don't have a key
+        """Iterator over a given column, skipping steps that don't have that key
         """
         for row in self.rows:
             if key in row:
                 yield row[key]
 
-    def add(self, row={}):
-        """Adds keys to history and writes the row.  If row isn't specified, will write
-        the current state of row.
+    def add(self, row={}, step=None):
+        """Adds or updates a history step.
+
+        If row isn't specified, will write the current state of row.
+
+        If step is specified, the row will be written only when add() is called with
+        a different step value.
 
         run.history.row["duration"] = 1.0
         run.history.add({"loss": 1})
@@ -106,9 +114,35 @@ class History(object):
         """
         if not isinstance(row, collections.Mapping):
             raise wandb.Error('history.add expects dict-like object')
-        self.row.update({k.strip(): v for k, v in row.items()})
-        if not self.batched:
-            self._write()
+
+        if step is None:
+            self.update(row)
+            if not self.batched:
+                self._write()
+        else:
+            if not isinstance(step, numbers.Integral):
+                raise wandb.Error("Step must be an integer, not {}".format(step))
+            elif step < self._steps:
+                warnings.warn("Adding to old History rows isn't currently supported. Dropping.", wandb.WandbWarning)
+                return
+            elif step == self._steps:
+                pass
+            elif self.batched:
+                raise wandb.Error("Can't log to a particular History step ({}) while in batched mode.".format(step))
+            else:  # step > self._steps
+                self._write()
+                self._steps = step
+
+            self.update(row)
+
+    def update(self, new_vals):
+        """Add a dictionary of values to the current step without writing it to disk.
+        """
+        for k, v in six.iteritems(new_vals):
+            k = k.strip()
+            if k in self.row:
+                warnings.warn("Adding history key ({}) that is already set in this step".format(k), wandb.WandbWarning)
+            self.row[k] = v
 
     @contextlib.contextmanager
     def step(self, compute=True):
@@ -121,12 +155,14 @@ class History(object):
             if run.history.compute:
                 # Something expensive here
         """
-        self.row = {}
+        if self.batched:  # we're already in a context manager
+            raise wandb.Error("Nested History step contexts aren't supported")
         self.batched = True
         self.compute = compute
         yield self
         if compute:
             self._write()
+        compute = True
 
     @property
     def torch(self):
@@ -138,8 +174,11 @@ class History(object):
         self.add(wandb.wandb_tensorflow.tf_summary_to_dict(summary_pb_bin))
 
     def _index(self, row):
-        """Internal row adding method that updates step, and keys"""
-        self.row = row
+        """Add a row to the internal list of rows without writing it to disk.
+
+        This function should keep the data structure consistent so it's usable
+        for both adding new rows, and loading pre-existing histories.
+        """
         self.rows.append(row)
         self._keys.update(row.keys())
         self._steps += 1

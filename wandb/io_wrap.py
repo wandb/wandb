@@ -144,7 +144,7 @@ class WindowSizeChangeHandler(object):
 
 def init_sigwinch_handler():
     global SIGWINCH_HANDLER
-    if SIGWINCH_HANDLER is None and sys.platform != "win32" and not os.environ.get('WANDB_TEST') and not os.environ.get('WANDB_DEBUG'):
+    if SIGWINCH_HANDLER is None and sys.stdout.isatty() and sys.platform != "win32" and not os.environ.get('WANDB_DEBUG'):
         SIGWINCH_HANDLER = WindowSizeChangeHandler()
         SIGWINCH_HANDLER.register()
 

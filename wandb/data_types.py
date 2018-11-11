@@ -30,18 +30,22 @@ def val_to_json(key, val, mode="summary", step=None):
             converted = util.convert_plots(val)
     elif util.is_plotly_typename(typename):
         converted = util.convert_plots(val)
-    if isinstance(val, Image):
+    if isinstance(val, Image) or isinstance(val, Audio):
         val = [val]
 
     if isinstance(val, collections.Sequence) and len(val) > 0:
         is_image = [isinstance(v, Image) for v in val]
-        if all(is_image):
+        is_audio = [isinstance(v, Audio) for v in val]
+        if all(is_image) or all(is_audio):
             cwd = wandb.run.dir if wandb.run else "."
             if step is None:
                 step = "summary"
-            converted = Image.transform(val, cwd,
-                                        "{}_{}.jpg".format(key, step))
-        elif any(is_image):
+            if isinstance(val[0], Image):
+                converted = Image.transform(val, cwd,
+                                            "{}_{}.jpg".format(key, step))
+            elif isinstance(val[0], Audio):
+                converted = Audio.transform(val, cwd, key, step)
+        elif any(is_image) or any(is_audio):
             raise ValueError(
                 "Mixed media types in the same list aren't supported")
     elif isinstance(val, Histogram):
@@ -630,7 +634,7 @@ class Histogram(object):
             self.bins = self.bins.tolist()
         if len(self.histogram) > self.MAX_LENGTH:
             raise ValueError(
-                "The maximum length of a histogram is %i" % MAX_LENGTH)
+                "The maximum length of a histogram is %i" % self.MAX_LENGTH)
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
@@ -661,6 +665,60 @@ class Table(object):
             logging.warn(
                 "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
         return {"_type": "table", "columns": table.columns, "data": table.rows[:Table.MAX_ROWS]}
+
+
+class Audio(object):
+    MAX_AUDIO_COUNT = 100
+
+    def __init__(self, data, sample_rate=None, caption=None):
+        """
+        Accepts numpy array of audio data. 
+        """
+        if sample_rate == None:
+            raise ValueError('Missing argument "sample_rate" in wandb.Audio')
+        self.audio_data = data
+        self.sample_rate = sample_rate
+        self.caption = caption
+
+    @staticmethod
+    def transform(audio_list, out_dir, key, step):
+        if len(audio_list) > Audio.MAX_AUDIO_COUNT:
+            logging.warn(
+                "The maximum number of audio files to store per step is %i." % Audio.MAX_AUDIO_COUNT)
+        sf = util.get_module(
+            "soundfile", required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile")
+        base_path = os.path.join(out_dir, "media", "audio")
+        util.mkdir_exists_ok(base_path)
+        for i, audio in enumerate(audio_list[:Audio.MAX_AUDIO_COUNT]):
+            sf.write(os.path.join(base_path, "{}_{}_{}.wav".format(key, step, i)), audio.audio_data, audio.sample_rate)
+        meta = {"_type": "audio", "count": min(len(audio_list), Audio.MAX_AUDIO_COUNT)}
+        sample_rates = Audio.sample_rates(audio_list[:Audio.MAX_AUDIO_COUNT])
+        if sample_rates:
+            meta["sampleRates"] = sample_rates
+        durations = Audio.durations(audio_list[:Audio.MAX_AUDIO_COUNT])
+        if durations:
+            meta["durations"] = durations
+        captions = Audio.captions(audio_list[:Audio.MAX_AUDIO_COUNT])
+        if captions:
+            meta["captions"] = captions
+        return meta
+
+    @staticmethod
+    def durations(audio_list):
+        durations = [(len(a.audio_data) / float(a.sample_rate)) for a in audio_list]
+        return durations
+
+    @staticmethod
+    def sample_rates(audio_list):
+        return [a.sample_rate for a in audio_list]
+
+    @staticmethod
+    def captions(audio_list):
+        captions = [a.caption for a in audio_list]
+        if all(c is None for c in captions):
+            return False
+        else:
+            return ['' if c==None else c for c in captions]
 
 
 class Image(object):
