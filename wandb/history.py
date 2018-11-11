@@ -15,6 +15,7 @@ import traceback
 import warnings
 import weakref
 
+import wandb.wandb_tensorflow
 from wandb.wandb_torch import TorchHistory
 import wandb
 from wandb import util
@@ -168,6 +169,9 @@ class History(object):
         if self._torch is None:
             self._torch = TorchHistory(self)
         return self._torch
+
+    def log_tf_summary(self, summary_pb_bin):
+        self.add(wandb.wandb_tensorflow.tf_summary_to_dict(summary_pb_bin))
 
     def _index(self, row):
         """Add a row to the internal list of rows without writing it to disk.
