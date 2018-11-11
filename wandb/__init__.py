@@ -456,6 +456,10 @@ def _get_python_type():
         return "python"
 
 
+def in_sagemaker():
+    return os.getenv('SAGEMAKER_REGION')
+
+
 def init(job_type=None, dir=None, config=None, project=None, entity=None, group=None, allow_val_change=False, reinit=None):
     """Initialize W&B
 
@@ -482,6 +486,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
         reset_env(exclude=["WANDB_DIR", "WANDB_ENTITY",
                            "WANDB_PROJECT", "WANDB_API_KEY"])
         run = None
+
+    if in_sagemaker() and not group:
+        group = os.getenv('TRAINING_JOB_NAME')
 
     if project:
         os.environ['WANDB_PROJECT'] = project
@@ -561,6 +568,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
 
     # set the run directory in the config so it actually gets persisted
     run.config.set_run_dir(run.dir)
+    sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
+    if os.path.exists(sagemaker_config):
+        run.config.update(json.loads(open(sagemaker_config).read()))
+        allow_val_change = True
     if config:
         run.config.update(config, allow_val_change=allow_val_change)
 
