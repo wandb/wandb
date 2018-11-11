@@ -487,8 +487,12 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
                            "WANDB_PROJECT", "WANDB_API_KEY"])
         run = None
 
-    if in_sagemaker() and not group:
-        group = os.getenv('TRAINING_JOB_NAME')
+    if in_sagemaker():
+        if not group:
+            group = os.getenv('TRAINING_JOB_NAME')
+        os.environ['WANDB_RUN_ID'] = '-'.join([
+            os.getenv('TRAINING_JOB_NAME'),
+            os.getenv('CURRENT_HOST')])
 
     if project:
         os.environ['WANDB_PROJECT'] = project
