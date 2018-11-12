@@ -579,7 +579,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
     if os.path.exists(sagemaker_config):
         conf = {}
         # Hyper-parameter searchs quote configs...
-        for k, v in json.loads(open(sagemaker_config).read()):
+        for k, v in six.iteritems(json.load(open(sagemaker_config))):
             cast = v.strip('"')
             if re.match(r'^[-\d+]$', cast):
                 cast = int(cast)
