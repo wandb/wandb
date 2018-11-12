@@ -488,7 +488,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
         run = None
 
     if in_sagemaker():
-        if not group:
+        conf = json.loads(
+            open("/opt/ml/input/config/resourceconfig.json").read())
+        if group == None and len(conf["hosts"]) > 1:
             group = os.getenv('TRAINING_JOB_NAME')
         os.environ['WANDB_RUN_ID'] = '-'.join([
             os.getenv('TRAINING_JOB_NAME'),
@@ -575,6 +577,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
     sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
     if os.path.exists(sagemaker_config):
         run.config.update(json.loads(open(sagemaker_config).read()))
+        # TODO: read key from hyper-parameters if its there
         allow_val_change = True
     if config:
         run.config.update(config, allow_val_change=allow_val_change)
