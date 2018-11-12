@@ -27,6 +27,7 @@ import subprocess
 import sys
 import traceback
 import types
+import re
 
 from . import env
 from . import io_wrap
@@ -576,7 +577,16 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
     run.config.set_run_dir(run.dir)
     sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
     if os.path.exists(sagemaker_config):
-        run.config.update(json.loads(open(sagemaker_config).read()))
+        conf = {}
+        # Hyper-parameter searchs quote configs...
+        for k, v in json.loads(open(sagemaker_config).read()):
+            cast = v.strip('"')
+            if re.match(r'^[-\d+]$', cast):
+                cast = int(cast)
+            elif re.match(r'^[-.\d]$', cast):
+                cast = float(cast)
+            conf[k] = cast
+        run.config.update(conf)
         # TODO: read key from hyper-parameters if its there
         allow_val_change = True
     if config:
