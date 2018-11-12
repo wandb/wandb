@@ -581,9 +581,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
         # Hyper-parameter searchs quote configs...
         for k, v in six.iteritems(json.load(open(sagemaker_config))):
             cast = v.strip('"')
-            if re.match(r'^[-\d+]$', cast):
+            if re.match(r'^[-\d]+$', cast):
                 cast = int(cast)
-            elif re.match(r'^[-.\d]$', cast):
+            elif re.match(r'^[-.\d]+$', cast):
                 cast = float(cast)
             conf[k] = cast
         run.config.update(conf)
