@@ -63,7 +63,7 @@ def agent_run(args):
         host = socket.gethostname()
         remote_url = 'file://%s%s' % (host, root)
 
-    run.save(program=args['program'], api=api, job_type=args['job_type'])
+    run.save(program=args['program'], api=api)
     env = dict(os.environ)
     run.set_environment(env)
 
