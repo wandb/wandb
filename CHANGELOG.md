@@ -1,3 +1,16 @@
+## 0.6.27 (November 13, 2018)
+
+#### :nail_care: Enhancement
+
+-   Sweeps work with new backend (early release).
+-   Summary tracks all history metrics unless they're overridden by directly writing
+    to summary.
+-   Files support in data API.
+
+#### :bug: Bug Fix
+
+-   Show ongoing media file uploads in final upload progress.
+
 ## 0.6.26 (November 9, 2018)
 
 #### :nail_care: Enhancement
