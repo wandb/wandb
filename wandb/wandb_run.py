@@ -212,11 +212,6 @@ class Run(object):
 
     @property
     def summary(self):
-        # If we added summary from history then manually reset before setting again
-        if self._user_accessed_summary == False and self._summary is not None:
-            self._summary._summary = {}
-        # We use this to track whether user has accessed summary
-        self._user_accessed_summary = True
         if self._summary is None:
             self._summary = summary.FileSummary(self._dir)
         return self._summary
@@ -230,8 +225,7 @@ class Run(object):
             self._summary = summary.FileSummary(self._dir)
         if self._jupyter_agent:
             self._jupyter_agent.start()
-        if not self._user_accessed_summary:
-            self._summary.update(row)
+        self._summary.update(row, overwrite=False)
 
     @property
     def history(self):
