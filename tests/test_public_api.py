@@ -65,13 +65,39 @@ def test_run_summary(request_mocker, query_run_v2, upsert_run, query_download_h5
     assert update_mock.called
 
 
+def test_run_files(request_mocker, query_run_v2, query_run_files):
+    run_mock = query_run_v2(request_mocker)
+    query_run_files(request_mocker)
+    run = api.run("test/test/test")
+    file = run.files()[0]
+    file.download()
+    assert os.path.exists("weights.h5")
+    raised = False
+    try:
+        file.download()
+    except wandb.CommError:
+        raised = True
+    assert raised
+    os.remove("weights.h5")
+
+
+def test_run_file(request_mocker, query_run_v2, query_run_files):
+    run_mock = query_run_v2(request_mocker)
+    query_run_files(request_mocker)
+    run = api.run("test/test/test")
+    file = run.file("weights.h5")
+    file.download()
+    assert os.path.exists("weights.h5")
+    os.remove("weights.h5")
+
+
 def test_runs_from_path(request_mocker, query_runs_v2, query_download_h5):
     runs_mock = query_runs_v2(request_mocker)
     query_download_h5(request_mocker)
     runs = api.runs("test/test")
     assert len(runs) == 4
 
-    assert len(runs.runs) == 2
+    assert len(runs.objects) == 2
     assert runs[0].summary_metrics == {"acc": 100, "loss": 0}
 
 
@@ -80,10 +106,10 @@ def test_runs_from_path_index(mocker, request_mocker, query_runs_v2, query_downl
     query_download_h5(request_mocker)
     runs = api.runs("test/test")
     assert len(runs) == 4
-    run_mock = mocker.patch.object(runs, 'more')
+    run_mock = mocker.patch('wandb.apis.public.Runs.more')
     run_mock.side_effect = [True, False]
     assert runs[3]
-    assert len(runs.runs) == 4
+    assert len(runs.objects) == 4
 
 
 def test_read_advanced_summary(request_mocker, upsert_run, query_download_h5, query_upload_h5):

@@ -40,8 +40,8 @@ def test_project_download_urls(request_mocker, query_project):
     query_project(request_mocker)
     res = api.download_urls("test")
     assert res == {
-        'weights.h5': {'name': 'weights.h5', 'md5': 'fakemd5', 'updatedAt': None, 'url': 'https://weights.url'},
-        'model.json': {'name': 'model.json', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==', 'updatedAt': None, 'url': 'https://model.url'}
+        'weights.h5': {'name': 'weights.h5', 'mimetype': '', 'sizeBytes': "100", 'md5': 'fakemd5', 'updatedAt': None, 'url': 'https://weights.url'},
+        'model.json': {'name': 'model.json', 'mimetype': 'application/json', 'sizeBytes': "1000", 'md5': 'mZFLkyvTelC5g8XnyQrpOw==', 'updatedAt': None, 'url': 'https://model.url'}
     }
 
 
@@ -51,8 +51,8 @@ def test_project_upload_urls(request_mocker, query_project):
         "test", files=["weights.h5", "model.json"])
     assert bucket_id == 'test1234'
     assert res == {
-        'weights.h5': {'name': 'weights.h5', 'url': 'https://weights.url', 'updatedAt': None, 'md5': 'fakemd5'},
-        'model.json': {'name': 'model.json', 'url': 'https://model.url', 'updatedAt': None, 'md5': 'mZFLkyvTelC5g8XnyQrpOw=='}
+        'weights.h5': {'name': 'weights.h5', 'mimetype': '', 'sizeBytes': "100", 'url': 'https://weights.url', 'updatedAt': None, 'md5': 'fakemd5'},
+        'model.json': {'name': 'model.json', 'mimetype': 'application/json', 'sizeBytes': "1000", 'url': 'https://model.url', 'updatedAt': None, 'md5': 'mZFLkyvTelC5g8XnyQrpOw=='}
     }
 
 
