@@ -262,7 +262,7 @@ class Runs(Paginator):
 
     @property
     def cursor(self):
-        if self.length > 0:
+        if self.last_response:
             return self.last_response['project']['runs']['edges'][-1]['cursor']
         else:
             return None
