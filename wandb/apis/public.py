@@ -433,7 +433,7 @@ class Files(Paginator):
 
     @property
     def cursor(self):
-        if self.length > 0:
+        if self.last_response:
             return self.last_response['project']['run']['files']['edges'][-1]['cursor']
         else:
             return None
