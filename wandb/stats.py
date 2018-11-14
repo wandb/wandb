@@ -8,7 +8,13 @@ import threading
 
 
 class FileStats(object):
-    def __init__(self, file_path):
+    def __init__(self, save_name, file_path):
+        """Tracks file upload progress
+
+        save_name: the file's path in a run. It's an ID of sorts.
+        file_path: the local path.
+        """
+        self._save_name = save_name
         self._file_path = file_path
         self.size = 0
         self.uploaded = 0
@@ -21,26 +27,32 @@ class FileStats(object):
 
 
 class Stats(object):
+    """Tracks progress for all the files we're currently uploading
+
+    Indexed by files' `save_name`'s, which are their ID's in the Run.
+    """
     def __init__(self):
         self._files = {}
 
-    def update_file(self, file_path):
-        if file_path not in self._files:
-            self._files[file_path] = FileStats(file_path)
-        self._files[file_path].update_size()
+    def update_file(self, save_name, file_path):
+        if save_name not in self._files:
+            self._files[save_name] = FileStats(save_name, file_path)
+        self._files[save_name].update_size()
 
-    def rename_file(self, old_path, new_path):
-        if old_path in self._files:
-            del self._files[old_path]
-        self.update_file(new_path)
+    def rename_file(self, old_save_name, new_save_name, new_path):
+        if old_save_name in self._files:
+            del self._files[old_save_name]
+        self.update_file(new_save_name, new_path)
 
     def update_all_files(self):
         for file_stats in self._files.values():
             file_stats.update_size()
 
-    def update_progress(self, file_path, uploaded):
-        if file_path in self._files:
-            self._files[file_path].uploaded = uploaded
+    def update_progress(self, save_name, uploaded):
+        # TODO(adrian): this check sucks but we rely on it for weird W&B files
+        # like wandb-summary.json and config.yaml. Not sure why.
+        if save_name in self._files:
+            self._files[save_name].uploaded = uploaded
 
     def files(self):
         return self._files.keys()
