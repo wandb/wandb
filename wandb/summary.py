@@ -134,11 +134,13 @@ class Summary(object):
         self._summary = res
         return res
 
-    def update(self, key_vals=None):
+    def update(self, key_vals=None, overwrite=True):
         summary = {}
         if key_vals:
             for k, v in six.iteritems(key_vals):
-                summary[k.strip()] = self._transform(k.strip(), v)
+                key = k.strip()
+                if overwrite or key not in self._summary:
+                    summary[key] = self._transform(k.strip(), v)
         self._summary.update(summary)
         self._write(commit=True)
 

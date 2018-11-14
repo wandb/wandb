@@ -11,12 +11,16 @@ def _files():
                 'name': 'weights.h5',
                 'url': 'https://weights.url',
                 'md5': 'fakemd5',
+                'sizeBytes': "100",
+                'mimetype': "",
                 'updatedAt': None
             }},
             {'node': {
                 'name': 'model.json',
                 'url': 'https://model.url',
                 'md5': 'mZFLkyvTelC5g8XnyQrpOw==',
+                'sizeBytes': "1000",
+                'mimetype': "application/json",
                 'updatedAt': None
             }},
         ]
@@ -81,6 +85,13 @@ def _run(name='test'):
     }
 
 
+def _run_files():
+    return {
+        'fileCount': 2,
+        'files': _files()
+    }
+
+
 def _bucket_config():
     return {
         'patch': '''
@@ -131,6 +142,7 @@ def _mutate(key, json):
 @pytest.fixture
 def upsert_run(request):
     return _mutate('upsertBucket', {'bucket': _bucket("default")})
+
 
 @pytest.fixture
 def query_project():
@@ -198,6 +210,15 @@ def query_run():
 @pytest.fixture
 def query_run_v2():
     return _query('project', {'run': _run()})
+
+
+@pytest.fixture
+def query_run_files(mocker):
+    def wrapper(mocker, status_code=200, error=None, content=None):
+        mocker.register_uri('GET', "https://weights.url")
+        return _query('project', {'run': _run_files()},
+                      body_match='files(names: ')(mocker, status_code, error)
+    return wrapper
 
 
 @pytest.fixture

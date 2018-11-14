@@ -767,7 +767,7 @@ class Api(object):
         return response
 
     @normalize_exceptions
-    def register_agent(self, host, persistent, sweep_id=None, project_name=None):
+    def register_agent(self, host, sweep_id=None, project_name=None):
         """Register a new agent
 
         Args:
@@ -779,16 +779,14 @@ class Api(object):
         mutation = gql('''
         mutation CreateAgent(
             $host: String!
-            $modelName: String!,
-            $entityName: String,
-            $persistent: Boolean,
-            $sweep: String
+            $projectName: String!,
+            $entityName: String!,
+            $sweep: String!
         ) {
             createAgent(input: {
                 host: $host,
-                modelName: $modelName,
+                projectName: $projectName,
                 entityName: $entityName,
-                persistent: $persistent,
                 sweep: $sweep,
             }) {
                 agent {
@@ -802,8 +800,7 @@ class Api(object):
         response = self.gql(mutation, variable_values={
             'host': host,
             'entityName': self.settings("entity"),
-            'modelName': project_name,
-            'persistent': persistent,
+            'projectName': project_name,
             'sweep': sweep_id})
         return response['createAgent']['agent']
 
@@ -819,15 +816,14 @@ class Api(object):
         """
         mutation = gql('''
         mutation Heartbeat(
-            $id: String!,
+            $id: ID!,
             $metrics: JSONString,
             $runState: JSONString
         ) {
-            heartbeat(input: {
+            agentHeartbeat(input: {
                 id: $id,
                 metrics: $metrics,
-                runState: $runState,
-                serverRunGen: true
+                runState: $runState
             }) {
                 agent {
                     id
@@ -847,7 +843,7 @@ class Api(object):
             logger.error('Error communicating with W&B: %s', message)
             return []
         else:
-            return json.loads(response['heartbeat']['commands'])
+            return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
     def upsert_sweep(self, config):
@@ -860,14 +856,14 @@ class Api(object):
         mutation UpsertSweep(
             $config: String,
             $description: String,
-            $entityName: String,
-            $modelName: String!
+            $entityName: String!,
+            $projectName: String!
         ) {
             upsertSweep(input: {
                 config: $config,
                 description: $description,
                 entityName: $entityName,
-                modelName: $modelName
+                projectName: $projectName
             }) {
                 sweep {
                     name
@@ -879,7 +875,7 @@ class Api(object):
             'config': yaml.dump(config),
             'description': config.get("description"),
             'entityName': self.settings("entity"),
-            'modelName': self.settings("project")})
+            'projectName': self.settings("project")})
         return response['upsertSweep']['sweep']['name']
 
     def file_current(self, fname, md5):

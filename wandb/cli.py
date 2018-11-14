@@ -66,7 +66,7 @@ class ClickWandbException(ClickException):
 
 
 class CallbackHandler(BaseHTTPServer.BaseHTTPRequestHandler):
-    """Simple callback handler that stores query string parameters and 
+    """Simple callback handler that stores query string parameters and
     shuts down the server.
     """
 
@@ -730,41 +730,41 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
     rm.run_user_process(program, args, environ)
 
 
-# @cli.command(context_settings=CONTEXT, help="Create a sweep")
-# @click.pass_context
-# @require_init
-# @click.argument('config_yaml')
-# @display_error
-# def sweep(ctx, config_yaml):
-#     click.echo('Creating sweep from: %s' % config_yaml)
-#     try:
-#         yaml_file = open(config_yaml)
-#     except (OSError, IOError):
-#         wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
-#         return
-#     try:
-#         config = yaml.load(yaml_file)
-#     except yaml.YAMLError as err:
-#         wandb.termerror('Error in configuration file: %s' % err)
-#         return
-#     if config is None:
-#         wandb.termerror('Configuration file is empty')
-#         return
-#     sweep_id = api.upsert_sweep(config)
-#     print('Create sweep with ID:', sweep_id)
+@cli.command(context_settings=CONTEXT, help="Create a sweep")
+@click.pass_context
+@require_init
+@click.argument('config_yaml')
+@display_error
+def sweep(ctx, config_yaml):
+    click.echo('Creating sweep from: %s' % config_yaml)
+    try:
+        yaml_file = open(config_yaml)
+    except (OSError, IOError):
+        wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
+        return
+    try:
+        config = yaml.load(yaml_file)
+    except yaml.YAMLError as err:
+        wandb.termerror('Error in configuration file: %s' % err)
+        return
+    if config is None:
+        wandb.termerror('Configuration file is empty')
+        return
+    sweep_id = api.upsert_sweep(config)
+    print('Create sweep with ID:', sweep_id)
 
 
-# @cli.command(context_settings=CONTEXT, help="Run the WandB agent")
-# @click.argument('sweep_id')
-# @require_init
-# @display_error
-# def agent(sweep_id):
-#     click.echo('Starting wandb agent 🕵️')
-#     wandb_agent.run_agent(sweep_id)
+@cli.command(context_settings=CONTEXT, help="Run the WandB agent")
+@click.argument('sweep_id')
+@require_init
+@display_error
+def agent(sweep_id):
+    click.echo('Starting wandb agent 🕵️')
+    wandb_agent.run_agent(sweep_id)
 
-#     # you can send local commands like so:
-#     # agent_api.command({'type': 'run', 'program': 'train.py',
-#     #                'args': ['--max_epochs=10']})
+    # you can send local commands like so:
+    # agent_api.command({'type': 'run', 'program': 'train.py',
+    #                'args': ['--max_epochs=10']})
 
 
 if __name__ == "__main__":
