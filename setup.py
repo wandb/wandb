@@ -16,7 +16,7 @@ requirements = [
     'shortuuid>=0.5.0',
     'six>=1.10.0',
     'watchdog>=0.8.3',
-    'psutil>=5.0.0'
+    'psutil>=5.0.0',
     'sentry-sdk>=0.4.0',
     # Removed until we bring back the board
     #'flask-cors>=3.0.3',
