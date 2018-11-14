@@ -16,7 +16,8 @@ requirements = [
     'shortuuid>=0.5.0',
     'six>=1.10.0',
     'watchdog>=0.8.3',
-    'sentry-sdk==0.4.0',
+    'psutil>=5.0.0'
+    'sentry-sdk>=0.4.0',
     # Removed until we bring back the board
     #'flask-cors>=3.0.3',
     #'flask-graphql>=1.4.0',
@@ -68,5 +69,9 @@ setup(
         'Programming Language :: Python :: 3.5',
     ],
     test_suite='tests',
-    tests_require=test_requirements
+    tests_require=test_requirements,
+    dependency_links=[
+        # For psutil wheels
+        "http://wheels.galaxyproject.org/"
+    ]
 )
