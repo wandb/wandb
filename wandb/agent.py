@@ -38,7 +38,7 @@ class Agent(object):
     def run(self):
         # TODO: include sweep ID
         agent = self._api.register_agent(
-            socket.gethostname(), True, sweep_id=self._sweep_id)
+            socket.gethostname(), sweep_id=self._sweep_id)
         agent_id = agent['id']
 
         try:
@@ -92,7 +92,7 @@ class Agent(object):
                     pass  # if process is already dead
 
     def _process_command(self, command):
-        logger.info('Agent received command: %s' % command)
+        logger.info('Agent received command: %s' % (command['type'] if 'type' in command else 'Unknown'))
         response = {
             'id': command.get('id'),
             'result': None,
@@ -119,6 +119,9 @@ class Agent(object):
         return response
 
     def _command_run(self, command):
+        logger.info('Agent starting run with config:\n' +
+            '\n'.join(['\t%s: %s' % (k, v['value']) for k, v in command['args'].items()]))
+
         run = wandb_run.Run(mode='run',
                             sweep_id=self._sweep_id,
                             storage_id=command.get('run_storage_id'),
@@ -135,17 +138,9 @@ class Agent(object):
         flags = ["--{0}={1}".format(name, config['value'])
                  for name, config in command['args'].items()]
 
-        agent_run_args = {
-            'command': 'agent-run',
-            'program': command['program'],
-            'args': flags
-        }
-        internal_cli_path = os.path.join(
-            os.path.dirname(__file__), 'internal_cli.py')
         self._run_processes[run.id] = subprocess.Popen(
-            ['/usr/bin/env', 'python', internal_cli_path,
-                json.dumps(agent_run_args)],
-            env=env)
+            ['/usr/bin/env', 'python', command['program']] + flags,
+            env=env, preexec_fn=os.setpgrp)
 
         # we track how many times the user has tried to stop this run
         # so we can escalate how hard we try to kill it in self._command_stop()
