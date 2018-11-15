@@ -79,21 +79,22 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 resource_path = "/opt/ml/input/config/resourceconfig.json"
                 os.environ['TRAINING_JOB_NAME'] = 'sage'
                 os.environ['CURRENT_HOST'] = 'maker'
-                with mocker.patch('os.path.exists') as mock:
-                    mock.side_effect = lambda p: os.path.exists(
-                        p) if p != config_path else True
+
+                orig_exist = os.path.exists
+
+                def exists(path):
+                    return True if path == config_path else orig_exist(path)
+                mocker.patch('wandb.os.path.exists', exists)
 
                 def magic(path, *args, **kwargs):
                     if path == config_path:
-                        return six.BytesIO('{"sagemaker": "cool"}')
+                        return six.BytesIO('{"fuckin": "A"}')
                     elif path == resource_path:
-                        return six.BytesIO('{"hosts":[]}')
+                        return six.BytesIO('{"hosts":["a", "b"]}')
                     else:
-                        return super(path, *args, **kwargs)
-                try:
-                    mocker.patch('builtins.open', magic, create=True)
-                except ImportError:
-                    mocker.patch('__builtin__.open', magic, create=True)
+                        return six.BytesIO('---')
+
+                mocker.patch('wandb.open', magic, create=True)
 
         else:
             kwargs = {}
@@ -133,7 +134,7 @@ def test_log_step(wandb_init_run):
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"
     assert wandb.run.id == "sage-maker"
-    assert wandb.run.group == "aws"
+    assert wandb.run.group == "sage"
 
 
 @pytest.mark.args(error="io")

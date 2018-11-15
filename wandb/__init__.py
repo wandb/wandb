@@ -472,7 +472,6 @@ def parse_sm_config():
                 elif re.match(r'^[-.\d]+$', cast):
                     cast = float(cast)
                 conf[k] = cast
-        print("BAM", conf)
         return conf
     else:
         return False
