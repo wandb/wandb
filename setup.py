@@ -69,9 +69,5 @@ setup(
         'Programming Language :: Python :: 3.5',
     ],
     test_suite='tests',
-    tests_require=test_requirements,
-    dependency_links=[
-        # For psutil wheels
-        "http://wheels.galaxyproject.org/"
-    ]
+    tests_require=test_requirements
 )
