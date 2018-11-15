@@ -457,8 +457,25 @@ def _get_python_type():
         return "python"
 
 
-def in_sagemaker():
-    return os.getenv('SAGEMAKER_REGION')
+def parse_sm_config():
+    sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
+    if os.path.exists(sagemaker_config):
+        conf = {}
+        # Hyper-parameter searchs quote configs...
+        for k, v in six.iteritems(json.load(open(sagemaker_config))):
+            cast = v.strip('"')
+            if os.getenv("WANDB_API_KEY") is None and k == "wandb_api_key":
+                os.environ["WANDB_API_KEY"] = cast
+            else:
+                if re.match(r'^[-\d]+$', cast):
+                    cast = int(cast)
+                elif re.match(r'^[-.\d]+$', cast):
+                    cast = float(cast)
+                conf[k] = cast
+        print("BAM", conf)
+        return conf
+    else:
+        return False
 
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, group=None, allow_val_change=False, reinit=None):
@@ -488,14 +505,16 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
                            "WANDB_PROJECT", "WANDB_API_KEY"])
         run = None
 
-    if in_sagemaker():
-        conf = json.loads(
-            open("/opt/ml/input/config/resourceconfig.json").read())
+    sagemaker_config = parse_sm_config()
+    if sagemaker_config:
+        # Set run_id and potentially grouping if we're in SageMaker
+        os.environ['WANDB_RUN_ID'] = '-'.join([
+            os.getenv('TRAINING_JOB_NAME', 'sagemaker'),
+            os.getenv('CURRENT_HOST', 'algo1')])
+        conf = json.load(
+            open("/opt/ml/input/config/resourceconfig.json"))
         if group == None and len(conf["hosts"]) > 1:
             group = os.getenv('TRAINING_JOB_NAME')
-        os.environ['WANDB_RUN_ID'] = '-'.join([
-            os.getenv('TRAINING_JOB_NAME'),
-            os.getenv('CURRENT_HOST')])
 
     if project:
         os.environ['WANDB_PROJECT'] = project
@@ -575,19 +594,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
 
     # set the run directory in the config so it actually gets persisted
     run.config.set_run_dir(run.dir)
-    sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
-    if os.path.exists(sagemaker_config):
-        conf = {}
-        # Hyper-parameter searchs quote configs...
-        for k, v in six.iteritems(json.load(open(sagemaker_config))):
-            cast = v.strip('"')
-            if re.match(r'^[-\d]+$', cast):
-                cast = int(cast)
-            elif re.match(r'^[-.\d]+$', cast):
-                cast = float(cast)
-            conf[k] = cast
-        run.config.update(conf)
-        # TODO: read key from hyper-parameters if its there
+
+    if sagemaker_config:
+        run.config.update(sagemaker_config)
         allow_val_change = True
     if config:
         run.config.update(config, allow_val_change=allow_val_change)

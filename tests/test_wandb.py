@@ -8,13 +8,14 @@ import yaml
 import mock
 import glob
 import socket
+import six
 from .api_mocks import *
 
 import wandb
 
 
 @pytest.fixture
-def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume_status, upload_logs, monkeypatch):
+def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume_status, upload_logs, mocker, monkeypatch):
     """Fixture that calls wandb.init(), yields the run that
     gets created, then cleans up afterward.
     """
@@ -72,6 +73,28 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                         def listen(self, secs):
                             return False, None
                     monkeypatch.setattr("wandb.wandb_socket.Server", Error)
+            if kwargs.get('sagemaker'):
+                del kwargs['sagemaker']
+                config_path = "/opt/ml/input/config/hyperparameters.json"
+                resource_path = "/opt/ml/input/config/resourceconfig.json"
+                os.environ['TRAINING_JOB_NAME'] = 'sage'
+                os.environ['CURRENT_HOST'] = 'maker'
+                with mocker.patch('os.path.exists') as mock:
+                    mock.side_effect = lambda p: os.path.exists(
+                        p) if p != config_path else True
+
+                def magic(path, *args, **kwargs):
+                    if path == config_path:
+                        return six.BytesIO('{"sagemaker": "cool"}')
+                    elif path == resource_path:
+                        return six.BytesIO('{"hosts":[]}')
+                    else:
+                        return super(path, *args, **kwargs)
+                try:
+                    mocker.patch('builtins.open', magic, create=True)
+                except ImportError:
+                    mocker.patch('__builtin__.open', magic, create=True)
+
         else:
             kwargs = {}
         try:
@@ -104,6 +127,13 @@ def test_log_step(wandb_init_run):
     wandb.log()
     assert len(wandb.run.history.rows) == 1
     assert wandb.run.history.rows[0]['_step'] == 5
+
+
+@pytest.mark.args(sagemaker=True)
+def test_sagemaker(wandb_init_run):
+    assert wandb.config.fuckin == "A"
+    assert wandb.run.id == "sage-maker"
+    assert wandb.run.group == "aws"
 
 
 @pytest.mark.args(error="io")
