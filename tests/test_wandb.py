@@ -88,11 +88,11 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
 
                 def magic(path, *args, **kwargs):
                     if path == config_path:
-                        return six.BytesIO(b'{"fuckin": "A"}')
+                        return six.StringIO('{"fuckin": "A"}')
                     elif path == resource_path:
-                        return six.BytesIO(b'{"hosts":["a", "b"]}')
+                        return six.StringIO('{"hosts":["a", "b"]}')
                     else:
-                        return six.BytesIO()
+                        return six.StringIO()
 
                 mocker.patch('wandb.open', magic, create=True)
 
