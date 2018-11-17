@@ -7,9 +7,35 @@ import os
 import logging
 import six
 import wandb
+import numpy as np
 from wandb import util
 from operator import mul
 from six.moves import reduce
+
+
+def nested_shape(array_or_tuple):
+    """Figures out the shape of tensors possibly embedded in tuples
+     i.e 
+     [0,0] returns (2)
+     ([0,0], [0,0]) returns (2,2)
+     (([0,0], [0,0]),[0,0]) returns ((2,2),2)
+     """
+    if hasattr(array_or_tuple, 'size'):
+        # pytorch tensors use V.size() to get size of tensor
+        return list(array_or_tuple.size())
+    elif hasattr(array_or_tuple, 'get_shape'):
+        # tensorflow uses V.get_shape() to get size of tensor
+        return array_or_tuple.get_shape().as_list()
+    elif hasattr(array_or_tuple, 'shape'):
+        return array_or_tuple.shape
+
+    try:
+        #treat object as iterable
+        return [nested_shape(item) for item in list(array_or_tuple)]
+    except TypeError:
+        # object is not actually iterable
+        # LB: Maybe we should throw an error?
+        return []
 
 
 def val_to_json(key, val, mode="summary", step=None):
@@ -181,11 +207,12 @@ class Graph(object):
                 output = (output,)
             parameters = [(pname, list(param.size()))
                           for pname, param in module.named_parameters()]
+
             node = Node(
                 id=id(module),
                 name=name,
                 class_name=str(module),
-                output_shape=[list(o.shape) for o in output],
+                output_shape=nested_shape(output),
                 parameters=parameters,
                 num_parameters=[reduce(mul, size)
                                 for (pname, size) in parameters]
