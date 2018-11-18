@@ -42,7 +42,7 @@ def training_loop():
 
 ## Running your script
 
-Run `wandb signup` from the directory of your training script. If you already have an account, you can run `wandb init` to initialize a new directory. You can checkin _wandb/settings_ to version control to share your project with other users.
+From the directory of your training script run `wandb init` to initialize a new directory.  If it's your first time using wandb on the machine it will prompt you for an API key - create an account at wandb.com and you can find one in your profile page.  You can check in _wandb/settings_ directory to version control to share your project with other users.  You can also set the username and API key through environment variables if you don't have easy access to a shell.
 
 Run your script with `python my_script.py` and all metadata will be synced to the cloud. Data is staged locally in a directory named _wandb_ relative to your script. If you want to test your script without syncing to the cloud you can run `wandb off`.
 
