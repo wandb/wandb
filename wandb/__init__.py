@@ -79,13 +79,13 @@ class Callbacks():
 callbacks = Callbacks()
 
 
-def hook_torch(args, **kwargs):
+def hook_torch(*args, **kwargs):
     termlog(
         "DEPRECATED: wandb.hook_torch is deprecated, use `wandb.watch`")
-    return watch(args, **kwargs)
+    return watch(*args, **kwargs)
 
 
-def watch(models, criterion, log="gradients"):
+def watch(models, criterion=None, log="gradients"):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML modles.
