@@ -163,12 +163,6 @@ class Sequence(nn.Module):
         outputs = torch.stack(outputs, 1).squeeze(2)
         return outputs
 
-def test_no_requires_grad(history):
-    # log_stats() used to fail on tensors that didn't have .require_grad = True
-    history.torch.log_stats(torch.randn(3, 3))
-    history.torch.log_stats(torch.autograd.Variable(torch.randn(3, 3)))
-    assert len(history.row) > 0 
-
 def test_gradient_logging(wandb_init_run):
     net = ConvNet()
     wandb.hook_torch(net)
