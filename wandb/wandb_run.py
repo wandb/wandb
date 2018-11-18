@@ -131,10 +131,34 @@ class Run(object):
                   resume=resume)
         return run
 
+    def auto_project_name(self, api):
+        # if we're in git, set project name to git repo name + relative path within repo
+        root_dir = api.git.root_dir
+        if root_dir is None:
+            return None
+        repo_name = os.path.basename(root_dir)
+        program = self.program
+        if program is None:
+            return repo_name
+        if not os.path.isabs(program):
+            program = os.path.join(os.curdir, program)
+        prog_dir = os.path.dirname(os.path.abspath(program))
+        if not prog_dir.startswith(root_dir):
+            return repo_name
+        project = repo_name
+        sub_path = os.path.relpath(prog_dir, root_dir)
+        if sub_path != '.':
+            project += '-' + sub_path
+        return project.replace(os.sep, '_')
+
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
         api = api or InternalApi()
+        project = api.settings('project')
+        if project is None:
+            project = self.auto_project_name(api)
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
-                                       project=api.settings("project"), entity=api.settings("entity"),
+                                       project=project, entity=api.settings(
+                                           "entity"),
                                        group=self.group,
                                        config=self.config.as_dict(), description=self.description, host=socket.gethostname(),
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,

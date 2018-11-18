@@ -95,6 +95,12 @@ class GitRepo(object):
             return None
         return self.remote.url
 
+    @property
+    def root_dir(self):
+        if not self.repo:
+            return None
+        return self.repo.git.rev_parse("--show-toplevel")
+
     def get_upstream_fork_point(self):
         """Get the most recent ancestor of HEAD that occurs on an upstream
         branch.
