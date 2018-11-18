@@ -2,7 +2,6 @@ import errno
 import json
 import logging
 import os
-import psutil
 import re
 import signal
 import socket
@@ -752,14 +751,12 @@ class RunManager(object):
             self._stdout_tee = io_wrap.Tee.pty(*stdout_streams)
             self._stderr_tee = io_wrap.Tee.pty(*stderr_streams)
 
-        self._stdout_stream.write_string(" ".join(psutil.Process(
-            os.getpid()).cmdline()) + "\n\n")
-
         command = [program] + list(args)
         runner = util.find_runner(program)
         if runner:
             command = runner + command
         command = ' '.join(six.moves.shlex_quote(arg) for arg in command)
+        self._stdout_stream.write_string(command + "\n\n")
 
         try:
             self.proc = subprocess.Popen(
