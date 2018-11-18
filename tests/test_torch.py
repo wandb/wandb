@@ -151,7 +151,6 @@ class Sequence(nn.Module):
         outputs = torch.stack(outputs, 1).squeeze(2)
         return outputs
 
-
 def test_no_requires_grad(history):
     # log_stats() used to fail on tensors that didn't have .require_grad = True
     history.torch.log_stats(torch.randn(3, 3))
@@ -211,6 +210,7 @@ def test_lstm():
     net = LSTMModel(2,2)
     wandb.run = wandb.wandb_run.Run.from_environment_or_defaults()
     graph = wandb.Graph.hook_torch(net)
+
     hidden = net.init_hidden()
     input_data = torch.ones((100), dtype=torch.long)
     output = net.forward(input_data, hidden)
@@ -218,6 +218,8 @@ def test_lstm():
     graph = wandb.Graph.transform(graph)
     assert len(graph["nodes"]) == 3
     assert graph["nodes"][2]['output_shape'] == [[1,2]]
+    wandb.run = None
+
     
 def test_resnet18():
     resnet = models.resnet18()
@@ -242,3 +244,5 @@ def test_parameters():
     run = wandb.wandb_run.Run.from_environment_or_defaults()
     run.history.torch.log_module_parameters(module, values=True, gradients=True, prefix='graph.')
     assert(isinstance(run.history.row['parameters/graph.otherparam'], wandb.data_types.Histogram))
+    wandb.run = None
+
