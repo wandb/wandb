@@ -130,8 +130,6 @@ class Graph(object):
     def add_edge(self, from_node, to_node):
         edge = Edge(from_node, to_node)
         self.edges.append(edge)
-        #self.nodes_by_id[from_node.id].out_edges[to_node.id] = edge
-        #self.nodes_by_id[to_node.id].in_edges[from_node.id] = edge
 
         return edge
 
