@@ -49,6 +49,8 @@ from wandb.data_types import Table
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 
+from wandb import wandb_torch
+
 
 logger = logging.getLogger(__name__)
 
@@ -90,15 +92,16 @@ def hook_torch(models, criterion=None, log="gradients"):
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling hook_torch")
-    values = False
-    gradients = True
+    log_parameters = False
+    log_gradients = True
     if log == "all":
-        values = True
+        log_parameters = True
     elif log == "parameters":
-        values = True
-        gradients = False
+        log_parameters = True
+        log_gradients = False
     elif log is None:
-        gradients = False
+        log_gradients = False
+    
     if not isinstance(models, (tuple, list)):
         models = (models,)
     graphs = []
@@ -106,9 +109,11 @@ def hook_torch(models, criterion=None, log="gradients"):
     for i, model in enumerate(models):
         if i > 0:
             prefix = "graph_%i" % i
-        run.history.torch.log_module_parameters(
-            model, values=values, gradients=gradients, prefix=prefix)
-        graph = Graph.hook_torch(model, criterion)
+        
+        run.history.torch.add_log_hooks_to_pytorch_module(
+            model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix)
+        
+        graph = wandb_torch.TorchGraph.hook_torch(model, criterion)
         graphs.append(graph)
         # We access the raw summary because we don't want transform called until after the forward pass
         run.summary._summary["graph_%i" % i] = graph
