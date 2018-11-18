@@ -257,11 +257,16 @@ class Graph(object):
                 # TODO: Why does this happen?
                 break
 
-            if isinstance(sub_module, (torch.nn.Container, torch.nn.Sequential, torch.nn.ModuleList, torch.nn.ModuleDict)):
-                #
-                # Container is deprecated but we'll handle it.
-                # Recursively visit and hook their decendants.
-                #
+            # Trying to support torch >0.3 making this code complicated
+            # We want a list of types that we should recurse into
+            # Torch 0.3   uses containers
+            #       0.4   has ModuleList
+            #       0.4.1 has ModuleDict
+            module_types = [getattr(torch.nn, module_classname)
+                for module_classname in ("Container", "Sequential", "ModuleList", "ModuleDict")
+                if hasattr(torch.nn, module_classname)]
+                   
+            if isinstance(sub_module, tuple(module_types)):
                 self.hook_torch_modules(sub_module, prefix=name)
             else:
                 def backward_hook(module, input, output):

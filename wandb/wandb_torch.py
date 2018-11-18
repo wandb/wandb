@@ -52,13 +52,22 @@ class TorchHistory(object):
         if name is None:
             name = ''
 
-        if isinstance(variable_or_module, torch.autograd.Variable):
+        # The Variable case is again support for pytorch 0.3 that we could potentially
+        # remove and simplify
+        if isinstance(variable_or_module, (torch.autograd.Variable, torch.Tensor)):
             if name is None:
                 raise wandb.Error('Need a name to log stats for a Variable.')
             var = variable_or_module
+            if isinstance(var, torch.autograd.Variable):
+                data = var.data
+            else:
+                data = var
+
             if values:
-                self.log_tensor_stats(var.data, 'parameters/' + prefix + name)
-            if gradients and var.requires_grad:
+                self.log_tensor_stats(data, 'parameters/' + prefix + name)
+
+            # Before pytorch 0.4 torch.Tensor doesn't have requires_grad
+            if gradients and hasattr(var, "requires_grad") and var.requires_grad:
                 self._hook_variable_gradient_stats(
                     var, 'gradients/' + prefix + name)
         elif isinstance(variable_or_module, torch.nn.Module):
@@ -67,7 +76,7 @@ class TorchHistory(object):
                 prefix = prefix + name
             self.log_module_stats(module, prefix)
         else:
-            cls = type(var)
+            cls = type(variable_or_module)
             raise TypeError('Expected torch.autograd.Variable or torch.nn.Module, not {}.{}'.format(
                 cls.__module__, cls.__name__))
 
@@ -87,6 +96,10 @@ class TorchHistory(object):
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
         """
+
+        # LB We could potentially speed this up by using pytorch's torch.histc instead of
+        # converting to numpy
+
         if (isinstance(tensor, tuple) or isinstance(tensor, list)):
             while (isinstance(tensor, tuple) or isinstance(tensor, list)) and (isinstance(tensor[0], tuple) or isinstance(tensor[0], list)):
                 tensor = [item for sublist in tensor for item in sublist]
@@ -101,9 +114,16 @@ class TorchHistory(object):
         if history is None or not history.compute:
             return
         flat = tensor.view(-1)
+
+        # detach is new in 0.4
+        tensor = flat.cpu().clone()
+        if (hasattr(tensor, "detach")):
+            tensor = tensor.detach()
+        else:
+            tensor = tensor.numpy()
         # wandb.termlog(name)
         history.row.update({
-            name: wandb.Histogram(flat.cpu().clone().detach())
+            name: wandb.Histogram(tensor)
         })
 
     def _hook_module_input_output_stats(self, module, name):
