@@ -130,8 +130,6 @@ class Graph(object):
     def add_edge(self, from_node, to_node):
         edge = Edge(from_node, to_node)
         self.edges.append(edge)
-        self.nodes_by_id[from_node.id].out_edges[to_node.id] = edge
-        self.nodes_by_id[to_node.id].in_edges[from_node.id] = edge
 
         return edge
 
@@ -185,8 +183,22 @@ class Graph(object):
 
         layers = model.layers
         for i in range(len(layers)):
-            node = Node.from_keras(layers[i], relevant_nodes)
+            node = Node.from_keras(layers[i])
             graph.add_node(node)
+
+            if hasattr(layers[i], '_inbound_nodes'):
+                for in_node in layers[i]._inbound_nodes:
+                    if relevant_nodes and in_node not in relevant_nodes:
+                        # node is not part of the current network
+                        continue
+                    for in_layer in in_node.inbound_layers:
+                        inbound_keras_node = Node.from_keras(in_layer)
+
+                        if (inbound_keras_node.id not in graph.nodes_by_id):
+                            graph.add_node(inbound_keras_node)
+                        inbound_node = graph.nodes_by_id[inbound_keras_node.id]
+
+                        graph.add_edge(inbound_node, node)
 
         return graph
 
@@ -199,7 +211,7 @@ class Graph(object):
     def create_forward_hook(self, name, modules):
         graph = self
 
-        def after_forward_hook(module, input, output):
+        def after_forward_hook(module, inp, output):
             if id(module) in modules:
                 return
             modules.add(id(module))
@@ -223,6 +235,7 @@ class Graph(object):
             graph.add_node(node)
             if not graph.criterion_passed:
                 graph.criterion = output[0].grad_fn
+
         return after_forward_hook
 
     def hook_torch_modules(self, module, criterion=None, prefix=None):
@@ -253,6 +266,7 @@ class Graph(object):
             else:
                 def backward_hook(module, input, output):
                     [hook.remove() for hook in hooks]
+                    
                     graph.loaded = True
                     # TODO: Keeping this here as a starting point for adding graph data
                     if not graph.loaded:
@@ -276,6 +290,7 @@ class Graph(object):
                             if hasattr(node, 'saved_tensors'):
                                 for t in node.saved_tensors:
                                     traverse(t)
+
                         traverse(graph.criterion)
 
                 hooks.append(
@@ -398,7 +413,9 @@ class Graph(object):
 
     @staticmethod
     def transform(graph):
-        return {"_type": "graph", "format": graph.format, "nodes": [Node.transform(node) for node in graph.nodes]}
+        return {"_type": "graph", "format": graph.format,
+            "nodes": [Node.transform(node) for node in graph.nodes],
+            "edges": [Edge.transform(edge) for edge in graph.edges]}
 
 
 class Node(object):
@@ -543,7 +560,7 @@ class Node(object):
         return val
 
     @classmethod
-    def from_keras(cls, layer, relevant_nodes=None):
+    def from_keras(cls, layer):
         node = cls()
 
         try:
@@ -551,25 +568,13 @@ class Node(object):
         except AttributeError:
             output_shape = ['multiple']
 
+        node.id = layer.name
         node.name = layer.name
         node.class_name = layer.__class__.__name__
         node.output_shape = output_shape
         node.num_parameters = layer.count_params()
 
-        connections = []
-        if hasattr(layer, '_inbound_nodes'):
-            for in_node in layer._inbound_nodes:
-                if relevant_nodes and in_node not in relevant_nodes:
-                    # node is not part of the current network
-                    continue
-                for i in range(len(in_node.inbound_layers)):
-                    inbound_layer = in_node.inbound_layers[i].name
-                    inbound_node_index = in_node.node_indices[i]
-                    inbound_tensor_index = in_node.tensor_indices[i]
-                    connections.append(inbound_layer +
-                                       '[' + str(inbound_node_index) + '][' +
-                                       str(inbound_tensor_index) + ']')
-        node._attributes['inbound_nodes'] = connections
+
         return node
 
     @classmethod
@@ -631,6 +636,10 @@ class Edge(object):
     def to_node(self, val):
         self._attributes['to_node'] = val
         return val
+
+    @staticmethod
+    def transform(edge):
+        return [edge.from_node.id, edge.to_node.id]
 
 
 class Histogram(object):
