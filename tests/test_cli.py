@@ -285,7 +285,7 @@ def test_signup(runner, empty_netrc, local_netrc):
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
-        sigint(0.05)
+        sigint(0.5)
         result = runner.invoke(cli.signup)
         print('Output: ', result.output)
         print('Exception: ', result.exception)
