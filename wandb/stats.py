@@ -158,9 +158,10 @@ class SystemStats(object):
             handle = nvmlDeviceGetHandleByIndex(i)
             try:
                 util = nvmlDeviceGetUtilizationRates(handle)
+                memory = nvmlDeviceGetMemoryInfo(handle)
                 temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
                 stats["gpu.{0}.{1}".format(i, "gpu")] = util.gpu
-                stats["gpu.{0}.{1}".format(i, "memory")] = util.memory
+                stats["gpu.{0}.{1}".format(i, "memory")] = memory.used
                 stats["gpu.{0}.{1}".format(i, "temp")] = temp
             except NVMLError as err:
                 pass
