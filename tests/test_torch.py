@@ -23,25 +23,26 @@ class DynamicModule(nn.Module):
         x = self.activations[act](x)
         return x
 
+class ParameterModule(nn.Module):
+    def __init__(self):
+        super(ParameterModule, self).__init__()
+        self.params = nn.ParameterList([nn.Parameter(torch.ones(10, 10)) for i in range(10)])
+        self.otherparam = nn.Parameter(torch.Tensor(5))
+
+    def forward(self, x):
+        # ParameterList can act as an iterable, or be indexed using ints
+        for i, p in enumerate(self.params):
+            x = self.params[i // 2].mm(x) + p.mm(x)
+        return x
+
 def init_conv_weights(layer, weights_std=0.01,  bias=0):
-    '''
-    RetinaNet's layer initialization
-    '''
+    '''Initialize weights for subnet convolution'''
     nn.init.normal_(layer.weight.data, std=weights_std)
     nn.init.constant_(layer.bias.data, val=bias)
     return layer
 
-
-def conv1x1(in_channels, out_channels, **kwargs):
-    '''Return a 1x1 convolutional layer with RetinaNet's weight and bias initialization'''
-    layer = nn.Conv2d(in_channels, out_channels, kernel_size=1, **kwargs)
-    layer = init_conv_weights(layer)
-
-    return layer
-
-
 def conv3x3(in_channels, out_channels, **kwargs):
-    '''Return a 3x3 convolutional layer with RetinaNet's weight and bias initialization'''
+    '''Return a 3x3 convolutional layer for SubNet'''
     layer = nn.Conv2d(in_channels, out_channels, kernel_size=3, **kwargs)
     layer = init_conv_weights(layer)
 
@@ -168,7 +169,6 @@ def test_simple_net():
     assert graph["nodes"][0]['class_name'] == "Conv2d(1, 10, kernel_size=(5, 5), stride=(1, 1))"
     assert graph["nodes"][0]['name'] == "conv1"
 
-
 def test_sequence_net():
     net = Sequence()
     net.double()
@@ -183,7 +183,6 @@ def test_sequence_net():
     assert graph["nodes"][0]['class_name'] == "LSTMCell(1, 51)"
     assert graph["nodes"][0]['name'] == "lstm1"
 
-
 def test_multi_net():
     net = ConvNet()
     wandb.run = wandb.wandb_run.Run.from_environment_or_defaults()
@@ -196,7 +195,6 @@ def test_multi_net():
     graph2 = wandb.Graph.transform(graphs[1])
     assert len(graph1["nodes"]) == 5
     assert len(graph2["nodes"]) == 5
-
 
 def test_alex_net():
     alex = models.AlexNet()
@@ -220,7 +218,7 @@ def test_lstm():
     graph = wandb.Graph.transform(graph)
     assert len(graph["nodes"]) == 3
     assert graph["nodes"][2]['output_shape'] == [[1,2]]
-
+    
 def test_resnet18():
     resnet = models.resnet18()
     graph = wandb.Graph.hook_torch(resnet)
@@ -238,3 +236,9 @@ def test_subnet():
     output.backward(grads)
     graph = wandb.Graph.transform(graph)
     assert graph["nodes"][0]['class_name'] == "Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))"
+
+def test_parameters():
+    module = ParameterModule()
+    run = wandb.wandb_run.Run.from_environment_or_defaults()
+    run.history.torch.log_module_parameters(module, values=True, gradients=True, prefix='graph.')
+    assert(isinstance(run.history.row['parameters/graph.otherparam'], wandb.data_types.Histogram))
