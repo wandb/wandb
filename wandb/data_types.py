@@ -235,8 +235,7 @@ class Graph(object):
             graph.criterion = criterion
             graph.criterion_passed = True
 
-        # TODO: We might be able to use `named_children()` here, need to verify the API in older version
-        for name, sub_module in module._modules.items():
+        for name, sub_module in module.named_children():
             name = name or str(layers)
             if prefix:
                 name = prefix + "." + name
@@ -245,9 +244,10 @@ class Graph(object):
                 # TODO: Why does this happen?
                 break
 
-            if isinstance(sub_module, (torch.nn.Container, torch.nn.Sequential)):
+            if isinstance(sub_module, (torch.nn.Container, torch.nn.Sequential, torch.nn.ModuleList, torch.nn.ModuleDict)):
                 #
-                # nn.Container or nn.Sequential who have sub nn.Module. Recursively visit and hook their decendants.
+                # Container is deprecated but we'll handle it.
+                # Recursively visit and hook their decendants.
                 #
                 self.hook_torch_modules(sub_module, prefix=name)
             else:

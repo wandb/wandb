@@ -6,7 +6,83 @@ from pprint import pprint
 from torchvision import models
 from torch.autograd import Variable
 
+class DynamicModule(nn.Module):
+    def __init__(self):
+        super(MyModule, self).__init__()
+        self.choices = nn.ModuleDict({
+                'conv': nn.Conv2d(10, 10, 3),
+                'pool': nn.MaxPool2d(3)
+        })
+        self.activations = nn.ModuleDict([
+                ['lrelu', nn.LeakyReLU()],
+                ['prelu', nn.PReLU()]
+        ])
 
+    def forward(self, x, choice, act):
+        x = self.choices[choice](x)
+        x = self.activations[act](x)
+        return x
+
+def init_conv_weights(layer, weights_std=0.01,  bias=0):
+    '''
+    RetinaNet's layer initialization
+    '''
+    nn.init.normal_(layer.weight.data, std=weights_std)
+    nn.init.constant_(layer.bias.data, val=bias)
+    return layer
+
+
+def conv1x1(in_channels, out_channels, **kwargs):
+    '''Return a 1x1 convolutional layer with RetinaNet's weight and bias initialization'''
+    layer = nn.Conv2d(in_channels, out_channels, kernel_size=1, **kwargs)
+    layer = init_conv_weights(layer)
+
+    return layer
+
+
+def conv3x3(in_channels, out_channels, **kwargs):
+    '''Return a 3x3 convolutional layer with RetinaNet's weight and bias initialization'''
+    layer = nn.Conv2d(in_channels, out_channels, kernel_size=3, **kwargs)
+    layer = init_conv_weights(layer)
+
+    return layer
+
+class SubNet(nn.Module):
+    def __init__(self, mode, anchors=9, classes=80, depth=4,
+                 base_activation=F.relu,
+                 output_activation=F.sigmoid):
+        super(SubNet, self).__init__()
+        self.anchors = anchors
+        self.classes = classes
+        self.depth = depth
+        self.base_activation = base_activation
+        self.output_activation = output_activation
+
+        self.subnet_base = nn.ModuleList([conv3x3(256, 256, padding=1)
+                                          for _ in range(depth)])
+
+        if mode == 'boxes':
+            self.subnet_output = conv3x3(256, 4 * self.anchors, padding=1)
+        elif mode == 'classes':
+            # add an extra dim for confidence
+            self.subnet_output = conv3x3(256, (1 + self.classes) * self.anchors, padding=1)
+
+        self._output_layer_init(self.subnet_output.bias.data)
+
+    def _output_layer_init(self, tensor, pi=0.01):
+        fill_constant = 4.59#- np.log((1 - pi) / pi)
+
+        return tensor.fill_(fill_constant)
+
+    def forward(self, x):
+        for layer in self.subnet_base:
+            x = self.base_activation(layer(x))
+
+        x = self.subnet_output(x)
+        x = x.permute(0, 2, 3, 1).contiguous().view(x.size(0),
+                                                    x.size(2) * x.size(3) * self.anchors, -1)
+
+        return x
 
 class ConvNet(nn.Module):
     def __init__(self):
@@ -153,3 +229,12 @@ def test_resnet18():
     output.backward(grads)
     graph = wandb.Graph.transform(graph)
     assert graph["nodes"][0]['class_name'] == "Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)"
+
+def test_subnet():
+    subnet = SubNet("boxes")
+    graph = wandb.Graph.hook_torch(subnet)
+    output = subnet.forward(torch.ones((256, 256, 3, 3), requires_grad=True))
+    grads = torch.ones(256, 81, 4)
+    output.backward(grads)
+    graph = wandb.Graph.transform(graph)
+    assert graph["nodes"][0]['class_name'] == "Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))"
