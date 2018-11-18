@@ -200,7 +200,7 @@ def test_settings(mocker):
 def test_default_settings():
     assert internal.Api({'base_url': 'http://localhost'}, load_settings=False).settings() == {
         'base_url': 'http://localhost',
-        'entity': 'models',
+        'entity': None,
         'section': 'default',
         'run': 'latest',
         'ignore_globs': [],
