@@ -8,11 +8,10 @@ import yaml
 import mock
 import glob
 import socket
+import six
 from .api_mocks import *
 
 import wandb
-
-
 
 
 def test_log(wandb_init_run):
@@ -28,6 +27,13 @@ def test_log_step(wandb_init_run):
     wandb.log()
     assert len(wandb.run.history.rows) == 1
     assert wandb.run.history.rows[0]['_step'] == 5
+
+
+@pytest.mark.args(sagemaker=True)
+def test_sagemaker(wandb_init_run):
+    assert wandb.config.fuckin == "A"
+    assert wandb.run.id == "sage-maker"
+    assert wandb.run.group == "sage"
 
 
 @pytest.mark.args(error="io")

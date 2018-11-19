@@ -30,3 +30,4 @@ ipython
 matplotlib
 plotly
 soundfile==0.10.2
+psutil>=5.2.2

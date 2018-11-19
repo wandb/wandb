@@ -3,6 +3,7 @@ import pytest
 from wandb.history import History
 from .api_mocks import *
 import wandb
+import six
 
 
 @pytest.fixture
@@ -10,8 +11,9 @@ def history():
     with CliRunner().isolated_filesystem():
         yield History("wandb-history.jsonl")
 
+
 @pytest.fixture
-def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume_status, upload_logs, monkeypatch):
+def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume_status, upload_logs, monkeypatch, mocker):
     """Fixture that calls wandb.init(), yields the run that
     gets created, then cleans up afterward.
     """
@@ -69,6 +71,28 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                         def listen(self, secs):
                             return False, None
                     monkeypatch.setattr("wandb.wandb_socket.Server", Error)
+            if kwargs.get('sagemaker'):
+                del kwargs['sagemaker']
+                config_path = "/opt/ml/input/config/hyperparameters.json"
+                resource_path = "/opt/ml/input/config/resourceconfig.json"
+                os.environ['TRAINING_JOB_NAME'] = 'sage'
+                os.environ['CURRENT_HOST'] = 'maker'
+
+                orig_exist = os.path.exists
+
+                def exists(path):
+                    return True if path == config_path else orig_exist(path)
+                mocker.patch('wandb.os.path.exists', exists)
+
+                def magic(path, *args, **kwargs):
+                    if path == config_path:
+                        return six.StringIO('{"fuckin": "A"}')
+                    elif path == resource_path:
+                        return six.StringIO('{"hosts":["a", "b"]}')
+                    else:
+                        return six.StringIO()
+
+                mocker.patch('wandb.open', magic, create=True)
         else:
             kwargs = {}
         try:

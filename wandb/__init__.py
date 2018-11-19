@@ -27,6 +27,7 @@ import subprocess
 import sys
 import traceback
 import types
+import re
 
 from . import env
 from . import io_wrap
@@ -80,9 +81,16 @@ class Callbacks():
 callbacks = Callbacks()
 
 
-def hook_torch(models, criterion=None, log="gradients"):
+def hook_torch(*args, **kwargs):
+    termlog(
+        "DEPRECATED: wandb.hook_torch is deprecated, use `wandb.watch`")
+    return watch(*args, **kwargs)
+
+
+def watch(models, criterion=None, log="gradients"):
     """
-    Hooks into the torch model to collect gradients and the topology.
+    Hooks into the torch model to collect gradients and the topology.  Should be extended
+    to accept arbitrary ML modles.
 
     :param (torch.Module) models: The model to hook, can be a tuple
     :param (torch.F) criterion: An optional loss value being optimized
@@ -101,7 +109,7 @@ def hook_torch(models, criterion=None, log="gradients"):
         log_gradients = False
     elif log is None:
         log_gradients = False
-    
+
     if not isinstance(models, (tuple, list)):
         models = (models,)
     graphs = []
@@ -109,10 +117,10 @@ def hook_torch(models, criterion=None, log="gradients"):
     for i, model in enumerate(models):
         if i > 0:
             prefix = "graph_%i" % i
-        
+
         run.history.torch.add_log_hooks_to_pytorch_module(
             model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix)
-        
+
         graph = wandb_torch.TorchGraph.hook_torch(model, criterion)
         graphs.append(graph)
         # We access the raw summary because we don't want transform called until after the forward pass
@@ -461,6 +469,26 @@ def _get_python_type():
         return "python"
 
 
+def parse_sm_config():
+    sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
+    if os.path.exists(sagemaker_config):
+        conf = {}
+        # Hyper-parameter searchs quote configs...
+        for k, v in six.iteritems(json.load(open(sagemaker_config))):
+            cast = v.strip('"')
+            if os.getenv("WANDB_API_KEY") is None and k == "wandb_api_key":
+                os.environ["WANDB_API_KEY"] = cast
+            else:
+                if re.match(r'^[-\d]+$', cast):
+                    cast = int(cast)
+                elif re.match(r'^[-.\d]+$', cast):
+                    cast = float(cast)
+                conf[k] = cast
+        return conf
+    else:
+        return False
+
+
 def init(job_type=None, dir=None, config=None, project=None, entity=None, group=None, allow_val_change=False, reinit=None):
     """Initialize W&B
 
@@ -487,6 +515,19 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
         reset_env(exclude=["WANDB_DIR", "WANDB_ENTITY",
                            "WANDB_PROJECT", "WANDB_API_KEY"])
         run = None
+
+    sagemaker_config = parse_sm_config()
+    if sagemaker_config:
+        # Set run_id and potentially grouping if we're in SageMaker
+        run_id = os.getenv('TRAINING_JOB_NAME')
+        if run_id:
+            os.environ['WANDB_RUN_ID'] = '-'.join([
+                run_id,
+                os.getenv('CURRENT_HOST', socket.gethostname())])
+        conf = json.load(
+            open("/opt/ml/input/config/resourceconfig.json"))
+        if group == None and len(conf["hosts"]) > 1:
+            group = os.getenv('TRAINING_JOB_NAME')
 
     if project:
         os.environ['WANDB_PROJECT'] = project
@@ -566,6 +607,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
 
     # set the run directory in the config so it actually gets persisted
     run.config.set_run_dir(run.dir)
+
+    if sagemaker_config:
+        run.config.update(sagemaker_config)
+        allow_val_change = True
     if config:
         run.config.update(config, allow_val_change=allow_val_change)
 
