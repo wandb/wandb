@@ -573,7 +573,7 @@ class Api(object):
         project = run.get('project')
         if project:
             self.set_setting('project', project['name'])
-            entity = run.get('entity')
+            entity = project.get('entity')
             if entity:
                 self.set_setting('entity', entity['name'])
 

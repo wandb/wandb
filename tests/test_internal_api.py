@@ -178,7 +178,18 @@ def test_upload_failure_resumable(request_mocker, upload_url):
     assert res.status_code == 200
 
 
+def test_upsert_run_defaults(request_mocker, mocker, upsert_run):
+    update_mock = upsert_run(request_mocker)
+    res = api.upsert_run(project="new-test")
+    print('RES: %s', res)
+    # We should have set the project and entity in api settings
+    assert api.settings('project') == 'new-project'
+    assert api.settings('entity') == 'bagsy'
+
+
 def test_settings(mocker):
+    os.environ.pop('WANDB_ENTITY', None)
+    os.environ.pop('WANDB_PROJECT', None)
     api._settings = None
     parser = mocker.patch.object(api, "settings_parser")
     parser.sections.return_value = ["default"]
@@ -198,6 +209,8 @@ def test_settings(mocker):
 
 
 def test_default_settings():
+    os.environ.pop('WANDB_ENTITY', None)
+    os.environ.pop('WANDB_PROJECT', None)
     assert internal.Api({'base_url': 'http://localhost'}, load_settings=False).settings() == {
         'base_url': 'http://localhost',
         'entity': None,
