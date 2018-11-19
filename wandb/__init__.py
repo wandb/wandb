@@ -514,9 +514,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
     sagemaker_config = parse_sm_config()
     if sagemaker_config:
         # Set run_id and potentially grouping if we're in SageMaker
-        os.environ['WANDB_RUN_ID'] = '-'.join([
-            os.getenv('TRAINING_JOB_NAME', 'sagemaker'),
-            os.getenv('CURRENT_HOST', 'algo1')])
+        run_id = os.getenv('TRAINING_JOB_NAME')
+        if run_id:
+            os.environ['WANDB_RUN_ID'] = '-'.join([
+                run_id,
+                os.getenv('CURRENT_HOST', socket.gethostname())])
         conf = json.load(
             open("/opt/ml/input/config/resourceconfig.json"))
         if group == None and len(conf["hosts"]) > 1:
