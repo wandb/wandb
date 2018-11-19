@@ -403,6 +403,9 @@ class RunManager(object):
         self._get_handler(os.path.join(
             self._run.dir, DEBUG_FNAME), DEBUG_FNAME).on_created()
 
+        # start this immediately to start watching for file changes now.
+        self._observer.start()
+
     """ FILE SYNCING / UPLOADING STUFF """
 
     # TODO: limit / throttle the number of adds / pushes
@@ -653,7 +656,6 @@ class RunManager(object):
             wandb.termlog("Run `wandb off` to turn off syncing.")
             wandb.termlog("Local directory: %s" % os.path.relpath(self._run.dir))
         if self._cloud:
-            self._observer.start()
             self._api.save_patches(self._watch_dir)
             self._api.get_file_stream_api().set_file_policy(
                 OUTPUT_FNAME, CRDedupeFilePolicy())
