@@ -345,14 +345,13 @@ class RunManager(object):
         self._run = run
         self._cloud = cloud
         self._port = port
+        self._output = output
 
         self._project = project if project else api.settings("project")
         self._tags = tags
         self._watch_dir = self._run.dir
 
         self._config = run.config
-        self.url = self._run.get_url(api)
-
         # We lock this when the backend is down so Watchdog will keep track of all
         # the file events that happen. Then, when the backend comes back up, we unlock
         # it so all the outstanding events will get handled properly. Watchdog's queue
@@ -403,19 +402,6 @@ class RunManager(object):
         # Manually initialize the debug handler
         self._get_handler(os.path.join(
             self._run.dir, DEBUG_FNAME), DEBUG_FNAME).on_created()
-
-        if self._cloud:
-            self._observer.start()
-
-            self._api.save_patches(self._watch_dir)
-
-            if output:
-                wandb.termlog("Syncing %s" % self.url)
-                wandb.termlog("Run `wandb off` to turn off syncing.")
-                wandb.termlog("Local directory: %s" % os.path.relpath(run.dir))
-
-            self._api.get_file_stream_api().set_file_policy(
-                OUTPUT_FNAME, CRDedupeFilePolicy())
 
     """ FILE SYNCING / UPLOADING STUFF """
 
@@ -636,7 +622,6 @@ class RunManager(object):
         io_wrap.init_sigwinch_handler()
         self._system_stats.start()
         self._meta.start()
-        self._api.get_file_stream_api().start()
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
@@ -652,13 +637,29 @@ class RunManager(object):
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
 
-            if not self._upsert_run(False, storage_id, env):
+            if not self._create_run(False, storage_id, env):
                 self._upsert_run_thread = threading.Thread(
-                    target=self._upsert_run, args=(True, storage_id, env))
+                    target=self._create_run, args=(True, storage_id, env))
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
 
         self._check_update_available(__version__)
+
+    def _create_run(self, retry, storage_id, env):
+        result = self._upsert_run(retry, storage_id, env)
+        if self._output:
+            self.url = self._run.get_url(self._api)
+            wandb.termlog("Syncing %s" % self.url)
+            wandb.termlog("Run `wandb off` to turn off syncing.")
+            wandb.termlog("Local directory: %s" % os.path.relpath(self._run.dir))
+        if self._cloud:
+            self._observer.start()
+            self._api.save_patches(self._watch_dir)
+            self._api.get_file_stream_api().set_file_policy(
+                OUTPUT_FNAME, CRDedupeFilePolicy())
+            self._api.get_file_stream_api().start()
+            self._project = self._api.settings("project")
+        return result
 
     def shutdown(self, exitcode=0):
         """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""

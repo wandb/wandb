@@ -116,3 +116,14 @@ def get_dir(default=None, env=None):
 
 def get_config_paths():
     pass
+
+
+def set_entity(value, env=None):
+    if env is None:
+        env = os.environ
+    env[ENTITY] = value
+
+def set_project(value, env=None):
+    if env is None:
+        env = os.environ
+    env[PROJECT] = value

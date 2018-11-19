@@ -421,6 +421,7 @@ def test_run_update(runner, request_mocker, upsert_run, git_repo, upload_logs):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
 
+
 def test_enable_on(runner, git_repo):
     with open("wandb/settings", "w") as f:
         f.write("[default]\nproject=rad")

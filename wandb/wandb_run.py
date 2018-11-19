@@ -133,8 +133,6 @@ class Run(object):
 
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
         api = api or InternalApi()
-        if api.settings("project") is None:
-            raise ValueError("Project must be configured.")
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
                                        project=api.settings("project"), entity=api.settings("entity"),
                                        group=self.group,

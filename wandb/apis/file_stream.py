@@ -87,13 +87,8 @@ class FileStreamApi(object):
     MAX_ITEMS_PER_PUSH = 10000
 
     def __init__(self, api, run_id):
-        settings = api.settings()
-        self._endpoint = "{base}/{entity}/{project}/{run}/file_stream".format(
-            base=settings['base_url'],
-            entity=settings['entity'],
-            project=settings['project'],
-            run=run_id)
         self._api = api
+        self._run_id = run_id
         self._client = requests.Session()
         self._client.auth = ('api', api.api_key)
         self._client.timeout = self.HTTP_TIMEOUT
@@ -107,8 +102,18 @@ class FileStreamApi(object):
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
         self._thread.daemon = True
+        self._init_endpoint()
+
+    def _init_endpoint(self):
+        settings = self._api.settings()
+        self._endpoint = "{base}/{entity}/{project}/{run}/file_stream".format(
+            base=settings['base_url'],
+            entity=settings['entity'],
+            project=settings['project'],
+            run=self._run_id)
 
     def start(self):
+        self._init_endpoint()
         self._thread.start()
 
     def set_file_policy(self, filename, file_policy):

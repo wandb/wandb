@@ -402,12 +402,6 @@ def log(row=None, commit=True, *args, **kargs):
 def ensure_configured():
     # We re-initialize here for tests
     api = InternalApi()
-    # The WANDB_DEBUG check ensures tests still work.
-    if not env.is_debug() and not api.settings('project'):
-        termlog('wandb.init() called but system not configured.\n'
-                'Run `wandb init` or set environment variables to get started')
-        raise LaunchError(
-            "W&B not configured, run `wandb init` or set environment variables.")
 
 
 def uninit():
@@ -591,11 +585,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
 
     if in_jupyter:
         _init_jupyter(run)
-    elif run.mode == 'clirun' or run.mode == 'run':
-        ensure_configured()
-
-        if run.mode == 'run':
-            _init_headless(run)
+    elif run.mode == 'clirun':
+        pass
+    elif run.mode == 'run':
+        _init_headless(run)
     elif run.mode == 'dryrun':
         termlog(
             'dryrun mode, run directory: %s' % run.dir)

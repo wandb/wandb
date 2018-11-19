@@ -54,13 +54,21 @@ def _run_resume_status(name='test', empty=False, files=None):
     }
 
 
-def _bucket(name='test'):
+def _bucket(name='test', entity_name='bagsy', project_name='new-project'):
     return {
         'name': name,
         'description': "Description of the bucket",
         'framework': 'keras',
         'id': 'a1b2c3d4e5',
-        'files': _files()
+        'files': _files(),
+        'project': {
+            'id': '14',
+            'name': project_name,
+            'entity': {
+                'id': '9',
+                'name': entity_name
+            }
+        }
     }
 
 
@@ -140,8 +148,9 @@ def _mutate(key, json):
 
 
 @pytest.fixture
-def upsert_run(request):
-    return _mutate('upsertBucket', {'bucket': _bucket("default")})
+def upsert_run(request, entity_name='bagsy', project_name='new-project'):
+    return _mutate('upsertBucket',
+                   {'bucket': _bucket("default", entity_name=entity_name, project_name=project_name)})
 
 
 @pytest.fixture

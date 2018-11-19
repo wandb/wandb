@@ -53,7 +53,6 @@ class Api(object):
     def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1)):
         self.default_settings = {
             'section': "default",
-            'entity': "models",
             'run': "latest",
             'git_remote': "origin",
             'git_tag': False,
@@ -238,6 +237,14 @@ class Api(object):
             )
 
         return self._settings if key is None else self._settings[key]
+
+    def set_setting(self, key, value):
+        self.settings()  # make sure we do initial load
+        self._settings[key] = value
+        if key == 'entity':
+            env.set_entity(value)
+        elif key == 'project':
+            env.set_project(value)
 
     def parse_slug(self, slug, project=None, run=None):
         if slug and "/" in slug:
@@ -530,6 +537,14 @@ class Api(object):
                     name
                     description
                     config
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
                 }
             }
         }
@@ -553,6 +568,14 @@ class Api(object):
 
         response = self.gql(
             mutation, variable_values=variable_values, **kwargs)
+        
+        run = response['upsertBucket']['bucket']
+        project = run.get('project')
+        if project:
+            self.set_setting('project', project['name'])
+            entity = project.get('entity')
+            if entity:
+                self.set_setting('entity', entity['name'])
 
         return response['upsertBucket']['bucket']
 
