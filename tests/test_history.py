@@ -232,21 +232,4 @@ def test_log_blows_up(history):
     except:
         raised = True
     assert raised
-
-
-def test_torch(history):
-    with history.step():
-        history.torch.log_stats(
-            torch.randn(
-                (2, 2), requires_grad=True), "layer1")
-    h = disk_history()
-    assert "parameters/layer1" in h[0].keys()
-
-
-def test_torch_no_compute(history):
-    with history.step(False):
-        history.torch.log_stats(
-            torch.autograd.Variable(torch.randn(
-                2, 2).type(torch.FloatTensor), requires_grad=True), "layer1")
-    h = disk_history()
-    assert len(h) == 0
+    

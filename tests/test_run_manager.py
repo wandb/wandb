@@ -4,6 +4,8 @@ import io
 import wandb.run_manager
 from wandb.apis import internal
 from wandb.wandb_run import Run
+from click.testing import CliRunner
+
 
 def test_check_update_available_equal(request_mocker, capsys):
     "Test update availability in different cases."
@@ -19,9 +21,11 @@ def test_check_update_available_equal(request_mocker, capsys):
         ('0.4.5.alpha', '0.4.5', True),
         ('0.4.5.alpha', '0.4.6', True)
     ]
+
     for current, latest, is_expected in test_cases:
-        is_avail = _is_update_avail(request_mocker, capsys, current, latest)
-        assert is_avail == is_expected, "expected %s compared to %s to yield update availability of %s" % (current, latest, is_expected)
+        with CliRunner().isolated_filesystem():
+            is_avail = _is_update_avail(request_mocker, capsys, current, latest)
+            assert is_avail == is_expected, "expected %s compared to %s to yield update availability of %s" % (current, latest, is_expected)
 
 def _is_update_avail(request_mocker, capsys, current, latest):
     "Set up the run manager and detect if the upgrade message is printed."
