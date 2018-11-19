@@ -483,6 +483,11 @@ def parse_sm_config():
         return False
 
 
+def join():
+    # no-op until it's overridden in _init_headless
+    pass
+
+
 def init(job_type=None, dir=None, config=None, project=None, entity=None, group=None, allow_val_change=False, reinit=None):
     """Initialize W&B
 
@@ -588,7 +593,14 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
     elif run.mode == 'clirun':
         pass
     elif run.mode == 'run':
-        _init_headless(run)
+
+        api = InternalApi()
+        # let init_jupyter handle this itself
+        if not in_jupyter and not api.api_key:
+            termlog("Not authenticated with Weights & Biases (https://wandb.com). To automatically "
+                    "save results, run \"wandb signup\" or \"wandb login\"")
+        else:
+            _init_headless(run)
     elif run.mode == 'dryrun':
         termlog(
             'dryrun mode, run directory: %s' % run.dir)
