@@ -570,10 +570,12 @@ class Api(object):
             mutation, variable_values=variable_values, **kwargs)
         
         run = response['upsertBucket']['bucket']
-        project = run['project']
-        self.set_setting('project', project['name'])
-        entity = project['entity']
-        self.set_setting('entity', entity['name'])
+        project = run.get('project')
+        if project:
+            self.set_setting('project', project['name'])
+            entity = run.get('entity')
+            if entity:
+                self.set_setting('entity', entity['name'])
 
         return response['upsertBucket']['bucket']
 
