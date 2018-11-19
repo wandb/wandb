@@ -158,8 +158,8 @@ class TorchHistory(object):
 
 class TorchGraph(wandb.data_types.Graph):
        
-    def __init__(cls):
-        super().__init__("torch") 
+    def __init__(self):
+        super(TorchGraph, self).__init__("torch") 
 
     @classmethod
     def hook_torch(cls, model, criterion=None):
