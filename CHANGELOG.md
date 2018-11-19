@@ -1,3 +1,18 @@
+## 0.6.28 (November 19, 2018)
+
+#### :nail_care: Enhancement
+
+-   Initial support for AWS SageMaker
+-   `hook_torch` renamed to `watch` with a deprecation warning
+-   Additional GPU memory_allocated metric added
+-   Keras Graph stores edges
+
+#### :bug: Bug Fix
+
+-   PyTorch graph parsing is more robust
+-   Fixed PyTorch 0.3 support
+-   File download API supports WANDB_API_KEY authentication
+
 ## 0.6.27 (November 13, 2018)
 
 #### :nail_care: Enhancement
