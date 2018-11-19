@@ -480,7 +480,8 @@ class File(object):
 
     @normalize_exceptions
     def download(self, replace=False):
-        response = requests.get(self._attrs["url"], stream=True)
+        response = requests.get(self._attrs["url"], auth=(
+            "api", Api().api_key), stream=True)
         response.raise_for_status()
         path = self._attrs["name"]
         if os.path.exists(path) and not replace:
