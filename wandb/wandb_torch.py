@@ -56,12 +56,10 @@ class TorchHistory(object):
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
         """
-        print("Adding log hooks")
         if name is not None:
             prefix = prefix + name
 
         def parameter_log_hook(module, input_, output):
-            print("Logging")
             for name, parameter in module.named_parameters():
                 # for pytorch 0.3 Variables
                 if isinstance(parameter, torch.autograd.Variable):
@@ -71,7 +69,6 @@ class TorchHistory(object):
                 self.log_tensor_stats(data, 'parameters/' + prefix + name)
 
         if log_parameters:
-            print("Registering hooks")
             module.register_forward_hook(parameter_log_hook)
 
         # This won't handle the case if the network changes
@@ -326,7 +323,6 @@ class TorchGraph(wandb.data_types.Graph):
                 if pid in reachable_params:
                     depth = node_depths[id(node)]
                     if best_node is None or (len(reachable_params), depth) <= (len(best_reachable_params), best_depth):
-                        #print(param_node.name, node.name)
                         best_node = node
                         best_depth = depth
                         best_reachable_params = reachable_params

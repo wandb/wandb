@@ -185,7 +185,7 @@ def test_all_logging(wandb_init_run):
         assert(len(wandb_init_run.history.row) == 16)
         print(len(wandb_init_run.history.row))
         assert(wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
-        assert(wandb_init_run.history.row['gradients/fc2.bias'].histogram[0] == 1)
+        assert(wandb_init_run.history.row['gradients/fc2.bias'].histogram[0] > 0)
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
 
