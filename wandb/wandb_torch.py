@@ -74,8 +74,9 @@ class TorchHistory(object):
         # This won't handle the case if the network changes
         if log_gradients:
             for name, parameter in module.named_parameters():
-                self._hook_variable_gradient_stats(
-                    parameter, 'gradients/' + prefix + name)
+                if parameter.requires_grad:
+                    self._hook_variable_gradient_stats(
+                        parameter, 'gradients/' + prefix + name)
 
 
     def log_module_stats(self, module, name):

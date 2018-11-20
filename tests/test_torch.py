@@ -183,7 +183,6 @@ def test_all_logging(wandb_init_run):
         grads = torch.ones(64, 10)
         output.backward(grads)
         assert(len(wandb_init_run.history.row) == 16)
-        print(len(wandb_init_run.history.row))
         assert(wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
         assert(wandb_init_run.history.row['gradients/fc2.bias'].histogram[0] > 0)
         wandb.log({"a": 2})
@@ -219,7 +218,6 @@ def test_sequence_net():
         (97, 999)))
     output.backward(torch.zeros((97, 999)))
     graph = wandb.Graph.transform(graph)
-    pprint(graph)
     assert len(graph["nodes"]) == 3
     assert len(graph["nodes"][0]['parameters']) == 4
     assert graph["nodes"][0]['class_name'] == "LSTMCell(1, 51)"
@@ -282,5 +280,20 @@ def test_subnet():
     output.backward(grads)
     graph = wandb.Graph.transform(graph)
     assert graph["nodes"][0]['class_name'] == "Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))"
+
+def test_false_requires_grad(wandb_init_run):
+    """When we set requires_grad to False, wandb must not
+    add a hook to the variable"""
+
+    net = ConvNet()
+    net.fc1.weight.requires_grad = False
+    wandb.watch(net)
+    output = net(dummy_torch_tensor((64, 1, 28, 28)))
+    grads = torch.ones(64, 10)
+    output.backward(grads)
+
+    # 7 gradients are logged because fc1.weight is fixed
+    assert(len(wandb_init_run.history.row) == 7)
+    
 
 
