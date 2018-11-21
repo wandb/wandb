@@ -27,7 +27,7 @@ class Retry(object):
     MAX_SLEEP_SECONDS = 5 * 60
 
     def __init__(self, call_fn, retry_timedelta=None, num_retries=None,
-                 retryable_exceptions=None, error_prefix="network error"):
+                 retryable_exceptions=None, error_prefix="Network error"):
         self._call_fn = call_fn
         self._error_prefix = error_prefix
         self._retry_timedelta = retry_timedelta
