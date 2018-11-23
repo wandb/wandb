@@ -767,6 +767,11 @@ class RunManager(object):
         self._meta.shutdown()
 
         if self._cloud:
+            # TODO(adrian): this sleep is here to help Watchdog notice very recent
+            # file events. We can remove it when we implement a final scan over the
+            # run directory.
+            time.sleep(1)
+
             self._stop_file_observer()
 
             # Watchdog doesn't always notice the events file being created in short
