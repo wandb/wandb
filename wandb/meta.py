@@ -83,5 +83,5 @@ class Meta(object):
             if self._shutdown:
                 break
             else:
-                time.sleep(2)
-                seconds += 2
+                time.sleep(1)
+                seconds += 1

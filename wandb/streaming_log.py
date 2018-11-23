@@ -99,7 +99,6 @@ class TextStreamPusher(object):
             message: a string to push for this file.
             cur_time: used for unit testing. override line timestamp.
         """
-        #print('ts write', repr(message))
         if cur_time is None:
             cur_time = time.time()
         lines = self._line_buffer.add_string(message)

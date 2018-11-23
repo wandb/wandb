@@ -326,7 +326,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         stderr_redirector.restore()
 
     termlog()
-    termlog("Waiting for wandb process to finish, PID {}".format(wandb_process.pid))
+    termlog("Waiting for W&B process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
     try:
         while wandb_process.poll() is None:
@@ -335,7 +335,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         pass
 
     if wandb_process.poll() is None:
-        termlog('Killing wandb process, PID {}'.format(wandb_process.pid))
+        termlog('Killing W&B process, PID {}'.format(wandb_process.pid))
         wandb_process.kill()
 
 
@@ -603,7 +603,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
             _init_headless(run)
     elif run.mode == 'dryrun':
         termlog(
-            'dryrun mode, run directory: %s' % run.dir)
+            'Dry run mode, run directory: %s' % run.dir)
         _init_headless(run, False)
     else:
         termerror(

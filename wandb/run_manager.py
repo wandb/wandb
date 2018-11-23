@@ -352,6 +352,8 @@ class RunManager(object):
 
         self._config = run.config
 
+        self._init_file_observer()
+
         self._socket = wandb_socket.Client(self._port)
         # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
         self._system_stats = stats.SystemStats(run, api)
@@ -360,11 +362,20 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
 
+        logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
+
+    """ FILE SYNCING / UPLOADING STUFF """
+
+    def _init_file_observer(self):
         self._file_upload_stats = stats.Stats()
         self._file_pusher = file_pusher.FilePusher(self._push_function)
         # FileEventHandlers (any of the classes at the top) indexed by "save_name," which is the file's path relative to the run directory
         self._file_event_handlers = {}
 
+        # TODO(adrian): This thing just isn't reliable. It doesn't always notice files
+        # being created. We should do something like walk the run directory ourselves
+        # at the end of the run to ensure we're at least aware of every file that
+        # is in there
         self._file_observer = Observer()
         self._file_observer.schedule(self._per_file_event_handler(), self._watch_dir, recursive=True)
 
@@ -373,7 +384,7 @@ class RunManager(object):
             self._run.dir, DEBUG_FNAME), DEBUG_FNAME).on_created()
 
         # We lock this when the back end is down so Watchdog will keep track of all
-        # the file events that happen. Then, when the backend comes back up, we unlock
+        # the file events that happen. Then, when the back end comes back up, we unlock
         # it so all the outstanding events will get handled properly. Watchdog's queue
         # only keeps at most one event per file.
         self._file_observer_lock = threading.Lock()
@@ -381,12 +392,9 @@ class RunManager(object):
         # (ie. after the Run is successfully created)
         self._block_file_observer()
 
-        # Start watching for file changes right away so we can be sure we don't miss anything
+        # Start watching for file changes right away so we can be sure we don't miss anything.
+        # We don't have to worry about handlers actually being called because of the lock.
         self._file_observer.start()
-
-        logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
-
-    """ FILE SYNCING / UPLOADING STUFF """
 
     def _per_file_event_handler(self):
         """Create a Watchdog file event handler that does different things for every file
@@ -411,7 +419,7 @@ class RunManager(object):
         return file_event_handler
 
     def _push_function(self, save_name, path):
-        # TODO(adrian): move self._file_uplaod_stats inside FilePusher so we can get rid of this callback?
+        # TODO(adrian): move self._file_upload_stats inside FilePusher so we can get rid of this callback?
         try:
             with open(path, 'rb') as f:
                 self._api.push(self._project, {save_name: f}, run=self._run.id,
@@ -434,6 +442,8 @@ class RunManager(object):
         try:
             # avoid hanging if we crashed before the observer was started
             if self._file_observer.is_alive():
+                self._file_observer.event_queue.join()
+                # TODO(adrian): do we really need to stop this? and join?
                 self._file_observer.stop()
                 self._file_observer.join()
         # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
@@ -443,11 +453,20 @@ class RunManager(object):
         except SystemError:
             pass
 
+    def _end_file_syncing(self, exitcode):
+        """Stops file syncing/streaming but doesn't actually wait for everything to
+        finish. We print progress info later.
+        """
         # TODO: there was a case where _file_event_handlers was getting modified in the loop.
         for handler in list(self._file_event_handlers.values()):
             handler.finish()
 
         self._file_pusher.finish()
+        self._api.get_file_stream_api().finish(exitcode)
+        # In Jupyter notebooks, wandb.init can be called multiple times in the same
+        # process, creating new runs each time. This ensures we get a new file stream
+        # thread
+        self._api._file_stream_api = None
 
     # TODO: limit / throttle the number of adds / pushes
     def _on_file_created(self, event):
@@ -588,7 +607,7 @@ class RunManager(object):
 
         return stdout_streams, stderr_streams
 
-    def _close_stdout_stderr_streams(self, exitcode):
+    def _close_stdout_stderr_streams(self):
         self._output_log.f.close()
         self._output_log = None
 
@@ -608,11 +627,6 @@ class RunManager(object):
             # not set in dry run mode
             self._stdout_stream.close()
             self._stderr_stream.close()
-            # hack to ensure (or block until) the file stream api has actually been started
-            self._ensure_file_observer_is_unblocked()
-            self._api.get_file_stream_api().finish(exitcode)
-            # Ensures we get a new file stream thread
-            self._api._file_stream_api = None
 
     def _setup_resume(self, resume_status):
         # write the tail of the history file
@@ -658,11 +672,14 @@ class RunManager(object):
 
         We either create it now or, if the API call fails for some reason (eg.
         the network is down), we do it from a thread that we start. We hold
-        off file syncing and steaming until it succeeds.
+        off file syncing and streaming until it succeeds.
         """
         io_wrap.init_sigwinch_handler()
 
         self._check_update_available(__version__)
+
+        if self._output:
+            wandb.termlog("Local directory: %s" % os.path.relpath(self._run.dir))
 
         self._system_stats.start()
         self._meta.start()
@@ -726,13 +743,12 @@ class RunManager(object):
 
                 raise LaunchError(launch_error_s)
 
-        self._run.set_environment(environment=env)
-
         if self._output:
             self.url = self._run.get_url(self._api)
-            wandb.termlog("Syncing %s" % self.url)
+            wandb.termlog("Syncing to %s" % self.url)
             wandb.termlog("Run `wandb off` to turn off syncing.")
-            wandb.termlog("Local directory: %s" % os.path.relpath(self._run.dir))
+
+        self._run.set_environment(environment=env)
 
         self._api.save_patches(self._watch_dir)
         self._api.get_file_stream_api().set_file_policy(
@@ -749,10 +765,19 @@ class RunManager(object):
         """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""
         self._system_stats.shutdown()
         self._meta.shutdown()
-        self._stop_file_observer()
-        self._api.get_file_stream_api().finish(exitcode)
-        # Ensures we get a new file stream thread
-        self._api._file_stream_api = None
+
+        if self._cloud:
+            self._stop_file_observer()
+
+            # Watchdog doesn't always notice the events file being created in short
+            # scripts, so we do a fake creation event if we don't already know about it.
+            # TODO(adrian): should probably just explore the whole run directory here
+            # and make sure we're aware of all the files in it.
+            if self._run.has_events and wandb_run.EVENTS_FNAME not in self._file_event_handlers:
+                self._get_file_event_handler(wandb_run.EVENTS_FNAME, self._run.events.fname).on_created()
+
+            self._end_file_syncing(exitcode)
+
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -848,7 +873,7 @@ class RunManager(object):
             "Wandb version %s is available!  To upgrade, please run:\n $ pip install wandb --upgrade" % latest_version)
 
     def _sync_etc(self, headless=False):
-        # Ignore SIGQUIT (ctrl-\). The child process will # handle it, and we'll
+        # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
         # exit when the child process does.
         #
         # We disable these signals after running the process so the child doesn't
@@ -924,11 +949,10 @@ class RunManager(object):
                 'Killing program failed; syncing files anyway. Press ctrl-c to abort syncing.')
         else:
             if exitcode == 0:
-                wandb.termlog('Program ended.')
+                wandb.termlog('Program ended. Waiting for final file modifications.')
             else:
                 wandb.termlog(
                     'Program failed with code %d. Press ctrl-c to abort syncing.' % exitcode)
-        #termlog('job (%s) Process exited with code: %s' % (program, exitcode))
 
         self._meta.data["exitcode"] = exitcode
         if exitcode == 0:
@@ -938,18 +962,14 @@ class RunManager(object):
         else:
             self._meta.data["state"] = "failed"
 
-        self._meta.shutdown()
-        self._system_stats.shutdown()
-
-        if exitcode != 0 and time.time() - START_TIME < 30:
-            wandb.termlog("Process crashed early, not syncing files")
-            sys.exit(exitcode)
-
-        # TODO: these can be slow to complete
-        self._close_stdout_stderr_streams(exitcode)
+        self._close_stdout_stderr_streams()  # TODO: these can be slow to complete
+        self.shutdown(exitcode)
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
+            sys.exit(exitcode)
+        elif exitcode != 0 and time.time() - START_TIME < 30:
+            wandb.termlog("Process crashed early, not syncing files")
             sys.exit(exitcode)
 
         # Show run summary/history
@@ -985,34 +1005,6 @@ class RunManager(object):
         if self._run.has_examples:
             wandb.termlog('Saved %s examples' % self._run.examples.count())
 
-        wandb.termlog('Waiting for final file modifications.')
-        # This is a a heuristic delay to catch files that were written just before
-        # the end of the script.
-        # TODO: ensure we catch all saved files.
-        # TODO(adrian): do we need this? This might have made more sense when this code
-        # ran in the same process as the user stuff and so we couldn't count on writes
-        # being committed by the time we got here
-        # Just tested removing this and one of the W&B files didn't get uploaded. No idea whether it matters.
-        """
-        wandb: Waiting for wandb process to finish, PID 33415
-        wandb: Program ended.
-        wandb: Waiting for final file modifications.
-        wandb: Syncing 4 W&B file(s) and 0 media file(s)
-        wandb:
-        wandb: Verifying uploaded files... verified!
-        wandb: Synced https://app.wandb.ai/adrianbg/nnfs-mnist/runs/f9fso4gs
-
-        wandb: Waiting for wandb process to finish, PID 33733
-        wandb: Program ended.
-        wandb: Syncing 3 W&B file(s) and 0 media file(s)
-        wandb:
-        wandb: Verifying uploaded files... verified!
-        wandb: Synced https://app.wandb.ai/adrianbg/nnfs-mnist/runs/d454wfv4
-        """
-
-        time.sleep(1)
-        self._stop_file_observer()
-
         wandb_files = set([save_name for save_name in self._file_upload_stats.files() if save_name.startswith('wandb') or save_name == config.FNAME])
         media_files = set([save_name for save_name in self._file_upload_stats.files() if save_name.startswith('media')])
         other_files = set(self._file_upload_stats.files()) - wandb_files - media_files
@@ -1044,46 +1036,53 @@ class RunManager(object):
         # clear progress line.
         wandb.termlog(' ' * 79)
 
-        # Check md5s of uploaded files against what's on the file system.
-        # TODO: We're currently using the list of uploaded files as our source
-        #     of truth, but really we should use the files on the filesystem
-        #     (ie if we missed a file this wouldn't catch it).
-        # This polls the server, because there a delay between when the file
-        # is done uploading, and when the datastore gets updated with new
-        # metadata via pubsub.
-        wandb.termlog('Verifying uploaded files... ', newline=False)
-        error = False
-        mismatched = None
-        for delay_base in range(4):
-            mismatched = []
-            download_urls = self._api.download_urls(
-                self._project, run=self._run.id)
-            for fname, info in download_urls.items():
-                if fname == 'wandb-history.h5' or OUTPUT_FNAME:
-                    continue
-                local_path = os.path.join(self._watch_dir, fname)
-                local_md5 = util.md5_file(local_path)
-                if local_md5 != info['md5']:
-                    mismatched.append((local_path, local_md5, info['md5']))
-            if not mismatched:
-                break
-            wandb.termlog('  Retrying after %ss' % (delay_base**2))
-            time.sleep(delay_base ** 2)
+        # TODO(adrian): this code has been broken since september 2017
+        # commit ID: abee525b because of these lines:
+        # if fname == 'wandb-history.h5' or 'training.log':
+        #     continue
+        if False:
+            # Check md5s of uploaded files against what's on the file system.
+            # TODO: We're currently using the list of uploaded files as our source
+            #     of truth, but really we should use the files on the filesystem
+            #     (ie if we missed a file this wouldn't catch it).
+            # This polls the server, because there a delay between when the file
+            # is done uploading, and when the datastore gets updated with new
+            # metadata via pubsub.
+            wandb.termlog('Verifying uploaded files... ', newline=False)
+            error = False
+            mismatched = None
+            for delay_base in range(4):
+                mismatched = []
+                download_urls = self._api.download_urls(
+                    self._project, run=self._run.id)
+                for fname, info in download_urls.items():
+                    if fname == 'wandb-history.h5' or fname == OUTPUT_FNAME:
+                        continue
+                    local_path = os.path.join(self._watch_dir, fname)
+                    local_md5 = util.md5_file(local_path)
+                    if local_md5 != info['md5']:
+                        mismatched.append((local_path, local_md5, info['md5']))
+                if not mismatched:
+                    break
+                wandb.termlog('  Retrying after %ss' % (delay_base**2))
+                time.sleep(delay_base ** 2)
 
-        if mismatched:
-            print('')
-            error = True
-            for local_path, local_md5, remote_md5 in mismatched:
-                wandb.termerror(
-                    '%s (%s) did not match uploaded file (%s) md5' % (
-                        local_path, local_md5, remote_md5))
-        else:
-            print('verified!')
+            if mismatched:
+                print('')
+                error = True
+                for local_path, local_md5, remote_md5 in mismatched:
+                    wandb.termerror(
+                        '%s (%s) did not match uploaded file (%s) md5' % (
+                            local_path, local_md5, remote_md5))
+            else:
+                print('verified!')
 
-        if error:
-            message = 'Sync failed %s' % self.url
-            wandb.termerror(message)
-            util.sentry_message(message)
-        else:
-            wandb.termlog('Synced %s' % self.url)
+            if error:
+                message = 'Sync failed %s' % self.url
+                wandb.termerror(message)
+                util.sentry_message(message)
+            else:
+                wandb.termlog('Synced %s' % self.url)
+
+        wandb.termlog('Synced %s' % self.url)
         sys.exit(exitcode)
