@@ -75,13 +75,14 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 del kwargs['sagemaker']
                 config_path = "/opt/ml/input/config/hyperparameters.json"
                 resource_path = "/opt/ml/input/config/resourceconfig.json"
+                secrets_path = "secrets.env"
                 os.environ['TRAINING_JOB_NAME'] = 'sage'
                 os.environ['CURRENT_HOST'] = 'maker'
 
                 orig_exist = os.path.exists
 
                 def exists(path):
-                    return True if path == config_path else orig_exist(path)
+                    return True if path in (config_path, secrets_path) else orig_exist(path)
                 mocker.patch('wandb.os.path.exists', exists)
 
                 def magic(path, *args, **kwargs):
@@ -89,6 +90,8 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                         return six.StringIO('{"fuckin": "A"}')
                     elif path == resource_path:
                         return six.StringIO('{"hosts":["a", "b"]}')
+                    elif path == secrets_path:
+                        return six.StringIO('WANDB_TEST_SECRET=TRUE')
                     else:
                         return six.StringIO()
 

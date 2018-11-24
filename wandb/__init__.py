@@ -483,6 +483,24 @@ def parse_sm_config():
         return False
 
 
+def sagemaker_auth(overrides={}, path="."):
+    """ Write a secrets.env file with the W&B ApiKey and any additional secrets passed.
+
+        Args:
+            overrides (dict, optional): Additional environment variables to write to secrets.env
+            path (str, optional): The path to write the secrets file.
+    """
+
+    api_key = overrides.get('WANDB_API_KEY', Api().api_key)
+    if api_key is None:
+        raise ValueError(
+            "Can't find W&B ApiKey, set the WANDB_API_KEY env variable or run `wandb login`")
+    overrides['WANDB_API_KEY'] = api_key
+    with open(os.path.join(path, "secrets.env"), "w") as file:
+        for k, v in six.iteritems(overrides):
+            file.write("{}={}\n".format(k, v))
+
+
 def join():
     # no-op until it's overridden in _init_headless
     pass
@@ -527,6 +545,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
             open("/opt/ml/input/config/resourceconfig.json"))
         if group == None and len(conf["hosts"]) > 1:
             group = os.getenv('TRAINING_JOB_NAME')
+        # Set secret variables
+        if os.path.exists("secrets.env"):
+            for line in open("secrets.env", "r"):
+                key, val = line.strip().split('=', 1)
+                os.environ[key] = val
 
     if project:
         os.environ['WANDB_PROJECT'] = project
