@@ -482,6 +482,7 @@ def parse_sm_config():
     else:
         return False
 
+
 def sagemaker_auth(overrides={}, path="."):
     """ Write a secrets.env file with the W&B ApiKey and any additional secrets passed.
 
@@ -489,14 +490,15 @@ def sagemaker_auth(overrides={}, path="."):
             overrides (dict, optional): Additional environment variables to write to secrets.env
             path (str, optional): The path to write the secrets file.
     """
-    
-    api_key = overrides.getenv('WANDB_API_KEY', Api().api_key)
+
+    api_key = overrides.get('WANDB_API_KEY', Api().api_key)
     if api_key is None:
-        raise ValueError("Can't find W&B ApiKey, set the WANDB_API_KEY env variable or run `wandb login`")
+        raise ValueError(
+            "Can't find W&B ApiKey, set the WANDB_API_KEY env variable or run `wandb login`")
     overrides['WANDB_API_KEY'] = api_key
     with open(os.path.join(path, "secrets.env"), "w") as file:
-        for k, v in six.items(overrides):
-            file.write("{}={}\n".format(k,v))
+        for k, v in six.iteritems(overrides):
+            file.write("{}={}\n".format(k, v))
 
 
 def join():
