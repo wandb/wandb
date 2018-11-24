@@ -19,8 +19,6 @@ def test_dry_run(runner):
         try:
             res = sh.python("train.py")
             print("RUN", res)
-            # Added this to ensure we wait for file modifications...
-            time.sleep(1)
             run_dir = glob.glob("wandb/dry*")[0]
             meta = json.loads(open(run_dir + "/wandb-metadata.json").read())
             assert meta["state"] == "finished"
