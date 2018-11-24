@@ -122,7 +122,8 @@ class FilePusher(object):
             self._start_job(save_name, path, copy)
 
     def file_changed(self, save_name, path, copy=False):
-        if os.path.getsize(path) != 0:
+        # Tests in linux were failing because wandb-events.jsonl didn't exist
+        if os.path.exists(path) and os.path.getsize(path) != 0:
             self._queue.put(EventFileChanged(path, save_name, copy))
 
     def finish(self):
