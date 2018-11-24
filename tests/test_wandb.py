@@ -33,6 +33,7 @@ def test_log_step(wandb_init_run):
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"
     assert wandb.run.id == "sage-maker"
+    assert os.getenv('WANDB_TEST_SECRET') == "TRUE"
     assert wandb.run.group == "sage"
 
 
