@@ -59,9 +59,11 @@ class JsonlEventsFile(object):
             row['_runtime'] = int(time.time() - self._start_time)
             self._file.write(util.json_dumps_safer(row))
             self._file.write('\n')
-            self._file.flush()
         finally:
             self.lock.release()
+
+        self._file.flush()
+        os.fsync(self._file.fileno())
 
     def close(self):
         self.lock.acquire()
