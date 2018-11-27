@@ -1,18 +1,3 @@
-
-# New tensorflow file writer that also updates wandb
-#
-# Usage:
-# history = wandb.History()
-# summary = wandb.Summary()
-#
-# summary_writer = WandbFileWriter(FLAGS.log_dir, wandb_summary=summary, wandb_history=history)
-#
-#     slim.learning.train(
-#        train_op,
-#        FLAGS.log_dir,
-#        summary_writer=summary_writer)
-#
-
 import re
 
 import six

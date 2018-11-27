@@ -32,6 +32,7 @@ class Summary(object):
             self._out_dir, DEEP_SUMMARY_FNAME)
         # Lazy load the h5 file
         self._h5 = None
+        self._locked_keys = set()
 
     def _write(self, commit=False):
         raise NotImplementedError
@@ -51,14 +52,18 @@ class Summary(object):
         return self._transform(k, self._summary[k], write=False)
 
     def __setitem__(self, k, v):
-        self._summary[k.strip()] = self._transform(k.strip(), v)
+        key = k.strip()
+        self._summary[key] = self._transform(key, v)
+        self._locked_keys.add(key)
         self._write()
 
     def __setattr__(self, k, v):
         if k.startswith("_"):
             super(Summary, self).__setattr__(k, v)
         else:
-            self._summary[k.strip()] = self._transform(k.strip(), v)
+            key = k.strip()
+            self._summary[key] = self._transform(key, v)
+            self._locked_keys.add(key)
             self._write()
 
     def __getattr__(self, k):
@@ -135,12 +140,16 @@ class Summary(object):
         return res
 
     def update(self, key_vals=None, overwrite=True):
+        # Passing overwrite=True locks any keys that are passed in
+        # Locked keys can only be overwritten by passing overwrite=True
         summary = {}
         if key_vals:
             for k, v in six.iteritems(key_vals):
                 key = k.strip()
-                if overwrite or key not in self._summary:
+                if overwrite or key not in self._summary or key not in self._locked_keys:
                     summary[key] = self._transform(k.strip(), v)
+                if overwrite:
+                    self._locked_keys.add(key)
         self._summary.update(summary)
         self._write(commit=True)
 

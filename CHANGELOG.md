@@ -1,9 +1,16 @@
-## 0.6.28 (November 19, 2018)
+## 0.6.29 (November 26, 2018)
+
+#### :bug: Bug Fix
+
+-   Fixed history / summary bug
+
+## 0.6.28 (November 24, 2018)
 
 #### :nail_care: Enhancement
 
 -   Initial support for AWS SageMaker
 -   `hook_torch` renamed to `watch` with a deprecation warning
+-   Projects are automatically created if they don't exist
 -   Additional GPU memory_allocated metric added
 -   Keras Graph stores edges
 
