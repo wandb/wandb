@@ -125,7 +125,6 @@ def watch(models, criterion=None, log="gradients"):
         graphs.append(graph)
         # We access the raw summary because we don't want transform called until after the forward pass
         run.summary._summary["graph_%i" % i] = graph
-    run._user_accessed_summary = False
     return graphs
 
 
@@ -463,26 +462,6 @@ def _get_python_type():
         return "python"
 
 
-def parse_sm_config():
-    sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
-    if os.path.exists(sagemaker_config):
-        conf = {}
-        # Hyper-parameter searchs quote configs...
-        for k, v in six.iteritems(json.load(open(sagemaker_config))):
-            cast = v.strip('"')
-            if os.getenv("WANDB_API_KEY") is None and k == "wandb_api_key":
-                os.environ["WANDB_API_KEY"] = cast
-            else:
-                if re.match(r'^[-\d]+$', cast):
-                    cast = int(cast)
-                elif re.match(r'^[-.\d]+$', cast):
-                    cast = float(cast)
-                conf[k] = cast
-        return conf
-    else:
-        return False
-
-
 def sagemaker_auth(overrides={}, path="."):
     """ Write a secrets.env file with the W&B ApiKey and any additional secrets passed.
 
@@ -533,7 +512,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
                            "WANDB_PROJECT", "WANDB_API_KEY"])
         run = None
 
-    sagemaker_config = parse_sm_config()
+    sagemaker_config = util.parse_sm_config()
+    tfjob_config = util.parse_tfjob_config()
     if sagemaker_config:
         # Set run_id and potentially grouping if we're in SageMaker
         run_id = os.getenv('TRAINING_JOB_NAME')
@@ -550,6 +530,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
             for line in open("secrets.env", "r"):
                 key, val = line.strip().split('=', 1)
                 os.environ[key] = val
+    elif tfjob_config:
+        run_id = tfjob_config["cluster"][tfjob_config["task"]["type"]][tfjob_config["task"]["index"]]
+        if group == None and len(tfjob_config["cluster"]["workers"] > 1):
+            group = tfjob_config["cluster"]["master"][0].rsplit("-", 1)[0]
+
 
     if project:
         os.environ['WANDB_PROJECT'] = project

@@ -265,6 +265,38 @@ def launch_browser(attempt_launch_browser=True):
     return launch_browser
 
 
+def parse_tfjob_config():
+    """Attempts to parse TFJob config, returning False if it can't find it"""
+    if os.getenv("TF_CONFIG"):
+        try:
+            return json.loads(os.environ["TF_CONFIG"])
+        except ValueError:
+            return False
+    else:
+        return False
+
+
+def parse_sm_config():
+    """Attempts to parse SageMaker configuration returning False if it can't find it"""
+    sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
+    if os.path.exists(sagemaker_config):
+        conf = {}
+        # Hyper-parameter searchs quote configs...
+        for k, v in six.iteritems(json.load(open(sagemaker_config))):
+            cast = v.strip('"')
+            if os.getenv("WANDB_API_KEY") is None and k == "wandb_api_key":
+                os.environ["WANDB_API_KEY"] = cast
+            else:
+                if re.match(r'^[-\d]+$', cast):
+                    cast = int(cast)
+                elif re.match(r'^[-.\d]+$', cast):
+                    cast = float(cast)
+                conf[k] = cast
+        return conf
+    else:
+        return False
+
+
 class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 

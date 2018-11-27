@@ -27,7 +27,7 @@ class JsonlEventsFile(object):
                 for line in f:
                     try:
                         last_row = json.loads(line)
-                    except TypeError:
+                    except ValueError:
                         print('warning: malformed history line: %s...' %
                               line[:40])
             # fudge the start_time to compensate for previous run length

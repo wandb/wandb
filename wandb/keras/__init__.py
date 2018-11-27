@@ -109,8 +109,6 @@ class WandbCallback(keras.callbacks.Callback):
     def set_model(self, model):
         self.model = model
         wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
-        # Ensure summary is still auto-written
-        wandb.run._user_accessed_summary = False
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:

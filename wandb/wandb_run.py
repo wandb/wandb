@@ -80,7 +80,6 @@ class Run(object):
         self._summary = None
         self._meta = None
         self._jupyter_agent = None
-        self._user_accessed_summary = False
         self._examples = None
 
     def _init_jupyter_agent(self):
