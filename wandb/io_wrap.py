@@ -52,9 +52,11 @@ import subprocess
 import sys
 import tempfile
 import threading
+import traceback
 
 import six
 from six.moves import queue, shlex_quote
+import wandb.env
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +146,7 @@ class WindowSizeChangeHandler(object):
 
 def init_sigwinch_handler():
     global SIGWINCH_HANDLER
-    if SIGWINCH_HANDLER is None and sys.stdout.isatty() and sys.platform != "win32" and not os.environ.get('WANDB_DEBUG'):
+    if SIGWINCH_HANDLER is None and sys.stdout.isatty() and sys.platform != "win32" and not wandb.env.is_debug():
         SIGWINCH_HANDLER = WindowSizeChangeHandler()
         SIGWINCH_HANDLER.register()
 
@@ -201,6 +203,8 @@ class Tee(object):
                 called.
             async_dst_files: files to write to asynchronously
         """
+        # save the stack at construction time for debugging later
+        self._origin_stack = '\n'.join(traceback.format_stack())
         self.tee_file = None  # convenience for users that want a writable file to put things into the tee
         self._src_file = src_file
         self._sync_dst_file = sync_dst_file
@@ -250,10 +254,14 @@ class Tee(object):
                 i += f.write(data[i:])
 
     def close_join(self):
-        self._read_thread.join()
+        # TODO(adrian): any way we can clean up the read thread properly? do we need to?
+        # this hangs in headless mode with python 2. maybe normal behaviour for fdopen on stdout?
+        #self._src_file.close()
+        #self._read_thread.join()
+
+        self._write_to_all(six.b(''))  # empty bytes is the signal to stop
         for t in self._write_threads:
             t.join()
-        self._src_file.close()
 
 
 def spawn_reader_writer(get_data_fn, put_data_fn):

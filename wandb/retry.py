@@ -6,6 +6,7 @@ import time
 import traceback
 
 import wandb
+import wandb.env
 from wandb import util
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class Retry(object):
     MAX_SLEEP_SECONDS = 5 * 60
 
     def __init__(self, call_fn, retry_timedelta=None, num_retries=None,
-                 retryable_exceptions=None, error_prefix="network error"):
+                 retryable_exceptions=None, error_prefix="Network error"):
         self._call_fn = call_fn
         self._error_prefix = error_prefix
         self._retry_timedelta = retry_timedelta
@@ -87,7 +88,7 @@ class Retry(object):
                     wandb.termlog(
                         '%s (%s), entering retry loop. See %s for full traceback.' % (
                             self._error_prefix, e.__class__.__name__, util.get_log_file_path()))
-                if os.getenv('WANDB_DEBUG'):
+                if wandb.env.is_debug():
                     traceback.print_exc()
             first = False
             time.sleep(sleep + random.random() * 0.25 * sleep)
