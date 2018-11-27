@@ -608,25 +608,29 @@ class RunManager(object):
         return stdout_streams, stderr_streams
 
     def _close_stdout_stderr_streams(self):
-        self._output_log.f.close()
-        self._output_log = None
+        """Close output-capturing stuff. This also flushes anything left in
+        the buffers.
+        """
 
-        # Close output-capturing stuff. This also flushes anything left in the buffers.
+        # we don't have tee_file's in headless mode
         if self._stdout_tee.tee_file is not None:
-            # we don't have tee_file's in headless mode
             self._stdout_tee.tee_file.close()
-            # TODO(adrian): we should close these even in headless mode
-            # but in python 2 the read thread doesn't stop on its own
-            # for some reason
-            self._stdout_tee.close_join()
         if self._stderr_tee.tee_file is not None:
             self._stderr_tee.tee_file.close()
-            self._stderr_tee.close_join()
+
+        # TODO(adrian): we should close these even in headless mode
+        # but in python 2 the read thread doesn't stop on its own
+        # for some reason
+        self._stdout_tee.close_join()
+        self._stderr_tee.close_join()
 
         if self._cloud:
             # not set in dry run mode
             self._stdout_stream.close()
             self._stderr_stream.close()
+
+        self._output_log.f.close()
+        self._output_log = None
 
     def _setup_resume(self, resume_status):
         # write the tail of the history file
@@ -967,7 +971,8 @@ class RunManager(object):
         else:
             self._meta.data["state"] = "failed"
 
-        self._close_stdout_stderr_streams()  # TODO: these can be slow to complete
+        # TODO(adrian): these can be slow to complete (due to joining?)
+        self._close_stdout_stderr_streams()
         self.shutdown(exitcode)
 
         # If we're not syncing to the cloud, we're done

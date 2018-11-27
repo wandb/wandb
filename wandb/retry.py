@@ -6,6 +6,7 @@ import time
 import traceback
 
 import wandb
+import wandb.env
 from wandb import util
 
 logger = logging.getLogger(__name__)
@@ -87,7 +88,7 @@ class Retry(object):
                     wandb.termlog(
                         '%s (%s), entering retry loop. See %s for full traceback.' % (
                             self._error_prefix, e.__class__.__name__, util.get_log_file_path()))
-                if os.getenv('WANDB_DEBUG'):
+                if wandb.env.is_debug():
                     traceback.print_exc()
             first = False
             time.sleep(sleep + random.random() * 0.25 * sleep)

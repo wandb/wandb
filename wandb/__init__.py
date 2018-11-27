@@ -248,7 +248,7 @@ def _init_headless(run, cloud=True):
     join = _wandb_join
     # redirect output last of all so we don't miss out on error messages
     stdout_redirector.redirect()
-    if not env.get_debug():
+    if not env.is_debug():
         stderr_redirector.redirect()
 
 
@@ -322,7 +322,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     _user_processs_finished_called = True
 
     stdout_redirector.restore()
-    if not env.get_debug():
+    if not env.is_debug():
         stderr_redirector.restore()
 
     termlog()

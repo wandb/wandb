@@ -1,9 +1,11 @@
+import ast
 from functools import wraps
 import requests
-from wandb import Error
 import os
-import ast
+
 from gql.client import RetryError
+from wandb import Error
+import wandb.env
 
 
 class Progress(object):
@@ -67,7 +69,7 @@ def normalize_exceptions(func):
                 message = ast.literal_eval(str(payload))["message"]
             else:
                 message = str(err)
-            if os.getenv("WANDB_DEBUG") == "true":
+            if wandb.env.is_debug():
                 raise
             else:
                 raise CommError(message, err)
