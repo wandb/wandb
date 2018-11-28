@@ -11,7 +11,6 @@ import wandb
 import sys
 from wandb import util
 from wandb import Api
-from wandb.kubeflow import tf_job_client
 storage = util.get_module("google.cloud.storage")
 
 
@@ -83,6 +82,7 @@ def launch_tfjob(command, workers=0, pss=0, gpus=0, kf_version='v1alpha2', tfjob
         from google.cloud import storage
         from kubernetes import client as k8s_client
         from kubernetes import config
+        from wandb.kubeflow import tf_job_client
     except ImportError:
         wandb.termerror(
             "Required libraries for kubeflow aren't installed, run `pip install wandb[kubeflow]`")
@@ -93,7 +93,7 @@ def launch_tfjob(command, workers=0, pss=0, gpus=0, kf_version='v1alpha2', tfjob
         config.load_kube_config()
 
     root = logging.getLogger()
-    logging.setLevel(logging.INFO)
+    root.setLevel(logging.INFO)
     root.addHandler(logging.StreamHandler(sys.stdout))
     logging.info('Generating training template.')
     template_file = os.path.join(os.path.dirname(

@@ -519,10 +519,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
                 key, val = line.strip().split('=', 1)
                 os.environ[key] = val
     elif tfjob_config:
-        run_id = tfjob_config["cluster"][tfjob_config["task"]
-                                         ["type"]][tfjob_config["task"]["index"]]
-        if group == None and len(tfjob_config["cluster"]["workers"] > 1):
-            group = tfjob_config["cluster"]["master"][0].rsplit("-", 1)[0]
+        task = tfjob_config["task"]["type"]
+        run_id = tfjob_config["cluster"][task][tfjob_config["task"]["index"]]
+        if group == None and len(tfjob_config["cluster"].get("workers", [])) > 0:
+            group = tfjob_config["cluster"][task][0].rsplit("-", 1)[0]
 
     if project:
         os.environ['WANDB_PROJECT'] = project
