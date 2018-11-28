@@ -29,7 +29,7 @@ class FileStats(object):
 
 
 class Stats(object):
-    """Tracks progress for all the files we're currently uploading
+    """Tracks progress for files we're uploading
 
     Indexed by files' `save_name`'s, which are their ID's in the Run.
     """

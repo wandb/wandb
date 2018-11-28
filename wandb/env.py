@@ -27,15 +27,11 @@ IGNORE = 'WANDB_IGNORE_GLOBS'
 ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
 
 
-def is_debug():
-    return bool(get_debug())
-
-
-def get_debug(default=None, env=None):
+def is_debug(default=None, env=None):
     if env is None:
         env = os.environ
 
-    return env.get(DEBUG, default)
+    return bool(env.get(DEBUG, default))
 
 
 def error_reporting_enabled():

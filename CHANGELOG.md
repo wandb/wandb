@@ -1,3 +1,9 @@
+## 0.6.29 (November 26, 2018)
+
+#### :bug: Bug Fix
+
+-   Fixed history / summary bug
+
 ## 0.6.28 (November 24, 2018)
 
 #### :nail_care: Enhancement

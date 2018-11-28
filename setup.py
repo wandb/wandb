@@ -34,7 +34,7 @@ kubeflow_requirements = ['kubernetes',
 
 setup(
     name='wandb',
-    version='0.6.28',
+    version='0.6.29',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

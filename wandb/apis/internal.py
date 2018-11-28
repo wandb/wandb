@@ -562,7 +562,7 @@ class Api(object):
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'groupName': group,
             'description': description, 'config': config, 'commit': commit,
-            'host': host, 'debug': env.get_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
+            'host': host, 'debug': env.is_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
         }
 
