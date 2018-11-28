@@ -7,7 +7,6 @@ import os
 import logging
 import six
 import wandb
-import numpy as np
 from wandb import util
 
 def val_to_json(key, val, mode="summary", step=None):

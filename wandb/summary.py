@@ -5,7 +5,6 @@ import time
 import requests
 
 from gql import gql
-import numpy as np
 import six
 
 import wandb
@@ -20,6 +19,7 @@ H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor",
             "pytorch.Tensor", "pandas.DataFrame")
 
 h5py = util.get_module("h5py")
+np = util.get_module("numpy")
 
 
 class Summary(object):
