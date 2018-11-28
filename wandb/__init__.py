@@ -276,18 +276,6 @@ def _init_jupyter(run):
             raise ValueError("API Key must be 40 characters long")
         # Ensure our api client picks up the new key
         api = InternalApi()
-    if not api.settings('project'):
-        termerror("No W&B project configured.")
-        slug = six.moves.input("Enter username/project: ").strip()
-        if "/" not in slug:
-            raise ValueError(
-                "Input must contain a slash between username and project")
-        entity, project = slug.split("/")
-        os.environ["WANDB_ENTITY"] = entity
-        os.environ["WANDB_PROJECT"] = project
-        util.write_settings(entity, project, api.settings()['base_url'])
-        # Reset settings so they reload
-        api._settings = None
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
     api.set_current_run_id(run.id)
@@ -531,10 +519,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
                 key, val = line.strip().split('=', 1)
                 os.environ[key] = val
     elif tfjob_config:
-        run_id = tfjob_config["cluster"][tfjob_config["task"]["type"]][tfjob_config["task"]["index"]]
+        run_id = tfjob_config["cluster"][tfjob_config["task"]
+                                         ["type"]][tfjob_config["task"]["index"]]
         if group == None and len(tfjob_config["cluster"]["workers"] > 1):
             group = tfjob_config["cluster"]["master"][0].rsplit("-", 1)[0]
-
 
     if project:
         os.environ['WANDB_PROJECT'] = project

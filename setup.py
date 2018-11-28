@@ -19,15 +19,18 @@ requirements = [
     'psutil>=5.0.0',
     'sentry-sdk>=0.4.0',
     # Removed until we bring back the board
-    #'flask-cors>=3.0.3',
-    #'flask-graphql>=1.4.0',
-    #'graphene>=2.0.0',
+    # 'flask-cors>=3.0.3',
+    # 'flask-graphql>=1.4.0',
+    # 'graphene>=2.0.0',
 ]
 
 test_requirements = [
     'mock>=2.0.0',
     'tox-pyenv>=1.0.3'
 ]
+
+kubeflow_requirements = ['kubernetes',
+                         'retrying', 'minio', 'google-cloud-storage']
 
 setup(
     name='wandb',
@@ -56,18 +59,26 @@ setup(
     zip_safe=False,
     keywords='wandb',
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
+        'Intended Audience :: Science/Research',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
-        "Programming Language :: Python :: 2",
+        'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic:: System:: Logging',
+        'Topic :: System :: Monitoring'
     ],
     test_suite='tests',
-    tests_require=test_requirements
+    tests_require=test_requirements,
+    extras_require={
+        'kubeflow': kubeflow_requirements
+    }
 )

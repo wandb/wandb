@@ -151,24 +151,6 @@ def display_error(func):
     return wrapper
 
 
-IS_INIT = False
-
-
-def _require_init():
-    if not IS_INIT and wandb.__stage_dir__ is None:
-        print('Directory not initialized. Please run "wandb init" to get started.')
-        sys.exit(1)
-
-
-def require_init(func):
-    """Function decorator for catching common errors and re-raising as wandb.Error"""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        _require_init()
-        return func(*args, **kwargs)
-    return wrapper
-
-
 def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
@@ -244,7 +226,6 @@ def cli(ctx):
 
 
 @cli.command(context_settings=CONTEXT, help="List projects")
-@require_init
 @click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 def projects(entity, display=True):
@@ -269,7 +250,6 @@ def projects(entity, display=True):
 @click.option("--project", "-p", default=None, envvar=env.PROJECT, help="The project you wish to list runs from.")
 @click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
-@require_init
 def runs(ctx, project, entity):
     click.echo(click.style('Latest runs for project "%s"' %
                            project, bold=True))
@@ -504,19 +484,15 @@ def init(ctx):
     from wandb import _set_stage_dir, __stage_dir__, wandb_dir
     if __stage_dir__ is None:
         _set_stage_dir('wandb')
-    if os.path.isdir(wandb_dir()):
+    if os.path.isdir(wandb_dir()) and os.path.exists(os.path.join(wandb_dir(), "settings")):
         click.confirm(click.style(
             "This directory has been configured previously, should we re-configure it?", bold=True), abort=True)
     else:
         click.echo(click.style(
             "Let's setup this directory for W&B!", fg="green", bold=True))
 
-    global IS_INIT
-
     if api.api_key is None:
         ctx.invoke(login)
-
-    IS_INIT = True
 
     viewer = api.viewer()
 
@@ -673,7 +649,6 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 
 @cli.command(context_settings=RUN_CONTEXT, help="Launch a job")
 @click.pass_context
-@require_init
 @click.argument('program')
 @click.argument('args', nargs=-1)
 @click.option('--id', default=None,
@@ -729,10 +704,36 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
 
     rm.run_user_process(program, args, environ)
 
+@cli.command(context_settings=CONTEXT, help="Launch a job into kubernetes")
+@click.option('--container-image', default="/ml-pipeline/ml-pipeline-kubeflow-tf-trainer",
+              help='The docker container image to train in')
+@click.option('--workers', default=0)
+@click.option('--pss', default=0)
+@click.option('--gpus', default=0)
+@click.option('--cluster', help='GKE cluster set up for kubeflow. If set, zone must be provided. ' +
+              'If not set, assuming this runs in a GKE container and current cluster is used.')
+@click.option('--zone', default=None, help='zone of the kubeflow cluster.')
+@click.option('--wandb-project', default=None, help='The W&B project to store results in.')
+@click.option('--kf-version', default='v1alpha2', help='The version of the deployed kubeflow.')
+@click.option('--tfjob-ns',  default='default', help='The namespace where the tfjob is submitted.')
+@click.option('--tfjob-timeout-minutes', default=10,
+                help='Time in minutes to wait for the TFJob to complete')
+@click.option('--output-dir', default=None, help="A GCS bucket path. i.e. gs://wandb-ml/experiments")
+@click.option('--ui-metadata-type', default='tensorboard')
+@click.argument('command', nargs=-1)
+@display_error
+def tfjob(command, container_image, workers, pss, gpus, cluster, zone, wandb_project,
+        kf_version, tfjob_ns, tfjob_timeout_minutes, output_dir, ui_metadata_type):
+    click.echo('Launching kubeflow tfjob 🚀')
+    from wandb.kubeflow import launch_tfjob
+    launch_tfjob(command, container_image=container_image, workers=workers, pss=pss,
+        wandb_project=wandb_project, kf_version=kf_version, tfjob_ns=tfjob_ns,
+        tfjob_timeout_minutes=tfjob_timeout_minutes, output_dir=output_dir,
+        ui_metadata_type=ui_metadata_type, gpus=gpus)
+
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
-@require_init
 @click.argument('config_yaml')
 @display_error
 def sweep(ctx, config_yaml):
@@ -756,7 +757,6 @@ def sweep(ctx, config_yaml):
 
 @cli.command(context_settings=CONTEXT, help="Run the WandB agent")
 @click.argument('sweep_id')
-@require_init
 @display_error
 def agent(sweep_id):
     click.echo('Starting wandb agent 🕵️')
