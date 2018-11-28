@@ -1,4 +1,3 @@
-from kfp import dsl
 import datetime
 import json
 import os
@@ -9,6 +8,7 @@ import six
 import time
 import yaml
 import wandb
+import sys
 from wandb import util
 from wandb import Api
 from wandb.kubeflow import tf_job_client
@@ -17,7 +17,9 @@ storage = util.get_module("google.cloud.storage")
 
 def _generate_train_yaml(src_filename, tfjob_ns, workers, pss, trainer_image, command, gpus):
     """_generate_train_yaml  generates train yaml files based on train.template.yaml"""
-    with open(src_filename, 'r') as f:
+    path = os.path.join(os.path.dirname(
+        os.path.realpath(__file__)), src_filename)
+    with open(path, 'r') as f:
         content = yaml.load(f)
 
     content['metadata']['generateName'] = 'trainer-'
@@ -73,7 +75,7 @@ def _upload_wandb_webapp(gcs_path, wandb_project, job_name):
 
 
 def launch_tfjob(command, workers=0, pss=0, gpus=0, kf_version='v1alpha2', tfjob_ns='default',
-                 tfjob_timeout_minutes=10, container_image="gcr.io/ml-pipeline/ml-pipeline-kubeflow-tf-trainer",
+                 tfjob_timeout_minutes=10, container_image="gcr.io/ml-pipeline/ml-pipeline-kubeflow-tf-trainer:0.1.3-rc.2",
                  output_dir=None, wandb_project=None, ui_metadata_type="tensorboard"):
     """Launch a TFJob and wait for it to complete"""
     try:
@@ -90,7 +92,9 @@ def launch_tfjob(command, workers=0, pss=0, gpus=0, kf_version='v1alpha2', tfjob
     except config.ConfigException:
         config.load_kube_config()
 
-    logging.getLogger().setLevel(logging.INFO)
+    root = logging.getLogger()
+    logging.setLevel(logging.INFO)
+    root.addHandler(logging.StreamHandler(sys.stdout))
     logging.info('Generating training template.')
     template_file = os.path.join(os.path.dirname(
         os.path.realpath(__file__)), 'train.template.yaml')
@@ -160,8 +164,9 @@ def launch_tfjob(command, workers=0, pss=0, gpus=0, kf_version='v1alpha2', tfjob
 
 
 def tfjob_launcher_op(container_image, command, wandb_project, number_of_workers,
-                      number_of_parameter_servers, tfjob_timeout_minutes: int, output_dir=None,
+                      number_of_parameter_servers, tfjob_timeout_minutes, output_dir=None,
                       step_name='W&B-TFJob-launcher'):
+    from kfp import dsl
     op = dsl.ContainerOp(
         name=step_name,
         image='wandb/tfjob-launcher:latest',

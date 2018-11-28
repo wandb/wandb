@@ -705,7 +705,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
     rm.run_user_process(program, args, environ)
 
 @cli.command(context_settings=CONTEXT, help="Launch a job into kubernetes")
-@click.option('--container-image', default="/ml-pipeline/ml-pipeline-kubeflow-tf-trainer",
+@click.option('--container-image', default="gcr.io/ml-pipeline/ml-pipeline-kubeflow-tf-trainer:0.1.3-rc.2",
               help='The docker container image to train in')
 @click.option('--workers', default=0)
 @click.option('--pss', default=0)
