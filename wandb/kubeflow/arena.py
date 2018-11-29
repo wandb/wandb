@@ -91,7 +91,8 @@ class Arena(object):
                 projo = git.split("/")[-1].replace(".git", "")
             elif image:
                 projo = image.split(":")[0]
-            projo = self.api.format_project(projo)
+            if projo:
+                projo = self.api.format_project(projo)
             self.args.insert(opt_index, "--env=WANDB_PROJECT={}".format(projo))
 
         api_key = self.wandb_api_key or self.api.api_key
