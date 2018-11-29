@@ -125,7 +125,7 @@ class Arena(object):
                         name=self.wandb_run_id, project=projo)
                     wandb_run_path = os.path.join(
                         res["project"]["entity"]["name"], res["project"]["name"], "runs", res["name"])
-                    print('Run configured with W&B, view live results here: {}'.format(
+                    print('Run configured with W&B\nview live results here: {}'.format(
                         "https://app.wandb.ai/"+wandb_run_path))
                     self.args.insert(
                         opt_index, "--env=WANDB_RUN_ID={}".format(res["name"]))
@@ -138,7 +138,7 @@ class Arena(object):
                     )
                     wandb_run_path = os.path.join(
                         res["entity"], projo, "groups", name)
-                    print('Distributed run configured with W&B, view live results here: {}'.format(
+                    print('Distributed run configured with W&B\nview live results here: {}'.format(
                         "https://app.wandb.ai/"+wandb_run_path))
             except CommError:
                 print("Failed to talk to W&B")

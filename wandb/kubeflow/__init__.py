@@ -68,6 +68,7 @@ def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=
     if sync_source:
         if not sync_source.startswith("http"):
             raise ValueError("sync_source must be an http git url")
+        options.append('--syncMode=git')
         options.append('--syncSource='+sync_source)
     if namespace:
         options.append('--namespace='+namespace)
