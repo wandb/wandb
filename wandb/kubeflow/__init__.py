@@ -53,6 +53,8 @@ def pipeline_metadata(gcs_url, wandb_run_path=None, tensorboard=True):
         with open('/mlpipeline-ui-metadata.json', 'w') as f:
             json.dump({'outputs': outputs}, f)
         print("KubeFlow pipeline assets saved")
+    else:
+        print("Not running in argo, skipping metadata")
 
 
 def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=1, logdir=None,

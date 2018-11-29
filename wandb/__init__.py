@@ -139,8 +139,13 @@ class ExitHooks(object):
         sys.excepthook = self.exc_handler
 
     def exit(self, code=0):
+        orig_code = code
+        if code is None:
+            code = 0
+        elif not isinstance(code, int):
+            code = 1
         self.exit_code = code
-        self._orig_exit(code)
+        self._orig_exit(orig_code)
 
     def was_ctrl_c(self):
         return isinstance(self.exception, KeyboardInterrupt)

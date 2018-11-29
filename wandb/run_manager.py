@@ -910,8 +910,8 @@ class RunManager(object):
                         pass
                     else:
                         raise e
-                if len(res) == 2 and res[0] == 2:
-                    exitcode = res[1]
+                if len(res) > 0 and res[0] == 2:
+                    exitcode = res[1] if len(res) > 1 else 0
                     break
                 elif len(res) > 0:
                     message = "Invalid message received from child process: %s" % str(

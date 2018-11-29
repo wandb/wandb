@@ -96,6 +96,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                         return six.StringIO()
 
                 mocker.patch('wandb.open', magic, create=True)
+                mocker.patch('wandb.util.open', magic, create=True)
         else:
             kwargs = {}
         try:

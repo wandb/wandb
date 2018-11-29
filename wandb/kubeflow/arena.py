@@ -158,21 +158,20 @@ class Arena(object):
         poll_rate = 10
         while True:
             # TODO: parse JSON when it's supported
-            row = re.split(r"\s+", str(arena("get", name)
-                                       ).strip().split("\n")[1])
-            if len(row) <= 1:
-                print("Strange row: ", row)
+            rows = [row for row in (re.split(r"\s+", row) for row in str(arena("get", name)
+                                                                         ).split("\n")) if len(row) > 1]
+            if len(rows) <= 1:
+                print("Corrupt rows: ", rows)
                 continue
-            status = row[1]
-            runtime = row[3]
-            if status == "PENDING":
-                runtime == ""
+            status = [row[1] for row in rows[1:]]
+            runtime = [row[3] for row in rows[1:]]
             print("Status: {} {}".format(status, runtime))
-            if status not in ("PENDING", "RUNNING"):
-                print("Job finished with status: {}".format(status))
-                if status == "FAILED":
-                    arena("logs", name, _fg=True)
-                break
+            if not all([s in ("PENDING", "RUNNING") for s in status]):
+                if not any([s in ("PENDING", "RUNNING") for s in status]):
+                    print("Job finished with statuses: {}".format(status))
+                    if any([s == "FAILED" for s in status]):
+                        arena("logs", name, _fg=True)
+                    break
             time.sleep(poll_rate)
             total_time += 10
             if total_time > 90:
