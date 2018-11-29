@@ -45,7 +45,7 @@ class Arena(object):
 
     def _parse_flag(self, flag, default=-1):
         index = next((i for i, arg in enumerate(self.args)
-                      if arg.startswith(flag)), default)
+                      if re.match(r"{}[= ]".format(flag), arg)), default)
         if index > -1 and len(self.args) > index:
             if "=" in self.args[index]:
                 val = self.args[index].split("=", 1)[1]

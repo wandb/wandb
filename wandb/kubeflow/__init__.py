@@ -75,6 +75,8 @@ def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=
         options.append('--wandb-project='+wandb_project)
     if wandb_run_id:
         options.append('--wandb-run-id='+wandb_run_id)
+    if gpus:
+        options.append('--gpus='+str(gpus))
     for e in env:
         options.append('--env='+e)
     op = dsl.ContainerOp(
@@ -83,9 +85,9 @@ def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=
         arguments=[
             "submit",
             job_type,
-            '--workers='+workers,
-            '--ps='+parameter_servers,
-            '--timeout-minutes='+timeout_minutes,
+            '--workers='+str(workers),
+            '--ps='+str(parameter_servers),
+            '--timeout-minutes='+str(timeout_minutes),
             '--image='+image,
         ] + options + [" ".join(command)],
         file_outputs={'train': '/output.txt'}
