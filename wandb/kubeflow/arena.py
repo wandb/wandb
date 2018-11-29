@@ -148,7 +148,7 @@ class Arena(object):
         index, gcs_url = self._parse_flag("--logdir")
         tensorboard = self._parse_flag("--tensorboard")[0] > -1
         if gcs_url and wandb_run_path:
-            pipeline_metadata(gcs_url, projo, tensorboard)
+            pipeline_metadata(gcs_url, wandb_run_path, tensorboard)
         elif wandb_run_path:
             print("--logdir isn't set, skipping pipeline asset saving.")
         cmd = arena(["submit"] + self.args)
