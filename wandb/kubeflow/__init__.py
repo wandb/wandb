@@ -55,23 +55,35 @@ def pipeline_metadata(gcs_url, wandb_run_path=None, tensorboard=True):
         print("KubeFlow pipeline assets saved")
 
 
-def arena_launcher_op(container_image, command, wandb_project, number_of_workers,
-                      number_of_parameter_servers, tfjob_timeout_minutes, output_dir=None,
-                      step_name='W&B-arena-launcher'):
+def arena_launcher_op(image, command, type="tfjob", gpus=0, env=[], workers=1, logdir=None,
+                      parameter_servers=0, timeout_minutes=10, sync_source=None,
+                      name=None, wandb_project=None, wandb_run_id=None):
     from kfp import dsl
+    options = []
+    if name:
+        options.extend(['--name', name])
+    if logdir:
+        options.extend(['--logdir', logdir])
+    if sync_source:
+        if not sync_source.startswith("http"):
+            raise ValueError("sync_source must be an http git url")
+        options.extend(["--syncSource", sync_source])
+    if wandb_project:
+        options.extend(['--wandb-project', wandb_project])
+    if wandb_run_id:
+        options.extend(['--wandb-run_id', wandb_run_id])
+    for e in env:
+        options.extend(['--env', e])
     op = dsl.ContainerOp(
-        name=step_name,
-        image='wandb/tfjob-launcher:latest',
+        name=name,
+        image='wandb/arena',
         arguments=[
-            '--workers', number_of_workers,
-            '--pss', number_of_parameter_servers,
-            '--tfjob-timeout-minutes', tfjob_timeout_minutes,
-            '--container-image', container_image,
-            '--wandb-project', wandb_project,
-            '--output-dir', output_dir,
-            '--ui-metadata-type', 'tensorboard',
-            '--',
-        ] + command,
+            '--workers', workers,
+            '--pss', parameter_servers,
+            '--timeout-minutes', timeout_minutes,
+            '--image', image,
+            '--logdir', logdir,
+        ] + options + " ".join(command),
         file_outputs={'train': '/output.txt'}
     )
     key = Api().api_key

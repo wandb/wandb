@@ -1,9 +1,11 @@
 include LICENSE
 include README.md
-include wandb/kubeflow *.html *.yaml *.sh
 
 recursive-include tests *
 recursive-include wandb *.py
+recursive-include wandb/kubeflow *.html *.yaml *.sh
+recursive-exclude wandb/kubeflow/dist *
+recursive-exclude wandb/kubeflow/arena *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 
