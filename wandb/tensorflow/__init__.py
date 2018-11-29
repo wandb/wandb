@@ -75,5 +75,5 @@ def tf_summary_to_dict(tf_summary_str_or_pb):
     return values
 
 
-def log(tf_summary_str):
-    wandb.log(tf_summary_to_dict(tf_summary_str))
+def log(tf_summary_str, **kwargs):
+    wandb.log(tf_summary_to_dict(tf_summary_str), **kwargs)

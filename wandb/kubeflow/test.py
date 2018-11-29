@@ -1,10 +1,9 @@
-import wandb
+import argparse
 
-wandb.init(project="test_summary")
+parser = argparse.ArgumentParser()
+parser.add_argument("--wandb_project", type=str, default=None, help="Cool")
+good, bad = parser.parse_known_args()
 
-#wandb.run.summary.update({"summary_val": 10})
-
-for i in range(10):
-    wandb.log({"log_val": i})
-
-print("Finished")
+print(good)
+print("---")
+print(bad)

@@ -300,7 +300,8 @@ def status(run, settings, project):
 @display_error
 def restore(run, branch, project, entity):
     if not api.git.enabled:
-        raise ClickException("`wandb restore` can only be called from within an existing git repository.")
+        raise ClickException(
+            "`wandb restore` can only be called from within an existing git repository.")
     project, run = api.parse_slug(run, project=project)
     commit, json_config, patch_content = api.run_config(
         project, run=run, entity=entity)
@@ -328,7 +329,8 @@ def restore(run, branch, project, entity):
                     "Falling back to upstream commit: {}".format(commit))
                 patch_path, _ = api.download_write_file(files[filename])
             else:
-                raise ClickException("Can't find commit from which to restore code")
+                raise ClickException(
+                    "Can't find commit from which to restore code")
         else:
             if patch_content:
                 patch_path = os.path.join(wandb.wandb_dir(), 'diff.patch')
@@ -554,10 +556,10 @@ def init(ctx):
         run=click.style("python <train.py>", bold=True),
         # saving this here so I can easily put it back when we re-enable
         # push/pull
-        #"""
-        #* Run `{push}` to manually add a file.
-        #* Pull popular models into your project with: `{pull}`.
-        #"""
+        # """
+        # * Run `{push}` to manually add a file.
+        # * Pull popular models into your project with: `{pull}`.
+        # """
         # push=click.style("wandb push run_id weights.h5", bold=True),
         # pull=click.style("wandb pull models/inception-v4", bold=True)
     ))
@@ -704,32 +706,15 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
 
     rm.run_user_process(program, args, environ)
 
-@cli.command(context_settings=CONTEXT, help="Launch a job into kubernetes")
-@click.option('--container-image', default="gcr.io/ml-pipeline/ml-pipeline-kubeflow-tf-trainer:0.1.3-rc.2",
-              help='The docker container image to train in')
-@click.option('--workers', default=0)
-@click.option('--pss', default=0)
-@click.option('--gpus', default=0)
-@click.option('--cluster', help='GKE cluster set up for kubeflow. If set, zone must be provided. ' +
-              'If not set, assuming this runs in a GKE container and current cluster is used.')
-@click.option('--zone', default=None, help='zone of the kubeflow cluster.')
-@click.option('--wandb-project', default=None, help='The W&B project to store results in.')
-@click.option('--kf-version', default='v1alpha2', help='The version of the deployed kubeflow.')
-@click.option('--tfjob-ns',  default='default', help='The namespace where the tfjob is submitted.')
-@click.option('--tfjob-timeout-minutes', default=10,
-                help='Time in minutes to wait for the TFJob to complete')
-@click.option('--output-dir', default=None, help="A GCS bucket path. i.e. gs://wandb-ml/experiments")
-@click.option('--ui-metadata-type', default='tensorboard')
-@click.argument('command', nargs=-1)
+
+@cli.command(context_settings={"ignore_unknown_options": True, "help_option_names": []})
+@click.argument('arena_args', nargs=-1, type=click.UNPROCESSED)
 @display_error
-def tfjob(command, container_image, workers, pss, gpus, cluster, zone, wandb_project,
-        kf_version, tfjob_ns, tfjob_timeout_minutes, output_dir, ui_metadata_type):
-    click.echo('Launching kubeflow tfjob 🚀')
-    from wandb.kubeflow import launch_tfjob
-    launch_tfjob(command, container_image=container_image, workers=workers, pss=pss,
-        wandb_project=wandb_project, kf_version=kf_version, tfjob_ns=tfjob_ns,
-        tfjob_timeout_minutes=tfjob_timeout_minutes, output_dir=output_dir,
-        ui_metadata_type=ui_metadata_type, gpus=gpus)
+def arena(arena_args):
+    """A wrapper around arena submit that adds W&B metadata"""
+    root = os.path.join(os.path.abspath(
+        os.path.dirname(__file__)), "kubeflow")
+    subprocess.call(['python', 'arena.py'] + list(arena_args), cwd=root)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")

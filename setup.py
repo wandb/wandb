@@ -29,8 +29,7 @@ test_requirements = [
     'tox-pyenv>=1.0.3'
 ]
 
-kubeflow_requirements = ['kubernetes',
-                         'retrying', 'minio', 'google-cloud-storage']
+kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
     name='wandb',
