@@ -35,7 +35,7 @@ def _upload_wandb_webapp(gcs_path, wandb_run_path):
 
 
 def pipeline_metadata(gcs_url, wandb_run_path=None, tensorboard=True):
-    if not gcs_url.startswith("gs://"):
+    if not str(gcs_url).startswith("gs://"):
         print("Tensorboard and W&B artifacts require --logdir to be a GCS url")
     elif wandb_run_path and os.path.exists("/argo/podmetadata"):
         web_app_source = _upload_wandb_webapp(
@@ -57,7 +57,7 @@ def pipeline_metadata(gcs_url, wandb_run_path=None, tensorboard=True):
 
 def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=1, logdir=None,
                       parameter_servers=0, timeout_minutes=10, sync_source=None,
-                      name=None, wandb_project=None, wandb_run_id=None):
+                      name=None, namespace=None, wandb_project=None, wandb_run_id=None):
     from kfp import dsl
     from kubernetes import client as k8s_client
     options = []
@@ -69,6 +69,8 @@ def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=
         if not sync_source.startswith("http"):
             raise ValueError("sync_source must be an http git url")
         options.append('--syncSource='+sync_source)
+    if namespace:
+        options.append('--namespace='+namespace)
     if wandb_project:
         options.append('--wandb-project='+wandb_project)
     if wandb_run_id:

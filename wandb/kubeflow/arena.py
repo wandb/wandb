@@ -1,4 +1,3 @@
-
 import sh
 import re
 import os
@@ -44,16 +43,16 @@ class Arena(object):
         self.workers = int(self._parse_flag("--workers", 1)[1] or "0")
         self.entity = None
 
-    def _parse_flag(self, flag, default=-1, write=False):
+    def _parse_flag(self, flag, default=-1):
         index = next((i for i, arg in enumerate(self.args)
                       if arg.startswith(flag)), default)
         if index > -1 and len(self.args) > index:
             if "=" in self.args[index]:
                 val = self.args[index].split("=", 1)[1]
-            elif write:
-                val = self.args.pop(index + 1)
+            elif " " in self.args[index]:
+                val = self.args[index].split(" ", 1)[1]
             else:
-                val = None
+                val = True
         else:
             val = None
         return index, val
@@ -71,10 +70,11 @@ class Arena(object):
 
         # TODO: require command?
         opt_index, _ = self._parse_flag("--", len(self.args) - 1)
-        name_index, name = self._parse_flag("--name", write=True)
+        name_index, name = self._parse_flag("--name")
         if name_index == -1:
             name = "wandb"
             name_index = len(self.args) - 1
+            self.args.insert(name_index, None)
         name = '-'.join([name, _short_id(5)])
         self.args[name_index] = "--name="+name
 
@@ -93,7 +93,8 @@ class Arena(object):
                 projo = image.split(":")[0]
             if projo:
                 projo = self.api.format_project(projo)
-            self.args.insert(opt_index, "--env=WANDB_PROJECT={}".format(projo))
+                self.args.insert(
+                    opt_index, "--env=WANDB_PROJECT={}".format(projo))
 
         if self.wandb_api_key:
             self.args.insert(
@@ -198,7 +199,7 @@ def main():
     wandb_arena = Arena(unknown, wandb_project=known.wandb_project, wandb_api_key=known.wandb_api_key,
                         wandb_run_id=known.wandb_run_id, timeout_minutes=known.timeout_minutes)
     if subcommand == "submit":
-        unknown.pop(0)
+        wandb_arena.args.pop(0)
         wandb_arena.submit()
     else:
         arena(unknown, _fg=True)
