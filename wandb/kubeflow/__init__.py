@@ -55,10 +55,11 @@ def pipeline_metadata(gcs_url, wandb_run_path=None, tensorboard=True):
         print("KubeFlow pipeline assets saved")
 
 
-def arena_launcher_op(image, command, type="tfjob", gpus=0, env=[], workers=1, logdir=None,
+def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=1, logdir=None,
                       parameter_servers=0, timeout_minutes=10, sync_source=None,
                       name=None, wandb_project=None, wandb_run_id=None):
     from kfp import dsl
+    from kubernetes import client as k8s_client
     options = []
     if name:
         options.extend(['--name', name])
@@ -78,6 +79,8 @@ def arena_launcher_op(image, command, type="tfjob", gpus=0, env=[], workers=1, l
         name=name or "wandb-arena",
         image='wandb/arena',
         arguments=[
+            "submit",
+            job_type,
             '--workers', workers,
             '--pss', parameter_servers,
             '--timeout-minutes', timeout_minutes,
@@ -89,5 +92,7 @@ def arena_launcher_op(image, command, type="tfjob", gpus=0, env=[], workers=1, l
     key = Api().api_key
     if key is None:
         raise ValueError("Not logged into W&B, run `wandb login`")
-    #op.add_env_variable({"WANDB_API_KEY": key})
+    op.add_env_variable(k8s_client.V1EnvVar(
+        name='WANDB_API_KEY',
+        value=key))
     return op
