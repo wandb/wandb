@@ -96,8 +96,9 @@ dist: clean ## builds source and wheel package
 	python setup.py sdist bdist_wheel
 	ls -l dist
 
-kubeflow: dist
+arena: dist
 	cp -r dist wandb/kubeflow
+	docker build wandb/kubeflow -t wandb/arena
 
 install: clean ## install the package to the active Python's site-packages
 	python setup.py install

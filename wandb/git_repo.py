@@ -172,5 +172,4 @@ class FakeGitRepo(GitRepo):
 try:
     from git import Repo, exc
 except ImportError:  # import fails if user doesn't have git
-    wandb.core.termlog("Warning: couldn't find git executable")
     GitRepo = FakeGitRepo

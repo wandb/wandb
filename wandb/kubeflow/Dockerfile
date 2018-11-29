@@ -34,4 +34,4 @@ COPY --from=build /root/go/src/github.com/kubeflow/arena/charts /charts
 
 COPY --from=build /install /usr/local
 
-ENTRYPOINT ["wandb", "tfjob"]
+ENTRYPOINT ["wandb", "arena"]

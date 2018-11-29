@@ -20,6 +20,8 @@ if not find_executable("arena"):
     else:
         raise ValueError(
             "You must install arena or docker to run this command")
+else:
+    arena = sh.arena
 
 
 def _short_id(length=8):
@@ -39,13 +41,13 @@ class Arena(object):
         self.wandb_project = wandb_project
         self.wandb_api_key = wandb_api_key
         self.timeout_minutes = timeout_minutes
-        self.workers = int(self._parse_flag("--workers", 1)[1])
+        self.workers = int(self._parse_flag("--workers", 1)[1] or "0")
         self.entity = None
 
     def _parse_flag(self, flag, default=-1, write=False):
         index = next((i for i, arg in enumerate(self.args)
                       if arg.startswith(flag)), default)
-        if index > -1:
+        if index > -1 and len(self.args) > index:
             if "=" in self.args[index]:
                 val = self.args[index].split("=", 1)[1]
             elif write:
