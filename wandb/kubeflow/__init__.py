@@ -83,7 +83,7 @@ def arena_launcher_op(image, command, type="tfjob", gpus=0, env=[], workers=1, l
             '--timeout-minutes', timeout_minutes,
             '--image', image,
             '--logdir', logdir,
-        ] + options + " ".join(command),
+        ] + options + [" ".join(command)],
         file_outputs={'train': '/output.txt'}
     )
     key = Api().api_key
