@@ -75,7 +75,7 @@ def arena_launcher_op(image, command, type="tfjob", gpus=0, env=[], workers=1, l
     for e in env:
         options.extend(['--env', e])
     op = dsl.ContainerOp(
-        name=name,
+        name=name or "wandb-arena",
         image='wandb/arena',
         arguments=[
             '--workers', workers,
@@ -89,5 +89,5 @@ def arena_launcher_op(image, command, type="tfjob", gpus=0, env=[], workers=1, l
     key = Api().api_key
     if key is None:
         raise ValueError("Not logged into W&B, run `wandb login`")
-    op.add_env_variable({"WANDB_API_KEY": key})
+    #op.add_env_variable({"WANDB_API_KEY": key})
     return op
