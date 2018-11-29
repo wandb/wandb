@@ -39,7 +39,7 @@ class Arena(object):
         self.args = args
         self.wandb_run_id = wandb_run_id or _short_id()
         self.wandb_project = wandb_project
-        self.wandb_api_key = wandb_api_key
+        self.wandb_api_key = wandb_api_key or self.api.api_key
         self.timeout_minutes = timeout_minutes
         self.workers = int(self._parse_flag("--workers", 1)[1] or "0")
         self.entity = None
@@ -95,8 +95,7 @@ class Arena(object):
                 projo = self.api.format_project(projo)
             self.args.insert(opt_index, "--env=WANDB_PROJECT={}".format(projo))
 
-        api_key = self.wandb_api_key or self.api.api_key
-        if api_key:
+        if self.wandb_api_key:
             self.args.insert(
                 opt_index, "--env=WANDB_API_KEY={}".format(self.wandb_api_key))
         else:
@@ -116,7 +115,8 @@ class Arena(object):
                 if api_key:
                     self.args.insert(
                         opt_index, "--env=WANDB_API_KEY="+base64.b64decode(api_key).decode("utf8"))
-        if api_key:
+                    self.wandb_api_key = api_key
+        if self.wandb_api_key:
             try:
                 # TODO: support someone overriding entity
                 if self.workers <= 1:
@@ -148,8 +148,8 @@ class Arena(object):
         tensorboard = self._parse_flag("--tensorboard")[0] > -1
         if gcs_url and wandb_run_path:
             pipeline_metadata(gcs_url, projo, tensorboard)
-        else:
-            print("--logdir isn't set to a GCS url, skipping pipeline asset saving.")
+        elif wandb_run_path:
+            print("--logdir isn't set, skipping pipeline asset saving.")
         cmd = arena(["submit"] + self.args)
         print("Arena job {} submitted, watching state for upto {} minutes".format(
             name, self.timeout_minutes))

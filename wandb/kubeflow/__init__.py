@@ -21,7 +21,7 @@ def _upload_wandb_webapp(gcs_path, wandb_run_path):
     #               access_key='minio',
     #               secret_key='minio123',
     #               secure=False)
-    #client.fput_object('mlpipeline', wbpath, "wandb.html")
+    # client.fput_object('mlpipeline', wbpath, "wandb.html")
     wandb_path = os.path.join("artifacts", wandb_run_path, "wandb.html")
     output_path = os.path.join(gcs_path, wandb_path)
     _, _, bucket, key = output_path.split("/", 3)
@@ -62,29 +62,29 @@ def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=
     from kubernetes import client as k8s_client
     options = []
     if name:
-        options.extend(['--name', name])
+        options.append('--name='+name)
     if logdir:
-        options.extend(['--logdir', logdir])
+        options.append('--logdir='+logdir)
     if sync_source:
         if not sync_source.startswith("http"):
             raise ValueError("sync_source must be an http git url")
-        options.extend(["--syncSource", sync_source])
+        options.append('--syncSource='+sync_source)
     if wandb_project:
-        options.extend(['--wandb-project', wandb_project])
+        options.append('--wandb-project='+wandb_project)
     if wandb_run_id:
-        options.extend(['--wandb-run-id', wandb_run_id])
+        options.append('--wandb-run-id='+wandb_run_id)
     for e in env:
-        options.extend(['--env', e])
+        options.append('--env='+e)
     op = dsl.ContainerOp(
         name=name or "wandb-arena",
         image='wandb/arena',
         arguments=[
             "submit",
             job_type,
-            '--workers', workers,
-            '--ps', parameter_servers,
-            '--timeout-minutes', timeout_minutes,
-            '--image', image,
+            '--workers='+workers,
+            '--ps='+parameter_servers,
+            '--timeout-minutes='+timeout_minutes,
+            '--image='+image,
         ] + options + [" ".join(command)],
         file_outputs={'train': '/output.txt'}
     )
