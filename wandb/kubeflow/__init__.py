@@ -56,7 +56,7 @@ def pipeline_metadata(gcs_url, wandb_run_path=None, tensorboard=True):
 
 
 def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=1, logdir=None,
-                      parameter_servers=0, timeout_minutes=10, sync_source=None,
+                      parameter_servers=0, ps_image=None, timeout_minutes=10, sync_source=None,
                       name=None, namespace=None, wandb_project=None, wandb_run_id=None):
     from kfp import dsl
     from kubernetes import client as k8s_client
@@ -76,6 +76,8 @@ def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=
         options.append('--wandb-project='+wandb_project)
     if wandb_run_id:
         options.append('--wandb-run-id='+wandb_run_id)
+    if ps_image:
+        options.append('--psImage='+ps_image)
     if gpus:
         options.append('--gpus='+str(gpus))
     for e in env:
