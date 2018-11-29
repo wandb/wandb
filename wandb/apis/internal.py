@@ -416,17 +416,24 @@ class Api(object):
         return (commit, config, patch)
 
     @normalize_exceptions
-    def run_resume_status(self, entity, project, name):
+    def run_resume_status(self, entity, project_name, name):
         """Check if a run exists and get resume information.
 
         Args:
-            project (str): The project to download, (can include bucket)
-            run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
+            project_name (str): The project to download, (can include bucket)
+            run (str, optional): The run to download
         """
         query = gql('''
-        query Model($project: String!, $entity: String!, $name: String!) {
+        query Model($project: String!, $entity: String, $name: String!) {
             model(name: $project, entityName: $entity) {
+                id
+                name
+                entity {
+                    id
+                    name
+                }
+
                 bucket(name: $name, missingOk: true) {
                     id
                     name
@@ -441,10 +448,18 @@ class Api(object):
         ''')
 
         response = self.gql(query, variable_values={
-            'entity': entity, 'project': project, 'name': name,
+            'entity': entity, 'project': project_name, 'name': name,
         })
-        run = response['model']['bucket']
-        return run
+
+        if 'model' not in response or 'bucket' not in response['model']:
+            return None
+
+        project = response['model']
+        self.set_setting('project', project_name)
+        if 'entity' in project:
+            self.set_setting('entity', project['entity']['name'])
+
+        return project['bucket']
 
     def format_project(self, project):
         return re.sub(r'\W+', '-', project.lower()).strip("-_")

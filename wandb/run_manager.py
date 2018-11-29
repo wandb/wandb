@@ -346,7 +346,8 @@ class RunManager(object):
         self._port = port
         self._output = output
 
-        self._project = project if project else api.settings("project")
+        self._project = self._resolve_project_name(project)
+
         self._tags = tags
         self._watch_dir = self._run.dir
 
@@ -363,6 +364,19 @@ class RunManager(object):
             self._meta.data["program"] = self._run.program
 
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
+
+    def _resolve_project_name(self, project_name=None):
+        if project_name is not None:
+            return project_name
+
+        project_name = self._api.settings('project')
+        if project_name is not None:
+            return project_name
+
+        project_name = self._run.auto_project_name(self._api)
+        if project_name is not None:
+            return project_name
+
 
     """ FILE SYNCING / UPLOADING STUFF """
 
@@ -690,15 +704,15 @@ class RunManager(object):
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
-                resume_status = self._api.run_resume_status(project=self._api.settings("project"),
-                                                            entity=self._api.settings(
-                                                                "entity"),
+                resume_status = self._api.run_resume_status(project_name=self._project,
+                                                            entity=self._api.settings("entity"),
                                                             name=self._run.id)
                 if resume_status == None and self._run.resume == 'must':
                     raise LaunchError(
                         "resume='must' but run (%s) doesn't exist" % self._run.id)
                 if resume_status:
                     print('Resuming run: %s' % self._run.get_url(self._api))
+                    self._project = self._resolve_project_name(self._project)
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
 
