@@ -159,7 +159,7 @@ class Arena(object):
         while True:
             # TODO: parse JSON when it's supported
             rows = [row for row in (re.split(r"\s+", row) for row in str(arena("get", name)
-                                                                         ).split("\n")) if len(row) > 1]
+                                                                         ).split("\n")) if len(row) == 6 and "s" in row[3]]
             if len(rows) <= 1:
                 print("Corrupt rows: ", rows)
                 continue

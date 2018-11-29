@@ -34,4 +34,6 @@ COPY --from=build /root/go/src/github.com/kubeflow/arena/charts /charts
 
 COPY --from=build /install /usr/local
 
+RUN mkdir /ml
+
 ENTRYPOINT ["wandb", "arena"]

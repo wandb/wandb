@@ -37,7 +37,7 @@ def _upload_wandb_webapp(gcs_path, wandb_run_path):
 def pipeline_metadata(gcs_url, wandb_run_path=None, tensorboard=True):
     if not str(gcs_url).startswith("gs://"):
         print("Tensorboard and W&B artifacts require --logdir to be a GCS url")
-    elif wandb_run_path and os.path.exists("/argo/podmetadata"):
+    elif wandb_run_path and os.path.exists("/ml"):
         web_app_source = _upload_wandb_webapp(
             gcs_url, wandb_run_path)
 
@@ -52,9 +52,14 @@ def pipeline_metadata(gcs_url, wandb_run_path=None, tensorboard=True):
             })
         with open('/mlpipeline-ui-metadata.json', 'w') as f:
             json.dump({'outputs': outputs}, f)
-        print("KubeFlow pipeline assets saved")
+        with open('/output.txt', 'w') as f:
+            f.write(gcs_url)
+        with open('/wandb.txt', 'w') as f:
+            f.write("https://app.wandb.ai/"+wandb_run_path)
+
+        print("Kubeflow pipeline assets saved")
     else:
-        print("Not running in argo, skipping metadata")
+        print("Not running in Kubeflow Pipelines, skipping metadata")
 
 
 def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=1, logdir=None,
@@ -95,7 +100,7 @@ def arena_launcher_op(image, command, job_type="tfjob", gpus=0, env=[], workers=
             '--timeout-minutes='+str(timeout_minutes),
             '--image='+image,
         ] + options + [" ".join(command)],
-        file_outputs={'train': '/output.txt'}
+        file_outputs={'train': '/output.txt', 'wandb': '/wandb.txt'}
     )
     key = Api().api_key
     if key is None:
