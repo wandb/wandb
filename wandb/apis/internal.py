@@ -783,7 +783,7 @@ class Api(object):
                             ),
                             'Content-Length': str(total - completed)
                         }
-                elif status.status_code in (500, 502, 503, 504):
+                elif status.status_code in (408, 500, 502, 503, 504):
                     time.sleep(random.randint(1, 10))
                 else:
                     raise e
