@@ -158,11 +158,12 @@ class Arena(object):
         poll_rate = 10
         while True:
             # TODO: parse JSON when it's supported
-            rows = [row for row in (re.split(r"\s+", row) for row in str(arena("get", name)
-                                                                         ).split("\n")) if len(row) == 6 and "s" in row[3]]
+            status = str(arena("get", name)).split("\n")
+            rows = [row for row in (re.split(r"\s+", row)
+                                    for row in status) if len(row) == 6 and "s" in row[3]]
             if len(rows) <= 1:
-                print("Corrupt rows: ", rows)
-                continue
+                print("Final status: ", rows)
+                break
             status = [row[1] for row in rows[1:]]
             runtime = [row[3] for row in rows[1:]]
             print("Status: {} {}".format(status, runtime))
