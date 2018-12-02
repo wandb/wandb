@@ -174,6 +174,7 @@ class ExitHooks(object):
 
 def _init_headless(run, cloud=True):
     global join
+    global _user_process_finished_called
     run.description = env.get_description(run.description)
 
     environ = dict(os.environ)
@@ -259,6 +260,7 @@ def _init_headless(run, cloud=True):
         _user_process_finished(server, hooks,
                                wandb_process, stdout_redirector, stderr_redirector)
     join = _wandb_join
+    _user_process_finished_called = False
     # redirect output last of all so we don't miss out on error messages
     stdout_redirector.redirect()
     if not env.is_debug():
@@ -313,14 +315,14 @@ def _init_jupyter(run):
 
 
 join = None
-_user_processs_finished_called = False
+_user_process_finished_called = False
 
 
 def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stderr_redirector):
-    global _user_processs_finished_called
-    if _user_processs_finished_called:
+    global _user_process_finished_called
+    if _user_process_finished_called:
         return
-    _user_processs_finished_called = True
+    _user_process_finished_called = True
 
     stdout_redirector.restore()
     if not env.is_debug():

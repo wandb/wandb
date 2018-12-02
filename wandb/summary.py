@@ -41,6 +41,10 @@ class Summary(object):
         if not write and isinstance(v, dict):
             if v.get("_type") in H5_TYPES:
                 return self.read_h5(k, v)
+            elif v.get("_type") == 'parquet':
+                print(
+                    'This dataframe was saved via the wandb data API. Contact support@wandb.com for help.')
+                return None
             # TODO: transform wandb objects and plots
             else:
                 return {key: self._transform(k + "." + key, value, write=False) for (key, value) in v.items()}
@@ -122,11 +126,20 @@ class Summary(object):
         """Convert obj to json, summarizing larger arrays in JSON and storing them in h5."""
         res = {}
         obj = obj or self._summary
+        saved_bq_data = False
         for key, value in six.iteritems(obj):
             path = ".".join(root_path + [key])
             if isinstance(value, dict):
                 res[key], converted = util.json_friendly(
                     self.convert_json(value, root_path + [key]))
+            elif util.can_write_dataframe_as_parquet() and util.is_pandas_dataframe(value):
+                res[key] = {"_type": "parquet"}
+                util.write_dataframe(
+                    value,
+                    os.path.join(wandb.run.dir, 'dataframe-%s' % key),
+                    wandb.run.id)
+                saved_bq_data = True
+
             else:
                 tmp_obj, converted = util.json_friendly(
                     data_types.val_to_json(key, value))
@@ -134,6 +147,17 @@ class Summary(object):
                     tmp_obj, util.get_h5_typename(value))
                 if compressed:
                     self.write_h5(path, tmp_obj)
+        if saved_bq_data:
+            # TODO: other metadata
+            data = {
+                'wandb_run_id': wandb.run.id,
+                'summary': res,
+                'config': {k: v['value'] for k, v in wandb.run.config.as_dict().items()}
+            }
+            of = open(os.path.join(wandb.run.dir, 'wandb-run.json'), 'w')
+            of.write(json.dumps(data))
+            of.write('\n')
+            of.close()
 
         self._summary = res
         return res
@@ -157,7 +181,7 @@ def download_h5(run, entity=None, project=None, out_dir=None):
     api = Api()
     meta = api.download_url(project or api.settings(
         "project"), DEEP_SUMMARY_FNAME, entity=entity or api.settings("entity"), run=run)
-    if meta:
+    if meta and 'md5' in meta and meta['md5'] is not None:
         # TODO: make this non-blocking
         wandb.termlog("Downloading summary data...")
         path, res = api.download_write_file(meta, out_dir=out_dir)

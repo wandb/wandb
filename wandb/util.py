@@ -141,12 +141,20 @@ def is_pytorch_tensor_typename(typename):
     return typename.startswith('torch.') and ('Tensor' in typename or 'Variable' in typename)
 
 
+def is_pandas_dataframe_typename(typename):
+    return typename.startswith('pandas.') and 'DataFrame' in typename
+
+
 def is_matplotlib_typename(typename):
     return typename.startswith("matplotlib.")
 
 
 def is_plotly_typename(typename):
     return typename.startswith("plotly.")
+
+
+def is_pandas_dataframe(obj):
+    return is_pandas_dataframe_typename(get_full_typename(obj))
 
 
 def ensure_matplotlib_figure(obj):
@@ -345,6 +353,26 @@ def json_dumps_safer(obj, **kwargs):
 def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+
+
+def can_write_dataframe_as_parquet():
+    pyarrow = get_module("pyarrow")
+    parquet = get_module("pyarrow.parquet")
+    pandas = get_module("pandas")
+    return pyarrow and parquet and pandas
+
+
+def write_dataframe(df, path, run_id):
+    pyarrow = get_module("pyarrow")
+    parquet = get_module("pyarrow.parquet")
+    pandas = get_module("pandas")
+    if pyarrow and parquet and pandas:
+        df['wandb_run_id'] = pandas.Series(
+            [wandb.run.id] * len(df.index), index=df.index)
+        table = pyarrow.Table.from_pandas(df)
+        parquet.write_table(table, path + ".parquet")
+    else:
+        print("Unable to load pyarrow and pandas, not saving summary dataframe")
 
 
 def make_json_if_not_number(v):
