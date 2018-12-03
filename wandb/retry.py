@@ -1,9 +1,11 @@
 import datetime
+import functools
 import logging
 import os
 import random
 import time
 import traceback
+import weakref
 
 import wandb
 import wandb.env
@@ -16,6 +18,14 @@ def make_printer(msg):
     def printer():
         print(msg)
     return printer
+
+
+class TransientException(Exception):
+    """Exception type designated for errors that may only be temporary
+    """
+    def __init__(self, exc, tb):
+        self._exception = exc
+        self._traceback = tb
 
 
 class Retry(object):
@@ -35,7 +45,7 @@ class Retry(object):
         self._num_retries = num_retries
         self._retryable_exceptions = retryable_exceptions
         if self._retryable_exceptions is None:
-            self._retryable_exceptions = (Exception,)
+            self._retryable_exceptions = (TransientException,)
         self._index = 0
 
     @property
@@ -98,3 +108,14 @@ class Retry(object):
             now = datetime.datetime.now()
 
             self._num_iter += 1
+
+
+def retriable(*args, **kargs):
+    def decorator(fn):
+        retrier = Retry(fn, *args, **kargs)
+        @functools.wraps(fn)
+        def wrapped_fn(*args, **kargs):
+            return retrier(*args, **kargs)
+        return wrapped_fn
+    return decorator
+

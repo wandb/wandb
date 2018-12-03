@@ -12,16 +12,16 @@ import re
 import click
 import logging
 import requests
-from six import BytesIO
-from six.moves import configparser
 import socket
 import subprocess
 import time
 import sys
 import random
 
+import six
 from six import b
-
+from six import BytesIO
+from six.moves import configparser
 import wandb
 from wandb import __version__, wandb_dir, Error
 from wandb import env
@@ -745,7 +745,6 @@ class Api(object):
 
         return path, response
 
-    @normalize_exceptions
     def upload_file(self, url, file, callback=None):
         """Uploads a file to W&B with failure resumption
 
@@ -762,32 +761,36 @@ class Api(object):
         extra_headers = {}
         if os.stat(file.name).st_size == 0:
             raise CommError("%s is an empty file" % file.name)
-        while attempts < self.retry_uploads:
-            try:
-                progress = Progress(file, callback=callback)
-                response = requests.put(
-                    url, data=progress, headers=extra_headers)
-                response.raise_for_status()
-                break
-            except requests.exceptions.RequestException as e:
-                total = progress.len
-                status = self._status_request(url, total)
-                attempts += 1
-                if status.status_code == 308:
-                    if status.headers.get("Range"):
-                        completed = int(status.headers['Range'].split("-")[-1])
-                        extra_headers = {
-                            'Content-Range': 'bytes {completed}-{total}/{total}'.format(
-                                completed=completed,
-                                total=total
-                            ),
-                            'Content-Length': str(total - completed)
-                        }
-                elif status.status_code in (408, 500, 502, 503, 504):
-                    time.sleep(random.randint(1, 10))
-                else:
-                    raise e
+
+        try:
+            progress = Progress(file, callback=callback)
+            response = requests.put(
+                url, data=progress, headers=extra_headers)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            total = progress.len
+            status = self._status_request(url, total)
+            attempts += 1
+            if status.status_code == 308:
+                if status.headers.get("Range"):
+                    completed = int(status.headers['Range'].split("-")[-1])
+                    extra_headers = {
+                        'Content-Range': 'bytes {completed}-{total}/{total}'.format(
+                            completed=completed,
+                            total=total
+                        ),
+                        'Content-Length': str(total - completed)
+                    }
+            # TODO(adrian): there's probably even more stuff we should add here
+            # like if we're offline, we should retry then too
+            elif status.status_code in (408, 500, 502, 503, 504):
+                util.sentry_reraise(retry.TransientException(e))
+            else:
+                util.sentry_reraise(e)
+
         return response
+
+    upload_file_retry = normalize_exceptions(retry.retriable()(upload_file))
 
     @normalize_exceptions
     def register_agent(self, host, sweep_id=None, project_name=None):
@@ -928,15 +931,18 @@ class Api(object):
 
         return responses
 
+    def get_project(self):
+        return self.settings('project')
+
     @normalize_exceptions
-    def push(self, project, files, run=None, entity=None, description=None, force=True, progress=False):
+    def push(self, files, run=None, entity=None, project=None, description=None, force=True, progress=False):
         """Uploads multiple files to W&B
 
         Args:
-            project (str): The project to upload to
             files (list or dict): The filenames to upload
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
+            project (str, optional): The name of the project to upload to. Defaults to the one in settings.
             description (str, optional): The description of the changes
             force (bool, optional): Whether to prevent push if git has uncommitted changes
             progress (callable, or stream): If callable, will be called with (chunk_bytes,
@@ -945,10 +951,20 @@ class Api(object):
         Returns:
             The requests library response object
         """
+        # XXX TODO(adrian): check this
         project, run = self.parse_slug(project, run=run)
+        if project is None:
+            project = self.get_project()
+        if run is None:
+            run = self.current_run_id
+
         # Only tag if enabled
         if self.settings("git_tag"):
             self.tag_and_push(run, description, force)
+
+        # TODO(adrian): we use a retriable version of self.upload_file() so
+        # will never retry self.upload_urls() here. Instead, maybe we should
+        # make push itself retriable.
         run_id, result = self.upload_urls(
             project, files, run, entity, description)
         responses = []
@@ -964,16 +980,16 @@ class Api(object):
                 continue
             if progress:
                 if hasattr(progress, '__call__'):
-                    responses.append(self.upload_file(
+                    responses.append(self.upload_file_retry(
                         file_info['url'], open_file, progress))
                 else:
                     length = os.fstat(open_file.fileno()).st_size
                     with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
                                            fill_char=click.style('&', fg='green')) as bar:
-                        responses.append(self.upload_file(
+                        responses.append(self.upload_file_retry(
                             file_info['url'], open_file, lambda bites, _: bar.update(bites)))
             else:
-                responses.append(self.upload_file(file_info['url'], open_file))
+                responses.append(self.upload_file_retry(file_info['url'], open_file))
             open_file.close()
         return responses
 
