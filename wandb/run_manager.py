@@ -21,7 +21,7 @@ from shortuuid import ShortUUID
 import six
 from six.moves import queue
 import requests
-from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
 from watchdog.events import PatternMatchingEventHandler
 import webbrowser
 
@@ -372,16 +372,9 @@ class RunManager(object):
         # FileEventHandlers (any of the classes at the top) indexed by "save_name," which is the file's path relative to the run directory
         self._file_event_handlers = {}
 
-        # TODO(adrian): This thing just isn't reliable. It doesn't always notice files
-        # being created. We should do something like walk the run directory ourselves
-        # at the end of the run to ensure we're at least aware of every file that
-        # is in there
-        self._file_observer = Observer()
+        # We use the polling observer because inotify was flaky and could require changes to sysctl.conf
+        self._file_observer = PollingObserver()
         self._file_observer.schedule(self._per_file_event_handler(), self._watch_dir, recursive=True)
-
-        # wandb-debug.log is created before we start watching, so we manually mark it as having been created
-        self._get_file_event_handler(os.path.join(
-            self._run.dir, DEBUG_FNAME), DEBUG_FNAME).on_created()
 
         # We lock this when the back end is down so Watchdog will keep track of all
         # the file events that happen. Then, when the back end comes back up, we unlock
