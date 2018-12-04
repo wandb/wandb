@@ -22,7 +22,7 @@ USERNAME = 'WANDB_USERNAME'
 PROJECT = 'WANDB_PROJECT'
 ENTITY = 'WANDB_ENTITY'
 BASE_URL = 'WANDB_BASE_URL'
-RUN = 'WANDB_RUN'
+RUN = 'WANDB_RUN_ID'
 IGNORE = 'WANDB_IGNORE_GLOBS'
 ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
 
@@ -118,6 +118,7 @@ def set_entity(value, env=None):
     if env is None:
         env = os.environ
     env[ENTITY] = value
+
 
 def set_project(value, env=None):
     if env is None:

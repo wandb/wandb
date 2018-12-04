@@ -2,8 +2,11 @@ import re
 
 import six
 import tensorflow as tf
-import wandb.util
+from wandb import util
+from wandb.data_types import to_json
 import wandb
+from wandb.apis.file_stream import Chunk
+import json
 
 
 class WandbHook(tf.train.SessionRunHook):
@@ -42,13 +45,17 @@ def tf_summary_to_dict(tf_summary_str_or_pb):
     Accepts either a tensorflow.summary.Summary
     or one encoded as a string.
     """
+    values = {}
     if isinstance(tf_summary_str_or_pb, tf.summary.Summary):
         summary_pb = tf_summary_str_or_pb
+    elif isinstance(tf_summary_str_or_pb, tf.summary.Event):
+        summary_pb = tf_summary_str_or_pb.summary
+        values["tensorflow_step"] = tf_summary_str_or_pb.step
+        values["_timestamp"] = tf_summary_str_or_pb.wall_time
     else:
         summary_pb = tf.summary.Summary()
         summary_pb.ParseFromString(tf_summary_str_or_pb)
 
-    values = {}
     for value in summary_pb.value:
         kind = value.WhichOneof("value")
         if kind == "simple_value":
@@ -77,3 +84,24 @@ def tf_summary_to_dict(tf_summary_str_or_pb):
 
 def log(tf_summary_str, **kwargs):
     wandb.log(tf_summary_to_dict(tf_summary_str), **kwargs)
+
+
+def stream_tfevents(path, file_api, step=0):
+    """Parses and streams a tfevents file to the server"""
+    last_step = 0
+    row = {}
+    buffer = []
+    last_row = {}
+    for summary in tf.train.summary_iterator(path):
+        parsed = tf_summary_to_dict(summary)
+        if last_step != parsed["tensorflow_step"]:
+            step += 1
+            last_step = parsed["tensorflow_step"]
+            # TODO: handle time
+            if len(row) > 0:
+                last_row = to_json(row)
+                buffer.append(Chunk("wandb-history.jsonl",
+                                    util.json_dumps_safer_history(to_json(row))))
+        row.update(parsed)
+    file_api._send(buffer)
+    return last_row

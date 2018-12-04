@@ -120,30 +120,6 @@ def test_push_success(request_mocker, upload_url, query_project, upsert_run):
     assert res[0].status_code == 200
 
 
-def test_push_git_success(request_mocker, mocker, upload_url, query_project, upsert_run):
-    query_project(request_mocker)
-    upload_url(request_mocker)
-    update_mock = upsert_run(request_mocker)
-    with CliRunner().isolated_filesystem():
-        res = os.mkdir("wandb")
-        with open("wandb/latest.yaml", "w") as f:
-            f.write(yaml.dump({'wandb_version': 1, 'test': {
-                    'value': 'success', 'desc': 'My life'}}))
-        with open("weights.h5", "w") as f:
-            f.write("weight")
-        with open("model.json", "w") as f:
-            f.write("model")
-        r = git.Repo.init(".")
-        r.index.add(["model.json"])
-        r.index.commit("initial commit")
-        api = internal.Api(load_settings=False,
-                           default_settings={'git_tag': True})
-        mock = mocker.patch.object(api.git, "push")
-        res = api.push("test/test", ["weights.h5", "model.json"])
-    assert res[0].status_code == 200
-    mock.assert_called_once_with("test")
-
-
 def test_push_no_project(request_mocker, upload_url, query_project):
     query_project(request_mocker)
     upload_url(request_mocker)

@@ -201,6 +201,10 @@ class FileStreamApi(object):
         self._handle_response(util.request_with_retry(
             self._client.post, self._endpoint, json={'files': files}))
 
+    def stream_file(self, path):
+        name = path.split("/")[-1]
+        self._send([Chunk(name, line) for line in open(path).readlines()])
+
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.
 

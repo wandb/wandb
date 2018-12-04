@@ -15,7 +15,8 @@ from wandb import CommError
 
 if not find_executable("arena"):
     if find_executable("docker"):
-        arena = sh.Command("./arena-docker.sh")
+        arena = sh.Command(os.path.join(
+            os.path.dirname(__file__), "./arena-docker.sh"))
     else:
         raise ValueError(
             "You must install arena or docker to run this command")

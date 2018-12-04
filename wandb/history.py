@@ -174,7 +174,8 @@ class History(object):
         return self._torch
 
     def log_tf_summary(self, summary_pb_bin):
-        self.add(wandb.tensorflow.tf_summary_to_dict(summary_pb_bin))
+        from wandb.tensorflow import tf_summary_to_dict
+        self.add(tf_summary_to_dict(summary_pb_bin))
 
     def _index(self, row):
         """Add a row to the internal list of rows without writing it to disk.

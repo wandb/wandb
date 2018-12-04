@@ -36,4 +36,4 @@ COPY --from=build /install /usr/local
 
 RUN mkdir /ml
 
-ENTRYPOINT ["wandb", "arena"]
+ENTRYPOINT ["python", "-m", "wandb.kubeflow.arena"]

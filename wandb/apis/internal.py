@@ -946,9 +946,6 @@ class Api(object):
             The requests library response object
         """
         project, run = self.parse_slug(project, run=run)
-        # Only tag if enabled
-        if self.settings("git_tag"):
-            self.tag_and_push(run, description, force)
         run_id, result = self.upload_urls(
             project, files, run, entity, description)
         responses = []
@@ -985,22 +982,6 @@ class Api(object):
                     'Must have a current run to use file stream API.')
             self._file_stream_api = FileStreamApi(self, self._current_run_id)
         return self._file_stream_api
-
-    def tag_and_push(self, name, description, force=True):
-        if self.git.enabled and not self.tagged:
-            self.tagged = True
-            # TODO: this is getting called twice...
-            print("Tagging your git repo...")
-            if not force and self.git.dirty:
-                raise CommError(
-                    "You have un-committed changes. Use the force flag or commit your changes.")
-            elif self.git.dirty and os.path.exists(wandb_dir()):
-                self.git.repo.git.execute(['git', 'diff'], output_stream=open(
-                    os.path.join(wandb_dir(), 'diff.patch'), 'wb'))
-            self.git.tag(name, description)
-            result = self.git.push(name)
-            if(result is None or len(result) is None):
-                print("Unable to push git tag.")
 
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""

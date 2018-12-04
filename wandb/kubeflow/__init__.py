@@ -14,23 +14,28 @@ from wandb import Api
 storage = util.get_module("google.cloud.storage")
 
 
-def _upload_wandb_webapp(gcs_path, wandb_run_path):
+def wandb_webapp(wandb_run_path, gcs_path=None):
     # TODO: Check if we're local and change the url
     # We can use this once my pull is approved
-    # client = Minio('minio-service.kubeflow:9000',
-    #               access_key='minio',
-    #               secret_key='minio123',
-    #               secure=False)
-    # client.fput_object('mlpipeline', wbpath, "wandb.html")
+    #
     wandb_path = os.path.join("artifacts", wandb_run_path, "wandb.html")
-    output_path = os.path.join(gcs_path, wandb_path)
-    _, _, bucket, key = output_path.split("/", 3)
-    blob = storage.Client().get_bucket(bucket).blob(key)
-
     template = os.path.join(os.path.dirname(
         os.path.realpath(__file__)), "wandb.template.html")
-    blob.upload_from_string(
-        open(template).read().replace("$RUN_PATH", wandb_run_path))
+    html = open(template).read().replace("$RUN_PATH", wandb_run_path)
+    if gcs_path:
+        output_path = os.path.join(gcs_path, wandb_path)
+        _, _, bucket, key = output_path.split("/", 3)
+        blob = storage.Client().get_bucket(bucket).blob(key)
+        blob.upload_from_string(html)
+    else:
+        from minio import Minio
+        client = Minio('minio-service.kubeflow:9000',
+                       access_key='minio',
+                       secret_key='minio123',
+                       secure=False)
+        client.put_object('mlpipeline', wandb_path, html,
+                          len(html), content_type="text/html")
+
     return output_path
 
 

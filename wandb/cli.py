@@ -28,7 +28,7 @@ import random
 
 from wandb import util
 
-
+from watchdog.utils.dirsnapshot import DirectorySnapshot
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException, Abort
 # whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
@@ -370,13 +370,72 @@ def restore(run, branch, project, entity):
     config.persist()
     click.echo("Restored config variables")
 
+@cli.command(context_settings=CONTEXT, help="Upload a training directory to W&B")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--id", envvar=env.RUN, help="The run you want to upload to.")
+@click.option("--project", "-p", envvar=env.PROJECT, help="The project you want to upload to.")
+@click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope to.")
+@display_error
+def sync(path, id, project, entity):
+    run_id = id or wandb_run.generate_id()
+    if project is None:
+        raise ClickException("You must specify project")
+    api.set_current_run_id(run_id)
+    api.set_setting("project", project)
+    if entity:
+        api.set_setting("entity", entity)
+    res = api.upsert_run(name=run_id, project=project, entity=entity)
+    entity = res["project"]["entity"]["name"]
+    print("Created new run:")
+    print("https://app.wandb.ai/{}/{}/runs/{}".format(entity, project, run_id))
+
+    file_api = api.get_file_stream_api()
+    snap = DirectorySnapshot(path)
+    paths = [os.path.relpath(abs_path, path) for abs_path in snap.paths if os.path.isfile(abs_path)]
+    run_update = {"id": res["id"]}
+    tfevents = [p for p in snap.paths if ".tfevents." in p]
+    histories = [p for p in snap.paths if "wandb-history.jsonl" in p]
+    events = [p for p in snap.paths if "wandb-events.jsonl" in p]
+    configs = [p for p in snap.paths if "config.yaml" in p]
+    summaries = [p for p in snap.paths if "wandb-summary.json" in p]
+    metas = [p for p in snap.paths if "wandb-metadata.json" in p]
+    if len(histories) > 0:
+        click.echo("Uploading history metrics")
+        file_api.stream_file(histories[0])
+        snap.paths.remove(histories[0])
+    elif len(tfevents) > 0:
+        from wandb import tensorflow as wbtf
+        click.echo("Found tfevents file, converting.")
+        for file in tfevents:
+            summary = wbtf.stream_tfevents(file, file_api)
+    if len(events) > 0:
+        file_api.stream_file(events[0])
+        snap.paths.remove(events[0])
+    if len(configs) > 0:
+        run_update["config"] = yaml.load(open(configs[0]))
+    if len(summaries) > 0:
+        run_update["summary_metrics"] = open(summaries[0]).read()
+    if len(metas) > 0:
+        meta = json.load(open(metas[0]))
+        run_update["commit"] = meta["git"].get("commit")
+        run_update["repo"] = meta["git"].get("remote")
+        run_update["host"] = meta["host"]
+        run_update["program_path"] = meta["program"]
+        run_update["job_type"] = meta["jobType"]
+    else:
+        run_update["host"] = socket.gethostname()
+
+    api.upsert_run(**run_update)
+    print("Uploading all files")
+    path_dict = {k: open(os.path.abspath(os.path.join(path, k)), 'rb') for k in paths}
+    api.push(project, path_dict, run=run_id, entity=entity, progress=lambda _, total: None)
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("run", envvar=env.RUN)
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you want to download.")
 @click.option("--entity", "-e", default="models", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
-def pull(project, run, entity):
+def pull(run, project, entity):
     project, run = api.parse_slug(run, project=project)
 
     urls = api.download_urls(project, run=run, entity=entity)
@@ -705,16 +764,6 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
         sys.exit(1)
 
     rm.run_user_process(program, args, environ)
-
-
-@cli.command(context_settings={"ignore_unknown_options": True, "help_option_names": []})
-@click.argument('arena_args', nargs=-1, type=click.UNPROCESSED)
-@display_error
-def arena(arena_args):
-    """A wrapper around arena submit that adds W&B metadata"""
-    root = os.path.join(os.path.abspath(
-        os.path.dirname(__file__)), "kubeflow")
-    subprocess.call(['python', 'arena.py'] + list(arena_args), cwd=root)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
