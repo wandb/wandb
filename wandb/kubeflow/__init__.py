@@ -43,7 +43,7 @@ def pipeline_metadata(gcs_url, wandb_run_path=None, tensorboard=True):
     if not str(gcs_url).startswith("gs://"):
         print("Tensorboard and W&B artifacts require --logdir to be a GCS url")
     elif wandb_run_path and os.path.exists("/ml"):
-        web_app_source = _upload_wandb_webapp(
+        web_app_source = wandb_webapp(
             gcs_url, wandb_run_path)
 
         outputs = [{

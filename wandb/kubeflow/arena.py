@@ -145,7 +145,7 @@ class Arena(object):
                 print("Failed to talk to W&B")
         else:
             print(
-                "Couldn't authenticate with W&B, run `wandb login YOUR_API_KEY --kubeflow`")
+                "Couldn't authenticate with W&B, run `wandb login` on your local machine")
         index, gcs_url = self._parse_flag("--logdir")
         tensorboard = self._parse_flag("--tensorboard")[0] > -1
         if gcs_url and wandb_run_path:

@@ -352,6 +352,7 @@ class RunManager(object):
 
         self._config = run.config
 
+        self._file_count = 0
         self._init_file_observer()
 
         self._socket = wandb_socket.Client(self._port)
@@ -388,6 +389,13 @@ class RunManager(object):
         # Start watching for file changes right away so we can be sure we don't miss anything.
         # We don't have to worry about handlers actually being called because of the lock.
         self._file_observer.start()
+
+    @property
+    def emitter(self):
+        try:
+            return next(iter(self._file_observer.emitters))
+        except StopIteration:
+            return None
 
     def _per_file_event_handler(self):
         """Create a Watchdog file event handler that does different things for every file
@@ -435,8 +443,15 @@ class RunManager(object):
         try:
             # avoid hanging if we crashed before the observer was started
             if self._file_observer.is_alive():
-                self._file_observer.event_queue.join()
-                # TODO(adrian): do we really need to stop this? and join?
+                # rather unfortunatly we need to manually do a final scan of the dir
+                # with `queue_events`, then iterate through all events before stopping
+                # the observer to catch all files written
+                self.emitter.queue_events(0)
+                while True:
+                    try:
+                        self._file_observer.dispatch_events(self._file_observer.event_queue, 0)
+                    except queue.Empty:
+                        break
                 self._file_observer.stop()
                 self._file_observer.join()
         # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
@@ -466,6 +481,9 @@ class RunManager(object):
         logger.info('file/dir created: %s', event.src_path)
         if os.path.isdir(event.src_path):
             return None
+        self._file_count += 1
+        if self._file_count % 100 == 0:
+            self.emitter._timeout = int(self._file_count / 100) + 1
         save_name = os.path.relpath(event.src_path, self._watch_dir)
         self._ensure_file_observer_is_unblocked()
         self._get_file_event_handler(event.src_path, save_name).on_created()
@@ -764,20 +782,7 @@ class RunManager(object):
         self._meta.shutdown()
 
         if self._cloud:
-            # TODO(adrian): this sleep is here to help Watchdog notice very recent
-            # file events. We can remove it when we implement a final scan over the
-            # run directory.
-            time.sleep(1)
-
             self._stop_file_observer()
-
-            # Watchdog doesn't always notice the events file being created in short
-            # scripts, so we do a fake creation event if we don't already know about it.
-            # TODO(adrian): should probably just explore the whole run directory here
-            # and make sure we're aware of all the files in it.
-            if self._run.has_events and wandb_run.EVENTS_FNAME not in self._file_event_handlers:
-                self._get_file_event_handler(wandb_run.EVENTS_FNAME, self._run.events.fname).on_created()
-
             self._end_file_syncing(exitcode)
 
 

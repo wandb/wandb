@@ -42,7 +42,6 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
-from wandb.run_manager import RunManager
 from wandb.run_manager import LaunchError
 from wandb.data_types import Image
 from wandb.data_types import Audio

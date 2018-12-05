@@ -129,11 +129,11 @@ class Api(object):
                     with open(patch_path, 'wb') as patch:
                         # we diff against HEAD to ensure we get changes in the index
                         subprocess.check_call(
-                            ['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root)
+                            ['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root, timeout=5)
                 else:
                     with open(patch_path, 'wb') as patch:
                         subprocess.check_call(
-                            ['git', 'diff', 'HEAD'], stdout=patch, cwd=root)
+                            ['git', 'diff', 'HEAD'], stdout=patch, cwd=root, timeout=5)
 
             upstream_commit = self.git.get_upstream_fork_point()
             if upstream_commit and upstream_commit != self.git.repo.head.commit:
@@ -143,12 +143,12 @@ class Api(object):
                 if self.git.has_submodule_diff:
                     with open(upstream_patch_path, 'wb') as upstream_patch:
                         subprocess.check_call(
-                            ['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root)
+                            ['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root, timeout=5)
                 else:
                     with open(upstream_patch_path, 'wb') as upstream_patch:
                         subprocess.check_call(
-                            ['git', 'diff', sha], stdout=upstream_patch, cwd=root)
-        except subprocess.CalledProcessError:
+                            ['git', 'diff', sha], stdout=upstream_patch, cwd=root, timeout=5)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             logger.error('Error generating diff')
 
     def repo_remote_url(self):
