@@ -31,15 +31,6 @@ except ImportError:
     pass
 
 
-def sigint(delay=0.1):
-    """Send a SIGINT to this process, used to stop the local webserver in tests"""
-    thread = threading.Thread(target=lambda: (
-        time.sleep(delay),
-        os.kill(os.getpid(), signal.SIGINT)
-    ))
-    thread.start()
-
-
 @pytest.fixture
 def empty_netrc(monkeypatch):
     class FakeNet(object):
@@ -287,12 +278,9 @@ def test_signup(runner, empty_netrc, local_netrc, mocker):
         reload(wandb)
 
         def prompt(*args, **kwargs):
-            sigint()
+            raise click.exceptions.Abort()
         mocker.patch("click.prompt", prompt)
-        try:
-            result = runner.invoke(cli.signup)
-        except KeyboardInterrupt:
-            pass
+        result = runner.invoke(cli.signup)
         print('Output: ', result.output)
         print('Exception: ', result.exception)
         print('Traceback: ', traceback.print_tb(result.exc_info[2]))
@@ -403,9 +391,9 @@ def test_init_existing_login(runner, local_netrc, request_mocker, query_projects
 
 def test_run_with_error(runner, request_mocker, upsert_run, git_repo):
     upsert_run(request_mocker)
-    # TODO: Prevent syncing from happening
-    sigint(0.5)
+    runner.invoke(cli.off)
     result = runner.invoke(cli.run, ["missing.py"])
+
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
@@ -418,8 +406,7 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo):
 def test_run_update(runner, request_mocker, upsert_run, git_repo, upload_logs):
     upload_logs(request_mocker, "abc123")
     upsert_run(request_mocker)
-    # TODO: Prevent syncing from happening
-    sigint(0.5)
+    runner.invoke(cli.off)
     with open("simple.py", "w") as f:
         f.write('print("Done!")')
     result = runner.invoke(cli.run, ["--id=abc123", "--", "simple.py"])

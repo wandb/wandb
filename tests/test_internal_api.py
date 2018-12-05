@@ -125,8 +125,10 @@ def test_push_success(request_mocker, upload_url, query_project, upsert_run):
 def test_push_no_project(request_mocker, upload_url, query_project):
     query_project(request_mocker)
     upload_url(request_mocker)
+    del os.environ["WANDB_PROJECT"]
     with pytest.raises(wandb.Error):
         api = internal.Api(load_settings=False)
+        print("WTF", api.settings("project"))
         res = api.push(["weights.json"], entity='test')
 
 
@@ -183,7 +185,6 @@ def test_settings(mocker):
         'run': 'latest',
         'ignore_globs': ["diff.patch", "*.secure"],
         'git_remote': 'origin',
-        'git_tag': False
     }
 
 
@@ -197,7 +198,6 @@ def test_default_settings():
         'run': 'latest',
         'ignore_globs': [],
         'git_remote': 'origin',
-        'git_tag': False,
         'project': None,
     }
 
