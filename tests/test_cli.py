@@ -280,13 +280,19 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
         assert DUMMY_API_KEY in generatedNetrc
 
 
-def test_signup(runner, empty_netrc, local_netrc):
+def test_signup(runner, empty_netrc, local_netrc, mocker):
     with runner.isolated_filesystem():
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
-        sigint(0.5)
-        result = runner.invoke(cli.signup)
+
+        def prompt(*args, **kwargs):
+            sigint()
+        mocker.patch("click.prompt", prompt)
+        try:
+            result = runner.invoke(cli.signup)
+        except KeyboardInterrupt:
+            pass
         print('Output: ', result.output)
         print('Exception: ', result.exception)
         print('Traceback: ', traceback.print_tb(result.exc_info[2]))
