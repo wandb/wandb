@@ -389,7 +389,8 @@ class RunManager(object):
         self._port = port
         self._output = output
 
-        self._project = project if project else api.settings("project")
+        self._project = self._resolve_project_name(project)
+
         self._tags = tags
         self._watch_dir = self._run.dir
 
@@ -407,11 +408,23 @@ class RunManager(object):
 
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
+    def _resolve_project_name(self, project_name=None):
+        if project_name is not None:
+            return project_name
+
+        project_name = self._api.settings('project')
+        if project_name is not None:
+            return project_name
+
+        project_name = self._run.auto_project_name(self._api)
+        if project_name is not None:
+            return project_name
+
+
     """ FILE SYNCING / UPLOADING STUFF """
 
     def _init_file_observer(self):
-        self._file_upload_stats = stats.Stats()
-        self._file_pusher = file_pusher.FilePusher(self._push_function)
+        self._file_pusher = file_pusher.FilePusher(self._api)
         # FileEventHandlers (any of the classes at the top) indexed by "save_name," which is the file's path relative to the run directory
         self._file_event_handlers = {}
 
@@ -460,16 +473,6 @@ class RunManager(object):
                 os.path.join(self._run.dir, glob))
 
         return file_event_handler
-
-    def _push_function(self, save_name, path):
-        # TODO(adrian): move self._file_upload_stats inside FilePusher so we can get rid of this callback?
-        try:
-            with open(path, 'rb') as f:
-                self._api.push(self._project, {save_name: f}, run=self._run.id,
-                               progress=lambda _, total: self._file_upload_stats.update_progress(save_name, total))
-        except (OSError, IOError) as e:
-            #wandb.termlog('error: {}'.format(e))
-            pass
 
     def _block_file_observer(self):
         self._file_observer_lock.acquire()
@@ -541,7 +544,7 @@ class RunManager(object):
         handler = self._get_file_event_handler(event.src_path, old_save_name)
         self._file_event_handlers[new_save_name] = handler
         del self._file_event_handlers[old_save_name]
-        self._file_upload_stats.rename_file(old_save_name, new_save_name, event.dest_path)
+        self._file_pusher.rename_file(old_save_name, new_save_name, event.dest_path)
 
         handler.on_renamed(event.dest_path, new_save_name)
 
@@ -551,7 +554,7 @@ class RunManager(object):
         file_path: the file's actual path
         save_name: its path relative to the run directory (aka the watch directory)
         """
-        self._file_upload_stats.update_file(save_name, file_path)  # track upload progress
+        self._file_pusher.update_file(save_name, file_path)  # track upload progress
 
         if save_name not in self._file_event_handlers:
             if save_name == 'wandb-history.jsonl':
@@ -738,15 +741,15 @@ class RunManager(object):
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
-                resume_status = self._api.run_resume_status(project=self._api.settings("project"),
-                                                            entity=self._api.settings(
-                                                                "entity"),
+                resume_status = self._api.run_resume_status(project_name=self._project,
+                                                            entity=self._api.settings("entity"),
                                                             name=self._run.id)
                 if resume_status == None and self._run.resume == 'must':
                     raise LaunchError(
                         "resume='must' but run (%s) doesn't exist" % self._run.id)
                 if resume_status:
                     print('Resuming run: %s' % self._run.get_url(self._api))
+                    self._project = self._resolve_project_name(self._project)
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
 
@@ -1063,9 +1066,9 @@ class RunManager(object):
         if self._run.has_examples:
             wandb.termlog('Saved %s examples' % self._run.examples.count())
 
-        wandb_files = set([save_name for save_name in self._file_upload_stats.files() if save_name.startswith('wandb') or save_name == config.FNAME])
-        media_files = set([save_name for save_name in self._file_upload_stats.files() if save_name.startswith('media')])
-        other_files = set(self._file_upload_stats.files()) - wandb_files - media_files
+        wandb_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('wandb') or save_name == config.FNAME])
+        media_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('media')])
+        other_files = set(self._file_pusher.files()) - wandb_files - media_files
         if other_files:
             wandb.termlog('Syncing files in %s:' % os.path.relpath(self._watch_dir))
             for save_name in sorted(other_files):
@@ -1077,11 +1080,11 @@ class RunManager(object):
         step = 0
         spinner_states = ['-', '\\', '|', '/']
         stop = False
-        self._file_upload_stats.update_all_files()
+        self._file_pusher.update_all_files()
         while True:
             if not self._file_pusher.is_alive():
                 stop = True
-            summary = self._file_upload_stats.summary()
+            summary = self._file_pusher.summary()
             line = (' %(completed_files)s of %(total_files)s files,'
                     ' %(uploaded_bytes).03f of %(total_bytes).03f bytes uploaded\r' % summary)
             line = spinner_states[step % 4] + line
