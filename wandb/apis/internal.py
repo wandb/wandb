@@ -15,10 +15,14 @@ import requests
 from six import BytesIO
 from six.moves import configparser
 import socket
-import subprocess
 import time
 import sys
 import random
+
+if os.name == 'posix' and sys.version_info[0] < 3:
+    import subprocess32 as subprocess
+else:
+    import subprocess
 
 from six import b
 

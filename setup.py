@@ -18,6 +18,7 @@ requirements = [
     'watchdog>=0.8.3',
     'psutil>=5.0.0',
     'sentry-sdk>=0.4.0',
+    'subprocess32>=3.5.3',
     # Removed until we bring back the board
     # 'flask-cors>=3.0.3',
     # 'flask-graphql>=1.4.0',
