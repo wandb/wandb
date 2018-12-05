@@ -122,6 +122,49 @@ class FileEventHandlerOverwrite(FileEventHandler):
         self._file_pusher.file_changed(
             self.save_name, self.file_path, copy=True)
 
+class FileEventHandlerThrottledOverwrite(FileEventHandler):
+
+    # Don't upload
+    RATE_LIMIT_SECONDS = 15
+
+    # Wait to upload until size has increased 20% from last upload
+    RATE_LIMIT_SIZE_INCREASE = 1.2
+
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        super(FileEventHandlerThrottledOverwrite, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._file_pusher = file_pusher
+        self._last_uploaded_time = None
+        self._last_uploaded_size = 0
+
+    def on_created(self):
+        self.on_modified()
+
+    def on_modified(self):
+        current_time = time.time()
+        current_size = os.path.getsize(self.file_path)
+
+        # Don't upload anything if it's zero size.
+        if current_size == 0:
+            return
+
+        if self._last_uploaded_time:
+            # Check rate limit by time elapsed
+            time_elapsed = current_time - self._last_uploaded_time
+            if time_elapsed < self.RATE_LIMIT_SECONDS:
+                return
+            # Check rate limit by size increase
+            size_increase = current_size / float(self._last_uploaded_size)
+            if size_increase < self.RATE_LIMIT_SIZE_INCREASE:
+                return
+
+        self._last_uploaded_time = current_time
+        self._last_uploaded_size = current_size
+        self._file_pusher.file_changed(
+            self.save_name, self.file_path, copy=True)
+
+    def finish(self):
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 class FileEventHandlerOverwriteDeferred(FileEventHandler):
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
@@ -520,6 +563,11 @@ class RunManager(object):
             elif save_name == 'wandb-events.jsonl':
                 self._file_event_handlers['wandb-events.jsonl'] = FileEventHandlerTextStream(
                     file_path, 'wandb-events.jsonl', self._api)
+            elif 'tfevents' in save_name or 'graph.pbtxt' in save_name:
+                # overwrite the tensorboard but not every reload -- just
+                # frequently enough to resemble realtime
+                self._event_handlers[save_name] = FileEventHandlerThrottledOverwrite(
+                    file_path, save_name, self._api, self._file_pusher)
             # Don't try to stream tensorboard files for now.
             # elif 'tfevents' in save_name:
             #    # TODO: This is hard-coded, but we want to give users control
