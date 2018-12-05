@@ -119,6 +119,25 @@ class FilePusher(object):
         if save_name in self._files:
             self._files[save_name].uploaded = uploaded
 
+    def print_status(self):
+        step = 0
+        spinner_states = ['-', '\\', '|', '/']
+        stop = False
+        while True:
+            if not self.is_alive():
+                stop = True
+            summary = self.summary()
+            line = (' %(completed_files)s of %(total_files)s files,'
+                    ' %(uploaded_bytes).03f of %(total_bytes).03f bytes uploaded\r' % summary)
+            line = spinner_states[step % 4] + line
+            step += 1
+            wandb.termlog(line, newline=False)
+            if stop:
+                break
+            time.sleep(0.25)
+        # clear progress line.
+        wandb.termlog(' ' * 79)
+
     def files(self):
         return self._files.keys()
 
@@ -143,7 +162,8 @@ class FilePusher(object):
             # TODO(adrian): Really we should count these separately from successful ones
             self._files[save_name].uploaded = self._files[save_name].size
             wandb.util.sentry_exc(e)
-            wandb.termerror('Error uploading "{}": {}, {}'.format(save_name, type(e).__name__, e))
+            wandb.termerror('Error uploading "{}": {}, {}'.format(
+                save_name, type(e).__name__, e))
 
     def _thread_body(self):
         while True:

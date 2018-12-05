@@ -3,6 +3,8 @@ import logging
 import os
 import shortuuid
 import socket
+import json
+import yaml
 from sentry_sdk import configure_scope
 
 import wandb
@@ -12,14 +14,19 @@ from wandb import summary
 from wandb import meta
 from wandb import typedtable
 from wandb import util
+from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 from six.moves import configparser
 import atexit
 import sys
+from watchdog.utils.dirsnapshot import DirectorySnapshot
 
 HISTORY_FNAME = 'wandb-history.jsonl'
 EVENTS_FNAME = 'wandb-events.jsonl'
+CONFIG_FNAME = 'config.yaml'
+SUMMARY_FNAME = 'wandb-summary.json'
+METADATA_FNAME = 'wandb-metadata.json'
 EXAMPLES_FNAME = 'wandb-examples.jsonl'
 DESCRIPTION_FNAME = 'description.md'
 
@@ -128,6 +135,76 @@ class Run(object):
                   sweep_id, storage_id, program=program,
                   wandb_dir=wandb_dir,
                   resume=resume)
+        return run
+
+    @classmethod
+    def from_directory(cls, directory, project=None, entity=None, run_id=None, api=None):
+        api = api or InternalApi()
+        run_id = run_id or generate_id()
+        run = Run(run_id=run_id, dir=directory)
+        project = project or api.settings(
+            "project") or run.auto_project_name(api=api)
+        if project is None:
+            raise ValueError("You must specify project")
+        api.set_current_run_id(run_id)
+        api.set_setting("project", project)
+        if entity:
+            api.set_setting("entity", entity)
+        res = api.upsert_run(name=run_id, project=project, entity=entity)
+        entity = res["project"]["entity"]["name"]
+        wandb.termlog("Syncing {} to:".format(directory))
+        wandb.termlog(run.get_url(api))
+
+        file_api = api.get_file_stream_api()
+        snap = DirectorySnapshot(directory)
+        paths = [os.path.relpath(abs_path, directory)
+                 for abs_path in snap.paths if os.path.isfile(abs_path)]
+        run_update = {"id": res["id"]}
+        tfevents = sorted([p for p in snap.paths if ".tfevents." in p])
+        history = next((p for p in snap.paths if HISTORY_FNAME in p), None)
+        event = next((p for p in snap.paths if EVENTS_FNAME in p), None)
+        config = next((p for p in snap.paths if CONFIG_FNAME in p), None)
+        summary = next((p for p in snap.paths if SUMMARY_FNAME in p), None)
+        meta = next((p for p in snap.paths if METADATA_FNAME in p), None)
+        if history:
+            wandb.termlog("Uploading history metrics")
+            file_api.stream_file(history)
+            snap.paths.remove(history)
+        elif len(tfevents) > 0:
+            from wandb import tensorflow as wbtf
+            wandb.termlog("Found tfevents file, converting.")
+            for file in tfevents:
+                summary = wbtf.stream_tfevents(file, file_api)
+        else:
+            wandb.termerror(
+                "No history or tfevents files found, only syncing files")
+        if event:
+            file_api.stream_file(event)
+            snap.paths.remove(event)
+        if config:
+            run_update["config"] = yaml.load(open(config))
+        if summary:
+            run_update["summary_metrics"] = open(summary).read()
+        if meta:
+            meta = json.load(open(meta))
+            run_update["commit"] = meta["git"].get("commit")
+            run_update["repo"] = meta["git"].get("remote")
+            run_update["host"] = meta["host"]
+            run_update["program_path"] = meta["program"]
+            run_update["job_type"] = meta["jobType"]
+        else:
+            run_update["host"] = socket.gethostname()
+
+        wandb.termlog("Updating run and uploading files")
+        api.upsert_run(**run_update)
+        pusher = FilePusher(api)
+        for k in paths:
+            path = os.path.abspath(os.path.join(directory, k))
+            pusher.update_file(k, path)
+            pusher.file_changed(k, path)
+        pusher.finish()
+        pusher.print_status()
+        wandb.termlog("Finished!")
         return run
 
     def auto_project_name(self, api):

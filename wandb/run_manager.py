@@ -1075,25 +1075,8 @@ class RunManager(object):
         else:
             wandb.termlog('Syncing {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
 
-        step = 0
-        spinner_states = ['-', '\\', '|', '/']
-        stop = False
         self._file_pusher.update_all_files()
-        while True:
-            if not self._file_pusher.is_alive():
-                stop = True
-            summary = self._file_pusher.summary()
-            line = (' %(completed_files)s of %(total_files)s files,'
-                    ' %(uploaded_bytes).03f of %(total_bytes).03f bytes uploaded\r' % summary)
-            line = spinner_states[step % 4] + line
-            step += 1
-            wandb.termlog(line, newline=False)
-            if stop:
-                break
-            time.sleep(0.25)
-            #print('FP: ', self._file_pusher._pending, self._file_pusher._jobs)
-        # clear progress line.
-        wandb.termlog(' ' * 79)
+        self._file_pusher.print_status()
 
         # TODO(adrian): this code has been broken since september 2017
         # commit ID: abee525b because of these lines:

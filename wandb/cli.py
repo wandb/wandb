@@ -28,7 +28,6 @@ import random
 
 from wandb import util
 
-from watchdog.utils.dirsnapshot import DirectorySnapshot
 from click.utils import LazyFile
 from click.exceptions import BadParameter, ClickException, Abort
 # whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
@@ -370,6 +369,7 @@ def restore(run, branch, project, entity):
     config.persist()
     click.echo("Restored config variables")
 
+
 @cli.command(context_settings=CONTEXT, help="Upload a training directory to W&B")
 @click.argument("path", type=click.Path(exists=True))
 @click.option("--id", envvar=env.RUN, help="The run you want to upload to.")
@@ -377,58 +377,9 @@ def restore(run, branch, project, entity):
 @click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope to.")
 @display_error
 def sync(path, id, project, entity):
-    run_id = id or wandb_run.generate_id()
-    if project is None:
-        raise ClickException("You must specify project")
-    api.set_current_run_id(run_id)
-    api.set_setting("project", project)
-    if entity:
-        api.set_setting("entity", entity)
-    res = api.upsert_run(name=run_id, project=project, entity=entity)
-    entity = res["project"]["entity"]["name"]
-    print("Created new run:")
-    print("https://app.wandb.ai/{}/{}/runs/{}".format(entity, project, run_id))
+    wandb_run.Run.from_directory(
+        path, run_id=id, project=project, entity=entity)
 
-    file_api = api.get_file_stream_api()
-    snap = DirectorySnapshot(path)
-    paths = [os.path.relpath(abs_path, path) for abs_path in snap.paths if os.path.isfile(abs_path)]
-    run_update = {"id": res["id"]}
-    tfevents = [p for p in snap.paths if ".tfevents." in p]
-    histories = [p for p in snap.paths if "wandb-history.jsonl" in p]
-    events = [p for p in snap.paths if "wandb-events.jsonl" in p]
-    configs = [p for p in snap.paths if "config.yaml" in p]
-    summaries = [p for p in snap.paths if "wandb-summary.json" in p]
-    metas = [p for p in snap.paths if "wandb-metadata.json" in p]
-    if len(histories) > 0:
-        click.echo("Uploading history metrics")
-        file_api.stream_file(histories[0])
-        snap.paths.remove(histories[0])
-    elif len(tfevents) > 0:
-        from wandb import tensorflow as wbtf
-        click.echo("Found tfevents file, converting.")
-        for file in tfevents:
-            summary = wbtf.stream_tfevents(file, file_api)
-    if len(events) > 0:
-        file_api.stream_file(events[0])
-        snap.paths.remove(events[0])
-    if len(configs) > 0:
-        run_update["config"] = yaml.load(open(configs[0]))
-    if len(summaries) > 0:
-        run_update["summary_metrics"] = open(summaries[0]).read()
-    if len(metas) > 0:
-        meta = json.load(open(metas[0]))
-        run_update["commit"] = meta["git"].get("commit")
-        run_update["repo"] = meta["git"].get("remote")
-        run_update["host"] = meta["host"]
-        run_update["program_path"] = meta["program"]
-        run_update["job_type"] = meta["jobType"]
-    else:
-        run_update["host"] = socket.gethostname()
-
-    api.upsert_run(**run_update)
-    print("Uploading all files")
-    path_dict = {k: open(os.path.abspath(os.path.join(path, k)), 'rb') for k in paths}
-    api.push(path_dict, project=project, run=run_id, entity=entity, progress=lambda _, total: None)
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("run", envvar=env.RUN)

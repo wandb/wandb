@@ -436,6 +436,18 @@ def test_enable_off(runner, git_repo):
     assert "disabled" in open("wandb/settings").read()
 
 
+def test_sync(runner, request_mocker, upsert_run, upload_url, git_repo):
+    upsert_run(request_mocker)
+    upload_url(request_mocker)
+    with open("wandb-history.jsonl", "w") as f:
+        f.write('{"acc":25}')
+    result = runner.invoke(cli.sync, ".")
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "Uploading history metrics" in str(result.output)
+
+
 # TODO: this is hitting production
 def test_run_simple(runner, monkeypatch, request_mocker, upsert_run, query_project, git_repo, upload_logs, upload_url):
     run_id = "abc123"
