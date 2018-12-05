@@ -145,9 +145,7 @@ def test_push_git_success(request_mocker, mocker, upload_url, query_project, ups
     mock.assert_called_once_with("test")
 
 
-def test_push_no_project(request_mocker, upload_url, query_project):
-    query_project(request_mocker)
-    upload_url(request_mocker)
+def test_push_no_project():
     with pytest.raises(wandb.Error):
         api = internal.Api(load_settings=False)
         res = api.push("weights.json", entity='test')
