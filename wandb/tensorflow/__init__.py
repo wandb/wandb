@@ -2,7 +2,6 @@ import re
 
 import six
 import tensorflow as tf
-from tensorflow.python.training import session_run_hook
 from wandb import util
 from wandb.data_types import to_json
 import wandb
@@ -10,7 +9,7 @@ from wandb.apis.file_stream import Chunk
 import json
 
 
-class WandbHook(session_run_hook.SessionRunHook):
+class WandbHook(tf.train.SessionRunHook):
     def __init__(self, summary_op=None, steps_per_log=100):
         self._summary_op = summary_op
         self._steps_per_log = steps_per_log
