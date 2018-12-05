@@ -16,6 +16,7 @@ from click.testing import CliRunner
 import git
 from .utils import git_repo
 
+import requests
 import wandb
 from wandb.apis import internal
 from six import StringIO
@@ -116,7 +117,7 @@ def test_push_success(request_mocker, upload_url, query_project, upsert_run):
             f.write("weight")
         with open("model.json", "w") as f:
             f.write("model")
-        res = api.push("test/test", ["weights.h5", "model.json"])
+        res = api.push(["weights.h5", "model.json"], entity='test', project='test')
     assert res[0].status_code == 200
 
 
@@ -139,7 +140,7 @@ def test_push_git_success(request_mocker, mocker, upload_url, query_project, ups
         api = internal.Api(load_settings=False,
                            default_settings={'git_tag': True})
         mock = mocker.patch.object(api.git, "push")
-        res = api.push("test/test", ["weights.h5", "model.json"])
+        res = api.push(["weights.h5", "model.json"], entity='test', project='test', run='test')
     assert res[0].status_code == 200
     mock.assert_called_once_with("test")
 
@@ -148,7 +149,8 @@ def test_push_no_project(request_mocker, upload_url, query_project):
     query_project(request_mocker)
     upload_url(request_mocker)
     with pytest.raises(wandb.Error):
-        res = api.push("test", "weights.json")
+        api = internal.Api(load_settings=False)
+        res = api.push("weights.json", entity='test')
 
 
 def test_upload_success(request_mocker, upload_url):
@@ -160,7 +162,7 @@ def test_upload_success(request_mocker, upload_url):
 
 def test_upload_failure(request_mocker, upload_url):
     upload_url(request_mocker, status_code=400)
-    with pytest.raises(wandb.Error):
+    with pytest.raises(requests.exceptions.HTTPError):
         api.upload_file("https://weights.url",
                         open(os.path.join(os.path.dirname(__file__), "fixtures/test.h5")))
 

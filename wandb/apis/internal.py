@@ -784,7 +784,7 @@ class Api(object):
             # TODO(adrian): there's probably even more stuff we should add here
             # like if we're offline, we should retry then too
             elif status.status_code in (408, 500, 502, 503, 504):
-                util.sentry_reraise(retry.TransientException(e))
+                util.sentry_reraise(retry.TransientException(exc=e))
             else:
                 util.sentry_reraise(e)
 
@@ -951,10 +951,10 @@ class Api(object):
         Returns:
             The requests library response object
         """
-        # XXX TODO(adrian): check this
-        project, run = self.parse_slug(project, run=run)
         if project is None:
             project = self.get_project()
+        if project is None:
+            raise CommError("No project configured.")
         if run is None:
             run = self.current_run_id
 
