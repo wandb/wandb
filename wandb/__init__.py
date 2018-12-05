@@ -489,6 +489,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
         config (dict, argparse, or tf.FLAGS, optional): The hyper parameters to store with the run
         project (str, optional): The project to push metrics to
         entity (str, optional): The entity to push metrics to
+        dir (str, optional): An absolute path to a directory where metadata will be stored
+        group (str, optional): A unique string shared by all runs in a given group
         reinit (bool, optional): Allow multiple calls to init in the same process
 
     Returns:

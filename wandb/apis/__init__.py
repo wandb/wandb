@@ -1,9 +1,11 @@
 import ast
 from functools import wraps
 import requests
+import sys
 import os
 
 from gql.client import RetryError
+import six
 from wandb import Error
 import wandb.env
 
@@ -58,7 +60,8 @@ def normalize_exceptions(func):
                     message = err.last_exception.response.text
             else:
                 message = err.last_exception
-            raise CommError(message, err.last_exception)
+
+            six.reraise(CommError, CommError(message, err.last_exception), sys.exc_info()[2])
         except Exception as err:
             # gql raises server errors with dict's as strings...
             if len(err.args) > 0:
@@ -70,9 +73,9 @@ def normalize_exceptions(func):
             else:
                 message = str(err)
             if wandb.env.is_debug():
-                raise
+                six.reraise(*sys.exc_info())
             else:
-                raise CommError(message, err)
+                six.reraise(CommError, CommError(message, err), sys.exc_info()[2])
     return wrapper
 
 

@@ -167,10 +167,8 @@ def download_h5(run, entity=None, project=None, out_dir=None):
 
 def upload_h5(file, run, entity=None, project=None):
     api = Api()
-    # TODO: unfortunate
-    slug = "/".join([project or api.settings("project"), run])
     wandb.termlog("Uploading summary data...")
-    api.push(slug, {os.path.basename(file): open(file, 'rb')},
+    api.push({os.path.basename(file): open(file, 'rb')}, run=run, project=project,
              entity=entity)
 
 

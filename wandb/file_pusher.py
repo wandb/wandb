@@ -6,6 +6,7 @@ import time
 from six.moves import queue
 
 import wandb
+import wandb.util
 
 EventFileChanged = collections.namedtuple(
     'EventFileChanged', ('path', 'save_name', 'copy'))
@@ -44,6 +45,25 @@ class UploadJob(threading.Thread):
         self.needs_restart = True
 
 
+class FileStats(object):
+    def __init__(self, save_name, file_path):
+        """Tracks file upload progress
+
+        save_name: the file's path in a run. It's an ID of sorts.
+        file_path: the local path.
+        """
+        self._save_name = save_name
+        self._file_path = file_path
+        self.size = 0
+        self.uploaded = 0
+
+    def update_size(self):
+        try:
+            self.size = os.path.getsize(self._file_path)
+        except (OSError, IOError):
+            pass
+
+
 class FilePusher(object):
     """Parallel file upload class.
 
@@ -52,13 +72,19 @@ class FilePusher(object):
     The finish() method will block until all events have been processed and all
     uploads are complete.
     """
+    """Tracks progress for files we're uploading
+
+    Indexed by files' `save_name`'s, which are their ID's in the Run.
+    """
     # We set this down to zero to avoid delays when uploading a lot of images. In one case we
     # saw logging 12 image keys per step, for 240 steps, over a 14-minute period. With 1 second
     # delay that means 48 minutes of idle.
     RATE_LIMIT_SECONDS = 0
 
-    def __init__(self, push_function, max_jobs=4):
-        self._push_function = push_function
+    def __init__(self, api, max_jobs=6):
+        self._files = {}  # stats
+
+        self._api = api
         self._max_jobs = max_jobs
         self._queue = queue.Queue()
         self._last_sent = time.time() - self.RATE_LIMIT_SECONDS
@@ -68,6 +94,56 @@ class FilePusher(object):
         self._thread.start()
         self._jobs = {}
         self._pending = []
+
+    def update_file(self, save_name, file_path):
+        if save_name not in self._files:
+            self._files[save_name] = FileStats(save_name, file_path)
+        self._files[save_name].update_size()
+
+    def rename_file(self, old_save_name, new_save_name, new_path):
+        """This only updates the name and path we use to track the file's size
+        and upload progress. Doesn't rename it on the back end or make us
+        upload from anywhere else.
+        """
+        if old_save_name in self._files:
+            del self._files[old_save_name]
+        self.update_file(new_save_name, new_path)
+
+    def update_all_files(self):
+        for file_stats in self._files.values():
+            file_stats.update_size()
+
+    def update_progress(self, save_name, uploaded):
+        # TODO(adrian): this check sucks but we rely on it for weird W&B files
+        # like wandb-summary.json and config.yaml. Not sure why.
+        if save_name in self._files:
+            self._files[save_name].uploaded = uploaded
+
+    def files(self):
+        return self._files.keys()
+
+    def stats(self):
+        return self._files
+
+    def summary(self):
+        return {
+            'completed_files': sum(f.size == f.uploaded for f in self._files.values()),
+            'total_files': len(self._files),
+            'uploaded_bytes': sum(f.uploaded for f in self._files.values()),
+            'total_bytes': sum(f.size for f in self._files.values())
+        }
+
+    def _push_function(self, save_name, path):
+        try:
+            with open(path, 'rb') as f:
+                self._api.push({save_name: f},
+                               progress=lambda _, total: self.update_progress(save_name, total))
+        except Exception as e:
+            # Give up uploading the file by pretending it's finished
+            # TODO(adrian): Really we should count these separately from successful ones
+            self._files[save_name].uploaded = self._files[save_name].size
+            wandb.util.sentry_exc(e)
+            wandb.termerror('Error uploading "{}": {}, {}'.format(save_name, type(e).__name__, e))
 
     def _thread_body(self):
         while True:

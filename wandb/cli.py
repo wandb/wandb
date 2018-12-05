@@ -428,7 +428,7 @@ def sync(path, id, project, entity):
     api.upsert_run(**run_update)
     print("Uploading all files")
     path_dict = {k: open(os.path.abspath(os.path.join(path, k)), 'rb') for k in paths}
-    api.push(project, path_dict, run=run_id, entity=entity, progress=lambda _, total: None)
+    api.push(path_dict, project=project, run=run_id, entity=entity, progress=lambda _, total: None)
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("run", envvar=env.RUN)

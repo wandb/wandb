@@ -9,69 +9,6 @@ from wandb import termlog
 psutil = util.get_module("psutil")
 
 
-class FileStats(object):
-    def __init__(self, save_name, file_path):
-        """Tracks file upload progress
-
-        save_name: the file's path in a run. It's an ID of sorts.
-        file_path: the local path.
-        """
-        self._save_name = save_name
-        self._file_path = file_path
-        self.size = 0
-        self.uploaded = 0
-
-    def update_size(self):
-        try:
-            self.size = os.path.getsize(self._file_path)
-        except (OSError, IOError):
-            pass
-
-
-class Stats(object):
-    """Tracks progress for files we're uploading
-
-    Indexed by files' `save_name`'s, which are their ID's in the Run.
-    """
-
-    def __init__(self):
-        self._files = {}
-
-    def update_file(self, save_name, file_path):
-        if save_name not in self._files:
-            self._files[save_name] = FileStats(save_name, file_path)
-        self._files[save_name].update_size()
-
-    def rename_file(self, old_save_name, new_save_name, new_path):
-        if old_save_name in self._files:
-            del self._files[old_save_name]
-        self.update_file(new_save_name, new_path)
-
-    def update_all_files(self):
-        for file_stats in self._files.values():
-            file_stats.update_size()
-
-    def update_progress(self, save_name, uploaded):
-        # TODO(adrian): this check sucks but we rely on it for weird W&B files
-        # like wandb-summary.json and config.yaml. Not sure why.
-        if save_name in self._files:
-            self._files[save_name].uploaded = uploaded
-
-    def files(self):
-        return self._files.keys()
-
-    def stats(self):
-        return self._files
-
-    def summary(self):
-        return {
-            'completed_files': sum(f.size == f.uploaded for f in self._files.values()),
-            'total_files': len(self._files),
-            'uploaded_bytes': sum(f.uploaded for f in self._files.values()),
-            'total_bytes': sum(f.size for f in self._files.values())
-        }
-
-
 class SystemStats(object):
     def __init__(self, run, api):
         try:
