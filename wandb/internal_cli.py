@@ -10,6 +10,7 @@ import sys
 import time
 import traceback
 
+import six
 import wandb
 import wandb.io_wrap
 import wandb.run_manager
@@ -42,8 +43,7 @@ def headless(args):
         rm.wrap_existing_process(
             user_process_pid, stdout_master_fd, stderr_master_fd)
     except Exception as e:
-        util.sentry_exc(e)
-        raise e
+        util.sentry_reraise(e)
 
 
 def agent_run(args):

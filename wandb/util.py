@@ -49,6 +49,18 @@ def sentry_exc(exc):
     if error_reporting_enabled():
         capture_exception(exc)
 
+def sentry_reraise(exc):
+    """Re-raise an exception after logging it to Sentry
+
+    Use this for top-level exceptions when you want the user to see the traceback.
+
+    Must be called from within an exception handler.
+    """
+    sentry_exc(exc)
+    # this will messily add this "reraise" function to the stack trace
+    # but hopefully it's not too bad
+    six.reraise(type(exc), exc, sys.exc_info()[2])
+
 
 def vendor_import(name):
     """This enables us to use the vendor directory for packages we don't depend on"""
