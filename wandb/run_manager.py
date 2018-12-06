@@ -1007,7 +1007,7 @@ class RunManager(object):
                 'Killing program failed; syncing files anyway. Press ctrl-c to abort syncing.')
         else:
             if exitcode == 0:
-                wandb.termlog('Program ended. Waiting for final file modifications.')
+                wandb.termlog('Program ended successfully.')
             else:
                 wandb.termlog(
                     'Program failed with code %d. Press ctrl-c to abort syncing.' % exitcode)
@@ -1026,6 +1026,8 @@ class RunManager(object):
 
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
+            wandb.termlog("You can sync this run to the cloud by running: ")
+            wandb.termlog("wandb sync %s" % os.path.relpath(self._run.dir))
             sys.exit(exitcode)
         elif exitcode != 0 and time.time() - START_TIME < 30:
             wandb.termlog("Process crashed early, not syncing files")

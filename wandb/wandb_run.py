@@ -17,6 +17,7 @@ from wandb import util
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
+import six
 from six.moves import configparser
 import atexit
 import sys
@@ -25,6 +26,7 @@ from watchdog.utils.dirsnapshot import DirectorySnapshot
 HISTORY_FNAME = 'wandb-history.jsonl'
 EVENTS_FNAME = 'wandb-events.jsonl'
 CONFIG_FNAME = 'config.yaml'
+USER_CONFIG_FNAME = 'config.json'
 SUMMARY_FNAME = 'wandb-summary.json'
 METADATA_FNAME = 'wandb-metadata.json'
 EXAMPLES_FNAME = 'wandb-examples.jsonl'
@@ -164,6 +166,8 @@ class Run(object):
         history = next((p for p in snap.paths if HISTORY_FNAME in p), None)
         event = next((p for p in snap.paths if EVENTS_FNAME in p), None)
         config = next((p for p in snap.paths if CONFIG_FNAME in p), None)
+        user_config = next(
+            (p for p in snap.paths if USER_CONFIG_FNAME in p), None)
         summary = next((p for p in snap.paths if SUMMARY_FNAME in p), None)
         meta = next((p for p in snap.paths if METADATA_FNAME in p), None)
         if history:
@@ -183,6 +187,10 @@ class Run(object):
             snap.paths.remove(event)
         if config:
             run_update["config"] = yaml.load(open(config))
+        elif user_config:
+            # TODO: half backed support for config.json
+            run_update["config"] = {k: {"value": v}
+                                    for k, v in six.iteritems(user_config)}
         if summary:
             run_update["summary_metrics"] = open(summary).read()
         if meta:

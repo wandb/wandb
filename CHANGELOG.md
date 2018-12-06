@@ -1,3 +1,20 @@
+## 0.6.30 (December 6, 2018)
+
+#### :bug: Bug Fix
+
+-   Added a timeout for generating diffs on large repos
+-   Fixed edge case where file syncing could hang
+-   Ensure all file changes are captured before exit
+-   Handle cases of sys.exit where code isn't passed
+-   Don't require numpy
+
+#### :nail_care: Enhancement
+
+-   New `wandb sync` command that pushes a local directory to the cloud
+-   Support for syncing tfevents file during training
+-   Detect when running as TFJob and auto group
+-   New Kubeflow module with initial helpers for pipelines
+
 ## 0.6.29 (November 26, 2018)
 
 #### :bug: Bug Fix

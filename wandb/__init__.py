@@ -610,7 +610,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
             _init_headless(run)
     elif run.mode == 'dryrun':
         termlog(
-            'Dry run mode, run directory: %s' % run.dir)
+            'Dry run mode, not syncing to the cloud.')
         _init_headless(run, False)
     else:
         termerror(
