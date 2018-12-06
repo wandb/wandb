@@ -577,7 +577,7 @@ class RunManager(object):
             elif 'tfevents' in save_name or 'graph.pbtxt' in save_name:
                 # overwrite the tensorboard but not every reload -- just
                 # frequently enough to resemble realtime
-                self._event_handlers[save_name] = FileEventHandlerThrottledOverwrite(
+                self._file_event_handlers[save_name] = FileEventHandlerThrottledOverwrite(
                     file_path, save_name, self._api, self._file_pusher)
             # Don't try to stream tensorboard files for now.
             # elif 'tfevents' in save_name:
