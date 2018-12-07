@@ -507,7 +507,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
         run = None
 
     sagemaker_config = util.parse_sm_config()
-    tfjob_config = util.parse_tfjob_config()
+    tf_config = util.parse_tfjob_config()
     if group == None:
         group = os.getenv("WANDB_RUN_GROUP")
     if job_type == None:
@@ -528,12 +528,17 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
             for line in open("secrets.env", "r"):
                 key, val = line.strip().split('=', 1)
                 os.environ[key] = val
-    elif tfjob_config:
-        job_type = tfjob_config["task"]["type"]
-        run_id = tfjob_config["cluster"][job_type][tfjob_config["task"]["index"]]
-        if group == None and len(tfjob_config["cluster"].get("workers", [])) > 1:
-            group = tfjob_config["cluster"][job_type][0].rsplit("-", 1)[0]
+    elif tf_config:
+        cluster = tf_config.get('cluster')
+        job_name = tf_config.get('task', {}).get('type')
+        task_index = tf_config.get('task', {}).get('index')
+        if job_name is not None and task_index is not None:
             # TODO: set run_id for resuming?
+            run_id = cluster[job_name][task_index].rsplit(":")[0]
+            if job_type == None:
+                job_type = job_name
+            if group == None and len(cluster.get("worker", [])) > 0:
+                group = cluster[job_name][0].rsplit("-"+job_name, 1)[0]
 
     if project:
         os.environ['WANDB_PROJECT'] = project

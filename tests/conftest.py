@@ -4,6 +4,7 @@ from wandb.history import History
 from .api_mocks import *
 import wandb
 import six
+import json
 
 
 @pytest.fixture
@@ -97,6 +98,13 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
 
                 mocker.patch('wandb.open', magic, create=True)
                 mocker.patch('wandb.util.open', magic, create=True)
+            elif kwargs.get("tf_config"):
+                os.environ['TF_CONFIG'] = json.dumps(kwargs['tf_config'])
+                del kwargs['tf_config']
+            elif kwargs.get("env"):
+                for k, v in six.iteritems(kwargs["env"]):
+                    os.environ[k] = v
+                del kwargs["env"]
         else:
             kwargs = {}
         try:

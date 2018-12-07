@@ -37,6 +37,28 @@ def test_sagemaker(wandb_init_run):
     assert wandb.run.group == "sage"
 
 
+@pytest.mark.args(tf_config={"cluster": {"master": ["trainer-4dsl7-master-0:2222"]}, "task": {"type": "master", "index": 0}, "environment": "cloud"})
+def test_simple_tfjob(wandb_init_run):
+    assert wandb.run.group is None
+    assert wandb.run.job_type == "master"
+
+
+@pytest.mark.args(tf_config={"cluster": {"master": ["trainer-sj2hp-master-0:2222"], "ps": ["trainer-sj2hp-ps-0:2222"], "worker": ["trainer-sj2hp-worker-0:2222"]}, "task": {"type": "worker", "index": 0}, "environment": "cloud"})
+def test_distributed_tfjob(wandb_init_run):
+    assert wandb.run.group == "trainer-sj2hp"
+    assert wandb.run.job_type == "worker"
+
+
+@pytest.mark.args(tf_config={"cluster": {"corrupt": ["bad"]}})
+def test_corrupt_tfjob(wandb_init_run):
+    assert wandb.run.group is None
+
+
+@pytest.mark.args(env={"TF_CONFIG": "garbage"})
+def test_bad_json_tfjob(wandb_init_run):
+    assert wandb.run.group is None
+
+
 @pytest.mark.args(error="io")
 def test_io_error(wandb_init_run):
     assert isinstance(wandb_init_run, wandb.LaunchError)
