@@ -10,7 +10,7 @@ import json
 
 
 class WandbHook(tf.train.SessionRunHook):
-    def __init__(self, summary_op=None, steps_per_log=100):
+    def __init__(self, summary_op=None, steps_per_log=1000):
         self._summary_op = summary_op
         self._steps_per_log = steps_per_log
 
