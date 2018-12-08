@@ -36,7 +36,7 @@ DESCRIPTION_FNAME = 'description.md'
 class Run(object):
     def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None, config=None, sweep_id=None, storage_id=None, description=None, resume=None, program=None, wandb_dir=None):
         # self.id is actually stored in the "name" attribute in GQL
-        self.id = run_id if run_id else generate_id()
+        self.id = run_id if run_id else util.generate_id()
         self.resume = resume if resume else 'never'
         self.mode = mode if mode else 'run'
         self.group = group
@@ -142,7 +142,7 @@ class Run(object):
     @classmethod
     def from_directory(cls, directory, project=None, entity=None, run_id=None, api=None):
         api = api or InternalApi()
-        run_id = run_id or generate_id()
+        run_id = run_id or util.generate_id()
         run = Run(run_id=run_id, dir=directory)
         project = project or api.settings(
             "project") or run.auto_project_name(api=api)
@@ -396,13 +396,6 @@ class Run(object):
         if self._history is not None:
             self._history.close()
             self._history = None
-
-
-def generate_id():
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list(
-        "0123456789abcdefghijklmnopqrstuvwxyz"))
-    return run_gen.random(8)
 
 
 def run_dir_path(run_id, dry=False):

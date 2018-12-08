@@ -294,6 +294,19 @@ class Run(object):
         self._attrs = attrs
         self.load()
 
+    @classmethod
+    def create(cls, client, run_id=None, project=None, entity=None):
+        """Create a run for the given project"""
+        run_id = run_id or util.generate_id()
+        project = project or client.settings.get("project")
+        mutation = gql('''
+        mutation upsertRun($project: String, $entity: String, $name: String!)
+        ''')
+        variables = {'entity': entity,
+                     'project': project, 'name': run_id}
+        res = client.execute(mutation, variable_values=variables)
+        return Run(client, res["project"]["entity"]["name"],  res["project"]["name"], res["name"])
+
     def load(self, force=False):
         query = gql('''
         query Run($project: String!, $entity: String!, $name: String!) {

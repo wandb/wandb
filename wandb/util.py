@@ -50,6 +50,7 @@ def sentry_exc(exc):
     if error_reporting_enabled():
         capture_exception(exc)
 
+
 def sentry_reraise(exc):
     """Re-raise an exception after logging it to Sentry
 
@@ -276,6 +277,13 @@ def launch_browser(attempt_launch_browser=True):
             launch_browser = False
 
     return launch_browser
+
+
+def generate_id():
+    # ~3t run ids (36**8)
+    run_gen = shortuuid.ShortUUID(alphabet=list(
+        "0123456789abcdefghijklmnopqrstuvwxyz"))
+    return run_gen.random(8)
 
 
 def parse_tfjob_config():

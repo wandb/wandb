@@ -4,6 +4,7 @@ from six.moves import queue
 
 import collections
 import os
+import io
 import logging
 import six
 import wandb
@@ -27,13 +28,12 @@ def val_to_json(key, val, mode="summary", step=None):
             converted = util.convert_plots(val)
     elif util.is_plotly_typename(typename):
         converted = util.convert_plots(val)
-    if isinstance(val, Image) or isinstance(val, Audio):
+    if isinstance(val, IterableMedia):
         val = [val]
 
     if isinstance(val, collections.Sequence) and len(val) > 0:
-        is_image = [isinstance(v, Image) for v in val]
-        is_audio = [isinstance(v, Audio) for v in val]
-        if all(is_image) or all(is_audio):
+        is_media = [isinstance(v, IterableMedia) for v in val]
+        if all(is_media):
             cwd = wandb.run.dir if wandb.run else "."
             if step is None:
                 step = "summary"
@@ -42,7 +42,9 @@ def val_to_json(key, val, mode="summary", step=None):
                                             "{}_{}.jpg".format(key, step))
             elif isinstance(val[0], Audio):
                 converted = Audio.transform(val, cwd, key, step)
-        elif any(is_image) or any(is_audio):
+            elif isinstance(val[0], Html):
+                converted = Html.transform(val, cwd, key, step)
+        elif any(is_media):
             raise ValueError(
                 "Mixed media types in the same list aren't supported")
     elif isinstance(val, Histogram):
@@ -391,7 +393,6 @@ class Edge(object):
     def transform(edge):
         return [edge.from_node.id, edge.to_node.id]
 
-
 class Histogram(object):
     MAX_LENGTH = 512
 
@@ -452,8 +453,11 @@ class Table(object):
                 "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
         return {"_type": "table", "columns": table.columns, "data": table.rows[:Table.MAX_ROWS]}
 
+class IterableMedia(object):
+    """A common class for media items that can be repeated per step"""
+    pass
 
-class Audio(object):
+class Audio(IterableMedia):
     MAX_AUDIO_COUNT = 100
 
     def __init__(self, data, sample_rate=None, caption=None):
@@ -507,7 +511,36 @@ class Audio(object):
             return ['' if c==None else c for c in captions]
 
 
-class Image(object):
+class Html(IterableMedia):
+    MAX_HTML_COUNT = 100
+
+    def __init__(self, data):
+        """
+        Accepts string or file object containing valid html
+        """
+        if isinstance(data, str):
+            self.html = data
+        elif isinstance(data, io.IOBase):
+            data.seek(0)
+            self.html = data.read()
+        else:
+            raise ValueError("data must be a string or an io object")
+
+    @staticmethod
+    def transform(html_list, out_dir, key, step):
+        if len(html_list) > Html.MAX_HTML_COUNT:
+            logging.warn(
+                "The maximum number of html files to store per key is %i." % Html.MAX_HTML_COUNT)
+        base_path = os.path.join(out_dir, "media", "html")
+        util.mkdir_exists_ok(base_path)
+        truncated = html_list[:Html.MAX_HTML_COUNT]
+        for i, html in enumerate(truncated):
+            with open(os.path.join(base_path, "{}_{}_{}.html".format(key, step, i)), "w") as f:
+                f.write(html.html)
+        meta = {"_type": "html", "count": len(truncated)}
+        return meta
+
+class Image(IterableMedia):
     MAX_IMAGES = 100
 
     def __init__(self, data, mode=None, caption=None, grouping=None):

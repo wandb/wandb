@@ -97,7 +97,8 @@ def test_audio_captions():
 def test_audio_transform():
     audio = np.random.uniform(-1, 1, 44100)
     with CliRunner().isolated_filesystem():
-        meta = wandb.Audio.transform([wandb.Audio(audio, sample_rate=44100)], ".", "test", 0)
+        meta = wandb.Audio.transform(
+            [wandb.Audio(audio, sample_rate=44100)], ".", "test", 0)
         assert meta == {'_type': 'audio',
                         'count': 1, 'sampleRates': [44100], 'durations': [1.0]}
         assert os.path.exists("media/audio/test_0_0.wav")
@@ -119,6 +120,23 @@ def test_matplotlib_image():
     plt.plot([1, 2, 2, 4])
     img = wandb.Image(plt)
     assert img.image.width == 640
+
+
+def test_html_str():
+    with CliRunner().isolated_filesystem():
+        html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
+        wandb.Html.transform([html], ".", "rad", "summary")
+        assert os.path.exists("media/html/rad_summary_0.html")
+
+
+def test_html_file():
+    with CliRunner().isolated_filesystem():
+        with open("test.html", "w") as f:
+            f.write("<html><body><h1>Hello</h1></body></html>")
+        html = wandb.Html(open("test.html"))
+        wandb.Html.transform([html, html], ".", "rad", "summary")
+        assert os.path.exists("media/html/rad_summary_0.html")
+        assert os.path.exists("media/html/rad_summary_1.html")
 
 
 def test_table_default():
