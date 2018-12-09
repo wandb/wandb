@@ -15,6 +15,7 @@ import threading
 import time
 import random
 import stat
+import shortuuid
 
 import click
 import requests
@@ -94,9 +95,6 @@ def get_module(name, required=None):
 
 
 np = get_module('numpy')
-if np is None:
-    np = namedtuple('np', ['ndarray', 'generic'])
-    np.generic = ValueError
 
 MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
@@ -201,12 +199,12 @@ def json_friendly(obj):
         else:
             return obj.item(), True
 
-    if isinstance(obj, np.ndarray):
+    if np and isinstance(obj, np.ndarray):
         if obj.size == 1:
             obj = obj.flatten()[0]
         elif obj.size <= 32:
             obj = obj.tolist()
-    elif isinstance(obj, np.generic):
+    elif np and isinstance(obj, np.generic):
         obj = np.asscalar(obj)
     elif isinstance(obj, bytes):
         obj = obj.decode('utf-8')
@@ -231,14 +229,14 @@ def convert_plots(obj):
 
 
 def maybe_compress_history(obj):
-    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe_typename(get_full_typename(obj)):
+    if np and isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe_typename(get_full_typename(obj)):
         return wandb.Histogram(obj, num_bins=32).to_json(), True
     else:
         return obj, False
 
 
 def maybe_compress_summary(obj, h5_typename):
-    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe_typename(get_full_typename(obj)):
+    if np and isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe_typename(get_full_typename(obj)):
         return {
             "_type": h5_typename,  # may not be ndarray
             "var": np.var(obj).item(),

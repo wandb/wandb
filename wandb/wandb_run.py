@@ -1,7 +1,6 @@
 import datetime
 import logging
 import os
-import shortuuid
 import socket
 import json
 import yaml

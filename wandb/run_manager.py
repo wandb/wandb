@@ -17,7 +17,6 @@ import inspect
 
 import click
 from pkg_resources import parse_version
-from shortuuid import ShortUUID
 import six
 from six.moves import queue
 import requests

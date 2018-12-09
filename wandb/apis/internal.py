@@ -774,6 +774,7 @@ class Api(object):
             The requests library response object
         """
         attempts = 0
+        response = None
         extra_headers = {}
         if os.stat(file.name).st_size == 0:
             raise CommError("%s is an empty file" % file.name)
@@ -787,7 +788,8 @@ class Api(object):
             total = progress.len
             status = self._status_request(url, total)
             attempts += 1
-            if status.status_code == 308:
+            # TODO: Disabling for now, it's not working in its current state.
+            if status.status_code == False: #308:
                 if status.headers.get("Range"):
                     completed = int(status.headers['Range'].split("-")[-1])
                     extra_headers = {
@@ -799,7 +801,7 @@ class Api(object):
                     }
             # TODO(adrian): there's probably even more stuff we should add here
             # like if we're offline, we should retry then too
-            elif status.status_code in (408, 500, 502, 503, 504):
+            elif status.status_code in (308, 408, 500, 502, 503, 504):
                 util.sentry_reraise(retry.TransientException(exc=e))
             else:
                 util.sentry_reraise(e)

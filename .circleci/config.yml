@@ -47,3 +47,30 @@ jobs:
         <<: *test-template
         docker:
             - image: circleci/python:2.7
+    test-3.6-no-ml:
+        <<: *test-template
+        steps:
+            - checkout
+            - restore_cache:
+                  keys:
+                      - v3-dependencies-no-ml-{{ checksum "setup.py" }}
+                      - v3-dependencies-no-ml
+            - run:
+                  name: Install dependencies
+                  command: |
+                      rm -rf venv
+                      python -m venv venv || virtualenv venv
+                      . venv/bin/activate
+                      pip install -e .[dev]
+            - save_cache:
+                  paths:
+                      - ./venv
+                  key: v3-dependencies-no-ml-{{ checksum "setup.py" }}
+            - run:
+                  name: Run tests
+                  command: |
+                      . venv/bin/activate
+                      mkdir -p results
+                      pytest --cov=wandb --junitxml="results/pytest.xml" tests/test_headless.py tests/test_cli.py tests/test_wandb.py
+            - store_test_results:
+                  path: results
