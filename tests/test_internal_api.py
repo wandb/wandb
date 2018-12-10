@@ -146,19 +146,6 @@ def test_upload_failure(request_mocker, upload_url):
                         open(os.path.join(os.path.dirname(__file__), "fixtures/test.h5")))
 
 
-def test_upload_failure_resumable(request_mocker, upload_url):
-    upload_url(request_mocker)
-    request_mocker.register_uri('PUT', "https://weights.url", request_headers={
-                                'Content-Length': '0'}, headers={}, status_code=308)
-    request_mocker.register_uri('PUT', "https://weights.url", request_headers={
-                                'Content-Length': '0'}, headers={'Range': "0-10"}, status_code=308)
-    request_mocker.register_uri('PUT', "https://weights.url",
-                                request_headers={'Content-Range': 'bytes 10-51373/51373'})
-    res = api.upload_file(
-        "https://weights.url", open(os.path.join(os.path.dirname(__file__), "fixtures/test.h5")))
-    assert res.status_code == 200
-
-
 def test_upsert_run_defaults(request_mocker, mocker, upsert_run):
     update_mock = upsert_run(request_mocker)
     res = api.upsert_run(project="new-test")

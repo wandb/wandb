@@ -514,9 +514,12 @@ class Audio(IterableMedia):
 class Html(IterableMedia):
     MAX_HTML_COUNT = 100
 
-    def __init__(self, data):
+    def __init__(self, data, styles=True):
         """
-        Accepts string or file object containing valid html
+        Accepts a string or file object containing valid html
+
+        By default we inject a style reset into the html to make it 
+        look resonable, passing styles=False will disable it.
         """
         if isinstance(data, str):
             self.html = data
@@ -525,6 +528,21 @@ class Html(IterableMedia):
             self.html = data.read()
         else:
             raise ValueError("data must be a string or an io object")
+        if styles:
+            self.add_styles()
+
+    def add_styles(self):
+        join = ""
+        if "<head>" in self.html:
+            join = "<head>"
+            parts = self.html.split("<head>")
+        elif "<html>" in self.html:
+            join = "<html>"
+            parts = self.html.split("<html>")
+        else:
+            parts = [self.html]
+        parts.insert(1, '<link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />')
+        self.html = join.join(parts)
 
     @staticmethod
     def transform(html_list, out_dir, key, step):

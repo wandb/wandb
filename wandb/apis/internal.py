@@ -632,16 +632,21 @@ class Api(object):
             }
         }
         ''')
+        run_id = run or self.settings('run')
+        entity = entity or self.settings('entity')
         query_result = self.gql(query, variable_values={
-            'name': project, 'run': run or self.settings('run'),
-            'entity': entity or self.settings('entity'),
+            'name': project, 'run': run_id,
+            'entity': entity,
             'description': description,
             'files': [file for file in files]
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
-        return run['id'], result
+        if run:
+            result = {file['name']: file for file in self._flatten_edges(run['files'])}
+            return run['id'], result
+        else:
+            raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run_id))
 
     @normalize_exceptions
     def download_urls(self, project, run=None, entity=None):
@@ -761,7 +766,7 @@ class Api(object):
 
         return path, response
 
-    def upload_file(self, url, file, callback=None):
+    def upload_file(self, url, file, callback=None, extra_headers={}):
         """Uploads a file to W&B with failure resumption
 
         Args:
@@ -773,12 +778,28 @@ class Api(object):
         Returns:
             The requests library response object
         """
-        attempts = 0
+        extra_headers = extra_headers.copy()
         response = None
-        extra_headers = {}
         if os.stat(file.name).st_size == 0:
             raise CommError("%s is an empty file" % file.name)
-
+        if extra_headers.get("Content-Type") is None:
+            name = file.name.replace(".tmp", "")
+            if name.endswith(".html"):
+                extra_headers["Content-Type"] = "text/html"
+            elif name.endswith(".jpg"):
+                extra_headers["Content-Type"] = "image/jpeg"
+            elif name.endswith(".wav"):
+                extra_headers["Content-Type"] = "audio/wav"
+            elif name.endswith(".json"):
+                extra_headers["Content-Type"] = "application/json"
+            elif name.endswith(".jsonl"):
+                extra_headers["Content-Type"] = "application/x-ndjson"
+            elif name.endswith(".yaml"):
+                extra_headers["Content-Type"] = "text/yaml"
+            elif name.endswith(".md"):
+                extra_headers["Content-Type"] = "text/markdown"
+            elif name.endswith(".patch") or name.endswith(".txt"):
+                extra_headers["Content-Type"] = "text/plain"
         try:
             progress = Progress(file, callback=callback)
             response = requests.put(
@@ -787,21 +808,9 @@ class Api(object):
         except requests.exceptions.RequestException as e:
             total = progress.len
             status = self._status_request(url, total)
-            attempts += 1
-            # TODO: Disabling for now, it's not working in its current state.
-            if status.status_code == False: #308:
-                if status.headers.get("Range"):
-                    completed = int(status.headers['Range'].split("-")[-1])
-                    extra_headers = {
-                        'Content-Range': 'bytes {completed}-{total}/{total}'.format(
-                            completed=completed,
-                            total=total
-                        ),
-                        'Content-Length': str(total - completed)
-                    }
             # TODO(adrian): there's probably even more stuff we should add here
             # like if we're offline, we should retry then too
-            elif status.status_code in (308, 408, 500, 502, 503, 504):
+            if status.status_code in (308, 408, 500, 502, 503, 504):
                 util.sentry_reraise(retry.TransientException(exc=e))
             else:
                 util.sentry_reraise(e)
