@@ -141,7 +141,7 @@ def test_html_styles():
             "</head><body><h1>Hello</h1></body></html>"
         html = wandb.Html("<h1>Hello</h1>")
         assert html.html == pre + "<h1>Hello</h1>"
-        html = wandb.Html("<h1>Hello</h1>", inject=True)
+        html = wandb.Html("<h1>Hello</h1>", inject=False)
         assert html.html == "<h1>Hello</h1>"
 
 

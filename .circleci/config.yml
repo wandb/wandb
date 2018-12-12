@@ -54,7 +54,7 @@ jobs:
             - checkout
             - restore_cache:
                   keys:
-                      - v3-dependencies-no-ml-{{ checksum "setup.py" }}
+                      - v3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
                       - v3-dependencies-no-ml
             - run:
                   name: Install dependencies
@@ -66,7 +66,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3-dependencies-no-ml-{{ checksum "setup.py" }}
+                  key: v3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
             - run:
                   name: Run tests
                   command: |
