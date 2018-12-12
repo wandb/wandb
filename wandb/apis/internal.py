@@ -782,24 +782,6 @@ class Api(object):
         response = None
         if os.stat(file.name).st_size == 0:
             raise CommError("%s is an empty file" % file.name)
-        if extra_headers.get("Content-Type") is None:
-            name = file.name.replace(".tmp", "")
-            if name.endswith(".html"):
-                extra_headers["Content-Type"] = "text/html"
-            elif name.endswith(".jpg"):
-                extra_headers["Content-Type"] = "image/jpeg"
-            elif name.endswith(".wav"):
-                extra_headers["Content-Type"] = "audio/wav"
-            elif name.endswith(".json"):
-                extra_headers["Content-Type"] = "application/json"
-            elif name.endswith(".jsonl"):
-                extra_headers["Content-Type"] = "application/x-ndjson"
-            elif name.endswith(".yaml"):
-                extra_headers["Content-Type"] = "text/yaml"
-            elif name.endswith(".md"):
-                extra_headers["Content-Type"] = "text/markdown"
-            elif name.endswith(".patch") or name.endswith(".txt"):
-                extra_headers["Content-Type"] = "text/plain"
         try:
             progress = Progress(file, callback=callback)
             response = requests.put(
