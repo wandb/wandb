@@ -514,35 +514,37 @@ class Audio(IterableMedia):
 class Html(IterableMedia):
     MAX_HTML_COUNT = 100
 
-    def __init__(self, data, styles=True):
+    def __init__(self, data, inject=True):
         """
         Accepts a string or file object containing valid html
 
-        By default we inject a style reset into the html to make it 
-        look resonable, passing styles=False will disable it.
+        By default we inject a style reset into the doc to make it 
+        look resonable, passing inject=False will disable it.
         """
         if isinstance(data, str):
             self.html = data
-        elif isinstance(data, io.IOBase):
-            data.seek(0)
+        elif hasattr(data, 'read'):
+            if hasattr(data, 'seek'):
+                data.seek(0)
             self.html = data.read()
         else:
             raise ValueError("data must be a string or an io object")
-        if styles:
-            self.add_styles()
+        if inject:
+            self.inject_head()
 
-    def add_styles(self):
+    def inject_head(self):
         join = ""
         if "<head>" in self.html:
-            join = "<head>"
-            parts = self.html.split("<head>")
+            parts = self.html.split("<head>", 1)
+            parts[0] = parts[0] + "<head>"
         elif "<html>" in self.html:
-            join = "<html>"
-            parts = self.html.split("<html>")
+            parts = self.html.split("<html>", 1)
+            parts[0] = parts[0] + "<html><head>"
+            parts[1] = "</head>" + parts[1]
         else:
-            parts = [self.html]
-        parts.insert(1, '<link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />')
-        self.html = join.join(parts)
+            parts = ["", self.html]
+        parts.insert(1, '<base target="_blank"><link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />')
+        self.html = join.join(parts).strip()
 
     @staticmethod
     def transform(html_list, out_dir, key, step):

@@ -129,6 +129,22 @@ def test_html_str():
         assert os.path.exists("media/html/rad_summary_0.html")
 
 
+def test_html_styles():
+    with CliRunner().isolated_filesystem():
+        pre = '<base target="_blank"><link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />'
+        html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
+        assert html.html == "<html><head>"+pre + \
+            "</head><body><h1>Hello</h1></body></html>"
+        html = wandb.Html(
+            "<html><head></head><body><h1>Hello</h1></body></html>")
+        assert html.html == "<html><head>"+pre + \
+            "</head><body><h1>Hello</h1></body></html>"
+        html = wandb.Html("<h1>Hello</h1>")
+        assert html.html == pre + "<h1>Hello</h1>"
+        html = wandb.Html("<h1>Hello</h1>", inject=True)
+        assert html.html == "<h1>Hello</h1>"
+
+
 def test_html_file():
     with CliRunner().isolated_filesystem():
         with open("test.html", "w") as f:

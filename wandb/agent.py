@@ -92,7 +92,8 @@ class Agent(object):
                     pass  # if process is already dead
 
     def _process_command(self, command):
-        logger.info('Agent received command: %s' % (command['type'] if 'type' in command else 'Unknown'))
+        logger.info('Agent received command: %s' %
+                    (command['type'] if 'type' in command else 'Unknown'))
         response = {
             'id': command.get('id'),
             'result': None,
@@ -120,7 +121,7 @@ class Agent(object):
 
     def _command_run(self, command):
         logger.info('Agent starting run with config:\n' +
-            '\n'.join(['\t%s: %s' % (k, v['value']) for k, v in command['args'].items()]))
+                    '\n'.join(['\t%s: %s' % (k, v['value']) for k, v in command['args'].items()]))
 
         run = wandb_run.Run(mode='run',
                             sweep_id=self._sweep_id,
@@ -133,6 +134,8 @@ class Agent(object):
         run.config.update({k: v['value'] for k, v in command['args'].items()})
 
         env = dict(os.environ)
+        sweep_env = command.get('env', {})
+        env.update(sweep_env)
         run.set_environment(env)
 
         flags = ["--{0}={1}".format(name, config['value'])

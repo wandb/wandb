@@ -1,3 +1,15 @@
+## 0.6.31 (December 12, 2018)
+
+#### :bug: Bug Fix
+
+-   Really don't require numpy
+
+#### :nail_care: Enhancement
+
+-   Add environment to sweeps
+-   New media type wandb.Html for logging arbitrary html
+-   Add public api Run.create method
+
 ## 0.6.30 (December 6, 2018)
 
 #### :bug: Bug Fix
