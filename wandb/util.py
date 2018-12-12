@@ -141,10 +141,6 @@ def is_pytorch_tensor_typename(typename):
     return typename.startswith('torch.') and ('Tensor' in typename or 'Variable' in typename)
 
 
-def is_pandas_dataframe_typename(typename):
-    return typename.startswith('pandas.') and 'DataFrame' in typename
-
-
 def is_matplotlib_typename(typename):
     return typename.startswith("matplotlib.")
 
@@ -181,8 +177,6 @@ def json_friendly(obj):
 
     if is_tf_tensor_typename(typename):
         obj = obj.eval()
-    elif is_pandas_dataframe_typename(typename):
-        obj = obj.get_values()
     elif is_pytorch_tensor_typename(typename):
         try:
             if obj.requires_grad:
@@ -230,14 +224,14 @@ def convert_plots(obj):
 
 
 def maybe_compress_history(obj):
-    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe_typename(get_full_typename(obj)):
+    if isinstance(obj, np.ndarray) and obj.size > 32:
         return wandb.Histogram(obj, num_bins=32).to_json(), True
     else:
         return obj, False
 
 
 def maybe_compress_summary(obj, h5_typename):
-    if isinstance(obj, np.ndarray) and obj.size > 32 or is_pandas_dataframe_typename(get_full_typename(obj)):
+    if isinstance(obj, np.ndarray) and obj.size > 32:
         return {
             "_type": h5_typename,  # may not be ndarray
             "var": np.var(obj).item(),

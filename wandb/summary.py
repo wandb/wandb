@@ -16,7 +16,7 @@ from wandb.apis.internal import Api
 SUMMARY_FNAME = 'wandb-summary.json'
 DEEP_SUMMARY_FNAME = 'wandb.h5'
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor",
-            "pytorch.Tensor", "pandas.DataFrame")
+            "pytorch.Tensor")
 
 h5py = util.get_module("h5py")
 np = util.get_module("numpy")
