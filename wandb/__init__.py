@@ -341,7 +341,7 @@ Api = PublicApi
 
 
 def save(glob_str, policy="live"):
-    """ ensure all files matching *glob_str* are synced to wandb with the policy specified.
+    """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
     policy:
         live: upload the file as it changes, overwriting the previous version 
@@ -366,16 +366,31 @@ def save(glob_str, policy="live"):
     return files
 
 
-def restore(name, run_path=None):
+def restore(name, run_path=None, replace=False, root="."):
+    """ Downloads the specified file from cloud storage into the current run directory
+    if it doesn exist.
+
+    name: the name of the file
+    run_path: optional path to a different run to pull files from
+    replace: whether to download the file even if it already exists locally
+    root: the directory to download the file to.  Defaults to the current 
+        directory or the run directory if wandb.init was called.
+
+    returns None if it can't find the file, otherwise a file object open for reading
+    raises wandb.CommError if it can't find the run
+    """
     if run_path is None and run is None:
         raise ValueError(
             "You must call `wandb.init` before calling restore or specify a run_path")
     api = Api()
     api_run = api.run(run_path or run.path)
+    root = run.dir if run else root
+    path = os.path.exists(os.path.join(root, name))
+    if path and replace == False:
+        return open(path, "r")
     files = api_run.files([name])
     if len(files) == 0:
-        raise ValueError("{} has no file named {}".format(api_run, name))
-    root = run.dir if run else "."
+        return None
     return files[0].download(root=root, replace=True)
 
 

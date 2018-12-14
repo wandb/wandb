@@ -292,6 +292,7 @@ class Run(object):
             pass
         self._summary = None
         self._attrs = attrs
+        self.state = "not found"
         self.load()
 
     def load(self, force=False):
@@ -307,6 +308,8 @@ class Run(object):
         ''' % RUN_FRAGMENT)
         if force or not self._attrs:
             response = self._exec(query)
+            if response['project'] is None or response['project']['run'] is None:
+                raise ValueError("Could not find run %s" % self)
             self._attrs = response['project']['run']
         self._attrs['summaryMetrics'] = json.loads(
             self._attrs['summaryMetrics'])
@@ -389,7 +392,7 @@ class Run(object):
 
     @property
     def path(self):
-        return [self.username, self.project, self.name]
+        return [str(self.username), str(self.project), str(self.name)]
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
