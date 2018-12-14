@@ -1,5 +1,6 @@
 import pytest
 import os
+import sys
 from six import binary_type
 import logging
 

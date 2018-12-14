@@ -28,6 +28,7 @@ import sys
 import traceback
 import types
 import re
+import glob
 
 from . import env
 from . import io_wrap
@@ -339,11 +340,27 @@ config = None  # config object shared with the global run
 Api = PublicApi
 
 
-def save(path):
-    """symlinks a file into the run directory so it's uploaded
+def save(glob_str, policy="live"):
+    """ ensure all files matching *glob_str* are synced to wandb with the policy specified.
+
+    policy:
+        live: upload the file as it changes, overwriting the previous version 
+        end: only upload file when the run ends
     """
-    file_name = os.path.basename(path)
-    return os.symlink(os.path.abspath(path), os.path.join(run.dir, file_name))
+    if policy not in ("live", "end"):
+        raise ValueError(
+            'Only "live" and "end" policies are currently supported.')
+    run.configure({"save_policy": {"glob": glob_str, "policy": policy}})
+    files = []
+    for path in glob.glob(glob_str):
+        file_name = os.path.basename(path)
+        abs_path = os.path.abspath(path)
+        if run.dir in abs_path:
+            files.append(abs_path)
+        else:
+            files.append(os.symlink(
+                abs_path, os.path.join(run.dir, file_name)))
+    return files
 
 
 def monitor(options={}):

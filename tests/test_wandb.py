@@ -9,6 +9,7 @@ import mock
 import glob
 import socket
 import six
+import time
 from .api_mocks import *
 
 import wandb
@@ -73,6 +74,25 @@ def test_io_error(wandb_init_run):
 @pytest.mark.args(dir="/tmp")
 def test_custom_dir(wandb_init_run):
     assert len(glob.glob("/tmp/wandb/run-*")) > 0
+
+
+@pytest.mark.mock_socket
+def test_save_policy_symlink(wandb_init_run):
+    with open("test.rad", "w") as f:
+        f.write("something")
+    wandb.save("test.rad")
+    assert wandb_init_run.socket.send.called
+
+
+@pytest.mark.jupyter
+def test_save_policy_jupyter(wandb_init_run, query_upload_h5, request_mocker):
+    with open("test.rad", "w") as f:
+        f.write("something")
+    mock = query_upload_h5(request_mocker)
+    wandb.save("test.rad")
+    # TODO: Hacky as hell
+    time.sleep(1)
+    assert mock.called
 
 
 @pytest.mark.jupyter

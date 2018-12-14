@@ -50,6 +50,7 @@ def sentry_exc(exc):
     if error_reporting_enabled():
         capture_exception(exc)
 
+
 def sentry_reraise(exc):
     """Re-raise an exception after logging it to Sentry
 

@@ -14,6 +14,7 @@ import threading
 import yaml
 import numbers
 import inspect
+import glob
 
 import click
 from pkg_resources import parse_version
@@ -407,6 +408,12 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
 
+        # This allows users to specify files they want uploaded during the run
+        self._user_file_policies = {
+            "end": [],
+            "live": []
+        }
+
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
     def _resolve_project_name(self, project_name=None):
@@ -606,7 +613,15 @@ class RunManager(object):
                 self._file_event_handlers[save_name] = FileEventHandlerOverwrite(
                     file_path, save_name, self._api, self._file_pusher)
             else:
-                self._file_event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
+                Handler = FileEventHandlerOverwriteDeferred
+                for policy, globs in six.iteritems(self._user_file_policies):
+                    if policy == "end":
+                        continue
+                    for g in globs:
+                        if any(save_name in p for p in glob.glob(os.path.join(self._run.dir, g))):
+                            if policy == "live":
+                                Handler = FileEventHandlerThrottledOverwrite
+                self._file_event_handlers[save_name] = Handler(
                     file_path, save_name, self._api, self._file_pusher)
         return self._file_event_handlers[save_name]
 
@@ -930,6 +945,13 @@ class RunManager(object):
         wandb.termlog(
             "Wandb version %s is available!  To upgrade, please run:\n $ pip install wandb --upgrade" % latest_version)
 
+    def update_policy(self, policy):
+        for path in glob.glob(policy["glob"]):
+            save_name = os.path.relpath(path, self._watch_dir)
+            if self._file_event_handlers.get(save_name):
+                del self._file_event_handlers[save_name]
+        self._user_file_policies[policy["policy"]].append(policy["glob"])
+
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
         # exit when the child process does.
@@ -938,7 +960,7 @@ class RunManager(object):
         # inherit this behaviour.
         try:
             signal.signal(signal.SIGQUIT, signal.SIG_IGN)
-        except AttributeError:  # SIGQUIT doesn't exist on windows
+        except (AttributeError, ValueError):  # SIGQUIT doesn't exist on windows, we can't use signal.signal in threads for tests
             pass
 
         # Add a space before user output
@@ -949,25 +971,42 @@ class RunManager(object):
 
         exitcode = None
         try:
+            payload = b''
+            parse = False
             while True:
                 res = bytearray()
                 try:
-                    res = self._socket.recv(2)
+                    res = self._socket.recv(1024)
                 except socket.error as e:
                     # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
                     if e.errno == errno.EINTR or isinstance(e, socket.timeout):
                         pass
                     else:
                         raise e
-                if len(res) > 0 and res[0] == 2:
-                    exitcode = res[1] if len(res) > 1 else 0
-                    break
-                elif len(res) > 0:
-                    message = "Invalid message received from child process: %s" % str(
-                        res)
-                    wandb.termerror(message)
-                    util.sentry_message(message)
-                    break
+                term = res.find(b'\0')
+                if term != -1:
+                    payload += res[:term]
+                    parse = True
+                else:
+                    payload += res
+                if parse:
+                    try:
+                        parsed = json.loads(payload.decode('utf8'))
+                    except ValueError:
+                        parsed = {}
+                    if parsed.get("exitcode") is not None:
+                        exitcode = parsed["exitcode"]
+                        break
+                    elif parsed.get("save_policy"):
+                        self.update_policy(parsed["save_policy"])
+                        payload = b''
+                        parse = False
+                    else:
+                        message = "Invalid message received from child process: %s" % str(
+                            payload)
+                        wandb.termerror(message)
+                        util.sentry_message(message)
+                        break
                 else:
                     exitcode = self.proc.poll()
                     if exitcode is not None:
@@ -1062,9 +1101,6 @@ class RunManager(object):
                 line = sparkline.sparkify(vals)
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
-
-        if self._run.has_examples:
-            wandb.termlog('Saved %s examples' % self._run.examples.count())
 
         wandb_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('wandb') or save_name == config.FNAME])
         media_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('media')])
