@@ -479,11 +479,11 @@ class File(object):
         return int(self._attrs["sizeBytes"])
 
     @normalize_exceptions
-    def download(self, replace=False):
+    def download(self, replace=False, root="."):
         response = requests.get(self._attrs["url"], auth=(
             "api", Api().api_key), stream=True)
         response.raise_for_status()
-        path = self._attrs["name"]
+        path = os.path.join(root, self._attrs["name"])
         if os.path.exists(path) and not replace:
             raise ValueError(
                 "File already exists, pass replace=True to overwrite")

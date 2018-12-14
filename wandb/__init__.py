@@ -99,7 +99,7 @@ def watch(models, criterion=None, log="gradients"):
     """
     if run is None:
         raise ValueError(
-            "You must call `wandb.init` before calling hook_torch")
+            "You must call `wandb.init` before calling watch")
     log_parameters = False
     log_gradients = True
     if log == "all":
@@ -347,6 +347,9 @@ def save(glob_str, policy="live"):
         live: upload the file as it changes, overwriting the previous version 
         end: only upload file when the run ends
     """
+    if run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling save")
     if policy not in ("live", "end"):
         raise ValueError(
             'Only "live" and "end" policies are currently supported.')
@@ -361,6 +364,19 @@ def save(glob_str, policy="live"):
             files.append(os.symlink(
                 abs_path, os.path.join(run.dir, file_name)))
     return files
+
+
+def restore(name, run_path=None):
+    if run_path is None and run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling restore or specify a run_path")
+    api = Api()
+    api_run = api.run(run_path or run.path)
+    files = api_run.files([name])
+    if len(files) == 0:
+        raise ValueError("{} has no file named {}".format(api_run, name))
+    root = run.dir if run else "."
+    return files[0].download(root=root, replace=True)
 
 
 def monitor(options={}):

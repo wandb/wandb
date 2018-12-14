@@ -95,6 +95,14 @@ def test_save_policy_jupyter(wandb_init_run, query_upload_h5, request_mocker):
     assert mock.called
 
 
+def test_restore(wandb_init_run, request_mocker, download_url, query_run_v2, query_run_files):
+    query_run_v2(request_mocker)
+    query_run_files(request_mocker)
+    download_url(request_mocker, size=10000)
+    res = wandb.restore("weights.h5")
+    assert os.path.getsize(res.name) == 10000
+
+
 @pytest.mark.jupyter
 def test_jupyter_init(wandb_init_run, capfd):
     assert os.getenv("WANDB_JUPYTER")

@@ -54,8 +54,10 @@ class Run(object):
 
         with configure_scope() as scope:
             api = InternalApi()
-            scope.set_tag("project", api.settings("project"))
-            scope.set_tag("entity", api.settings("entity"))
+            self.project = api.settings("project")
+            self.entity = api.settings("entity")
+            scope.set_tag("project", self.project)
+            scope.set_tag("entity", self.entity)
             scope.set_tag("url", self.get_url(api))
 
         if dir is None:
@@ -88,6 +90,10 @@ class Run(object):
         self._summary = None
         self._meta = None
         self._jupyter_agent = None
+
+    @property
+    def path(self):
+        return "/".join([self.entity, self.project, self.id])
 
     def _init_jupyter_agent(self):
         from wandb.jupyter import JupyterAgent
