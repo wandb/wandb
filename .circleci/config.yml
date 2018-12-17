@@ -62,6 +62,7 @@ jobs:
                       rm -rf venv
                       python -m venv venv || virtualenv venv
                       . venv/bin/activate
+                      pip install -r requirements_noml.txt
                       pip install -e .[dev]
             - save_cache:
                   paths:
