@@ -15,6 +15,7 @@ import threading
 import time
 import random
 import stat
+from datetime import date, datetime
 
 import click
 import requests
@@ -204,6 +205,8 @@ def json_friendly(obj):
         obj = np.asscalar(obj)
     elif isinstance(obj, bytes):
         obj = obj.decode('utf-8')
+    elif isinstance(obj, (datetime, date)):
+        obj = obj.isoformat()
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
