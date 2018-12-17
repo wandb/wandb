@@ -12,7 +12,7 @@ import glob
 import json
 import torch
 import tensorflow as tf
-import pandas as pd
+import pandas
 
 
 @pytest.fixture
@@ -135,11 +135,10 @@ def test_tensorflow_tensor(summary):
 
 
 def test_pandas(summary):
-    summary.update({"pandas": pd.DataFrame(data=np.random.rand(1000))})
-    assert os.path.exists("wandb.h5")
-    parsed = disk_summary()
-    print(parsed)
-    assert parsed["pandas"]["_type"] == "pandas.DataFrame"
+    # We don't support pandas DataFrames right now. Will add them back when we
+    # add support for data tables (ie. BigQuery)
+    with pytest.raises(TypeError):
+        summary.update({"pandas": pandas.DataFrame(data=np.random.rand(1000))})
 
 
 def test_read_numpy(summary):

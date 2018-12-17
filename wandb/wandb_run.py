@@ -28,7 +28,6 @@ CONFIG_FNAME = 'config.yaml'
 USER_CONFIG_FNAME = 'config.json'
 SUMMARY_FNAME = 'wandb-summary.json'
 METADATA_FNAME = 'wandb-metadata.json'
-EXAMPLES_FNAME = 'wandb-examples.jsonl'
 DESCRIPTION_FNAME = 'description.md'
 
 
@@ -54,8 +53,10 @@ class Run(object):
 
         with configure_scope() as scope:
             api = InternalApi()
-            scope.set_tag("project", api.settings("project"))
-            scope.set_tag("entity", api.settings("entity"))
+            self.project = api.settings("project")
+            self.entity = api.settings("entity")
+            scope.set_tag("project", self.project)
+            scope.set_tag("entity", self.entity)
             scope.set_tag("url", self.get_url(api))
 
         if dir is None:
@@ -88,7 +89,10 @@ class Run(object):
         self._summary = None
         self._meta = None
         self._jupyter_agent = None
-        self._examples = None
+
+    @property
+    def path(self):
+        return "/".join([self.entity, self.project, self.id])
 
     def _init_jupyter_agent(self):
         from wandb.jupyter import JupyterAgent
@@ -96,6 +100,21 @@ class Run(object):
 
     def _stop_jupyter_agent(self):
         self._jupyter_agent.stop()
+
+    def configure(self, options):
+        """ Sends a message to the wandb process changing the policy
+        of saved files.  This is primarily used internally by wandb.save
+        """
+        if not options.get("save_policy"):
+            raise ValueError("Only configuring save_policy is supported")
+        if self.socket:
+            self.socket.send(options)
+        elif self._jupyter_agent:
+            self._jupyter_agent.start()
+            self._jupyter_agent.rm.update_policy(options["save_policy"])
+        else:
+            wandb.termerror(
+                "wandb.init hasn't been called, can't configure run")
 
     @classmethod
     def from_environment_or_defaults(cls, environment=None):
@@ -340,6 +359,10 @@ class Run(object):
         return self._history
 
     @property
+    def initial_step(self):
+        return self.history._steps
+
+    @property
     def has_history(self):
         return self._history or os.path.exists(os.path.join(self._dir, HISTORY_FNAME))
 
@@ -352,17 +375,6 @@ class Run(object):
     @property
     def has_events(self):
         return self._events or os.path.exists(os.path.join(self._dir, EVENTS_FNAME))
-
-    @property
-    def examples(self):
-        if self._examples is None:
-            self._examples = typedtable.TypedTable(
-                jsonlfile.JsonlFile(EXAMPLES_FNAME, self._dir))
-        return self._examples
-
-    @property
-    def has_examples(self):
-        return self._examples or os.path.exists(os.path.join(self._dir, EXAMPLES_FNAME))
 
     @property
     def description_path(self):

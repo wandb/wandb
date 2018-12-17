@@ -28,6 +28,7 @@ import sys
 import traceback
 import types
 import re
+import glob
 
 from . import env
 from . import io_wrap
@@ -99,7 +100,7 @@ def watch(models, criterion=None, log="gradients"):
     """
     if run is None:
         raise ValueError(
-            "You must call `wandb.init` before calling hook_torch")
+            "You must call `wandb.init` before calling watch")
     log_parameters = False
     log_gradients = True
     if log == "all":
@@ -340,11 +341,58 @@ config = None  # config object shared with the global run
 Api = PublicApi
 
 
-def save(path):
-    """symlinks a file into the run directory so it's uploaded
+def save(glob_str, policy="live"):
+    """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+
+    policy:
+        live: upload the file as it changes, overwriting the previous version 
+        end: only upload file when the run ends
     """
-    file_name = os.path.basename(path)
-    return os.symlink(os.path.abspath(path), os.path.join(run.dir, file_name))
+    if run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling save")
+    if policy not in ("live", "end"):
+        raise ValueError(
+            'Only "live" and "end" policies are currently supported.')
+    run.configure({"save_policy": {"glob": glob_str, "policy": policy}})
+    files = []
+    for path in glob.glob(glob_str):
+        file_name = os.path.basename(path)
+        abs_path = os.path.abspath(path)
+        if run.dir in abs_path:
+            files.append(abs_path)
+        else:
+            files.append(os.symlink(
+                abs_path, os.path.join(run.dir, file_name)))
+    return files
+
+
+def restore(name, run_path=None, replace=False, root="."):
+    """ Downloads the specified file from cloud storage into the current run directory
+    if it doesn exist.
+
+    name: the name of the file
+    run_path: optional path to a different run to pull files from
+    replace: whether to download the file even if it already exists locally
+    root: the directory to download the file to.  Defaults to the current 
+        directory or the run directory if wandb.init was called.
+
+    returns None if it can't find the file, otherwise a file object open for reading
+    raises wandb.CommError if it can't find the run
+    """
+    if run_path is None and run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling restore or specify a run_path")
+    api = Api()
+    api_run = api.run(run_path or run.path)
+    root = run.dir if run else root
+    path = os.path.exists(os.path.join(root, name))
+    if path and replace == False:
+        return open(path, "r")
+    files = api_run.files([name])
+    if len(files) == 0:
+        return None
+    return files[0].download(root=root, replace=True)
 
 
 def monitor(options={}):

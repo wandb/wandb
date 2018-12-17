@@ -292,6 +292,7 @@ class Run(object):
             pass
         self._summary = None
         self._attrs = attrs
+        self.state = "not found"
         self.load()
 
     @classmethod
@@ -320,6 +321,8 @@ class Run(object):
         ''' % RUN_FRAGMENT)
         if force or not self._attrs:
             response = self._exec(query)
+            if response['project'] is None or response['project']['run'] is None:
+                raise ValueError("Could not find run %s" % self)
             self._attrs = response['project']['run']
         self._attrs['summaryMetrics'] = json.loads(
             self._attrs['summaryMetrics'])
@@ -402,7 +405,7 @@ class Run(object):
 
     @property
     def path(self):
-        return [self.username, self.project, self.name]
+        return [str(self.username), str(self.project), str(self.name)]
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
@@ -492,11 +495,11 @@ class File(object):
         return int(self._attrs["sizeBytes"])
 
     @normalize_exceptions
-    def download(self, replace=False):
+    def download(self, replace=False, root="."):
         response = requests.get(self._attrs["url"], auth=(
             "api", Api().api_key), stream=True)
         response.raise_for_status()
-        path = self._attrs["name"]
+        path = os.path.join(root, self._attrs["name"])
         if os.path.exists(path) and not replace:
             raise ValueError(
                 "File already exists, pass replace=True to overwrite")

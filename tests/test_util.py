@@ -137,13 +137,3 @@ def test_tensorflow_json_nd():
 
 def test_tensorflow_json_nd_large():
     tensorflow_json_friendly_test(l(3, 3, 3, 3, 3, 3, 3, 3))
-
-
-def test_pandas_json_2d():
-    a = l(3, 3)
-    json_friendly_test(a, pandas.DataFrame(a))
-
-
-def test_pandas_json_2d_large():
-    a = l(300, 300)
-    json_friendly_test(a, pandas.DataFrame(a))
