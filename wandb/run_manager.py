@@ -948,7 +948,7 @@ class RunManager(object):
         wandb.termlog(
             "Wandb version %s is available!  To upgrade, please run:\n $ pip install wandb --upgrade" % latest_version)
 
-    def update_policy(self, policy):
+    def update_user_file_policy(self, policy):
         for path in glob.glob(policy["glob"]):
             save_name = os.path.relpath(path, self._watch_dir)
             if self._file_event_handlers.get(save_name):
@@ -1002,7 +1002,7 @@ class RunManager(object):
                         exitcode = parsed["exitcode"]
                         break
                     elif parsed.get("save_policy"):
-                        self.update_policy(parsed["save_policy"])
+                        self.update_user_file_policy(parsed["save_policy"])
                         payload = b''
                         parse = False
                     else:

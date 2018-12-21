@@ -115,7 +115,8 @@ class Run(object):
             self.socket.send(options)
         elif self._jupyter_agent:
             self._jupyter_agent.start()
-            self._jupyter_agent.rm.update_policy(options["save_policy"])
+            self._jupyter_agent.rm.update_user_file_policy(
+                options["save_policy"])
         else:
             wandb.termerror(
                 "wandb.init hasn't been called, can't configure run")
