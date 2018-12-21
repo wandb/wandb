@@ -28,6 +28,7 @@ import sys
 import traceback
 import types
 import re
+import glob
 
 from . import env
 from . import io_wrap
@@ -46,6 +47,7 @@ from wandb.run_manager import LaunchError
 from wandb.data_types import Image
 from wandb.data_types import Audio
 from wandb.data_types import Table
+from wandb.data_types import Html
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 
@@ -86,6 +88,9 @@ def hook_torch(*args, **kwargs):
     return watch(*args, **kwargs)
 
 
+watch_called = False
+
+
 def watch(models, criterion=None, log="gradients"):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
@@ -96,9 +101,15 @@ def watch(models, criterion=None, log="gradients"):
     :param (str) log: One of "gradients", "parameters", "all", or None
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
+    global watch_called
     if run is None:
         raise ValueError(
-            "You must call `wandb.init` before calling hook_torch")
+            "You must call `wandb.init` before calling watch")
+    if watch_called:
+        raise ValueError(
+            "You can only call `wandb.watch` once per process. If you want to watch multiple models, pass them in as a tuple."
+        )
+    watch_called = True
     log_parameters = False
     log_gradients = True
     if log == "all":
@@ -274,7 +285,7 @@ def _init_jupyter(run):
             "Not authenticated.  Copy a key from https://app.wandb.ai/profile?message=true")
         key = getpass.getpass("API Key: ").strip()
         if len(key) == 40:
-            os.environ["WANDB_API_KEY"] = key
+            os.environ[env.API_KEY] = key
             util.write_netrc(api.api_url, "user", key)
         else:
             raise ValueError("API Key must be 40 characters long")
@@ -339,11 +350,58 @@ config = None  # config object shared with the global run
 Api = PublicApi
 
 
-def save(path):
-    """symlinks a file into the run directory so it's uploaded
+def save(glob_str, policy="live"):
+    """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+
+    policy:
+        live: upload the file as it changes, overwriting the previous version 
+        end: only upload file when the run ends
     """
-    file_name = os.path.basename(path)
-    return os.symlink(os.path.abspath(path), os.path.join(run.dir, file_name))
+    if run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling save")
+    if policy not in ("live", "end"):
+        raise ValueError(
+            'Only "live" and "end" policies are currently supported.')
+    run.send_message({"save_policy": {"glob": glob_str, "policy": policy}})
+    files = []
+    for path in glob.glob(glob_str):
+        file_name = os.path.basename(path)
+        abs_path = os.path.abspath(path)
+        if run.dir in abs_path:
+            files.append(abs_path)
+        else:
+            files.append(os.symlink(
+                abs_path, os.path.join(run.dir, file_name)))
+    return files
+
+
+def restore(name, run_path=None, replace=False, root="."):
+    """ Downloads the specified file from cloud storage into the current run directory
+    if it doesn exist.
+
+    name: the name of the file
+    run_path: optional path to a different run to pull files from
+    replace: whether to download the file even if it already exists locally
+    root: the directory to download the file to.  Defaults to the current 
+        directory or the run directory if wandb.init was called.
+
+    returns None if it can't find the file, otherwise a file object open for reading
+    raises wandb.CommError if it can't find the run
+    """
+    if run_path is None and run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling restore or specify a run_path")
+    api = Api()
+    api_run = api.run(run_path or run.path)
+    root = run.dir if run else root
+    path = os.path.exists(os.path.join(root, name))
+    if path and replace == False:
+        return open(path, "r")
+    files = api_run.files([name])
+    if len(files) == 0:
+        return None
+    return files[0].download(root=root, replace=True)
 
 
 def monitor(options={}):
@@ -382,6 +440,10 @@ def log(row=None, commit=True, *args, **kargs):
 
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
     """
+    if run is None:
+        raise ValueError(
+            "You must call `wandb.init` in the same process before calling log")
+
     if row is None:
         row = {}
     if commit:
@@ -398,13 +460,14 @@ def ensure_configured():
 def uninit():
     """Undo the effects of init(). Useful for testing.
     """
-    global run, config
+    global run, config, watch_called
     run = config = None
+    watch_called = False
 
 
 def reset_env(exclude=[]):
     """Remove environment variables, used in Jupyter notebooks"""
-    if os.getenv('WANDB_INITED'):
+    if os.getenv(env.INITED):
         wandb_keys = [key for key in os.environ.keys() if key.startswith(
             'WANDB_') and key not in exclude]
         for key in wandb_keys:
@@ -462,11 +525,11 @@ def sagemaker_auth(overrides={}, path="."):
             path (str, optional): The path to write the secrets file.
     """
 
-    api_key = overrides.get('WANDB_API_KEY', Api().api_key)
+    api_key = overrides.get(env.API_KEY, Api().api_key)
     if api_key is None:
         raise ValueError(
             "Can't find W&B ApiKey, set the WANDB_API_KEY env variable or run `wandb login`")
-    overrides['WANDB_API_KEY'] = api_key
+    overrides[env.API_KEY] = api_key
     with open(os.path.join(path, "secrets.env"), "w") as file:
         for k, v in six.iteritems(overrides):
             file.write("{}={}\n".format(k, v))
@@ -477,7 +540,7 @@ def join():
     pass
 
 
-def init(job_type=None, dir=None, config=None, project=None, entity=None, group=None, allow_val_change=False, reinit=None):
+def init(job_type=None, dir=None, config=None, project=None, entity=None, group=None, allow_val_change=False, reinit=None, tags=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -491,6 +554,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
         entity (str, optional): The entity to push metrics to
         dir (str, optional): An absolute path to a directory where metadata will be stored
         group (str, optional): A unique string shared by all runs in a given group
+        tags (list, optional): A list of tags to apply to the run
         reinit (bool, optional): Allow multiple calls to init in the same process
 
     Returns:
@@ -502,21 +566,20 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
     # We allow re-initialization when we're in Jupyter
     in_jupyter = _get_python_type() != "python"
     if reinit or (in_jupyter and reinit != False):
-        reset_env(exclude=["WANDB_DIR", "WANDB_ENTITY",
-                           "WANDB_PROJECT", "WANDB_API_KEY"])
+        reset_env(exclude=[env.DIR, env.ENTITY, env.PROJECT, env.API_KEY])
         run = None
 
     sagemaker_config = util.parse_sm_config()
     tf_config = util.parse_tfjob_config()
     if group == None:
-        group = os.getenv("WANDB_RUN_GROUP")
+        group = os.getenv(env.RUN_GROUP)
     if job_type == None:
-        job_type = os.getenv("WANDB_JOB_TYPE")
+        job_type = os.getenv(env.JOB_TYPE)
     if sagemaker_config:
         # Set run_id and potentially grouping if we're in SageMaker
         run_id = os.getenv('TRAINING_JOB_NAME')
         if run_id:
-            os.environ['WANDB_RUN_ID'] = '-'.join([
+            os.environ[env.RUN_ID] = '-'.join([
                 run_id,
                 os.getenv('CURRENT_HOST', socket.gethostname())])
         conf = json.load(
@@ -541,15 +604,17 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
                 group = cluster[job_name][0].rsplit("-"+job_name, 1)[0]
 
     if project:
-        os.environ['WANDB_PROJECT'] = project
+        os.environ[env.PROJECT] = project
     if entity:
-        os.environ['WANDB_ENTITY'] = entity
+        os.environ[env.ENTITY] = entity
     if group:
-        os.environ['WANDB_RUN_GROUP'] = group
+        os.environ[env.RUN_GROUP] = group
     if job_type:
-        os.environ['WANDB_JOB_TYPE'] = job_type
+        os.environ[env.JOB_TYPE] = job_type
+    if tags:
+        os.environ[env.TAGS] = ",".join(tags)
     if dir:
-        os.environ['WANDB_DIR'] = dir
+        os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
 
     # the following line is useful to ensure that no W&B logging happens in the user
@@ -564,7 +629,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
     # after a parent has (only the parent will create the Run object).
     # This doesn't protect against the case where the parent doesn't call
     # wandb.init but two children do.
-    if run or os.getenv('WANDB_INITED'):
+    if run or os.getenv(env.INITED):
         return run
 
     if __stage_dir__ is None:
@@ -591,7 +656,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
 
     # set this immediately after setting the run and the config. if there is an
     # exception after this it'll probably break the user script anyway
-    os.environ['WANDB_INITED'] = '1'
+    os.environ[env.INITED] = '1'
 
     # we do these checks after setting the run and the config because users scripts
     # may depend on those things

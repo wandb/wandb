@@ -9,6 +9,7 @@ import mock
 import glob
 import socket
 import six
+import time
 from .api_mocks import *
 
 import wandb
@@ -27,6 +28,11 @@ def test_log_step(wandb_init_run):
     wandb.log()
     assert len(wandb.run.history.rows) == 1
     assert wandb.run.history.rows[0]['_step'] == 5
+
+
+def test_nice_log_error():
+    with pytest.raises(ValueError):
+        wandb.log({"no": "init"})
 
 
 @pytest.mark.args(sagemaker=True)
@@ -73,6 +79,33 @@ def test_io_error(wandb_init_run):
 @pytest.mark.args(dir="/tmp")
 def test_custom_dir(wandb_init_run):
     assert len(glob.glob("/tmp/wandb/run-*")) > 0
+
+
+@pytest.mark.mock_socket
+def test_save_policy_symlink(wandb_init_run):
+    with open("test.rad", "w") as f:
+        f.write("something")
+    wandb.save("test.rad")
+    assert wandb_init_run.socket.send.called
+
+
+@pytest.mark.jupyter
+def test_save_policy_jupyter(wandb_init_run, query_upload_h5, request_mocker):
+    with open("test.rad", "w") as f:
+        f.write("something")
+    mock = query_upload_h5(request_mocker)
+    wandb.save("test.rad")
+    # TODO: Hacky as hell
+    time.sleep(1)
+    assert mock.called
+
+
+def test_restore(wandb_init_run, request_mocker, download_url, query_run_v2, query_run_files):
+    query_run_v2(request_mocker)
+    query_run_files(request_mocker)
+    download_url(request_mocker, size=10000)
+    res = wandb.restore("weights.h5")
+    assert os.path.getsize(res.name) == 10000
 
 
 @pytest.mark.jupyter

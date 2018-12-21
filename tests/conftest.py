@@ -5,6 +5,7 @@ from .api_mocks import *
 import wandb
 import six
 import json
+import sys
 
 
 @pytest.fixture
@@ -109,7 +110,8 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             kwargs = {}
         try:
             run = wandb.init(**kwargs)
-            upload_logs(request_mocker, run)
+            if request.node.get_marker('mock_socket'):
+                run.socket = mocker.MagicMock()
             assert run is wandb.run
             assert run.config is wandb.config
         except wandb.LaunchError as e:

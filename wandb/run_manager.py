@@ -14,10 +14,10 @@ import threading
 import yaml
 import numbers
 import inspect
+import glob
 
 import click
 from pkg_resources import parse_version
-from shortuuid import ShortUUID
 import six
 from six.moves import queue
 import requests
@@ -407,6 +407,12 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
 
+        # This allows users to specify files they want uploaded during the run
+        self._user_file_policies = {
+            "end": [],
+            "live": []
+        }
+
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
     def _resolve_project_name(self, project_name=None):
@@ -491,15 +497,19 @@ class RunManager(object):
             if self._file_observer.is_alive():
                 # rather unfortunatly we need to manually do a final scan of the dir
                 # with `queue_events`, then iterate through all events before stopping
-                # the observer to catch all files written
+                # the observer to catch all files written.  First we need to prevent the
+                # existing thread from consuming our final events, then we process each one.
+                self._file_observer._timeout = 0
+                self._file_observer._stopped_event.set()
+                self._file_observer.join()
                 self.emitter.queue_events(0)
                 while True:
                     try:
                         self._file_observer.dispatch_events(self._file_observer.event_queue, 0)
                     except queue.Empty:
                         break
+                # Calling stop unschedules any inflight events so we manually handled them above 
                 self._file_observer.stop()
-                self._file_observer.join()
         # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
         except TypeError:
             pass
@@ -606,7 +616,15 @@ class RunManager(object):
                 self._file_event_handlers[save_name] = FileEventHandlerOverwrite(
                     file_path, save_name, self._api, self._file_pusher)
             else:
-                self._file_event_handlers[save_name] = FileEventHandlerOverwriteDeferred(
+                Handler = FileEventHandlerOverwriteDeferred
+                for policy, globs in six.iteritems(self._user_file_policies):
+                    if policy == "end":
+                        continue
+                    for g in globs:
+                        if any(save_name in p for p in glob.glob(os.path.join(self._run.dir, g))):
+                            if policy == "live":
+                                Handler = FileEventHandlerThrottledOverwrite
+                self._file_event_handlers[save_name] = Handler(
                     file_path, save_name, self._api, self._file_pusher)
         return self._file_event_handlers[save_name]
 
@@ -810,8 +828,8 @@ class RunManager(object):
                 raise LaunchError(launch_error_s)
 
         if self._output:
-            self.url = self._run.get_url(self._api)
-            wandb.termlog("Syncing to %s" % self.url)
+            url = self._run.get_url(self._api)
+            wandb.termlog("Syncing to %s" % url)
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         self._run.set_environment(environment=env)
@@ -930,6 +948,14 @@ class RunManager(object):
         wandb.termlog(
             "Wandb version %s is available!  To upgrade, please run:\n $ pip install wandb --upgrade" % latest_version)
 
+    def update_user_file_policy(self, policy):
+        for path in glob.glob(policy["glob"]):
+            save_name = os.path.relpath(path, self._watch_dir)
+            if self._file_event_handlers.get(save_name):
+                del self._file_event_handlers[save_name]
+        self._user_file_policies[policy["policy"]].append(policy["glob"])
+
+
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
         # exit when the child process does.
@@ -938,7 +964,7 @@ class RunManager(object):
         # inherit this behaviour.
         try:
             signal.signal(signal.SIGQUIT, signal.SIG_IGN)
-        except AttributeError:  # SIGQUIT doesn't exist on windows
+        except (AttributeError, ValueError):  # SIGQUIT doesn't exist on windows, we can't use signal.signal in threads for tests
             pass
 
         # Add a space before user output
@@ -949,25 +975,45 @@ class RunManager(object):
 
         exitcode = None
         try:
+            payload = b''
+            parse = False
             while True:
                 res = bytearray()
                 try:
-                    res = self._socket.recv(2)
+                    res = self._socket.recv(1024)
                 except socket.error as e:
                     # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
                     if e.errno == errno.EINTR or isinstance(e, socket.timeout):
                         pass
                     else:
                         raise e
-                if len(res) > 0 and res[0] == 2:
-                    exitcode = res[1] if len(res) > 1 else 0
-                    break
-                elif len(res) > 0:
-                    message = "Invalid message received from child process: %s" % str(
-                        res)
-                    wandb.termerror(message)
-                    util.sentry_message(message)
-                    break
+                term = res.find(b'\0')
+                if term != -1:
+                    payload += res[:term]
+                    parse = True
+                else:
+                    payload += res
+                if parse:
+                    try:
+                        parsed = json.loads(payload.decode('utf8'))
+                    except ValueError:
+                        parsed = {}
+                    if parsed.get("exitcode") is not None:
+                        exitcode = parsed["exitcode"]
+                        break
+                    elif parsed.get("save_policy"):
+                        self.update_user_file_policy(parsed["save_policy"])
+                        payload = b''
+                        parse = False
+                    else:
+                        message = "Invalid message received from child process: %s" % str(
+                            payload)
+                        wandb.termerror(message)
+                        util.sentry_message(message)
+                        break
+                    new_start = term + 1
+                    if len(res) > new_start:
+                        payload = res[new_start:]
                 else:
                     exitcode = self.proc.poll()
                     if exitcode is not None:
@@ -1063,9 +1109,6 @@ class RunManager(object):
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
 
-        if self._run.has_examples:
-            wandb.termlog('Saved %s examples' % self._run.examples.count())
-
         wandb_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('wandb') or save_name == config.FNAME])
         media_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('media')])
         other_files = set(self._file_pusher.files()) - wandb_files - media_files
@@ -1084,6 +1127,7 @@ class RunManager(object):
         # commit ID: abee525b because of these lines:
         # if fname == 'wandb-history.h5' or 'training.log':
         #     continue
+        url = self._run.get_url(self._api)
         if False:
             # Check md5s of uploaded files against what's on the file system.
             # TODO: We're currently using the list of uploaded files as our source
@@ -1122,11 +1166,11 @@ class RunManager(object):
                 print('verified!')
 
             if error:
-                message = 'Sync failed %s' % self.url
+                message = 'Sync failed %s' % url
                 wandb.termerror(message)
                 util.sentry_message(message)
             else:
-                wandb.termlog('Synced %s' % self.url)
+                wandb.termlog('Synced %s' % url)
 
-        wandb.termlog('Synced %s' % self.url)
+        wandb.termlog('Synced %s' % url)
         sys.exit(exitcode)

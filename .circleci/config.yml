@@ -6,6 +6,7 @@ workflows:
             - test-3.6
             - test-3.5
             - test-2.7
+            - test-3.6-no-ml
 jobs:
     test-3.6: &test-template
         docker:
@@ -47,3 +48,31 @@ jobs:
         <<: *test-template
         docker:
             - image: circleci/python:2.7
+    test-3.6-no-ml:
+        <<: *test-template
+        steps:
+            - checkout
+            - restore_cache:
+                  keys:
+                      - v3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+                      - v3-dependencies-no-ml
+            - run:
+                  name: Install dependencies
+                  command: |
+                      rm -rf venv
+                      python -m venv venv || virtualenv venv
+                      . venv/bin/activate
+                      pip install -r requirements_noml.txt
+                      pip install -e .[dev]
+            - save_cache:
+                  paths:
+                      - ./venv
+                  key: v3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+            - run:
+                  name: Run tests
+                  command: |
+                      . venv/bin/activate
+                      mkdir -p results
+                      pytest --cov=wandb --junitxml="results/pytest.xml" tests/test_headless.py tests/test_cli.py tests/test_wandb.py
+            - store_test_results:
+                  path: results

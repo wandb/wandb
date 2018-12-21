@@ -65,6 +65,25 @@ def test_run_summary(request_mocker, query_run_v2, upsert_run, query_download_h5
     assert update_mock.called
 
 
+def test_run_create(request_mocker, query_run_v2, upsert_run, query_download_h5):
+    run_mock = query_run_v2(request_mocker)
+    query_download_h5(request_mocker)
+    update_mock = upsert_run(request_mocker)
+    run = api.create_run(project="test")
+    assert update_mock.called
+
+
+def test_run_update(request_mocker, query_run_v2, upsert_run, query_download_h5):
+    run_mock = query_run_v2(request_mocker)
+    query_download_h5(request_mocker)
+    update_mock = upsert_run(request_mocker)
+    run = api.run("test/test/test")
+    run.tags.append("test")
+    run.config["foo"] = "bar"
+    run.update()
+    assert update_mock.called
+
+
 def test_run_files(request_mocker, query_run_v2, query_run_files):
     run_mock = query_run_v2(request_mocker)
     query_run_files(request_mocker)

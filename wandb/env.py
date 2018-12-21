@@ -22,7 +22,17 @@ USERNAME = 'WANDB_USERNAME'
 PROJECT = 'WANDB_PROJECT'
 ENTITY = 'WANDB_ENTITY'
 BASE_URL = 'WANDB_BASE_URL'
-RUN = 'WANDB_RUN_ID'
+PROGRAM = 'WANDB_PROGRAM'
+MODE = 'WANDB_MODE'
+RESUME = 'WANDB_RESUME'
+RUN_ID = 'WANDB_RUN_ID'
+RUN_STORAGE_ID = 'WANDB_RUN_STORAGE_ID'
+RUN_GROUP = 'WANDB_RUN_GROUP'
+RUN_DIR = 'WANDB_RUN_DIR'
+SWEEP_ID = 'WANDB_SWEEP_ID'
+API_KEY = 'WANDB_API_KEY'
+JOB_TYPE = 'WANDB_JOB_TYPE'
+TAGS = 'WANDB_TAGS'
 IGNORE = 'WANDB_IGNORE_GLOBS'
 ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
 
@@ -102,6 +112,13 @@ def get_description(default=None, env=None):
         env = os.environ
 
     return env.get(DESCRIPTION, default)
+
+
+def get_tags(default="", env=None):
+    if env is None:
+        env = os.environ
+
+    return [tag for tag in env.get(TAGS, default).split(",") if tag]
 
 
 def get_dir(default=None, env=None):

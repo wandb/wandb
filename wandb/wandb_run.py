@@ -1,12 +1,12 @@
 import datetime
 import logging
 import os
-import shortuuid
 import socket
 import json
 import yaml
 from sentry_sdk import configure_scope
 
+from . import env
 import wandb
 from wandb import history
 from wandb import jsonlfile
@@ -29,14 +29,15 @@ CONFIG_FNAME = 'config.yaml'
 USER_CONFIG_FNAME = 'config.json'
 SUMMARY_FNAME = 'wandb-summary.json'
 METADATA_FNAME = 'wandb-metadata.json'
-EXAMPLES_FNAME = 'wandb-examples.jsonl'
 DESCRIPTION_FNAME = 'description.md'
 
 
 class Run(object):
-    def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None, config=None, sweep_id=None, storage_id=None, description=None, resume=None, program=None, wandb_dir=None):
+    def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None,
+                 config=None, sweep_id=None, storage_id=None, description=None, resume=None,
+                 program=None, wandb_dir=None, tags=[]):
         # self.id is actually stored in the "name" attribute in GQL
-        self.id = run_id if run_id else generate_id()
+        self.id = run_id if run_id else util.generate_id()
         self.resume = resume if resume else 'never'
         self.mode = mode if mode else 'run'
         self.group = group
@@ -55,8 +56,10 @@ class Run(object):
 
         with configure_scope() as scope:
             api = InternalApi()
-            scope.set_tag("project", api.settings("project"))
-            scope.set_tag("entity", api.settings("entity"))
+            self.project = api.settings("project")
+            self.entity = api.settings("entity")
+            scope.set_tag("project", self.project)
+            scope.set_tag("entity", self.entity)
             scope.set_tag("url", self.get_url(api))
 
         if dir is None:
@@ -81,6 +84,7 @@ class Run(object):
         # important that we overwrite empty strings here.
         if not self.description:
             self.description = self.id
+        self.tags = tags
 
         self.sweep_id = sweep_id
 
@@ -89,7 +93,10 @@ class Run(object):
         self._summary = None
         self._meta = None
         self._jupyter_agent = None
-        self._examples = None
+
+    @property
+    def path(self):
+        return "/".join([self.entity, self.project, self.id])
 
     def _init_jupyter_agent(self):
         from wandb.jupyter import JupyterAgent
@@ -97,6 +104,22 @@ class Run(object):
 
     def _stop_jupyter_agent(self):
         self._jupyter_agent.stop()
+
+    def send_message(self, options):
+        """ Sends a message to the wandb process changing the policy
+        of saved files.  This is primarily used internally by wandb.save
+        """
+        if not options.get("save_policy"):
+            raise ValueError("Only configuring save_policy is supported")
+        if self.socket:
+            self.socket.send(options)
+        elif self._jupyter_agent:
+            self._jupyter_agent.start()
+            self._jupyter_agent.rm.update_user_file_policy(
+                options["save_policy"])
+        else:
+            wandb.termerror(
+                "wandb.init hasn't been called, can't configure run")
 
     @classmethod
     def from_environment_or_defaults(cls, environment=None):
@@ -111,10 +134,10 @@ class Run(object):
         """
         if environment is None:
             environment = os.environ
-        run_id = environment.get('WANDB_RUN_ID')
-        resume = environment.get('WANDB_RESUME')
-        storage_id = environment.get('WANDB_RUN_STORAGE_ID')
-        mode = environment.get('WANDB_MODE')
+        run_id = environment.get(env.RUN_ID)
+        resume = environment.get(env.RESUME)
+        storage_id = environment.get(env.RUN_STORAGE_ID)
+        mode = environment.get(env.MODE)
         disabled = InternalApi().disabled()
         if not mode and disabled:
             mode = "dryrun"
@@ -125,24 +148,25 @@ class Run(object):
             wandb.termlog(
                 'W&B is disabled in this directory.  Run `wandb on` to enable cloud syncing.')
 
-        group = environment.get('WANDB_RUN_GROUP')
-        job_type = environment.get('WANDB_JOB_TYPE')
-        run_dir = environment.get('WANDB_RUN_DIR')
-        sweep_id = environment.get('WANDB_SWEEP_ID')
-        program = environment.get('WANDB_PROGRAM')
-        wandb_dir = environment.get('WANDB_DIR')
+        group = environment.get(env.RUN_GROUP)
+        job_type = environment.get(env.JOB_TYPE)
+        run_dir = environment.get(env.RUN_DIR)
+        sweep_id = environment.get(env.SWEEP_ID)
+        program = environment.get(env.PROGRAM)
+        wandb_dir = env.get_dir()
+        tags = env.get_tags()
         config = Config.from_environment_or_defaults()
         run = cls(run_id, mode, run_dir,
                   group, job_type, config,
                   sweep_id, storage_id, program=program,
-                  wandb_dir=wandb_dir,
+                  wandb_dir=wandb_dir, tags=tags,
                   resume=resume)
         return run
 
     @classmethod
     def from_directory(cls, directory, project=None, entity=None, run_id=None, api=None):
         api = api or InternalApi()
-        run_id = run_id or generate_id()
+        run_id = run_id or util.generate_id()
         run = Run(run_id=run_id, dir=directory)
         project = project or api.settings(
             "project") or run.auto_project_name(api=api)
@@ -243,7 +267,8 @@ class Run(object):
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
                                        project=project, entity=api.settings(
                                            "entity"),
-                                       group=self.group,
+                                       group=self.group, tags=self.tags if len(
+                                           self.tags) > 0 else None,
                                        config=self.config.as_dict(), description=self.description, host=socket.gethostname(),
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
                                        summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
@@ -256,23 +281,25 @@ class Run(object):
         """
         if environment is None:
             environment = os.environ
-        environment['WANDB_RUN_ID'] = self.id
-        environment['WANDB_RESUME'] = self.resume
+        environment[env.RUN_ID] = self.id
+        environment[env.RESUME] = self.resume
         if self.storage_id:
-            environment['WANDB_RUN_STORAGE_ID'] = self.storage_id
-        environment['WANDB_MODE'] = self.mode
-        environment['WANDB_RUN_DIR'] = self.dir
+            environment[env.RUN_STORAGE_ID] = self.storage_id
+        environment[env.MODE] = self.mode
+        environment[env.RUN_DIR] = self.dir
 
         if self.group:
-            environment['WANDB_RUN_GROUP'] = self.group
+            environment[env.RUN_GROUP] = self.group
         if self.job_type:
-            environment['WANDB_JOB_TYPE'] = self.job_type
+            environment[env.JOB_TYPE] = self.job_type
         if self.wandb_dir:
-            environment['WANDB_DIR'] = self.wandb_dir
+            environment[env.DIR] = self.wandb_dir
         if self.sweep_id is not None:
-            environment['WANDB_SWEEP_ID'] = self.sweep_id
+            environment[env.SWEEP_ID] = self.sweep_id
         if self.program is not None:
-            environment['WANDB_PROGRAM'] = self.program
+            environment[env.PROGRAM] = self.program
+        if len(self.tags) > 0:
+            environment[env.TAGS] = ",".join(self.tags)
 
     def _mkdir(self):
         util.mkdir_exists_ok(self._dir)
@@ -341,6 +368,10 @@ class Run(object):
         return self._history
 
     @property
+    def initial_step(self):
+        return self.history._steps
+
+    @property
     def has_history(self):
         return self._history or os.path.exists(os.path.join(self._dir, HISTORY_FNAME))
 
@@ -353,17 +384,6 @@ class Run(object):
     @property
     def has_events(self):
         return self._events or os.path.exists(os.path.join(self._dir, EVENTS_FNAME))
-
-    @property
-    def examples(self):
-        if self._examples is None:
-            self._examples = typedtable.TypedTable(
-                jsonlfile.JsonlFile(EXAMPLES_FNAME, self._dir))
-        return self._examples
-
-    @property
-    def has_examples(self):
-        return self._examples or os.path.exists(os.path.join(self._dir, EXAMPLES_FNAME))
 
     @property
     def description_path(self):
@@ -396,13 +416,6 @@ class Run(object):
         if self._history is not None:
             self._history.close()
             self._history = None
-
-
-def generate_id():
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list(
-        "0123456789abcdefghijklmnopqrstuvwxyz"))
-    return run_gen.random(8)
 
 
 def run_dir_path(run_id, dry=False):

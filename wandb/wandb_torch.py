@@ -34,12 +34,13 @@ def nested_shape(array_or_tuple):
         return array_or_tuple.shape
 
     try:
-        #treat object as iterable
+        # treat object as iterable
         return [nested_shape(item) for item in list(array_or_tuple)]
     except TypeError:
         # object is not actually iterable
         # LB: Maybe we should throw an error?
         return []
+
 
 class TorchHistory(object):
     """History methods specific to PyTorch
@@ -59,25 +60,14 @@ class TorchHistory(object):
         if name is not None:
             prefix = prefix + name
 
-        def parameter_log_hook(module, input_, output):
-            for name, parameter in module.named_parameters():
-                # for pytorch 0.3 Variables
-                if isinstance(parameter, torch.autograd.Variable):
-                    data = parameter.data
-                else:
-                    data = parameter
-                self.log_tensor_stats(data, 'parameters/' + prefix + name)
-
-        if log_parameters:
-            module.register_forward_hook(parameter_log_hook)
-
-        # This won't handle the case if the network changes
-        if log_gradients:
-            for name, parameter in module.named_parameters():
-                if parameter.requires_grad:
+        for name, parameter in module.named_parameters():
+            if parameter.requires_grad:
+                if log_parameters:
+                    self._hook_variable_parameter_stats(
+                        parameter, 'parameters/' + prefix + name)
+                if log_gradients:
                     self._hook_variable_gradient_stats(
                         parameter, 'gradients/' + prefix + name)
-
 
     def log_module_stats(self, module, name):
         self._hook_module_input_output_stats(module, name)
@@ -119,6 +109,11 @@ class TorchHistory(object):
             name: wandb.Histogram(tensor)
         })
 
+    def _hook_variable_parameter_stats(self, parameter, name):
+        def _callback(param):
+            self.log_tensor_stats(param.data, name)
+        parameter.register_hook(_callback)
+
     def _hook_variable_gradient_stats(self, var, name):
         """Logs a Variable's gradient's distribution statistics next time backward()
         is called on it.
@@ -134,9 +129,7 @@ class TorchHistory(object):
                 'A hook has already been set under name "{}"'.format(name))
 
         def _callback(grad):
-            #_callback()
             self.log_tensor_stats(grad.data, name)
-            # self.unhook(name)
 
         handle = var.register_hook(_callback)
         self._hook_handles[name] = handle
@@ -146,25 +139,24 @@ class TorchHistory(object):
         handle = self._hook_handles.pop(name)
         handle.remove()
 
-
-    def _torch_hook_handle_is_valid(handle):
+    def _torch_hook_handle_is_valid(self, handle):
         d = handle.hooks_dict_ref()
         if d is None:
             return False
         else:
             return handle.id in d
 
+
 class TorchGraph(wandb.data_types.Graph):
-       
+
     def __init__(self):
-        super(TorchGraph, self).__init__("torch") 
+        super(TorchGraph, self).__init__("torch")
 
     @classmethod
     def hook_torch(cls, model, criterion=None):
         graph = TorchGraph()
         graph.hook_torch_modules(model, criterion)
         return graph
-
 
     def create_forward_hook(self, name, modules):
         graph = self
@@ -220,9 +212,9 @@ class TorchGraph(wandb.data_types.Graph):
             #       0.4   has ModuleList
             #       0.4.1 has ModuleDict
             module_types = [getattr(torch.nn, module_classname)
-                for module_classname in ("Container", "Sequential", "ModuleList", "ModuleDict")
-                if hasattr(torch.nn, module_classname)]
-                   
+                            for module_classname in ("Container", "Sequential", "ModuleList", "ModuleDict")
+                            if hasattr(torch.nn, module_classname)]
+
             if isinstance(sub_module, tuple(module_types)):
                 self.hook_torch_modules(sub_module, prefix=name)
             else:

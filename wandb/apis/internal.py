@@ -491,7 +491,7 @@ class Api(object):
 
     @normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None,
-                   group=None,
+                   group=None, tags=None,
                    config=None, description=None, entity=None, state=None,
                    repo=None, job_type=None, program_path=None, commit=None,
                    sweep_name=None, summary_metrics=None, num_retries=None):
@@ -528,6 +528,7 @@ class Api(object):
             $jobType: String,
             $state: String,
             $sweep: String,
+            $tags: [String!],
             $summaryMetrics: JSONString,
         ) {
             upsertBucket(input: {
@@ -546,6 +547,7 @@ class Api(object):
                 jobType: $jobType,
                 state: $state,
                 sweep: $sweep,
+                tags: $tags,
                 summaryMetrics: $summaryMetrics,
             }) {
                 bucket {
@@ -576,7 +578,7 @@ class Api(object):
 
         variable_values = {
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
-            'groupName': group,
+            'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
             'host': host, 'debug': env.is_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
@@ -632,16 +634,21 @@ class Api(object):
             }
         }
         ''')
+        run_id = run or self.settings('run')
+        entity = entity or self.settings('entity')
         query_result = self.gql(query, variable_values={
-            'name': project, 'run': run or self.settings('run'),
-            'entity': entity or self.settings('entity'),
+            'name': project, 'run': run_id,
+            'entity': entity,
             'description': description,
             'files': [file for file in files]
         })
 
         run = query_result['model']['bucket']
-        result = {file['name']: file for file in self._flatten_edges(run['files'])}
-        return run['id'], result
+        if run:
+            result = {file['name']: file for file in self._flatten_edges(run['files'])}
+            return run['id'], result
+        else:
+            raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run_id))
 
     @normalize_exceptions
     def download_urls(self, project, run=None, entity=None):
@@ -761,7 +768,7 @@ class Api(object):
 
         return path, response
 
-    def upload_file(self, url, file, callback=None):
+    def upload_file(self, url, file, callback=None, extra_headers={}):
         """Uploads a file to W&B with failure resumption
 
         Args:
@@ -773,11 +780,10 @@ class Api(object):
         Returns:
             The requests library response object
         """
-        attempts = 0
-        extra_headers = {}
+        extra_headers = extra_headers.copy()
+        response = None
         if os.stat(file.name).st_size == 0:
             raise CommError("%s is an empty file" % file.name)
-
         try:
             progress = Progress(file, callback=callback)
             response = requests.put(
@@ -786,20 +792,9 @@ class Api(object):
         except requests.exceptions.RequestException as e:
             total = progress.len
             status = self._status_request(url, total)
-            attempts += 1
-            if status.status_code == 308:
-                if status.headers.get("Range"):
-                    completed = int(status.headers['Range'].split("-")[-1])
-                    extra_headers = {
-                        'Content-Range': 'bytes {completed}-{total}/{total}'.format(
-                            completed=completed,
-                            total=total
-                        ),
-                        'Content-Length': str(total - completed)
-                    }
             # TODO(adrian): there's probably even more stuff we should add here
             # like if we're offline, we should retry then too
-            elif status.status_code in (408, 500, 502, 503, 504):
+            if status.status_code in (308, 408, 500, 502, 503, 504):
                 util.sentry_reraise(retry.TransientException(exc=e))
             else:
                 util.sentry_reraise(e)

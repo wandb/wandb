@@ -21,9 +21,7 @@ class Server(object):
     assigned by the OS.
 
     Wire Protocol:
-    1 => ready
-    2 => done, followed by optional exitcode byte
-    100 => launch error
+        JSON terminated by \0
     """
 
     def __init__(self):
@@ -74,15 +72,10 @@ class Server(object):
             return False, None
 
     def done(self, exitcode=None):
-        data = [2]
-        if exitcode is not None:
-            data.append(exitcode)
-        self.send(data)
+        self.send({"exitcode": exitcode or 0})
 
     def send(self, data):
-        orig = data
-        if isinstance(data, list):
-            data = ints2bytes(data)
+        data = json.dumps(data).encode('utf8') + b'\0'
         self.connection.sendall(data)
 
 

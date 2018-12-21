@@ -15,6 +15,8 @@ import threading
 import time
 import random
 import stat
+import shortuuid
+from datetime import date, datetime
 
 import click
 import requests
@@ -49,6 +51,7 @@ def sentry_message(message):
 def sentry_exc(exc):
     if error_reporting_enabled():
         capture_exception(exc)
+
 
 def sentry_reraise(exc):
     """Re-raise an exception after logging it to Sentry
@@ -93,9 +96,6 @@ def get_module(name, required=None):
 
 
 np = get_module('numpy')
-if np is None:
-    np = namedtuple('np', ['ndarray', 'generic'])
-    np.generic = ValueError
 
 MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
@@ -194,15 +194,17 @@ def json_friendly(obj):
         else:
             return obj.item(), True
 
-    if isinstance(obj, np.ndarray):
+    if np and isinstance(obj, np.ndarray):
         if obj.size == 1:
             obj = obj.flatten()[0]
         elif obj.size <= 32:
             obj = obj.tolist()
-    elif isinstance(obj, np.generic):
+    elif np and isinstance(obj, np.generic):
         obj = np.asscalar(obj)
     elif isinstance(obj, bytes):
         obj = obj.decode('utf-8')
+    elif isinstance(obj, (datetime, date)):
+        obj = obj.isoformat()
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -224,14 +226,14 @@ def convert_plots(obj):
 
 
 def maybe_compress_history(obj):
-    if isinstance(obj, np.ndarray) and obj.size > 32:
+    if np and isinstance(obj, np.ndarray) and obj.size > 32:
         return wandb.Histogram(obj, num_bins=32).to_json(), True
     else:
         return obj, False
 
 
 def maybe_compress_summary(obj, h5_typename):
-    if isinstance(obj, np.ndarray) and obj.size > 32:
+    if np and isinstance(obj, np.ndarray) and obj.size > 32:
         return {
             "_type": h5_typename,  # may not be ndarray
             "var": np.var(obj).item(),
@@ -270,6 +272,13 @@ def launch_browser(attempt_launch_browser=True):
             launch_browser = False
 
     return launch_browser
+
+
+def generate_id():
+    # ~3t run ids (36**8)
+    run_gen = shortuuid.ShortUUID(alphabet=list(
+        "0123456789abcdefghijklmnopqrstuvwxyz"))
+    return run_gen.random(8)
 
 
 def parse_tfjob_config():

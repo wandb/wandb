@@ -1,5 +1,6 @@
 import pytest
 import os
+import sys
 from six import binary_type
 import logging
 
@@ -78,6 +79,7 @@ def _run(name='test'):
         'name': name,
         'state': "running",
         'config': '{"epochs": {"value": 10}}',
+        'description': "",
         'systemMetrics': '{"cpu": 100}',
         'summaryMetrics': '{"acc": 100, "loss": 0}',
         'history': [
@@ -89,7 +91,8 @@ def _run(name='test'):
             '{"cpu": 10}',
             '{"cpu": 20}',
             '{"cpu": 30}'
-        ]
+        ],
+        'tags': []
     }
 
 

@@ -1,10 +1,16 @@
 import datetime
 import io
 import os
+import time
+import pytest
+import threading
 
 import wandb.run_manager
+import wandb
+from wandb import wandb_socket
 from wandb.apis import internal
 from wandb.wandb_run import Run
+from wandb.run_manager import FileEventHandlerThrottledOverwrite, FileEventHandlerOverwriteDeferred
 from click.testing import CliRunner
 
 
@@ -53,20 +59,81 @@ def _is_update_avail(request_mocker, capsys, current, latest):
     return "To upgrade, please run:" in captured_err
 
 
-def test_throttle_file_poller(mocker):
+@pytest.fixture
+def run_manager(mocker):
+    """This fixture emulates the run_manager headless mode in a single process
+    Just call run_manager.test_shutdown() to join the threads
+    """
     api = internal.Api(load_settings=False)
     with CliRunner().isolated_filesystem():
-        run = Run()
-        run_manager = wandb.run_manager.RunManager(api, run)
+        wandb.run = Run()
+        wandb.run.socket = wandb_socket.Server()
+        api.set_current_run_id(wandb.run.id)
+        api._file_stream_api = mocker.MagicMock()
+        run_manager = wandb.run_manager.RunManager(
+            api, wandb.run, port=wandb.run.socket.port)
+        run_manager.proc = mocker.MagicMock()
+        run_manager._stdout_tee = mocker.MagicMock()
+        run_manager._stderr_tee = mocker.MagicMock()
+        run_manager._output_log = mocker.MagicMock()
+        run_manager._stdout_stream = mocker.MagicMock()
+        run_manager._stderr_stream = mocker.MagicMock()
+        socket_thread = threading.Thread(
+            target=wandb.run.socket.listen)
+        socket_thread.start()
+        run_manager._socket.ready()
+        thread = threading.Thread(
+            target=run_manager._sync_etc)
+        thread.start()
+
+        def test_shutdown():
+            wandb.run.socket.done()
+            # TODO: is this needed?
+            socket_thread.join()
+            thread.join()
+        run_manager.test_shutdown = test_shutdown
         run_manager._unblock_file_observer()
-        run_manager._file_pusher._push_function = lambda *args: None
-        emitter = run_manager.emitter
-        assert emitter.timeout == 1
-        for i in range(100):
-            with open(os.path.join(run.dir, "file_%i.txt" % i), "w") as f:
-                f.write(str(i))
-        try:
-            run_manager.shutdown()
-        except wandb.apis.UsageError:
-            pass
-        assert emitter.timeout == 2
+        run_manager._file_pusher._push_function = mocker.MagicMock()
+        yield run_manager
+        wandb.uninit()
+
+
+def test_throttle_file_poller(mocker, run_manager):
+    emitter = run_manager.emitter
+    assert emitter.timeout == 1
+    for i in range(100):
+        with open(os.path.join(wandb.run.dir, "file_%i.txt" % i), "w") as f:
+            f.write(str(i))
+    run_manager.test_shutdown()
+    assert emitter.timeout == 2
+
+
+def test_custom_file_policy(mocker, run_manager):
+    for i in range(5):
+        with open(os.path.join(wandb.run.dir, "ckpt_%i.txt" % i), "w") as f:
+            f.write(str(i))
+    wandb.save("ckpt*")
+
+    run_manager.test_shutdown()
+    assert isinstance(
+        run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwrite)
+    assert isinstance(
+        run_manager._file_event_handlers["wandb-metadata.json"], FileEventHandlerOverwriteDeferred)
+
+
+def test_custom_file_policy_symlink(mocker, run_manager):
+    mod = mocker.MagicMock()
+    mocker.patch(
+        'wandb.run_manager.FileEventHandlerThrottledOverwrite.on_modified', mod)
+    with open("ckpt_0.txt", "w") as f:
+        f.write("joy")
+    with open("ckpt_1.txt", "w") as f:
+        f.write("joy" * 100)
+    wandb.save("ckpt_0.txt")
+    with open("ckpt_0.txt", "w") as f:
+        f.write("joy" * 100)
+    wandb.save("ckpt_1.txt")
+    run_manager.test_shutdown()
+    assert isinstance(
+        run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwrite)
+    assert mod.called

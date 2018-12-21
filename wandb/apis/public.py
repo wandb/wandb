@@ -76,6 +76,9 @@ class Api(object):
         self._runs = {}
         self.settings.update(overrides)
 
+    def create_run(self, **kwargs):
+        return Run.create(self, **kwargs)
+
     @property
     def client(self):
         return Client(
@@ -292,7 +295,43 @@ class Run(object):
             pass
         self._summary = None
         self._attrs = attrs
+        self.state = attrs.get("state", "not found")
         self.load()
+
+    @classmethod
+    @normalize_exceptions
+    def create(cls, api, run_id=None, project=None, username=None):
+        """Create a run for the given project"""
+        run_id = run_id or util.generate_id()
+        project = project or api.settings.get("project")
+        mutation = gql('''
+        mutation upsertRun($project: String, $entity: String, $name: String!) {
+            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name}) {
+                bucket {
+                    project {
+                        name
+                        entity { name }
+                    }
+                    id
+                    name
+                }
+                inserted
+            }
+        }
+        ''')
+        variables = {'entity': username,
+                     'project': project, 'name': run_id}
+        res = api.client.execute(mutation, variable_values=variables)
+        res = res['upsertBucket']['bucket']
+        return Run(api.client, res["project"]["entity"]["name"],  res["project"]["name"], res["name"], {
+            "id": res["id"],
+            "config": "{}",
+            "systemMetrics": "{}",
+            "summaryMetrics": "{}",
+            "tags": [],
+            "description": None,
+            "state": "running"
+        })
 
     def load(self, force=False):
         query = gql('''
@@ -307,12 +346,15 @@ class Run(object):
         ''' % RUN_FRAGMENT)
         if force or not self._attrs:
             response = self._exec(query)
+            if response['project'] is None or response['project']['run'] is None:
+                raise ValueError("Could not find run %s" % self)
             self._attrs = response['project']['run']
+            self.state = self._attrs['state']
         self._attrs['summaryMetrics'] = json.loads(
             self._attrs['summaryMetrics'])
         self._attrs['systemMetrics'] = json.loads(self._attrs['systemMetrics'])
         config = {}
-        for key, value in six.iteritems(json.loads(self._attrs['config'])):
+        for key, value in six.iteritems(json.loads(self._attrs['config'] or "{}")):
             if isinstance(value, dict) and value.get("value"):
                 config[key] = value["value"]
             else:
@@ -320,9 +362,32 @@ class Run(object):
         self._attrs['config'] = config
         return self._attrs
 
+    @normalize_exceptions
+    def update(self):
+        mutation = gql('''
+        mutation upsertRun($id: String!, $description: String, $tags: [String!], $config: JSONString!) {
+            upsertBucket(input: {id: $id, description: $description, tags: $tags, config: $config}) {
+                bucket {
+                    ...RunFragment
+                }
+            }
+        }
+        %s
+        ''' % RUN_FRAGMENT)
+        res = self._exec(mutation, id=self.id, tags=self.tags,
+                         description=self.description, config=self.json_config)
+        self.summary.update()
+
     def snake_to_camel(self, string):
         camel = "".join([i.title() for i in string.split("_")])
         return camel[0].lower() + camel[1:]
+
+    @property
+    def json_config(self):
+        config = {}
+        for k, v in six.iteritems(self.config):
+            config[k] = {"value": v, "desc": None}
+        return json.dumps(config)
 
     def __getattr__(self, name):
         key = self.snake_to_camel(name)
@@ -389,7 +454,13 @@ class Run(object):
 
     @property
     def path(self):
-        return [self.username, self.project, self.name]
+        return [str(self.username), str(self.project), str(self.name)]
+
+    @property
+    def url(self):
+        path = self.path
+        path.insert(2, "runs")
+        return "https://app.wandb.ai/" + "/".join(path)
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
@@ -479,11 +550,11 @@ class File(object):
         return int(self._attrs["sizeBytes"])
 
     @normalize_exceptions
-    def download(self, replace=False):
+    def download(self, replace=False, root="."):
         response = requests.get(self._attrs["url"], auth=(
             "api", Api().api_key), stream=True)
         response.raise_for_status()
-        path = self._attrs["name"]
+        path = os.path.join(root, self._attrs["name"])
         if os.path.exists(path) and not replace:
             raise ValueError(
                 "File already exists, pass replace=True to overwrite")
