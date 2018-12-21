@@ -127,7 +127,7 @@ def test_keras_log_weights(dummy_model, dummy_data, git_repo, run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", log_weights=True)])
     print("WHOA", run.history.rows[0].keys())
-    assert run.history.rows[0]['dense_9.weights']['_type'] == "histogram"
+    assert run.history.rows[0]['parameters/dense_9.weights']['_type'] == "histogram"
 
 
 def test_keras_save_model(dummy_model, dummy_data, git_repo, run):
@@ -149,12 +149,16 @@ def test_keras_convert_sequential():
     wandb_model_out = wandb.Graph.transform(wandb_model)
     print(wandb_model_out)
     assert wandb_model_out == {'_type': 'graph', 'format': 'keras',
-        'nodes': [
-            {'name': 'dense_1', 'id': 'dense_1', 'class_name': 'Dense', 'output_shape': (None, 4), 'num_parameters': 16},
-            {'name': 'dense_1_input', 'id': 'dense_1_input', 'class_name': 'InputLayer', 'output_shape': (None, 3), 'num_parameters': 0},
-            {'name': 'dense_2', 'id': 'dense_2', 'class_name': 'Dense', 'output_shape': (None, 5), 'num_parameters': 25},
-            { 'name': 'dense_3', 'id': 'dense_3', 'class_name': 'Dense', 'output_shape': (None, 6), 'num_parameters': 36}],
-        'edges': [['dense_1_input', 'dense_1'], ['dense_1', 'dense_2'], ['dense_2', 'dense_3']]}
+                               'nodes': [
+                                   {'name': 'dense_1', 'id': 'dense_1', 'class_name': 'Dense',
+                                    'output_shape': (None, 4), 'num_parameters': 16},
+                                   {'name': 'dense_1_input', 'id': 'dense_1_input', 'class_name': 'InputLayer',
+                                    'output_shape': (None, 3), 'num_parameters': 0},
+                                   {'name': 'dense_2', 'id': 'dense_2', 'class_name': 'Dense',
+                                    'output_shape': (None, 5), 'num_parameters': 25},
+                                   {'name': 'dense_3', 'id': 'dense_3', 'class_name': 'Dense', 'output_shape': (None, 6), 'num_parameters': 36}],
+                               'edges': [['dense_1_input', 'dense_1'], ['dense_1', 'dense_2'], ['dense_2', 'dense_3']]}
+
 
 def test_keras_convert_model_non_sequential():
     # necessary to keep the names of the layers consistent
@@ -162,22 +166,28 @@ def test_keras_convert_model_non_sequential():
 
     # example from the Keras docs
     main_input = Input(shape=(100,), dtype='int32', name='main_input')
-    x = Embedding(output_dim=512, input_dim=10000, input_length=100)(main_input)
+    x = Embedding(output_dim=512, input_dim=10000,
+                  input_length=100)(main_input)
     lstm_out = LSTM(32)(x)
-    auxiliary_output = Dense(1, activation='sigmoid', name='aux_output')(lstm_out)
+    auxiliary_output = Dense(1, activation='sigmoid',
+                             name='aux_output')(lstm_out)
     auxiliary_input = Input(shape=(5,), name='aux_input')
     x = Concatenate()([lstm_out, auxiliary_input])
     x = Dense(64, activation='relu')(x)
     x = Dense(64, activation='relu')(x)
     x = Dense(64, activation='relu')(x)
     main_output = Dense(1, activation='sigmoid', name='main_output')(x)
-    model = Model(inputs=[main_input, auxiliary_input], outputs=[main_output, auxiliary_output])
+    model = Model(inputs=[main_input, auxiliary_input],
+                  outputs=[main_output, auxiliary_output])
     wandb_model = wandb.data_types.Graph.from_keras(model)
     wandb_model_out = wandb.Graph.transform(wandb_model)
 
     print(wandb_model_out['edges'])
-    assert wandb_model_out['nodes'][0] == {'name': 'main_input', 'id': 'main_input', 'class_name': 'InputLayer', 'output_shape': (None, 100), 'num_parameters': 0}
+    assert wandb_model_out['nodes'][0] == {'name': 'main_input', 'id': 'main_input',
+                                           'class_name': 'InputLayer', 'output_shape': (None, 100), 'num_parameters': 0}
     assert wandb_model_out['edges'] == [
-            ['main_input', 'embedding_1'], ['embedding_1', 'lstm_1'], ['lstm_1', 'concatenate_1'],
-            ['aux_input', 'concatenate_1'], ['concatenate_1', 'dense_1'], ['dense_1', 'dense_2'],
-            ['dense_2', 'dense_3'], ['dense_3', 'main_output'], ['lstm_1', 'aux_output']]
+        ['main_input', 'embedding_1'], ['embedding_1',
+                                        'lstm_1'], ['lstm_1', 'concatenate_1'],
+        ['aux_input', 'concatenate_1'], [
+            'concatenate_1', 'dense_1'], ['dense_1', 'dense_2'],
+        ['dense_2', 'dense_3'], ['dense_3', 'main_output'], ['lstm_1', 'aux_output']]
