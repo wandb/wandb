@@ -363,7 +363,7 @@ def save(glob_str, policy="live"):
     if policy not in ("live", "end"):
         raise ValueError(
             'Only "live" and "end" policies are currently supported.')
-    run.configure({"save_policy": {"glob": glob_str, "policy": policy}})
+    run.send_message({"save_policy": {"glob": glob_str, "policy": policy}})
     files = []
     for path in glob.glob(glob_str):
         file_name = os.path.basename(path)

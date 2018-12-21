@@ -105,7 +105,7 @@ class Run(object):
     def _stop_jupyter_agent(self):
         self._jupyter_agent.stop()
 
-    def configure(self, options):
+    def send_message(self, options):
         """ Sends a message to the wandb process changing the policy
         of saved files.  This is primarily used internally by wandb.save
         """
