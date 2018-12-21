@@ -7,20 +7,20 @@ from wandb import cli
 from wandb import util
 from wandb.apis import InternalApi
 
-import torch
 import webbrowser
 whaaaaat = util.vendor_import("whaaaaat")
 from wandb.git_repo import GitRepo
 from distutils.version import LooseVersion
 
-
-if LooseVersion(torch.__version__) < LooseVersion("0.4"):
-    pytorch_tensor = torch.Tensor
-    OLD_PYTORCH = True
-else:
-    # supports 0d tensors but is a module before 0.4
-    pytorch_tensor = torch.tensor
-    OLD_PYTORCH = False
+torch = util.get_module("torch")
+if torch:
+    if LooseVersion(torch.__version__) < LooseVersion("0.4"):
+        pytorch_tensor = torch.Tensor
+        OLD_PYTORCH = True
+    else:
+        # supports 0d tensors but is a module before 0.4
+        pytorch_tensor = torch.tensor
+        OLD_PYTORCH = False
 
 
 @pytest.fixture
