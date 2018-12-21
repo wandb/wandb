@@ -60,20 +60,23 @@ class TorchHistory(object):
         if name is not None:
             prefix = prefix + name
 
-        for name, parameter in module.named_parameters():
-            if parameter.requires_grad:
-                if log_parameters:
-                    self._hook_variable_parameter_stats(
-                        parameter, 'parameters/' + prefix + name)
-                if log_gradients:
+        if log_parameters:
+            def parameter_log_hook(module, input_, output):
+                for name, parameter in module.named_parameters():
+                    # for pytorch 0.3 Variables
+                    if isinstance(parameter, torch.autograd.Variable):
+                        data = parameter.data
+                    else:
+                        data = parameter
+                    self.log_tensor_stats(
+                        data.cpu(), 'parameters/' + prefix + name)
+            module.register_forward_hook(parameter_log_hook)
+
+        if log_gradients:
+            for name, parameter in module.named_parameters():
+                if parameter.requires_grad:
                     self._hook_variable_gradient_stats(
                         parameter, 'gradients/' + prefix + name)
-
-    def log_module_stats(self, module, name):
-        self._hook_module_input_output_stats(module, name)
-        self._hook_module_input_output_gradient_stats(module, name)
-        for child_name, child in module.named_children():
-            self.log_module_stats(child, name + '.' + child_name)
 
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
@@ -108,11 +111,6 @@ class TorchHistory(object):
         history.row.update({
             name: wandb.Histogram(tensor)
         })
-
-    def _hook_variable_parameter_stats(self, parameter, name):
-        def _callback(param):
-            self.log_tensor_stats(param.data, name)
-        parameter.register_hook(_callback)
 
     def _hook_variable_gradient_stats(self, var, name):
         """Logs a Variable's gradient's distribution statistics next time backward()
