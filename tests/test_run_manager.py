@@ -78,8 +78,9 @@ def run_manager(mocker):
         run_manager._output_log = mocker.MagicMock()
         run_manager._stdout_stream = mocker.MagicMock()
         run_manager._stderr_stream = mocker.MagicMock()
-        threading.Thread(
-            target=wandb.run.socket.listen).start()
+        socket_thread = threading.Thread(
+            target=wandb.run.socket.listen)
+        socket_thread.start()
         run_manager._socket.ready()
         thread = threading.Thread(
             target=run_manager._sync_etc)
@@ -87,6 +88,8 @@ def run_manager(mocker):
 
         def test_shutdown():
             wandb.run.socket.done()
+            # TODO: is this needed?
+            socket_thread.join()
             thread.join()
         run_manager.test_shutdown = test_shutdown
         run_manager._unblock_file_observer()
@@ -124,9 +127,12 @@ def test_custom_file_policy_symlink(mocker, run_manager):
         'wandb.run_manager.FileEventHandlerThrottledOverwrite.on_modified', mod)
     with open("ckpt_0.txt", "w") as f:
         f.write("joy")
+    with open("ckpt_1.txt", "w") as f:
+        f.write("joy" * 100)
     wandb.save("ckpt_0.txt")
     with open("ckpt_0.txt", "w") as f:
         f.write("joy" * 100)
+    wandb.save("ckpt_1.txt")
     run_manager.test_shutdown()
     assert isinstance(
         run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwrite)

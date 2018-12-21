@@ -30,6 +30,11 @@ def test_log_step(wandb_init_run):
     assert wandb.run.history.rows[0]['_step'] == 5
 
 
+def test_nice_log_error():
+    with pytest.raises(ValueError):
+        wandb.log({"no": "init"})
+
+
 @pytest.mark.args(sagemaker=True)
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"

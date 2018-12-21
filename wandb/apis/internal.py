@@ -491,7 +491,7 @@ class Api(object):
 
     @normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None,
-                   group=None,
+                   group=None, tags=None,
                    config=None, description=None, entity=None, state=None,
                    repo=None, job_type=None, program_path=None, commit=None,
                    sweep_name=None, summary_metrics=None, num_retries=None):
@@ -528,6 +528,7 @@ class Api(object):
             $jobType: String,
             $state: String,
             $sweep: String,
+            $tags: [String!],
             $summaryMetrics: JSONString,
         ) {
             upsertBucket(input: {
@@ -546,6 +547,7 @@ class Api(object):
                 jobType: $jobType,
                 state: $state,
                 sweep: $sweep,
+                tags: $tags,
                 summaryMetrics: $summaryMetrics,
             }) {
                 bucket {
@@ -576,7 +578,7 @@ class Api(object):
 
         variable_values = {
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
-            'groupName': group,
+            'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
             'host': host, 'debug': env.is_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics

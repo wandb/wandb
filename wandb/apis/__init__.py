@@ -61,7 +61,8 @@ def normalize_exceptions(func):
             else:
                 message = err.last_exception
 
-            six.reraise(CommError, CommError(message, err.last_exception), sys.exc_info()[2])
+            six.reraise(CommError, CommError(
+                message, err.last_exception), sys.exc_info()[2])
         except Exception as err:
             # gql raises server errors with dict's as strings...
             if len(err.args) > 0:
@@ -75,7 +76,8 @@ def normalize_exceptions(func):
             if wandb.env.is_debug():
                 six.reraise(*sys.exc_info())
             else:
-                six.reraise(CommError, CommError(message, err), sys.exc_info()[2])
+                six.reraise(CommError, CommError(
+                    message, err), sys.exc_info()[2])
     return wrapper
 
 

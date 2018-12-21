@@ -264,7 +264,7 @@ def runs(ctx, project, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="List local & remote file status")
-@click.argument("run", envvar=env.RUN)
+@click.argument("run", envvar=env.RUN_ID)
 @click.option("--settings/--no-settings", help="Show the current settings", default=True)
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
 @display_error
@@ -292,7 +292,7 @@ def status(run, settings, project):
 
 
 @cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
-@click.argument("run", envvar=env.RUN)
+@click.argument("run", envvar=env.RUN_ID)
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
 @click.option("--entity", "-e", default="models", envvar=env.ENTITY, help="The entity to scope the listing to.")
@@ -372,7 +372,7 @@ def restore(run, branch, project, entity):
 
 @cli.command(context_settings=CONTEXT, help="Upload a training directory to W&B")
 @click.argument("path", type=click.Path(exists=True))
-@click.option("--id", envvar=env.RUN, help="The run you want to upload to.")
+@click.option("--id", envvar=env.RUN_ID, help="The run you want to upload to.")
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you want to upload to.")
 @click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope to.")
 @display_error
@@ -382,7 +382,7 @@ def sync(path, id, project, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
-@click.argument("run", envvar=env.RUN)
+@click.argument("run", envvar=env.RUN_ID)
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you want to download.")
 @click.option("--entity", "-e", default="models", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error

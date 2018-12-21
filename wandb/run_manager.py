@@ -497,15 +497,19 @@ class RunManager(object):
             if self._file_observer.is_alive():
                 # rather unfortunatly we need to manually do a final scan of the dir
                 # with `queue_events`, then iterate through all events before stopping
-                # the observer to catch all files written
+                # the observer to catch all files written.  First we need to prevent the
+                # existing thread from consuming our final events, then we process each one.
+                self._file_observer._timeout = 0
+                self._file_observer._stopped_event.set()
+                self._file_observer.join()
                 self.emitter.queue_events(0)
                 while True:
                     try:
                         self._file_observer.dispatch_events(self._file_observer.event_queue, 0)
                     except queue.Empty:
                         break
+                # Calling stop unschedules any inflight events so we manually handled them above 
                 self._file_observer.stop()
-                self._file_observer.join()
         # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
         except TypeError:
             pass
@@ -824,8 +828,8 @@ class RunManager(object):
                 raise LaunchError(launch_error_s)
 
         if self._output:
-            self.url = self._run.get_url(self._api)
-            wandb.termlog("Syncing to %s" % self.url)
+            url = self._run.get_url(self._api)
+            wandb.termlog("Syncing to %s" % url)
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         self._run.set_environment(environment=env)
@@ -951,6 +955,7 @@ class RunManager(object):
                 del self._file_event_handlers[save_name]
         self._user_file_policies[policy["policy"]].append(policy["glob"])
 
+
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
         # exit when the child process does.
@@ -1006,6 +1011,9 @@ class RunManager(object):
                         wandb.termerror(message)
                         util.sentry_message(message)
                         break
+                    new_start = term + 1
+                    if len(res) > new_start:
+                        payload = res[new_start:]
                 else:
                     exitcode = self.proc.poll()
                     if exitcode is not None:
@@ -1119,6 +1127,7 @@ class RunManager(object):
         # commit ID: abee525b because of these lines:
         # if fname == 'wandb-history.h5' or 'training.log':
         #     continue
+        url = self._run.get_url(self._api)
         if False:
             # Check md5s of uploaded files against what's on the file system.
             # TODO: We're currently using the list of uploaded files as our source
@@ -1157,11 +1166,11 @@ class RunManager(object):
                 print('verified!')
 
             if error:
-                message = 'Sync failed %s' % self.url
+                message = 'Sync failed %s' % url
                 wandb.termerror(message)
                 util.sentry_message(message)
             else:
-                wandb.termlog('Synced %s' % self.url)
+                wandb.termlog('Synced %s' % url)
 
-        wandb.termlog('Synced %s' % self.url)
+        wandb.termlog('Synced %s' % url)
         sys.exit(exitcode)

@@ -1,14 +1,20 @@
-## 0.6.31 (December 12, 2018)
+## 0.6.31 (December 20, 2018)
 
 #### :bug: Bug Fix
 
 -   Really don't require numpy
+-   Better error message if wandb.log is called before wandb.init
+-   Prevent calling wandb.watch multiple times
+-   Handle datetime attributes in logs / plotly
 
 #### :nail_care: Enhancement
 
 -   Add environment to sweeps
+-   Enable tagging in the public API and in wandb.init
 -   New media type wandb.Html for logging arbitrary html
--   Add public api Run.create method
+-   Add Public api.create_run method for custom integrations
+-   Added glob support to wandb.save, files save as they're written to
+-   Added wandb.restore for pulling files on resume
 
 ## 0.6.30 (December 6, 2018)
 
