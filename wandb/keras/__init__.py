@@ -219,10 +219,13 @@ class WandbCallback(keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.get_weights()
             if len(weights) == 1:
-                metrics[layer.name + ".weights"] = wandb.Histogram(weights[0])
+                metrics["weights/" + layer.name +
+                        ".weights"] = wandb.Histogram(weights[0])
             elif len(weights) == 2:
-                metrics[layer.name + ".weights"] = wandb.Histogram(weights[0])
-                metrics[layer.name + ".bias"] = wandb.Histogram(weights[1])
+                metrics["weights/" + layer.name +
+                        ".weights"] = wandb.Histogram(weights[0])
+                metrics["weights/" + layer.name +
+                        ".bias"] = wandb.Histogram(weights[1])
         return metrics
 
     def _log_gradients(self):
@@ -252,7 +255,7 @@ class WandbCallback(keras.callbacks.Callback):
         grads = get_gradients([X_train, np.ones(len(y_train)), y_train])
 
         for (weight, grad) in zip(weights, grads):
-            metrics[weight.name.split(
+            metrics["gradients/" + weight.name.split(
                 ':')[0] + ".gradient"] = wandb.Histogram(grad)
 
         return metrics
