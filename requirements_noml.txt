@@ -5,4 +5,5 @@ pytest-cov==2.4.0
 coveralls==1.1
 pytest-flask==0.11.0
 mock==2.0.0
-sh==1.12.14
+sh==1.12.14'
+ipython
