@@ -23,6 +23,7 @@ import atexit
 import sys
 from watchdog.utils.dirsnapshot import DirectorySnapshot
 
+RESUME_FNAME = 'wandb-resume.json'
 HISTORY_FNAME = 'wandb-history.jsonl'
 EVENTS_FNAME = 'wandb-events.jsonl'
 CONFIG_FNAME = 'config.yaml'
@@ -67,6 +68,12 @@ class Run(object):
         else:
             self._dir = os.path.abspath(dir)
         self._mkdir()
+
+        if self.resume == "auto":
+            util.mkdir_exists_ok(wandb.wandb_dir())
+            resume_path = os.path.join(wandb.wandb_dir(), RESUME_FNAME)
+            with open(resume_path, "w") as f:
+                f.write(json.dumps({"run_id": self.id}))
 
         if config is None:
             self.config = Config()
@@ -368,7 +375,7 @@ class Run(object):
         return self._history
 
     @property
-    def initial_step(self):
+    def step(self):
         return self.history._steps
 
     @property

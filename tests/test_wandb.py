@@ -10,9 +10,12 @@ import glob
 import socket
 import six
 import time
+import json
+from click.testing import CliRunner
 from .api_mocks import *
 
 import wandb
+from wandb import wandb_run
 
 
 def test_log(wandb_init_run):
@@ -87,6 +90,31 @@ def test_save_policy_symlink(wandb_init_run):
         f.write("something")
     wandb.save("test.rad")
     assert wandb_init_run.socket.send.called
+
+
+@pytest.mark.args(resume=True)
+def test_auto_resume_first(wandb_init_run):
+    assert json.load(open(os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME)))[
+        "run_id"] == wandb_init_run.id
+
+
+@pytest.mark.args(resume="testy")
+def test_auto_resume_manual(wandb_init_run):
+    assert wandb_init_run.id == "testy"
+
+
+@pytest.mark.resume()
+@pytest.mark.args(resume=True)
+def test_auto_resume_second(wandb_init_run):
+    assert wandb_init_run.id == "test"
+    assert wandb_init_run.step == 16
+
+
+@pytest.mark.resume()
+@pytest.mark.args(resume=False)
+def test_auto_resume_remove(wandb_init_run):
+    assert not os.path.exists(os.path.join(
+        wandb.wandb_dir(), wandb_run.RESUME_FNAME))
 
 
 @pytest.mark.jupyter

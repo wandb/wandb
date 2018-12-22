@@ -49,7 +49,7 @@ def _run_resume_status(name='test', empty=False, files=None):
             'logLineCount': 14,
             'historyLineCount': 5,
             'eventsLineCount': 2,
-            'historyTail': '[]',
+            'historyTail': '["{\\"_step\\": 15, \\"acc\\": 1}"]',
             'eventsTail': '[]'
         }
     }
