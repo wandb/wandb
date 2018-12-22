@@ -44,6 +44,7 @@ class Run(object):
         self.group = group
         self.job_type = job_type
         self.pid = os.getpid()
+        self.resumed = False  # we set resume when history is first accessed
 
         self.program = program
         if not self.program:
@@ -372,6 +373,8 @@ class Run(object):
         if self._history is None:
             self._history = history.History(
                 HISTORY_FNAME, self._dir, add_callback=self._history_added)
+            if self._history._steps > 0:
+                self.resumed = True
         return self._history
 
     @property

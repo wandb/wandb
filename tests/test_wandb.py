@@ -96,6 +96,7 @@ def test_save_policy_symlink(wandb_init_run):
 def test_auto_resume_first(wandb_init_run):
     assert json.load(open(os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME)))[
         "run_id"] == wandb_init_run.id
+    assert not wandb_init_run.resumed
 
 
 @pytest.mark.args(resume="testy")
@@ -107,6 +108,7 @@ def test_auto_resume_manual(wandb_init_run):
 @pytest.mark.args(resume=True)
 def test_auto_resume_second(wandb_init_run):
     assert wandb_init_run.id == "test"
+    assert wandb_init_run.resumed
     assert wandb_init_run.step == 16
 
 
@@ -124,7 +126,7 @@ def test_save_policy_jupyter(wandb_init_run, query_upload_h5, request_mocker):
     mock = query_upload_h5(request_mocker)
     wandb.save("test.rad")
     # TODO: Hacky as hell
-    time.sleep(1)
+    time.sleep(1.5)
     assert mock.called
 
 
