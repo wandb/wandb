@@ -10,7 +10,7 @@ import wandb
 from wandb import wandb_socket
 from wandb.apis import internal
 from wandb.wandb_run import Run, RESUME_FNAME
-from wandb.run_manager import FileEventHandlerThrottledOverwrite, FileEventHandlerOverwriteDeferred
+from wandb.run_manager import FileEventHandlerThrottledOverwriteMaxWait, FileEventHandlerOverwriteDeferred
 from click.testing import CliRunner
 
 
@@ -116,7 +116,7 @@ def test_custom_file_policy(mocker, run_manager):
 
     run_manager.test_shutdown()
     assert isinstance(
-        run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwrite)
+        run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwriteMaxWait)
     assert isinstance(
         run_manager._file_event_handlers["wandb-metadata.json"], FileEventHandlerOverwriteDeferred)
 
@@ -124,7 +124,7 @@ def test_custom_file_policy(mocker, run_manager):
 def test_custom_file_policy_symlink(mocker, run_manager):
     mod = mocker.MagicMock()
     mocker.patch(
-        'wandb.run_manager.FileEventHandlerThrottledOverwrite.on_modified', mod)
+        'wandb.run_manager.FileEventHandlerThrottledOverwriteMaxWait.on_modified', mod)
     with open("ckpt_0.txt", "w") as f:
         f.write("joy")
     with open("ckpt_1.txt", "w") as f:
@@ -135,7 +135,7 @@ def test_custom_file_policy_symlink(mocker, run_manager):
     wandb.save("ckpt_1.txt")
     run_manager.test_shutdown()
     assert isinstance(
-        run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwrite)
+        run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwriteMaxWait)
     assert mod.called
 
 

@@ -622,12 +622,13 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, resume
     if resume == True:
         os.environ[env.RESUME] = "auto"
     elif resume:
-        os.environ[env.RESUME] = "allow"
+        os.environ[env.RESUME] = os.environ.get(env.RESUME, "allow")
         os.environ[env.RUN_ID] = resume
     elif os.path.exists(resume_path):
         os.remove(resume_path)
     if os.environ.get(env.RESUME) == 'auto' and os.path.exists(resume_path):
-        os.environ[env.RUN_ID] = json.load(open(resume_path))["run_id"]
+        if not os.environ.get(env.RUN_ID):
+            os.environ[env.RUN_ID] = json.load(open(resume_path))["run_id"]
 
     # the following line is useful to ensure that no W&B logging happens in the user
     # process that might interfere with what they do

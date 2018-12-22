@@ -72,6 +72,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.verbose = verbose
         self.save_weights_only = save_weights_only
 
+        wandb.save('model-best.h5')
         self.filepath = os.path.join(wandb.run.dir, 'model-best.h5')
         self.save_model = save_model
         self.log_weights = log_weights
