@@ -9,7 +9,7 @@ import wandb.run_manager
 import wandb
 from wandb import wandb_socket
 from wandb.apis import internal
-from wandb.wandb_run import Run
+from wandb.wandb_run import Run, RESUME_FNAME
 from wandb.run_manager import FileEventHandlerThrottledOverwrite, FileEventHandlerOverwriteDeferred
 from click.testing import CliRunner
 
@@ -137,3 +137,11 @@ def test_custom_file_policy_symlink(mocker, run_manager):
     assert isinstance(
         run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwrite)
     assert mod.called
+
+
+def test_remove_auto_resume(mocker, run_manager):
+    resume_path = os.path.join(wandb.wandb_dir(), RESUME_FNAME)
+    with open(resume_path, "w") as f:
+        f.write("{}")
+    run_manager.test_shutdown()
+    assert not os.path.exists(resume_path)

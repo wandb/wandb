@@ -1054,6 +1054,9 @@ class RunManager(object):
         else:
             if exitcode == 0:
                 wandb.termlog('Program ended successfully.')
+                resume_path = os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME)
+                if os.path.exists(resume_path):
+                    os.remove(resume_path)
             else:
                 wandb.termlog(
                     'Program failed with code %d. Press ctrl-c to abort syncing.' % exitcode)
