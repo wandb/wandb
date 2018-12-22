@@ -145,16 +145,13 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
         return os.path.getsize(self.file_path)
 
     def on_modified(self):
-        current_time = time.time()
-        time_elapsed = 0
-
         # Don't upload anything if it's zero size.
         if self.current_size == 0:
-            return time_elapsed
+            return 0
 
         if self._last_uploaded_time:
             # Check rate limit by time elapsed
-            time_elapsed = current_time - self._last_uploaded_time
+            time_elapsed = time.time() - self._last_uploaded_time
             if time_elapsed < self.RATE_LIMIT_SECONDS:
                 return time_elapsed
             # Check rate limit by size increase
@@ -163,8 +160,7 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
                 return time_elapsed
 
         self.save_file()
-
-        return time_elapsed
+        return 0
 
     def finish(self):
         self._file_pusher.file_changed(self.save_name, self.file_path)
@@ -176,12 +172,12 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
             self.save_name, self.file_path, copy=True)
 
 
-class FileEventHandlerThrottledOverwriteMaxWait(FileEventHandlerThrottledOverwrite):
-    TEN_MB = 10000000
+class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwrite):
+    TEN_MB =     10000000
     HUNDRED_MB = 100000000
-    ONE_GB = 1000000000
+    ONE_GB =     1000000000
 
-    def max_wait_for_size(self, size):
+    def min_wait_for_size(self, size):
         if self.current_size < self.TEN_MB:
             return 60
         elif self.current_size < self.HUNDRED_MB:
@@ -189,12 +185,12 @@ class FileEventHandlerThrottledOverwriteMaxWait(FileEventHandlerThrottledOverwri
         elif self.current_size < self.ONE_GB:
             return 10 * 60
         else:
-            return 30 * 60
+            return 20 * 60
 
     def on_modified(self):
-        time_elapsed = super(FileEventHandlerThrottledOverwriteMaxWait, self).on_modified()
+        time_elapsed = super(FileEventHandlerThrottledOverwriteMinWait, self).on_modified()
         # Check max elapsed time
-        if time_elapsed > self.max_wait_for_size(self.current_size):
+        if time_elapsed > self.min_wait_for_size(self.current_size):
             self.save_file()
 
 class FileEventHandlerOverwriteDeferred(FileEventHandler):
@@ -655,7 +651,7 @@ class RunManager(object):
                     for g in globs:
                         if any(save_name in p for p in glob.glob(os.path.join(self._run.dir, g))):
                             if policy == "live":
-                                Handler = FileEventHandlerThrottledOverwriteMaxWait
+                                Handler = FileEventHandlerThrottledOverwriteMinWait
                 self._file_event_handlers[save_name] = Handler(
                     file_path, save_name, self._api, self._file_pusher)
         return self._file_event_handlers[save_name]
@@ -984,7 +980,10 @@ class RunManager(object):
         with self._file_policy_lock:
             for path in glob.glob(policy["glob"]):
                 save_name = os.path.relpath(path, self._watch_dir)
-                if self._file_event_handlers.get(save_name):
+                # Remove the existing handler if we haven't already made it live
+                current = self._file_event_handlers.get(save_name)
+                is_live = isinstance(current, FileEventHandlerThrottledOverwriteMinWait)
+                if current and policy["policy"] == "live" and not is_live:
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy["policy"]].append(policy["glob"])
 
