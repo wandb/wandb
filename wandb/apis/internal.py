@@ -152,18 +152,6 @@ class Api(object):
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             logger.error('Error generating diff')
 
-    def repo_remote_url(self):
-        # TODO: better failure handling
-        if self.git.enabled:
-            root = self.git.root
-            remote_url = self.git.remote_url
-        else:
-            host = socket.gethostname()
-            root = os.path.abspath(os.getcwd())
-            remote_url = 'file://%s%s' % (host, root)
-
-        return remote_url
-
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
 

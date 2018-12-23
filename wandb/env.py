@@ -140,4 +140,4 @@ def set_entity(value, env=None):
 def set_project(value, env=None):
     if env is None:
         env = os.environ
-    env[PROJECT] = value
+    env[PROJECT] = value or "uncategorized"

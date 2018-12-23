@@ -231,7 +231,6 @@ def _init_headless(run, cloud=True):
         if not success:
             termerror('W&B process (PID {}) did not respond'.format(
                 wandb_process.pid))
-
     if not success:
         wandb_process.kill()
         for i in range(20):
@@ -540,7 +539,8 @@ def join():
     pass
 
 
-def init(job_type=None, dir=None, config=None, project=None, entity=None, group=None, allow_val_change=False, reinit=None, tags=None):
+def init(job_type=None, dir=None, config=None, project=None, entity=None, resume=False,
+         group=None, allow_val_change=False, reinit=None, tags=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -556,6 +556,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
         group (str, optional): A unique string shared by all runs in a given group
         tags (list, optional): A list of tags to apply to the run
         reinit (bool, optional): Allow multiple calls to init in the same process
+        resume (bool, str, optional): Automatically resume this run if run from the same machine,
+            you can also pass a unique run_id
 
     Returns:
         A wandb.run object for metric and config logging.
@@ -616,6 +618,17 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, group=
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
+    resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
+    if resume == True:
+        os.environ[env.RESUME] = "auto"
+    elif resume:
+        os.environ[env.RESUME] = os.environ.get(env.RESUME, "allow")
+        os.environ[env.RUN_ID] = resume
+    elif os.path.exists(resume_path):
+        os.remove(resume_path)
+    if os.environ.get(env.RESUME) == 'auto' and os.path.exists(resume_path):
+        if not os.environ.get(env.RUN_ID):
+            os.environ[env.RUN_ID] = json.load(open(resume_path))["run_id"]
 
     # the following line is useful to ensure that no W&B logging happens in the user
     # process that might interfere with what they do

@@ -1,3 +1,17 @@
+## 0.6.32 (December 22, 2018)
+
+#### :bug: Bug Fix
+
+-   Fix resuming in Jupyter on kernel restart
+-   wandb.save ensures files are pushed regardless of growth
+
+#### :nail_care: Enhancement
+
+-   Added replace=True keyword to init for auto-resuming
+-   New run.resumed property that can be used to detect if we're resuming
+-   New run.step property to use for setting an initial epoch on resuming
+-   Made Keras callback save the best model as it improves
+
 ## 0.6.31 (December 20, 2018)
 
 #### :bug: Bug Fix

@@ -58,7 +58,8 @@ class History(object):
                 with open(self.fname) as f:
                     for line in f:
                         try:
-                            self._index(json.loads(line))
+                            self.row = json.loads(line)
+                            self._index(self.row)
                         except TypeError:
                             print('warning: malformed history line: %s...' %
                                   line[:40])

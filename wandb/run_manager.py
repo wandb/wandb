@@ -87,7 +87,7 @@ class FileTailer(object):
 
 
 class FileEventHandler(object):
-    def __init__(self, file_path, save_name, api):
+    def __init__(self, file_path, save_name, api, *args, **kwargs):
         self.file_path = file_path
         self.save_name = save_name
         self._api = api
@@ -140,31 +140,58 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
     def on_created(self):
         self.on_modified()
 
-    def on_modified(self):
-        current_time = time.time()
-        current_size = os.path.getsize(self.file_path)
+    @property
+    def current_size(self):
+        return os.path.getsize(self.file_path)
 
+    def on_modified(self):
         # Don't upload anything if it's zero size.
-        if current_size == 0:
-            return
+        if self.current_size == 0:
+            return 0
 
         if self._last_uploaded_time:
             # Check rate limit by time elapsed
-            time_elapsed = current_time - self._last_uploaded_time
+            time_elapsed = time.time() - self._last_uploaded_time
             if time_elapsed < self.RATE_LIMIT_SECONDS:
-                return
+                return time_elapsed
             # Check rate limit by size increase
-            size_increase = current_size / float(self._last_uploaded_size)
+            size_increase = self.current_size / float(self._last_uploaded_size)
             if size_increase < self.RATE_LIMIT_SIZE_INCREASE:
-                return
+                return time_elapsed
 
-        self._last_uploaded_time = current_time
-        self._last_uploaded_size = current_size
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self.save_file()
+        return 0
 
     def finish(self):
         self._file_pusher.file_changed(self.save_name, self.file_path)
+
+    def save_file(self):
+        self._last_uploaded_time = time.time()
+        self._last_uploaded_size = self.current_size
+        self._file_pusher.file_changed(
+            self.save_name, self.file_path, copy=True)
+
+
+class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwrite):
+    TEN_MB =     10000000
+    HUNDRED_MB = 100000000
+    ONE_GB =     1000000000
+
+    def min_wait_for_size(self, size):
+        if self.current_size < self.TEN_MB:
+            return 60
+        elif self.current_size < self.HUNDRED_MB:
+            return 5 * 60
+        elif self.current_size < self.ONE_GB:
+            return 10 * 60
+        else:
+            return 20 * 60
+
+    def on_modified(self):
+        time_elapsed = super(FileEventHandlerThrottledOverwriteMinWait, self).on_modified()
+        # Check max elapsed time
+        if time_elapsed > self.min_wait_for_size(self.current_size):
+            self.save_file()
 
 class FileEventHandlerOverwriteDeferred(FileEventHandler):
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
@@ -412,6 +439,7 @@ class RunManager(object):
             "end": [],
             "live": []
         }
+        self._file_policy_lock = threading.Lock()
 
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
@@ -623,7 +651,7 @@ class RunManager(object):
                     for g in globs:
                         if any(save_name in p for p in glob.glob(os.path.join(self._run.dir, g))):
                             if policy == "live":
-                                Handler = FileEventHandlerThrottledOverwrite
+                                Handler = FileEventHandlerThrottledOverwriteMinWait
                 self._file_event_handlers[save_name] = Handler(
                     file_path, save_name, self._api, self._file_pusher)
         return self._file_event_handlers[save_name]
@@ -949,11 +977,15 @@ class RunManager(object):
             "Wandb version %s is available!  To upgrade, please run:\n $ pip install wandb --upgrade" % latest_version)
 
     def update_user_file_policy(self, policy):
-        for path in glob.glob(policy["glob"]):
-            save_name = os.path.relpath(path, self._watch_dir)
-            if self._file_event_handlers.get(save_name):
-                del self._file_event_handlers[save_name]
-        self._user_file_policies[policy["policy"]].append(policy["glob"])
+        with self._file_policy_lock:
+            for path in glob.glob(policy["glob"]):
+                save_name = os.path.relpath(path, self._watch_dir)
+                # Remove the existing handler if we haven't already made it live
+                current = self._file_event_handlers.get(save_name)
+                is_live = isinstance(current, FileEventHandlerThrottledOverwriteMinWait)
+                if current and policy["policy"] == "live" and not is_live:
+                    del self._file_event_handlers[save_name]
+            self._user_file_policies[policy["policy"]].append(policy["glob"])
 
 
     def _sync_etc(self, headless=False):
@@ -1054,6 +1086,9 @@ class RunManager(object):
         else:
             if exitcode == 0:
                 wandb.termlog('Program ended successfully.')
+                resume_path = os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME)
+                if os.path.exists(resume_path):
+                    os.remove(resume_path)
             else:
                 wandb.termlog(
                     'Program failed with code %d. Press ctrl-c to abort syncing.' % exitcode)
