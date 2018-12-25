@@ -325,6 +325,14 @@ class Run(object):
         return "W&B Run %s" % self.get_url()
 
     @property
+    def name(self):
+        """For compatibility with wandb.api.public.Run, which has storage IDs
+        in self.id and names in self.name, whereas this has storage IDs in
+        self.storage_id and names in self.id
+        """
+        return self.id
+
+    @property
     def host(self):
         return socket.gethostname()
 
@@ -354,7 +362,7 @@ class Run(object):
     @property
     def summary(self):
         if self._summary is None:
-            self._summary = summary.FileSummary(self._dir)
+            self._summary = summary.FileSummary(self)
         return self._summary
 
     @property
@@ -363,7 +371,7 @@ class Run(object):
 
     def _history_added(self, row):
         if self._summary is None:
-            self._summary = summary.FileSummary(self._dir)
+            self._summary = summary.FileSummary(self)
         if self._jupyter_agent:
             self._jupyter_agent.start()
         self._summary.update(row, overwrite=False)

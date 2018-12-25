@@ -298,8 +298,15 @@ class Run(object):
         self.state = attrs.get("state", "not found")
         self.load()
 
+    @property
+    def storage_id(self):
+        """For compatibility with wandb.Run, which has storage IDs
+        in self.storage_id and names in self.id, whereas this has storage IDs in
+        self.id and names in self.id
+        """
+        return self.id
+
     @classmethod
-    @normalize_exceptions
     def create(cls, api, run_id=None, project=None, username=None):
         """Create a run for the given project"""
         run_id = run_id or util.generate_id()
@@ -448,8 +455,7 @@ class Run(object):
             download_h5(self.name, entity=self.username,
                         project=self.project, out_dir=self.dir)
             # TODO: fix the outdir issue
-            self._summary = HTTPSummary(
-                self.client, self.id, summary=self.summary_metrics, path="/".join(self.path), out_dir=self.dir)
+            self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
         return self._summary
 
     @property

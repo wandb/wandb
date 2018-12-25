@@ -26,6 +26,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import wandb
+
 import argparse
 import os
 import sys
@@ -199,7 +201,7 @@ if __name__ == '__main__':
     parser.add_argument('--fake_data', nargs='?', const=True, type=bool,
                         default=False,
                         help='If true, uses fake data for unit testing.')
-    parser.add_argument('--max_steps', type=int, default=100,
+    parser.add_argument('--max_steps', type=int, default=1,
                         help='Number of steps to run trainer.')
     parser.add_argument('--learning_rate', type=float, default=0.001,
                         help='Initial learning rate')

@@ -25,11 +25,10 @@ np = util.get_module("numpy")
 class Summary(object):
     """Used to store summary metrics during and after a run."""
 
-    def __init__(self, **kwargs):
-        self._out_dir = kwargs.get("out_dir") or "."
-        self._summary = kwargs.get("summary") or {}
-        self._h5_path = os.path.join(
-            self._out_dir, DEEP_SUMMARY_FNAME)
+    def __init__(self, run, summary=None):
+        self._run = run
+        self._summary = summary or {}
+        self._h5_path = os.path.join(self._run.dir, DEEP_SUMMARY_FNAME)
         # Lazy load the h5 file
         self._h5 = None
         self._locked_keys = set()
@@ -173,9 +172,9 @@ def upload_h5(file, run, entity=None, project=None):
 
 
 class FileSummary(Summary):
-    def __init__(self, out_dir="."):
-        super(FileSummary, self).__init__(out_dir=out_dir)
-        self._fname = os.path.join(out_dir, SUMMARY_FNAME)
+    def __init__(self, run):
+        super(FileSummary, self).__init__(run)
+        self._fname = os.path.join(run.dir, SUMMARY_FNAME)
         self.load()
 
     def load(self):
@@ -196,10 +195,9 @@ class FileSummary(Summary):
 
 
 class HTTPSummary(Summary):
-    def __init__(self, client, run_storage_id, path="//", summary={}, out_dir="."):
-        super(HTTPSummary, self).__init__(summary=summary, out_dir=out_dir)
-        self._run_storage_id = run_storage_id
-        self._path = path
+    def __init__(self, run, client, summary=None):
+        super(HTTPSummary, self).__init__(run, summary=summary)
+        self._run = run
         self._client = client
         self._started = time.time()
 
@@ -216,9 +214,9 @@ class HTTPSummary(Summary):
                 self._h5.close()
                 self._h5 = None
             res = self._client.execute(mutation, variable_values={
-                'id': self._run_storage_id, 'summaryMetrics': util.json_dumps_safer(self.convert_json())})
+                'id': self._run.storage_id, 'summaryMetrics': util.json_dumps_safer(self.convert_json())})
             assert res['upsertBucket']['bucket']['id']
-            entity, project, run = self._path.split("/")
+            entity, project, run = self._run.path
             if os.path.exists(self._h5_path) and os.path.getmtime(self._h5_path) >= self._started:
                 upload_h5(self._h5_path, run, entity=entity, project=project)
         else:
