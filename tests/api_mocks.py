@@ -105,7 +105,7 @@ def _run_files():
 
 def _bucket_config():
     return {
-        'patch': r'''
+        'patch': '''
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt
