@@ -1144,8 +1144,8 @@ class RunManager(object):
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
 
-        wandb_files = {save_name for save_name in self._file_pusher.files() if save_name.startswith('wandb') or save_name == config.FNAME}
-        media_files = {save_name for save_name in self._file_pusher.files() if save_name.startswith('media')}
+        wandb_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('wandb') or save_name == config.FNAME])
+        media_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('media')])
         other_files = set(self._file_pusher.files()) - wandb_files - media_files
         if other_files:
             wandb.termlog('Syncing files in %s:' % os.path.relpath(self._watch_dir))
