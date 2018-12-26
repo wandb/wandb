@@ -33,7 +33,7 @@ def test_check_update_available_equal(request_mocker, capsys):
         with CliRunner().isolated_filesystem():
             is_avail = _is_update_avail(
                 request_mocker, capsys, current, latest)
-            assert is_avail == is_expected, "expected %s compared to %s to yield update availability of %s" % (
+            assert is_avail == is_expected, "expected {} compared to {} to yield update availability of {}".format(
                 current, latest, is_expected)
 
 

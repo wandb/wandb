@@ -83,14 +83,14 @@ class Config(object):
             try:
                 loaded = loaded[subkey]
             except KeyError:
-                raise ConfigError('Asked for %s but %s not present in %s' % (
+                raise ConfigError('Asked for {} but {} not present in {}'.format(
                     path, subkey, conf_path))
         for key, val in loaded.items():
             if key == 'wandb_version':
                 continue
             if isinstance(val, dict):
                 if 'value' not in val:
-                    raise ConfigError('In config %s value of %s is dict, but does not contain "value" key' % (
+                    raise ConfigError('In config {} value of {} is dict, but does not contain "value" key'.format(
                         path, key))
                 self._items[key] = val['value']
                 if 'desc' in val:
@@ -168,7 +168,7 @@ class Config(object):
         key = key.strip('-')
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
-                raise ConfigError('Attempted to change value of key "%s" from %s to %s\nIf you really want to do this, pass allow_val_change=True to config.update()' % (
+                raise ConfigError('Attempted to change value of key "{}" from {} to {}\nIf you really want to do this, pass allow_val_change=True to config.update()'.format(
                     key, self._items[key], val))
         return key
 

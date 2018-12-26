@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 class ClickWandbException(ClickException):
     def format_message(self):
         log_file = util.get_log_file_path()
-        orig_type = '%s.%s' % (self.orig_type.__module__,
+        orig_type = '{}.{}'.format(self.orig_type.__module__,
                                self.orig_type.__name__)
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
@@ -426,10 +426,10 @@ def signup(ctx):
     if launched:
         signal.signal(signal.SIGINT, server.stop)
         click.echo(
-            'Opened [{0}] in your default browser'.format(url))
+            'Opened [{}] in your default browser'.format(url))
         server.start(blocking=False)
     else:
-        click.echo("Signup with this url in your browser: {0}".format(url))
+        click.echo("Signup with this url in your browser: {}".format(url))
     key = ctx.invoke(login, server=server, browser=False)
     if key:
         # Only init if we aren't pre-configured
@@ -456,11 +456,11 @@ def login(key, server=LocalServer(), browser=True):
         launched = webbrowser.open_new_tab(url + "&{}".format(server.qs()))
     if launched:
         click.echo(
-            'Opening [{0}] in your default browser'.format(url))
+            'Opening [{}] in your default browser'.format(url))
         server.start(blocking=False)
     elif not key and browser:
         click.echo(
-            "You can find your API keys in your browser here: {0}".format(url))
+            "You can find your API keys in your browser here: {}".format(url))
 
     def cancel_prompt(*args):
         raise KeyboardInterrupt()

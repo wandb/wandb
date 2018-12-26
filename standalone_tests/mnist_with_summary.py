@@ -165,7 +165,7 @@ def train():
             summary, acc = sess.run(
                 [merged, accuracy], feed_dict=feed_dict(False))
             test_writer.add_summary(summary, i)
-            print('Accuracy at step %s: %s' % (i, acc))
+            print('Accuracy at step {}: {}'.format(i, acc))
         else:  # Record train set summaries, and train
             if i % 100 == 99:  # Record execution stats
                 run_options = tf.RunOptions(

@@ -111,7 +111,7 @@ class Agent(object):
         except:
             logger.exception('Exception while processing command: %s', command)
             ex_type, ex, tb = sys.exc_info()
-            response['exception'] = '%s: %s' % (ex_type.__name__, str(ex))
+            response['exception'] = '{}: {}'.format(ex_type.__name__, str(ex))
             response['traceback'] = traceback.format_tb(tb)
             del tb
 
@@ -121,7 +121,7 @@ class Agent(object):
 
     def _command_run(self, command):
         logger.info('Agent starting run with config:\n' +
-                    '\n'.join(['\t%s: %s' % (k, v['value']) for k, v in command['args'].items()]))
+                    '\n'.join(['\t{}: {}'.format(k, v['value']) for k, v in command['args'].items()]))
 
         run = wandb_run.Run(mode='run',
                             sweep_id=self._sweep_id,
@@ -138,7 +138,7 @@ class Agent(object):
         env.update(sweep_env)
         run.set_environment(env)
 
-        flags = ["--{0}={1}".format(name, config['value'])
+        flags = ["--{}={}".format(name, config['value'])
                  for name, config in command['args'].items()]
 
         self._run_processes[run.id] = subprocess.Popen(
