@@ -232,4 +232,3 @@ def test_log_blows_up(history):
     except:
         raised = True
     assert raised
-    

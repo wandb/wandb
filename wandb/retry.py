@@ -89,7 +89,7 @@ class Retry(object):
             try:
                 result = self._call_fn(*args, **kwargs)
                 if not first:
-                    wandb.termlog('%s resolved after %s, resuming normal operation.' % (
+                    wandb.termlog('{} resolved after {}, resuming normal operation.'.format(
                         self._error_prefix, datetime.datetime.now() - start_time))
                 return result
             except self._retryable_exceptions as e:
@@ -99,7 +99,7 @@ class Retry(object):
                 if self._num_iter == 2:
                     logger.exception('Retry attempt failed:')
                     wandb.termlog(
-                        '%s (%s), entering retry loop. See %s for full traceback.' % (
+                        '{} ({}), entering retry loop. See {} for full traceback.'.format(
                             self._error_prefix, e.__class__.__name__, util.get_log_file_path()))
                 if wandb.env.is_debug():
                     traceback.print_exc()

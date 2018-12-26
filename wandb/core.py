@@ -58,7 +58,7 @@ ERROR_STRING = click.style('ERROR', bg='red', fg='green')
 # so it doesn't get logged to the backend
 def termlog(string='', newline=True):
     if string:
-        line = '\n'.join(['%s: %s' % (LOG_STRING, s)
+        line = '\n'.join(['{}: {}'.format(LOG_STRING, s)
                           for s in string.split('\n')])
     else:
         line = ''
@@ -66,7 +66,7 @@ def termlog(string='', newline=True):
 
 
 def termerror(string):
-    string = '\n'.join(['%s: %s' % (ERROR_STRING, s)
+    string = '\n'.join(['{}: {}'.format(ERROR_STRING, s)
                         for s in string.split('\n')])
     termlog(string=string, newline=True)
 

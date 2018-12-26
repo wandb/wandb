@@ -15,7 +15,7 @@ TYPE_TO_TYPESTRING = {
 
 # Just used in an error message
 VALID_TYPE_NAMES = [
-    t.__name__ if t.__module__ == 'builtins' else '%s.%s' % (
+    t.__name__ if t.__module__ == 'builtins' else '{}.{}'.format(
         t.__module__, t.__name__)
     for t in TYPE_TO_TYPESTRING.keys()]
 
@@ -45,7 +45,7 @@ class TypedTable(object):
         try:
             for key, type_ in types:
                 if type_ not in TYPE_TO_TYPESTRING:
-                    raise wandb.Error('TypedTable.set_columns received invalid type (%s) for key "%s".\n  Valid types: %s' % (
+                    raise wandb.Error('TypedTable.set_columns received invalid type ({}) for key "{}".\n  Valid types: {}'.format(
                         type_, key, '[%s]' % ', '.join(VALID_TYPE_NAMES)))
         except TypeError:
             raise wandb.Error(
@@ -76,7 +76,7 @@ class TypedTable(object):
                 raise wandb.Error(
                     'TypedTable.add received key ("%s") which wasn\'t provided to set_columns' % key)
             except:
-                raise wandb.Error('TypedTable.add couldn\'t convert and encode ("%s") provided for key ("%s") to type (%s)' % (
+                raise wandb.Error('TypedTable.add couldn\'t convert and encode ("{}") provided for key ("{}") to type ({})'.format(
                     val, key, self._types[key]))
         self._output.add(mapped_row)
         self._count += 1

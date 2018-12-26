@@ -61,7 +61,7 @@ def agent_run(args):
     if not root:
         root = os.path.abspath(os.getcwd())
         host = socket.gethostname()
-        remote_url = 'file://%s%s' % (host, root)
+        remote_url = 'file://{}{}'.format(host, root)
 
     run.save(program=args['program'], api=api)
     env = dict(os.environ)

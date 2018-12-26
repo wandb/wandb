@@ -1195,7 +1195,7 @@ class RunManager(object):
                 error = True
                 for local_path, local_md5, remote_md5 in mismatched:
                     wandb.termerror(
-                        '%s (%s) did not match uploaded file (%s) md5' % (
+                        '{} ({}) did not match uploaded file ({}) md5'.format(
                             local_path, local_md5, remote_md5))
             else:
                 print('verified!')
