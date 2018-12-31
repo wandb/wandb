@@ -362,17 +362,21 @@ def can_write_dataframe_as_parquet():
     return pyarrow and parquet and pandas
 
 
-def write_dataframe(df, path, run_id):
+def write_dataframe(df, run_storage_id, run_state_id, run_dir, table_name):
     pyarrow = get_module("pyarrow")
     parquet = get_module("pyarrow.parquet")
     pandas = get_module("pandas")
     if pyarrow and parquet and pandas:
         df['wandb_run_id'] = pandas.Series(
-            [wandb.run.id] * len(df.index), index=df.index)
+            [run_storage_id] * len(df.index), index=df.index)
+        df['wandb_run_state_id'] = pandas.Series(
+            [run_state_id] * len(df.index), index=df.index)
         table = pyarrow.Table.from_pandas(df)
-        parquet.write_table(table, path + ".parquet")
+        path = os.path.join(run_dir, 'media', 'tables', '{}-{}.parquet'.format(run_state_id, table_name))
+        parquet.write_table(table, path)
+        return path
     else:
-        print("Unable to load pyarrow and pandas, not saving summary dataframe")
+        raise wandb.Error("Unable to load pyarrow and pandas, not saving summary dataframe")
 
 
 def make_json_if_not_number(v):

@@ -32,6 +32,7 @@ class Summary(object):
         # Lazy load the h5 file
         self._h5 = None
         self._locked_keys = set()
+        self._run_state = None
 
     def _write(self, commit=False):
         raise NotImplementedError
@@ -122,24 +123,61 @@ class Summary(object):
         if not self._h5 and h5py:
             self._h5 = h5py.File(self._h5_path, 'a', libver='latest')
 
+    @property
+    def _run_state_path(self):
+        return os.path.join(self._run.dir, 'wandb-run.json')
+    
+    def _get_run_state(self):
+        if self._run_state is None:
+            try:
+                self._run_state = json.loads(open(self._run_state_path).read())
+            except IOError:
+                return None
+        return self._run_state
+
+    def _set_run_state(self, run_state_id, summary_dict):
+        if self._get_run_state():
+            return  # TODO(adrian): we only allow one run state for now
+
+        self._run_state = {
+            'wandb_run_id': self._run.name,
+            'wandb_run_state_id': run_state_id,
+            'summary': summary_dict,
+            'config': {k: v['value'] for k, v in self._run.config.as_dict().items()}
+        }
+
+        with open(self._run_state_path, 'w') as of:
+            json.dump(self._run_state, of)
+
     def convert_json(self, obj=None, root_path=[]):
         """Convert obj to json, summarizing larger arrays in JSON and storing them in h5."""
         res = {}
         obj = obj or self._summary
+
         saved_bq_data = False
+        run_state_id = self._get_run_state().get('wandb_run_state_id') or util.generate_id()
+
         for key, value in six.iteritems(obj):
             path = ".".join(root_path + [key])
             if isinstance(value, dict):
                 res[key], converted = util.json_friendly(
                     self.convert_json(value, root_path + [key]))
             elif util.can_write_dataframe_as_parquet() and util.is_pandas_dataframe(value):
-                res[key] = {"_type": "parquet"}
-                util.write_dataframe(
+                path = util.write_dataframe(
                     value,
-                    os.path.join(wandb.run.dir, 'dataframe-%s' % key),
-                    wandb.run.id)
-                saved_bq_data = True
+                    self._run.storage_id,
+                    run_state_id,
+                    self._run.dir,
+                    key)
 
+                res[key] = {
+                    "_type": "parquet",
+                    'run_state_id': run_state_id,
+                    'current_project_name': self._run.project,  # we don't have the project ID here
+                    'path': path,
+                }
+
+                saved_bq_data = True
             else:
                 tmp_obj, converted = util.json_friendly(
                     data_types.val_to_json(key, value))
@@ -147,17 +185,9 @@ class Summary(object):
                     tmp_obj, util.get_h5_typename(value))
                 if compressed:
                     self.write_h5(path, tmp_obj)
+
         if saved_bq_data:
-            # TODO: other metadata
-            data = {
-                'wandb_run_id': wandb.run.id,
-                'summary': res,
-                'config': {k: v['value'] for k, v in wandb.run.config.as_dict().items()}
-            }
-            of = open(os.path.join(wandb.run.dir, 'wandb-run.json'), 'w')
-            of.write(json.dumps(data))
-            of.write('\n')
-            of.close()
+            self._set_run_state(run_state_id, res)
 
         self._summary = res
         return res
