@@ -155,7 +155,8 @@ class Summary(object):
         obj = obj or self._summary
 
         saved_bq_data = False
-        run_state_id = self._get_run_state().get('wandb_run_state_id') or util.generate_id()
+        run_state = self._get_run_state() or {}
+        run_state_id = run_state.get('wandb_run_state_id') or util.generate_id()
 
         for key, value in six.iteritems(obj):
             path = ".".join(root_path + [key])
@@ -165,7 +166,7 @@ class Summary(object):
             elif util.can_write_dataframe_as_parquet() and util.is_pandas_dataframe(value):
                 path = util.write_dataframe(
                     value,
-                    self._run.storage_id,
+                    self._run.name,
                     run_state_id,
                     self._run.dir,
                     key)

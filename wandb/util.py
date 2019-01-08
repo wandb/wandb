@@ -362,17 +362,21 @@ def can_write_dataframe_as_parquet():
     return pyarrow and parquet and pandas
 
 
-def write_dataframe(df, run_storage_id, run_state_id, run_dir, table_name):
+def write_dataframe(df, run_name, run_state_id, run_dir, table_name):
     pyarrow = get_module("pyarrow")
     parquet = get_module("pyarrow.parquet")
     pandas = get_module("pandas")
     if pyarrow and parquet and pandas:
+        # we have to call this wandb_run_id because that name is treated specially by
+        # our filtering code
         df['wandb_run_id'] = pandas.Series(
-            [run_storage_id] * len(df.index), index=df.index)
+            [run_name] * len(df.index), index=df.index)
         df['wandb_run_state_id'] = pandas.Series(
             [run_state_id] * len(df.index), index=df.index)
         table = pyarrow.Table.from_pandas(df)
-        path = os.path.join(run_dir, 'media', 'tables', '{}-{}.parquet'.format(run_state_id, table_name))
+        tables_dir = os.path.join(run_dir, 'media', 'tables')
+        mkdir_exists_ok(tables_dir)
+        path = os.path.join(tables_dir, '{}-{}.parquet'.format(run_state_id, table_name))
         parquet.write_table(table, path)
         return path
     else:
