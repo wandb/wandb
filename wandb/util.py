@@ -297,6 +297,7 @@ def parse_sm_config():
     sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
     if os.path.exists(sagemaker_config):
         conf = {}
+        conf["sagemaker_training_job_name"] = os.getenv('TRAINING_JOB_NAME')
         # Hyper-parameter searchs quote configs...
         for k, v in six.iteritems(json.load(open(sagemaker_config))):
             cast = v.strip('"')

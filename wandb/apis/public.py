@@ -358,8 +358,9 @@ class Run(object):
             self._attrs = response['project']['run']
             self.state = self._attrs['state']
         self._attrs['summaryMetrics'] = json.loads(
-            self._attrs['summaryMetrics'])
-        self._attrs['systemMetrics'] = json.loads(self._attrs['systemMetrics'])
+            self._attrs['summaryMetrics']) if self._attrs['summaryMetrics'] else {}
+        self._attrs['systemMetrics'] = json.loads(
+            self._attrs['systemMetrics']) if self._attrs['systemMetrics'] else {}
         config = {}
         for key, value in six.iteritems(json.loads(self._attrs['config'] or "{}")):
             if isinstance(value, dict) and value.get("value"):

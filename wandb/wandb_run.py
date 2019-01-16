@@ -227,8 +227,9 @@ class Run(object):
             run_update["summary_metrics"] = open(summary).read()
         if meta:
             meta = json.load(open(meta))
-            run_update["commit"] = meta["git"].get("commit")
-            run_update["repo"] = meta["git"].get("remote")
+            if meta.get("git"):
+                run_update["commit"] = meta["git"].get("commit")
+                run_update["repo"] = meta["git"].get("remote")
             run_update["host"] = meta["host"]
             run_update["program_path"] = meta["program"]
             run_update["job_type"] = meta["jobType"]
