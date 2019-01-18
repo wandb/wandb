@@ -34,6 +34,7 @@ class Agent(object):
         self._server_responses = []
         self._sweep_id = sweep_id
         self._log = []
+        self._running = True
 
     def run(self):
         # TODO: include sweep ID
@@ -42,7 +43,7 @@ class Agent(object):
         agent_id = agent['id']
 
         try:
-            while True:
+            while self._running:
                 commands = util.read_many_from_queue(
                     self._queue, 100, self.POLL_INTERVAL)
                 for command in commands:
@@ -105,6 +106,8 @@ class Agent(object):
                 result = self._command_run(command)
             elif command_type == 'stop':
                 result = self._command_stop(command)
+            elif command_type == 'exit':
+                result = self._command_exit(command)
             else:
                 raise AgentError('No such command: %s' % command_type)
             response['result'] = result
@@ -166,6 +169,15 @@ class Agent(object):
         else:
             logger.error('Run %s not running', run_id)
 
+    def _command_exit(self, command):
+        logger.info('Received exit command. Killing runs and quitting.')
+        for run_id, proc in six.iteritems(self._run_processes):
+            try:
+                proc.kill()
+            except OSError:
+                # process is already dead
+                pass
+        self._running = False
 
 class AgentApi(object):
     def __init__(self, queue):
