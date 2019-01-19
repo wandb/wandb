@@ -78,6 +78,9 @@ class Retry(object):
 
         sleep_base = kwargs.pop('retry_sleep_base', 1)
 
+        # an extra function to allow performing more logic on the filtered exceptiosn
+        check_retry_fn = kwargs.pop('check_retry_fn', lambda e: True)
+
         first = True
         sleep = sleep_base
         start_time = datetime.datetime.now()
@@ -93,6 +96,9 @@ class Retry(object):
                         self._error_prefix, datetime.datetime.now() - start_time))
                 return result
             except self._retryable_exceptions as e:
+                # if the secondary check fails, re-raise
+                if not check_retry_fn(e):
+                    raise
                 if (datetime.datetime.now() - start_time >= retry_timedelta
                         or self._num_iter >= num_retries):
                     raise
@@ -121,4 +127,3 @@ def retriable(*args, **kargs):
             return retrier(*args, **kargs)
         return wrapped_fn
     return decorator
-

@@ -574,7 +574,7 @@ class Api(object):
 
         response = self.gql(
             mutation, variable_values=variable_values, **kwargs)
-        
+
         run = response['upsertBucket']['bucket']
         project = run.get('project')
         if project:
@@ -822,11 +822,21 @@ class Api(object):
         ''')
         if project_name is None:
             project_name = self.settings('project')
+
+        # don't retry on validation errors
+        def no_retry_400(e):
+            if not isinstance(e, requests.HTTPError):
+                return True
+            if e.response.status_code != 400:
+                return True
+            body = json.loads(e.response.content)
+            raise UsageError(body['errors'][0]['message'])
+
         response = self.gql(mutation, variable_values={
             'host': host,
             'entityName': self.settings("entity"),
             'projectName': project_name,
-            'sweep': sweep_id})
+            'sweep': sweep_id}, check_retry_fn=no_retry_400)
         return response['createAgent']['agent']
 
     def agent_heartbeat(self, agent_id, metrics, run_states):
