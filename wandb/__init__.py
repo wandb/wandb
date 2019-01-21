@@ -371,6 +371,7 @@ def save(glob_str, base_path=None, policy="live"):
     if isinstance(glob_str, bytes):
         glob_str = glob_str.decode('utf-8')
     wandb_glob_str = os.path.relpath(glob_str, base_path)
+    print("!!! glob str:", wandb_glob_str)
     if "../" in wandb_glob_str:
         raise ValueError(
             "globs can't walk above base_path")

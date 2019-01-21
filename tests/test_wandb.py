@@ -174,6 +174,8 @@ def test_jupyter_init(wandb_init_run, capsys):
 
 @pytest.mark.args(tensorboard=True)
 def test_tensorboard(wandb_init_run):
+    if sys.version_info[0] == 2:
+        pytest.skip("no tensorboardX in py2")
     from tensorboardX import SummaryWriter
     writer = SummaryWriter()
     writer.add_scalar('foo', 1, 0)
