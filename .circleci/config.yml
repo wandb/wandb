@@ -13,6 +13,7 @@ jobs:
         docker:
             - image: python:3.6
         working_directory: ~/repo
+        resource_class: medium+
         steps:
             - checkout
             - restore_cache:

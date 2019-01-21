@@ -92,7 +92,9 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 if kwargs.get("dir"):
                     del os.environ['WANDB_RUN_DIR']
                 if kwargs.get("tensorboard"):
-                    wandb.util.import_module("tensorboardX")
+                    # The test uses tensorboardX so we need to be sure it's imported
+                    # we use get_module because tensorboardX isn't available in py2
+                    wandb.util.get_module("tensorboardX")
                 if kwargs.get("error"):
                     err = kwargs["error"]
                     del kwargs['error']
