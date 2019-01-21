@@ -92,6 +92,30 @@ def test_save_policy_symlink(wandb_init_run):
     assert wandb_init_run.socket.send.called
 
 
+@pytest.mark.mock_socket
+def test_save_absolute_path(wandb_init_run):
+    with open("/tmp/test.txt", "w") as f:
+        f.write("something")
+    wandb.save("/tmp/test.txt")
+    assert os.path.exists(os.path.join(wandb_init_run.dir, "test.txt"))
+
+
+@pytest.mark.mock_socket
+def test_save_relative_path(wandb_init_run):
+    with open("/tmp/test.txt", "w") as f:
+        f.write("something")
+    wandb.save("/tmp/test.txt", base_path="/")
+    assert os.path.exists(os.path.join(wandb_init_run.dir, "tmp/test.txt"))
+
+
+@pytest.mark.mock_socket
+def test_save_invalid_path(wandb_init_run):
+    with open("/tmp/test.txt", "w") as f:
+        f.write("something")
+    with pytest.raises(ValueError):
+        wandb.save("../tmp/*.txt", base_path="/tmp")
+
+
 @pytest.mark.args(resume=True)
 def test_auto_resume_first(wandb_init_run):
     assert json.load(open(os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME)))[
@@ -123,11 +147,11 @@ def test_auto_resume_remove(wandb_init_run):
 def test_save_policy_jupyter(wandb_init_run, query_upload_h5, request_mocker):
     with open("test.rad", "w") as f:
         f.write("something")
-    mock = query_upload_h5(request_mocker)
+    #mock = query_upload_h5(request_mocker)
+    wandb.run.socket = None
     wandb.save("test.rad")
-    # TODO: Hacky as hell
-    time.sleep(1.5)
-    assert mock.called
+    assert wandb_init_run._jupyter_agent.rm._user_file_policies == {
+        'end': [], 'live': ['test.rad']}
 
 
 def test_restore(wandb_init_run, request_mocker, download_url, query_run_v2, query_run_files):
@@ -139,24 +163,38 @@ def test_restore(wandb_init_run, request_mocker, download_url, query_run_v2, que
 
 
 @pytest.mark.jupyter
-def test_jupyter_init(wandb_init_run, capfd):
+def test_jupyter_init(wandb_init_run, capsys):
     assert os.getenv("WANDB_JUPYTER")
     wandb.log({"stat": 1})
-    out, err = capfd.readouterr()
+    out, err = capsys.readouterr()
     assert "Resuming" in out
     # TODO: saw some global state issues here...
     # assert "" == err
 
 
-@pytest.mark.skip("Can't figure out how to make the test handle input :(")
+@pytest.mark.args(tensorboard=True)
+def test_tensorboard(wandb_init_run):
+    from tensorboardX import SummaryWriter
+    writer = SummaryWriter()
+    writer.add_scalar('foo', 1, 0)
+    writer.close()
+    print("Real run: %s", wandb.run)
+    print(wandb.run.history.row)
+    print(wandb.run.history.rows)
+    assert wandb.run.history.row['global_step'] == 0
+    assert wandb.run.history.row['foo'] == 1.0
+
+
+@pytest.mark.unconfigured
+def test_not_logged_in(wandb_init_run, capsys):
+    out, err = capsys.readouterr()
+    assert "wandb isn't configured" in err
+    assert "_init_headless called with cloud=False" in out
+
+
 @pytest.mark.jupyter
 @pytest.mark.unconfigured
-@mock.patch.object(wandb.Api, 'api_key', None)
-@mock.patch(
-    'getpass.getpass', lambda *args: '0123456789012345678901234567890123456789\n')
-@mock.patch('six.moves.input', lambda *args: 'foo/bar\n')
 def test_jupyter_manual_configure(wandb_init_run, capsys):
     out, err = capsys.readouterr()
     assert "Not authenticated" in err
-    assert "No W&B project configured" in err
-    assert "Wrap your training" in out
+    assert "to display live results" in out

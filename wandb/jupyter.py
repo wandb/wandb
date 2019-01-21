@@ -42,14 +42,14 @@ class JupyterAgent(object):
 
     def __init__(self):
         self.paused = True
+        self.api = InternalApi()
+        self.rm = RunManager(self.api, wandb.run, output=False)
 
     def start(self):
         if self.paused:
-            self.api = InternalApi()
             # TODO: there's an edge case where shutdown isn't called
             self.api._file_stream_api = None
             self.api.set_current_run_id(wandb.run.id)
-            self.rm = RunManager(self.api, wandb.run, output=False)
             self.rm.mirror_stdout_stderr()
             self.rm.init_run(dict(os.environ))
             self.paused = False

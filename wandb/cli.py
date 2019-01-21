@@ -56,7 +56,7 @@ class ClickWandbException(ClickException):
     def format_message(self):
         log_file = util.get_log_file_path()
         orig_type = '{}.{}'.format(self.orig_type.__module__,
-                               self.orig_type.__name__)
+                                   self.orig_type.__name__)
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
@@ -371,14 +371,24 @@ def restore(run, branch, project, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="Upload a training directory to W&B")
-@click.argument("path", type=click.Path(exists=True))
+@click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--id", envvar=env.RUN_ID, help="The run you want to upload to.")
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you want to upload to.")
 @click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope to.")
 @display_error
 def sync(path, id, project, entity):
-    wandb_run.Run.from_directory(
-        path, run_id=id, project=project, entity=entity)
+    path = path[0] if len(path) > 0 else os.getcwd()
+    wandb_dir = os.path.join(path, "wandb")
+    run_paths = glob.glob(os.path.join(wandb_dir, "*run-*"))
+    if len(run_paths) == 0:
+        run_paths = glob.glob(os.path.join(path, "*run-*"))
+    if len(run_paths) > 0:
+        for run_path in run_paths:
+            wandb_run.Run.from_directory(run_path,
+                                         run_id=run_path.split("-")[-1], project=project, entity=entity)
+    else:
+        wandb_run.Run.from_directory(
+            path, run_id=id, project=project, entity=entity)
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")

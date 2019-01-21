@@ -15,8 +15,9 @@ import glob
 
 @pytest.fixture
 def dummy_model(request):
-    multi = request.node.get_marker('multiclass')
-    image_output = request.node.get_marker('image_output')
+    K.clear_session()
+    multi = request.node.get_closest_marker('multiclass')
+    image_output = request.node.get_closest_marker('image_output')
     if multi:
         nodes = 10
         loss = 'categorical_crossentropy'
@@ -40,8 +41,8 @@ def dummy_model(request):
 
 @pytest.fixture
 def dummy_data(request):
-    multi = request.node.get_marker('multiclass')
-    image_output = request.node.get_marker('image_output')
+    multi = request.node.get_closest_marker('multiclass')
+    image_output = request.node.get_closest_marker('image_output')
     cats = 10 if multi else 1
     import numpy as np
     data = np.random.randint(255, size=(100, 10, 10, 3))
@@ -52,11 +53,11 @@ def dummy_data(request):
 
 
 @pytest.fixture
-def run():
+def run(git_repo):
     return wandb_run.Run.from_environment_or_defaults()
 
 
-def test_basic_keras(dummy_model, dummy_data, git_repo, run):
+def test_basic_keras(dummy_model, dummy_data, run):
     wandb.run = run
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36,
                     callbacks=[WandbCallback()])
@@ -66,7 +67,7 @@ def test_basic_keras(dummy_model, dummy_data, git_repo, run):
     assert len(run.summary["graph"]["nodes"]) == 3
 
 
-def test_keras_image_bad_data(dummy_model, dummy_data, git_repo, run):
+def test_keras_image_bad_data(dummy_model, dummy_data, run):
     wandb.run = run
     error = False
     data, labels = dummy_data
@@ -79,14 +80,14 @@ def test_keras_image_bad_data(dummy_model, dummy_data, git_repo, run):
     assert error
 
 
-def test_keras_image_binary(dummy_model, dummy_data, git_repo, run):
+def test_keras_image_binary(dummy_model, dummy_data, run):
     wandb.run = run
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image")])
     assert len(run.history.rows[0]["examples"]['captions']) == 36
 
 
-def test_keras_image_binary_captions(dummy_model, dummy_data, git_repo, run):
+def test_keras_image_binary_captions(dummy_model, dummy_data, run):
     wandb.run = run
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice"])])
@@ -95,7 +96,7 @@ def test_keras_image_binary_captions(dummy_model, dummy_data, git_repo, run):
 
 
 @pytest.mark.multiclass
-def test_keras_image_multiclass(dummy_model, dummy_data, git_repo, run):
+def test_keras_image_multiclass(dummy_model, dummy_data, run):
     wandb.run = run
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", predictions=10)])
@@ -104,7 +105,7 @@ def test_keras_image_multiclass(dummy_model, dummy_data, git_repo, run):
 
 
 @pytest.mark.multiclass
-def test_keras_image_multiclass_captions(dummy_model, dummy_data, git_repo, run):
+def test_keras_image_multiclass_captions(dummy_model, dummy_data, run):
     wandb.run = run
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice", "Fun", "Rad", "Nice", "Fun", "Rad", "Nice", "Fun", "Rad"])])
@@ -114,7 +115,7 @@ def test_keras_image_multiclass_captions(dummy_model, dummy_data, git_repo, run)
 
 
 @pytest.mark.image_output
-def test_keras_image_output(dummy_model, dummy_data, git_repo, run):
+def test_keras_image_output(dummy_model, dummy_data, run):
     wandb.run = run
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", predictions=10)])
@@ -122,15 +123,15 @@ def test_keras_image_output(dummy_model, dummy_data, git_repo, run):
     assert run.history.rows[0]["examples"]['grouping'] == 3
 
 
-def test_keras_log_weights(dummy_model, dummy_data, git_repo, run):
+def test_keras_log_weights(dummy_model, dummy_data, run):
     wandb.run = run
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", log_weights=True)])
     print("WHOA", run.history.rows[0].keys())
-    assert run.history.rows[0]['parameters/dense_9.weights']['_type'] == "histogram"
+    assert run.history.rows[0]['parameters/dense_1.weights']['_type'] == "histogram"
 
 
-def test_keras_save_model(dummy_model, dummy_data, git_repo, run):
+def test_keras_save_model(dummy_model, dummy_data, run):
     wandb.run = run
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", save_model=True)])

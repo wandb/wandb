@@ -431,6 +431,7 @@ class RunManager(object):
         self._system_stats = stats.SystemStats(run, api)
         self._meta = meta.Meta(api, self._run.dir)
         self._meta.data["jobType"] = self._run.job_type
+        self._meta.data["mode"] = self._run.mode
         if self._run.program:
             self._meta.data["program"] = self._run.program
 
@@ -486,6 +487,10 @@ class RunManager(object):
             return next(iter(self._file_observer.emitters))
         except StopIteration:
             return None
+
+    @property
+    def run(self):
+        return self._run
 
     def _per_file_event_handler(self):
         """Create a Watchdog file event handler that does different things for every file
@@ -882,6 +887,8 @@ class RunManager(object):
             self._stop_file_observer()
             self._end_file_syncing(exitcode)
 
+        self._run.history.close()
+
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -1011,14 +1018,19 @@ class RunManager(object):
             parse = False
             while True:
                 res = bytearray()
-                try:
-                    res = self._socket.recv(1024)
-                except socket.error as e:
-                    # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
-                    if e.errno == errno.EINTR or isinstance(e, socket.timeout):
-                        pass
-                    else:
-                        raise e
+                # We received multiple messages from the last socket read
+                if payload.find(b'\0') != -1:
+                    res = payload
+                    payload = b''
+                else:
+                    try:
+                        res = self._socket.recv(1024)
+                    except socket.error as e:
+                        # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
+                        if e.errno == errno.EINTR or isinstance(e, socket.timeout):
+                            pass
+                        else:
+                            raise e
                 term = res.find(b'\0')
                 if term != -1:
                     payload += res[:term]
@@ -1044,6 +1056,7 @@ class RunManager(object):
                         util.sentry_message(message)
                         break
                     new_start = term + 1
+                    # There's more to parse, add the remaining bytes
                     if len(res) > new_start:
                         payload = res[new_start:]
                 else:

@@ -1,5 +1,6 @@
 import pytest
 import datetime
+from .utils import git_repo
 
 from wandb import wandb_run
 
@@ -11,7 +12,7 @@ def get_last_val(history, key):
     return val
 
 
-def test_history_updates_keys_until_summary_writes():
+def test_history_updates_keys_until_summary_writes(git_repo):
     run = wandb_run.Run()
 
     run.history.add({'a': 5, 'b': 9})

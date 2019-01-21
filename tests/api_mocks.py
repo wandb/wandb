@@ -3,6 +3,7 @@ import os
 import sys
 from six import binary_type
 import logging
+from wandb.apis import InternalApi
 
 
 def _files():
@@ -251,7 +252,7 @@ def query_runs_v2():
 
 @pytest.fixture
 def query_viewer(request):
-    marker = request.node.get_marker('teams')
+    marker = request.node.get_closest_marker('teams')
     if marker:
         teams = marker.args
     else:
@@ -287,13 +288,15 @@ def download_url():
 @pytest.fixture
 def upload_logs():
     def wrapper(mocker, run, status_code=200, body_match='', error=None):
-        from wandb.cli import api
+        api = InternalApi(default_settings={"entity": "bagsy"})
+        api.set_setting("project", "new-project")
 
         def match_body(request):
             return body_match in (request.text or '')
 
         api._current_run_id = run
         url = api.get_file_stream_api()._endpoint
-        return mocker.register_uri("POST", url,
-                                   status_code=status_code, additional_matcher=match_body)
+        print("Mocked %s" % url)
+        return mocker.register_uri("POST", url, [{'json': {'limits': {}}, 'status_code': status_code}],
+                                   additional_matcher=match_body)
     return wrapper

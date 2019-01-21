@@ -5,6 +5,7 @@ import socket
 from select import select
 from wandb import util
 import threading
+import wandb
 
 
 def ints2bytes(ints):

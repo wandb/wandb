@@ -313,17 +313,23 @@ class Run(object):
     def _mkdir(self):
         util.mkdir_exists_ok(self._dir)
 
+    def project_name(self, api):
+        return api.settings('project') or self.auto_project_name(api) or "uncategorized"
+
     def get_url(self, api=None):
         api = api or InternalApi()
-        return "{base}/{entity}/{project}/runs/{run}".format(
-            base=api.app_url,
-            entity=api.settings('entity'),
-            project=api.settings('project'),
-            run=self.id
-        )
+        if api.settings('entity'):
+            return "{base}/{entity}/{project}/runs/{run}".format(
+                base=api.app_url,
+                entity=api.settings('entity'),
+                project=self.project_name(api),
+                run=self.id
+            )
+        else:
+            return "Not logged in, run wandb login"
 
     def __repr__(self):
-        return "W&B Run %s" % self.get_url()
+        return "W&B Run: %s" % self.get_url()
 
     @property
     def name(self):
