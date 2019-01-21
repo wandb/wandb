@@ -27,7 +27,7 @@ jobs:
                       . venv/bin/activate
                       apt-get update && apt-get install -y libsndfile1
                       pip install -r requirements_dev.txt
-                      python install-ml.py
+                      pip install torch torchvision tensorflow
                       pip install -e .[dev]
             - save_cache:
                   paths:
