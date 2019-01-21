@@ -66,14 +66,12 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
                     wandb.save(name, base_path=log_dir)
                     wandb.save(os.path.join(log_dir, "*.pbtxt"),
                                base_path=log_dir)
-                print("LOGGING: ", event, filename)
                 log(event, namespace=namespace, step=event.step)
             except Exception as e:
                 wandb.termerror("Unable to log event %s" % e)
-                six.reraise(type(e), e, sys.exc_info()[2])
+                # six.reraise(type(e), e, sys.exc_info()[2])
         self.event_writer.add_event(event)
     writer = wandb.util.get_module(tensorboard_module)
-    print("Patched tensorflow %s" % writer)
     writer.SummaryToEventTransformer._add_event = _add_event
 
 
@@ -131,6 +129,9 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
                 values.setdefault(history_image_key(tag), []).append(image)
             else:
                 values[history_image_key(value.tag)] = image
+        elif kind == "audio":
+            audio = wandb.Audio(six.BytesIO(value.audio.encoded_audio_string),
+                                sample_rate=value.audio.sample_rate, content_type=value.audio.content_type)
         elif kind == "histo":
             first = value.histo.bucket_limit[0] + \
                 value.histo.bucket_limit[0] - value.histo.bucket_limit[1]
