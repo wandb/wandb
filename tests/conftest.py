@@ -91,6 +91,8 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 # Unfortunate to enable the test to work
                 if kwargs.get("dir"):
                     del os.environ['WANDB_RUN_DIR']
+                if kwargs.get("tensorboard"):
+                    import tensorboardX
                 if kwargs.get("error"):
                     err = kwargs["error"]
                     del kwargs['error']

@@ -113,7 +113,7 @@ def test_save_invalid_path(wandb_init_run):
     with open("/tmp/test.txt", "w") as f:
         f.write("something")
     with pytest.raises(ValueError):
-        wandb.save("../tmp/*.txt", base_path="/tmp")
+        wandb.save("../tmp/../../*.txt", base_path="/tmp")
 
 
 @pytest.mark.args(resume=True)
