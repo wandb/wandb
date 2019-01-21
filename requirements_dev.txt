@@ -26,7 +26,6 @@ twine==1.11.0
 numpy==1.14.2
 h5py==2.8.0
 keras==2.1.6
-tensorflow==1.7.1
 pandas==0.22.0
 ipython
 matplotlib
