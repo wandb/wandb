@@ -359,7 +359,7 @@ def save(glob_str, base_path=None, policy="live"):
         live: upload the file as it changes, overwriting the previous version
         end: only upload file when the run ends
     """
-    global _saved_files
+    global _saved_files, _warned_cloud_storage
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling save")
@@ -376,6 +376,9 @@ def save(glob_str, base_path=None, policy="live"):
             "globs can't walk above base_path")
     if (glob_str, base_path, policy) in _saved_files:
         return []
+    if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
+        termlog(
+            "%s is a cloud storage url, can't save file to wandb." % glob_str)
     run.send_message(
         {"save_policy": {"glob": wandb_glob_str, "policy": policy}})
     files = []
