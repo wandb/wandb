@@ -1,3 +1,9 @@
+## 0.6.33 (January 22, 2019)
+
+#### :bug: Bug Fix
+
+-   Fixed race where wandb process could hang at the end of a run
+
 ## 0.6.32 (December 22, 2018)
 
 #### :bug: Bug Fix
