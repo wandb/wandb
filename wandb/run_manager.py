@@ -1011,14 +1011,19 @@ class RunManager(object):
             parse = False
             while True:
                 res = bytearray()
-                try:
-                    res = self._socket.recv(1024)
-                except socket.error as e:
-                    # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
-                    if e.errno == errno.EINTR or isinstance(e, socket.timeout):
-                        pass
-                    else:
-                        raise e
+                # We received multiple messages from the last socket read
+                if payload.find(b'\0') != -1:
+                    res = payload
+                    payload = b''
+                else:
+                    try:
+                        res = self._socket.recv(1024)
+                    except socket.error as e:
+                        # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
+                        if e.errno == errno.EINTR or isinstance(e, socket.timeout):
+                            pass
+                        else:
+                            raise e
                 term = res.find(b'\0')
                 if term != -1:
                     payload += res[:term]
