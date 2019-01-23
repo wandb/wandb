@@ -15,6 +15,9 @@ jobs:
         resource_class: medium+
         steps:
             - checkout
+            - run:
+                  name: Setup venv
+                  command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
                       - v3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
@@ -22,11 +25,8 @@ jobs:
             - run:
                   name: Install dependencies
                   command: |
-                      rm -rf venv
-                      python -m venv venv || virtualenv venv
                       . venv/bin/activate
                       apt-get update && apt-get install -y libsndfile1
-                      pip install --upgrade pip
                       pip install -r requirements_dev.txt
                       pip install torch
                       pip install torchvision tensorflow
@@ -58,6 +58,9 @@ jobs:
             - image: python:3.7
         steps:
             - checkout
+            - run:
+                  name: Setup venv
+                  command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
                       - v3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
@@ -65,8 +68,6 @@ jobs:
             - run:
                   name: Install dependencies
                   command: |
-                      rm -rf venv
-                      python -m venv venv || virtualenv venv
                       . venv/bin/activate
                       pip install -r requirements_noml.txt
                       pip install -e .[dev]
