@@ -26,6 +26,7 @@ jobs:
                   name: Install dependencies
                   command: |
                       . venv/bin/activate
+                      pip install --upgrade pip
                       apt-get update && apt-get install -y libsndfile1
                       pip install -r requirements_dev.txt
                       pip install torch
