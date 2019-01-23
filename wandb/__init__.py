@@ -359,7 +359,7 @@ def save(glob_str, base_path=None, policy="live"):
         live: upload the file as it changes, overwriting the previous version
         end: only upload file when the run ends
     """
-    global _saved_files, _warned_cloud_storage
+    global _saved_files
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling save")
@@ -387,6 +387,7 @@ def save(glob_str, base_path=None, policy="live"):
         abs_path = os.path.abspath(path)
         wandb_path = os.path.join(run.dir, file_name)
         util.mkdir_exists_ok(os.path.dirname(wandb_path))
+        # We overwrite existing symlinks because namespaces can change in Tensorboard
         if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
             os.remove(wandb_path)
             os.symlink(abs_path, wandb_path)

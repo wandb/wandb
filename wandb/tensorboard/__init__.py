@@ -128,9 +128,10 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
                 values.setdefault(history_image_key(tag), []).append(image)
             else:
                 values[history_image_key(value.tag)] = image
-        elif kind == "audio":
-            audio = wandb.Audio(six.BytesIO(value.audio.encoded_audio_string),
-                                sample_rate=value.audio.sample_rate, content_type=value.audio.content_type)
+        # Coming soon...
+        # elif kind == "audio":
+        #    audio = wandb.Audio(six.BytesIO(value.audio.encoded_audio_string),
+        #                        sample_rate=value.audio.sample_rate, content_type=value.audio.content_type)
         elif kind == "histo":
             first = value.histo.bucket_limit[0] + \
                 value.histo.bucket_limit[0] - value.histo.bucket_limit[1]
