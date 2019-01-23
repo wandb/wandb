@@ -25,8 +25,8 @@ jobs:
             - run:
                   name: Install dependencies
                   command: |
-                      . venv/bin/activate
                       apt-get update && apt-get install -y libsndfile1
+                      . venv/bin/activate
                       pip install -r requirements_dev.txt
                       pip install torch
                       pip install torchvision tensorflow
