@@ -80,7 +80,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             mock = mocker.patch('wandb.run_manager.RunManager')
 
             def fake_init(api, run, port=None, output=None):
-                rm = fake_run_manager(mocker, api, run, rm=orig_rm)
+                rm = fake_run_manager(mocker, api, run, rm_class=orig_rm)
                 rm._block_file_observer()
                 run.run_manager = rm
                 return rm
@@ -179,15 +179,17 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             run.run_manager.test_shutdown()
 
 
-def fake_run_manager(mocker, api=None, run=None, rm=None):
+def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunManager):
+    # We have an optiona rm_class object because we mock it above so we need it before it's mocked
     api = api or InternalApi(load_settings=False)
     if wandb.run is None:
         wandb.run = run or Run()
     wandb.run._mkdir()
     wandb.run.socket = wandb_socket.Server()
     api.set_current_run_id(wandb.run.id)
+    mocker.patch('wandb.apis.internal.FileStreamApi')
     api._file_stream_api = mocker.MagicMock()
-    run_manager = (rm or wandb.run_manager.RunManager)(
+    run_manager = rm_class(
         api, wandb.run, port=wandb.run.socket.port)
     run_manager.proc = mocker.MagicMock()
     run_manager._meta = mocker.MagicMock()
@@ -198,6 +200,7 @@ def fake_run_manager(mocker, api=None, run=None, rm=None):
     run_manager._stderr_stream = mocker.MagicMock()
     run_manager._stderr_stream = mocker.MagicMock()
     run_manager.mirror_stdout_stderr = mocker.MagicMock()
+    run_manager.unmirror_stdout_stderr = mocker.MagicMock()
     socket_thread = threading.Thread(
         target=wandb.run.socket.listen)
     socket_thread.start()

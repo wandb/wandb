@@ -68,7 +68,7 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
                 log(event, namespace=namespace, step=event.step)
             except Exception as e:
                 wandb.termerror("Unable to log event %s" % e)
-                six.reraise(type(e), e, sys.exc_info()[2])
+                # six.reraise(type(e), e, sys.exc_info()[2])
         self.event_writer.add_event(event)
     writer = wandb.util.get_module(tensorboard_module)
     writer.SummaryToEventTransformer._add_event = _add_event

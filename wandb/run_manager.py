@@ -79,9 +79,11 @@ class FileTailer(object):
                 self._file.seek(where)
             else:
                 self._on_read_fn(data)
+        data = self._file.read()
+        if data:
+            self._on_read_fn(data)
 
     def stop(self):
-        self._file.seek(0)
         self.running = False
         self._thread.join()
 
@@ -287,6 +289,11 @@ class FileEventHandlerTextStream(FileEventHandler):
         self._seek_end = kwargs.pop('seek_end', None)
         super(FileEventHandlerTextStream, self).__init__(*args, **kwargs)
         self._tailer = None
+        if self._seek_end:
+            # We need to call _setup up in the case of resumed runs
+            # because we will start logging immediatly, so on_modified
+            # would seek the FileTailer to after the most recent log
+            self._setup()
 
     def on_created(self):
         if self._tailer:
@@ -776,7 +783,6 @@ class RunManager(object):
                 start_chunk_id=resume_status['historyLineCount']))
         self._file_event_handlers[wandb_run.HISTORY_FNAME] = FileEventHandlerTextStream(
             self._run.history.fname, wandb_run.HISTORY_FNAME, self._api, seek_end=True)
-
         # events
         self._api.get_file_stream_api().set_file_policy(
             wandb_run.EVENTS_FNAME, DefaultFilePolicy(
@@ -790,6 +796,8 @@ class RunManager(object):
         We either create it now or, if the API call fails for some reason (eg.
         the network is down), we do it from a thread that we start. We hold
         off file syncing and streaming until it succeeds.
+
+        Returns the initial step of the run, or None if we didn't create a run
         """
         io_wrap.init_sigwinch_handler()
 
@@ -800,6 +808,7 @@ class RunManager(object):
 
         self._system_stats.start()
         self._meta.start()
+        new_step = None
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
@@ -810,16 +819,23 @@ class RunManager(object):
                     raise LaunchError(
                         "resume='must' but run (%s) doesn't exist" % self._run.id)
                 if resume_status:
-                    print('Resuming run: %s' % self._run.get_url(self._api))
                     self._project = self._resolve_project_name(self._project)
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
+                    try:
+                        history = json.loads(json.loads(resume_status['historyTail'])[-1])
+                    except ValueError:
+                        history = {}
+                    new_step = history.get("_step", 0)
+            else:
+                new_step = 0
 
             if not self._upsert_run(False, storage_id, env):
                 self._upsert_run_thread = threading.Thread(
                     target=self._upsert_run, args=(True, storage_id, env))
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
+        return new_step
 
     def _upsert_run(self, retry, storage_id, env):
         """Upsert the Run (ie. for the first time with all its attributes)

@@ -166,10 +166,33 @@ def test_restore(wandb_init_run, request_mocker, download_url, query_run_v2, que
 def test_jupyter_init(wandb_init_run, capsys):
     assert os.getenv("WANDB_JUPYTER")
     wandb.log({"stat": 1})
+    wandb_init_run.run_manager.test_shutdown()
     out, err = capsys.readouterr()
     assert "Resuming" in out
     # TODO: saw some global state issues here...
     # assert "" == err
+
+
+@pytest.mark.jupyter
+def test_jupyter_log_history(wandb_init_run, capsys):
+    # This simulates what the happens in a Jupyter notebook, it's gnarly
+    # because it resumes so this depends on the run_resume_status which returns
+    # a run that's at step 15 so calling log will update step to 16
+    wandb.log({"something": "new"})
+    rm = wandb_init_run.run_manager
+    fsapi = rm._api._file_stream_api
+    wandb_init_run._stop_jupyter_agent()
+    files = [c[1][0] for c in fsapi.push.mock_calls]
+    assert sorted(files) == ['wandb-events.jsonl',
+                             'wandb-history.jsonl', 'wandb-summary.json']
+    wandb.log({"resumed": "log"})
+    new_fsapi = wandb_init_run._jupyter_agent.rm._api._file_stream_api
+    wandb_init_run._stop_jupyter_agent()
+    payloads = {c[1][0]: json.loads(c[1][1])
+                for c in new_fsapi.push.mock_calls}
+    assert payloads["wandb-history.jsonl"]["_step"] == 16
+    assert payloads["wandb-history.jsonl"]["resumed"] == "log"
+    wandb_init_run.run_manager.test_shutdown()
 
 
 @pytest.mark.args(tensorboard=True)

@@ -198,16 +198,22 @@ class History(object):
             try:
                 self.row['_runtime'] = time.time() - self._start_time
                 self.row['_timestamp'] = time.time()
-                self.row['_step'] = self._steps
                 if self.stream_name != "default":
                     self.row["_stream"] = self.stream_name
                 self._transform()
+                # We must call the callback before writing to ensure new lines are picked up by
+                # a newly created FileStreamApi (in the case of Jupyter which starts logging the
+                # first time wandb.log is called)
+                if self._add_callback:
+                    self._add_callback(self.row)
+                # We must set the step after the callback because this may have triggered
+                # JupyterAgent to start and resume the run.  JupyterAgent.start() modifies
+                # wandb.history._steps which may have been called via the above callback
+                self.row['_step'] = self._steps
                 self._file.write(util.json_dumps_safer_history(self.row))
                 self._file.write('\n')
                 self._file.flush()
                 self._index(self.row)
-                if self._add_callback:
-                    self._add_callback(self.row)
                 self.row = {}
             finally:
                 self._lock.release()

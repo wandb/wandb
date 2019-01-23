@@ -45,14 +45,18 @@ class JupyterAgent(object):
 
     def start(self):
         if self.paused:
-            # TODO: there's an edge case where shutdown isn't called
             self.api = InternalApi()
             self.rm = RunManager(self.api, wandb.run, output=False)
             self.api._file_stream_api = None
             self.api.set_current_run_id(wandb.run.id)
             self.rm.mirror_stdout_stderr()
-            self.rm.init_run(dict(os.environ))
             self.paused = False
+            # Init will return the last step of a resumed run
+            # we update the runs history._steps in extreme hack fashion
+            # TODO: this reserves a bigtime refactor
+            new_step = self.rm.init_run(dict(os.environ))
+            if new_step:
+                wandb.run.history._steps = new_step + 1
 
     def stop(self):
         if not self.paused:
