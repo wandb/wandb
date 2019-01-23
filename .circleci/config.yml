@@ -4,16 +4,15 @@ workflows:
     test:
         jobs:
             - test-3.6
-            - test-3.7
             - test-3.5
             - test-2.7
-            - test-3.6-no-ml
+            - test-3.7-no-ml
 jobs:
     test-3.6: &test-template
         docker:
             - image: python:3.6
         working_directory: ~/repo
-        resource_class: large
+        resource_class: medium+
         steps:
             - checkout
             - restore_cache:
@@ -48,16 +47,15 @@ jobs:
         <<: *test-template
         docker:
             - image: python:3.5
-    test-3.7:
+    test-2.7:
+        <<: *test-template
+        resource_class: xlarge # installing torch takes a ton of ram
+        docker:
+            - image: python:2.7
+    test-3.7-no-ml:
         <<: *test-template
         docker:
             - image: python:3.7
-    test-2.7:
-        <<: *test-template
-        docker:
-            - image: python:2.7
-    test-3.6-no-ml:
-        <<: *test-template
         steps:
             - checkout
             - restore_cache:
