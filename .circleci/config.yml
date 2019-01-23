@@ -20,13 +20,12 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
-                      - v3-dependencies-
+                      - v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+                      - v3.1-dependencies-
             - run:
                   name: Install dependencies
                   command: |
                       . venv/bin/activate
-                      pip install --upgrade pip
                       apt-get update && apt-get install -y libsndfile1
                       pip install -r requirements_dev.txt
                       pip install torch
@@ -35,7 +34,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+                  key: v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
             - run:
                   name: Run tests
                   command: |
@@ -64,8 +63,8 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
-                      - v3-dependencies-no-ml
+                      - v3.1-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+                      - v3.1-dependencies-no-ml
             - run:
                   name: Install dependencies
                   command: |
@@ -75,7 +74,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+                  key: v3.1-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
             - run:
                   name: Run tests
                   command: |
