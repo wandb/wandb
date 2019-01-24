@@ -200,9 +200,8 @@ def test_jupyter_log_history(wandb_init_run, capsys):
 
 
 @pytest.mark.args(tensorboard=True)
+@pytest.mark.skipif(sys.version_info < (3, 6) or os.environ.get("NO_ML"), reason="no tensorboardX in py2 or no ml tests")
 def test_tensorboard(wandb_init_run):
-    if sys.version_info[0] == 2 or os.environ.get("NO_ML"):
-        pytest.skip("no tensorboardX in py2 or no ml tests")
     from tensorboardX import SummaryWriter
     writer = SummaryWriter()
     writer.add_scalar('foo', 1, 0)

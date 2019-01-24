@@ -179,6 +179,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
 
 
 def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunManager):
+    # NOTE: This will create a run directory so make sure it's called in an isolated file system
     # We have an optiona rm_class object because we mock it above so we need it before it's mocked
     api = api or InternalApi(load_settings=False)
     if wandb.run is None:
