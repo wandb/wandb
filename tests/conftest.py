@@ -22,7 +22,7 @@ def history():
 @pytest.fixture
 def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume_status,
                    upload_logs, monkeypatch, mocker, capsys):
-    """Fixture that calls wandb.init(), yields the run that
+    """Fixture that calls wandb.init(), yields a run (or an exception) that
     gets created, then cleans up afterward.  This is meant to test the logic
     in wandb.init, it should generally not spawn a run_manager.  If you need
     to test run_manager logic use that fixture.
@@ -162,9 +162,8 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                     run.socket = mocker.MagicMock()
                 assert run is wandb.run
                 assert run.config is wandb.config
-            except Exception as e:
-                print("!!! wandb.init exception:")
-                print(e)
+            except wandb.LaunchError as e:
+                print("!!! wandb LaunchError raised")
                 run = e
             yield run
     finally:

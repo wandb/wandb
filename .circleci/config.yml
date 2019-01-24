@@ -16,16 +16,18 @@ jobs:
         steps:
             - checkout
             - run:
+                  name: Install system deps
+                  command: apt-get update && apt-get install -y libsndfile1
+            - run:
                   name: Setup venv
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+                      - v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}
                       - v3.1-dependencies-
             - run:
-                  name: Install dependencies
+                  name: Install python dependencies
                   command: |
-                      apt-get update && apt-get install -y libsndfile1
                       . venv/bin/activate
                       pip install -r requirements_dev.txt
                       pip install torch
@@ -34,7 +36,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+                  key: v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}
             - run:
                   name: Run tests
                   command: |
