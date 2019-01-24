@@ -6,32 +6,37 @@ workflows:
             - test-3.6
             - test-3.5
             - test-2.7
-            - test-3.6-no-ml
+            - test-3.7-no-ml
 jobs:
     test-3.6: &test-template
         docker:
-            - image: circleci/python:3.6
+            - image: python:3.6
         working_directory: ~/repo
+        resource_class: medium+
         steps:
             - checkout
+            - run:
+                  name: Install system deps
+                  command: apt-get update && apt-get install -y libsndfile1
+            - run:
+                  name: Setup venv
+                  command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
-                      - v3.1-dependencies-
+                      - v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
+                      - v3.1-dependencies-{{ .Environment.CIRCLE_JOB }}
             - run:
-                  name: Install dependencies
+                  name: Install python dependencies
                   command: |
-                      rm -rf venv
-                      python -m venv venv || virtualenv venv
                       . venv/bin/activate
-                      sudo apt-get update && sudo apt-get install -y libsndfile1
                       pip install -r requirements_dev.txt
-                      python install-ml.py
+                      pip install torch
+                      pip install torchvision tensorflow
                       pip install -e .[dev]
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "install-ml.py" }}
+                  key: v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Run tests
                   command: |
@@ -43,31 +48,37 @@ jobs:
     test-3.5:
         <<: *test-template
         docker:
-            - image: circleci/python:3.5
+            - image: python:3.5
     test-2.7:
         <<: *test-template
+        resource_class: xlarge # installing torch takes a ton of ram
         docker:
-            - image: circleci/python:2.7
-    test-3.6-no-ml:
+            - image: python:2.7
+    test-3.7-no-ml:
         <<: *test-template
+        docker:
+            - image: python:3.7
+              environment:
+                  NO_ML: "true"
         steps:
             - checkout
+            - run:
+                  name: Setup venv
+                  command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
-                      - v3-dependencies-no-ml
+                      - v3.1-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+                      - v3.1-dependencies-no-ml
             - run:
                   name: Install dependencies
                   command: |
-                      rm -rf venv
-                      python -m venv venv || virtualenv venv
                       . venv/bin/activate
                       pip install -r requirements_noml.txt
                       pip install -e .[dev]
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+                  key: v3.1-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
             - run:
                   name: Run tests
                   command: |

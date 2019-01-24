@@ -2,13 +2,14 @@ import datetime
 import io
 import os
 import time
+import json
 import pytest
 import threading
 
 import wandb.run_manager
+from wandb.apis import internal
 import wandb
 from wandb import wandb_socket
-from wandb.apis import internal
 from wandb.wandb_run import Run, RESUME_FNAME
 from wandb.run_manager import FileEventHandlerThrottledOverwriteMinWait, FileEventHandlerOverwriteDeferred
 from click.testing import CliRunner
@@ -59,45 +60,6 @@ def _is_update_avail(request_mocker, capsys, current, latest):
     return "To upgrade, please run:" in captured_err
 
 
-@pytest.fixture
-def run_manager(mocker):
-    """This fixture emulates the run_manager headless mode in a single process
-    Just call run_manager.test_shutdown() to join the threads
-    """
-    api = internal.Api(load_settings=False)
-    with CliRunner().isolated_filesystem():
-        wandb.run = Run()
-        wandb.run.socket = wandb_socket.Server()
-        api.set_current_run_id(wandb.run.id)
-        api._file_stream_api = mocker.MagicMock()
-        run_manager = wandb.run_manager.RunManager(
-            api, wandb.run, port=wandb.run.socket.port)
-        run_manager.proc = mocker.MagicMock()
-        run_manager._stdout_tee = mocker.MagicMock()
-        run_manager._stderr_tee = mocker.MagicMock()
-        run_manager._output_log = mocker.MagicMock()
-        run_manager._stdout_stream = mocker.MagicMock()
-        run_manager._stderr_stream = mocker.MagicMock()
-        socket_thread = threading.Thread(
-            target=wandb.run.socket.listen)
-        socket_thread.start()
-        run_manager._socket.ready()
-        thread = threading.Thread(
-            target=run_manager._sync_etc)
-        thread.start()
-
-        def test_shutdown():
-            wandb.run.socket.done()
-            # TODO: is this needed?
-            socket_thread.join()
-            thread.join()
-        run_manager.test_shutdown = test_shutdown
-        run_manager._unblock_file_observer()
-        run_manager._file_pusher._push_function = mocker.MagicMock()
-        yield run_manager
-        wandb.uninit()
-
-
 def test_throttle_file_poller(mocker, run_manager):
     emitter = run_manager.emitter
     assert emitter.timeout == 1
@@ -145,3 +107,13 @@ def test_remove_auto_resume(mocker, run_manager):
         f.write("{}")
     run_manager.test_shutdown()
     assert not os.path.exists(resume_path)
+
+
+def test_sync_etc_multiple_messages(mocker, run_manager):
+    mocked_policy = mocker.MagicMock()
+    run_manager.update_user_file_policy = mocked_policy
+    payload = json.dumps(
+        {"save_policy": {"glob": "*.foo", "policy": "end"}}).encode("utf8")
+    wandb.run.socket.connection.sendall(payload + b"\0" + payload + b"\0")
+    run_manager.test_shutdown()
+    assert len(mocked_policy.mock_calls) == 2
