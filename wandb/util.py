@@ -37,6 +37,7 @@ from wandb.env import error_reporting_enabled
 import wandb
 from wandb import io_wrap
 from wandb import wandb_dir
+from wandb.apis import CommError
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -408,6 +409,16 @@ def mkdir_exists_ok(path):
             return False
         else:
             raise
+
+
+def no_retry_auth(e):
+    if hasattr(e, "exception"):
+        e = e.exception
+    if not isinstance(e, requests.HTTPError):
+        return True
+    if e.response.status_code not in (401, 403):
+        return True
+    raise CommError("Invalid or missing api_key.  Run wandb login")
 
 
 def write_settings(entity, project, url):

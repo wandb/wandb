@@ -94,7 +94,7 @@ class Api(object):
                 url='%s/graphql' % self.settings('base_url')
             )
         )
-        self.gql = retry.Retry(self.client.execute, retry_timedelta=retry_timedelta,
+        self.gql = retry.Retry(self.client.execute, retry_timedelta=retry_timedelta, check_retry_fn=util.no_retry_auth,
                                retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None

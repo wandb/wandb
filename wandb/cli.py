@@ -371,12 +371,16 @@ def restore(run, branch, project, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="Upload a training directory to W&B")
+@click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--id", envvar=env.RUN_ID, help="The run you want to upload to.")
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you want to upload to.")
 @click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope to.")
 @display_error
-def sync(path, id, project, entity):
+def sync(ctx, path, id, project, entity):
+    if api.api_key is None:
+        ctx.invoke(login)
+
     path = path[0] if len(path) > 0 else os.getcwd()
     wandb_dir = os.path.join(path, "wandb")
     run_paths = glob.glob(os.path.join(wandb_dir, "*run-*"))
