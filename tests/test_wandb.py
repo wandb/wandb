@@ -11,6 +11,7 @@ import socket
 import six
 import time
 import json
+import threading
 from click.testing import CliRunner
 from .api_mocks import *
 
@@ -192,7 +193,7 @@ def test_jupyter_log_history(wandb_init_run, capsys):
     # TODO: There's a race here where a thread isn't stopped
     time.sleep(1)
     wandb.log({"resumed": "log"})
-    new_fsapi = wandb_init_run._jupyter_agent.rm._api._file_stream_api
+    new_fsapi = wandb_init_run._jupyter_agent.rm._api.get_file_stream_api()
     wandb_init_run.run_manager.test_shutdown()
     payloads = {c[1][0]: json.loads(c[1][1])
                 for c in new_fsapi.push.mock_calls}
