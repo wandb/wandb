@@ -1,5 +1,10 @@
 ## 0.6.34 (January 23, 2019)
 
+#### :bug: Bug Fix
+
+-   fixed Jupyter logging, don't change logger level
+-   fixed resuming in Jupyter
+
 #### :nail_care: Enhancement
 
 -   wandb.init now degrades gracefully a user hasn't logged in to wandb
