@@ -10,6 +10,7 @@ import six
 import wandb
 from wandb import util
 
+
 def val_to_json(key, val, mode="summary", step=None):
     """Converts a wandb datatype to its JSON representation"""
     converted = val
@@ -175,12 +176,11 @@ class Graph(object):
 
         return graph
 
-
     @staticmethod
     def transform(graph):
         return {"_type": "graph", "format": graph.format,
-            "nodes": [Node.transform(node) for node in graph.nodes],
-            "edges": [Edge.transform(edge) for edge in graph.edges]}
+                "nodes": [Node.transform(node) for node in graph.nodes],
+                "edges": [Edge.transform(edge) for edge in graph.edges]}
 
 
 class Node(object):
@@ -339,7 +339,6 @@ class Node(object):
         node.output_shape = output_shape
         node.num_parameters = layer.count_params()
 
-
         return node
 
     @staticmethod
@@ -392,6 +391,7 @@ class Edge(object):
     @staticmethod
     def transform(edge):
         return [edge.from_node.id, edge.to_node.id]
+
 
 class Histogram(object):
     MAX_LENGTH = 512
@@ -453,9 +453,11 @@ class Table(object):
                 "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
         return {"_type": "table", "columns": table.columns, "data": table.rows[:Table.MAX_ROWS]}
 
+
 class IterableMedia(object):
     """A common class for media items that can be repeated per step"""
     pass
+
 
 class Audio(IterableMedia):
     MAX_AUDIO_COUNT = 100
@@ -480,8 +482,10 @@ class Audio(IterableMedia):
         base_path = os.path.join(out_dir, "media", "audio")
         util.mkdir_exists_ok(base_path)
         for i, audio in enumerate(audio_list[:Audio.MAX_AUDIO_COUNT]):
-            sf.write(os.path.join(base_path, "{}_{}_{}.wav".format(key, step, i)), audio.audio_data, audio.sample_rate)
-        meta = {"_type": "audio", "count": min(len(audio_list), Audio.MAX_AUDIO_COUNT)}
+            sf.write(os.path.join(base_path, "{}_{}_{}.wav".format(
+                key, step, i)), audio.audio_data, audio.sample_rate)
+        meta = {"_type": "audio", "count": min(
+            len(audio_list), Audio.MAX_AUDIO_COUNT)}
         sample_rates = Audio.sample_rates(audio_list[:Audio.MAX_AUDIO_COUNT])
         if sample_rates:
             meta["sampleRates"] = sample_rates
@@ -495,7 +499,8 @@ class Audio(IterableMedia):
 
     @staticmethod
     def durations(audio_list):
-        durations = [(len(a.audio_data) / float(a.sample_rate)) for a in audio_list]
+        durations = [(len(a.audio_data) / float(a.sample_rate))
+                     for a in audio_list]
         return durations
 
     @staticmethod
@@ -508,7 +513,7 @@ class Audio(IterableMedia):
         if all(c is None for c in captions):
             return False
         else:
-            return ['' if c==None else c for c in captions]
+            return ['' if c == None else c for c in captions]
 
 
 class Html(IterableMedia):
@@ -543,7 +548,8 @@ class Html(IterableMedia):
             parts[1] = "</head>" + parts[1]
         else:
             parts = ["", self.html]
-        parts.insert(1, '<base target="_blank"><link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />')
+        parts.insert(
+            1, '<base target="_blank"><link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />')
         self.html = join.join(parts).strip()
 
     @staticmethod
@@ -559,6 +565,7 @@ class Html(IterableMedia):
                 f.write(html.html)
         meta = {"_type": "html", "count": len(truncated)}
         return meta
+
 
 class Image(IterableMedia):
     MAX_IMAGES = 100

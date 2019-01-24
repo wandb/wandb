@@ -27,7 +27,7 @@ class History(object):
     See the documentation online: https://docs.wandb.com/docs/logs.html
     """
 
-    def __init__(self, fname, out_dir='.', add_callback=None, stream_name="default"):
+    def __init__(self, fname, out_dir='.', add_callback=None, jupyter_callback=None, stream_name="default"):
         self._start_time = wandb.START_TIME
         self.out_dir = out_dir
         self.fname = os.path.join(out_dir, fname)
@@ -49,6 +49,7 @@ class History(object):
         self.load()
         self._file = open(self.fname, 'a')
         self._add_callback = add_callback
+        self._jupyter_callback = jupyter_callback
 
     def load(self):
         self.rows = []
@@ -178,6 +179,10 @@ class History(object):
         from wandb.tensorflow import tf_summary_to_dict
         self.add(tf_summary_to_dict(summary_pb_bin))
 
+    def ensure_jupyter_started(self):
+        if self._jupyter_callback:
+            self._jupyter_callback()
+
     def _index(self, row):
         """Add a row to the internal list of rows without writing it to disk.
 
@@ -195,24 +200,21 @@ class History(object):
     def _write(self):
         if self.row:
             self._lock.acquire()
+            # Jupyter starts logging the first time wandb.log is called in a cell.
+            # This will resume the run and potentially update self._steps
+            self.ensure_jupyter_started()
             try:
                 self.row['_runtime'] = time.time() - self._start_time
                 self.row['_timestamp'] = time.time()
+                self.row['_step'] = self._steps
                 if self.stream_name != "default":
                     self.row["_stream"] = self.stream_name
                 self._transform()
-                # We must call the callback before writing to ensure new lines are picked up by
-                # a newly created FileStreamApi (in the case of Jupyter which starts logging the
-                # first time wandb.log is called)
-                if self._add_callback:
-                    self._add_callback(self.row)
-                # We must set the step after the callback because this may have triggered
-                # JupyterAgent to start and resume the run.  JupyterAgent.start() modifies
-                # wandb.history._steps which may have been called via the above callback
-                self.row['_step'] = self._steps
                 self._file.write(util.json_dumps_safer_history(self.row))
                 self._file.write('\n')
                 self._file.flush()
+                if self._add_callback:
+                    self._add_callback(self.row)
                 self._index(self.row)
                 self.row = {}
             finally:

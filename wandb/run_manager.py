@@ -782,13 +782,13 @@ class RunManager(object):
             wandb_run.HISTORY_FNAME, DefaultFilePolicy(
                 start_chunk_id=resume_status['historyLineCount']))
         self._file_event_handlers[wandb_run.HISTORY_FNAME] = FileEventHandlerTextStream(
-            self._run.history.fname, wandb_run.HISTORY_FNAME, self._api, seek_end=True)
+            self._run.history.fname, wandb_run.HISTORY_FNAME, self._api, seek_end=resume_status['historyLineCount'] > 0)
         # events
         self._api.get_file_stream_api().set_file_policy(
             wandb_run.EVENTS_FNAME, DefaultFilePolicy(
                 start_chunk_id=resume_status['eventsLineCount']))
         self._file_event_handlers[wandb_run.EVENTS_FNAME] = FileEventHandlerTextStream(
-            self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=True)
+            self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=resume_status['eventsLineCount'] > 0)
 
     def init_run(self, env=None):
         """Ensure we create a Run (Bucket) object

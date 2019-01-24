@@ -163,12 +163,16 @@ def test_restore(wandb_init_run, request_mocker, download_url, query_run_v2, que
 
 
 @pytest.mark.jupyter
-def test_jupyter_init(wandb_init_run, capsys):
+def test_jupyter_init(wandb_init_run):
     assert os.getenv("WANDB_JUPYTER")
     wandb.log({"stat": 1})
-    wandb_init_run.run_manager.test_shutdown()
-    out, err = capsys.readouterr()
-    assert "Resuming" in out
+    fsapi = wandb_init_run.run_manager._api._file_stream_api
+    wandb_init_run._stop_jupyter_agent()
+    payloads = {c[1][0]: json.loads(c[1][1])
+                for c in fsapi.push.mock_calls}
+    assert payloads["wandb-history.jsonl"]["stat"] == 1
+    assert payloads["wandb-history.jsonl"]["_step"] == 16
+
     # TODO: saw some global state issues here...
     # assert "" == err
 

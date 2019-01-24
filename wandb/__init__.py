@@ -275,8 +275,10 @@ def _init_jupyter(run):
     """
     from wandb import jupyter
     # TODO: Should we log to jupyter?
-    try_to_set_up_global_logging()
-    run.enable_logging()
+    # global logging had to be disabled because it set the level to debug
+    # I also disabled run logging because we're rairly using it.
+    # try_to_set_up_global_logging()
+    # run.enable_logging()
 
     api = InternalApi()
     if not api.api_key:
