@@ -438,6 +438,7 @@ def test_enable_off(runner, git_repo):
 
 
 def test_sync(runner, request_mocker, upsert_run, upload_url, git_repo):
+    os.environ["WANDB_API_KEY"] = "some invalid key"
     upsert_run(request_mocker)
     upload_url(request_mocker)
     with open("wandb-history.jsonl", "w") as f:
@@ -450,6 +451,7 @@ def test_sync(runner, request_mocker, upsert_run, upload_url, git_repo):
 
 
 def test_sync_runs(runner, request_mocker, upsert_run, upload_url, upload_logs, git_repo):
+    os.environ["WANDB_API_KEY"] = "some invalid key"
     upsert_run(request_mocker)
     upload_url(request_mocker)
     upload_logs(request_mocker, "abc123zz")
