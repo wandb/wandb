@@ -2,6 +2,7 @@ import datetime
 import io
 import os
 import time
+import json
 import pytest
 import threading
 
@@ -106,3 +107,13 @@ def test_remove_auto_resume(mocker, run_manager):
         f.write("{}")
     run_manager.test_shutdown()
     assert not os.path.exists(resume_path)
+
+
+def test_sync_etc_multiple_messages(mocker, run_manager):
+    mocked_policy = mocker.MagicMock()
+    run_manager.update_user_file_policy = mocked_policy
+    payload = json.dumps(
+        {"save_policy": {"glob": "*.foo", "policy": "end"}}).encode("utf8")
+    wandb.run.socket.connection.sendall(payload + b"\0" + payload + b"\0")
+    run_manager.test_shutdown()
+    assert len(mocked_policy.mock_calls) == 2

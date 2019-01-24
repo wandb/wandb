@@ -379,15 +379,14 @@ class Run(object):
     def _history_added(self, row):
         if self._summary is None:
             self._summary = summary.FileSummary(self)
-        if self._jupyter_agent:
-            self._jupyter_agent.start()
         self._summary.update(row, overwrite=False)
 
     @property
     def history(self):
         if self._history is None:
+            jupyter_callback = self._jupyter_agent.start if self._jupyter_agent else None
             self._history = history.History(
-                HISTORY_FNAME, self._dir, add_callback=self._history_added)
+                HISTORY_FNAME, self._dir, add_callback=self._history_added, jupyter_callback=jupyter_callback)
             if self._history._steps > 0:
                 self.resumed = True
         return self._history

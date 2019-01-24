@@ -48,8 +48,8 @@ def _run_resume_status(name='test', empty=False, files=None):
             'name': name,
             'id': name,
             'logLineCount': 14,
-            'historyLineCount': 5,
-            'eventsLineCount': 2,
+            'historyLineCount': 15,
+            'eventsLineCount': 0,
             'historyTail': '["{\\"_step\\": 15, \\"acc\\": 1}"]',
             'eventsTail': '[]'
         }

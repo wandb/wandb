@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# NOTE: This was only used in circle and is no longer required.
+# It's being kept around incase future ml libraries require custom install steps.
 import sys
 from subprocess import call
 
