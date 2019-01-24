@@ -24,7 +24,7 @@ jobs:
             - restore_cache:
                   keys:
                       - v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
-                      - v3.1-dependencies-
+                      - v3.1-dependencies-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Install python dependencies
                   command: |
