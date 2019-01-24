@@ -824,7 +824,7 @@ class RunManager(object):
                     storage_id = resume_status['id']
                     try:
                         history = json.loads(json.loads(resume_status['historyTail'])[-1])
-                    except ValueError:
+                    except (IndexError,ValueError):
                         history = {}
                     new_step = history.get("_step", 0)
             else:
