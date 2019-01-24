@@ -424,7 +424,7 @@ class RunManager(object):
         self._output = output
 
         # Was seeing cases in tests where calling shutdown was bombing because of no directory
-        util.makedir_exists_ok(self._run.dir)
+        util.mkdir_exists_ok(self._run.dir)
 
         self._project = self._resolve_project_name(project)
 
