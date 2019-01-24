@@ -194,6 +194,8 @@ def test_jupyter_log_history(wandb_init_run, capsys):
     wandb_init_run.run_manager.test_shutdown()
     payloads = {c[1][0]: json.loads(c[1][1])
                 for c in new_fsapi.push.mock_calls}
+    # TODO: There's a race here where a thread isn't stopped above I think
+    time.sleep(0.5)
     assert payloads["wandb-history.jsonl"]["_step"] == 16
     assert payloads["wandb-history.jsonl"]["resumed"] == "log"
 
