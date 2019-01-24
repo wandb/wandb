@@ -191,16 +191,15 @@ def test_jupyter_log_history(wandb_init_run, capsys):
                              'wandb-history.jsonl', 'wandb-summary.json']
     wandb.log({"resumed": "log"})
     new_fsapi = wandb_init_run._jupyter_agent.rm._api._file_stream_api
-    wandb_init_run._stop_jupyter_agent()
+    wandb_init_run.run_manager.test_shutdown()
     payloads = {c[1][0]: json.loads(c[1][1])
                 for c in new_fsapi.push.mock_calls}
     assert payloads["wandb-history.jsonl"]["_step"] == 16
     assert payloads["wandb-history.jsonl"]["resumed"] == "log"
-    wandb_init_run.run_manager.test_shutdown()
 
 
 @pytest.mark.args(tensorboard=True)
-@pytest.mark.skipif(sys.version_info < (3, 6) or os.environ.get("NO_ML"), reason="no tensorboardX in py2 or no ml tests")
+@pytest.mark.skipif(sys.version_info < (3, 6) or os.environ.get("NO_ML") == "true", reason="no tensorboardX in py2 or no ml tests")
 def test_tensorboard(wandb_init_run):
     from tensorboardX import SummaryWriter
     writer = SummaryWriter()
