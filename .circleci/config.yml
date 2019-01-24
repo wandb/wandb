@@ -23,7 +23,7 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}
+                      - v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
                       - v3.1-dependencies-
             - run:
                   name: Install python dependencies
@@ -36,7 +36,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}
+                  key: v3.1-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Run tests
                   command: |
@@ -58,6 +58,8 @@ jobs:
         <<: *test-template
         docker:
             - image: python:3.7
+              environment:
+                  NO_ML: "true"
         steps:
             - checkout
             - run:
@@ -82,7 +84,6 @@ jobs:
                   command: |
                       . venv/bin/activate
                       mkdir -p results
-                      export NO_ML=true
                       pytest --cov=wandb --junitxml="results/pytest.xml" tests/test_headless.py tests/test_cli.py tests/test_wandb.py
             - store_test_results:
                   path: results
