@@ -753,6 +753,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
+keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 
 __all__ = ['init', 'config', 'termlog', 'termerror', 'tensorflow',
            'run', 'types', 'callbacks', 'join']

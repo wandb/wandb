@@ -65,7 +65,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Weights & Biases'
-copyright = u"2017, Weights & Biases"
+copyright = u"2019, Weights & Biases"
 
 # The version info for the project you're documenting, acts as replacement
 # for |version| and |release|, also used in various other places throughout
@@ -169,12 +169,7 @@ html_static_path = ['_static']
 
 # Custom sidebar templates, maps document names to template names.
 html_sidebars = {
-    '**': [
-        'about.html',
-        'navigation.html',
-        'relations.html',
-        'searchbox.html',
-    ]
+    '**': []
 }
 
 # Additional templates that should be rendered to pages, maps page names
@@ -217,13 +212,13 @@ htmlhelp_basename = 'wandbdoc'
 
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
-    #'papersize': 'letterpaper',
+    # 'papersize': 'letterpaper',
 
     # The font size ('10pt', '11pt' or '12pt').
-    #'pointsize': '10pt',
+    # 'pointsize': '10pt',
 
     # Additional stuff for the LaTeX preamble.
-    #'preamble': '',
+    # 'preamble': '',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
