@@ -1,3 +1,9 @@
+## 0.6.35 (January 29, 2019)
+
+#### :bug: Bug Fix
+
+-   Improve error reporting for sweeps
+
 ## 0.6.34 (January 23, 2019)
 
 #### :bug: Bug Fix
