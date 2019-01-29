@@ -906,11 +906,23 @@ class Api(object):
             }
         }
         ''')
+
+        # don't retry on validation errors
+        # TODO(jhr): generalize error handling routines
+        def no_retry_400(e):
+            if not isinstance(e, requests.HTTPError):
+                return True
+            if e.response.status_code != 400:
+                return True
+            body = json.loads(e.response.content)
+            raise UsageError(body['errors'][0]['message'])
+
         response = self.gql(mutation, variable_values={
             'config': yaml.dump(config),
             'description': config.get("description"),
             'entityName': self.settings("entity"),
-            'projectName': self.settings("project")})
+            'projectName': self.settings("project")},
+            check_retry_fn=no_retry_400)
         return response['upsertSweep']['sweep']['name']
 
     def file_current(self, fname, md5):
