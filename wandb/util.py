@@ -370,9 +370,9 @@ def write_dataframe(df, run_name, run_state_id, run_dir, table_name):
         # we have to call this wandb_run_id because that name is treated specially by
         # our filtering code
         df['wandb_run_id'] = pandas.Series(
-            [run_name] * len(df.index), index=df.index)
+            [six.text_type(run_name)] * len(df.index), index=df.index)
         df['wandb_run_state_id'] = pandas.Series(
-            [run_state_id] * len(df.index), index=df.index)
+            [six.text_type(run_state_id)] * len(df.index), index=df.index)
         table = pyarrow.Table.from_pandas(df)
         tables_dir = os.path.join(run_dir, 'media', 'tables')
         mkdir_exists_ok(tables_dir)

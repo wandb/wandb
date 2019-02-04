@@ -5,6 +5,9 @@
 Useful for testing data tables.
 """
 
+# we need this so strings are written to bigquery as strings rather than bytes
+from __future__ import unicode_literals
+
 import math
 import os
 import subprocess
@@ -15,6 +18,7 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras import optimizers
 import numpy as np
 import pandas as pd
+import six
 
 import wandb
 from wandb.keras import WandbCallback
@@ -123,7 +127,7 @@ Actual:
     
 col_names = ['wandb_example_id', 'card', 'true_class', 'true_prob', 'pred_class', 'pred_prob'] + class_cols
 frame_dict = {
-    'wandb_example_id': gen.filenames[:len(cards)],
+    'wandb_example_id': [six.text_type(s) for s in gen.filenames[:len(cards)]],
     'card': cards,
     'true_class': true_classes,
     'true_prob': true_probs,
