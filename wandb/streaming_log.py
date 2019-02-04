@@ -108,7 +108,7 @@ class TextStreamPusher(object):
             if self._prepend_timestamp:
                 timestamp = datetime.datetime.utcfromtimestamp(
                     cur_time).isoformat() + ' '
-            line = '{}{}{}'.format(self._line_prepend, timestamp, line)
+            line = u'{}{}{}'.format(self._line_prepend, timestamp, line)
             self._fsapi.push(self._filename, line)
 
     def close(self):

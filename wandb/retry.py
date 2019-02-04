@@ -25,6 +25,7 @@ class TransientException(Exception):
 
     Can have its own message and/or wrap another exception.
     """
+
     def __init__(self, msg=None, exc=None):
         super(TransientException, self).__init__(msg)
         self.message = msg
@@ -40,9 +41,10 @@ class Retry(object):
 
     MAX_SLEEP_SECONDS = 5 * 60
 
-    def __init__(self, call_fn, retry_timedelta=None, num_retries=None,
+    def __init__(self, call_fn, retry_timedelta=None, num_retries=None, check_retry_fn=lambda e: True,
                  retryable_exceptions=None, error_prefix="Network error"):
         self._call_fn = call_fn
+        self._check_retry_fn = check_retry_fn
         self._error_prefix = error_prefix
         self._retry_timedelta = retry_timedelta
         self._num_retries = num_retries
@@ -78,6 +80,9 @@ class Retry(object):
 
         sleep_base = kwargs.pop('retry_sleep_base', 1)
 
+        # an extra function to allow performing more logic on the filtered exceptiosn
+        check_retry_fn = kwargs.pop('check_retry_fn', self._check_retry_fn)
+
         first = True
         sleep = sleep_base
         start_time = datetime.datetime.now()
@@ -93,6 +98,9 @@ class Retry(object):
                         self._error_prefix, datetime.datetime.now() - start_time))
                 return result
             except self._retryable_exceptions as e:
+                # if the secondary check fails, re-raise
+                if not check_retry_fn(e):
+                    raise
                 if (datetime.datetime.now() - start_time >= retry_timedelta
                         or self._num_iter >= num_retries):
                     raise
@@ -116,9 +124,9 @@ class Retry(object):
 def retriable(*args, **kargs):
     def decorator(fn):
         retrier = Retry(fn, *args, **kargs)
+
         @functools.wraps(fn)
         def wrapped_fn(*args, **kargs):
             return retrier(*args, **kargs)
         return wrapped_fn
     return decorator
-

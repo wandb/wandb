@@ -227,8 +227,9 @@ class Run(object):
             run_update["summary_metrics"] = open(summary).read()
         if meta:
             meta = json.load(open(meta))
-            run_update["commit"] = meta["git"].get("commit")
-            run_update["repo"] = meta["git"].get("remote")
+            if meta.get("git"):
+                run_update["commit"] = meta["git"].get("commit")
+                run_update["repo"] = meta["git"].get("remote")
             run_update["host"] = meta["host"]
             run_update["program_path"] = meta["program"]
             run_update["job_type"] = meta["jobType"]
@@ -312,17 +313,23 @@ class Run(object):
     def _mkdir(self):
         util.mkdir_exists_ok(self._dir)
 
+    def project_name(self, api):
+        return api.settings('project') or self.auto_project_name(api) or "uncategorized"
+
     def get_url(self, api=None):
         api = api or InternalApi()
-        return "{base}/{entity}/{project}/runs/{run}".format(
-            base=api.app_url,
-            entity=api.settings('entity'),
-            project=api.settings('project'),
-            run=self.id
-        )
+        if api.settings('entity'):
+            return "{base}/{entity}/{project}/runs/{run}".format(
+                base=api.app_url,
+                entity=api.settings('entity'),
+                project=self.project_name(api),
+                run=self.id
+            )
+        else:
+            return "Not logged in, run wandb login"
 
     def __repr__(self):
-        return "W&B Run %s" % self.get_url()
+        return "W&B Run: %s" % self.get_url()
 
     @property
     def name(self):
@@ -372,15 +379,14 @@ class Run(object):
     def _history_added(self, row):
         if self._summary is None:
             self._summary = summary.FileSummary(self)
-        if self._jupyter_agent:
-            self._jupyter_agent.start()
         self._summary.update(row, overwrite=False)
 
     @property
     def history(self):
         if self._history is None:
+            jupyter_callback = self._jupyter_agent.start if self._jupyter_agent else None
             self._history = history.History(
-                HISTORY_FNAME, self._dir, add_callback=self._history_added)
+                HISTORY_FNAME, self._dir, add_callback=self._history_added, jupyter_callback=jupyter_callback)
             if self._history._steps > 0:
                 self.resumed = True
         return self._history

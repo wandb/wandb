@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.6.32'
+__version__ = '0.6.35'
 
 import atexit
 import click
@@ -94,7 +94,7 @@ watch_called = False
 def watch(models, criterion=None, log="gradients"):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
-    to accept arbitrary ML modles.
+    to accept arbitrary ML models.
 
     :param (torch.Module) models: The model to hook, can be a tuple
     :param (torch.F) criterion: An optional loss value being optimized
@@ -277,8 +277,10 @@ def _init_jupyter(run):
     """
     from wandb import jupyter
     # TODO: Should we log to jupyter?
-    try_to_set_up_global_logging()
-    run.enable_logging()
+    # global logging had to be disabled because it set the level to debug
+    # I also disabled run logging because we're rairly using it.
+    # try_to_set_up_global_logging()
+    # run.enable_logging()
 
     api = InternalApi()
     if not api.api_key:
@@ -350,30 +352,53 @@ run = None
 config = None  # config object shared with the global run
 Api = PublicApi
 
+_saved_files = set()
 
-def save(glob_str, policy="live"):
+
+def save(glob_str, base_path=None, policy="live"):
     """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
+    base_path: the base path to run the glob relative to
     policy:
-        live: upload the file as it changes, overwriting the previous version 
+        live: upload the file as it changes, overwriting the previous version
         end: only upload file when the run ends
     """
+    global _saved_files
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling save")
     if policy not in ("live", "end"):
         raise ValueError(
             'Only "live" and "end" policies are currently supported.')
-    run.send_message({"save_policy": {"glob": glob_str, "policy": policy}})
+    if base_path is None:
+        base_path = os.path.dirname(glob_str)
+    if isinstance(glob_str, bytes):
+        glob_str = glob_str.decode('utf-8')
+    wandb_glob_str = os.path.relpath(glob_str, base_path)
+    if "../" in wandb_glob_str:
+        raise ValueError(
+            "globs can't walk above base_path")
+    if (glob_str, base_path, policy) in _saved_files:
+        return []
+    if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
+        termlog(
+            "%s is a cloud storage url, can't save file to wandb." % glob_str)
+    run.send_message(
+        {"save_policy": {"glob": wandb_glob_str, "policy": policy}})
     files = []
     for path in glob.glob(glob_str):
-        file_name = os.path.basename(path)
+        file_name = os.path.relpath(path, base_path)
         abs_path = os.path.abspath(path)
-        if run.dir in abs_path:
-            files.append(abs_path)
-        else:
-            files.append(os.symlink(
-                abs_path, os.path.join(run.dir, file_name)))
+        wandb_path = os.path.join(run.dir, file_name)
+        util.mkdir_exists_ok(os.path.dirname(wandb_path))
+        # We overwrite existing symlinks because namespaces can change in Tensorboard
+        if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
+            os.remove(wandb_path)
+            os.symlink(abs_path, wandb_path)
+        elif not os.path.exists(wandb_path):
+            os.symlink(abs_path, wandb_path)
+        files.append(wandb_path)
+    _saved_files.add((glob_str, base_path, policy))
     return files
 
 
@@ -461,9 +486,10 @@ def ensure_configured():
 def uninit():
     """Undo the effects of init(). Useful for testing.
     """
-    global run, config, watch_called
+    global run, config, watch_called, _saved_files
     run = config = None
     watch_called = False
+    _saved_files = set()
 
 
 def reset_env(exclude=[]):
@@ -541,8 +567,8 @@ def join():
     pass
 
 
-def init(job_type=None, dir=None, config=None, project=None, entity=None, resume=False,
-         group=None, allow_val_change=False, reinit=None, tags=None):
+def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
+         group=None, allow_val_change=False, resume=False, force=False, tensorboard=False):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -560,6 +586,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, resume
         reinit (bool, optional): Allow multiple calls to init in the same process
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id
+        tensorboard (bool, optional): Patch tensorboard or tensorboardX to log all events
+        force (bool, optional): Force authentication with wandb, defaults to False
 
     Returns:
         A wandb.run object for metric and config logging.
@@ -572,6 +600,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, resume
     if reinit or (in_jupyter and reinit != False):
         reset_env(exclude=[env.DIR, env.ENTITY, env.PROJECT, env.API_KEY])
         run = None
+
+    if tensorboard:
+        util.get_module("wandb.tensorboard").patch()
 
     sagemaker_config = util.parse_sm_config()
     tf_config = util.parse_tfjob_config()
@@ -689,8 +720,14 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, resume
         api = InternalApi()
         # let init_jupyter handle this itself
         if not in_jupyter and not api.api_key:
-            termlog("Not authenticated with Weights & Biases (https://wandb.com). To automatically "
-                    "save results, run \"wandb signup\" or \"wandb login\"")
+            if force:
+                termerror(
+                    "No credentials found.  Run \"wandb login\" or \"wandb off\" to disable wandb")
+            else:
+                termlog(
+                    "wandb isn't configured, run \"wandb sync\" from this directory to visualize metrics")
+                run.mode = "dryrun"
+                _init_headless(run, False)
         else:
             _init_headless(run)
     elif run.mode == 'dryrun':
@@ -716,4 +753,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, resume
     return run
 
 
-__all__ = ['init', 'config', 'termlog', 'run', 'types', 'callbacks', 'join']
+tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
+tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
+keras = util.LazyLoader('keras', globals(), 'wandb.keras')
+
+__all__ = ['init', 'config', 'termlog', 'termerror', 'tensorflow',
+           'run', 'types', 'callbacks', 'join']

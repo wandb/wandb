@@ -1,7 +1,10 @@
 import pytest
 import datetime
+import requests
 
 from wandb import retry
+from wandb import util
+from wandb.apis import CommError
 
 
 class FailException(Exception):
@@ -15,7 +18,8 @@ def fail_for_n_function(n):
         print(an_arg)
         try:
             if call_num[0] < n:
-                raise retry.TransientException(FailException('Failed at call_num: %s' % call_num))
+                raise retry.TransientException(
+                    exc=FailException('Failed at call_num: %s' % call_num))
         finally:
             call_num[0] += 1
         return True
@@ -46,3 +50,13 @@ def test_retry_with_timeout():
     with pytest.raises(retry.TransientException):
         fn('hello', retry_timedelta=datetime.timedelta(
             0, 0, 0, 50), retry_sleep_base=0.001)
+
+
+def test_retry_with_noauth(capsys):
+    def fail():
+        res = requests.Response()
+        res.status_code = 401
+        raise retry.TransientException(exc=requests.HTTPError(response=res))
+    fn = retry.Retry(fail, check_retry_fn=util.no_retry_auth)
+    with pytest.raises(CommError):
+        fn()

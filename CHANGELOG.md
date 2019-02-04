@@ -1,3 +1,32 @@
+## 0.6.35 (January 29, 2019)
+
+#### :bug: Bug Fix
+
+-   Improve error reporting for sweeps
+
+## 0.6.34 (January 23, 2019)
+
+#### :bug: Bug Fix
+
+-   fixed Jupyter logging, don't change logger level
+-   fixed resuming in Jupyter
+
+#### :nail_care: Enhancement
+
+-   wandb.init now degrades gracefully a user hasn't logged in to wandb
+-   added a **force** flag to wandb.init to require a machine to be logged in
+-   Tensorboard and TensorboardX logging is now automatically instrumented when enabled
+-   added a **tensorboard** to wandb.init which patches tensorboard for logging
+-   wandb.save handles now accepts a base path to files in sub directories
+-   wandb.tensorflow and wandb.tensorboard can now be accessed without directly importing
+-   `wandb sync` will now traverse a wandb run directory and sync all runs
+
+## 0.6.33 (January 22, 2019)
+
+#### :bug: Bug Fix
+
+-   Fixed race where wandb process could hang at the end of a run
+
 ## 0.6.32 (December 22, 2018)
 
 #### :bug: Bug Fix

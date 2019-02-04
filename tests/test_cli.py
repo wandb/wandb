@@ -15,6 +15,7 @@ import six
 import time
 import yaml
 import git
+import re
 import webbrowser
 import wandb
 import threading
@@ -437,6 +438,7 @@ def test_enable_off(runner, git_repo):
 
 
 def test_sync(runner, request_mocker, upsert_run, upload_url, git_repo):
+    os.environ["WANDB_API_KEY"] = "some invalid key"
     upsert_run(request_mocker)
     upload_url(request_mocker)
     with open("wandb-history.jsonl", "w") as f:
@@ -446,6 +448,28 @@ def test_sync(runner, request_mocker, upsert_run, upload_url, git_repo):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert "Uploading history metrics" in str(result.output)
+
+
+def test_sync_runs(runner, request_mocker, upsert_run, upload_url, upload_logs, git_repo):
+    os.environ["WANDB_API_KEY"] = "some invalid key"
+    upsert_run(request_mocker)
+    upload_url(request_mocker)
+    upload_logs(request_mocker, "abc123zz")
+    upload_logs(request_mocker, "cba321zz")
+    run_1 = "wandb/run-120199-abc123zz"
+    run_2 = "wandb/dryrun-120300-cba321zz"
+    wandb.util.mkdir_exists_ok(run_1)
+    wandb.util.mkdir_exists_ok(run_2)
+    with open(run_1 + "/wandb-history.jsonl", "w") as f:
+        f.write('{"acc":25}')
+    with open(run_2 + "/wandb-history.jsonl", "w") as f:
+        f.write('{"acc":25}')
+    result = runner.invoke(cli.sync, ".")
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    found = re.findall(r"Uploading history metrics", str(result.output))
+    assert len(found) == 2
 
 
 # TODO: this is hitting production

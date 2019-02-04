@@ -1,5 +1,6 @@
 from __future__ import print_function
 from __future__ import absolute_import
+from __future__ import division
 
 import base64
 import errno
@@ -16,6 +17,8 @@ import time
 import random
 import stat
 import shortuuid
+import importlib
+import types
 from datetime import date, datetime
 
 import click
@@ -34,6 +37,7 @@ from wandb.env import error_reporting_enabled
 import wandb
 from wandb import io_wrap
 from wandb import wandb_dir
+from wandb.apis import CommError
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -93,6 +97,47 @@ def get_module(name, required=None):
             _not_importable.add(name)
             msg = "Error importing optional module {}".format(name)
             logger.exception(msg)
+
+
+class LazyLoader(types.ModuleType):
+    """Lazily import a module, mainly to avoid pulling in large dependencies.
+    we use this for tensorflow and other optional libraries primarily at the top module level
+    """
+
+    # The lint error here is incorrect.
+    def __init__(self, local_name, parent_module_globals, name, warning=None):  # pylint: disable=super-on-old-class
+        self._local_name = local_name
+        self._parent_module_globals = parent_module_globals
+        self._warning = warning
+
+        super(LazyLoader, self).__init__(name)
+
+    def _load(self):
+        """Load the module and insert it into the parent's globals."""
+        # Import the target module and insert it into the parent's namespace
+        module = importlib.import_module(self.__name__)
+        self._parent_module_globals[self._local_name] = module
+
+        # Emit a warning if one was specified
+        if self._warning:
+            print(self._warning)
+            # Make sure to only warn once.
+            self._warning = None
+
+        # Update this object's dict so that if someone keeps a reference to the
+        #   LazyLoader, lookups are efficient (__getattr__ is only called on lookups
+        #   that fail).
+        self.__dict__.update(module.__dict__)
+
+        return module
+
+    def __getattr__(self, item):
+        module = self._load()
+        return getattr(module, item)
+
+    def __dir__(self):
+        module = self._load()
+        return dir(module)
 
 
 np = get_module('numpy')
@@ -216,7 +261,7 @@ def json_friendly(obj):
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
-        logger.warn("Object %s is %i bytes", obj, getsizeof(obj))
+        logger.warning("Object %s is %i bytes", obj, getsizeof(obj))
 
     return obj, converted
 
@@ -305,6 +350,7 @@ def parse_sm_config():
     sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
     if os.path.exists(sagemaker_config):
         conf = {}
+        conf["sagemaker_training_job_name"] = os.getenv('TRAINING_JOB_NAME')
         # Hyper-parameter searchs quote configs...
         for k, v in six.iteritems(json.load(open(sagemaker_config))):
             cast = v.strip('"')
@@ -399,6 +445,16 @@ def mkdir_exists_ok(path):
             return False
         else:
             raise
+
+
+def no_retry_auth(e):
+    if hasattr(e, "exception"):
+        e = e.exception
+    if not isinstance(e, requests.HTTPError):
+        return True
+    if e.response.status_code not in (401, 403):
+        return True
+    raise CommError("Invalid or missing api_key.  Run wandb login")
 
 
 def write_settings(entity, project, url):

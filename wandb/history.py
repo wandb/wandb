@@ -27,7 +27,7 @@ class History(object):
     See the documentation online: https://docs.wandb.com/docs/logs.html
     """
 
-    def __init__(self, fname, out_dir='.', add_callback=None, stream_name="default"):
+    def __init__(self, fname, out_dir='.', add_callback=None, jupyter_callback=None, stream_name="default"):
         self._start_time = wandb.START_TIME
         self.out_dir = out_dir
         self.fname = os.path.join(out_dir, fname)
@@ -49,6 +49,7 @@ class History(object):
         self.load()
         self._file = open(self.fname, 'a')
         self._add_callback = add_callback
+        self._jupyter_callback = jupyter_callback
 
     def load(self):
         self.rows = []
@@ -178,6 +179,10 @@ class History(object):
         from wandb.tensorflow import tf_summary_to_dict
         self.add(tf_summary_to_dict(summary_pb_bin))
 
+    def ensure_jupyter_started(self):
+        if self._jupyter_callback:
+            self._jupyter_callback()
+
     def _index(self, row):
         """Add a row to the internal list of rows without writing it to disk.
 
@@ -193,8 +198,13 @@ class History(object):
         self.row = data_types.to_json(self.row)
 
     def _write(self):
-        if self.row:
+        # Saw a race in tests where we closed history and another log was called
+        # we check if self._file is set to ensure we don't bomb out
+        if self.row and self._file:
             self._lock.acquire()
+            # Jupyter starts logging the first time wandb.log is called in a cell.
+            # This will resume the run and potentially update self._steps
+            self.ensure_jupyter_started()
             try:
                 self.row['_runtime'] = time.time() - self._start_time
                 self.row['_timestamp'] = time.time()
@@ -205,9 +215,9 @@ class History(object):
                 self._file.write(util.json_dumps_safer_history(self.row))
                 self._file.write('\n')
                 self._file.flush()
-                self._index(self.row)
                 if self._add_callback:
                     self._add_callback(self.row)
+                self._index(self.row)
                 self.row = {}
             finally:
                 self._lock.release()

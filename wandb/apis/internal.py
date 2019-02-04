@@ -90,11 +90,11 @@ class Api(object):
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                auth=("api", self.api_key),
+                auth=("api", self.api_key or ""),
                 url='%s/graphql' % self.settings('base_url')
             )
         )
-        self.gql = retry.Retry(self.client.execute, retry_timedelta=retry_timedelta,
+        self.gql = retry.Retry(self.client.execute, retry_timedelta=retry_timedelta, check_retry_fn=util.no_retry_auth,
                                retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None
@@ -574,7 +574,7 @@ class Api(object):
 
         response = self.gql(
             mutation, variable_values=variable_values, **kwargs)
-        
+
         run = response['upsertBucket']['bucket']
         project = run.get('project')
         if project:
@@ -822,11 +822,21 @@ class Api(object):
         ''')
         if project_name is None:
             project_name = self.settings('project')
+
+        # don't retry on validation errors
+        def no_retry_400(e):
+            if not isinstance(e, requests.HTTPError):
+                return True
+            if e.response.status_code != 400:
+                return True
+            body = json.loads(e.response.content)
+            raise UsageError(body['errors'][0]['message'])
+
         response = self.gql(mutation, variable_values={
             'host': host,
             'entityName': self.settings("entity"),
             'projectName': project_name,
-            'sweep': sweep_id})
+            'sweep': sweep_id}, check_retry_fn=no_retry_400)
         return response['createAgent']['agent']
 
     def agent_heartbeat(self, agent_id, metrics, run_states):
@@ -896,11 +906,23 @@ class Api(object):
             }
         }
         ''')
+
+        # don't retry on validation errors
+        # TODO(jhr): generalize error handling routines
+        def no_retry_400(e):
+            if not isinstance(e, requests.HTTPError):
+                return True
+            if e.response.status_code != 400:
+                return True
+            body = json.loads(e.response.content)
+            raise UsageError(body['errors'][0]['message'])
+
         response = self.gql(mutation, variable_values={
             'config': yaml.dump(config),
             'description': config.get("description"),
             'entityName': self.settings("entity"),
-            'projectName': self.settings("project")})
+            'projectName': self.settings("project")},
+            check_retry_fn=no_retry_400)
         return response['upsertSweep']['sweep']['name']
 
     def file_current(self, fname, md5):

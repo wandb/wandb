@@ -1,12 +1,11 @@
 #!/usr/bin/env python
+# NOTE: This was only used in circle and is no longer required.
+# It's being kept around incase future ml libraries require custom install steps.
 import sys
 from subprocess import call
 
 version = "".join([str(v) for v in sys.version_info[:2]])
 if version == "27":
-    call(["pip", "install", "http://download.pytorch.org/whl/cpu/torch-0.4.1-cp27-cp27mu-linux_x86_64.whl"])
-    call(["pip", "install", "torchvision"])
-else:
-    call(["pip", "install", "torch_nightly", "-f",
-          "https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html"])
-    call(["pip", "install", "torchvision-nightly"])
+    pass
+    #call(["pip", "install", "https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.12.0-cp27-none-linux_x86_64.whl"])
+call(["venv/bin/pip", "install", "torch", "torchvision", "tensorflow"])

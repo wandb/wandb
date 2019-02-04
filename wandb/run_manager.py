@@ -79,9 +79,11 @@ class FileTailer(object):
                 self._file.seek(where)
             else:
                 self._on_read_fn(data)
+        data = self._file.read()
+        if data:
+            self._on_read_fn(data)
 
     def stop(self):
-        self._file.seek(0)
         self.running = False
         self._thread.join()
 
@@ -287,6 +289,11 @@ class FileEventHandlerTextStream(FileEventHandler):
         self._seek_end = kwargs.pop('seek_end', None)
         super(FileEventHandlerTextStream, self).__init__(*args, **kwargs)
         self._tailer = None
+        if self._seek_end:
+            # We need to call _setup up in the case of resumed runs
+            # because we will start logging immediatly, so on_modified
+            # would seek the FileTailer to after the most recent log
+            self._setup()
 
     def on_created(self):
         if self._tailer:
@@ -431,6 +438,7 @@ class RunManager(object):
         self._system_stats = stats.SystemStats(run, api)
         self._meta = meta.Meta(api, self._run.dir)
         self._meta.data["jobType"] = self._run.job_type
+        self._meta.data["mode"] = self._run.mode
         if self._run.program:
             self._meta.data["program"] = self._run.program
 
@@ -486,6 +494,10 @@ class RunManager(object):
             return next(iter(self._file_observer.emitters))
         except StopIteration:
             return None
+
+    @property
+    def run(self):
+        return self._run
 
     def _per_file_event_handler(self):
         """Create a Watchdog file event handler that does different things for every file
@@ -770,14 +782,13 @@ class RunManager(object):
             wandb_run.HISTORY_FNAME, DefaultFilePolicy(
                 start_chunk_id=resume_status['historyLineCount']))
         self._file_event_handlers[wandb_run.HISTORY_FNAME] = FileEventHandlerTextStream(
-            self._run.history.fname, wandb_run.HISTORY_FNAME, self._api, seek_end=True)
-
+            self._run.history.fname, wandb_run.HISTORY_FNAME, self._api, seek_end=resume_status['historyLineCount'] > 0)
         # events
         self._api.get_file_stream_api().set_file_policy(
             wandb_run.EVENTS_FNAME, DefaultFilePolicy(
                 start_chunk_id=resume_status['eventsLineCount']))
         self._file_event_handlers[wandb_run.EVENTS_FNAME] = FileEventHandlerTextStream(
-            self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=True)
+            self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=resume_status['eventsLineCount'] > 0)
 
     def init_run(self, env=None):
         """Ensure we create a Run (Bucket) object
@@ -785,6 +796,8 @@ class RunManager(object):
         We either create it now or, if the API call fails for some reason (eg.
         the network is down), we do it from a thread that we start. We hold
         off file syncing and streaming until it succeeds.
+
+        Returns the initial step of the run, or None if we didn't create a run
         """
         io_wrap.init_sigwinch_handler()
 
@@ -795,6 +808,7 @@ class RunManager(object):
 
         self._system_stats.start()
         self._meta.start()
+        new_step = None
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
@@ -805,16 +819,23 @@ class RunManager(object):
                     raise LaunchError(
                         "resume='must' but run (%s) doesn't exist" % self._run.id)
                 if resume_status:
-                    print('Resuming run: %s' % self._run.get_url(self._api))
                     self._project = self._resolve_project_name(self._project)
                     self._setup_resume(resume_status)
                     storage_id = resume_status['id']
+                    try:
+                        history = json.loads(json.loads(resume_status['historyTail'])[-1])
+                    except (IndexError,ValueError):
+                        history = {}
+                    new_step = history.get("_step", 0)
+            else:
+                new_step = 0
 
             if not self._upsert_run(False, storage_id, env):
                 self._upsert_run_thread = threading.Thread(
                     target=self._upsert_run, args=(True, storage_id, env))
                 self._upsert_run_thread.daemon = True
                 self._upsert_run_thread.start()
+        return new_step
 
     def _upsert_run(self, retry, storage_id, env):
         """Upsert the Run (ie. for the first time with all its attributes)
@@ -881,6 +902,8 @@ class RunManager(object):
         if self._cloud:
             self._stop_file_observer()
             self._end_file_syncing(exitcode)
+
+        self._run.history.close()
 
 
     def run_user_process(self, program, args, env):
@@ -1011,14 +1034,19 @@ class RunManager(object):
             parse = False
             while True:
                 res = bytearray()
-                try:
-                    res = self._socket.recv(1024)
-                except socket.error as e:
-                    # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
-                    if e.errno == errno.EINTR or isinstance(e, socket.timeout):
-                        pass
-                    else:
-                        raise e
+                # We received multiple messages from the last socket read
+                if payload.find(b'\0') != -1:
+                    res = payload
+                    payload = b''
+                else:
+                    try:
+                        res = self._socket.recv(1024)
+                    except socket.error as e:
+                        # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
+                        if e.errno == errno.EINTR or isinstance(e, socket.timeout):
+                            pass
+                        else:
+                            raise e
                 term = res.find(b'\0')
                 if term != -1:
                     payload += res[:term]
@@ -1044,6 +1072,7 @@ class RunManager(object):
                         util.sentry_message(message)
                         break
                     new_start = term + 1
+                    # There's more to parse, add the remaining bytes
                     if len(res) > new_start:
                         payload = res[new_start:]
                 else:
