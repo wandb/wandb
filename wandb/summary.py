@@ -13,10 +13,10 @@ from wandb import data_types
 from wandb.meta import Meta
 from wandb.apis.internal import Api
 
-SUMMARY_FNAME = 'wandb-summary.json'
 DEEP_SUMMARY_FNAME = 'wandb.h5'
-H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor",
-            "pytorch.Tensor")
+RUNSTATE_FNAME = 'wandb-run.json'
+SUMMARY_FNAME = 'wandb-summary.json'
+H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "pytorch.Tensor")
 
 h5py = util.get_module("h5py")
 np = util.get_module("numpy")
@@ -125,7 +125,7 @@ class Summary(object):
 
     @property
     def _run_state_path(self):
-        return os.path.join(self._run.dir, 'wandb-run.json')
+        return os.path.join(self._run.dir, RUNSTATE_FNAME)
     
     def _get_run_state(self):
         if self._run_state is None:
