@@ -138,5 +138,5 @@ table = pd.DataFrame(frame_dict, columns=col_names)
 number_cols = ['true_prob', 'pred_prob'] + class_cols
 table[number_cols] = table[number_cols].apply(pd.to_numeric)
 #from IPython import embed; embed()
-    
+
 wandb.run.summary.update({"dataset": table})
