@@ -1069,7 +1069,7 @@ class RunManager(object):
                         message = "Invalid message received from child process: %s" % str(
                             payload)
                         wandb.termerror(message)
-                        util.sentry_message(message)
+                        util.sentry_exc(message)
                         break
                     new_start = term + 1
                     # There's more to parse, add the remaining bytes
@@ -1232,7 +1232,7 @@ class RunManager(object):
             if error:
                 message = 'Sync failed %s' % url
                 wandb.termerror(message)
-                util.sentry_message(message)
+                util.sentry_exc(message)
             else:
                 wandb.termlog('Synced %s' % url)
 

@@ -35,6 +35,7 @@ from sentry_sdk import capture_message
 from wandb.env import error_reporting_enabled
 
 import wandb
+import wandb.core
 from wandb import io_wrap
 from wandb import wandb_dir
 from wandb.apis import CommError
@@ -43,8 +44,17 @@ logger = logging.getLogger(__name__)
 _not_importable = set()
 
 
+# these match the environments for gorilla
+if wandb.core.IS_GIT:
+    SENTRY_ENV = 'development'
+else:
+    SENTRY_ENV = 'production'
+
+
 sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
-                release=wandb.__version__, default_integrations=False)
+                release=wandb.__version__,
+                default_integrations=False,
+                environment=SENTRY_ENV)
 
 
 def sentry_message(message):
@@ -54,7 +64,10 @@ def sentry_message(message):
 
 def sentry_exc(exc):
     if error_reporting_enabled():
-        capture_exception(exc)
+        if isinstance(exc, six.string_types):
+            capture_exception(Exception(exc))
+        else:
+            capture_exception(exc)
 
 
 def sentry_reraise(exc):
