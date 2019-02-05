@@ -34,6 +34,6 @@ psutil>=5.2.2
 pyarrow==0.12.0
 tensorboardX
 Keras==2.1.6
-torch==1.0.1
+torch==1.0.0
 torchvision==0.2.1
 tensorflow==1.12.0
