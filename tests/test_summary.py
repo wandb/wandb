@@ -137,10 +137,7 @@ def test_tensorflow_tensor(summary):
 
 
 def test_pandas(summary):
-    # We don't support pandas DataFrames right now. Will add them back when we
-    # add support for data tables (ie. BigQuery)
-    with pytest.raises(TypeError):
-        summary.update({"pandas": pandas.DataFrame(data=np.random.rand(1000))})
+    summary.update({"pandas": pandas.DataFrame(data=np.random.rand(1000))})
 
 
 def test_read_numpy(summary):

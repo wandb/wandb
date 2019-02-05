@@ -186,12 +186,20 @@ def is_pytorch_tensor_typename(typename):
     return typename.startswith('torch.') and ('Tensor' in typename or 'Variable' in typename)
 
 
+def is_pandas_dataframe_typename(typename):
+    return typename.startswith('pandas.') and 'DataFrame' in typename
+
+
 def is_matplotlib_typename(typename):
     return typename.startswith("matplotlib.")
 
 
 def is_plotly_typename(typename):
     return typename.startswith("plotly.")
+
+
+def is_pandas_dataframe(obj):
+    return is_pandas_dataframe_typename(get_full_typename(obj))
 
 
 def ensure_matplotlib_figure(obj):
@@ -391,6 +399,34 @@ def json_dumps_safer(obj, **kwargs):
 def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+
+
+def can_write_dataframe_as_parquet():
+    pyarrow = get_module("pyarrow")
+    parquet = get_module("pyarrow.parquet")
+    pandas = get_module("pandas")
+    return pyarrow and parquet and pandas
+
+
+def write_dataframe(df, run_name, run_state_id, run_dir, table_name):
+    pyarrow = get_module("pyarrow")
+    parquet = get_module("pyarrow.parquet")
+    pandas = get_module("pandas")
+    if pyarrow and parquet and pandas:
+        # we have to call this wandb_run_id because that name is treated specially by
+        # our filtering code
+        df['wandb_run_id'] = pandas.Series(
+            [six.text_type(run_name)] * len(df.index), index=df.index)
+        df['wandb_run_state_id'] = pandas.Series(
+            [six.text_type(run_state_id)] * len(df.index), index=df.index)
+        table = pyarrow.Table.from_pandas(df)
+        tables_dir = os.path.join(run_dir, 'media', 'tables')
+        mkdir_exists_ok(tables_dir)
+        path = os.path.join(tables_dir, '{}-{}.parquet'.format(run_state_id, table_name))
+        parquet.write_table(table, path)
+        return path
+    else:
+        raise wandb.Error("Unable to load pyarrow and pandas, not saving summary dataframe")
 
 
 def make_json_if_not_number(v):
