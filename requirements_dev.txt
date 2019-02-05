@@ -1,4 +1,4 @@
-pip
+pip==19.0.1
 bumpversion==0.5.3
 wheel==0.31.1
 watchdog==0.8.3
