@@ -1,20 +1,24 @@
-import pytest
-import matplotlib
-matplotlib.use("Agg")
-from click.testing import CliRunner
-from wandb import Histogram, Image, Graph, Table
-import matplotlib.pyplot as plt
-import plotly.graph_objs as go
-import numpy as np
-import os
 import glob
 import json
-import torch
-import tensorflow as tf
-import pandas
+import os
+import pytest
 
-from wandb.summary import FileSummary
+from click.testing import CliRunner
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas
+import plotly.graph_objs as go
+# we need to import pyarrow before pytorch and tensorflow to avoid a segfault:
+# https://jira.apache.org/jira/browse/ARROW-3346
+import pyarrow
+import tensorflow as tf
+import torch
+
+from wandb import Histogram, Image, Graph, Table
 from wandb import wandb_run
+from wandb.summary import FileSummary
 
 
 @pytest.fixture
