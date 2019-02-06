@@ -7,6 +7,11 @@
 
 from __future__ import absolute_import, print_function
 
+try:
+    import pyarrow
+except ImportError:
+    pass  # hacky fix to segfault if pyarrow gets imported after pytorch: https://jira.apache.org/jira/browse/ARROW-3346
+
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.6.35'
