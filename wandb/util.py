@@ -423,7 +423,7 @@ def write_dataframe(df, run_name, run_state_id, run_dir, table_name):
         fastparquet.write(path, df)
         return path
     else:
-        raise wandb.Error("Unable to load pyarrow and pandas, not saving summary dataframe")
+        raise wandb.Error("Unable to load pandas or fastparquet. Not saving summary dataframe.")
 
 
 def make_json_if_not_number(v):
