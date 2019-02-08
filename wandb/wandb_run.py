@@ -232,7 +232,7 @@ class Run(object):
                 run_update["repo"] = meta["git"].get("remote")
             run_update["host"] = meta["host"]
             run_update["program_path"] = meta["program"]
-            run_update["job_type"] = meta["jobType"]
+            run_update["job_type"] = meta.get("jobType")
         else:
             run_update["host"] = socket.gethostname()
 
