@@ -137,7 +137,7 @@ def test_tensorflow_tensor(summary):
 
 
 def test_pandas(summary):
-    summary.update({"pandas": pandas.DataFrame(data=np.random.rand(1000))})
+    summary.update({"pandas": pandas.DataFrame(data=np.random.rand(1000), columns=['col'])})
 
 
 def test_read_numpy(summary):
