@@ -176,6 +176,141 @@ class Sequence(nn.Module):
         return outputs
 
 
+class FCLayer(nn.Module):
+    """FC Layer + Activation"""
+
+    def __init__(self, dims, batchnorm_dim=0, act='ReLU', dropout=0):
+        super(FCLayer, self).__init__()
+        layers = []
+        for i in range(len(dims) - 2):
+            in_dim = dims[i]  # input
+            out_dim = dims[i + 1]  # output
+
+            if 0 < dropout:
+                layers.append(nn.Dropout(dropout))
+            print("BOOM", in_dim, out_dim)
+            layers.append(nn.Linear(in_dim, out_dim))
+
+            if '' != act:
+                layers.append(getattr(nn, act)())
+            if batchnorm_dim > 0:
+                layers.append(nn.BatchNorm1d(batchnorm_dim))
+
+        if 0 < dropout:
+            layers.append(nn.Dropout(dropout))
+        layers.append(nn.Linear(dims[-2], dims[-1]))
+
+        if '' != act:
+            layers.append(getattr(nn, act)())
+
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class VGGConcator(nn.Module):
+    """
+    Extracts feature of each four panels, concatenates 4 vgg features panel-wise.
+    """
+
+    def __init__(self):
+        super(VGGConcator, self).__init__()
+        self.vgg = models.vgg16(pretrained=False)
+        self.vgg.classifier = nn.Sequential(
+            *list(self.vgg.classifier.children())[:-1])
+
+    def forward(self, panels, num=1):
+        if num == 1:
+            features = self.vgg(panels)
+        else:
+            img0 = panels[:, 0, :, :, :]
+            img1 = panels[:, 1, :, :, :]
+            img2 = panels[:, 2, :, :, :]
+            img3 = panels[:, 3, :, :, :]
+
+            feature0 = self.vgg(img0)
+            feature1 = self.vgg(img1)
+            feature2 = self.vgg(img2)
+            feature3 = self.vgg(img3)
+
+            features = torch.cat((feature0[:, None, :], feature1[:, None, :],
+                                  feature2[:, None, :], feature3[:, None, :]), dim=1)
+
+        return features
+
+
+class Embedding(nn.Module):
+    def __init__(self, d_embedding, d_word, d_hidden, word_dim, dropout):
+        super(Embedding, self).__init__()
+
+        glove = torch.ones((10, 300))
+        self.vgg = VGGConcator()
+        # self.fine_tuning()
+        self.word_dim = word_dim
+        glove = glove[:self.word_dim]
+
+        self.d_word = d_word
+        self.emb = nn.Embedding(word_dim, 300, padding_idx=0)
+        self.emb.weight.data = glove
+
+        # consts
+        self.d_img = 4096
+        self.num_panels = 4
+        self.num_max_sentences = 3
+        self.num_max_words = 20
+
+        self.img_fc0 = FCLayer([self.d_img, d_hidden], dropout=dropout)
+
+        self.box_lstm = nn.LSTM(
+            300, d_word, 1, batch_first=True, bidirectional=False)
+        self.fc0 = FCLayer([d_word + d_hidden, d_embedding])
+
+    def forward(self, images, words):
+        words = words.long()
+        batch_size = words.size(0)
+        box_hidden = self.init_hidden(batch_size, self.d_word, 1, 4)
+
+        words = words.view(-1, words.size(-1))
+        emb_word = self.emb(words)
+        print("Shapes: ", emb_word.shape, words.shape)
+        emb_word = emb_word.view(-1, self.num_panels,
+                                 self.num_max_sentences, self.num_max_words, self.d_word)
+        emb_sentence = torch.sum(emb_word, dim=3)
+        emb_sentence = emb_sentence.view(-1,
+                                         self.num_max_sentences, self.d_word)
+        lstmed_sentence, _ = self.box_lstm(emb_sentence, box_hidden)
+        emb_panel_sentence = lstmed_sentence[:, -1, :]
+
+        emb_panel_sentence = emb_panel_sentence.view(
+            -1, self.num_panels, self.d_word)
+
+        img_feature = self.vgg(images, num=4)
+        img_feature = self.img_fc0(img_feature)
+
+        fusion = torch.cat((img_feature, emb_panel_sentence), dim=-1)
+        fusion = self.fc0(fusion)
+        return fusion
+
+    def init_hidden(self, batch, out, direction=1, n=1):
+        dims = (direction, batch * n, out)
+        hiddens = (Variable(torch.zeros(*dims)),
+                   Variable(torch.zeros(*dims)))
+        return hiddens
+
+
+def test_embedding(wandb_init_run):
+    net = Embedding(d_embedding=300, d_word=300,
+                    d_hidden=300, word_dim=100, dropout=0)
+    wandb.watch(net, log="all")
+    for i in range(2):
+        output = net(torch.ones((1, 4, 3, 224, 224)),
+                     torch.ones((1, 4, 3, 20)))
+        output.backward(torch.ones(1, 4, 300))
+        wandb.log({"loss": 1})
+    assert len(wandb_init_run.history.rows[0]) == 82
+
+
 def test_double_log(wandb_init_run):
     net = ConvNet()
     wandb.watch(net)

@@ -884,6 +884,7 @@ class RunManager(object):
         self._run.set_environment(environment=env)
 
         self._api.save_patches(self._watch_dir)
+        self._api.save_pip(self._watch_dir)
         self._api.get_file_stream_api().set_file_policy(
             OUTPUT_FNAME, CRDedupeFilePolicy())
         self._api.get_file_stream_api().start()

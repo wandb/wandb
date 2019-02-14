@@ -81,7 +81,6 @@ class TorchHistory(object):
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
         """
-
         # LB We could potentially speed this up by using pytorch's torch.histc instead of
         # converting to numpy
         # TODO Handle the case of duplicate names.

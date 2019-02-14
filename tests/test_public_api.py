@@ -27,6 +27,48 @@ from six import StringIO
 api = Api()
 
 
+def test_parse_path_simple():
+    u, p, r = api._parse_path("user/proj/run")
+    assert u == "user"
+    assert p == "proj"
+    assert r == "run"
+
+
+def test_parse_path_docker():
+    u, p, r = api._parse_path("user/proj:run")
+    assert u == "user"
+    assert p == "proj"
+    assert r == "run"
+
+
+def test_parse_path_docker_proj():
+    u, p, r = api._parse_path("proj:run")
+    assert u == None
+    assert p == "proj"
+    assert r == "run"
+
+
+def test_parse_path_url():
+    u, p, r = api._parse_path("user/proj/runs/run")
+    assert u == "user"
+    assert p == "proj"
+    assert r == "run"
+
+
+def test_parse_path_user_proj():
+    u, p, r = api._parse_path("user/proj")
+    assert u == "user"
+    assert p == "proj"
+    assert r == "proj"
+
+
+def test_parse_path_proj():
+    u, p, r = api._parse_path("proj")
+    assert u == None
+    assert p == "proj"
+    assert r == "proj"
+
+
 def test_run_from_path(request_mocker, query_run_v2, query_download_h5):
     run_mock = query_run_v2(request_mocker)
     query_download_h5(request_mocker)

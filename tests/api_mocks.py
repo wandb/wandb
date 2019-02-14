@@ -217,7 +217,7 @@ def query_runs():
 
 @pytest.fixture
 def query_run():
-    return _query('model', {'bucket': _bucket_config()})
+    return _query('model', {'bucket': _bucket_config(), 'repo': 'https://github.com/lukas/ml-class'})
 
 
 @pytest.fixture

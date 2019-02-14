@@ -70,6 +70,15 @@ def test_throttle_file_poller(mocker, run_manager):
     assert emitter.timeout == 2
 
 
+def test_pip_freeze(mocker, run_manager):
+    run_manager._block_file_observer()
+    run_manager.init_run()
+    reqs = open(os.path.join(wandb.run.dir, "requirements.txt")).read()
+    print([r for r in reqs.split("\n") if "wandb" in r])
+    wbv = "wandb==%s" % wandb.__version__
+    assert wbv in reqs
+
+
 def test_custom_file_policy(mocker, run_manager):
     for i in range(5):
         with open(os.path.join(wandb.run.dir, "ckpt_%i.txt" % i), "w") as f:

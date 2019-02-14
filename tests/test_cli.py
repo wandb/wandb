@@ -19,6 +19,7 @@ import re
 import webbrowser
 import wandb
 import threading
+import subprocess
 
 DUMMY_API_KEY = '1824812581259009ca9981580f8f8a9012409eee'
 
@@ -242,6 +243,86 @@ def test_restore_not_git(runner, request_mocker, query_run, monkeypatch):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 1
         assert "existing git repository" in result.output
+
+@pytest.fixture
+def docker(request_mocker, query_run, mocker, monkeypatch):
+    mock = query_run(request_mocker)
+    docker = mocker.MagicMock()
+    api_key = mocker.patch('wandb.apis.InternalApi.api_key', new_callable=mocker.PropertyMock)
+    api_key.return_value = "test"
+    api = InternalApi({'project': 'test'})
+    monkeypatch.setattr(cli, 'api', api)
+    old_call = subprocess.call
+    def new_call(command, **kwargs):
+        if command[0] == "docker":
+            return docker(command)
+        else:
+            return old_call(command, **kwargs)
+    monkeypatch.setattr(subprocess, 'call', new_call)
+    monkeypatch.setattr(subprocess, 'check_output',
+                        lambda *args: b"Cool\nDigest: sha256:abc123")
+    return docker
+
+def test_docker(runner, docker):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.docker, ["test"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '-w', '/app', '-e',
+                                       'WANDB_API_KEY=test', '--mount', 'type=bind,src=%s,target=/app' % os.getcwd(), '-it', 
+                                       'wandb/deepo@sha256:abc123', '/bin/bash'])
+        assert result.exit_code == 0
+
+def test_docker_restore(runner, docker, git_repo):
+    result = runner.invoke(cli.docker, ["test:abc123"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "Created branch wandb/abc123" in result.output
+    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '-w', '/app', '-e',
+                                    'WANDB_API_KEY=test', '--mount', 'type=bind,src=%s,target=/app' % os.getcwd(), '-it', 
+                                    'wandb/deepo@sha256:abc123', '/bin/bash'])
+    assert result.exit_code == 0
+
+def test_docker_no_mount(runner, docker):
+    result = runner.invoke(cli.docker, ["test:abc123", "--no-mount"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '-w', '/app', '-e',
+                                    'WANDB_API_KEY=test', '-it', 
+                                    'wandb/deepo@sha256:abc123', '/bin/bash'])
+    assert result.exit_code == 0
+
+def test_docker_no_interactive_custom_command(runner, docker, git_repo):
+    result = runner.invoke(cli.docker, ["test:abc123", "--no-interactive", "--cmd", "/bin/sh", "-c", "python foo.py"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '-w', '/app', '-e',
+                                    'WANDB_API_KEY=test', '--mount', 'type=bind,src=%s,target=/app' % os.getcwd(),
+                                    'wandb/deepo@sha256:abc123', '/bin/sh', '-c', 'python foo.py'])
+    assert result.exit_code == 0
+
+
+def test_docker_jupyter(runner, docker):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.docker, ["test", "--jupyter"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '-w', '/app', '-e', 
+                                        'WANDB_API_KEY=test', '--mount', 'type=bind,src=%s,target=/app' % os.getcwd(), '-it', 
+                                        '-p', '8888:8888', '--ipc=host', 'wandb/deepo@sha256:abc123', 'jupyter', 'lab', '--no-browser', 
+                                        '--ip=0.0.0.0', '--allow-root', '--NotebookApp.token=', '--notebook-dir', '/app'])
+        assert result.exit_code == 0
+
+def test_docker_args(runner, docker):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.docker, ["test", "-v", "/tmp:/tmp"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '-w', '/app', '-v', '/tmp:/tmp', '-e',
+                                       'WANDB_API_KEY=test', '--mount', 'type=bind,src=%s,target=/app' % os.getcwd(), '-it', 
+                                       'wandb/deepo@sha256:abc123', '/bin/bash'])
+        assert result.exit_code == 0
+
 
 
 def test_projects_error(runner, request_mocker, query_projects):

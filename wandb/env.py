@@ -35,6 +35,7 @@ JOB_TYPE = 'WANDB_JOB_TYPE'
 TAGS = 'WANDB_TAGS'
 IGNORE = 'WANDB_IGNORE_GLOBS'
 ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
+DOCKER = 'WANDB_DOCKER'
 
 
 def is_debug(default=None, env=None):
@@ -60,6 +61,13 @@ def get_run(default=None, env=None):
         env = os.environ
 
     return env.get(RUN, default)
+
+
+def get_docker(default=None, env=None):
+    if env is None:
+        env = os.environ
+
+    return env.get(DOCKER, default)
 
 
 def get_ignore(default=None, env=None):

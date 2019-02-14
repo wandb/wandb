@@ -105,6 +105,20 @@ class Api(object):
         except configparser.Error:
             return False
 
+    def save_pip(self, out_dir):
+        """Saves the current working set of pip packages to requirements.txt"""
+        try:
+            import pkg_resources
+
+            installed_packages = [d for d in iter(pkg_resources.working_set)]
+            installed_packages_list = sorted(
+                ["%s==%s" % (i.key, i.version) for i in installed_packages]
+            )
+            with open(os.path.join(out_dir, 'requirements.txt'), 'w') as f:
+                f.write("\n".join(installed_packages_list))
+        except Exception as e:
+            logger.error("Error saving pip packages")
+
     def save_patches(self, out_dir):
         """Save the current state of this repository to one or more patches.
 
@@ -386,8 +400,10 @@ class Api(object):
         query = gql('''
         query Model($name: String!, $entity: String!, $run: String!) {
             model(name: $name, entityName: $entity) {
+                repo
                 bucket(name: $run) {
                     config
+                    github
                     commit
                     patch
                 }
@@ -402,7 +418,7 @@ class Api(object):
         commit = run['commit']
         patch = run['patch']
         config = json.loads(run['config'] or '{}')
-        return (commit, config, patch)
+        return (commit, config, patch, response['model']['repo'])
 
     @normalize_exceptions
     def run_resume_status(self, entity, project_name, name):
