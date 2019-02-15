@@ -178,6 +178,7 @@ def test_jupyter_init(wandb_init_run):
     # assert "" == err
 
 
+@pytest.mark.skip
 @pytest.mark.jupyter
 def test_jupyter_log_history(wandb_init_run, capsys):
     # This simulates what the happens in a Jupyter notebook, it's gnarly

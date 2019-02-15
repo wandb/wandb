@@ -402,31 +402,28 @@ def json_dumps_safer_history(obj, **kwargs):
 
 
 def can_write_dataframe_as_parquet():
-    pyarrow = get_module("pyarrow")
-    parquet = get_module("pyarrow.parquet")
     pandas = get_module("pandas")
-    return pyarrow and parquet and pandas
+    fastparquet = get_module("fastparquet")
+    return pandas and fastparquet
 
 
 def write_dataframe(df, run_name, run_state_id, run_dir, table_name):
-    pyarrow = get_module("pyarrow")
-    parquet = get_module("pyarrow.parquet")
     pandas = get_module("pandas")
-    if pyarrow and parquet and pandas:
+    fastparquet = get_module("fastparquet")
+    if pandas and fastparquet:
         # we have to call this wandb_run_id because that name is treated specially by
         # our filtering code
         df['wandb_run_id'] = pandas.Series(
             [six.text_type(run_name)] * len(df.index), index=df.index)
         df['wandb_run_state_id'] = pandas.Series(
             [six.text_type(run_state_id)] * len(df.index), index=df.index)
-        table = pyarrow.Table.from_pandas(df)
         tables_dir = os.path.join(run_dir, 'media', 'tables')
         mkdir_exists_ok(tables_dir)
         path = os.path.join(tables_dir, '{}-{}.parquet'.format(run_state_id, table_name))
-        parquet.write_table(table, path)
+        fastparquet.write(path, df)
         return path
     else:
-        raise wandb.Error("Unable to load pyarrow and pandas, not saving summary dataframe")
+        raise wandb.Error("Unable to load pandas or fastparquet. Not saving summary dataframe.")
 
 
 def make_json_if_not_number(v):
