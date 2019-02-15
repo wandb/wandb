@@ -251,6 +251,7 @@ def docker(request_mocker, query_run, mocker, monkeypatch):
     api_key = mocker.patch('wandb.apis.InternalApi.api_key', new_callable=mocker.PropertyMock)
     api_key.return_value = "test"
     api = InternalApi({'project': 'test'})
+    monkeypatch.setattr(cli, 'find_executable', lambda name: True)
     monkeypatch.setattr(cli, 'api', api)
     old_call = subprocess.call
     def new_call(command, **kwargs):

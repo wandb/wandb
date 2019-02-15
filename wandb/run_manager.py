@@ -42,14 +42,13 @@ from wandb import util
 from wandb import wandb_config as config
 from wandb import wandb_run
 from wandb import wandb_socket
+from wandb.apis import InternalApi
 
 
 logger = logging.getLogger(__name__)
 
 
 OUTPUT_FNAME = 'output.log'
-DEBUG_FNAME = 'wandb-debug.log'
-
 
 class LaunchError(Error):
     """Raised when there's an error starting up."""
@@ -512,8 +511,7 @@ class RunManager(object):
         file_event_handler._ignore_patterns = [
             '*/.*',
             '*.tmp',
-            os.path.join(self._run.dir, OUTPUT_FNAME),
-            os.path.join(self._run.dir, DEBUG_FNAME)
+            os.path.join(self._run.dir, OUTPUT_FNAME)
         ]
         for glob in self._api.settings("ignore_globs"):
             file_event_handler._ignore_patterns.append(
@@ -808,20 +806,31 @@ class RunManager(object):
 
         self._system_stats.start()
         self._meta.start()
+        logger.info("system metrics and metadata threads started")
         new_step = None
         if self._cloud:
             storage_id = None
             if self._run.resume != 'never':
-                resume_status = self._api.run_resume_status(project_name=self._project,
-                                                            entity=self._api.settings("entity"),
-                                                            name=self._run.id)
+                # DNS can hang for 60 seconds, we check for resume status in a thread
+                # TODO: Ideally this thread would continue retrying in case of failure.
+                # Currently we assume we're not resuming in the case of resume = auto,
+                # and we throw an error in the case of resume = must.
+                logger.info("checking resume status, waiting at most %d seconds" % InternalApi.HTTP_TIMEOUT)
+                async_resume_status = util.async_call(self._api.run_resume_status, InternalApi.HTTP_TIMEOUT)
+                resume_status, thread = async_resume_status(self._api.settings("entity"), self._project, self._run.id)
+
                 if resume_status == None and self._run.resume == 'must':
-                    raise LaunchError(
-                        "resume='must' but run (%s) doesn't exist" % self._run.id)
+                    if thread.isAlive():
+                        raise LaunchError(
+                            "resume='must' but we were unable to connect to the W&B service after %i seconds" % InternalApi.HTTP_TIMEOUT)
+                    else:
+                        raise LaunchError(
+                            "resume='must' but run (%s) doesn't exist" % self._run.id)
                 if resume_status:
+                    storage_id = resume_status['id']
+                    logger.info("resuming run from id: %s" % storage_id)
                     self._project = self._resolve_project_name(self._project)
                     self._setup_resume(resume_status)
-                    storage_id = resume_status['id']
                     try:
                         history = json.loads(json.loads(resume_status['historyTail'])[-1])
                     except (IndexError,ValueError):
@@ -830,11 +839,14 @@ class RunManager(object):
             else:
                 new_step = 0
 
-            if not self._upsert_run(False, storage_id, env):
-                self._upsert_run_thread = threading.Thread(
-                    target=self._upsert_run, args=(True, storage_id, env))
-                self._upsert_run_thread.daemon = True
-                self._upsert_run_thread.start()
+            # DNS lookups can hang for upto 60 seconds, we wait for HTTP_TIMEOUT (10s)
+            logger.info("upserting run before process can begin, waiting at most %d seconds" % InternalApi.HTTP_TIMEOUT)
+            async_upsert = util.async_call(self._upsert_run, timeout=InternalApi.HTTP_TIMEOUT)
+            _, self._upsert_run_thread = async_upsert(True, storage_id, env)
+            if self._upsert_run_thread.isAlive():
+                logger.error("Failed to connect to W&B servers after %i seconds.\
+                    Letting user process proceed while attempting to reconnect." % InternalApi.HTTP_TIMEOUT)
+
         return new_step
 
     def _upsert_run(self, retry, storage_id, env):
@@ -858,6 +870,7 @@ class RunManager(object):
             upsert_result = self._run.save(
                 id=storage_id, num_retries=num_retries, api=self._api)
         except wandb.apis.CommError as e:
+            logger.exception("communication error with wandb %s" % e.exc)
             # TODO: Get rid of str contains check
             if self._run.resume == 'never' and 'exists' in str(e):
                 raise LaunchError(
@@ -883,24 +896,30 @@ class RunManager(object):
 
         self._run.set_environment(environment=env)
 
+        logger.info("saving patches")
         self._api.save_patches(self._watch_dir)
+        logger.info("saving pip packages")
         self._api.save_pip(self._watch_dir)
+        logger.info("initializing streaming files api")
         self._api.get_file_stream_api().set_file_policy(
             OUTPUT_FNAME, CRDedupeFilePolicy())
         self._api.get_file_stream_api().start()
         self._project = self._api.settings("project")
 
         # unblock file syncing and console streaming, which need the Run to have a .storage_id
+        logger.info("unblocking file change observer, beginning sync with W&B servers")
         self._unblock_file_observer()
 
         return True
 
     def shutdown(self, exitcode=0):
         """Stops system stats, streaming handlers, and uploads files without output, used by wandb.monitor"""
+        logger.info("shutting down system stats and metadata service")
         self._system_stats.shutdown()
         self._meta.shutdown()
 
         if self._cloud:
+            logger.info("stopping streaming files and file change observer")
             self._stop_file_observer()
             self._end_file_syncing(exitcode)
 
@@ -963,10 +982,12 @@ class RunManager(object):
 
         self.proc = Process(pid)
         self._run.pid = pid
+        logger.info("wrapping existing process %i" % pid)
 
         try:
             self.init_run()
         except LaunchError as e:
+            logger.exception("catostrophic launch error")
             wandb.termerror(str(e))
             util.sentry_exc(e)
             self._socket.launch_error()
@@ -978,6 +999,7 @@ class RunManager(object):
             io_wrap.SIGWINCH_HANDLER.add_fd(stderr_read_fd)
 
         # Signal the main process that we're all hooked up
+        logger.info("informing user process we are ready to proceed")
         self._socket.ready()
 
         self._sync_etc(headless=True)
@@ -1033,6 +1055,7 @@ class RunManager(object):
         try:
             payload = b''
             parse = False
+            logger.info("entering loop for messages from user process")
             while True:
                 res = bytearray()
                 # We received multiple messages from the last socket read
@@ -1055,6 +1078,7 @@ class RunManager(object):
                 else:
                     payload += res
                 if parse:
+                    logger.info("received message from user process: %s" % payload.decode('utf8'))
                     try:
                         parsed = json.loads(payload.decode('utf8'))
                     except ValueError:
@@ -1082,6 +1106,7 @@ class RunManager(object):
                         break
                     time.sleep(1)
         except KeyboardInterrupt:
+            logger.info("process received interrupt signal, shutting down")
             exitcode = 255
             if headless:
                 wandb.termlog('Ctrl-c pressed.')
@@ -1089,12 +1114,14 @@ class RunManager(object):
                 wandb.termlog(
                     'Ctrl-c pressed; waiting for program to end. Press ctrl-c again to kill it.')
                 try:
+                    logger.info("waiting for process to finish")
                     while self.proc.poll() is None:
                         time.sleep(0.1)
                 except KeyboardInterrupt:
                     pass
 
                 if self.proc.poll() is None:
+                    logger.info("killing user process")
                     wandb.termlog('Program still alive. Killing it.')
                     try:
                         self.proc.kill()
@@ -1132,6 +1159,7 @@ class RunManager(object):
             self._meta.data["state"] = "failed"
 
         # TODO(adrian): these can be slow to complete (due to joining?)
+        logger.info("closing log streams and sending exitcode to W&B")
         self._close_stdout_stderr_streams()
         self.shutdown(exitcode)
 
@@ -1142,12 +1170,14 @@ class RunManager(object):
             sys.exit(exitcode)
         elif exitcode != 0 and time.time() - START_TIME < 30:
             wandb.termlog("Process crashed early, not syncing files")
+            logger.info("process only ran for %d seconds, not syncing files" % (time.time() - START_TIME))
             sys.exit(exitcode)
 
         # Show run summary/history
         self._run.summary.load()
         summary = self._run.summary._summary
         if len(summary):
+            logger.info("rendering summary")
             wandb.termlog('Run summary:')
             max_len = max([len(k) for k in summary.keys()])
             format_str = '  {:>%s} {}' % max_len
@@ -1164,6 +1194,7 @@ class RunManager(object):
         history_keys = self._run.history.keys()
         # Only print sparklines if the terminal is utf-8
         if len(history_keys) and sys.stdout.encoding == "UTF_8":
+            logger.info("rendering history")
             wandb.termlog('Run history:')
             max_len = max([len(k) for k in history_keys])
             for key in history_keys:
@@ -1177,6 +1208,7 @@ class RunManager(object):
         wandb_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('wandb') or save_name == config.FNAME])
         media_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('media')])
         other_files = set(self._file_pusher.files()) - wandb_files - media_files
+        logger.info("syncing files to cloud storage")
         if other_files:
             wandb.termlog('Syncing files in %s:' % os.path.relpath(self._watch_dir))
             for save_name in sorted(other_files):
@@ -1238,4 +1270,5 @@ class RunManager(object):
                 wandb.termlog('Synced %s' % url)
 
         wandb.termlog('Synced %s' % url)
+        logger.info("syncing complete: %s" % url)
         sys.exit(exitcode)

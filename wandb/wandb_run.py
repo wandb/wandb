@@ -325,8 +325,20 @@ class Run(object):
                 project=self.project_name(api),
                 run=self.id
             )
+        elif api.api_key:
+            return "run pending creation, url not known"
         else:
-            return "Not logged in, run wandb login"
+            return "not logged in, run wandb login or set WANDB_API_KEY"
+
+    def upload_debug(self):
+        """Uploads the debug log to cloud storage"""
+        if os.path.exists(self.log_fname):
+            api = InternalApi()
+            api.set_current_run_id(self.id)
+            pusher = FilePusher(api)
+            pusher.update_file("wandb-debug.log", self.log_fname)
+            pusher.file_changed("wandb-debug.log", self.log_fname)
+            pusher.finish()
 
     def __repr__(self):
         return "W&B Run: %s" % self.get_url()
@@ -349,19 +361,28 @@ class Run(object):
 
     @property
     def log_fname(self):
-        return os.path.join(self.dir, 'wandb-debug.log')
+        # TODO: we started work to log to a file in the run dir, but it had issues.
+        # For now all logs goto the same place.
+        return util.get_log_file_path()
 
     def enable_logging(self):
-        """Enable Python logging to a file in this Run's directory.
+        """Enable logging to the global debug log.  This adds a run_id to the log,
+        in case of muliple processes on the same machine.
 
         Currently no way to disable logging after it's enabled.
         """
         handler = logging.FileHandler(self.log_fname)
         handler.setLevel(logging.INFO)
+        run_id = self.id
+        class WBFilter(logging.Filter):
+            def filter(self, record):
+                record.run_id = run_id
+                return True
 
         formatter = logging.Formatter(
-            '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+            '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
         handler.setFormatter(formatter)
+        handler.addFilter(WBFilter())
 
         root = logging.getLogger()
         root.addHandler(handler)

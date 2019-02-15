@@ -241,8 +241,8 @@ def _init_headless(run, cloud=True):
         if wandb_process.poll() is None:
             termerror('Failed to kill wandb process, PID {}'.format(
                 wandb_process.pid))
-        raise LaunchError("W&B process failed to launch, see: {}".format(
-            os.path.join(run.dir, "output.log")))
+        # TODO attempt to upload a debug log
+        raise LaunchError("W&B process failed to launch, see: {}".format(GLOBAL_LOG_FNAME))
 
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')

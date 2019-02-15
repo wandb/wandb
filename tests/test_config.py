@@ -34,7 +34,7 @@ def test_config_docker_env_digest():
         with CliRunner().isolated_filesystem():
             conf = config.Config()
             assert conf["_wandb"]["docker_image"] == "ubuntu"
-            assert conf["_wandb"]["docker_digests"] == "sha25612345678901234567890"
+            assert conf["_wandb"]["docker_digest"] == "sha25612345678901234567890"
     finally:
         del os.environ[env.DOCKER]
 

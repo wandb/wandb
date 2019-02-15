@@ -180,7 +180,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
 
 def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunManager):
     # NOTE: This will create a run directory so make sure it's called in an isolated file system
-    # We have an optiona rm_class object because we mock it above so we need it before it's mocked
+    # We have an optional rm_class object because we mock it above so we need it before it's mocked
     api = api or InternalApi(load_settings=False)
     if wandb.run is None:
         wandb.run = run or Run()
@@ -223,11 +223,12 @@ def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunM
 
 
 @pytest.fixture
-def run_manager(mocker):
+def run_manager(mocker, request_mocker, upsert_run):
     """This fixture emulates the run_manager headless mode in a single process
     Just call run_manager.test_shutdown() to join the threads
     """
     with CliRunner().isolated_filesystem():
+        upsert_run(request_mocker)
         run_manager = fake_run_manager(mocker)
         yield run_manager
         wandb.uninit()

@@ -607,6 +607,34 @@ def get_log_file_path():
     return wandb.GLOBAL_LOG_FNAME
 
 
+def async_call(target, timeout=None):
+    """Accepts a method and optional timeout.
+       Returns a new method that will call the original with any args, waiting for upto timeout seconds.
+       This new method blocks on the original and returns the result or None
+       if timeout was reached, along with the thread.
+       You can check thread.isAlive() to determine if a timeout was reached.
+       If an exception is thrown in the thread, we reraise it.
+    """
+    q = queue.Queue()
+    def wrapped_target(q, *args, **kwargs):
+        try:
+            q.put(target(*args, **kwargs))
+        except Exception as e:
+            q.put(e)
+
+    def wrapper(*args, **kwargs):
+        thread = threading.Thread(target=wrapped_target, args=(q,)+args, kwargs=kwargs)
+        thread.daemon = True
+        thread.start()
+        try:
+            result = q.get(True, timeout)
+            if isinstance(result, Exception):
+                six.reraise(type(result), result, sys.exc_info()[2])
+            return result, thread
+        except queue.Empty:
+            return None, thread
+    return wrapper
+
 def read_many_from_queue(q, max_items, queue_timeout):
     try:
         item = q.get(True, queue_timeout)
