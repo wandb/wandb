@@ -288,7 +288,7 @@ class Api(object):
         """Lists projects in W&B scoped by entity.
 
         Args:
-            entity (str, optional): The entity to scope this project to.  Defaults to public models
+            entity (str, optional): The entity to scope this project to.
 
         Returns:
                 [{"id","name","description"}]
@@ -308,6 +308,31 @@ class Api(object):
         ''')
         return self._flatten_edges(self.gql(query, variable_values={
             'entity': entity or self.settings('entity')})['models'])
+
+    @normalize_exceptions
+    def project(self, project, entity=None):
+        """Retrive project
+
+        Args:
+            project (str): The project to get details for
+            entity (str, optional): The entity to scope this project to.
+
+        Returns:
+                [{"id","name","repo","dockerImage","description"}]
+        """
+        query = gql('''
+        query Models($entity: String, $project: String!) {
+            model(name: $project, entityName: $entity) {
+                id
+                name
+                repo
+                dockerImage
+                description
+            }
+        }
+        ''')
+        return self.gql(query, variable_values={
+            'entity': entity, 'project': project})['model']
 
     @normalize_exceptions
     def list_runs(self, project, entity=None):

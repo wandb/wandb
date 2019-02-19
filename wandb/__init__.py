@@ -637,7 +637,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
                 job_type = job_name
             if group == None and len(cluster.get("worker", [])) > 0:
                 group = cluster[job_name][0].rsplit("-"+job_name, 1)[0]
-
+    image = util.image_id_from_k8s()
+    if image:
+        os.environ[env.DOCKER] = image
     if project:
         os.environ[env.PROJECT] = project
     if entity:
@@ -756,6 +758,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
 keras = util.LazyLoader('keras', globals(), 'wandb.keras')
+docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 
 __all__ = ['init', 'config', 'termlog', 'termerror', 'tensorflow',
            'run', 'types', 'callbacks', 'join']

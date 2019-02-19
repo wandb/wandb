@@ -604,6 +604,27 @@ def get_log_file_path():
     return wandb.GLOBAL_LOG_FNAME
 
 
+def image_id_from_k8s():
+    """Pings the k8s metadata service for the image id"""
+    token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    if os.path.exists(token_path):
+        k8s_server = "https://{}:{}/api/v1/namespaces/default/pods/{}".format(
+            os.getenv("KUBERNETES_SERVICE_HOST"), os.getenv(
+                "KUBERNETES_PORT_443_TCP_PORT"), os.getenv("HOSTNAME")
+        )
+        try:
+            res = requests.get(k8s_server, verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+                               headers={"Authorization": "Bearer {}".format(open(token_path).read())})
+            res.raise_for_status()
+        except requests.RequestException:
+            return None
+        try:
+            return res.json()["status"]["containerStatuses"][0]["imageID"].strip("docker-pullable://")
+        except (ValueError, KeyError, IndexError):
+            logger.exception("Error checking kubernetes for image id")
+            return None
+
+
 def async_call(target, timeout=None):
     """Accepts a method and optional timeout.
        Returns a new method that will call the original with any args, waiting for upto timeout seconds.

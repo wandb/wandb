@@ -19,6 +19,7 @@ requirements = [
     'psutil>=5.0.0',
     'sentry-sdk>=0.4.0',
     'subprocess32>=3.5.3',
+    'docker-pycreds>=0.4.0',
     # Removed until we bring back the board
     # 'flask-cors>=3.0.3',
     # 'flask-graphql>=1.4.0',
@@ -42,15 +43,15 @@ setup(
     author_email='support@wandb.com',
     url='https://github.com/wandb/client',
     packages=[
-        'wandb',
+        'wandb'
     ],
-    package_dir={'wandb':
-                 'wandb'},
+    package_dir={'wandb': 'wandb'},
     entry_points={
         'console_scripts': [
             'wandb=wandb.cli:cli',
             'wb=wandb.cli:cli',
-            'wanbd=wandb.cli:cli'
+            'wanbd=wandb.cli:cli',
+            'wandb-docker=wandb.cli:docker'
         ]
     },
     include_package_data=True,

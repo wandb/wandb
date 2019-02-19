@@ -1,3 +1,19 @@
+## 0.7.0 (February 16, 2019)
+
+#### :bug: Bug Fix
+
+-   ensure DNS lookup failures can't prevent startup
+-   centralized debug logging
+
+#### :nail_care: Enhancement
+
+-   support for logging docker images with the WANDB_DOCKER env var
+-   new wandb-docker command to automatically set env vars and mount code
+-   wandb.restore supports using docker for runs that ran with it
+-   python packages are now recorded and saved in a requirements.txt file
+-   cpu_count, gpu_count, gpu, os, and python version stored in wandb-metadata.json
+-   the export api now supports docker like paths, i.e. username/project:run_id
+
 ## 0.6.35 (January 29, 2019)
 
 #### :bug: Bug Fix
@@ -13,7 +29,7 @@
 
 #### :nail_care: Enhancement
 
--   wandb.init now degrades gracefully a user hasn't logged in to wandb
+-   wandb.init now degrades gracefully if a user hasn't logged in to wandb
 -   added a **force** flag to wandb.init to require a machine to be logged in
 -   Tensorboard and TensorboardX logging is now automatically instrumented when enabled
 -   added a **tensorboard** to wandb.init which patches tensorboard for logging
