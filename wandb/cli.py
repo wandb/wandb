@@ -731,6 +731,58 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
     rm.run_user_process(program, args, environ)
 
 
+# Move this to a more appropriate place
+def wandb_keras_hooks_install():
+    # TODO: Need to safely check if keras is installed
+    import keras
+    import wandb
+
+    def fit(self, *args, **kwargs):
+        #print("INFO: wandb wrapped fit")
+        callbacks = kwargs.pop("callbacks", [])
+        callbacks.append(keras.callbacks.TensorBoard(log_dir=wandb.run.dir))
+        callbacks.append(wandb.keras.WandbCallback())
+        self._fit(*args, **kwargs, callbacks=callbacks)
+
+    keras.engine.Model._fit = keras.engine.Model.fit
+    keras.engine.Model.fit = fit
+    # TODO: Need to be able to pass options to init?
+    wandb.init()
+
+
+MONKEY_CONTEXT = copy.copy(CONTEXT)
+MONKEY_CONTEXT['allow_extra_args'] = True
+
+@cli.command(context_settings=MONKEY_CONTEXT, help="Wrap a job")
+@click.pass_context
+@click.argument('program')
+@click.argument('args', nargs=-1)
+@click.option('--configs', default=None,
+              help='Config file paths to load')
+@display_error
+def monkey(ctx, program, args, configs):
+
+    def monkey_run(cmd, globals, locals, configs):
+        try:
+            exec(cmd, globals, locals)
+        finally:
+            pass
+
+    sys.argv[:] = args
+    sys.path.insert(0, os.path.dirname(program))
+    with open(program, 'rb') as fp:
+        code = compile(fp.read(), program, 'exec')
+    globs = {
+            '__file__': program,
+            '__name__': '__main__',
+            '__package__': None,
+            'wandb_keras_hooks_install': wandb_keras_hooks_install,
+        }
+    prep = 'wandb_keras_hooks_install()'
+    monkey_run(prep, globs, None, configs)
+    monkey_run(code, globs, None, configs)
+
+
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
 @click.argument('config_yaml')
