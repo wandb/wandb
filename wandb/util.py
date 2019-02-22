@@ -42,6 +42,9 @@ from wandb import wandb_dir
 from wandb.apis import CommError
 from wandb import wandb_config
 
+DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
+HAS_DATA_FRAME_FNAME = '.has_data_frame'
+
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
@@ -416,7 +419,7 @@ def json_dumps_safer_history(obj, **kwargs):
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
-def write_data_frame(df, run_name, data_frame_id, run_dir, table_name):
+def write_data_frame(df, run_name, data_frame_id, run_dir, frame_name):
     pandas = get_module("pandas")
     fastparquet = get_module("fastparquet")
     if not pandas or not fastparquet:
@@ -429,10 +432,10 @@ def write_data_frame(df, run_name, data_frame_id, run_dir, table_name):
 
     df['wandb_data_frame_id'] = pandas.Series(
         [six.text_type(data_frame_id)] * len(df.index), index=df.index)
-    tables_dir = os.path.join(run_dir, 'media', 'tables')
-    mkdir_exists_ok(tables_dir)
-    open(os.path.join(tables_dir, '.has_tables'), 'a').close()
-    path = os.path.join(tables_dir, '{}-{}.parquet'.format(table_name, data_frame_id))
+    frames_dir = os.path.join(run_dir, DATA_FRAMES_SUBDIR)
+    mkdir_exists_ok(frames_dir)
+    open(os.path.join(frames_dir, HAS_DATA_FRAME_FNAME), 'a').close()
+    path = os.path.join(frames_dir, '{}-{}.parquet'.format(frame_name, data_frame_id))
     fastparquet.write(path, df)
     return path
 
