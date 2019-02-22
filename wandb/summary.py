@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import json
 import os
 import sys
@@ -14,7 +16,6 @@ from wandb.meta import Meta
 from wandb.apis.internal import Api
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
-RUNSTATE_FNAME = 'wandb-run.json'
 SUMMARY_FNAME = 'wandb-summary.json'
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "pytorch.Tensor")
 
@@ -39,12 +40,13 @@ class Summary(object):
 
     def _transform(self, k, v=None, write=True):
         """Transforms keys json into rich objects for the data api"""
+        # TODO(adrian): Can we just get rid of the "write" mode? It seems to do nothing.
         if not write and isinstance(v, dict):
             if v.get("_type") in H5_TYPES:
                 return self.read_h5(k, v)
             elif v.get("_type") == 'parquet':
                 print(
-                    'This dataframe was saved via the wandb data API. Contact support@wandb.com for help.')
+                    'This data frame was saved via the wandb data API. Contact support@wandb.com for help.')
                 return None
             # TODO: transform wandb objects and plots
             else:
@@ -74,6 +76,7 @@ class Summary(object):
         if k.startswith("_"):
             return super(Summary, self).__getattr__(k)
         else:
+            # TODO(adrian): should probably get rid of the strip()'s here.
             return self._transform(k.strip(), self._summary[k.strip()], write=False)
 
     def __delitem__(self, k):
@@ -123,63 +126,32 @@ class Summary(object):
         if not self._h5 and h5py:
             self._h5 = h5py.File(self._h5_path, 'a', libver='latest')
 
-    @property
-    def _run_state_path(self):
-        return os.path.join(self._run.dir, RUNSTATE_FNAME)
-
-    def _get_run_state(self):
-        if self._run_state is None:
-            try:
-                self._run_state = json.loads(open(self._run_state_path).read())
-            except IOError:
-                return None
-        return self._run_state
-
-    def _set_run_state(self, run_state_id, summary_dict):
-        if self._get_run_state():
-            return  # TODO(adrian): we only allow one run state for now
-
-        self._run_state = {
-            'wandb_run_id': self._run.name,
-            'wandb_run_state_id': run_state_id,
-            'summary': summary_dict,
-            'config': {k: v['value'] for k, v in self._run.config.as_dict().items()}
-        }
-
-        with open(self._run_state_path, 'w') as of:
-            json.dump(self._run_state, of)
-
     def convert_json(self, obj=None, root_path=[]):
         """Convert obj to json, summarizing larger arrays in JSON and storing them in h5."""
         res = {}
         obj = obj or self._summary
-
-        saved_bq_data = False
-        run_state = self._get_run_state() or {}
-        run_state_id = run_state.get(
-            'wandb_run_state_id') or util.generate_id()
 
         for key, value in six.iteritems(obj):
             path = ".".join(root_path + [key])
             if isinstance(value, dict):
                 res[key], converted = util.json_friendly(
                     self.convert_json(value, root_path + [key]))
-            elif util.can_write_dataframe_as_parquet() and util.is_pandas_dataframe(value):
-                path = util.write_dataframe(
+            elif util.is_pandas_data_frame(value):
+                data_frame_id = util.generate_id()
+
+                path = util.write_data_frame(
                     value,
                     self._run.name,
-                    run_state_id,
+                    data_frame_id,
                     self._run.dir,
                     key)
 
                 res[key] = {
                     "_type": "parquet",
-                    'run_state_id': run_state_id,
-                    'current_project_name': self._run.project,  # we don't have the project ID here
+                    'data_frame_id': data_frame_id,
+                    'current_project_name': self._run.project_name(),  # we don't have the project ID here
                     'path': path,
                 }
-
-                saved_bq_data = True
             else:
                 tmp_obj, converted = util.json_friendly(
                     data_types.val_to_json(key, value))
@@ -187,9 +159,6 @@ class Summary(object):
                     tmp_obj, util.get_h5_typename(value))
                 if compressed:
                     self.write_h5(path, tmp_obj)
-
-        if saved_bq_data:
-            self._set_run_state(run_state_id, res)
 
         self._summary = res
         return res

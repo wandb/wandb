@@ -201,7 +201,7 @@ def is_pytorch_tensor_typename(typename):
     return typename.startswith('torch.') and ('Tensor' in typename or 'Variable' in typename)
 
 
-def is_pandas_dataframe_typename(typename):
+def is_pandas_data_frame_typename(typename):
     return typename.startswith('pandas.') and 'DataFrame' in typename
 
 
@@ -213,8 +213,8 @@ def is_plotly_typename(typename):
     return typename.startswith("plotly.")
 
 
-def is_pandas_dataframe(obj):
-    return is_pandas_dataframe_typename(get_full_typename(obj))
+def is_pandas_data_frame(obj):
+    return is_pandas_data_frame_typename(get_full_typename(obj))
 
 
 def ensure_matplotlib_figure(obj):
@@ -416,29 +416,25 @@ def json_dumps_safer_history(obj, **kwargs):
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
-def can_write_dataframe_as_parquet():
+def write_data_frame(df, run_name, data_frame_id, run_dir, table_name):
     pandas = get_module("pandas")
     fastparquet = get_module("fastparquet")
-    return pandas and fastparquet
+    if not pandas or not fastparquet:
+        raise wandb.Error("Failed to save data frame: unable to import either pandas or fastparquet.")
 
+    # We have to call this wandb_run_id because that name is treated specially by
+    # our filtering code
+    df['wandb_run_id'] = pandas.Series(
+        [six.text_type(run_name)] * len(df.index), index=df.index)
 
-def write_dataframe(df, run_name, run_state_id, run_dir, table_name):
-    pandas = get_module("pandas")
-    fastparquet = get_module("fastparquet")
-    if pandas and fastparquet:
-        # we have to call this wandb_run_id because that name is treated specially by
-        # our filtering code
-        df['wandb_run_id'] = pandas.Series(
-            [six.text_type(run_name)] * len(df.index), index=df.index)
-        df['wandb_run_state_id'] = pandas.Series(
-            [six.text_type(run_state_id)] * len(df.index), index=df.index)
-        tables_dir = os.path.join(run_dir, 'media', 'tables')
-        mkdir_exists_ok(tables_dir)
-        path = os.path.join(tables_dir, '{}-{}.parquet'.format(run_state_id, table_name))
-        fastparquet.write(path, df)
-        return path
-    else:
-        raise wandb.Error("Unable to load pandas or fastparquet. Not saving summary dataframe.")
+    df['wandb_data_frame_id'] = pandas.Series(
+        [six.text_type(data_frame_id)] * len(df.index), index=df.index)
+    tables_dir = os.path.join(run_dir, 'media', 'tables')
+    mkdir_exists_ok(tables_dir)
+    open(os.path.join(tables_dir, '.has_tables'), 'a').close()
+    path = os.path.join(tables_dir, '{}-{}.parquet'.format(table_name, data_frame_id))
+    fastparquet.write(path, df)
+    return path
 
 
 def make_json_if_not_number(v):
