@@ -294,7 +294,7 @@ def status(run, settings, project):
         ))
 
 
-@cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
+@cli.command(context_settings=CONTEXT, help="Restore code, config and docker state for a run")
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
@@ -325,7 +325,7 @@ def restore(ctx, run, branch, project, entity):
         try:
             api.git.repo.commit(commit)
         except ValueError:
-            click.echo("Couldn't find original commit: {}".format(commit))
+            wandb.termlog("Couldn't find original commit: {}".format(commit))
             commit = None
             files = api.download_urls(project, run=run, entity=entity)
             for filename in files:
@@ -339,7 +339,7 @@ def restore(ctx, run, branch, project, entity):
                         break
 
             if commit:
-                click.echo(
+                wandb.termlog(
                     "Falling back to upstream commit: {}".format(commit))
                 patch_path, _ = api.download_write_file(files[filename])
             else:
@@ -356,14 +356,14 @@ def restore(ctx, run, branch, project, entity):
         branch_name = "wandb/%s" % run
         if branch and branch_name not in api.git.repo.branches:
             api.git.repo.git.checkout(commit, b=branch_name)
-            click.echo("Created branch %s" %
+            wandb.termlog("Created branch %s" %
                        click.style(branch_name, bold=True))
         elif branch:
-            click.secho(
-                "Using existing branch, run `git branch -D %s` from master for a clean checkout" % branch_name, fg="red")
+            wandb.termlog(
+                "Using existing branch, run `git branch -D %s` from master for a clean checkout" % branch_name)
             api.git.repo.git.checkout(branch_name)
         else:
-            click.secho("Checking out %s in detached mode" % commit)
+            wandb.termlog("Checking out %s in detached mode" % commit)
             api.git.repo.git.checkout(commit)
 
         if patch_path:
@@ -377,19 +377,22 @@ def restore(ctx, run, branch, project, entity):
             # TODO(adrian): this means there is no error checking here
             subprocess.call(['git', 'apply', '--reject',
                              patch_rel_path], cwd=root)
-            click.echo("Applied patch")
+            wandb.termlog("Applied patch")
 
-    config = Config()
+    # TODO: we should likely respect WANDB_DIR here.
+    util.mkdir_exists_ok("wandb")
+    config = Config(run_dir="wandb")
     config.load_json(json_config)
     config.persist()
-    click.echo("Restored config variables")
+    wandb.termlog("Restored config variables to %s" % config._config_path())
     if image:
-        if metadata.get("args") is not None:
-            cmd = metadata["program"] + " ".join(metadata["args"])
+        if not metadata["program"].startswith("<") and metadata.get("args") is not None:
+            cmd = " ".join([metadata["program"]] + metadata["args"])
         else:
+            wandb.termlog("Couldn't find original command, just restoring environment")
             cmd = None
-        click.echo("Docker image found, attempting to start")
-        ctx.invoke(docker, docker_run_args=image, cmd=cmd)
+        wandb.termlog("Docker image found, attempting to start")
+        ctx.invoke(docker, docker_run_args=[image], cmd=cmd)
 
     return commit, json_config, patch_content, repo, metadata
 

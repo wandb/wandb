@@ -177,7 +177,8 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
 
             if request.node.get_closest_marker('resume'):
                 # env was leaking when running the whole suite...
-                del os.environ[env.RUN_ID]
+                if os.getenv(env.RUN_ID):
+                    del os.environ[env.RUN_ID]
                 query_run_resume_status(request_mocker)
                 os.mkdir(wandb.wandb_dir())
                 with open(os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME), "w") as f:

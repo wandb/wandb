@@ -253,7 +253,7 @@ def json_friendly(obj):
         elif obj.size <= 32:
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
-        obj = np.asscalar(obj)
+        obj = obj.item()
     elif isinstance(obj, bytes):
         obj = obj.decode('utf-8')
     elif isinstance(obj, (datetime, date)):
