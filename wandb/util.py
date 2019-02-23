@@ -603,6 +603,43 @@ def get_log_file_path():
     """
     return wandb.GLOBAL_LOG_FNAME
 
+def docker_image_regex(image):
+    "regex for valid docker image names"
+    if image:
+        return re.match(r"^(?:(?=[^:\/]{1,253})(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-zA-Z0-9-]{1,63}(?<!-))*(?::[0-9]{1,5})?/)?((?![._-])(?:[a-z0-9._-]*)(?<![._-])(?:/(?![._-])[a-z0-9._-]*(?<![._-]))*)(?::(?![.-])[a-zA-Z0-9_.-]{1,128})?$", image)
+
+def image_from_docker_args(args):
+    """This scans docker run args and attempts to find the most likely docker image argument.
+    If excludes any argments that start with a dash, and the argument after it if it isn't a boolean
+    switch.  This can be improved, we currently fallback gracefully when this fails.
+    """
+    bool_args = ["-t", "--tty", "--rm","--privileged", "--oom-kill-disable","--no-healthcheck", "-i",
+        "--interactive", "--init", "--help", "--detach", "-d", "--sig-proxy", "-it", "-itd"]
+    last_flag = -2
+    last_arg = ""
+    possible_images = []
+    if len(args) > 0 and args[0] == "run":
+        args.pop(0)
+    for i, arg in enumerate(args):
+        if arg.startswith("-"):
+            last_flag = i
+            last_arg = arg
+        elif docker_image_regex(arg):
+            if last_flag == i - 2:
+                possible_images.append(arg)
+            elif "=" in last_arg:
+                possible_images.append(arg)
+            elif last_arg in bool_args and last_flag == i - 1:
+                possible_images.append(arg)
+    most_likely = None
+    for img in possible_images:
+        if ":" in img or "@" in img or "/" in img:
+            most_likely = img
+            break
+    if most_likely == None and len(possible_images) > 0:
+        most_likely = possible_images[0]
+    return most_likely
+
 
 def image_id_from_k8s():
     """Pings the k8s metadata service for the image id"""
@@ -614,7 +651,7 @@ def image_id_from_k8s():
         )
         try:
             res = requests.get(k8s_server, verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-                               headers={"Authorization": "Bearer {}".format(open(token_path).read())})
+                               timeout=3, headers={"Authorization": "Bearer {}".format(open(token_path).read())})
             res.raise_for_status()
         except requests.RequestException:
             return None

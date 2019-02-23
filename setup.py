@@ -51,7 +51,7 @@ setup(
             'wandb=wandb.cli:cli',
             'wb=wandb.cli:cli',
             'wanbd=wandb.cli:cli',
-            'wandb-docker=wandb.cli:docker'
+            'wandb-docker-run=wandb.cli:docker-run'
         ]
     },
     include_package_data=True,

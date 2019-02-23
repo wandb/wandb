@@ -25,7 +25,8 @@ import traceback
 import yaml
 import threading
 import random
-from distutils.spawn import find_executable
+# pycreds has a find_executable that works in windows
+from dockerpycreds.utils import find_executable
 
 from wandb import util
 
@@ -300,7 +301,7 @@ def status(run, settings, project):
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
 @click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
-def restore(run, branch, project, entity):
+def restore(ctx, run, branch, project, entity):
     if not api.git.enabled:
         raise ClickException(
             "`wandb restore` can only be called from within an existing git repository.")
@@ -312,16 +313,13 @@ def restore(run, branch, project, entity):
         project, run = rest.split(":", 1)
 
     project, run = api.parse_slug(run, project=project)
-    commit, json_config, patch_content, repo = api.run_config(
+    commit, json_config, patch_content, repo, metadata = api.run_config(
         project, run=run, entity=entity)
     subprocess.check_call(['git', 'fetch', '--all'])
 
     image = None
-    if json_config.get("_wandb"):
-        wandb_config = json_config["_wandb"]["value"]
-        image = wandb_config.get("image")
-        if wandb_config.get("digest"):
-            image = image + "@" + wandb_config["digest"]
+    if metadata.get("docker"):
+        image = metadata["docker"]
 
     if commit:
         try:
@@ -386,10 +384,14 @@ def restore(run, branch, project, entity):
     config.persist()
     click.echo("Restored config variables")
     if image:
-        click.echo("Starting docker container")
-        ctx.invoke(docker, docker_run_args=image)
+        if metadata.get("args") is not None:
+            cmd = metadata["program"] + " ".join(metadata["args"])
+        else:
+            cmd = None
+        click.echo("Docker image found, attempting to start")
+        ctx.invoke(docker, docker_run_args=image, cmd=cmd)
 
-    return commit, json_config, patch_content, repo
+    return commit, json_config, patch_content, repo, metadata
 
 
 @cli.command(context_settings=CONTEXT, help="Upload an offline training directory to W&B")
@@ -723,21 +725,57 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
 
     rm.run_user_process(program, args, environ)
 
+@cli.command(context_settings=RUN_CONTEXT, name="docker-run")
+@click.pass_context
+@click.argument('docker_run_args', nargs=-1)
+@click.option('--help')
+def docker_run(ctx, docker_run_args, help):
+    """Simple docker wrapper that adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
+    This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
+    and --runtime wasn't set.
+    """
+    args = list(docker_run_args)
+    if len(args) > 0 and args[0] == "run":
+        args.pop(0)
+    if help or len(args) == 0:
+        wandb.termlog("This commands adds wandb env variables to your docker run calls")
+        subprocess.call(['docker', 'run'] + args + ['--help'])
+        exit()
+    #TODO: is this what we want?
+    if len([a for a in args if a.startswith("--runtime")]) == 0 and find_executable('nvidia-docker'):
+        args = ["--runtime", "nvidia"] + args
+    #TODO: image_from_docker_args uses heuristics to find the docker image arg, there are likely cases
+    #where this won't work
+    image = util.image_from_docker_args(args)
+    if image:
+        resolved_image = wandb.docker.image_id(image)
+    if resolved_image:
+        args = ['-e', 'WANDB_DOCKER=%s' % resolved_image] + args
+    else:
+        wandb.termlog("Couldn't detect image arg, running command without WANDB_DOCKER env variable")
+    if api.api_key:
+        args = ['-e', 'WANDB_API_KEY=%s' % api.api_key] + args
+    else:
+        wandb.termlog("Not logged in, can't prepend api key")
+    subprocess.call(['docker', 'run'] + args)
+
+
 @cli.command(context_settings=RUN_CONTEXT)
 @click.pass_context
 @click.argument('docker_run_args', nargs=-1)
 @click.argument('docker_image', required=False)
 @click.option('--nvidia/--no-nvidia', default=find_executable('nvidia-docker'),
-              help='Use nvidia-docker instead of docker')
+              help='Use the nvidia runtime, defaults to nvidia if nvidia-docker is present')
 @click.option('--digest', is_flag=True, default=False, help="Output the image digest and exit")
 @click.option('--jupyter/--no-jupyter', default=False, help="Run jupyter lab in the container")
-@click.option('--dir', default="/app", help="Which directory to mount the code in")
+@click.option('--dir', default="/app", help="Which directory to mount the code in the container")
 @click.option('--no-dir', is_flag=True, help="Don't mount the current directory")
 @click.option('--shell', default="/bin/bash", help="The shell to start the container with")
+@click.option('--port', default="8888", help="The hot port to bind jupyter on")
 @click.option('--cmd', help="The command to run in the container")
 @click.option('--no-tty', is_flag=True, default=False, help="Run the command without a tty")
 @display_error
-def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_dir, shell, cmd, no_tty):
+def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_dir, shell, port, cmd, no_tty):
     """W&B docker lets you run your code in a docker image ensuring wandb is configured. It adds the WANDB_DOCKER and WANDB_API_KEY
     environment variables to your container and mounts the current directory in /app by default.  You can pass additional
     args which will be added to `docker run` before the image name is declared, we'll choose a default image for you if
@@ -745,16 +783,23 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
 
     wandb docker -v /mnt/dataset:/app/data
     wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
-    wandb docker ufoym/deepo --cmd "python train.py --epochs=5"
+    wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
+
+    By default we override the entrypoint to check for the existance of wandb and install it if not present.  If you pass the --jupyter
+    flag we will ensure jupyter is installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your system we will use
+    the nvidia runtime.  If you just want wandb to set environment variable to an existing docker run command, see the wandb docker-run 
+    command.
     """
+    if not find_executable('docker'):
+        raise ClickException(
+            "Docker not installed, install it from https://docker.com" )
     args = list(docker_run_args)
     image = docker_image
     # remove run for users used to nvidia-docker
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
     # If the user adds docker args without specifying an image (should be rare)
-    # TODO: this heuristic is edge case prone
-    if image is None or image[0] in ["-","/"] or "=" in image:
+    if not util.docker_image_regex(image):
         if image:
             args = args + [image]
         image = wandb.docker.default_image(gpu=nvidia, jupyter=jupyter)
@@ -762,12 +807,14 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
 
     resolved_image = wandb.docker.image_id(image)
     if resolved_image is None:
-        raise ClickException("Couldn't find image locally or in a registry, try running `docker pull %s`" % image)
+        raise ClickException(
+            "Couldn't find image locally or in a registry, try running `docker pull %s`" % image)
     if digest:
         sys.stdout.write(resolved_image)
-        exit()
+        exit(0)
 
-    existing = wandb.docker.shell(["ps", "-f", "ancestor=%s" % resolved_image, "-q"])
+    existing = wandb.docker.shell(
+        ["ps", "-f", "ancestor=%s" % resolved_image, "-q"])
     if existing:
         question = {
             'type': 'confirm',
@@ -780,27 +827,27 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
             exit()
     cwd = os.getcwd()
     command = ['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=%s' % resolved_image, '--ipc=host',
-        '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh']
+                '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh']
     if nvidia:
         command.extend(['--runtime', 'nvidia'])
     if not no_dir:
         command.extend(['-v', cwd+":"+dir, '-w', dir])
-    #TODO: force login?
+    # TODO: force login?
     if api.api_key:
         command.extend(['-e', 'WANDB_API_KEY=%s' % api.api_key])
     if jupyter:
-        command.extend(['-e', 'WANDB_ENSURE_JUPYTER=1', '-p', '8888:8888'])
+        command.extend(['-e', 'WANDB_ENSURE_JUPYTER=1', '-p', port+':8888'])
         no_tty = True
         cmd = "jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir %s" % dir
     command.extend(args)
-    if not no_tty:
+    if no_tty:
+        command.extend([image, shell, "-c", cmd])
+    else:
         if cmd:
             command.extend(['-e', 'WANDB_COMMAND=%s' % cmd])
         command.extend(['-it', image, shell])
-    else:
-        command.extend([image, shell, "-c", cmd])
 
-    wandb.termlog("Launching docker container \U0001F680")
+        wandb.termlog("Launching docker container \U0001F6A2")
     subprocess.call(command)
 
 

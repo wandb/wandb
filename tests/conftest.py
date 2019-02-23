@@ -10,7 +10,13 @@ import json
 import sys
 import threading
 from wandb import wandb_socket
+from wandb import env
 from wandb.wandb_run import Run
+
+
+def pytest_runtest_setup(item):
+    # This is used to find tests that are leaking outside of tmp directories
+    os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
 
 
 @pytest.fixture
@@ -110,6 +116,29 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                             def listen(self, secs):
                                 return False, None
                         monkeypatch.setattr("wandb.wandb_socket.Server", Error)
+                if kwargs.get('k8s') is not None:
+                    token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+                    crt_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                    orig_exist = os.path.exists
+
+                    def exists(path):
+                        return True if path in token_path else orig_exist(path)
+
+                    def magic(path, *args, **kwargs):
+                        if path == token_path:
+                            return six.StringIO('token')
+                    mocker.patch('wandb.util.open', magic, create=True)
+                    mocker.patch('wandb.util.os.path.exists', exists)
+                    os.environ["KUBERNETES_SERVICE_HOST"] = "k8s"
+                    os.environ["KUBERNETES_PORT_443_TCP_PORT"] = "123"
+                    os.environ["HOSTNAME"] = "test"
+                    if kwargs["k8s"]:
+                        request_mocker.register_uri("GET", "https://k8s:123/api/v1/namespaces/default/pods/test",
+                                                    content=b'{"status":{"containerStatuses":[{"imageID":"docker-pullable://test@sha256:1234"}]}}')
+                    else:
+                        request_mocker.register_uri("GET", "https://k8s:123/api/v1/namespaces/default/pods/test",
+                                                    content=b'{}', status_code=500)
+                    del kwargs["k8s"]
                 if kwargs.get('sagemaker'):
                     del kwargs['sagemaker']
                     config_path = "/opt/ml/input/config/hyperparameters.json"
@@ -147,6 +176,8 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 kwargs = {}
 
             if request.node.get_closest_marker('resume'):
+                # env was leaking when running the whole suite...
+                del os.environ[env.RUN_ID]
                 query_run_resume_status(request_mocker)
                 os.mkdir(wandb.wandb_dir())
                 with open(os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME), "w") as f:

@@ -7,7 +7,7 @@ import pandas
 import pytest
 
 from . import utils
-from wandb.util import json_friendly
+from wandb import util
 
 
 def pt_variable(nested_list, requires_grad=True):
@@ -33,14 +33,15 @@ def l(*shape):
 
 
 def json_friendly_test(orig_data, obj):
-    data, converted = json_friendly(obj)
+    data, converted = util.json_friendly(obj)
     utils.assert_deep_lists_equal(orig_data, data)
     assert converted
 
 
 def tensorflow_json_friendly_test(orig_data):
     with tensorflow.Session().as_default() as s:
-        json_friendly_test(orig_data, tensorflow.convert_to_tensor(orig_data))
+        json_friendly_test(
+            orig_data, tensorflow.convert_to_tensor(orig_data))
         v = tensorflow.Variable(tensorflow.convert_to_tensor(orig_data))
         s.run(tensorflow.global_variables_initializer())
         json_friendly_test(orig_data, v)
@@ -137,3 +138,27 @@ def test_tensorflow_json_nd():
 
 def test_tensorflow_json_nd_large():
     tensorflow_json_friendly_test(l(3, 3, 3, 3, 3, 3, 3, 3))
+
+
+def test_image_from_docker_args_simple():
+    image = util.image_from_docker_args([
+        "run", "-v", "/foo:/bar", "-e", "NICE=foo", "-it", "wandb/deepo", "/bin/bash"])
+    assert image == "wandb/deepo"
+
+
+def test_image_from_docker_args_simple_no_namespace():
+    image = util.image_from_docker_args([
+        "run", "-e", "NICE=foo", "nginx", "/bin/bash"])
+    assert image == "nginx"
+
+
+def test_image_from_docker_args_simple_no_equals():
+    image = util.image_from_docker_args([
+        "run", "--runtime=runc", "ufoym/deepo:cpu-all"])
+    assert image == "ufoym/deepo:cpu-all"
+
+
+def test_image_from_docker_args_simple_no_namespace():
+    image = util.image_from_docker_args([
+        "run", "ufoym/deepo:cpu-all", "/bin/bash", "-c", "python train.py"])
+    assert image == "ufoym/deepo:cpu-all"

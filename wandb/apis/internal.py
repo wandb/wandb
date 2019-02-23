@@ -415,7 +415,7 @@ class Api(object):
 
     @normalize_exceptions
     def run_config(self, project, run=None, entity=None):
-        """Get the config for a run
+        """Get the relevant configs for a run
 
         Args:
             project (str): The project to download, (can include bucket)
@@ -425,12 +425,18 @@ class Api(object):
         query = gql('''
         query Model($name: String!, $entity: String!, $run: String!) {
             model(name: $name, entityName: $entity) {
-                repo
                 bucket(name: $run) {
                     config
                     github
                     commit
                     patch
+                    files(names: ["wandb-metadata.json"]) {
+                        edges {
+                            node {
+                                url
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -443,7 +449,14 @@ class Api(object):
         commit = run['commit']
         patch = run['patch']
         config = json.loads(run['config'] or '{}')
-        return (commit, config, patch, response['model']['repo'])
+        if len(run['files']['edges']) > 0:
+            url = run['files']['edges'][0]['node']['url']
+            res = requests.get(url)
+            res.raise_for_status()
+            metadata = res.json()
+        else:
+            metadata = {}
+        return (commit, config, patch, run['github'], metadata)
 
     @normalize_exceptions
     def run_resume_status(self, entity, project_name, name):

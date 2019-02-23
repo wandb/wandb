@@ -98,9 +98,11 @@ def test_run_history_system(request_mocker, query_run_v2, query_download_h5):
         {'cpu': 10}, {'cpu': 20}, {'cpu': 30}]
 
 
-def test_run_summary(request_mocker, query_run_v2, upsert_run, query_download_h5):
+def test_run_summary(request_mocker, query_run_v2, upsert_run, query_download_h5, query_upload_h5):
     run_mock = query_run_v2(request_mocker)
     query_download_h5(request_mocker)
+    # TODO: this likely shouldn't need to be mocked
+    query_upload_h5(request_mocker)
     update_mock = upsert_run(request_mocker)
     run = api.run("test/test/test")
     run.summary.update({"cool": 1000})
@@ -115,10 +117,12 @@ def test_run_create(request_mocker, query_run_v2, upsert_run, query_download_h5)
     assert update_mock.called
 
 
-def test_run_update(request_mocker, query_run_v2, upsert_run, query_download_h5):
-    run_mock = query_run_v2(request_mocker)
+def test_run_update(request_mocker, query_run_v2, upsert_run, query_download_h5, query_upload_h5):
     query_download_h5(request_mocker)
+    # TODO: this likely shouldn't need to be mocked
+    query_upload_h5(request_mocker)
     update_mock = upsert_run(request_mocker)
+    run_mock = query_run_v2(request_mocker)
     run = api.run("test/test/test")
     run.tags.append("test")
     run.config["foo"] = "bar"

@@ -129,15 +129,16 @@ def test_sync_etc_multiple_messages(mocker, run_manager):
 
 
 def test_init_run_network_down(mocker, caplog):
-    mocker.patch("wandb.apis.internal.Api.HTTP_TIMEOUT", 0.5)
-    api = internal.Api(
-        load_settings=False,
-        retry_timedelta=datetime.timedelta(0, 0, 50))
-    api.set_current_run_id(123)
-    run = Run()
-    mocker.patch("wandb.run_manager.RunManager._upsert_run",
-                 lambda *args: time.sleep(0.6))
-    rm = wandb.run_manager.RunManager(api, run)
-    step = rm.init_run()
-    assert step == 0
-    assert "Failed to connect" in caplog.text
+    with CliRunner().isolated_filesystem():
+        mocker.patch("wandb.apis.internal.Api.HTTP_TIMEOUT", 0.5)
+        api = internal.Api(
+            load_settings=False,
+            retry_timedelta=datetime.timedelta(0, 0, 50))
+        api.set_current_run_id(123)
+        run = Run()
+        mocker.patch("wandb.run_manager.RunManager._upsert_run",
+                     lambda *args: time.sleep(0.6))
+        rm = wandb.run_manager.RunManager(api, run)
+        step = rm.init_run()
+        assert step == 0
+        assert "Failed to connect" in caplog.text

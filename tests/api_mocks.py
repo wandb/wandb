@@ -118,7 +118,11 @@ index 30d74d2..9a2c773 100644
 \ No newline at end of file
         ''',
         'commit': 'HEAD',
-        'config': '{"foo":{"value":"bar"}}'
+        'github': 'https://github.com/vanpelt',
+        'config': '{"foo":{"value":"bar"}}',
+        'files': {
+            'edges': [{'node': {'url': 'https://metadata.json'}}]
+        }
     }
 
 
@@ -216,22 +220,22 @@ def query_runs():
 
 
 @pytest.fixture
-def query_run():
-    return _query('model', {'bucket': _bucket_config(), 'repo': 'https://github.com/lukas/ml-class'})
+def query_run(request_mocker):
+    request_mocker.register_uri('GET', 'https://metadata.json',
+                                content=b'{"docker": "test/docker", "program": "train.py", "args": ["--test", "foo"]}', status_code=200)
+    return _query('model', {'bucket': _bucket_config()})
 
 
 @pytest.fixture
 def query_run_v2():
-    return _query('project', {'run': _run()})
+    return _query('project', {'run': _run()}, body_match='run(name:')
 
 
 @pytest.fixture
-def query_run_files(mocker):
-    def wrapper(mocker, status_code=200, error=None, content=None):
-        mocker.register_uri('GET', "https://weights.url")
-        return _query('project', {'run': _run_files()},
-                      body_match='files(names: ')(mocker, status_code, error)
-    return wrapper
+def query_run_files(request_mocker):
+    request_mocker.register_uri('GET', "https://weights.url")
+    return _query('project', {'run': _run_files()},
+                  body_match='files(names: ')
 
 
 @pytest.fixture
