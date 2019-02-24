@@ -805,7 +805,8 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
     if not util.docker_image_regex(image):
         if image:
             args = args + [image]
-        image = wandb.docker.default_image(gpu=nvidia, jupyter=jupyter)
+        image = wandb.docker.default_image(gpu=nvidia)
+        subprocess.call(["docker", "pull", image])
     _, repo_name, tag = wandb.docker.parse(image)
 
     resolved_image = wandb.docker.image_id(image)

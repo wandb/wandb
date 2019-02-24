@@ -232,7 +232,7 @@ def test_restore(runner, request_mocker, query_run, git_repo, docker, monkeypatc
     assert "Applied patch" in result.output
     assert "Restored config variables to wandb/" in result.output
     assert "Launching docker container" in result.output
-    docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', 
+    docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', 
         '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', 
         '/app', '-e', 'WANDB_API_KEY=test', 'test/docker', '-e', 'WANDB_COMMAND=train.py --test foo', '-it', 'wandb/deepo:all-cpu', '/bin/bash'])
 
@@ -332,7 +332,7 @@ def test_docker_args(runner, docker):
         result = runner.invoke(cli.docker, ["test", "-v", "/tmp:/tmp"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
-        docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', 
+        docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', 
         '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', 'test', '-v', '/tmp:/tmp', '-it', 'wandb/deepo:all-cpu', '/bin/bash'])
         assert result.exit_code == 0
 

@@ -11,6 +11,7 @@ these values in many cases.
 """
 
 import os
+import json
 
 CONFIG_PATHS = 'WANDB_CONFIG_PATHS'
 SHOW_RUN = 'WANDB_SHOW_RUN'
@@ -23,6 +24,7 @@ PROJECT = 'WANDB_PROJECT'
 ENTITY = 'WANDB_ENTITY'
 BASE_URL = 'WANDB_BASE_URL'
 PROGRAM = 'WANDB_PROGRAM'
+ARGS = 'WANDB_ARGS'
 MODE = 'WANDB_MODE'
 RESUME = 'WANDB_RESUME'
 RUN_ID = 'WANDB_RUN_ID'
@@ -60,7 +62,17 @@ def get_run(default=None, env=None):
     if env is None:
         env = os.environ
 
-    return env.get(RUN, default)
+    return env.get(RUN_ID, default)
+
+
+def get_args(default_json="[]", env=None):
+    if env is None:
+        env = os.environ
+
+    try:
+        return json.loads(env.get(ARGS, default_json))
+    except ValueError:
+        return None
 
 
 def get_docker(default=None, env=None):

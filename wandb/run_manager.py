@@ -440,6 +440,7 @@ class RunManager(object):
         self._meta.data["mode"] = self._run.mode
         if self._run.program:
             self._meta.data["program"] = self._run.program
+            self._meta.data["args"] = self._run.args
 
         # This allows users to specify files they want uploaded during the run
         self._user_file_policies = {

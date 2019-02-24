@@ -14,13 +14,13 @@ log = logging.getLogger(__name__)
 def shell(cmd):
     "Simple wrapper for calling docker, returning None on error and the output on success"
     try:
-        return subprocess.check_output(['docker'] + cmd, stderr=subprocess.STDOUT).decode('utf8')
+        return subprocess.check_output(['docker'] + cmd, stderr=subprocess.STDOUT).decode('utf8').strip()
     except subprocess.CalledProcessError:
         return None
 
 
-def default_image(gpu=False, jupyter=False):
-    tag = "jupyter" if jupyter else "all"
+def default_image(gpu=False):
+    tag = "all"
     if not gpu:
         tag += "-cpu"
     return "wandb/deepo:%s" % tag

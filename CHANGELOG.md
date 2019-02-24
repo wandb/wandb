@@ -1,4 +1,4 @@
-## 0.7.0 (February 16, 2019)
+## 0.7.0 (February 25, 2019)
 
 #### :bug: Bug Fix
 
@@ -8,11 +8,12 @@
 #### :nail_care: Enhancement
 
 -   support for logging docker images with the WANDB_DOCKER env var
--   new wandb-docker command to automatically set env vars and mount code
--   wandb.restore supports using docker for runs that ran with it
+-   WANDB_DOCKER automatically set when run in kubernetes
+-   new wandb-docker-run command to automatically set env vars and mount code
+-   wandb.restore supports launching docker for runs that ran with it
 -   python packages are now recorded and saved in a requirements.txt file
 -   cpu_count, gpu_count, gpu, os, and python version stored in wandb-metadata.json
--   the export api now supports docker like paths, i.e. username/project:run_id
+-   the export api now supports docker-like paths, i.e. username/project:run_id
 
 ## 0.6.35 (January 29, 2019)
 

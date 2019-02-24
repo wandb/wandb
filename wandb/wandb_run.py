@@ -36,7 +36,7 @@ DESCRIPTION_FNAME = 'description.md'
 class Run(object):
     def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None,
                  config=None, sweep_id=None, storage_id=None, description=None, resume=None,
-                 program=None, wandb_dir=None, tags=[]):
+                 program=None, args=None, wandb_dir=None, tags=[]):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else util.generate_id()
         self.resume = resume if resume else 'never'
@@ -54,6 +54,9 @@ class Run(object):
             except (ImportError, AttributeError):
                 # probably `python -c`, an embedded interpreter or something
                 self.program = '<python with no main file>'
+        self.args = args
+        if self.args is None:
+            self.args = sys.argv[1:]
         self.wandb_dir = wandb_dir
 
         with configure_scope() as scope:
@@ -161,13 +164,14 @@ class Run(object):
         run_dir = environment.get(env.RUN_DIR)
         sweep_id = environment.get(env.SWEEP_ID)
         program = environment.get(env.PROGRAM)
+        args = env.get_args()
         wandb_dir = env.get_dir()
         tags = env.get_tags()
         config = Config.from_environment_or_defaults()
         run = cls(run_id, mode, run_dir,
                   group, job_type, config,
                   sweep_id, storage_id, program=program,
-                  wandb_dir=wandb_dir, tags=tags,
+                  args=args, wandb_dir=wandb_dir, tags=tags,
                   resume=resume)
         return run
 
@@ -307,6 +311,8 @@ class Run(object):
             environment[env.SWEEP_ID] = self.sweep_id
         if self.program is not None:
             environment[env.PROGRAM] = self.program
+        if self.args is not None:
+            environment[env.ARGS] = json.dumps(self.args)
         if len(self.tags) > 0:
             environment[env.TAGS] = ",".join(self.tags)
 
@@ -374,6 +380,7 @@ class Run(object):
         handler = logging.FileHandler(self.log_fname)
         handler.setLevel(logging.INFO)
         run_id = self.id
+
         class WBFilter(logging.Filter):
             def filter(self, record):
                 record.run_id = run_id
