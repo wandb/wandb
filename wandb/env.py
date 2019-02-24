@@ -11,6 +11,7 @@ these values in many cases.
 """
 
 import os
+import sys
 import json
 
 CONFIG_PATHS = 'WANDB_CONFIG_PATHS'
@@ -65,14 +66,16 @@ def get_run(default=None, env=None):
     return env.get(RUN_ID, default)
 
 
-def get_args(default_json="[]", env=None):
+def get_args(default=None, env=None):
     if env is None:
         env = os.environ
-
-    try:
-        return json.loads(env.get(ARGS, default_json))
-    except ValueError:
-        return None
+    if env.get(ARGS):
+        try:
+            return json.loads(env.get(ARGS, "[]"))
+        except ValueError:
+            return None
+    else:
+        return default or sys.argv[1:]
 
 
 def get_docker(default=None, env=None):
