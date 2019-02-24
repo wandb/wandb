@@ -17,7 +17,6 @@ def test_meta(git_repo):
     assert meta.data["startedAt"]
     assert meta.data["host"]
     assert meta.data["root"] == os.getcwd()
-    assert meta.data["email"]
     assert meta.data["python"]
     assert meta.data["program"]
     assert meta.data["args"] == ["bar"]
