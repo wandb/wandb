@@ -42,16 +42,6 @@ def empty_netrc(monkeypatch):
     monkeypatch.setattr(netrc, "netrc", lambda *args: FakeNet())
 
 
-@pytest.fixture
-def local_netrc(monkeypatch):
-    # TODO: this seems overkill...
-    origexpand = os.path.expanduser
-
-    def expand(path):
-        return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
-    monkeypatch.setattr(os.path, "expanduser", expand)
-
-
 def setup_module(module):
     os.environ["WANDB_TEST"] = "true"
 

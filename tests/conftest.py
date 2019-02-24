@@ -20,6 +20,16 @@ def pytest_runtest_setup(item):
 
 
 @pytest.fixture
+def local_netrc(monkeypatch):
+    # TODO: this seems overkill...
+    origexpand = os.path.expanduser
+
+    def expand(path):
+        return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
+    monkeypatch.setattr(os.path, "expanduser", expand)
+
+
+@pytest.fixture
 def history():
     with CliRunner().isolated_filesystem():
         yield History("wandb-history.jsonl")
@@ -27,7 +37,7 @@ def history():
 
 @pytest.fixture
 def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume_status,
-                   upload_logs, monkeypatch, mocker, capsys):
+                   upload_logs, monkeypatch, mocker, capsys, local_netrc):
     """Fixture that calls wandb.init(), yields a run (or an exception) that
     gets created, then cleans up afterward.  This is meant to test the logic
     in wandb.init, it should generally not spawn a run_manager.  If you need

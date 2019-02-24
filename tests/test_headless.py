@@ -81,7 +81,7 @@ def test_dry_run_kill(runner):
         os.environ["WANDB_MODE"] = "dryrun"
         os.environ["WANDB_TEST"] = "true"
         try:
-            res = sh.python("train.py", _bg=True)
+            res = sh.python("train.py", epochs=10, _bg=True)
             try:
                 res.wait()
                 print(res)
@@ -93,6 +93,7 @@ def test_dry_run_kill(runner):
             meta = json.loads(open(run_dir + "/wandb-metadata.json").read())
             assert meta["state"] == "killed"
             assert meta["exitcode"] == 255
+            assert meta["args"] == ["--epochs=10"]
         finally:
             del os.environ["WANDB_MODE"]
             del os.environ["WANDB_TEST"]
