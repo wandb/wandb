@@ -387,7 +387,8 @@ def restore(ctx, run, branch, project, entity):
     wandb.termlog("Restored config variables to %s" % config._config_path())
     if image:
         if not metadata["program"].startswith("<") and metadata.get("args") is not None:
-            cmd = " ".join([metadata["program"]] + metadata["args"])
+            #TODO: we likely don't want to assume python to start the script
+            cmd = " ".join(["python", metadata["program"]] + metadata["args"])
         else:
             wandb.termlog("Couldn't find original command, just restoring environment")
             cmd = None
@@ -797,12 +798,14 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
         raise ClickException(
             "Docker not installed, install it from https://docker.com" )
     args = list(docker_run_args)
-    image = docker_image
+    image = docker_image or ""
     # remove run for users used to nvidia-docker
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
+    if image == "" and len(args) > 0:
+        image = args.pop(0)
     # If the user adds docker args without specifying an image (should be rare)
-    if not util.docker_image_regex(image):
+    if not util.docker_image_regex(image.split("@")[0]):
         if image:
             args = args + [image]
         image = wandb.docker.default_image(gpu=nvidia)
@@ -850,7 +853,6 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
         if cmd:
             command.extend(['-e', 'WANDB_COMMAND=%s' % cmd])
         command.extend(['-it', image, shell])
-
         wandb.termlog("Launching docker container \U0001F6A2")
     subprocess.call(command)
 
