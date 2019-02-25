@@ -11,6 +11,8 @@ these values in many cases.
 """
 
 import os
+import sys
+import json
 
 CONFIG_PATHS = 'WANDB_CONFIG_PATHS'
 SHOW_RUN = 'WANDB_SHOW_RUN'
@@ -23,6 +25,7 @@ PROJECT = 'WANDB_PROJECT'
 ENTITY = 'WANDB_ENTITY'
 BASE_URL = 'WANDB_BASE_URL'
 PROGRAM = 'WANDB_PROGRAM'
+ARGS = 'WANDB_ARGS'
 MODE = 'WANDB_MODE'
 RESUME = 'WANDB_RESUME'
 RUN_ID = 'WANDB_RUN_ID'
@@ -35,6 +38,7 @@ JOB_TYPE = 'WANDB_JOB_TYPE'
 TAGS = 'WANDB_TAGS'
 IGNORE = 'WANDB_IGNORE_GLOBS'
 ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
+DOCKER = 'WANDB_DOCKER'
 
 
 def is_debug(default=None, env=None):
@@ -59,7 +63,26 @@ def get_run(default=None, env=None):
     if env is None:
         env = os.environ
 
-    return env.get(RUN, default)
+    return env.get(RUN_ID, default)
+
+
+def get_args(default=None, env=None):
+    if env is None:
+        env = os.environ
+    if env.get(ARGS):
+        try:
+            return json.loads(env.get(ARGS, "[]"))
+        except ValueError:
+            return None
+    else:
+        return default or sys.argv[1:]
+
+
+def get_docker(default=None, env=None):
+    if env is None:
+        env = os.environ
+
+    return env.get(DOCKER, default)
 
 
 def get_ignore(default=None, env=None):

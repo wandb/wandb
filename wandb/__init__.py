@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.6.35'
+__version__ = '0.7.0'
 
 import atexit
 import click
@@ -241,8 +241,9 @@ def _init_headless(run, cloud=True):
         if wandb_process.poll() is None:
             termerror('Failed to kill wandb process, PID {}'.format(
                 wandb_process.pid))
-        raise LaunchError("W&B process failed to launch, see: {}".format(
-            os.path.join(run.dir, "output.log")))
+        # TODO attempt to upload a debug log
+        raise LaunchError(
+            "W&B process failed to launch, see: {}".format(GLOBAL_LOG_FNAME))
 
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
@@ -637,7 +638,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
                 job_type = job_name
             if group == None and len(cluster.get("worker", [])) > 0:
                 group = cluster[job_name][0].rsplit("-"+job_name, 1)[0]
-
+    image = util.image_id_from_k8s()
+    if image:
+        os.environ[env.DOCKER] = image
     if project:
         os.environ[env.PROJECT] = project
     if entity:
@@ -756,6 +759,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
 keras = util.LazyLoader('keras', globals(), 'wandb.keras')
+docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 
 __all__ = ['init', 'config', 'termlog', 'termerror', 'tensorflow',
            'run', 'types', 'callbacks', 'join']

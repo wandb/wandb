@@ -113,11 +113,22 @@ class Api(object):
         self._runs = {}
 
     def _parse_path(self, path):
+        """Parses paths in the following formats:
+
+        url: username/project/runs/run_id
+        path: username/project/run_id
+        docker: username/project:run_id
+
+        username is optional and will fallback to the current logged in user.
+        """
         run = self.settings['run']
         project = self.settings['project']
         username = self.settings['username']
         parts = path.replace("/runs/", "/").split("/")
-        if parts[-1]:
+        if ":" in parts[-1]:
+            run = parts[-1].split(":")[-1]
+            parts[-1] = parts[-1].split(":")[0]
+        elif parts[-1]:
             run = parts[-1]
         if len(parts) > 1:
             project = parts[1]
@@ -125,6 +136,8 @@ class Api(object):
                 project = parts[0]
             else:
                 username = parts[0]
+        else:
+            project = parts[0]
         return (username, project, run)
 
     def runs(self, path="", filters={}, order="-created_at", per_page=None):
@@ -456,7 +469,8 @@ class Run(object):
             download_h5(self.name, entity=self.username,
                         project=self.project, out_dir=self.dir)
             # TODO: fix the outdir issue
-            self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
+            self._summary = HTTPSummary(
+                self, self.client, summary=self.summary_metrics)
         return self._summary
 
     @property

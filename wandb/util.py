@@ -253,7 +253,7 @@ def json_friendly(obj):
         elif obj.size <= 32:
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
-        obj = np.asscalar(obj)
+        obj = obj.item()
     elif isinstance(obj, bytes):
         obj = obj.decode('utf-8')
     elif isinstance(obj, (datetime, date)):
@@ -603,6 +603,92 @@ def get_log_file_path():
     """
     return wandb.GLOBAL_LOG_FNAME
 
+def docker_image_regex(image):
+    "regex for valid docker image names"
+    if image:
+        return re.match(r"^(?:(?=[^:\/]{1,253})(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-zA-Z0-9-]{1,63}(?<!-))*(?::[0-9]{1,5})?/)?((?![._-])(?:[a-z0-9._-]*)(?<![._-])(?:/(?![._-])[a-z0-9._-]*(?<![._-]))*)(?::(?![.-])[a-zA-Z0-9_.-]{1,128})?$", image)
+
+def image_from_docker_args(args):
+    """This scans docker run args and attempts to find the most likely docker image argument.
+    If excludes any argments that start with a dash, and the argument after it if it isn't a boolean
+    switch.  This can be improved, we currently fallback gracefully when this fails.
+    """
+    bool_args = ["-t", "--tty", "--rm","--privileged", "--oom-kill-disable","--no-healthcheck", "-i",
+        "--interactive", "--init", "--help", "--detach", "-d", "--sig-proxy", "-it", "-itd"]
+    last_flag = -2
+    last_arg = ""
+    possible_images = []
+    if len(args) > 0 and args[0] == "run":
+        args.pop(0)
+    for i, arg in enumerate(args):
+        if arg.startswith("-"):
+            last_flag = i
+            last_arg = arg
+        elif docker_image_regex(arg):
+            if last_flag == i - 2:
+                possible_images.append(arg)
+            elif "=" in last_arg:
+                possible_images.append(arg)
+            elif last_arg in bool_args and last_flag == i - 1:
+                possible_images.append(arg)
+    most_likely = None
+    for img in possible_images:
+        if ":" in img or "@" in img or "/" in img:
+            most_likely = img
+            break
+    if most_likely == None and len(possible_images) > 0:
+        most_likely = possible_images[0]
+    return most_likely
+
+
+def image_id_from_k8s():
+    """Pings the k8s metadata service for the image id"""
+    token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    if os.path.exists(token_path):
+        k8s_server = "https://{}:{}/api/v1/namespaces/default/pods/{}".format(
+            os.getenv("KUBERNETES_SERVICE_HOST"), os.getenv(
+                "KUBERNETES_PORT_443_TCP_PORT"), os.getenv("HOSTNAME")
+        )
+        try:
+            res = requests.get(k8s_server, verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+                               timeout=3, headers={"Authorization": "Bearer {}".format(open(token_path).read())})
+            res.raise_for_status()
+        except requests.RequestException:
+            return None
+        try:
+            return res.json()["status"]["containerStatuses"][0]["imageID"].strip("docker-pullable://")
+        except (ValueError, KeyError, IndexError):
+            logger.exception("Error checking kubernetes for image id")
+            return None
+
+
+def async_call(target, timeout=None):
+    """Accepts a method and optional timeout.
+       Returns a new method that will call the original with any args, waiting for upto timeout seconds.
+       This new method blocks on the original and returns the result or None
+       if timeout was reached, along with the thread.
+       You can check thread.isAlive() to determine if a timeout was reached.
+       If an exception is thrown in the thread, we reraise it.
+    """
+    q = queue.Queue()
+    def wrapped_target(q, *args, **kwargs):
+        try:
+            q.put(target(*args, **kwargs))
+        except Exception as e:
+            q.put(e)
+
+    def wrapper(*args, **kwargs):
+        thread = threading.Thread(target=wrapped_target, args=(q,)+args, kwargs=kwargs)
+        thread.daemon = True
+        thread.start()
+        try:
+            result = q.get(True, timeout)
+            if isinstance(result, Exception):
+                six.reraise(type(result), result, sys.exc_info()[2])
+            return result, thread
+        except queue.Empty:
+            return None, thread
+    return wrapper
 
 def read_many_from_queue(q, max_items, queue_timeout):
     try:

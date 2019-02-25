@@ -39,6 +39,16 @@ def test_nice_log_error():
         wandb.log({"no": "init"})
 
 
+@pytest.mark.args(k8s=True)
+def test_k8s_success(wandb_init_run):
+    assert os.getenv("WANDB_DOCKER") == "test@sha256:1234"
+
+
+@pytest.mark.args(k8s=False)
+def test_k8s_failure(wandb_init_run):
+    assert os.getenv("WANDB_DOCKER") is None
+
+
 @pytest.mark.args(sagemaker=True)
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"

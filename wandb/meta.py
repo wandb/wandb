@@ -1,5 +1,9 @@
 import json
 import os
+import sys
+import platform
+import multiprocessing
+import pynvml
 import threading
 import time
 import socket
@@ -7,6 +11,7 @@ import getpass
 from datetime import datetime
 
 from wandb import util
+from wandb import env
 import wandb
 
 METADATA_FNAME = 'wandb-metadata.json'
@@ -47,11 +52,27 @@ class Meta(object):
             wandb.START_TIME).isoformat()
         self.data["host"] = socket.gethostname()
         self.data["username"] = os.getenv("WANDB_USERNAME", getpass.getuser())
+        self.data["os"] = platform.platform(aliased=True)
+        self.data["python"] = platform.python_version()
+        if env.get_docker():
+            self.data["docker"] = env.get_docker()
+        try:
+            pynvml.nvmlInit()
+            self.data["gpu"] = pynvml.nvmlDeviceGetName(
+                pynvml.nvmlDeviceGetHandleByIndex(0)).decode("utf8")
+            self.data["gpu_count"] = pynvml.nvmlDeviceGetCount()
+        except pynvml.NVMLError:
+            pass
+        try:
+            self.data["cpu_count"] = multiprocessing.cpu_count()
+        except NotImplementedError:
+            pass
         try:
             import __main__
             self.data["program"] = __main__.__file__
         except (ImportError, AttributeError):
             self.data["program"] = '<python with no main file>'
+        self.data["args"] = sys.argv[1:]
         self.data["state"] = "running"
         self.write()
 

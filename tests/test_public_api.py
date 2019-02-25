@@ -27,6 +27,48 @@ from six import StringIO
 api = Api()
 
 
+def test_parse_path_simple():
+    u, p, r = api._parse_path("user/proj/run")
+    assert u == "user"
+    assert p == "proj"
+    assert r == "run"
+
+
+def test_parse_path_docker():
+    u, p, r = api._parse_path("user/proj:run")
+    assert u == "user"
+    assert p == "proj"
+    assert r == "run"
+
+
+def test_parse_path_docker_proj():
+    u, p, r = api._parse_path("proj:run")
+    assert u == None
+    assert p == "proj"
+    assert r == "run"
+
+
+def test_parse_path_url():
+    u, p, r = api._parse_path("user/proj/runs/run")
+    assert u == "user"
+    assert p == "proj"
+    assert r == "run"
+
+
+def test_parse_path_user_proj():
+    u, p, r = api._parse_path("user/proj")
+    assert u == "user"
+    assert p == "proj"
+    assert r == "proj"
+
+
+def test_parse_path_proj():
+    u, p, r = api._parse_path("proj")
+    assert u == None
+    assert p == "proj"
+    assert r == "proj"
+
+
 def test_run_from_path(request_mocker, query_run_v2, query_download_h5):
     run_mock = query_run_v2(request_mocker)
     query_download_h5(request_mocker)
@@ -56,9 +98,11 @@ def test_run_history_system(request_mocker, query_run_v2, query_download_h5):
         {'cpu': 10}, {'cpu': 20}, {'cpu': 30}]
 
 
-def test_run_summary(request_mocker, query_run_v2, upsert_run, query_download_h5):
+def test_run_summary(request_mocker, query_run_v2, upsert_run, query_download_h5, query_upload_h5):
     run_mock = query_run_v2(request_mocker)
     query_download_h5(request_mocker)
+    # TODO: this likely shouldn't need to be mocked
+    query_upload_h5(request_mocker)
     update_mock = upsert_run(request_mocker)
     run = api.run("test/test/test")
     run.summary.update({"cool": 1000})
@@ -73,10 +117,12 @@ def test_run_create(request_mocker, query_run_v2, upsert_run, query_download_h5)
     assert update_mock.called
 
 
-def test_run_update(request_mocker, query_run_v2, upsert_run, query_download_h5):
-    run_mock = query_run_v2(request_mocker)
+def test_run_update(request_mocker, query_run_v2, upsert_run, query_download_h5, query_upload_h5):
     query_download_h5(request_mocker)
+    # TODO: this likely shouldn't need to be mocked
+    query_upload_h5(request_mocker)
     update_mock = upsert_run(request_mocker)
+    run_mock = query_run_v2(request_mocker)
     run = api.run("test/test/test")
     run.tags.append("test")
     run.config["foo"] = "bar"

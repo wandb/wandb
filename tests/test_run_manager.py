@@ -70,6 +70,15 @@ def test_throttle_file_poller(mocker, run_manager):
     assert emitter.timeout == 2
 
 
+def test_pip_freeze(mocker, run_manager):
+    run_manager._block_file_observer()
+    run_manager.init_run()
+    reqs = open(os.path.join(wandb.run.dir, "requirements.txt")).read()
+    print([r for r in reqs.split("\n") if "wandb" in r])
+    wbv = "wandb==%s" % wandb.__version__
+    assert wbv in reqs
+
+
 def test_custom_file_policy(mocker, run_manager):
     for i in range(5):
         with open(os.path.join(wandb.run.dir, "ckpt_%i.txt" % i), "w") as f:
@@ -117,3 +126,19 @@ def test_sync_etc_multiple_messages(mocker, run_manager):
     wandb.run.socket.connection.sendall(payload + b"\0" + payload + b"\0")
     run_manager.test_shutdown()
     assert len(mocked_policy.mock_calls) == 2
+
+
+def test_init_run_network_down(mocker, caplog):
+    with CliRunner().isolated_filesystem():
+        mocker.patch("wandb.apis.internal.Api.HTTP_TIMEOUT", 0.5)
+        api = internal.Api(
+            load_settings=False,
+            retry_timedelta=datetime.timedelta(0, 0, 50))
+        api.set_current_run_id(123)
+        run = Run()
+        mocker.patch("wandb.run_manager.RunManager._upsert_run",
+                     lambda *args: time.sleep(0.6))
+        rm = wandb.run_manager.RunManager(api, run)
+        step = rm.init_run()
+        assert step == 0
+        assert "Failed to connect" in caplog.text
