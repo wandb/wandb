@@ -843,8 +843,9 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
         #TODO: We should default to the working directory if defined
         command.extend(['-v', cwd+":"+dir, '-w', dir])
     if api.api_key:
-        wandb.termlog("Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics")
         command.extend(['-e', 'WANDB_API_KEY=%s' % api.api_key])
+    else:
+        wandb.termlog("Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics")
     if jupyter:
         command.extend(['-e', 'WANDB_ENSURE_JUPYTER=1', '-p', port+':8888'])
         no_tty = True
