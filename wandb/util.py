@@ -38,6 +38,7 @@ import wandb
 from wandb import io_wrap
 from wandb import wandb_dir
 from wandb.apis import CommError
+from wandb import wandb_config
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -602,6 +603,9 @@ def get_log_file_path():
     run directory.
     """
     return wandb.GLOBAL_LOG_FNAME
+
+def is_wandb_file(name):
+    return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt"
 
 def docker_image_regex(image):
     "regex for valid docker image names"

@@ -1206,7 +1206,7 @@ class RunManager(object):
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
 
-        wandb_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('wandb') or save_name == config.FNAME])
+        wandb_files = set([save_name for save_name in self._file_pusher.files() if util.is_wandb_file(save_name)])
         media_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('media')])
         other_files = set(self._file_pusher.files()) - wandb_files - media_files
         logger.info("syncing files to cloud storage")

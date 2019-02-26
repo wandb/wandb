@@ -387,8 +387,10 @@ def restore(ctx, run, branch, project, entity):
     wandb.termlog("Restored config variables to %s" % config._config_path())
     if image:
         if not metadata["program"].startswith("<") and metadata.get("args") is not None:
-            #TODO: we likely don't want to assume python to start the script
-            cmd = " ".join(["python", metadata["program"]] + metadata["args"])
+            # TODO: we may not want to default to python here.
+            runner = util.find_runner(metadata["program"]) or ["python"]
+            command = runner + [metadata["program"]] + metadata["args"]
+            cmd = " ".join(command)
         else:
             wandb.termlog("Couldn't find original command, just restoring environment")
             cmd = None
@@ -760,7 +762,7 @@ def docker_run(ctx, docker_run_args, help):
     if api.api_key:
         args = ['-e', 'WANDB_API_KEY=%s' % api.api_key] + args
     else:
-        wandb.termlog("Not logged in, can't prepend api key")
+        wandb.termlog("Not logged in, running command without WANDB_API_KEY env variable")
     subprocess.call(['docker', 'run'] + args)
 
 
@@ -831,16 +833,17 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
         result = whaaaaat.prompt([question])
         if result and result['attach']:
             subprocess.call(['docker', 'attach', existing.split("\n")[0]])
-            exit()
+            exit(0)
     cwd = os.getcwd()
     command = ['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=%s' % resolved_image, '--ipc=host',
                 '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh']
     if nvidia:
         command.extend(['--runtime', 'nvidia'])
     if not no_dir:
+        #TODO: We should default to the working directory if defined
         command.extend(['-v', cwd+":"+dir, '-w', dir])
-    # TODO: force login?
     if api.api_key:
+        wandb.termlog("Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics")
         command.extend(['-e', 'WANDB_API_KEY=%s' % api.api_key])
     if jupyter:
         command.extend(['-e', 'WANDB_ENSURE_JUPYTER=1', '-p', port+':8888'])

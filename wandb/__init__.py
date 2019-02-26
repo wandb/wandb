@@ -26,6 +26,7 @@ import socket
 import subprocess
 import sys
 import traceback
+import tempfile
 import types
 import re
 import glob
@@ -61,7 +62,7 @@ logger = logging.getLogger(__name__)
 if __stage_dir__ is not None:
     GLOBAL_LOG_FNAME = wandb_dir() + 'debug.log'
 else:
-    GLOBAL_LOG_FNAME = './wandb-debug.log'
+    GLOBAL_LOG_FNAME = os.path.join(tempfile.gettempdir(), 'wandb-debug.log')
 GLOBAL_LOG_FNAME = os.path.relpath(GLOBAL_LOG_FNAME, os.getcwd())
 
 
