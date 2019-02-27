@@ -51,7 +51,13 @@ class Meta(object):
         self.data["startedAt"] = datetime.utcfromtimestamp(
             wandb.START_TIME).isoformat()
         self.data["host"] = socket.gethostname()
-        self.data["username"] = os.getenv("WANDB_USERNAME", getpass.getuser())
+        try:
+            username = getpass.getuser()
+        except KeyError:
+            # getuser() could raise KeyError in restricted environments like
+            # chroot jails or docker containers.  Return user id in these cases.
+            username = str(os.getuid())
+        self.data["username"] = os.getenv("WANDB_USERNAME", username)
         self.data["os"] = platform.platform(aliased=True)
         self.data["python"] = platform.python_version()
         if env.get_docker():
