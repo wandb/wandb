@@ -315,11 +315,13 @@ def restore(ctx, run, no_git, branch, project, entity):
         project, run=run, entity=entity)
     repo = metadata.get("git", {}).get("repo")
     image = metadata.get("docker")
+    RESTORE_MESSAGE = """`wandb restore` needs to be run from the same git repository as the original run.
+Run `git clone %s` and restore from there or pass the --no-git flag.""" % repo
     if no_git:
         commit = None
-    elif not api.git.is_same_remote(repo):
+    elif not api.git.enabled:
         if repo:
-            raise ClickException("`wandb restore` needs to be run from the same git repository as the original run.\nRun `git clone %s` and run restore from there or pass the --no-git flag." % repo)
+            raise ClickException(RESTORE_MESSAGE)
         elif image:
             wandb.termlog("Original run has no git history.  Just restoring config and docker")
 
@@ -346,8 +348,7 @@ def restore(ctx, run, no_git, branch, project, entity):
                     "Falling back to upstream commit: {}".format(commit))
                 patch_path, _ = api.download_write_file(files[filename])
             else:
-                raise ClickException(
-                    "Can't find commit, this repo must inherit from %s" % repo)
+                raise ClickException(RESTORE_MESSAGE)
         else:
             if patch_content:
                 patch_path = os.path.join(wandb.wandb_dir(), 'diff.patch')

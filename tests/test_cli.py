@@ -218,7 +218,6 @@ def test_restore_no_remote(runner, request_mocker, query_run, git_repo, docker, 
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    assert "Original run has no git history" in result.output
     assert "Created branch wandb/abcdef" in result.output
     assert "Applied patch" in result.output
     assert "Restored config variables to wandb/" in result.output
@@ -230,7 +229,12 @@ def test_restore_no_remote(runner, request_mocker, query_run, git_repo, docker, 
 def test_restore_bad_remote(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock = query_run(request_mocker, {"git": {"repo": "http://fake.git/foo/bar"}})
-    monkeypatch.setattr(cli, 'api', InternalApi({'project': 'test'}))
+    api = InternalApi({'project': 'test'})
+    monkeypatch.setattr(cli, 'api', api)
+    def bad_commit(cmt):
+        raise ValueError()
+    monkeypatch.setattr(api.git.repo, 'commit', bad_commit)
+    monkeypatch.setattr(api, "download_urls", lambda *args, **kwargs: []) 
     result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))

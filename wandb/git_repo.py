@@ -96,20 +96,6 @@ class GitRepo(object):
             return None
         return self.remote.url
 
-    def normalize_url(self, url):
-        if url.startswith("http"):
-            return urlparse(url).path.strip("/")
-        elif url.startswith("git@"):
-            return url.split(":")[-1]
-        else:
-            return url
-
-    def is_same_remote(self, remote):
-        if self.remote_url:
-            return self.normalize_url(self.remote_url) == self.normalize_url(remote)
-        else:
-            False
-
     @property
     def root_dir(self):
         if not self.repo:
