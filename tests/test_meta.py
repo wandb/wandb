@@ -28,8 +28,13 @@ def test_meta(git_repo):
 
 def test_meta_cuda(mocker):
     mocker.patch('wandb.meta.os.path.exists', lambda path: True)
-    mocker.patch('wandb.meta.open',
-                 lambda *args: six.StringIO("CUDA Version 9.0.176"))
+
+    def magic(path, mode="w"):
+        if "cuda/version.txt" in path:
+            return six.StringIO("CUDA Version 9.0.176")
+        else:
+            return open(path, mode=mode)
+    mocker.patch('wandb.meta.open', magic)
     meta = Meta(InternalApi())
     meta.data["cuda"] == "9.0.176"
 
