@@ -297,14 +297,12 @@ def status(run, settings, project):
 @cli.command(context_settings=CONTEXT, help="Restore code, config and docker state for a run")
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
+@click.option("--no-git", is_flag=True, default=False, help="Skupp")
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
 @click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
-def restore(ctx, run, branch, project, entity):
-    if not api.git.enabled:
-        raise ClickException(
-            "`wandb restore` can only be called from within an existing git repository.")
+def restore(ctx, run, no_git, branch, project, entity):
     if ":" in run:
         if "/" in run:
             entity, rest = run.split("/", 1)
@@ -313,15 +311,20 @@ def restore(ctx, run, branch, project, entity):
         project, run = rest.split(":", 1)
 
     project, run = api.parse_slug(run, project=project)
-    commit, json_config, patch_content, repo, metadata = api.run_config(
+    commit, json_config, patch_content, metadata = api.run_config(
         project, run=run, entity=entity)
-    subprocess.check_call(['git', 'fetch', '--all'])
+    repo = metadata.get("git", {}).get("repo")
+    image = metadata.get("docker")
+    if no_git:
+        commit = None
+    elif not api.git.is_same_remote(repo):
+        if repo:
+            raise ClickException("`wandb restore` needs to be run from the same git repository as the original run.\nRun `git clone %s` and run restore from there or pass the --no-git flag." % repo)
+        elif image:
+            wandb.termlog("Original run has no git history.  Just restoring config and docker")
 
-    image = None
-    if metadata.get("docker"):
-        image = metadata["docker"]
-
-    if commit:
+    if commit and api.git.enabled:
+        subprocess.check_call(['git', 'fetch', '--all'])
         try:
             api.git.repo.commit(commit)
         except ValueError:

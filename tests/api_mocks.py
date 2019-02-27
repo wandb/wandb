@@ -1,6 +1,7 @@
 import pytest
 import os
 import sys
+import json
 from six import binary_type
 import logging
 from wandb.apis import InternalApi
@@ -221,9 +222,11 @@ def query_runs():
 
 @pytest.fixture
 def query_run(request_mocker):
-    request_mocker.register_uri('GET', 'https://metadata.json',
-                                content=b'{"docker": "test/docker", "program": "train.py", "args": ["--test", "foo"]}', status_code=200)
-    return _query('model', {'bucket': _bucket_config()})
+    def wrapper(request_mocker, metadata={"docker": "test/docker", "program": "train.py", "args": ["--test", "foo"]}):
+        request_mocker.register_uri('GET', 'https://metadata.json',
+                                    content=json.dumps(metadata).encode('utf8'), status_code=200)
+        return _query('model', {'bucket': _bucket_config()})(request_mocker)
+    return wrapper
 
 
 @pytest.fixture

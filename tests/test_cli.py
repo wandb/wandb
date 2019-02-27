@@ -206,7 +206,7 @@ def test_no_project_bad_command(runner):
     assert result.exit_code == 2
 
 
-def test_restore(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
+def test_restore_no_remote(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock = query_run(request_mocker)
     with open("patch.txt", "w") as f:
@@ -218,6 +218,7 @@ def test_restore(runner, request_mocker, query_run, git_repo, docker, monkeypatc
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
+    assert "Original run has no git history" in result.output
     assert "Created branch wandb/abcdef" in result.output
     assert "Applied patch" in result.output
     assert "Restored config variables to wandb/" in result.output
@@ -226,8 +227,39 @@ def test_restore(runner, request_mocker, query_run, git_repo, docker, monkeypatc
     wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e',
     'WANDB_API_KEY=test', '-e', 'WANDB_COMMAND=python train.py --test foo', '-it', 'test/docker', '/bin/bash'])
 
+def test_restore_bad_remote(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    mock = query_run(request_mocker, {"git": {"repo": "http://fake.git/foo/bar"}})
+    monkeypatch.setattr(cli, 'api', InternalApi({'project': 'test'}))
+    result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 1
+    assert "Run `git clone http://fake.git/foo/bar`" in result.output
 
-def test_restore_not_git(runner, request_mocker, query_run, monkeypatch):
+def test_restore_good_remote(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    git_repo.repo.create_remote('origin', "git@fake.git:foo/bar")
+    monkeypatch.setattr(subprocess, 'check_call', lambda command: True)
+    mock = query_run(request_mocker, {"git": {"repo": "http://fake.git/foo/bar"}})
+    monkeypatch.setattr(cli, 'api', InternalApi({'project': 'test'}))
+    result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Created branch wandb/abcdef" in result.output
+
+def test_restore_no_git(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    mock = query_run(request_mocker, {"git": {"repo": "http://fake.git/foo/bar"}})
+    monkeypatch.setattr(cli, 'api', InternalApi({'project': 'test'}))
+    result = runner.invoke(cli.restore, ["wandb/test:abcdef", "--no-git"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Restored config variables" in result.output
+
+def test_restore_not_git(runner, request_mocker, query_run, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     with runner.isolated_filesystem():
         mock = query_run(request_mocker)
@@ -235,8 +267,8 @@ def test_restore_not_git(runner, request_mocker, query_run, monkeypatch):
         result = runner.invoke(cli.restore, ["test/abcdef"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
-        assert result.exit_code == 1
-        assert "existing git repository" in result.output
+        assert result.exit_code == 0
+        assert "Original run has no git history" in result.output
 
 @pytest.fixture
 def docker(request_mocker, query_run, mocker, monkeypatch):
