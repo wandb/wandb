@@ -761,11 +761,11 @@ def docker_run(ctx, docker_run_args, help):
     if resolved_image:
         args = ['-e', 'WANDB_DOCKER=%s' % resolved_image] + args
     else:
-        wandb.termlog("Couldn't detect image arg, running command without WANDB_DOCKER env variable")
+        wandb.termlog("Couldn't detect image argument, running command without the WANDB_DOCKER env variable")
     if api.api_key:
         args = ['-e', 'WANDB_API_KEY=%s' % api.api_key] + args
     else:
-        wandb.termlog("Not logged in, running command without WANDB_API_KEY env variable")
+        wandb.termlog("Not logged in, run `wandb login` from the host machine to enable result logging")
     subprocess.call(['docker', 'run'] + args)
 
 
