@@ -72,6 +72,10 @@ class Meta(object):
             self.data["program"] = __main__.__file__
         except (ImportError, AttributeError):
             self.data["program"] = '<python with no main file>'
+        # TODO: we should use the cuda library to collect this
+        if os.path.exists("/usr/local/cuda/version.txt"):
+            self.data["cuda"] = open(
+                "/usr/local/cuda/version.txt").read().split(" ")[-1]
         self.data["args"] = sys.argv[1:]
         self.data["state"] = "running"
         self.write()

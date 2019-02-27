@@ -39,15 +39,6 @@ def test_config_docker_env_digest():
         del os.environ[env.DOCKER]
 
 
-def test_config_cuda(mocker):
-    mocker.patch('wandb.wandb_config.os.path.exists', lambda path: True)
-    mocker.patch('wandb.wandb_config.open',
-                 lambda *args: six.StringIO("CUDA Version 9.0.176"))
-    with CliRunner().isolated_filesystem():
-        conf = config.Config()
-        assert conf["_wandb"]["cuda"] == "9.0.176"
-
-
 def test_config_empty_by_default():
     with CliRunner().isolated_filesystem():
         conf = config.Config()

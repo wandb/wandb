@@ -3,6 +3,7 @@ from .utils import git_repo
 import os
 import glob
 import sys
+import six
 from wandb.meta import Meta
 from wandb.apis import InternalApi
 
@@ -23,6 +24,14 @@ def test_meta(git_repo):
     assert meta.data["state"] == "running"
     assert meta.data["username"]
     assert meta.data["os"]
+
+
+def test_meta_cuda(mocker):
+    mocker.patch('wandb.meta.os.path.exists', lambda path: True)
+    mocker.patch('wandb.meta.open',
+                 lambda *args: six.StringIO("CUDA Version 9.0.176"))
+    meta = Meta(InternalApi())
+    meta.data["cuda"] == "9.0.176"
 
 
 def test_meta_thread(git_repo):
