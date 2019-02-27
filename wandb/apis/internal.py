@@ -427,7 +427,6 @@ class Api(object):
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     config
-                    github
                     commit
                     patch
                     files(names: ["wandb-metadata.json"]) {
@@ -456,7 +455,7 @@ class Api(object):
             metadata = res.json()
         else:
             metadata = {}
-        return (commit, config, patch, run['github'], metadata)
+        return (commit, config, patch, metadata)
 
     @normalize_exceptions
     def run_resume_status(self, entity, project_name, name):

@@ -297,14 +297,12 @@ def status(run, settings, project):
 @cli.command(context_settings=CONTEXT, help="Restore code, config and docker state for a run")
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
+@click.option("--no-git", is_flag=True, default=False, help="Skupp")
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
 @click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
-def restore(ctx, run, branch, project, entity):
-    if not api.git.enabled:
-        raise ClickException(
-            "`wandb restore` can only be called from within an existing git repository.")
+def restore(ctx, run, no_git, branch, project, entity):
     if ":" in run:
         if "/" in run:
             entity, rest = run.split("/", 1)
@@ -313,15 +311,22 @@ def restore(ctx, run, branch, project, entity):
         project, run = rest.split(":", 1)
 
     project, run = api.parse_slug(run, project=project)
-    commit, json_config, patch_content, repo, metadata = api.run_config(
+    commit, json_config, patch_content, metadata = api.run_config(
         project, run=run, entity=entity)
-    subprocess.check_call(['git', 'fetch', '--all'])
+    repo = metadata.get("git", {}).get("repo")
+    image = metadata.get("docker")
+    RESTORE_MESSAGE = """`wandb restore` needs to be run from the same git repository as the original run.
+Run `git clone %s` and restore from there or pass the --no-git flag.""" % repo
+    if no_git:
+        commit = None
+    elif not api.git.enabled:
+        if repo:
+            raise ClickException(RESTORE_MESSAGE)
+        elif image:
+            wandb.termlog("Original run has no git history.  Just restoring config and docker")
 
-    image = None
-    if metadata.get("docker"):
-        image = metadata["docker"]
-
-    if commit:
+    if commit and api.git.enabled:
+        subprocess.check_call(['git', 'fetch', '--all'])
         try:
             api.git.repo.commit(commit)
         except ValueError:
@@ -343,8 +348,7 @@ def restore(ctx, run, branch, project, entity):
                     "Falling back to upstream commit: {}".format(commit))
                 patch_path, _ = api.download_write_file(files[filename])
             else:
-                raise ClickException(
-                    "Can't find commit, this repo must inherit from %s" % repo)
+                raise ClickException(RESTORE_MESSAGE)
         else:
             if patch_content:
                 patch_path = os.path.join(wandb.wandb_dir(), 'diff.patch')
@@ -758,11 +762,11 @@ def docker_run(ctx, docker_run_args, help):
     if resolved_image:
         args = ['-e', 'WANDB_DOCKER=%s' % resolved_image] + args
     else:
-        wandb.termlog("Couldn't detect image arg, running command without WANDB_DOCKER env variable")
+        wandb.termlog("Couldn't detect image argument, running command without the WANDB_DOCKER env variable")
     if api.api_key:
         args = ['-e', 'WANDB_API_KEY=%s' % api.api_key] + args
     else:
-        wandb.termlog("Not logged in, running command without WANDB_API_KEY env variable")
+        wandb.termlog("Not logged in, run `wandb login` from the host machine to enable result logging")
     subprocess.call(['docker', 'run'] + args)
 
 

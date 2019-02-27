@@ -67,10 +67,6 @@ class Config(object):
             self._set_wandb("docker_image", image)
             if digest:
                 self._set_wandb("docker_digest", digest)
-        # TODO: we should use the cuda library to collect this
-        if os.path.exists("/usr/local/cuda/version.txt"):
-            self._set_wandb("cuda", open(
-                "/usr/local/cuda/version.txt").read().split(" ")[-1])
 
     def _set_wandb(self, key, val):
         self._items["_wandb"] = self._items.get("_wandb", {})
