@@ -60,7 +60,8 @@ class Agent(object):
                     command['resp_queue'].put(self._process_command(command))
 
                 now = util.stopwatch_now()
-                if self._last_report_time is None or now > self._last_report_time + self._report_interval:
+                if self._last_report_time is None or (self._report_interval != 0 and
+                                                      now > self._last_report_time + self._report_interval):
                     logger.info('Running runs: %s', list(
                         self._run_processes.keys()))
                     self._last_report_time = now
