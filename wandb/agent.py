@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 import traceback
+import time
 
 import six
 
@@ -26,6 +27,8 @@ class AgentError(Exception):
 
 class Agent(object):
     POLL_INTERVAL = 5
+    REPORT_INTERVAL = 5
+    KILL_DELAY = 30
 
     def __init__(self, api, queue, sweep_id=None):
         self._api = api
@@ -35,6 +38,13 @@ class Agent(object):
         self._sweep_id = sweep_id
         self._log = []
         self._running = True
+        self._last_report_time = None
+        self._report_interval = wandb.env.get_agent_report_interval(self.REPORT_INTERVAL)
+        self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
+        if self._report_interval is None:
+            raise AgentError("Invalid agent report interval")
+        if self._kill_delay is None:
+            raise AgentError("Invalid agent kill delay")
 
     def run(self):
         # TODO: include sweep ID
@@ -49,8 +59,12 @@ class Agent(object):
                 for command in commands:
                     command['resp_queue'].put(self._process_command(command))
 
-                logger.info('Running runs: %s', list(
-                    self._run_processes.keys()))
+                now = util.stopwatch_now()
+                if self._last_report_time is None or (self._report_interval != 0 and
+                                                      now > self._last_report_time + self._report_interval):
+                    logger.info('Running runs: %s', list(
+                        self._run_processes.keys()))
+                    self._last_report_time = now
                 run_status = {}
                 for run_id, run_process in list(six.iteritems(self._run_processes)):
                     if run_process.poll() is None:
@@ -58,6 +72,7 @@ class Agent(object):
                     else:
                         logger.info('Cleaning up dead run: %s', run_id)
                         del self._run_processes[run_id]
+                        self._last_report_time = None
 
                 commands = self._api.agent_heartbeat(agent_id, {}, run_status)
 
@@ -148,24 +163,29 @@ class Agent(object):
             ['/usr/bin/env', 'python', command['program']] + flags,
             env=env, preexec_fn=os.setpgrp)
 
-        # we track how many times the user has tried to stop this run
-        # so we can escalate how hard we try to kill it in self._command_stop()
-        self._run_processes[run.id].num_times_stopped = 0
+        # we keep track of when we sent the sigterm to give processes a chance
+        # to handle the signal before sending sigkill every heartbeat
+        self._run_processes[run.id].last_sigterm_time = None
+        self._last_report_time = None
 
     def _command_stop(self, command):
         run_id = command['run_id']
-        logger.info('Stop: %s', run_id)
         if run_id in self._run_processes:
             proc = self._run_processes[run_id]
-            try:
-                if proc.num_times_stopped == 0:
+            now = util.stopwatch_now()
+            if proc.last_sigterm_time is None:
+                proc.last_sigterm_time = now
+                logger.info('Stop: %s', run_id)
+                try:
                     proc.terminate()
-                elif proc.num_times_stopped == 1:
+                except OSError:  # if process is already dead
+                    pass
+            elif now > proc.last_sigterm_time + self._kill_delay:
+                logger.info('Kill: %s', run_id)
+                try:
                     proc.kill()
-            except OSError:  # if process is already dead
-                pass
-            finally:
-                proc.num_times_stopped += 1
+                except OSError:  # if process is already dead
+                    pass
         else:
             logger.error('Run %s not running', run_id)
 
