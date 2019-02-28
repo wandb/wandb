@@ -39,6 +39,8 @@ TAGS = 'WANDB_TAGS'
 IGNORE = 'WANDB_IGNORE_GLOBS'
 ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
 DOCKER = 'WANDB_DOCKER'
+AGENT_REPORT_INTERVAL = 'WANDB_AGENT_REPORT_INTERVAL'
+AGENT_KILL_DELAY = 'WANDB_AGENT_KILL_DELAY'
 
 
 def is_debug(default=None, env=None):
@@ -152,6 +154,28 @@ def get_dir(default=None, env=None):
 
 def get_config_paths():
     pass
+
+
+def get_agent_report_interval(default=None, env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(AGENT_REPORT_INTERVAL, default)
+    try:
+        val = int(val)
+    except ValueError:
+        val = None  # silently ignore env format errors, caller should handle.
+    return val
+
+
+def get_agent_kill_delay(default=None, env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(AGENT_KILL_DELAY, default)
+    try:
+        val = int(val)
+    except ValueError:
+        val = None  # silently ignore env format errors, caller should handle.
+    return val
 
 
 def set_entity(value, env=None):

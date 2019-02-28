@@ -707,3 +707,14 @@ def read_many_from_queue(q, max_items, queue_timeout):
             return items
         items.append(item)
     return items
+
+def stopwatch_now():
+    """Get a timevalue for interval comparisons
+
+    When possible it is a monotonic clock to prevent backwards time issues.
+    """
+    if six.PY2:
+        now = time.time()
+    else:
+        now = time.monotonic()
+    return now
