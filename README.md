@@ -56,7 +56,7 @@ If you are using [docker](https://docker.com) to run your code, we provide a wra
 
 ## Demo
 
-<iframe style="margin:auto" width="560" height="315" src="https://www.youtube.com/embed/N0lP4x7Pl-w" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+[![Watch the video](https://img.youtube.com/vi/N0lP4x7Pl-w/maxresdefault.jpg)](https://youtu.be/N0lP4x7Pl-w)
 
 ## Detailed Usage
 
