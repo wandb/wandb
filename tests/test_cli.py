@@ -435,7 +435,7 @@ def test_signup(runner, empty_netrc, local_netrc, mocker, monkeypatch):
         print('Exception: ', result.exception)
         print('Traceback: ', traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "Opening [https://app.wandb.ai/profile?message=key] in your default browser" in result.output
+        assert "https://app.wandb.ai/profile?message=key" in result.output
         assert "Successfully logged in to Weights & Biases!" in result.output
 
 def test_init_new_login_no_browser(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer, monkeypatch):
