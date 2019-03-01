@@ -30,7 +30,7 @@ def runner(monkeypatch):
     monkeypatch.setattr(click, 'launch', lambda x: 1)
     monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {
                         'project_name': 'test_model', 'files': ['weights.h5'], 'attach': False,
-                        'team_name': 'Manual Entry', 'image': 'wandb/deepo'})
+                        'team_name': 'Manual Entry'})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
     return CliRunner()
 

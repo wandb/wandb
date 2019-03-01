@@ -1,9 +1,10 @@
-## 0.7.0 (February 25, 2019)
+## 0.7.0 (February 28, 2019)
 
 #### :bug: Bug Fix
 
 -   ensure DNS lookup failures can't prevent startup
 -   centralized debug logging
+-   wandb agent waits longer to send a SIGKILL after sending SIGINT
 
 #### :nail_care: Enhancement
 
@@ -14,6 +15,7 @@
 -   python packages are now recorded and saved in a requirements.txt file
 -   cpu_count, gpu_count, gpu, os, and python version stored in wandb-metadata.json
 -   the export api now supports docker-like paths, i.e. username/project:run_id
+-   better first time user messages and login info
 
 ## 0.6.35 (January 29, 2019)
 

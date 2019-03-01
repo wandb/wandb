@@ -229,7 +229,7 @@ def test_tensorboard(wandb_init_run):
 @pytest.mark.unconfigured
 def test_not_logged_in(wandb_init_run, capsys):
     out, err = capsys.readouterr()
-    assert "wandb isn't configured" in err
+    assert "No credentials found.  Run \"wandb login\" to visualize your metrics" in err
     assert "_init_headless called with cloud=False" in out
 
 
