@@ -459,32 +459,6 @@ def pull(run, project, entity):
                         bar.update(len(data))
 
 
-@cli.command(context_settings=CONTEXT, help="Signup for Weights & Biases")
-@click.pass_context
-@display_error
-def signup(ctx):
-    import webbrowser
-    server = LocalServer()
-    url = api.app_url + "/login?signup=true"
-    if util.launch_browser():
-        launched = webbrowser.open_new_tab(
-            url + "&{}".format(server.qs()))
-    else:
-        launched = False
-    if launched:
-        signal.signal(signal.SIGINT, server.stop)
-        click.echo(
-            'Opened [{}] in your default browser'.format(url))
-        server.start(blocking=False)
-    else:
-        click.echo("Signup with this url in your browser: {}".format(url))
-    key = ctx.invoke(login, server=server, browser=False)
-    if key:
-        # Only init if we aren't pre-configured
-        if not os.path.isdir(wandb_dir()):
-            ctx.invoke(init)
-
-
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
@@ -506,7 +480,7 @@ def login(key, server=LocalServer(), browser=True):
         click.echo(
             'Opening [{}] in your default browser'.format(url))
         server.start(blocking=False)
-    elif not key and browser:
+    elif not key:
         click.echo(
             "You can find your API keys in your browser here: {}".format(url))
 

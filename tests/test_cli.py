@@ -6,6 +6,7 @@ import click
 from wandb import __version__
 from wandb.apis import InternalApi
 from wandb import cli
+from wandb import util
 from .utils import runner, git_repo
 from .api_mocks import *
 import netrc
@@ -407,23 +408,35 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
             generatedNetrc = f.read()
         assert DUMMY_API_KEY in generatedNetrc
 
-
-def test_signup(runner, empty_netrc, local_netrc, mocker):
+def test_login_abort(runner, empty_netrc, local_netrc, mocker, monkeypatch):
     with runner.isolated_filesystem():
-        # If the test was run from a directory containing .wandb, then __stage_dir__
-        # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
-
         def prompt(*args, **kwargs):
             raise click.exceptions.Abort()
         mocker.patch("click.prompt", prompt)
-        result = runner.invoke(cli.signup)
+        result = runner.invoke(cli.login)
         print('Output: ', result.output)
         print('Exception: ', result.exception)
         print('Traceback: ', traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         assert "No key provided, please try again" in result.output
 
+def test_signup(runner, empty_netrc, local_netrc, mocker, monkeypatch):
+    with runner.isolated_filesystem():
+        # If the test was run from a directory containing .wandb, then __stage_dir__
+        # was '.wandb' when imported by api.py, reload to fix. UGH!
+        reload(wandb)
+        def prompt(*args, **kwargs):
+            #raise click.exceptions.Abort()
+            return DUMMY_API_KEY
+        mocker.patch("click.prompt", prompt)
+        result = runner.invoke(cli.login)
+        print('Output: ', result.output)
+        print('Exception: ', result.exception)
+        print('Traceback: ', traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "https://app.wandb.ai/profile?message=key" in result.output
+        assert "Successfully logged in to Weights & Biases!" in result.output
 
 def test_init_new_login_no_browser(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer, monkeypatch):
     mock = query_projects(request_mocker)

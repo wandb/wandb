@@ -724,12 +724,14 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         api = InternalApi()
         # let init_jupyter handle this itself
         if not in_jupyter and not api.api_key:
+            termlog(
+                "W&B is a tool that helps track and visualize machine learning experiments")
             if force:
                 termerror(
                     "No credentials found.  Run \"wandb login\" or \"wandb off\" to disable wandb")
             else:
                 termlog(
-                    "wandb isn't configured, run \"wandb sync\" from this directory to visualize metrics")
+                    "No credentials found.  Run \"wandb login\" to visualize your metrics")
                 run.mode = "dryrun"
                 _init_headless(run, False)
         else:
