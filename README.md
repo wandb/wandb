@@ -56,7 +56,7 @@ If you are using [docker](https://docker.com) to run your code, we provide a wra
 
 ## Demo
 
-[![Watch the video](https://img.youtube.com/vi/N0lP4x7Pl-w/maxresdefault.jpg)](https://youtu.be/N0lP4x7Pl-w)
+[![Watch the video](https://img.youtube.com/vi/EeqhOSvNX-A/maxresdefault.jpg)](https://youtu.be/EeqhOSvNX-A)
 
 ## Detailed Usage
 
