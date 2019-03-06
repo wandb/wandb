@@ -52,7 +52,8 @@ def auth_token(registry, repo):
     # TODO: Cache tokens?
     auth_info = auth_config.resolve_authconfig(registry)
     if auth_info:
-        auth_info = (auth_info["Username"], auth_info["Password"])
+        normalized = {k.lower(): v for k, v in six.iteritems(auth_info)}
+        auth_info = (normalized.get("username"), normalized.get("password"))
     response = requests.get("https://{}/v2/".format(registry), timeout=3)
     if response.headers.get("www-authenticate"):
         try:

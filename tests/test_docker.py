@@ -12,6 +12,12 @@ def auth_config(mocker):
                  lambda reg: {"Username": "test", "Password": "test"})
 
 
+@pytest.fixture
+def auth_config_funky(mocker):
+    mocker.patch('wandb.docker.auth_config.resolve_authconfig',
+                 lambda reg: {"username": "test"})
+
+
 def test_docker_registry_custom(request_mocker, auth_config):
     auth_mock = request_mocker.register_uri('GET', "https://gcr.io/v2/", headers={"Www-Authenticate": 'Bearer realm="https://gcr.io/token",service="gcr.io",scope="repository:foo/bar:pull"'},
                                             content=b'{}', status_code=401)
@@ -32,7 +38,7 @@ def test_registry_fucked(request_mocker, auth_config):
     assert digest == None
 
 
-def test_docker_registry_hub(request_mocker, auth_config):
+def test_docker_registry_hub(request_mocker, auth_config_funky):
     request_mocker.register_uri('GET', "https://index.docker.io/v2/", headers={"Www-Authenticate": 'Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:samalba/my-app:pull,push'},
                                 content=b'{}', status_code=401)
     token_mock = request_mocker.register_uri(
