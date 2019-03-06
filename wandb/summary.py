@@ -144,12 +144,6 @@ class Summary(object):
     def _encode(self, child=None, path_from_root=[], json_root=None):
         """Normalize, compress, and encode sub-objects for backend storage.
 
-        Large objects in summaries and histories get replaced with dictionaries
-        with "_type" entries that say which type the original data was.
-
-        This creates a new tree of dictionaries and (by default) replaces
-        the top-level one with it.
-
         This is not threadsafe.
 
         child: Summary `dict` to encode. Defaults to `self._summary` but may
@@ -157,51 +151,42 @@ class Summary(object):
         path_from_root: `list` of key strings from the top-level summary to the
             current `child`.
         json_root: The new root dictionary for JSON encoding.
+
+        Returns:
+            A new tree of dict's with large objects replaced with dictionaries
+            with "_type" entries that say which type the original data was.
         """
 
-        # Constructs two new `dict` trees:
-        #
-        # - one in `json_child` that discards and/or encodes objects that aren't
-        #   JSON serializable, and
-        # - one in `new_child` that leaves them intact so the user can still see
-        #   their original data in the same place(s) they put it.
-        #
-        # The second one becomes the new self._summary value.
+        # Constructs a new `dict` tree in `json_child` that discards and/or
+        # encodes objects that aren't JSON serializable.
 
         json_child = {}
 
         if child is None:
-            new_child = dict(self._summary)
-        else:
-            new_child = child
+            child = self._summary
 
         if json_root is None:
             json_root = json_child
 
-        for key, value in list(new_child.items()):
+        for key, value in six.iteritems(child):
             path = ".".join(path_from_root + [key])
             if isinstance(value, dict):
-                # recreating `value` here is what creates the new summary dict tree
-                new_value = dict(value)
-                new_child[key] = new_value
                 json_child[key], converted = util.json_friendly(
-                    self._encode(new_value, path_from_root + [key], json_root))
-            elif util.is_pandas_data_frame(value):
+                    self._encode(value, path_from_root + [key], json_root))
+            else:
                 vid = id(value)
                 if vid not in self._encoded_objects:
-                    self._encoded_objects[vid] = util.encode_data_frame(key, value, self._run)
-                json_child[key] = dict(self._encoded_objects[vid])
-            else:
-                # TODO(adrian): merge this branch with the one for DataFrames.
-                friendly_val, converted = util.json_friendly(
-                    data_types.val_to_json(key, value))
-                json_child[key], compressed = util.maybe_compress_summary(
-                    friendly_val, util.get_h5_typename(value))
-                if compressed:
-                    self.write_h5(path, friendly_val)
+                    if util.is_pandas_data_frame(value):
+                        self._encoded_objects[vid] = util.encode_data_frame(key, value, self._run)
+                    else:
+                        friendly_val, converted = util.json_friendly(
+                            data_types.val_to_json(key, value))
+                        self._encoded_objects[vid], compressed = util.maybe_compress_summary(
+                            friendly_val, util.get_h5_typename(value))
+                        if compressed:
+                            self.write_h5(path, friendly_val)
 
-        if child is self._summary:
-            self._summary = new_child
+                json_child[key] = self._encoded_objects[vid]
 
         return json_child
 
