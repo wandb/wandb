@@ -33,33 +33,26 @@ class Summary(object):
         # Lazy load the h5 file
         self._h5 = None
         self._locked_keys = set()
-        self._run_state = None
+
+        # Mapping of Python `id()`'s' to dicts representing large objects that
+        # were present when we last encoded this summary. We use this to keep 
+        # track of what we need to update the next time we write this summary.
+        # This means that for many types of object we assume that once
+        # they've been set in the summary they don't change.
+        #
+        # TODO(adrian): right now we only use this for DataFrames. Other large
+        # objects (h5 stuff, images) should probably go in here as well.
+        self._encoded_objects = {}
 
     def _write(self, commit=False):
         raise NotImplementedError
 
-    def _transform(self, k, v=None, write=True):
-        """Transforms keys json into rich objects for the data api"""
-        # TODO(adrian): Can we just get rid of the "write" mode? It seems to do nothing.
-        if not write and isinstance(v, dict):
-            if v.get("_type") in H5_TYPES:
-                return self.read_h5(k, v)
-            elif v.get("_type") == 'parquet':
-                print(
-                    'This data frame was saved via the wandb data API. Contact support@wandb.com for help.')
-                return None
-            # TODO: transform wandb objects and plots
-            else:
-                return {key: self._transform(k + "." + key, value, write=False) for (key, value) in v.items()}
-
-        return v
-
     def __getitem__(self, k):
-        return self._transform(k, self._summary[k], write=False)
+        return self._decode(k, self._summary[k])
 
     def __setitem__(self, k, v):
         key = k.strip()
-        self._summary[key] = self._transform(key, v)
+        self._summary[key] = v
         self._locked_keys.add(key)
         self._write()
 
@@ -68,7 +61,7 @@ class Summary(object):
             super(Summary, self).__setattr__(k, v)
         else:
             key = k.strip()
-            self._summary[key] = self._transform(key, v)
+            self._summary[key] = v
             self._locked_keys.add(key)
             self._write()
 
@@ -77,16 +70,13 @@ class Summary(object):
             return super(Summary, self).__getattr__(k)
         else:
             # TODO(adrian): should probably get rid of the strip()'s here.
-            return self._transform(k.strip(), self._summary[k.strip()], write=False)
+            return self._decode(k.strip(), self._summary[k.strip()])
 
     def __delitem__(self, k):
-        val = self._summary[k.strip()]
-        if isinstance(val, dict) and val.get("_type") in H5_TYPES:
-            if not self._h5:
-                wandb.termerror("Deleting tensors in summary requires h5py")
-            else:
-                del self._h5["summary/" + k.strip()]
-                self._h5.flush()
+        h5_key = "summary/" + k.strip()
+        if self._h5 and h5_key in self._h5:
+            del self._h5[h5_key]
+            self._h5.flush()
         del self._summary[k.strip()]
         self._write()
 
@@ -126,42 +116,94 @@ class Summary(object):
         if not self._h5 and h5py:
             self._h5 = h5py.File(self._h5_path, 'a', libver='latest')
 
-    def convert_json(self, obj=None, root_path=[]):
-        """Convert obj to json, summarizing larger arrays in JSON and storing them in h5."""
-        res = {}
-        obj = obj or self._summary
+    def _decode(self, k, v):
+        """Decode a `dict` encoded by `Summary._encode()`, loading h5 objects.
 
-        for key, value in six.iteritems(obj):
-            path = ".".join(root_path + [key])
-            if isinstance(value, dict):
-                res[key], converted = util.json_friendly(
-                    self.convert_json(value, root_path + [key]))
-            elif util.is_pandas_data_frame(value):
-                data_frame_id = util.generate_id()
-
-                path = util.write_data_frame(
-                    value,
-                    self._run.name,
-                    data_frame_id,
-                    self._run.dir,
-                    key)
-
-                res[key] = {
-                    "_type": "parquet",
-                    'data_frame_id': data_frame_id,
-                    'current_project_name': self._run.project_name(),  # we don't have the project ID here
-                    'path': path,
-                }
+        h5 objects may be very large, so we don't load them automatically.
+        """
+        if isinstance(v, dict):
+            if v.get("_type") in H5_TYPES:
+                return self.read_h5(k, v)
+            elif v.get("_type") == 'parquet':
+                wandb.termerror(
+                    'This data frame was saved via the wandb data API. Contact support@wandb.com for help.')
+                return None
+            # TODO: transform wandb objects and plots
             else:
-                tmp_obj, converted = util.json_friendly(
-                    data_types.val_to_json(key, value))
-                res[key], compressed = util.maybe_compress_summary(
-                    tmp_obj, util.get_h5_typename(value))
-                if compressed:
-                    self.write_h5(path, tmp_obj)
+                return {key: self._decode(k + "." + key, value) for (key, value) in v.items()}
+        else:
+            return v
 
-        self._summary = res
-        return res
+    def get_path(self, *path):
+        d = self._summary
+        for key in path:
+            d = d.get(key)
+
+        return d
+
+    def _encode(self, child=None, path_from_root=[], json_root=None):
+        """Normalize, compress, and encode sub-objects for backend storage.
+
+        Large objects in summaries and histories get replaced with dictionaries
+        with "_type" entries that say which type the original data was.
+
+        This creates a new tree of dictionaries and (by default) replaces
+        the top-level one with it.
+
+        This is not threadsafe.
+
+        child: Summary `dict` to encode. Defaults to `self._summary` but may
+            be any sub-`dict` instead.
+        path_from_root: `list` of key strings from the top-level summary to the
+            current `child`.
+        json_root: The new root dictionary for JSON encoding.
+        """
+
+        # Constructs two new `dict` trees:
+        #
+        # - one in `json_child` that discards and/or encodes objects that aren't
+        #   JSON serializable, and
+        # - one in `new_child` that leaves them intact so the user can still see
+        #   their original data in the same place(s) they put it.
+        #
+        # The second one becomes the new self._summary value.
+
+        json_child = {}
+
+        if child is None:
+            new_child = dict(self._summary)
+        else:
+            new_child = child
+
+        if json_root is None:
+            json_root = json_child
+
+        for key, value in list(new_child.items()):
+            path = ".".join(path_from_root + [key])
+            if isinstance(value, dict):
+                # recreating `value` here is what creates the new summary dict tree
+                new_value = dict(value)
+                new_child[key] = new_value
+                json_child[key], converted = util.json_friendly(
+                    self._encode(new_value, path_from_root + [key], json_root))
+            elif util.is_pandas_data_frame(value):
+                vid = id(value)
+                if vid not in self._encoded_objects:
+                    self._encoded_objects[vid] = util.encode_data_frame(key, value, self._run)
+                json_child[key] = dict(self._encoded_objects[vid])
+            else:
+                # TODO(adrian): merge this branch with the one for DataFrames.
+                friendly_val, converted = util.json_friendly(
+                    data_types.val_to_json(key, value))
+                json_child[key], compressed = util.maybe_compress_summary(
+                    friendly_val, util.get_h5_typename(value))
+                if compressed:
+                    self.write_h5(path, friendly_val)
+
+        if child is self._summary:
+            self._summary = new_child
+
+        return json_child
 
     def update(self, key_vals=None, overwrite=True):
         # Passing overwrite=True locks any keys that are passed in
@@ -171,7 +213,7 @@ class Summary(object):
             for k, v in six.iteritems(key_vals):
                 key = k.strip()
                 if overwrite or key not in self._summary or key not in self._locked_keys:
-                    summary[key] = self._transform(k.strip(), v)
+                    summary[key] = v
                 if overwrite:
                     self._locked_keys.add(key)
         self._summary.update(summary)
@@ -211,7 +253,7 @@ class FileSummary(Summary):
     def _write(self, commit=False):
         # TODO: we just ignore commit to ensure backward capability
         with open(self._fname, 'w') as f:
-            s = util.json_dumps_safer(self.convert_json(), indent=4)
+            s = util.json_dumps_safer(self._encode(), indent=4)
             f.write(s)
             f.write('\n')
         if self._h5:
@@ -239,7 +281,7 @@ class HTTPSummary(Summary):
                 self._h5.close()
                 self._h5 = None
             res = self._client.execute(mutation, variable_values={
-                'id': self._run.storage_id, 'summaryMetrics': util.json_dumps_safer(self.convert_json())})
+                'id': self._run.storage_id, 'summaryMetrics': util.json_dumps_safer(self._encode())})
             assert res['upsertBucket']['bucket']['id']
             entity, project, run = self._run.path
             if os.path.exists(self._h5_path) and os.path.getmtime(self._h5_path) >= self._started:
