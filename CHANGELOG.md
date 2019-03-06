@@ -1,3 +1,9 @@
+## 0.7.1 (March 7, 2019)
+
+#### :bug: Bug Fix
+
+-   handle case insensitive docker credentials
+
 ## 0.7.0 (February 28, 2019)
 
 #### :bug: Bug Fix
