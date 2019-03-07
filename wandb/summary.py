@@ -124,7 +124,7 @@ class Summary(object):
         if isinstance(v, dict):
             if v.get("_type") in H5_TYPES:
                 return self.read_h5(k, v)
-            elif v.get("_type") == 'parquet':
+            elif v.get("_type") == 'data-frame':
                 wandb.termerror(
                     'This data frame was saved via the wandb data API. Contact support@wandb.com for help.')
                 return None
@@ -133,13 +133,6 @@ class Summary(object):
                 return {key: self._decode(k + "." + key, value) for (key, value) in v.items()}
         else:
             return v
-
-    def get_path(self, *path):
-        d = self._summary
-        for key in path:
-            d = d.get(key)
-
-        return d
 
     def _encode(self, child=None, path_from_root=[], json_root=None):
         """Normalize, compress, and encode sub-objects for backend storage.
