@@ -45,6 +45,8 @@ def val_to_json(key, val, mode="summary", step=None):
                 converted = Audio.transform(val, cwd, key, step)
             elif isinstance(val[0], Html):
                 converted = Html.transform(val, cwd, key, step)
+            elif isinstance(val[0], Object3D):
+                converted = Object3D.transform(val, cwd, key, step)
         elif any(is_media):
             raise ValueError(
                 "Mixed media types in the same list aren't supported")
@@ -514,6 +516,39 @@ class Audio(IterableMedia):
             return False
         else:
             return ['' if c == None else c for c in captions]
+
+
+class Object3D(IterableMedia):
+    MAX_3D_COUNT = 100
+
+    def __init__(self, data):
+        """
+        Accepts a 3D File; Accepts all file types supported by babylon.js
+        """
+        if hasattr(data, 'read'):
+            if hasattr(data, 'seek'):
+                data.seek(0)
+            self.object3D = data.read()
+            if data.name:
+                self.name = data.name
+
+        # TODO: Support numpy arrays.
+        else:
+            raise ValueError("data must be a string or an io object")
+
+    @staticmethod
+    def transform(threeD_list, out_dir, key, step):
+        if len(threeD_list) > ThreeD.MAX_HTML_COUNT:
+            logging.warn(
+                "The maximum number of html files to store per key is %i." % ThreeD.MAX_HTML_COUNT)
+        base_path = os.path.join(out_dir, "media", "threeD")
+        util.mkdir_exists_ok(base_path)
+        truncated = threeD_list[:ThreeD.MAX_HTML_COUNT]
+        for i, obj in enumerate(truncated):
+            with open(os.path.join(base_path, "{}_{}_{}.html".format(key, step, i)), "w") as f:
+                f.write(obj.object3D)
+        meta = {"_type": "Object3D", "count": len(truncated)}
+        return meta
 
 
 class Html(IterableMedia):
