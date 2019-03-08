@@ -27,6 +27,10 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     name
     state
     config
+    sweep {
+        name
+        config
+    }
     readOnly
     createdAt
     heartbeatAt
