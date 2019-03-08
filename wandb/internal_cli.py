@@ -31,6 +31,7 @@ def headless(args):
     stderr_master_fd = args['stderr_master_fd']
 
     try:
+        print("JHRDEBUGheadrunfromenv")
         run = wandb.wandb_run.Run.from_environment_or_defaults()
         run.enable_logging()
 

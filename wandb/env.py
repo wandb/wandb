@@ -11,6 +11,7 @@ these values in many cases.
 """
 
 import os
+import six
 
 CONFIG_PATHS = 'WANDB_CONFIG_PATHS'
 SHOW_RUN = 'WANDB_SHOW_RUN'
@@ -35,6 +36,19 @@ JOB_TYPE = 'WANDB_JOB_TYPE'
 TAGS = 'WANDB_TAGS'
 IGNORE = 'WANDB_IGNORE_GLOBS'
 ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
+
+# Add all enviroment keys that impact how a program is executed, do not send API_KEY
+LOG_ENV = set([CONFIG_PATHS, SHOW_RUN, SHOW_RUN, DEBUG, INITED, DIR,
+    DESCRIPTION, USERNAME, PROJECT, ENTITY, BASE_URL, PROGRAM, MODE,
+    RESUME, RUN_ID, RUN_STORAGE_ID, RUN_GROUP, RUN_DIR, SWEEP_ID,
+    JOB_TYPE, TAGS, IGNORE, ERROR_REPORTING])
+
+
+def get_launch_environment(env=None):
+    if env is None:
+        env = os.environ
+    log_env = {k: v for (k, v) in six.iteritems(env) if k in LOG_ENV}
+    return log_env
 
 
 def is_debug(default=None, env=None):

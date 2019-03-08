@@ -47,6 +47,7 @@ class Run(object):
         self.resumed = False  # we set resume when history is first accessed
 
         self.program = program
+        self.launch_env = None
         if not self.program:
             try:
                 import __main__
@@ -54,6 +55,8 @@ class Run(object):
             except (ImportError, AttributeError):
                 # probably `python -c`, an embedded interpreter or something
                 self.program = '<python with no main file>'
+        print("JHRDEBUGRUN", program, self.launch_env)
+        self.commandline = sys.argv
         self.wandb_dir = wandb_dir
 
         with configure_scope() as scope:
@@ -283,6 +286,10 @@ class Run(object):
                                        summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
         self.storage_id = upsert_result['id']
         return upsert_result
+
+    def set_launch_environment(self, environment=None):
+        self.launch_env = environment
+        print("JHRDEBUGRUNSET", self.launch_env)
 
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside

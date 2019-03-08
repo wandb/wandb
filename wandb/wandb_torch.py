@@ -62,12 +62,14 @@ class TorchHistory(object):
 
         if log_parameters:
             def parameter_log_hook(module, input_, output):
+                #print("JHRDEBUG-1")
                 for name, parameter in module.named_parameters():
                     # for pytorch 0.3 Variables
                     if isinstance(parameter, torch.autograd.Variable):
                         data = parameter.data
                     else:
                         data = parameter
+                    #d = data.cpu()
                     self.log_tensor_stats(
                         data.cpu(), 'parameters/' + prefix + name)
             module.register_forward_hook(parameter_log_hook)
@@ -81,6 +83,7 @@ class TorchHistory(object):
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
         """
+        #print("JHRDEBUGT0", name, tensor)
 
         # LB We could potentially speed this up by using pytorch's torch.histc instead of
         # converting to numpy
@@ -91,6 +94,8 @@ class TorchHistory(object):
                 tensor = [item for sublist in tensor for item in sublist]
             tensor = torch.cat([t.view(-1) for t in tensor])
 
+        #print("JHRDEBUGT1", name, tensor)
+
         # checking for inheritance from _TensorBase didn't work for some reason
         if not hasattr(tensor, 'shape'):
             cls = type(tensor)
@@ -99,6 +104,9 @@ class TorchHistory(object):
         history = self._history()
         if history is None or not history.compute:
             return
+        ##print("JHRDEBUGT1")
+        #tensor = tensor.numpy()
+        #print("JHRDEBUGT2", tensor)
         flat = tensor.view(-1)
 
         # detach is new in 0.4
@@ -108,9 +116,14 @@ class TorchHistory(object):
         else:
             tensor = tensor.numpy()
 
+        #print("JHRDEBUGT2", name, tensor)
+        numpy = util.get_module("numpy", "Could not import numpy")
+        tensor = tensor[numpy.isfinite(tensor)]
+        #print("JHRDEBUGT3", name, tensor)
         history.row.update({
             name: wandb.Histogram(tensor)
         })
+        #print("JHRDEBUGT4", name, tensor)
 
     def _hook_variable_gradient_stats(self, var, name):
         """Logs a Variable's gradient's distribution statistics next time backward()

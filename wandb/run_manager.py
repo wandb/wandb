@@ -441,6 +441,12 @@ class RunManager(object):
         self._meta.data["mode"] = self._run.mode
         if self._run.program:
             self._meta.data["program"] = self._run.program
+        if self._run.commandline:
+            self._meta.data["commandline"] = self._run.commandline
+        print("JHRRUNM", self._run.commandline)
+        print("JHRRUNM", self._run.launch_env)
+        if self._run.launch_env:
+            self._meta.data["env"] = self._run.launch_env
 
         # This allows users to specify files they want uploaded during the run
         self._user_file_policies = {

@@ -698,6 +698,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
         config_paths = []
     config = Config(config_paths=config_paths,
                     wandb_dir=dir or wandb.wandb_dir())
+    print("JHRDEBUGRRR")
     run = wandb_run.Run(run_id=id, mode='clirun',
                         config=config, description=message,
                         program=program,

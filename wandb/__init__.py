@@ -594,6 +594,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     """
     global run
     global __stage_dir__
+    launch_env = env.get_launch_environment()
+    print("JHRDEBUGWB1", job_type, project, launch_env)
 
     # We allow re-initialization when we're in Jupyter
     in_jupyter = _get_python_type() != "python"
@@ -693,6 +695,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         termerror('Failed to create run directory: {}'.format(e))
         raise LaunchError("Could not write to filesystem.")
 
+    print("JHRDEBUG: set launchenv", launch_env)
+    run.set_launch_environment(launch_env)
     run.set_environment()
 
     def set_global_config(run):
@@ -729,6 +733,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
                 run.mode = "dryrun"
                 _init_headless(run, False)
         else:
+            print("JHRDEBUGHEAD")
             _init_headless(run)
     elif run.mode == 'dryrun':
         termlog(
