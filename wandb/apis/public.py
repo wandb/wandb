@@ -31,6 +31,10 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
         name
         config
     }
+    shouldStop
+    stopped
+    running
+    failed
     readOnly
     createdAt
     heartbeatAt
