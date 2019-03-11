@@ -523,7 +523,7 @@ class Audio(IterableMedia):
 class Object3D(IterableMedia):
     MAX_3D_COUNT = 4
 
-    def __init__(self, data):
+    def __init__(self, data, **kwargs):
         """
         Accepts a 3D File; Accepts all file types supported by babylon.js
         """
@@ -534,9 +534,9 @@ class Object3D(IterableMedia):
             if data.name:
                 self.extension = data.name.split('.').pop()
         elif isinstance(data, numpy.ndarray):
-            data = util3D.numpy_to_obj_string(data)
+            self.object3D = util3D.xyz_numpy_to_point_cloud_obj(data, **kwargs)
             self.extension = "obj"
-            raise ValueError("Numby Array support not yet done")
+            # raise ValueError("Numby Array support not yet done")
         else:
             raise ValueError("data must be a string or an io object")
 
