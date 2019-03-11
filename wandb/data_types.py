@@ -8,7 +8,9 @@ import io
 import logging
 import six
 import wandb
+import numpy
 from wandb import util
+from wandb import util3D
 
 
 def val_to_json(key, val, mode="summary", step=None):
@@ -519,7 +521,7 @@ class Audio(IterableMedia):
 
 
 class Object3D(IterableMedia):
-    MAX_3D_COUNT = 100
+    MAX_3D_COUNT = 4
 
     def __init__(self, data):
         """
@@ -530,24 +532,38 @@ class Object3D(IterableMedia):
                 data.seek(0)
             self.object3D = data.read()
             if data.name:
-                self.name = data.name
-
-        # TODO: Support numpy arrays.
+                self.extension = data.name.split('.').pop()
+        elif isinstance(data, numpy.ndarray):
+            data = util3D.numpy_to_obj_string(data)
+            self.extension = "obj"
+            raise ValueError("Numby Array support not yet done")
         else:
             raise ValueError("data must be a string or an io object")
 
     @staticmethod
+    def extensions(object3D_list):
+        extensions = [o.extension for o in object3D_list]
+        return extensions
+
+    @staticmethod
     def transform(threeD_list, out_dir, key, step):
-        if len(threeD_list) > ThreeD.MAX_HTML_COUNT:
+        if len(threeD_list) > Object3D.MAX_3D_COUNT:
             logging.warn(
-                "The maximum number of html files to store per key is %i." % ThreeD.MAX_HTML_COUNT)
-        base_path = os.path.join(out_dir, "media", "threeD")
+                "The maximum number of Object3D files to store per key is %i." % Object3D.MAX_3D_COUNT)
+        base_path = os.path.join(out_dir, "media", "object3D")
         util.mkdir_exists_ok(base_path)
-        truncated = threeD_list[:ThreeD.MAX_HTML_COUNT]
+        truncated = threeD_list[:Object3D.MAX_3D_COUNT]
+
         for i, obj in enumerate(truncated):
-            with open(os.path.join(base_path, "{}_{}_{}.html".format(key, step, i)), "w") as f:
+            with open(os.path.join(base_path, "{}_{}_{}.{}".format(key, step, i, obj.extension)), "w") as f:
                 f.write(obj.object3D)
-        meta = {"_type": "Object3D", "count": len(truncated)}
+
+        meta = {"_type": "object3D",
+                "count": len(truncated)}
+
+        extensions = Object3D.extensions(truncated)
+        meta["extensions"] = extensions
+
         return meta
 
 
