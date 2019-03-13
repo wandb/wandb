@@ -4,6 +4,7 @@
 
 -   handle case insensitive docker credentials
 -   fix app_url for private cloud login flow
+-   don't retry 404's when starting sweep agents
 
 ## 0.7.0 (February 28, 2019)
 
