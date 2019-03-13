@@ -197,7 +197,7 @@ class Api(object):
         api_url = self.api_url
         if api_url.endswith('.test') or self.settings().get("dev_prod"):
             return 'http://app.test'
-        elif api_url.endswith('wandb.ai'):
+        elif api_url.startswith('https://api.'):
             return api_url.replace('api.', 'app.')
         else:
             return api_url

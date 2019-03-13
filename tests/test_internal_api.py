@@ -78,6 +78,13 @@ def test_parse_slug():
     assert run == "foo"
 
 
+def test_app_url():
+    api.set_setting("base_url", "https://api.test")
+    assert api.app_url == "http://app.test"
+    api.set_setting("base_url", "https://api.foo.bar.baz")
+    assert api.app_url == "https://app.foo.bar.baz"
+
+
 def test_pull_success(request_mocker, download_url, query_project):
     query_project(request_mocker)
     download_url(request_mocker)
@@ -125,7 +132,8 @@ def test_push_success(request_mocker, upload_url, query_project, upsert_run):
 def test_push_no_project(request_mocker, upload_url, query_project):
     query_project(request_mocker)
     upload_url(request_mocker)
-    del os.environ["WANDB_PROJECT"]
+    if os.getenv("WANDB_PROJECT"):
+        del os.environ["WANDB_PROJECT"]
     with pytest.raises(wandb.Error):
         api = internal.Api(load_settings=False)
         print("WTF", api.settings("project"))
