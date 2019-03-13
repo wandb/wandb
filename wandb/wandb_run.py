@@ -222,7 +222,8 @@ class Run(object):
             file_api.stream_file(event)
             snap.paths.remove(event)
         if config:
-            run_update["config"] = yaml.load(open(config))
+            run_update["config"] = util.load_yaml(
+                open(config))
         elif user_config:
             # TODO: half backed support for config.json
             run_update["config"] = {k: {"value": v}

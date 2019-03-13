@@ -243,7 +243,7 @@ class FileEventHandlerConfig(FileEventHandler):
 
     def _update(self):
         try:
-            config_dict = yaml.load(open(self.file_path))
+            config_dict = util.load_yaml(open(self.file_path))
         except yaml.parser.ParserError:
             wandb.termlog(
                 "Unable to parse config file; probably being modified by user process?")

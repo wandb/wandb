@@ -851,7 +851,7 @@ def sweep(ctx, config_yaml):
         wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
         return
     try:
-        config = yaml.load(yaml_file)
+        config = util.load_yaml(yaml_file)
     except yaml.YAMLError as err:
         wandb.termerror('Error in configuration file: %s' % err)
         return

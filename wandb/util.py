@@ -19,6 +19,7 @@ import stat
 import shortuuid
 import importlib
 import types
+import yaml
 from datetime import date, datetime
 
 import click
@@ -644,6 +645,13 @@ def image_from_docker_args(args):
         most_likely = possible_images[0]
     return most_likely
 
+
+def load_yaml(file):
+    """If pyyaml > 5.1 use full_load to avoid warning"""
+    if hasattr(yaml, "full_load"):
+        return yaml.full_load(file)
+    else:
+        return yaml.load(file)
 
 def image_id_from_k8s():
     """Pings the k8s metadata service for the image id"""
