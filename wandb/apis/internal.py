@@ -962,10 +962,10 @@ class Api(object):
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
-        def no_retry_400(e):
+        def no_retry_400_or_404(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if e.response.status_code != 400:
+            if e.response.status_code != 400 and e.response.status_code != 404:
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
@@ -975,7 +975,7 @@ class Api(object):
             'description': config.get("description"),
             'entityName': self.settings("entity"),
             'projectName': self.settings("project")},
-            check_retry_fn=no_retry_400)
+            check_retry_fn=no_retry_400_or_404)
         return response['upsertSweep']['sweep']['name']
 
     def file_current(self, fname, md5):
