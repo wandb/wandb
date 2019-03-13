@@ -1,8 +1,9 @@
-## 0.7.1 (March 7, 2019)
+## 0.7.1 (March 14, 2019)
 
 #### :bug: Bug Fix
 
 -   handle case insensitive docker credentials
+-   fix app_url for private cloud login flow
 
 ## 0.7.0 (February 28, 2019)
 
