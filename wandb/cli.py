@@ -309,6 +309,8 @@ def restore(ctx, run, no_git, branch, project, entity):
         else:
             rest = run
         project, run = rest.split(":", 1)
+    elif run.count("/") > 1:
+        entity, run = run.split("/", 1)
 
     project, run = api.parse_slug(run, project=project)
     commit, json_config, patch_content, metadata = api.run_config(

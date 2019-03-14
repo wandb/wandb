@@ -264,6 +264,26 @@ def test_restore_no_git(runner, request_mocker, query_run, git_repo, docker, mon
     assert result.exit_code == 0
     assert "Restored config variables" in result.output
 
+def test_restore_slashes(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    mock = query_run(request_mocker, {"git": {"repo": "http://fake.git/foo/bar"}})
+    monkeypatch.setattr(cli, 'api', InternalApi({'project': 'test'}))
+    result = runner.invoke(cli.restore, ["wandb/test/abcdef", "--no-git"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Restored config variables" in result.output
+
+def test_restore_no_entity(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    mock = query_run(request_mocker, {"git": {"repo": "http://fake.git/foo/bar"}})
+    monkeypatch.setattr(cli, 'api', InternalApi({'project': 'test'}))
+    result = runner.invoke(cli.restore, ["test/abcdef", "--no-git"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Restored config variables" in result.output
+
 def test_restore_not_git(runner, request_mocker, query_run, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     with runner.isolated_filesystem():

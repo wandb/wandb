@@ -444,6 +444,8 @@ class Api(object):
         response = self.gql(query, variable_values={
             'name': project, 'run': run, 'entity': entity
         })
+        if response['model'] == None:
+            raise ValueError("Run {}/{}/{} not found".format(entity, project, run) )
         run = response['model']['bucket']
         commit = run['commit']
         patch = run['patch']
