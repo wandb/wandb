@@ -109,7 +109,7 @@ class WandbCallback(keras.callbacks.Callback):
 
     def set_model(self, model):
         self.model = model
-        wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
+        #wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
