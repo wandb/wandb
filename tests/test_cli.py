@@ -559,8 +559,9 @@ def test_init_existing_login(runner, local_netrc, request_mocker, query_projects
         assert "This directory is configured" in result.output
 
 
-def test_run_with_error(runner, request_mocker, upsert_run, git_repo):
+def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_viewer):
     upsert_run(request_mocker)
+    query_viewer(request_mocker)
     runner.invoke(cli.off)
     result = runner.invoke(cli.run, ["missing.py"])
 
@@ -606,8 +607,9 @@ def test_enable_off(runner, git_repo):
     assert "disabled" in open("wandb/settings").read()
 
 
-def test_sync(runner, request_mocker, upsert_run, upload_url, git_repo):
+def test_sync(runner, request_mocker, upsert_run, upload_url, git_repo, query_viewer):
     os.environ["WANDB_API_KEY"] = "some invalid key"
+    query_viewer(request_mocker)
     upsert_run(request_mocker)
     upload_url(request_mocker)
     with open("wandb-history.jsonl", "w") as f:
@@ -619,8 +621,9 @@ def test_sync(runner, request_mocker, upsert_run, upload_url, git_repo):
     assert "Uploading history metrics" in str(result.output)
 
 
-def test_sync_runs(runner, request_mocker, upsert_run, upload_url, upload_logs, git_repo):
+def test_sync_runs(runner, request_mocker, upsert_run, upload_url, upload_logs, query_viewer, git_repo):
     os.environ["WANDB_API_KEY"] = "some invalid key"
+    query_viewer(request_mocker)
     upsert_run(request_mocker)
     upload_url(request_mocker)
     upload_logs(request_mocker, "abc123zz")
@@ -642,10 +645,11 @@ def test_sync_runs(runner, request_mocker, upsert_run, upload_url, upload_logs, 
 
 
 # TODO: this is hitting production
-def test_run_simple(runner, monkeypatch, request_mocker, upsert_run, query_project, git_repo, upload_logs, upload_url):
+def test_run_simple(runner, monkeypatch, request_mocker, upsert_run, query_project, query_viewer, git_repo, upload_logs, upload_url):
     run_id = "abc123"
     upsert_run(request_mocker)
     upload_logs(request_mocker, run_id)
+    query_viewer(request_mocker)
     query_project(request_mocker)
     upload_url(request_mocker)
     with open("simple.py", "w") as f:
@@ -710,7 +714,8 @@ def test_board_custom_dir(runner, mocker, monkeypatch):
     assert app.run.called
 
 
-def test_resume_never(runner, request_mocker, upsert_run, query_run_resume_status, git_repo):
+def test_resume_never(runner, request_mocker, upsert_run, query_run_resume_status, git_repo, query_viewer):
+    query_viewer(request_mocker)
     query_run_resume_status(request_mocker)
     upsert_run(request_mocker, error=['Bucket with that name already exists'])
     # default is --resume="never"

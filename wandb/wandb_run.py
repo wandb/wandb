@@ -325,15 +325,21 @@ class Run(object):
 
     def get_url(self, api=None):
         api = api or InternalApi()
-        if api.settings('entity'):
-            return "{base}/{entity}/{project}/runs/{run}".format(
-                base=api.app_url,
-                entity=api.settings('entity'),
-                project=self.project_name(api),
-                run=self.id
-            )
-        elif api.api_key:
-            return "run pending creation, url not known"
+        if api.api_key:
+            if api.settings('entity') is None:
+                viewer = api.viewer()
+                if viewer.get('entity'):
+                    api.set_setting('entity', viewer['entity'])
+            if api.settings('entity'):
+                return "{base}/{entity}/{project}/runs/{run}".format(
+                    base=api.app_url,
+                    entity=api.settings('entity'),
+                    project=self.project_name(api),
+                    run=self.id
+                )
+            else:
+                # TODO: I think this could only happen if the api key is invalid
+                return "run pending creation, url not known"
         else:
             return "not logged in, run wandb login or set WANDB_API_KEY"
 

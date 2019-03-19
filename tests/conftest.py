@@ -265,11 +265,12 @@ def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunM
 
 
 @pytest.fixture
-def run_manager(mocker, request_mocker, upsert_run):
+def run_manager(mocker, request_mocker, upsert_run, query_viewer):
     """This fixture emulates the run_manager headless mode in a single process
     Just call run_manager.test_shutdown() to join the threads
     """
     with CliRunner().isolated_filesystem():
+        query_viewer(request_mocker)
         upsert_run(request_mocker)
         run_manager = fake_run_manager(mocker)
         yield run_manager

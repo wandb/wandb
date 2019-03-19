@@ -281,7 +281,7 @@ class Api(object):
         }
         ''')
         res = self.gql(query)
-        return res.get('viewer', {})
+        return res.get('viewer') or {}
 
     @normalize_exceptions
     def list_projects(self, entity=None):

@@ -295,8 +295,9 @@ def download_url():
 @pytest.fixture
 def upload_logs():
     def wrapper(mocker, run, status_code=200, body_match='', error=None):
-        api = InternalApi(default_settings={"entity": "bagsy"})
+        api = InternalApi()
         api.set_setting("project", "new-project")
+        api.set_setting("entity", "bagsy")
 
         def match_body(request):
             return body_match in (request.text or '')

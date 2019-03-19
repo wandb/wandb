@@ -1,3 +1,12 @@
+## 0.7.2 (March 19, 2019)
+
+#### :bug: Bug Fix
+
+-   run.get_url resolves the default entity if one wasn't specified
+-   wandb restore accepts run paths with only slashes
+-   Fixed PyYaml deprecation warnings
+-   Added entrypoint shell script to manifest
+
 ## 0.7.1 (March 14, 2019)
 
 #### :bug: Bug Fix
