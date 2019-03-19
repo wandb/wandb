@@ -6,6 +6,7 @@
 -   wandb restore accepts run paths with only slashes
 -   Fixed PyYaml deprecation warnings
 -   Added entrypoint shell script to manifest
+-   Strip newlines from cuda version
 
 ## 0.7.1 (March 14, 2019)
 
