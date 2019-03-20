@@ -35,13 +35,34 @@ class SummarySubDict(object):
             self._root = self
         else:
             self._root = root
-        self._path = path
+        self._path = tuple(path)
         self._dict = {}
 
         # We use this to track which keys the user has set explicitly
         # so that we don't automatically overwrite them when we update
         # the summary from the history.
         self._locked_keys = set()
+
+    def __setattr__(self, k, v):
+        k = k.strip()
+        if k.startswith("_"):
+            super(SummarySubDict, self).__setattr__(k, v)
+        else:
+            self[k] = v
+            return v
+
+    def __getattr__(self, k):
+        k = k.strip()
+        if k.startswith("_"):
+            return super(SummarySubDict, self).__getattr__(k)
+        else:
+            return self[k]
+
+    #def __getattr__(self, k):
+    #    return getattr(super(SummarySubDict, self), k)
+
+    #def __setattr__(self, k, v):
+    #    return setattr(super(SummarySubDict, self), k, v)
 
     def _root_get(self, path, child_dict):
         """We pass the child_dict so the item can be set on it or not as
@@ -60,7 +81,7 @@ class SummarySubDict(object):
 
     def get(self, k, default=None):
         k = k.strip()
-        if k is not in self._dict:
+        if k not in self._dict:
             self._root._root_get(self._path + (k,), self._dict)
         return self._dict.get(k, default)
 
@@ -156,45 +177,28 @@ class Summary(SummarySubDict):
     def _write(self, commit=False):
         raise NotImplementedError
 
-    def __setattr__(self, k, v):
-        k = k.strip()
-        if k.startswith("_"):
-            super(Summary, self).__setattr__(k, v)
-        else:
-            self[k] = v
-            return v
-
-    def __getattr__(self, k):
-        k = k.strip()
-        if k.startswith("_"):
-            return super(Summary, self).__getattr__(k)
-        else:
-            return self[k]
-
     def _json_get(self, path):
         pass
 
     def _root_get(self, path, child_dict):
         json_dict = self._json_dict
-        for key in enumerate(path[:-1]):
+        for key in path[:-1]:
             json_dict = json_dict[key]
 
         key = path[-1]
         if key in json_dict:
-            child_dict[key] = self._decode(key, json_dict[key])
+            child_dict[key] = self._decode(path, json_dict[key])
 
     def _root_del(self, path):
         json_dict = self._json_dict
-        for key in enumerate(path[:-1]):
+        for key in path[:-1]:
             json_dict = json_dict[key]
 
         del json_dict[path[-1]]
-        """
-        h5_key = "summary/" + k.strip()
+        h5_key = "summary/" + '.'.join(path)
         if self._h5 and h5_key in self._h5:
             del self._h5[h5_key]
             self._h5.flush()
-        """
 
         # TODO(adrian): old code did not have commit set to true for deletes.
         self._write()
@@ -217,10 +221,10 @@ class Summary(SummarySubDict):
             wandb.termerror("Storing tensors in summary requires h5py")
         else:
             try:
-                del self._h5["summary/" + path]
+                del self._h5["summary/" + '.'.join(path)]
             except KeyError:
                 pass
-            self._h5["summary/" + path] = val
+            self._h5["summary/" + '.'.join(path)] = val
             self._h5.flush()
 
     def read_h5(self, path, val=None):
@@ -230,29 +234,29 @@ class Summary(SummarySubDict):
         if not self._h5:
             wandb.termerror("Reading tensors from summary requires h5py")
         else:
-            return self._h5.get("summary/" + path, val)
+            return self._h5.get("summary/" + '.'.join(path), val)
 
     def open_h5(self):
         if not self._h5 and h5py:
             self._h5 = h5py.File(self._h5_path, 'a', libver='latest')
 
-    def _decode(self, k, v):
+    def _decode(self, path, json_value):
         """Decode a `dict` encoded by `Summary._encode()`, loading h5 objects.
 
         h5 objects may be very large, so we won't have loaded them automatically.
         """
-        if isinstance(v, dict):
-            if v.get("_type") in H5_TYPES:
-                return self.read_h5(k, v)
-            elif v.get("_type") == 'data-frame':
+        if isinstance(json_value, dict):
+            if json_value.get("_type") in H5_TYPES:
+                return self.read_h5(path, json_value)
+            elif json_value.get("_type") == 'data-frame':
                 wandb.termerror(
                     'This data frame was saved via the wandb data API. Contact support@wandb.com for help.')
                 return None
             # TODO: transform wandb objects and plots
             else:
-                return {key: self._decode(k + "." + key, value) for (key, value) in v.items()}
+                return SummarySubDict(self, path)
         else:
-            return v
+            return json_value
 
     def _encode(self, value, path_from_root):
         """Normalize, compress, and encode sub-objects for backend storage.
@@ -282,7 +286,7 @@ class Summary(SummarySubDict):
                 friendly_value, converted = util.json_friendly(data_types.val_to_json(path, value))
                 json_value, compressed = util.maybe_compress_summary(friendly_value, util.get_h5_typename(value))
                 if compressed:
-                    self.write_h5(path, friendly_value)
+                    self.write_h5(path_from_root, friendly_value)
 
                 return json_value
         """
@@ -319,9 +323,9 @@ class FileSummary(Summary):
 
     def load(self):
         try:
-            self._summary = json.load(open(self._fname))
+            self._json_dict = json.load(open(self._fname))
         except (IOError, ValueError):
-            self._summary = {}
+            self._json_dict = {}
 
     def _write(self, commit=False):
         # TODO: we just ignore commit to ensure backward capability
@@ -338,7 +342,7 @@ class FileSummary(Summary):
 
 class HTTPSummary(Summary):
     def __init__(self, run, client, summary=None):
-        super(HTTPSummary, self).__init__(run, summary=summary)
+        super(HTTPSummary, self).__init__(run, summary=summary)  # XXX
         self._run = run
         self._client = client
         self._started = time.time()
