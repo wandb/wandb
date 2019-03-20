@@ -23,8 +23,12 @@ h5py = util.get_module("h5py")
 np = util.get_module("numpy")
 
 
-class NestedDict(object):
-    """Nested dict-like object that reports "set" operations to a root object.
+class SummarySubDict(object):
+    """Nested dict-like object that proxies read and write operations through a root object.
+
+    This lets us do synchronous serialization and lazy loading of large values.
+
+    XXX need to check locked keys semantics.
     """
     def __init__(self, root=None, path=()):
         if root is None:
@@ -34,116 +38,87 @@ class NestedDict(object):
         self._path = path
         self._dict = {}
 
-    def _mark_dirty(self, path):
-        raise NotImplementedError
-
-    def __getitem__(self, k):
-        return self._dict[k]
-
-    def __contains__(self, k):
-        return k in self._dict
-
-    def __setitem__(self, k, v):
-        path = self._path + (k,)
-
-        if isinstance(v, dict):
-            self._dict[k] = NestedDict(self._root, path)
-            self._dict[k].update(v)
-        else:
-            self._dict[k] = v
-
-        if self._root is not self:
-            self._root._mark_dirty(path)
-
-        return v
-
-    def __delitem__(self, k):
-        del self._dict[k]
-        self._root._mark_dirty(self._path + (k,))
-
-    def update(self, d):
-        for k, v in six.iteritems(d):
-            self[k] = v
-
-
-class Summary(NestedDict):
-    """Used to store summary metrics during and after a run."""
-
-    def __init__(self, run, summary=None):
-        super(Summary, self).__init__()
-        self._run = run
-        self._h5_path = os.path.join(self._run.dir, DEEP_SUMMARY_FNAME)
-        # Lazy load the h5 file
-        self._h5 = None
+        # We use this to track which keys the user has set explicitly
+        # so that we don't automatically overwrite them when we update
+        # the summary from the history.
         self._locked_keys = set()
 
-        # Mirrored version of self._dict that gets written to JSON
-        # kept up to date by self._mark_dirty().
-        self._json_dict = {}
-
-        if summary is not None:
-            self.update(summary)
-
-    def _write(self, commit=False):
+    def _root_get(self, path, child_dict):
+        """We pass the child_dict so the item can be set on it or not as
+        appropriate.
+        """
         raise NotImplementedError
 
-    def get(self, k, default=None):
-        raise NotImplementedError  # XXX
-        return self._summary.get(k.strip(), default)
+    def _root_set(self, path, new_keys_values):
+        raise NotImplementedError
 
-    def __setitem__(self, k, v):
-        k = k.strip()
-        super(Summary, self).__setitem__(k, v)
-        self._locked_keys.add(k)
-        self._write()
-        return v
-
-    def __setattr__(self, k, v):
-        if k.startswith("_"):
-            super(Summary, self).__setattr__(k, v)
-        else:
-            self[k] = v
-            return v
-
-    def __getattr__(self, k):
-        if k.startswith("_"):
-            return super(Summary, self).__getattr__(k)
-        else:
-            return self[k]
-
-    def __delitem__(self, k):
-        """
-        h5_key = "summary/" + k.strip()
-        if self._h5 and h5_key in self._h5:
-            del self._h5[h5_key]
-            self._h5.flush()
-        """
-        # XXX remove from self._locked_keys
-        del super(Summary, self)[k.strip()]
-        self._write()
-
-    def __repr__(self):
-        return repr(self._dict)
+    def _root_del(self, path):
+        raise NotImplementedError
 
     def keys(self):
         return self._dict.keys()
 
-    def update(self, key_vals=None, overwrite=True):
-        """Passing overwrite=True locks any keys that are passed in.
+    def get(self, k, default=None):
+        k = k.strip()
+        if k is not in self._dict:
+            self._root._root_get(self._path + (k,), self._dict)
+        return self._dict.get(k, default)
 
-        Locked keys can only be overwritten by passing overwrite=True.
+    def __getitem__(self, k):
+        self.get(k)  # load the value into _dict if it should be there
+        return self._dict[k]
+
+    def __contains__(self, k):
+        k = k.strip()
+        return k in self._dict
+
+    def __setitem__(self, k, v):
+        k = k.strip()
+        path = self._path
+
+        if isinstance(v, dict):
+            self._dict[k] = SummarySubDict(self._root, path)
+            self._root._root_set(path, [(k, {})])
+            self._dict[k].update(v)
+        else:
+            self._dict[k] = v
+            self._root._root_set(path, [(k, v)])
+
+        self._locked_keys.add(k)
+
+        return v
+
+    def __delitem__(self, k):
+        k = k.strip()
+        del self._dict[k]
+        self._root._root_del(self._path + (k,))
+
+    def __repr__(self):
+        return repr(self._dict)
+
+    def update(self, key_vals=None, overwrite=True):
+        """Locked keys can only be overwritten by leaving overwrite=True.
+
+        In that case, those keys will be added to the "locked" list.
         """
-        if key_vals:
-            write_keys = set(key_vals.keys())
-            if not overwrite:
-                # Overwrite keys that haven't been set even if they're in
-                # locked keys. May not be necessary if we update locked keys
-                # in del.
-                write_keys -= self._locked_keys & set(self._dict.keys())
-            write_key_vals = dict((k, key_vals[k]) for k in write_keys)
-            super(Summary, self).update(write_key_vals)
-            if overwrite:
-                self._locked_keys += write_keys
+        if not key_vals:
+            return
+
+        key_vals = dict((k.strip(), v) for k, v in six.iteritems(key_vals))
+
+        if overwrite:
+            write_items = list(six.iteritems(key_vals))
+            self._locked_keys.update(key_vals.keys())
+        else:
+            write_keys = set(key_vals.keys()) - self._locked_keys
+            write_items = [(k, key_vals[k]) for k in write_keys]
+
+        for k, v in write_items:
+            self._dict[k] = v
+
+        self._root._root_set(self._path, write_items)
+
+        self._write(commit=True)
 
         """
             for k, v in six.iteritems(key_vals):
@@ -154,32 +129,87 @@ class Summary(NestedDict):
                     self._locked_keys.add(key)
         self._summary.update(summary)
         """
+
+
+class Summary(SummarySubDict):
+    """Store summary metrics (eg. accuracy) during and after a run.
+
+    You can manipulate this as if it's a Python dictionary but the keys
+    get mangled. .strip() is called on them, so spaces at the beginning
+    and end are removed.
+    """
+
+    def __init__(self, run, summary=None):
+        super(Summary, self).__init__()
+        self._run = run
+        self._h5_path = os.path.join(self._run.dir, DEEP_SUMMARY_FNAME)
+        # Lazy load the h5 file
+        self._h5 = None
+
+        # Mirrored version of self._dict with versions of values that get written
+        # to JSON kept up to date by self._root_set() and self._root_del().
+        self._json_dict = {}
+
+        if summary is not None:
+            self.update(summary)
+
+    def _write(self, commit=False):
+        raise NotImplementedError
+
+    def __setattr__(self, k, v):
+        k = k.strip()
+        if k.startswith("_"):
+            super(Summary, self).__setattr__(k, v)
+        else:
+            self[k] = v
+            return v
+
+    def __getattr__(self, k):
+        k = k.strip()
+        if k.startswith("_"):
+            return super(Summary, self).__getattr__(k)
+        else:
+            return self[k]
+
+    def _json_get(self, path):
+        pass
+
+    def _root_get(self, path, child_dict):
+        json_dict = self._json_dict
+        for key in enumerate(path[:-1]):
+            json_dict = json_dict[key]
+
+        key = path[-1]
+        if key in json_dict:
+            child_dict[key] = self._decode(key, json_dict[key])
+
+    def _root_del(self, path):
+        json_dict = self._json_dict
+        for key in enumerate(path[:-1]):
+            json_dict = json_dict[key]
+
+        del json_dict[path[-1]]
+        """
+        h5_key = "summary/" + k.strip()
+        if self._h5 and h5_key in self._h5:
+            del self._h5[h5_key]
+            self._h5.flush()
+        """
+
+        # TODO(adrian): old code did not have commit set to true for deletes.
+        self._write()
+
+    def _root_set(self, path, new_keys_values):
+        json_dict = self._json_dict
+        for key in path:
+            json_dict = json_dict[key]
+
+        for new_key, new_value in new_keys_values:
+            json_dict[new_key] = self._encode(new_value, path + (new_key,))
+
         self._write(commit=True)
 
-    def _mark_dirty(self, path):
-        last_dict = None
-        value = self
-        for i, key in enumerate(path):
-            if key in value:
-                last_dict = value
-                print(path, key, value)
-                value = value[key]
-
-        # XXX i and key may not be set
-        if i == len(path):  # set or updated value
-            json_dict = self._json_dict
-            for key in path[:-1]:
-                json_dict = json_dict[key]
-            json_dict[path[-1]] = self._encode(value, path)
-        else:  # deleted the key at `path`
-            assert i == (len(path) - 1), \
-                'Nonexistant path {} marked dirty but only {} exists.'.format(path, path[:i])
-
-
-
-
-
-    def write_h5(self, key, val):
+    def write_h5(self, path, val):
         # ensure the file is open
         self.open_h5()
 
@@ -187,20 +217,20 @@ class Summary(NestedDict):
             wandb.termerror("Storing tensors in summary requires h5py")
         else:
             try:
-                del self._h5["summary/" + key]
+                del self._h5["summary/" + path]
             except KeyError:
                 pass
-            self._h5["summary/" + key] = val
+            self._h5["summary/" + path] = val
             self._h5.flush()
 
-    def read_h5(self, key, val=None):
+    def read_h5(self, path, val=None):
         # ensure the file is open
         self.open_h5()
 
         if not self._h5:
             wandb.termerror("Reading tensors from summary requires h5py")
         else:
-            return self._h5.get("summary/" + key, val)
+            return self._h5.get("summary/" + path, val)
 
     def open_h5(self):
         if not self._h5 and h5py:
@@ -209,7 +239,7 @@ class Summary(NestedDict):
     def _decode(self, k, v):
         """Decode a `dict` encoded by `Summary._encode()`, loading h5 objects.
 
-        h5 objects may be very large, so we don't load them automatically.
+        h5 objects may be very large, so we won't have loaded them automatically.
         """
         if isinstance(v, dict):
             if v.get("_type") in H5_TYPES:
@@ -245,11 +275,11 @@ class Summary(NestedDict):
                 json_value[key] = self._encode(value, path_from_root + (key,))
             return json_value
         else:
+            path = ".".join(path_from_root)
             if util.is_pandas_data_frame(value):
-                return util.encode_data_frame(key, value, self._run)
+                return util.encode_data_frame(path, value, self._run)
             else:
-                path = ".".join(path_from_root)
-                friendly_value, converted = util.json_friendly(data_types.val_to_json(key, value))
+                friendly_value, converted = util.json_friendly(data_types.val_to_json(path, value))
                 json_value, compressed = util.maybe_compress_summary(friendly_value, util.get_h5_typename(value))
                 if compressed:
                     self.write_h5(path, friendly_value)
@@ -299,6 +329,8 @@ class FileSummary(Summary):
             s = util.json_dumps_safer(self._json_dict, indent=4)
             f.write(s)
             f.write('\n')
+            f.flush()
+            os.fsync(f.fileno())
         if self._h5:
             self._h5.close()
             self._h5 = None

@@ -147,7 +147,5 @@ model.fit_generator(
     validation_steps=len(test_generator))
 
 if config.epochs == 0:
-    run.summary["results"] = results_data_frame(test_datagen, model)
-
-import time
-time.sleep(1)
+    #run.summary["results"] = results_data_frame(test_datagen, model)
+    run.summary.update({ "results2": results_data_frame(test_datagen, model) })
