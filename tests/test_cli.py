@@ -317,7 +317,7 @@ def docker(request_mocker, query_run, mocker, monkeypatch):
 
 def test_docker_run_digest(runner, docker, monkeypatch):
     runner.invoke(cli.docker_run, ["wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"])
-    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--runtime', 'nvidia', 'wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177'])
+    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177', '--runtime', 'nvidia', 'wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177'])
 
 def test_docker_run_bad_image(runner, docker, monkeypatch):
     runner.invoke(cli.docker_run, ["wandb///foo$"])
@@ -357,7 +357,7 @@ def test_docker_sha(runner, docker):
     result = runner.invoke(cli.docker, ["test@sha256:abc123"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
-    docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v',
+    docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=test@sha256:abc123', '--ipc=host', '-v',
     wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e',
     'WANDB_API_KEY=test', '-it', 'test@sha256:abc123', '/bin/bash'])
     assert result.exit_code == 0
