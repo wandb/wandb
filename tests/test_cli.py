@@ -315,6 +315,14 @@ def docker(request_mocker, query_run, mocker, monkeypatch):
                         lambda *args, **kwargs: b"wandb/deepo@sha256:abc123")
     return docker
 
+def test_docker_run_digest(runner, docker, monkeypatch):
+    runner.invoke(cli.docker_run, ["wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"])
+    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--runtime', 'nvidia', 'wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177'])
+
+def test_docker_run_bad_image(runner, docker, monkeypatch):
+    runner.invoke(cli.docker_run, ["wandb///foo$"])
+    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '--runtime', 'nvidia', "wandb///foo$"])
+
 def test_docker_run_no_nvidia(runner, docker, monkeypatch):
     monkeypatch.setattr(cli, 'find_executable', lambda name: False)
     runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad"])

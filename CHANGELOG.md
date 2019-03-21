@@ -1,3 +1,9 @@
+## 0.7.3 (TBD)
+
+#### :bug: Bug Fix
+
+-   wandb-docker-run accepts image digests
+
 ## 0.7.2 (March 19, 2019)
 
 #### :bug: Bug Fix

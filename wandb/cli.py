@@ -733,6 +733,7 @@ def docker_run(ctx, docker_run_args, help):
     #TODO: image_from_docker_args uses heuristics to find the docker image arg, there are likely cases
     #where this won't work
     image = util.image_from_docker_args(args)
+    resolved_image = None
     if image:
         resolved_image = wandb.docker.image_id(image)
     if resolved_image:

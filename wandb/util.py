@@ -642,6 +642,9 @@ def image_from_docker_args(args):
         if arg.startswith("-"):
             last_flag = i
             last_arg = arg
+        elif "@sha256:" in arg:
+            # Because our regex doesn't match digests
+            possible_images.append(arg)
         elif docker_image_regex(arg):
             if last_flag == i - 2:
                 possible_images.append(arg)

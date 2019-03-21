@@ -162,3 +162,9 @@ def test_image_from_docker_args_simple_no_namespace():
     image = util.image_from_docker_args([
         "run", "ufoym/deepo:cpu-all", "/bin/bash", "-c", "python train.py"])
     assert image == "ufoym/deepo:cpu-all"
+
+
+def test_image_from_docker_args_sha():
+    image = util.image_from_docker_args(
+        ["wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"])
+    assert image == "wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"
