@@ -436,22 +436,28 @@ class Histogram(object):
 class Table(object):
     MAX_ROWS = 300
 
-    def __init__(self, columns=["Input", "Output", "Expected"], rows=[]):
+    def __init__(self, columns=["Input", "Output", "Expected"], data=[], rows=[]):
+        """rows is kept for legacy reasons, we use data to mimic the Pandas api
+        """
         self.columns = columns
-        self.rows = list(rows)
+        self.data = list(rows or data)
 
     def add_row(self, *row):
-        if len(row) != len(self.columns):
+        logging.warn("add_row is deprecated, use add_data")
+        self.add_data(*row)
+
+    def add_data(self, *data):
+        if len(data) != len(self.columns):
             raise ValueError("This table expects {} columns: {}".format(
                 len(self.columns), self.columns))
-        self.rows.append(list(row))
+        self.data.append(list(data))
 
     @staticmethod
     def transform(table):
-        if len(table.rows) > Table.MAX_ROWS:
+        if len(table.data) > Table.MAX_ROWS:
             logging.warn(
                 "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
-        return {"_type": "table", "columns": table.columns, "data": table.rows[:Table.MAX_ROWS]}
+        return {"_type": "table", "columns": table.columns, "data": table.data[:Table.MAX_ROWS]}
 
 
 class IterableMedia(object):
