@@ -51,6 +51,8 @@ class TorchHistory(object):
         torch = wandb.util.get_module("torch", "Could not import torch")
         self._history = weakref.ref(history)
         self._hook_handles = {}
+        self._num_bins = 64
+        self._is_cuda_histc_supported = None
 
     def add_log_hooks_to_pytorch_module(self, module, name=None, prefix='', log_parameters=True, log_gradients=True):
         """ This instuments hooks into the pytorch module
@@ -81,8 +83,6 @@ class TorchHistory(object):
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
         """
-        # LB We could potentially speed this up by using pytorch's torch.histc instead of
-        # converting to numpy
         # TODO Handle the case of duplicate names.
 
         if (isinstance(tensor, tuple) or isinstance(tensor, list)):
@@ -98,17 +98,51 @@ class TorchHistory(object):
         history = self._history()
         if history is None or not history.compute:
             return
+
+        # HalfTensors on cpu do not support view(), upconvert to 32bit
+        if isinstance(tensor, torch.HalfTensor):
+            tensor = tensor.clone().type(torch.FloatTensor).detach()
+
         flat = tensor.view(-1)
 
-        # detach is new in 0.4
-        tensor = flat.cpu().clone()
-        if (hasattr(tensor, "detach")):
-            tensor = tensor.detach()
-        else:
-            tensor = tensor.numpy()
+        # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
+        if not hasattr(flat, "detach"):
+            tensor = flat.cpu().clone().numpy()
+            history.row.update({
+                name: wandb.Histogram(tensor)
+            })
+            return
+
+        if flat.is_cuda:
+            # TODO(jhr): see if pytorch will accept something upstream to check cuda support for ops
+            # until then, we are going to have to catch exceptions.
+            if self._is_cuda_histc_supported is None:
+                self._is_cuda_histc_supported = True
+                check = torch.cuda.FloatTensor(1).fill_(0)
+                try:
+                    check = flat.histc(bins=self._num_bins)
+                except RuntimeError as e:
+                    # Only work around missing support with specific exception
+                    if str(e).startswith("_th_histc is not implemented"):
+                        self._is_cuda_histc_supported = False
+
+            if not self._is_cuda_histc_supported:
+                flat = flat.cpu().clone().detach()
+
+        # As of torch 1.0.1.post2+nightly, float16 cuda summary ops are not supported (convert to float32)
+        if isinstance(flat, torch.cuda.HalfTensor):
+            flat = flat.clone().type(torch.cuda.FloatTensor).detach()
+        elif isinstance(flat, torch.HalfTensor):
+            flat = flat.clone().type(torch.FloatTensor).detach()
+
+        tmin = flat.min().item()
+        tmax = flat.max().item()
+        tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
+        tensor = tensor.cpu().clone().detach()
+        bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
         history.row.update({
-            name: wandb.Histogram(tensor)
+            name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))
         })
 
     def _hook_variable_gradient_stats(self, var, name):
