@@ -115,7 +115,7 @@ class TorchHistory(object):
 
         if flat.is_cuda:
             # TODO(jhr): see if pytorch will accept something upstream to check cuda support for ops
-            # until then, we are going to have to catch exceptions.
+            # until then, we are going to have to catch a specific exception to check for histc support.
             if self._is_cuda_histc_supported is None:
                 self._is_cuda_histc_supported = True
                 check = torch.cuda.FloatTensor(1).fill_(0)
@@ -129,10 +129,11 @@ class TorchHistory(object):
             if not self._is_cuda_histc_supported:
                 flat = flat.cpu().clone().detach()
 
-        # As of torch 1.0.1.post2+nightly, float16 cuda summary ops are not supported (convert to float32)
-        if isinstance(flat, torch.cuda.HalfTensor):
-            flat = flat.clone().type(torch.cuda.FloatTensor).detach()
-        elif isinstance(flat, torch.HalfTensor):
+            # As of torch 1.0.1.post2+nightly, float16 cuda summary ops are not supported (convert to float32)
+            if isinstance(flat, torch.cuda.HalfTensor):
+                flat = flat.clone().type(torch.cuda.FloatTensor).detach()
+
+        if isinstance(flat, torch.HalfTensor):
             flat = flat.clone().type(torch.FloatTensor).detach()
 
         tmin = flat.min().item()
