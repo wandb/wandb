@@ -1,8 +1,12 @@
 import pytest
 import datetime
+import os
+import sys
+import json
 from .utils import git_repo
 
 from wandb import wandb_run
+from wandb import env
 
 
 def get_last_val(history, key):
@@ -10,6 +14,19 @@ def get_last_val(history, key):
     for val in history.column(key):
         pass
     return val
+
+
+def test_wandb_run_args(git_repo):
+    os.environ[env.ARGS] = json.dumps(["foo", "bar"])
+    run = wandb_run.Run.from_environment_or_defaults()
+    assert run.args == ["foo", "bar"]
+    del os.environ[env.ARGS]
+
+
+def test_wandb_run_args_sys(git_repo):
+    sys.argv = ["rad", "cool"]
+    run = wandb_run.Run.from_environment_or_defaults()
+    assert run.args == ["cool"]
 
 
 def test_history_updates_keys_until_summary_writes(git_repo):

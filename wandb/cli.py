@@ -25,6 +25,8 @@ import traceback
 import yaml
 import threading
 import random
+# pycreds has a find_executable that works in windows
+from dockerpycreds.utils import find_executable
 
 from wandb import util
 
@@ -33,6 +35,7 @@ from click.exceptions import BadParameter, ClickException, Abort
 # whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
 # DANGER this changes the sys.path so we should never do this in a user script
 whaaaaat = util.vendor_import("whaaaaat")
+import six
 from six.moves import BaseHTTPServer, urllib, configparser
 import socket
 
@@ -146,7 +149,7 @@ def display_error(func):
             logger.error(''.join(lines))
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
-            raise click_exc
+            six.reraise(ClickWandbException, click_exc, sys.exc_info()[2])
     return wrapper
 
 
@@ -291,26 +294,45 @@ def status(run, settings, project):
         ))
 
 
-@cli.command(context_settings=CONTEXT, help="Restore code and config state for a run")
+@cli.command(context_settings=CONTEXT, help="Restore code, config and docker state for a run")
+@click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
+@click.option("--no-git", is_flag=True, default=False, help="Skupp")
 @click.option("--branch/--no-branch", default=True, help="Whether to create a branch or checkout detached")
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
-@click.option("--entity", "-e", default="models", envvar=env.ENTITY, help="The entity to scope the listing to.")
+@click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
-def restore(run, branch, project, entity):
-    if not api.git.enabled:
-        raise ClickException(
-            "`wandb restore` can only be called from within an existing git repository.")
-    project, run = api.parse_slug(run, project=project)
-    commit, json_config, patch_content = api.run_config(
-        project, run=run, entity=entity)
-    subprocess.check_call(['git', 'fetch', '--all'])
+def restore(ctx, run, no_git, branch, project, entity):
+    if ":" in run:
+        if "/" in run:
+            entity, rest = run.split("/", 1)
+        else:
+            rest = run
+        project, run = rest.split(":", 1)
+    elif run.count("/") > 1:
+        entity, run = run.split("/", 1)
 
-    if commit:
+    project, run = api.parse_slug(run, project=project)
+    commit, json_config, patch_content, metadata = api.run_config(
+        project, run=run, entity=entity)
+    repo = metadata.get("git", {}).get("repo")
+    image = metadata.get("docker")
+    RESTORE_MESSAGE = """`wandb restore` needs to be run from the same git repository as the original run.
+Run `git clone %s` and restore from there or pass the --no-git flag.""" % repo
+    if no_git:
+        commit = None
+    elif not api.git.enabled:
+        if repo:
+            raise ClickException(RESTORE_MESSAGE)
+        elif image:
+            wandb.termlog("Original run has no git history.  Just restoring config and docker")
+
+    if commit and api.git.enabled:
+        subprocess.check_call(['git', 'fetch', '--all'])
         try:
             api.git.repo.commit(commit)
         except ValueError:
-            click.echo("Couldn't find original commit: {}".format(commit))
+            wandb.termlog("Couldn't find original commit: {}".format(commit))
             commit = None
             files = api.download_urls(project, run=run, entity=entity)
             for filename in files:
@@ -324,12 +346,11 @@ def restore(run, branch, project, entity):
                         break
 
             if commit:
-                click.echo(
+                wandb.termlog(
                     "Falling back to upstream commit: {}".format(commit))
                 patch_path, _ = api.download_write_file(files[filename])
             else:
-                raise ClickException(
-                    "Can't find commit from which to restore code")
+                raise ClickException(RESTORE_MESSAGE)
         else:
             if patch_content:
                 patch_path = os.path.join(wandb.wandb_dir(), 'diff.patch')
@@ -341,14 +362,14 @@ def restore(run, branch, project, entity):
         branch_name = "wandb/%s" % run
         if branch and branch_name not in api.git.repo.branches:
             api.git.repo.git.checkout(commit, b=branch_name)
-            click.echo("Created branch %s" %
+            wandb.termlog("Created branch %s" %
                        click.style(branch_name, bold=True))
         elif branch:
-            click.secho(
-                "Using existing branch, run `git branch -D %s` from master for a clean checkout" % branch_name, fg="red")
+            wandb.termlog(
+                "Using existing branch, run `git branch -D %s` from master for a clean checkout" % branch_name)
             api.git.repo.git.checkout(branch_name)
         else:
-            click.secho("Checking out %s in detached mode" % commit)
+            wandb.termlog("Checking out %s in detached mode" % commit)
             api.git.repo.git.checkout(commit)
 
         if patch_path:
@@ -362,15 +383,30 @@ def restore(run, branch, project, entity):
             # TODO(adrian): this means there is no error checking here
             subprocess.call(['git', 'apply', '--reject',
                              patch_rel_path], cwd=root)
-            click.echo("Applied patch")
+            wandb.termlog("Applied patch")
 
-    config = Config()
+    # TODO: we should likely respect WANDB_DIR here.
+    util.mkdir_exists_ok("wandb")
+    config = Config(run_dir="wandb")
     config.load_json(json_config)
     config.persist()
-    click.echo("Restored config variables")
+    wandb.termlog("Restored config variables to %s" % config._config_path())
+    if image:
+        if not metadata["program"].startswith("<") and metadata.get("args") is not None:
+            # TODO: we may not want to default to python here.
+            runner = util.find_runner(metadata["program"]) or ["python"]
+            command = runner + [metadata["program"]] + metadata["args"]
+            cmd = " ".join(command)
+        else:
+            wandb.termlog("Couldn't find original command, just restoring environment")
+            cmd = None
+        wandb.termlog("Docker image found, attempting to start")
+        ctx.invoke(docker, docker_run_args=[image], cmd=cmd)
+
+    return commit, json_config, patch_content, repo, metadata
 
 
-@cli.command(context_settings=CONTEXT, help="Upload a training directory to W&B")
+@cli.command(context_settings=CONTEXT, help="Upload an offline training directory to W&B")
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--id", envvar=env.RUN_ID, help="The run you want to upload to.")
@@ -425,32 +461,6 @@ def pull(run, project, entity):
                         bar.update(len(data))
 
 
-@cli.command(context_settings=CONTEXT, help="Signup for Weights & Biases")
-@click.pass_context
-@display_error
-def signup(ctx):
-    import webbrowser
-    server = LocalServer()
-    url = api.app_url + "/login?signup=true"
-    if util.launch_browser():
-        launched = webbrowser.open_new_tab(
-            url + "&{}".format(server.qs()))
-    else:
-        launched = False
-    if launched:
-        signal.signal(signal.SIGINT, server.stop)
-        click.echo(
-            'Opened [{}] in your default browser'.format(url))
-        server.start(blocking=False)
-    else:
-        click.echo("Signup with this url in your browser: {}".format(url))
-    key = ctx.invoke(login, server=server, browser=False)
-    if key:
-        # Only init if we aren't pre-configured
-        if not os.path.isdir(wandb_dir()):
-            ctx.invoke(init)
-
-
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
@@ -472,7 +482,7 @@ def login(key, server=LocalServer(), browser=True):
         click.echo(
             'Opening [{}] in your default browser'.format(url))
         server.start(blocking=False)
-    elif not key and browser:
+    elif not key:
         click.echo(
             "You can find your API keys in your browser here: {}".format(url))
 
@@ -589,35 +599,6 @@ def init(ctx):
     ))
 
 
-# @cli.group()
-# def config():
-#     """Manage this project's configuration."""
-#     pass
-
-
-# @config.command("init", help="Initialize a directory with wandb configuration")
-# @display_error
-# def config_init():
-#     config_defaults_path = 'config-defaults.yaml'
-#     if not os.path.exists(config_defaults_path):
-#         with open(config_defaults_path, 'w') as file:
-#             file.write(textwrap.dedent("""\
-#                 wandb_version: 1
-
-#                 # Example variables below. Uncomment (remove leading '# ') to use them, or just
-#                 # delete and create your own.
-
-#                 # epochs:
-#                 #   desc: Number of epochs to train over
-#                 #   value: 100
-#                 # batch_size:
-#                 #   desc: Size of each mini-batch
-#                 #   value: 32
-#                 """))
-#     click.echo(
-#         "Edit config-defaults.yaml with your default configuration parameters.")
-
-
 @cli.command(context_settings=CONTEXT, help="Open documentation in a browser")
 @click.pass_context
 @display_error
@@ -730,6 +711,136 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
 
     rm.run_user_process(program, args, environ)
 
+@cli.command(context_settings=RUN_CONTEXT, name="docker-run")
+@click.pass_context
+@click.argument('docker_run_args', nargs=-1)
+@click.option('--help')
+def docker_run(ctx, docker_run_args, help):
+    """Simple docker wrapper that adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
+    This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
+    and --runtime wasn't set.
+    """
+    args = list(docker_run_args)
+    if len(args) > 0 and args[0] == "run":
+        args.pop(0)
+    if help or len(args) == 0:
+        wandb.termlog("This commands adds wandb env variables to your docker run calls")
+        subprocess.call(['docker', 'run'] + args + ['--help'])
+        exit()
+    #TODO: is this what we want?
+    if len([a for a in args if a.startswith("--runtime")]) == 0 and find_executable('nvidia-docker'):
+        args = ["--runtime", "nvidia"] + args
+    #TODO: image_from_docker_args uses heuristics to find the docker image arg, there are likely cases
+    #where this won't work
+    image = util.image_from_docker_args(args)
+    resolved_image = None
+    if image:
+        resolved_image = wandb.docker.image_id(image)
+    if resolved_image:
+        args = ['-e', 'WANDB_DOCKER=%s' % resolved_image] + args
+    else:
+        wandb.termlog("Couldn't detect image argument, running command without the WANDB_DOCKER env variable")
+    if api.api_key:
+        args = ['-e', 'WANDB_API_KEY=%s' % api.api_key] + args
+    else:
+        wandb.termlog("Not logged in, run `wandb login` from the host machine to enable result logging")
+    subprocess.call(['docker', 'run'] + args)
+
+
+@cli.command(context_settings=RUN_CONTEXT)
+@click.pass_context
+@click.argument('docker_run_args', nargs=-1)
+@click.argument('docker_image', required=False)
+@click.option('--nvidia/--no-nvidia', default=find_executable('nvidia-docker'),
+              help='Use the nvidia runtime, defaults to nvidia if nvidia-docker is present')
+@click.option('--digest', is_flag=True, default=False, help="Output the image digest and exit")
+@click.option('--jupyter/--no-jupyter', default=False, help="Run jupyter lab in the container")
+@click.option('--dir', default="/app", help="Which directory to mount the code in the container")
+@click.option('--no-dir', is_flag=True, help="Don't mount the current directory")
+@click.option('--shell', default="/bin/bash", help="The shell to start the container with")
+@click.option('--port', default="8888", help="The hot port to bind jupyter on")
+@click.option('--cmd', help="The command to run in the container")
+@click.option('--no-tty', is_flag=True, default=False, help="Run the command without a tty")
+@display_error
+def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_dir, shell, port, cmd, no_tty):
+    """W&B docker lets you run your code in a docker image ensuring wandb is configured. It adds the WANDB_DOCKER and WANDB_API_KEY
+    environment variables to your container and mounts the current directory in /app by default.  You can pass additional
+    args which will be added to `docker run` before the image name is declared, we'll choose a default image for you if
+    one isn't passed:
+
+    wandb docker -v /mnt/dataset:/app/data
+    wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
+    wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
+
+    By default we override the entrypoint to check for the existance of wandb and install it if not present.  If you pass the --jupyter
+    flag we will ensure jupyter is installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your system we will use
+    the nvidia runtime.  If you just want wandb to set environment variable to an existing docker run command, see the wandb docker-run 
+    command.
+    """
+    if not find_executable('docker'):
+        raise ClickException(
+            "Docker not installed, install it from https://docker.com" )
+    args = list(docker_run_args)
+    image = docker_image or ""
+    # remove run for users used to nvidia-docker
+    if len(args) > 0 and args[0] == "run":
+        args.pop(0)
+    if image == "" and len(args) > 0:
+        image = args.pop(0)
+    # If the user adds docker args without specifying an image (should be rare)
+    if not util.docker_image_regex(image.split("@")[0]):
+        if image:
+            args = args + [image]
+        image = wandb.docker.default_image(gpu=nvidia)
+        subprocess.call(["docker", "pull", image])
+    _, repo_name, tag = wandb.docker.parse(image)
+
+    resolved_image = wandb.docker.image_id(image)
+    if resolved_image is None:
+        raise ClickException(
+            "Couldn't find image locally or in a registry, try running `docker pull %s`" % image)
+    if digest:
+        sys.stdout.write(resolved_image)
+        exit(0)
+
+    existing = wandb.docker.shell(
+        ["ps", "-f", "ancestor=%s" % resolved_image, "-q"])
+    if existing:
+        question = {
+            'type': 'confirm',
+            'name': 'attach',
+            'message': "Found running container with the same image, do you want to attach?",
+        }
+        result = whaaaaat.prompt([question])
+        if result and result['attach']:
+            subprocess.call(['docker', 'attach', existing.split("\n")[0]])
+            exit(0)
+    cwd = os.getcwd()
+    command = ['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=%s' % resolved_image, '--ipc=host',
+                '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh']
+    if nvidia:
+        command.extend(['--runtime', 'nvidia'])
+    if not no_dir:
+        #TODO: We should default to the working directory if defined
+        command.extend(['-v', cwd+":"+dir, '-w', dir])
+    if api.api_key:
+        command.extend(['-e', 'WANDB_API_KEY=%s' % api.api_key])
+    else:
+        wandb.termlog("Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics")
+    if jupyter:
+        command.extend(['-e', 'WANDB_ENSURE_JUPYTER=1', '-p', port+':8888'])
+        no_tty = True
+        cmd = "jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir %s" % dir
+    command.extend(args)
+    if no_tty:
+        command.extend([image, shell, "-c", cmd])
+    else:
+        if cmd:
+            command.extend(['-e', 'WANDB_COMMAND=%s' % cmd])
+        command.extend(['-it', image, shell])
+        wandb.termlog("Launching docker container \U0001F6A2")
+    subprocess.call(command)
+
 
 # Move this to a more appropriate place
 def wandb_keras_hooks_install():
@@ -795,7 +906,7 @@ def sweep(ctx, config_yaml):
         wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
         return
     try:
-        config = yaml.load(yaml_file)
+        config = util.load_yaml(yaml_file)
     except yaml.YAMLError as err:
         wandb.termerror('Error in configuration file: %s' % err)
         return
@@ -806,7 +917,7 @@ def sweep(ctx, config_yaml):
     print('Create sweep with ID:', sweep_id)
 
 
-@cli.command(context_settings=CONTEXT, help="Run the WandB agent")
+@cli.command(context_settings=CONTEXT, help="Run the W&B agent")
 @click.argument('sweep_id')
 @display_error
 def agent(sweep_id):

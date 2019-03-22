@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.6.35'
+__version__ = '0.7.2'
 
 import atexit
 import click
@@ -26,6 +26,7 @@ import socket
 import subprocess
 import sys
 import traceback
+import tempfile
 import types
 import re
 import glob
@@ -61,7 +62,7 @@ logger = logging.getLogger(__name__)
 if __stage_dir__ is not None:
     GLOBAL_LOG_FNAME = wandb_dir() + 'debug.log'
 else:
-    GLOBAL_LOG_FNAME = './wandb-debug.log'
+    GLOBAL_LOG_FNAME = os.path.join(tempfile.gettempdir(), 'wandb-debug.log')
 GLOBAL_LOG_FNAME = os.path.relpath(GLOBAL_LOG_FNAME, os.getcwd())
 
 
@@ -241,8 +242,9 @@ def _init_headless(run, cloud=True):
         if wandb_process.poll() is None:
             termerror('Failed to kill wandb process, PID {}'.format(
                 wandb_process.pid))
-        raise LaunchError("W&B process failed to launch, see: {}".format(
-            os.path.join(run.dir, "output.log")))
+        # TODO attempt to upload a debug log
+        raise LaunchError(
+            "W&B process failed to launch, see: {}".format(GLOBAL_LOG_FNAME))
 
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
@@ -637,7 +639,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
                 job_type = job_name
             if group == None and len(cluster.get("worker", [])) > 0:
                 group = cluster[job_name][0].rsplit("-"+job_name, 1)[0]
-
+    image = util.image_id_from_k8s()
+    if image:
+        os.environ[env.DOCKER] = image
     if project:
         os.environ[env.PROJECT] = project
     if entity:
@@ -720,12 +724,14 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         api = InternalApi()
         # let init_jupyter handle this itself
         if not in_jupyter and not api.api_key:
+            termlog(
+                "W&B is a tool that helps track and visualize machine learning experiments")
             if force:
                 termerror(
                     "No credentials found.  Run \"wandb login\" or \"wandb off\" to disable wandb")
             else:
                 termlog(
-                    "wandb isn't configured, run \"wandb sync\" from this directory to visualize metrics")
+                    "No credentials found.  Run \"wandb login\" to visualize your metrics")
                 run.mode = "dryrun"
                 _init_headless(run, False)
         else:
@@ -756,6 +762,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
 keras = util.LazyLoader('keras', globals(), 'wandb.keras')
+docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 
 __all__ = ['init', 'config', 'termlog', 'termerror', 'tensorflow',
            'run', 'types', 'callbacks', 'join']

@@ -8,13 +8,13 @@ The **W&B** client is an open source library and CLI (wandb) for organizing and 
 
 ## Features
 
-* Store config parameters used in a training run
-* Associate version control with your training runs
-* Search, compare, and visualize training runs
-* Analyze system usage metrics alongside runs
-* Collaborate with team members
-* Run parameter sweeps
-* Persist runs forever
+-   Store hyper-parameters used in a training run
+-   Search, compare, and visualize training runs
+-   Analyze system usage metrics alongside runs
+-   Collaborate with team members
+-   Replicate historic results
+-   Run parameter sweeps
+-   Persist runs forever
 
 ## Quickstart
 
@@ -29,8 +29,8 @@ import wandb
 # Your custom arguments defined here
 args = ...
 
-run = wandb.init(config=args)
-run.config["more"] = "custom"
+wandb.init(config=args, project="my-project")
+wandb.config["more"] = "custom"
 
 def training_loop():
     while True:
@@ -40,15 +40,23 @@ def training_loop():
         wandb.log({"epoch": epoch, "loss": loss, "val_loss": val_loss})
 ```
 
+If you're already using Tensorboard or [TensorboardX](https://github.com/lanpa/tensorboardX), you can integrate with one line:
+
+```python
+wandb.init(tensorboard=True)
+```
+
 ## Running your script
 
-From the directory of your training script run `wandb init` to initialize a new directory.  If it's your first time using wandb on the machine it will prompt you for an API key - create an account at wandb.com and you can find one in your profile page.  You can check in _wandb/settings_ directory to version control to share your project with other users.  You can also set the username and API key through environment variables if you don't have easy access to a shell.
+Run `wandb login` from your terminal to signup or authenticate your machine (we store your api key in ~/.netrc). You can also set the `WANDB_API_KEY` environment variable with a key from your [profile](https://app.wandb.ai/profile?message=true).
 
-Run your script with `python my_script.py` and all metadata will be synced to the cloud. Data is staged locally in a directory named _wandb_ relative to your script. If you want to test your script without syncing to the cloud you can run `wandb off`.
+Run your script with `python my_script.py` and all metadata will be synced to the cloud. You will see a url in your terminal logs when your script starts and finishes. Data is staged locally in a directory named _wandb_ relative to your script. If you want to test your script without syncing to the cloud you can set the environment variable `WANDB_MODE=dryrun`.
 
-<p align="center">
-    <img src="https://github.com/wandb/client/raw/master/docs/screenshot.jpg?raw=true" alt="Runs screenshot" style="max-width:100%;">
-</p>
+If you are using [docker](https://docker.com) to run your code, we provide a wrapper command `wandb docker` that mounts your current directory, sets environment variables, and ensures the wandb library is installed. Training your models in docker gives you the ability to restore the exact code and environment with the `wandb restore` command.
+
+## Demo
+
+[![Watch the video](https://img.youtube.com/vi/EeqhOSvNX-A/maxresdefault.jpg)](https://youtu.be/EeqhOSvNX-A)
 
 ## Detailed Usage
 

@@ -1,3 +1,46 @@
+## 0.7.3 (TBD)
+
+#### :bug: Bug Fix
+
+-   wandb-docker-run accepts image digests
+
+## 0.7.2 (March 19, 2019)
+
+#### :bug: Bug Fix
+
+-   run.get_url resolves the default entity if one wasn't specified
+-   wandb restore accepts run paths with only slashes
+-   Fixed PyYaml deprecation warnings
+-   Added entrypoint shell script to manifest
+-   Strip newlines from cuda version
+
+## 0.7.1 (March 14, 2019)
+
+#### :bug: Bug Fix
+
+-   handle case insensitive docker credentials
+-   fix app_url for private cloud login flow
+-   don't retry 404's when starting sweep agents
+
+## 0.7.0 (February 28, 2019)
+
+#### :bug: Bug Fix
+
+-   ensure DNS lookup failures can't prevent startup
+-   centralized debug logging
+-   wandb agent waits longer to send a SIGKILL after sending SIGINT
+
+#### :nail_care: Enhancement
+
+-   support for logging docker images with the WANDB_DOCKER env var
+-   WANDB_DOCKER automatically set when run in kubernetes
+-   new wandb-docker-run command to automatically set env vars and mount code
+-   wandb.restore supports launching docker for runs that ran with it
+-   python packages are now recorded and saved in a requirements.txt file
+-   cpu_count, gpu_count, gpu, os, and python version stored in wandb-metadata.json
+-   the export api now supports docker-like paths, i.e. username/project:run_id
+-   better first time user messages and login info
+
 ## 0.6.35 (January 29, 2019)
 
 #### :bug: Bug Fix
@@ -13,7 +56,7 @@
 
 #### :nail_care: Enhancement
 
--   wandb.init now degrades gracefully a user hasn't logged in to wandb
+-   wandb.init now degrades gracefully if a user hasn't logged in to wandb
 -   added a **force** flag to wandb.init to require a machine to be logged in
 -   Tensorboard and TensorboardX logging is now automatically instrumented when enabled
 -   added a **tensorboard** to wandb.init which patches tensorboard for logging

@@ -39,6 +39,16 @@ def test_nice_log_error():
         wandb.log({"no": "init"})
 
 
+@pytest.mark.args(k8s=True)
+def test_k8s_success(wandb_init_run):
+    assert os.getenv("WANDB_DOCKER") == "test@sha256:1234"
+
+
+@pytest.mark.args(k8s=False)
+def test_k8s_failure(wandb_init_run):
+    assert os.getenv("WANDB_DOCKER") is None
+
+
 @pytest.mark.args(sagemaker=True)
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"
@@ -219,7 +229,7 @@ def test_tensorboard(wandb_init_run):
 @pytest.mark.unconfigured
 def test_not_logged_in(wandb_init_run, capsys):
     out, err = capsys.readouterr()
-    assert "wandb isn't configured" in err
+    assert "No credentials found.  Run \"wandb login\" to visualize your metrics" in err
     assert "_init_headless called with cloud=False" in out
 
 

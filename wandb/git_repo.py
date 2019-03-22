@@ -2,6 +2,7 @@ import logging
 import os
 
 from six.moves import configparser
+from six.moves.urllib.parse import urlparse
 
 import wandb.core
 

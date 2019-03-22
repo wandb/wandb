@@ -3,8 +3,10 @@ import os
 from click.testing import CliRunner
 
 from wandb import wandb_config as config
+from wandb import env
 import yaml
 import sys
+import six
 import os
 import argparse
 import textwrap
@@ -14,6 +16,27 @@ def test_config_empty_by_default():
     with CliRunner().isolated_filesystem():
         conf = config.Config()
         assert list(conf.keys()) == []
+
+
+def test_config_docker_env():
+    try:
+        os.environ[env.DOCKER] = "ubuntu"
+        with CliRunner().isolated_filesystem():
+            conf = config.Config()
+            assert conf["_wandb"]["docker_image"] == "ubuntu"
+    finally:
+        del os.environ[env.DOCKER]
+
+
+def test_config_docker_env_digest():
+    try:
+        os.environ[env.DOCKER] = "ubuntu@sha25612345678901234567890"
+        with CliRunner().isolated_filesystem():
+            conf = config.Config()
+            assert conf["_wandb"]["docker_image"] == "ubuntu"
+            assert conf["_wandb"]["docker_digest"] == "sha25612345678901234567890"
+    finally:
+        del os.environ[env.DOCKER]
 
 
 def test_config_empty_by_default():

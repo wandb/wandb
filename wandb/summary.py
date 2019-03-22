@@ -126,7 +126,7 @@ class Summary(object):
     @property
     def _run_state_path(self):
         return os.path.join(self._run.dir, RUNSTATE_FNAME)
-    
+
     def _get_run_state(self):
         if self._run_state is None:
             try:
@@ -156,7 +156,8 @@ class Summary(object):
 
         saved_bq_data = False
         run_state = self._get_run_state() or {}
-        run_state_id = run_state.get('wandb_run_state_id') or util.generate_id()
+        run_state_id = run_state.get(
+            'wandb_run_state_id') or util.generate_id()
 
         for key, value in six.iteritems(obj):
             path = ".".join(root_path + [key])

@@ -105,6 +105,20 @@ class Api(object):
         except configparser.Error:
             return False
 
+    def save_pip(self, out_dir):
+        """Saves the current working set of pip packages to requirements.txt"""
+        try:
+            import pkg_resources
+
+            installed_packages = [d for d in iter(pkg_resources.working_set)]
+            installed_packages_list = sorted(
+                ["%s==%s" % (i.key, i.version) for i in installed_packages]
+            )
+            with open(os.path.join(out_dir, 'requirements.txt'), 'w') as f:
+                f.write("\n".join(installed_packages_list))
+        except Exception as e:
+            logger.error("Error saving pip packages")
+
     def save_patches(self, out_dir):
         """Save the current state of this repository to one or more patches.
 
@@ -183,7 +197,7 @@ class Api(object):
         api_url = self.api_url
         if api_url.endswith('.test') or self.settings().get("dev_prod"):
             return 'http://app.test'
-        elif api_url.endswith('wandb.ai'):
+        elif api_url.startswith('https://api.'):
             return api_url.replace('api.', 'app.')
         else:
             return api_url
@@ -267,14 +281,14 @@ class Api(object):
         }
         ''')
         res = self.gql(query)
-        return res.get('viewer', {})
+        return res.get('viewer') or {}
 
     @normalize_exceptions
     def list_projects(self, entity=None):
         """Lists projects in W&B scoped by entity.
 
         Args:
-            entity (str, optional): The entity to scope this project to.  Defaults to public models
+            entity (str, optional): The entity to scope this project to.
 
         Returns:
                 [{"id","name","description"}]
@@ -294,6 +308,31 @@ class Api(object):
         ''')
         return self._flatten_edges(self.gql(query, variable_values={
             'entity': entity or self.settings('entity')})['models'])
+
+    @normalize_exceptions
+    def project(self, project, entity=None):
+        """Retrive project
+
+        Args:
+            project (str): The project to get details for
+            entity (str, optional): The entity to scope this project to.
+
+        Returns:
+                [{"id","name","repo","dockerImage","description"}]
+        """
+        query = gql('''
+        query Models($entity: String, $project: String!) {
+            model(name: $project, entityName: $entity) {
+                id
+                name
+                repo
+                dockerImage
+                description
+            }
+        }
+        ''')
+        return self.gql(query, variable_values={
+            'entity': entity, 'project': project})['model']
 
     @normalize_exceptions
     def list_runs(self, project, entity=None):
@@ -376,7 +415,7 @@ class Api(object):
 
     @normalize_exceptions
     def run_config(self, project, run=None, entity=None):
-        """Get the config for a run
+        """Get the relevant configs for a run
 
         Args:
             project (str): The project to download, (can include bucket)
@@ -390,6 +429,13 @@ class Api(object):
                     config
                     commit
                     patch
+                    files(names: ["wandb-metadata.json"]) {
+                        edges {
+                            node {
+                                url
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -398,11 +444,20 @@ class Api(object):
         response = self.gql(query, variable_values={
             'name': project, 'run': run, 'entity': entity
         })
+        if response['model'] == None:
+            raise ValueError("Run {}/{}/{} not found".format(entity, project, run) )
         run = response['model']['bucket']
         commit = run['commit']
         patch = run['patch']
         config = json.loads(run['config'] or '{}')
-        return (commit, config, patch)
+        if len(run['files']['edges']) > 0:
+            url = run['files']['edges'][0]['node']['url']
+            res = requests.get(url)
+            res.raise_for_status()
+            metadata = res.json()
+        else:
+            metadata = {}
+        return (commit, config, patch, metadata)
 
     @normalize_exceptions
     def run_resume_status(self, entity, project_name, name):
@@ -909,10 +964,10 @@ class Api(object):
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
-        def no_retry_400(e):
+        def no_retry_400_or_404(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if e.response.status_code != 400:
+            if e.response.status_code != 400 and e.response.status_code != 404:
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
@@ -922,7 +977,7 @@ class Api(object):
             'description': config.get("description"),
             'entityName': self.settings("entity"),
             'projectName': self.settings("project")},
-            check_retry_fn=no_retry_400)
+            check_retry_fn=no_retry_400_or_404)
         return response['upsertSweep']['sweep']['name']
 
     def file_current(self, fname, md5):

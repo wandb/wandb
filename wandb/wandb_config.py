@@ -7,6 +7,7 @@ import types
 import yaml
 
 import wandb
+from wandb import env
 
 FNAME = 'config.yaml'
 
@@ -39,6 +40,7 @@ class Config(object):
         object.__setattr__(self, '_descriptions', {})
 
         self._load_defaults()
+        self._load_wandb()
         for conf_path in config_paths:
             self._load_file(conf_path)
 
@@ -54,6 +56,21 @@ class Config(object):
         if conf_paths:
             conf_paths = conf_paths.split(',')
         return Config(config_paths=conf_paths, wandb_dir=wandb.wandb_dir())
+
+    def _load_wandb(self):
+        # We load docker into the config from the env
+        image = os.getenv(env.DOCKER)
+        digest = None
+        if image:
+            if "@" in image:
+                image, digest = image.split("@")
+            self._set_wandb("docker_image", image)
+            if digest:
+                self._set_wandb("docker_digest", digest)
+
+    def _set_wandb(self, key, val):
+        self._items["_wandb"] = self._items.get("_wandb", {})
+        self._items["_wandb"][key] = val
 
     def _load_defaults(self):
         if not self._wandb_dir:
@@ -76,7 +93,7 @@ class Config(object):
         except (OSError, IOError):
             raise ConfigError('Couldn\'t read config file: %s' % conf_path)
         try:
-            loaded = yaml.load(conf_file)
+            loaded = wandb.util.load_yaml(conf_file)
         except yaml.parser.ParserError:
             raise ConfigError('Invalid YAML in config-defaults.yaml')
         if subkey:
@@ -178,7 +195,8 @@ class Config(object):
             # by trying to convert it into a dictionary
             meta = inspect.getmodule(params)
             if meta:
-                is_tf_flags_module = isinstance(params, types.ModuleType) and meta.__name__ == 'tensorflow.python.platform.flags'
+                is_tf_flags_module = isinstance(
+                    params, types.ModuleType) and meta.__name__ == 'tensorflow.python.platform.flags'
                 if is_tf_flags_module or meta.__name__ == 'absl.flags':
                     params = params.FLAGS
                     meta = inspect.getmodule(params)

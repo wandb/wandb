@@ -19,6 +19,7 @@ import stat
 import shortuuid
 import importlib
 import types
+import yaml
 from datetime import date, datetime
 
 import click
@@ -35,16 +36,27 @@ from sentry_sdk import capture_message
 from wandb.env import error_reporting_enabled
 
 import wandb
+import wandb.core
 from wandb import io_wrap
 from wandb import wandb_dir
 from wandb.apis import CommError
+from wandb import wandb_config
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
 
+# these match the environments for gorilla
+if wandb.core.IS_GIT:
+    SENTRY_ENV = 'development'
+else:
+    SENTRY_ENV = 'production'
+
+
 sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
-                release=wandb.__version__, default_integrations=False)
+                release=wandb.__version__,
+                default_integrations=False,
+                environment=SENTRY_ENV)
 
 
 def sentry_message(message):
@@ -54,7 +66,10 @@ def sentry_message(message):
 
 def sentry_exc(exc):
     if error_reporting_enabled():
-        capture_exception(exc)
+        if isinstance(exc, six.string_types):
+            capture_exception(Exception(exc))
+        else:
+            capture_exception(exc)
 
 
 def sentry_reraise(exc):
@@ -253,7 +268,7 @@ def json_friendly(obj):
         elif obj.size <= 32:
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
-        obj = np.asscalar(obj)
+        obj = obj.item()
     elif isinstance(obj, bytes):
         obj = obj.decode('utf-8')
     elif isinstance(obj, (datetime, date)):
@@ -603,6 +618,105 @@ def get_log_file_path():
     """
     return wandb.GLOBAL_LOG_FNAME
 
+def is_wandb_file(name):
+    return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt"
+
+def docker_image_regex(image):
+    "regex for valid docker image names"
+    if image:
+        return re.match(r"^(?:(?=[^:\/]{1,253})(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-zA-Z0-9-]{1,63}(?<!-))*(?::[0-9]{1,5})?/)?((?![._-])(?:[a-z0-9._-]*)(?<![._-])(?:/(?![._-])[a-z0-9._-]*(?<![._-]))*)(?::(?![.-])[a-zA-Z0-9_.-]{1,128})?$", image)
+
+def image_from_docker_args(args):
+    """This scans docker run args and attempts to find the most likely docker image argument.
+    If excludes any argments that start with a dash, and the argument after it if it isn't a boolean
+    switch.  This can be improved, we currently fallback gracefully when this fails.
+    """
+    bool_args = ["-t", "--tty", "--rm","--privileged", "--oom-kill-disable","--no-healthcheck", "-i",
+        "--interactive", "--init", "--help", "--detach", "-d", "--sig-proxy", "-it", "-itd"]
+    last_flag = -2
+    last_arg = ""
+    possible_images = []
+    if len(args) > 0 and args[0] == "run":
+        args.pop(0)
+    for i, arg in enumerate(args):
+        if arg.startswith("-"):
+            last_flag = i
+            last_arg = arg
+        elif "@sha256:" in arg:
+            # Because our regex doesn't match digests
+            possible_images.append(arg)
+        elif docker_image_regex(arg):
+            if last_flag == i - 2:
+                possible_images.append(arg)
+            elif "=" in last_arg:
+                possible_images.append(arg)
+            elif last_arg in bool_args and last_flag == i - 1:
+                possible_images.append(arg)
+    most_likely = None
+    for img in possible_images:
+        if ":" in img or "@" in img or "/" in img:
+            most_likely = img
+            break
+    if most_likely == None and len(possible_images) > 0:
+        most_likely = possible_images[0]
+    return most_likely
+
+
+def load_yaml(file):
+    """If pyyaml > 5.1 use full_load to avoid warning"""
+    if hasattr(yaml, "full_load"):
+        return yaml.full_load(file)
+    else:
+        return yaml.load(file)
+
+def image_id_from_k8s():
+    """Pings the k8s metadata service for the image id"""
+    token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    if os.path.exists(token_path):
+        k8s_server = "https://{}:{}/api/v1/namespaces/default/pods/{}".format(
+            os.getenv("KUBERNETES_SERVICE_HOST"), os.getenv(
+                "KUBERNETES_PORT_443_TCP_PORT"), os.getenv("HOSTNAME")
+        )
+        try:
+            res = requests.get(k8s_server, verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+                               timeout=3, headers={"Authorization": "Bearer {}".format(open(token_path).read())})
+            res.raise_for_status()
+        except requests.RequestException:
+            return None
+        try:
+            return res.json()["status"]["containerStatuses"][0]["imageID"].strip("docker-pullable://")
+        except (ValueError, KeyError, IndexError):
+            logger.exception("Error checking kubernetes for image id")
+            return None
+
+
+def async_call(target, timeout=None):
+    """Accepts a method and optional timeout.
+       Returns a new method that will call the original with any args, waiting for upto timeout seconds.
+       This new method blocks on the original and returns the result or None
+       if timeout was reached, along with the thread.
+       You can check thread.isAlive() to determine if a timeout was reached.
+       If an exception is thrown in the thread, we reraise it.
+    """
+    q = queue.Queue()
+    def wrapped_target(q, *args, **kwargs):
+        try:
+            q.put(target(*args, **kwargs))
+        except Exception as e:
+            q.put(e)
+
+    def wrapper(*args, **kwargs):
+        thread = threading.Thread(target=wrapped_target, args=(q,)+args, kwargs=kwargs)
+        thread.daemon = True
+        thread.start()
+        try:
+            result = q.get(True, timeout)
+            if isinstance(result, Exception):
+                six.reraise(type(result), result, sys.exc_info()[2])
+            return result, thread
+        except queue.Empty:
+            return None, thread
+    return wrapper
 
 def read_many_from_queue(q, max_items, queue_timeout):
     try:
@@ -617,3 +731,14 @@ def read_many_from_queue(q, max_items, queue_timeout):
             return items
         items.append(item)
     return items
+
+def stopwatch_now():
+    """Get a timevalue for interval comparisons
+
+    When possible it is a monotonic clock to prevent backwards time issues.
+    """
+    if six.PY2:
+        now = time.time()
+    else:
+        now = time.monotonic()
+    return now

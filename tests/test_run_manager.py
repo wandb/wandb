@@ -15,7 +15,7 @@ from wandb.run_manager import FileEventHandlerThrottledOverwriteMinWait, FileEve
 from click.testing import CliRunner
 
 
-def test_check_update_available_equal(request_mocker, capsys):
+def test_check_update_available_equal(request_mocker, capsys, query_viewer):
     "Test update availability in different cases."
     test_cases = [
         ('0.8.10', '0.8.10', False),
@@ -32,6 +32,7 @@ def test_check_update_available_equal(request_mocker, capsys):
 
     for current, latest, is_expected in test_cases:
         with CliRunner().isolated_filesystem():
+            query_viewer(request_mocker)
             is_avail = _is_update_avail(
                 request_mocker, capsys, current, latest)
             assert is_avail == is_expected, "expected {} compared to {} to yield update availability of {}".format(
@@ -68,6 +69,15 @@ def test_throttle_file_poller(mocker, run_manager):
             f.write(str(i))
     run_manager.test_shutdown()
     assert emitter.timeout == 2
+
+
+def test_pip_freeze(mocker, run_manager):
+    run_manager._block_file_observer()
+    run_manager.init_run()
+    reqs = open(os.path.join(wandb.run.dir, "requirements.txt")).read()
+    print([r for r in reqs.split("\n") if "wandb" in r])
+    wbv = "wandb==%s" % wandb.__version__
+    assert wbv in reqs
 
 
 def test_custom_file_policy(mocker, run_manager):
@@ -117,3 +127,19 @@ def test_sync_etc_multiple_messages(mocker, run_manager):
     wandb.run.socket.connection.sendall(payload + b"\0" + payload + b"\0")
     run_manager.test_shutdown()
     assert len(mocked_policy.mock_calls) == 2
+
+
+def test_init_run_network_down(mocker, caplog):
+    with CliRunner().isolated_filesystem():
+        mocker.patch("wandb.apis.internal.Api.HTTP_TIMEOUT", 0.5)
+        api = internal.Api(
+            load_settings=False,
+            retry_timedelta=datetime.timedelta(0, 0, 50))
+        api.set_current_run_id(123)
+        run = Run()
+        mocker.patch("wandb.run_manager.RunManager._upsert_run",
+                     lambda *args: time.sleep(0.6))
+        rm = wandb.run_manager.RunManager(api, run)
+        step = rm.init_run()
+        assert step == 0
+        assert "Failed to connect" in caplog.text

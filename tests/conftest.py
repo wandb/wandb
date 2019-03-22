@@ -10,7 +10,23 @@ import json
 import sys
 import threading
 from wandb import wandb_socket
+from wandb import env
 from wandb.wandb_run import Run
+
+
+def pytest_runtest_setup(item):
+    # This is used to find tests that are leaking outside of tmp directories
+    os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
+
+
+@pytest.fixture
+def local_netrc(monkeypatch):
+    # TODO: this seems overkill...
+    origexpand = os.path.expanduser
+
+    def expand(path):
+        return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
+    monkeypatch.setattr(os.path, "expanduser", expand)
 
 
 @pytest.fixture
@@ -21,7 +37,7 @@ def history():
 
 @pytest.fixture
 def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume_status,
-                   upload_logs, monkeypatch, mocker, capsys):
+                   upload_logs, monkeypatch, mocker, capsys, local_netrc):
     """Fixture that calls wandb.init(), yields a run (or an exception) that
     gets created, then cleans up afterward.  This is meant to test the logic
     in wandb.init, it should generally not spawn a run_manager.  If you need
@@ -110,6 +126,29 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                             def listen(self, secs):
                                 return False, None
                         monkeypatch.setattr("wandb.wandb_socket.Server", Error)
+                if kwargs.get('k8s') is not None:
+                    token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+                    crt_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                    orig_exist = os.path.exists
+
+                    def exists(path):
+                        return True if path in token_path else orig_exist(path)
+
+                    def magic(path, *args, **kwargs):
+                        if path == token_path:
+                            return six.StringIO('token')
+                    mocker.patch('wandb.util.open', magic, create=True)
+                    mocker.patch('wandb.util.os.path.exists', exists)
+                    os.environ["KUBERNETES_SERVICE_HOST"] = "k8s"
+                    os.environ["KUBERNETES_PORT_443_TCP_PORT"] = "123"
+                    os.environ["HOSTNAME"] = "test"
+                    if kwargs["k8s"]:
+                        request_mocker.register_uri("GET", "https://k8s:123/api/v1/namespaces/default/pods/test",
+                                                    content=b'{"status":{"containerStatuses":[{"imageID":"docker-pullable://test@sha256:1234"}]}}')
+                    else:
+                        request_mocker.register_uri("GET", "https://k8s:123/api/v1/namespaces/default/pods/test",
+                                                    content=b'{}', status_code=500)
+                    del kwargs["k8s"]
                 if kwargs.get('sagemaker'):
                     del kwargs['sagemaker']
                     config_path = "/opt/ml/input/config/hyperparameters.json"
@@ -147,6 +186,9 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 kwargs = {}
 
             if request.node.get_closest_marker('resume'):
+                # env was leaking when running the whole suite...
+                if os.getenv(env.RUN_ID):
+                    del os.environ[env.RUN_ID]
                 query_run_resume_status(request_mocker)
                 os.mkdir(wandb.wandb_dir())
                 with open(os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME), "w") as f:
@@ -180,7 +222,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
 
 def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunManager):
     # NOTE: This will create a run directory so make sure it's called in an isolated file system
-    # We have an optiona rm_class object because we mock it above so we need it before it's mocked
+    # We have an optional rm_class object because we mock it above so we need it before it's mocked
     api = api or InternalApi(load_settings=False)
     if wandb.run is None:
         wandb.run = run or Run()
@@ -223,11 +265,13 @@ def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunM
 
 
 @pytest.fixture
-def run_manager(mocker):
+def run_manager(mocker, request_mocker, upsert_run, query_viewer):
     """This fixture emulates the run_manager headless mode in a single process
     Just call run_manager.test_shutdown() to join the threads
     """
     with CliRunner().isolated_filesystem():
+        query_viewer(request_mocker)
+        upsert_run(request_mocker)
         run_manager = fake_run_manager(mocker)
         yield run_manager
         wandb.uninit()
