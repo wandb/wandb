@@ -19,6 +19,7 @@ import stat
 import shortuuid
 import importlib
 import types
+import yaml
 from datetime import date, datetime
 
 import click
@@ -35,6 +36,7 @@ from sentry_sdk import capture_message
 from wandb.env import error_reporting_enabled
 
 import wandb
+import wandb.core
 from wandb import io_wrap
 from wandb import wandb_dir
 from wandb.apis import CommError
@@ -44,8 +46,17 @@ logger = logging.getLogger(__name__)
 _not_importable = set()
 
 
+# these match the environments for gorilla
+if wandb.core.IS_GIT:
+    SENTRY_ENV = 'development'
+else:
+    SENTRY_ENV = 'production'
+
+
 sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
-                release=wandb.__version__, default_integrations=False)
+                release=wandb.__version__,
+                default_integrations=False,
+                environment=SENTRY_ENV)
 
 
 def sentry_message(message):
@@ -55,7 +66,10 @@ def sentry_message(message):
 
 def sentry_exc(exc):
     if error_reporting_enabled():
-        capture_exception(exc)
+        if isinstance(exc, six.string_types):
+            capture_exception(Exception(exc))
+        else:
+            capture_exception(exc)
 
 
 def sentry_reraise(exc):
@@ -628,6 +642,9 @@ def image_from_docker_args(args):
         if arg.startswith("-"):
             last_flag = i
             last_arg = arg
+        elif "@sha256:" in arg:
+            # Because our regex doesn't match digests
+            possible_images.append(arg)
         elif docker_image_regex(arg):
             if last_flag == i - 2:
                 possible_images.append(arg)
@@ -644,6 +661,13 @@ def image_from_docker_args(args):
         most_likely = possible_images[0]
     return most_likely
 
+
+def load_yaml(file):
+    """If pyyaml > 5.1 use full_load to avoid warning"""
+    if hasattr(yaml, "full_load"):
+        return yaml.full_load(file)
+    else:
+        return yaml.load(file)
 
 def image_id_from_k8s():
     """Pings the k8s metadata service for the image id"""

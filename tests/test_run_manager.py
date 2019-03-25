@@ -15,7 +15,7 @@ from wandb.run_manager import FileEventHandlerThrottledOverwriteMinWait, FileEve
 from click.testing import CliRunner
 
 
-def test_check_update_available_equal(request_mocker, capsys):
+def test_check_update_available_equal(request_mocker, capsys, query_viewer):
     "Test update availability in different cases."
     test_cases = [
         ('0.8.10', '0.8.10', False),
@@ -32,6 +32,7 @@ def test_check_update_available_equal(request_mocker, capsys):
 
     for current, latest, is_expected in test_cases:
         with CliRunner().isolated_filesystem():
+            query_viewer(request_mocker)
             is_avail = _is_update_avail(
                 request_mocker, capsys, current, latest)
             assert is_avail == is_expected, "expected {} compared to {} to yield update availability of {}".format(

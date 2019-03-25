@@ -197,7 +197,7 @@ class Api(object):
         api_url = self.api_url
         if api_url.endswith('.test') or self.settings().get("dev_prod"):
             return 'http://app.test'
-        elif api_url.endswith('wandb.ai'):
+        elif api_url.startswith('https://api.'):
             return api_url.replace('api.', 'app.')
         else:
             return api_url
@@ -281,7 +281,7 @@ class Api(object):
         }
         ''')
         res = self.gql(query)
-        return res.get('viewer', {})
+        return res.get('viewer') or {}
 
     @normalize_exceptions
     def list_projects(self, entity=None):
@@ -444,6 +444,8 @@ class Api(object):
         response = self.gql(query, variable_values={
             'name': project, 'run': run, 'entity': entity
         })
+        if response['model'] == None:
+            raise ValueError("Run {}/{}/{} not found".format(entity, project, run) )
         run = response['model']['bucket']
         commit = run['commit']
         patch = run['patch']
@@ -962,10 +964,10 @@ class Api(object):
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
-        def no_retry_400(e):
+        def no_retry_400_or_404(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if e.response.status_code != 400:
+            if e.response.status_code != 400 and e.response.status_code != 404:
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
@@ -975,7 +977,7 @@ class Api(object):
             'description': config.get("description"),
             'entityName': self.settings("entity"),
             'projectName': self.settings("project")},
-            check_retry_fn=no_retry_400)
+            check_retry_fn=no_retry_400_or_404)
         return response['upsertSweep']['sweep']['name']
 
     def file_current(self, fname, md5):

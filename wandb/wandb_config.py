@@ -93,7 +93,7 @@ class Config(object):
         except (OSError, IOError):
             raise ConfigError('Couldn\'t read config file: %s' % conf_path)
         try:
-            loaded = yaml.load(conf_file)
+            loaded = wandb.util.load_yaml(conf_file)
         except yaml.parser.ParserError:
             raise ConfigError('Invalid YAML in config-defaults.yaml')
         if subkey:
