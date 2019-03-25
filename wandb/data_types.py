@@ -9,6 +9,7 @@ import logging
 import six
 import wandb
 import numpy
+import uuid
 from wandb import util
 from wandb import util3D
 
@@ -536,7 +537,7 @@ class Object3D(IterableMedia):
         elif isinstance(data, numpy.ndarray):
             self.object3D = util3D.xyz_numpy_to_point_cloud_obj(data, **kwargs)
             self.extension = "obj"
-            # raise ValueError("Numby Array support not yet done")
+            self.numpyData = data
         else:
             raise ValueError("data must be a string or an io object")
 
@@ -557,6 +558,17 @@ class Object3D(IterableMedia):
         for i, obj in enumerate(truncated):
             with open(os.path.join(base_path, "{}_{}_{}.{}".format(key, step, i, obj.extension)), "w") as f:
                 f.write(obj.object3D)
+
+            # Encode the numpy array as json and send it to the server so we can use it
+            # later if needed, for improved support.
+            #
+            # NOTE: The xyz->obj, makes poor visualizes and large files, but was an easy way to start
+            if obj.numpyData:
+                numpy_array_as_list = data.tolist()  # nested lists with same data, indices
+                file_path = "wandb/point_cloud_" + "key:" + key + "," + \
+                    "step:" + step + " .json"  # your path variable
+                json.dump(b, codecs.open(file_path, 'w', encoding='utf-8'),
+                          separators=(',', ':'), sort_keys=True, indent=4)
 
         meta = {"_type": "object3D",
                 "count": len(truncated)}
