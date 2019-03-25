@@ -3,7 +3,8 @@ include README.md
 
 recursive-include tests *
 recursive-include wandb *.py
-recursive-include wandb/kubeflow *.html *.yaml *.sh
+recursive-include wandb *.sh
+recursive-include wandb/kubeflow *.html *.yaml
 recursive-exclude wandb/kubeflow/dist *
 recursive-exclude wandb/kubeflow/arena *
 recursive-exclude * __pycache__

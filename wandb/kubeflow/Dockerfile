@@ -34,6 +34,8 @@ COPY --from=build /root/go/src/github.com/kubeflow/arena/charts /charts
 
 COPY --from=build /install /usr/local
 
+RUN apk add --no-cache bash
+
 RUN mkdir /ml
 
 ENTRYPOINT ["python", "-m", "wandb.kubeflow.arena"]

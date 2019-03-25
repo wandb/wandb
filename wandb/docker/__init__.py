@@ -95,4 +95,7 @@ def image_id_from_registry(image_name):
 
 def image_id(image_name):
     """Retreve the image id from the local docker daemon or remote registry"""
-    return shell(['inspect', image_name, '--format', '{{index .RepoDigests 0}}']) or image_id_from_registry(image_name)
+    if "@sha256:" in image_name:
+        return image_name
+    else:
+        return shell(['inspect', image_name, '--format', '{{index .RepoDigests 0}}']) or image_id_from_registry(image_name)

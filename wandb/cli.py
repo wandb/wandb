@@ -309,6 +309,8 @@ def restore(ctx, run, no_git, branch, project, entity):
         else:
             rest = run
         project, run = rest.split(":", 1)
+    elif run.count("/") > 1:
+        entity, run = run.split("/", 1)
 
     project, run = api.parse_slug(run, project=project)
     commit, json_config, patch_content, metadata = api.run_config(
@@ -731,6 +733,7 @@ def docker_run(ctx, docker_run_args, help):
     #TODO: image_from_docker_args uses heuristics to find the docker image arg, there are likely cases
     #where this won't work
     image = util.image_from_docker_args(args)
+    resolved_image = None
     if image:
         resolved_image = wandb.docker.image_id(image)
     if resolved_image:
@@ -851,7 +854,7 @@ def sweep(ctx, config_yaml):
         wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
         return
     try:
-        config = yaml.load(yaml_file)
+        config = util.load_yaml(yaml_file)
     except yaml.YAMLError as err:
         wandb.termerror('Error in configuration file: %s' % err)
         return
