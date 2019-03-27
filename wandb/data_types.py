@@ -560,8 +560,8 @@ class Object3D(IterableMedia):
             # NOTE: The xyz->obj, makes poor visualizations and large files, but was an easy way to start
             if hasattr(obj, "numpyData"):
                 data = obj.numpyData.tolist()
-                filename = "point_cloud_key:{}_step:{}.pts.json".format(
-                    key, step)
+                filename = "point_cloud_key:{}_step:{}_i:{}.pts.json".format(
+                    key, step, i)
                 file_path = os.path.join(base_path, filename)
                 json.dump(data, codecs.open(file_path, 'w', encoding='utf-8'),
                           separators=(',', ':'), sort_keys=True, indent=4)
