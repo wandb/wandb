@@ -574,7 +574,7 @@ class Object3D(IterableMedia):
                 with open(file_path, "w") as f:
                     f.write(obj.object3D)
 
-            filenames.append(file_path)
+            filenames.append(filename)
 
         meta = {"_type": "object3D",
                 "filenames": filenames,
