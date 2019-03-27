@@ -9,8 +9,7 @@ import logging
 import six
 import wandb
 import numpy
-import uuid
-import json
+import uuid import json
 import codecs
 from wandb import util
 from wandb import util3D
@@ -538,7 +537,6 @@ class Object3D(IterableMedia):
             if data.name:
                 self.extension = data.name.split('.').pop()
         elif isinstance(data, numpy.ndarray):
-            self.object3D = util3D.xyz_numpy_to_point_cloud_obj(data, **kwargs)
             self.extension = "obj"
             self.numpyData = data
         else:
@@ -562,20 +560,20 @@ class Object3D(IterableMedia):
             # NOTE: The xyz->obj, makes poor visualizations and large files, but was an easy way to start
             if hasattr(obj, "numpyData"):
                 data = obj.numpyData.tolist()
-                file_path = os.path.join(
-                    base_path, "point_cloud_key:{}_step:{}.pts.json".format(key, step))
-
-                filenames.append(file_path)
+                filename = "point_cloud_key:{}_step:{}.pts.json".format(
+                    key, step)
+                file_path = os.path.join(base_path, filename)
                 json.dump(data, codecs.open(file_path, 'w', encoding='utf-8'),
                           separators=(',', ':'), sort_keys=True, indent=4)
             else:
                 # Log file as is.
                 # TODO(nbardy): Add warning for unsupported types.
-                filename = os.path.join(
-                    base_path, "{}_{}_{}.{}".format(key, step, i, obj.extension))
-                with open(filename, "w") as f:
+                filename = "{}_{}_{}.{}".format(key, step, i, obj.extension)
+                file_path = os.path.join(base_path, filename)
+                with open(file_path, "w") as f:
                     f.write(obj.object3D)
-                    filenames.append(filename)
+
+            filenames.append(file_path)
 
         meta = {"_type": "object3D",
                 "filenames": filenames,
