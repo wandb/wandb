@@ -9,7 +9,8 @@ import logging
 import six
 import wandb
 import numpy
-import uuid import json
+import uuid
+import json
 import codecs
 from wandb import util
 from wandb import util3D
