@@ -10,6 +10,8 @@ import six
 import wandb
 import numpy
 import uuid
+import json
+import codecs
 from wandb import util
 from wandb import util3D
 
@@ -405,7 +407,8 @@ class Histogram(object):
         """Accepts a sequence to be converted into a histogram or np_histogram can be set
         to a tuple of (values, bins_edges) as np.histogram returns i.e.
 
-        wandb.log({"histogram": wandb.Histogram(np_histogram=np.histogram(data))})
+        wandb.log({"histogram": wandb.Histogram(
+            np_histogram=np.histogram(data))})
 
         The maximum number of bins currently supported is 512
         """
@@ -522,7 +525,7 @@ class Audio(IterableMedia):
 
 
 class Object3D(IterableMedia):
-    MAX_3D_COUNT = 4
+    MAX_3D_COUNT = 20
 
     def __init__(self, data, **kwargs):
         """
@@ -542,11 +545,6 @@ class Object3D(IterableMedia):
             raise ValueError("data must be a string or an io object")
 
     @staticmethod
-    def extensions(object3D_list):
-        extensions = [o.extension for o in object3D_list]
-        return extensions
-
-    @staticmethod
     def transform(threeD_list, out_dir, key, step):
         if len(threeD_list) > Object3D.MAX_3D_COUNT:
             logging.warn(
@@ -555,26 +553,33 @@ class Object3D(IterableMedia):
         util.mkdir_exists_ok(base_path)
         truncated = threeD_list[:Object3D.MAX_3D_COUNT]
 
-        for i, obj in enumerate(truncated):
-            with open(os.path.join(base_path, "{}_{}_{}.{}".format(key, step, i, obj.extension)), "w") as f:
-                f.write(obj.object3D)
+        filenames = []
 
+        for i, obj in enumerate(truncated):
             # Encode the numpy array as json and send it to the server so we can use it
-            # later if needed, for improved support.
+            # later when needed.
             #
-            # NOTE: The xyz->obj, makes poor visualizes and large files, but was an easy way to start
-            if obj.numpyData:
-                numpy_array_as_list = data.tolist()  # nested lists with same data, indices
-                file_path = "wandb/point_cloud_" + "key:" + key + "," + \
-                    "step:" + step + " .json"  # your path variable
-                json.dump(b, codecs.open(file_path, 'w', encoding='utf-8'),
+            # NOTE: The xyz->obj, makes poor visualizations and large files, but was an easy way to start
+            if hasattr(obj, "numpyData"):
+                data = obj.numpyData.tolist()
+                file_path = os.path.join(
+                    base_path, "point_cloud_key:{}_step:{}.pts.json".format(key, step))
+
+                filenames.append(file_path)
+                json.dump(data, codecs.open(file_path, 'w', encoding='utf-8'),
                           separators=(',', ':'), sort_keys=True, indent=4)
+            else:
+                # Log file as is.
+                # TODO(nbardy): Add warning for unsupported types.
+                filename = os.path.join(
+                    base_path, "{}_{}_{}.{}".format(key, step, i, obj.extension))
+                with open(filename, "w") as f:
+                    f.write(obj.object3D)
+                    filenames.append(filename)
 
         meta = {"_type": "object3D",
+                "filenames": filenames,
                 "count": len(truncated)}
-
-        extensions = Object3D.extensions(truncated)
-        meta["extensions"] = extensions
 
         return meta
 
