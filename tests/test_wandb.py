@@ -13,9 +13,9 @@ import time
 import json
 import threading
 from click.testing import CliRunner
-from .api_mocks import *
 
-from utils import runner
+from .api_mocks import *
+from .utils import runner
 import wandb
 from wandb import wandb_run
 
