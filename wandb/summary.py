@@ -46,7 +46,7 @@ class SummarySubDict(object):
     def __setattr__(self, k, v):
         k = k.strip()
         if k.startswith("_"):
-            super(SummarySubDict, self).__setattr__(k, v)
+            return object.__setattr__(self, k, v)
         else:
             self[k] = v
             return v
@@ -54,7 +54,7 @@ class SummarySubDict(object):
     def __getattr__(self, k):
         k = k.strip()
         if k.startswith("_"):
-            return super(SummarySubDict, self).__getattr__(k)
+            return object.__getattribute__(self, k)
         else:
             return self[k]
 
@@ -74,6 +74,10 @@ class SummarySubDict(object):
         raise NotImplementedError
 
     def _root_del(self, path):
+        raise NotImplementedError
+
+    def _write(self, commit=False):
+        # should only be implemented on the root summary
         raise NotImplementedError
 
     def keys(self):
@@ -107,12 +111,16 @@ class SummarySubDict(object):
 
         self._locked_keys.add(k)
 
+        self._root._write()
+
         return v
 
     def __delitem__(self, k):
         k = k.strip()
         del self._dict[k]
         self._root._root_del(self._path + (k,))
+
+        self._root._write()
 
     def __repr__(self):
         return repr(self._dict)
@@ -139,7 +147,7 @@ class SummarySubDict(object):
 
         self._root._root_set(self._path, write_items)
 
-        self._write(commit=True)
+        self._root._write(commit=True)
 
         """
             for k, v in six.iteritems(key_vals):
@@ -172,10 +180,7 @@ class Summary(SummarySubDict):
         self._json_dict = {}
 
         if summary is not None:
-            self.update(summary)
-
-    def _write(self, commit=False):
-        raise NotImplementedError
+            self._json_dict = summary
 
     def _json_get(self, path):
         pass
@@ -194,14 +199,16 @@ class Summary(SummarySubDict):
         for key in path[:-1]:
             json_dict = json_dict[key]
 
+        val = json_dict[path[-1]]
         del json_dict[path[-1]]
-        h5_key = "summary/" + '.'.join(path)
-        if self._h5 and h5_key in self._h5:
-            del self._h5[h5_key]
-            self._h5.flush()
-
-        # TODO(adrian): old code did not have commit set to true for deletes.
-        self._write()
+        if isinstance(val, dict) and val.get("_type") in H5_TYPES:
+            if not h5py:
+                wandb.termerror("Deleting tensors in summary requires h5py")
+            else:
+                self.open_h5()
+                h5_key = "summary/" + '.'.join(path)
+                del self._h5[h5_key]
+                self._h5.flush()
 
     def _root_set(self, path, new_keys_values):
         json_dict = self._json_dict
@@ -210,8 +217,6 @@ class Summary(SummarySubDict):
 
         for new_key, new_value in new_keys_values:
             json_dict[new_key] = self._encode(new_value, path + (new_key,))
-
-        self._write(commit=True)
 
     def write_h5(self, path, val):
         # ensure the file is open
@@ -342,7 +347,7 @@ class FileSummary(Summary):
 
 class HTTPSummary(Summary):
     def __init__(self, run, client, summary=None):
-        super(HTTPSummary, self).__init__(run, summary=summary)  # XXX
+        super(HTTPSummary, self).__init__(run, summary=summary)
         self._run = run
         self._client = client
         self._started = time.time()

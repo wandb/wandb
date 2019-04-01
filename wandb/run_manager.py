@@ -1176,7 +1176,7 @@ class RunManager(object):
 
         # Show run summary/history
         self._run.summary.load()
-        summary = self._run.summary._summary
+        summary = self._run.summary._json_dict
         if len(summary):
             logger.info("rendering summary")
             wandb.termlog('Run summary:')
