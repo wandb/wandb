@@ -27,8 +27,6 @@ class SummarySubDict(object):
     """Nested dict-like object that proxies read and write operations through a root object.
 
     This lets us do synchronous serialization and lazy loading of large values.
-
-    XXX need to check locked keys semantics.
     """
     def __init__(self, root=None, path=()):
         if root is None:
@@ -58,22 +56,29 @@ class SummarySubDict(object):
         else:
             return self[k]
 
-    #def __getattr__(self, k):
-    #    return getattr(super(SummarySubDict, self), k)
-
-    #def __setattr__(self, k, v):
-    #    return setattr(super(SummarySubDict, self), k, v)
-
     def _root_get(self, path, child_dict):
-        """We pass the child_dict so the item can be set on it or not as
-        appropriate.
+        """Load a value at a particular path from the root.
+
+        This should only be implemented by the "_root" child class.
+
+        We pass the child_dict so the item can be set on it or not as
+        appropriate. Returning None for a nonexistant path wouldn't be
+        distinguishable from that path being set to the value None.
         """
         raise NotImplementedError
 
     def _root_set(self, path, new_keys_values):
+        """Set a value at a particular path in the root.
+
+        This should only be implemented by the "_root" child class.
+        """
         raise NotImplementedError
 
     def _root_del(self, path):
+        """Delete a value at a particular path in the root.
+
+        This should only be implemented by the "_root" child class.
+        """
         raise NotImplementedError
 
     def _write(self, commit=False):
@@ -126,9 +131,9 @@ class SummarySubDict(object):
         return repr(self._dict)
 
     def update(self, key_vals=None, overwrite=True):
-        """Locked keys can only be overwritten by leaving overwrite=True.
+        """Locked keys will be overwritten unless overwrite=False.
 
-        In that case, those keys will be added to the "locked" list.
+        Otherwise, written keys will be added to the "locked" list.
         """
         if not key_vals:
             return
@@ -142,22 +147,15 @@ class SummarySubDict(object):
             write_keys = set(key_vals.keys()) - self._locked_keys
             write_items = [(k, key_vals[k]) for k in write_keys]
 
-        for k, v in write_items:
-            self._dict[k] = v
+        for key, value in write_items:
+            if isinstance(value, dict):
+                self._dict[key] = SummarySubDict(self._root, self._path + (key,))
+                self._dict[key]._dict.update(value)
+            else:
+                self._dict[key] = value
 
         self._root._root_set(self._path, write_items)
-
         self._root._write(commit=True)
-
-        """
-            for k, v in six.iteritems(key_vals):
-                key = k.strip()
-                if overwrite or key not in self._summary or key not in self._locked_keys:
-                    summary[key] = v
-                if overwrite:
-                    self._locked_keys.add(key)
-        self._summary.update(summary)
-        """
 
 
 class Summary(SummarySubDict):
