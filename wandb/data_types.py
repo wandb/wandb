@@ -436,11 +436,11 @@ class Histogram(object):
 class Table(object):
     MAX_ROWS = 300
 
-    def __init__(self, columns=["Input", "Output", "Expected"], data=[], rows=[]):
+    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
         self.columns = columns
-        self.data = list(rows or data)
+        self.data = list(rows or data or [])
 
     def add_row(self, *row):
         logging.warn("add_row is deprecated, use add_data")
