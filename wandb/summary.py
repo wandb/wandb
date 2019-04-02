@@ -137,6 +137,13 @@ class SummarySubDict(object):
         """
         if not key_vals:
             return
+        write_items = self._update(key_vals, overwrite)
+        self._root._root_set(self._path, write_items)
+        self._root._write(commit=True)
+
+    def _update(self, key_vals, overwrite):
+        if not key_vals:
+            return
 
         key_vals = dict((k.strip(), v) for k, v in six.iteritems(key_vals))
 
@@ -150,12 +157,12 @@ class SummarySubDict(object):
         for key, value in write_items:
             if isinstance(value, dict):
                 self._dict[key] = SummarySubDict(self._root, self._path + (key,))
-                self._dict[key]._dict.update(value)
+                self._dict[key]._update(value, overwrite)
             else:
                 self._dict[key] = value
 
-        self._root._root_set(self._path, write_items)
-        self._root._write(commit=True)
+        return write_items
+
 
 
 class Summary(SummarySubDict):
