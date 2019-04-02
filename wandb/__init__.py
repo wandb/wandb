@@ -570,7 +570,8 @@ def join():
 
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
-         group=None, allow_val_change=False, resume=False, force=False, tensorboard=False):
+         group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
+         name=None, id=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -652,6 +653,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.JOB_TYPE] = job_type
     if tags:
         os.environ[env.TAGS] = ",".join(tags)
+    if id:
+        os.environ[env.RUN_ID] = id
+    if name:
+        os.environ[env.DESCRIPTION] = name + \
+            "\n" + os.getenv(env.DESCRIPTION, "")
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
@@ -660,7 +666,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.RESUME] = "auto"
     elif resume:
         os.environ[env.RESUME] = os.environ.get(env.RESUME, "allow")
-        os.environ[env.RUN_ID] = resume
+        # TODO: remove allowing resume as a string in the future
+        os.environ[env.RUN_ID] = id or resume
     elif os.path.exists(resume_path):
         os.remove(resume_path)
     if os.environ.get(env.RESUME) == 'auto' and os.path.exists(resume_path):
