@@ -13,8 +13,9 @@ import time
 import json
 import threading
 from click.testing import CliRunner
-from .api_mocks import *
 
+from .api_mocks import *
+from .utils import runner
 import wandb
 from wandb import wandb_run
 
@@ -165,12 +166,13 @@ def test_save_policy_jupyter(wandb_init_run, query_upload_h5, request_mocker):
         'end': [], 'live': ['test.rad']}
 
 
-def test_restore(wandb_init_run, request_mocker, download_url, query_run_v2, query_run_files):
-    query_run_v2(request_mocker)
-    query_run_files(request_mocker)
-    download_url(request_mocker, size=10000)
-    res = wandb.restore("weights.h5")
-    assert os.path.getsize(res.name) == 10000
+def test_restore(runner, wandb_init_run, request_mocker, download_url, query_run_v2, query_run_files):
+    with runner.isolated_filesystem():
+        query_run_v2(request_mocker)
+        query_run_files(request_mocker)
+        download_url(request_mocker, size=10000)
+        res = wandb.restore("weights.h5")
+        assert os.path.getsize(res.name) == 10000
 
 
 @pytest.mark.jupyter
