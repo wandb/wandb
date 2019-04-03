@@ -44,10 +44,9 @@ class SummarySubDict(object):
     def __setattr__(self, k, v):
         k = k.strip()
         if k.startswith("_"):
-            return object.__setattr__(self, k, v)
+            object.__setattr__(self, k, v)
         else:
             self[k] = v
-            return v
 
     def __getattr__(self, k):
         k = k.strip()
@@ -95,6 +94,7 @@ class SummarySubDict(object):
         return self._dict.get(k, default)
 
     def __getitem__(self, k):
+        k = k.strip()
         self.get(k)  # load the value into _dict if it should be there
         return self._dict[k]
 
