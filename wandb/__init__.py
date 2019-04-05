@@ -92,7 +92,7 @@ def hook_torch(*args, **kwargs):
 watch_called = False
 
 
-def watch(models, criterion=None, log="gradients", log_freq=None):
+def watch(models, criterion=None, log="gradients", log_freq=100):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
@@ -100,7 +100,7 @@ def watch(models, criterion=None, log="gradients", log_freq=None):
     :param (torch.Module) models: The model to hook, can be a tuple
     :param (torch.F) criterion: An optional loss value being optimized
     :param (str) log: One of "gradients", "parameters", "all", or None
-    :param (int) log_freq: log gradients and parameters at most every log_freq batches
+    :param (int) log_freq: log gradients and parameters every N batches
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
     global watch_called
@@ -121,10 +121,6 @@ def watch(models, criterion=None, log="gradients", log_freq=None):
         log_gradients = False
     elif log is None:
         log_gradients = False
-
-    # Default to logging every 100 batches
-    if log_freq is None:
-        log_freq = 100
 
     if not isinstance(models, (tuple, list)):
         models = (models,)
