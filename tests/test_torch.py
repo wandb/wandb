@@ -332,6 +332,24 @@ def test_gradient_logging(wandb_init_run):
     assert(len(wandb_init_run.history.rows) == 3)
 
 
+def test_gradient_logging_freq(wandb_init_run):
+    net = ConvNet()
+    default_log_freq = 100
+    wandb.watch(net)
+    for i in range(210):
+        output = net(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output.backward(grads)
+        if (i + 1) % default_log_freq == 0:
+            assert(len(wandb_init_run.history.row) == 8)
+            assert(
+                wandb_init_run.history.row['gradients/fc2.bias'].histogram[0] > 0)
+        else:
+            assert(len(wandb_init_run.history.row) == 0)
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 210)
+
+
 def test_all_logging(wandb_init_run):
     net = ConvNet()
     wandb.hook_torch(net, log="all", log_freq=1)
@@ -348,6 +366,26 @@ def test_all_logging(wandb_init_run):
     assert(len(wandb_init_run.history.rows) == 3)
 
 
+def test_all_logging(wandb_init_run):
+    net = ConvNet()
+    default_log_freq = 100
+    wandb.hook_torch(net, log="all")
+    for i in range(3):
+        output = net(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output.backward(grads)
+        if (i + 1) % default_log_freq == 0:
+            assert(len(wandb_init_run.history.row) == 16)
+            assert(
+                wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
+            assert(
+                wandb_init_run.history.row['gradients/fc2.bias'].histogram[0] > 0)
+        else:
+            assert(len(wandb_init_run.history.row) == 0)
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 3)
+
+
 def test_parameter_logging(wandb_init_run):
     net = ConvNet()
     wandb.hook_torch(net, log="parameters", log_freq=1)
@@ -358,6 +396,24 @@ def test_parameter_logging(wandb_init_run):
         assert(len(wandb_init_run.history.row) == 8)
         assert(
             wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 3)
+
+
+def test_parameter_logging_freq(wandb_init_run):
+    net = ConvNet()
+    default_log_freq = 100
+    wandb.hook_torch(net, log="parameters")
+    for i in range(210):
+        output = net(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output.backward(grads)
+        if (i + 1) % default_log_freq == 0:
+            assert(len(wandb_init_run.history.row) == 8)
+            assert(
+                wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
+        else:
+            assert(len(wandb_init_run.history.row) == 0)
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
 
