@@ -105,13 +105,13 @@ class Api(object):
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
         try:
-            self.client.execute(*args, **kwargs)
+            return self.client.execute(*args, **kwargs)
         except requests.exceptions.HTTPError as err:
             res = err.response
             logger.error("%s response executing GraphQL." % res.status_code)
             logger.error(res.text)
             self.display_gorilla_error_if_found(res)
-            raise
+            six.reraise(*sys.exc_info())
 
     def display_gorilla_error_if_found(self, res):
         try:
