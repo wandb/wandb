@@ -22,6 +22,7 @@ if os.name == 'posix' and sys.version_info[0] < 3:
 else:
     import subprocess
 
+import six
 from six import b
 from six import BytesIO
 from six.moves import configparser
