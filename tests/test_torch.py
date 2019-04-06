@@ -366,11 +366,11 @@ def test_all_logging(wandb_init_run):
     assert(len(wandb_init_run.history.rows) == 3)
 
 
-def test_all_logging(wandb_init_run):
+def test_all_logging_freq(wandb_init_run):
     net = ConvNet()
     default_log_freq = 100
     wandb.hook_torch(net, log="all")
-    for i in range(3):
+    for i in range(210):
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
         output.backward(grads)
@@ -383,7 +383,7 @@ def test_all_logging(wandb_init_run):
         else:
             assert(len(wandb_init_run.history.row) == 0)
         wandb.log({"a": 2})
-    assert(len(wandb_init_run.history.rows) == 3)
+    assert(len(wandb_init_run.history.rows) == 210)
 
 
 def test_parameter_logging(wandb_init_run):
@@ -415,7 +415,7 @@ def test_parameter_logging_freq(wandb_init_run):
         else:
             assert(len(wandb_init_run.history.row) == 0)
         wandb.log({"a": 2})
-    assert(len(wandb_init_run.history.rows) == 3)
+    assert(len(wandb_init_run.history.rows) == 210)
 
 
 def test_simple_net():
