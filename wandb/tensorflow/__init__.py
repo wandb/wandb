@@ -1,6 +1,6 @@
 import tensorflow as tf
 from wandb import util
-from wandb.data_types import to_json
+from wandb.data_types import history_dict_to_json
 from wandb.tensorboard import *
 import wandb
 from wandb.apis.file_stream import Chunk
@@ -38,9 +38,9 @@ def stream_tfevents(path, file_api, step=0):
             last_step = parsed["tensorflow_step"]
             # TODO: handle time
             if len(row) > 0:
-                last_row = to_json(row)
-                buffer.append(Chunk("wandb-history.jsonl",
-                                    util.json_dumps_safer_history(to_json(row))))
+                row['_step'] = last_step
+                last_row = histroy_dict_to_json(row)
+                buffer.append(Chunk("wandb-history.jsonl", util.json_dumps_safer_history(last_row)))
         row.update(parsed)
     file_api._send(buffer)
     return last_row

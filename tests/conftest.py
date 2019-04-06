@@ -32,7 +32,7 @@ def local_netrc(monkeypatch):
 @pytest.fixture
 def history():
     with CliRunner().isolated_filesystem():
-        yield History("wandb-history.jsonl")
+        yield Run().history
 
 
 @pytest.fixture

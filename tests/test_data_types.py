@@ -34,12 +34,12 @@ def test_fucked_up_histogram():
 
 def test_transform():
     wbhist = wandb.Histogram(data)
-    json = wandb.Histogram.transform(wbhist)
+    json = wbhist.to_json()
     assert json["_type"] == "histogram"
     assert len(json["values"]) == 64
 
 
-image = np.random.randint(255, size=(28, 28))
+image = np.zeros((28, 28))
 
 
 def test_captions():
@@ -50,10 +50,29 @@ def test_captions():
 
 def test_transform():
     with CliRunner().isolated_filesystem():
-        meta = wandb.Image.transform([wandb.Image(image)], ".", "test.jpg")
-        assert meta == {'_type': 'images',
-                        'count': 1, 'height': 28, 'width': 28}
-        assert os.path.exists("media/images/test.jpg")
+        run = wandb.wandb_run.Run()
+        wb_image = wandb.Image(image)
+        meta = wandb.Image.seq_to_json([wb_image], run, "test", 'summary')
+        assert os.path.exists(os.path.join(run.dir, meta['images'][0]['path']))
+        del meta['images'][0]['entity']
+        del meta['images'][0]['project']
+        del meta['images'][0]['sha256']
+        del meta['images'][0]['run']
+        #del meta['images'][0]['size']
+        #del meta['images'][0]['entity']
+        assert meta == {
+            '_type': 'images',
+            'count': 1,
+            'height': 28,
+            'width': 28,
+            'images': [{
+                '_type': 'image',
+                'height': 28,
+                'path': 'media/images/test_summary_0.png',
+                'size': 73,
+                'width': 28
+            }],
+        }
 
 
 def test_audio_sample_rates():
@@ -95,38 +114,55 @@ def test_audio_captions():
 
 
 def test_audio_transform():
-    audio = np.random.uniform(-1, 1, 44100)
+    audio = np.zeros(44100)
     with CliRunner().isolated_filesystem():
-        meta = wandb.Audio.transform(
-            [wandb.Audio(audio, sample_rate=44100)], ".", "test", 0)
-        assert meta == {'_type': 'audio',
-                        'count': 1, 'sampleRates': [44100], 'durations': [1.0]}
-        assert os.path.exists("media/audio/test_0_0.wav")
+        run = wandb.wandb_run.Run()
+        meta = wandb.Audio.seq_to_json(
+            [wandb.Audio(audio, sample_rate=44100)], run, "test", 0)
+        assert os.path.exists(os.path.join(run.dir, meta['audio'][0]['path']))
+        del meta['audio'][0]['run']
+        del meta['audio'][0]['path']
+        del meta['audio'][0]['sha256']
+        del meta['audio'][0]['entity']
+        del meta['audio'][0]['project']
+        assert meta == {
+            '_type': 'audio',
+            'count': 1,
+            'sampleRates': [44100],
+            'durations': [1.0],
+            'audio': [{
+                '_type': 'audio-file',
+                'caption': None,
+                'sample_rate': 44100,
+                'size': 88244,
+            }],
+        }
 
 
 def test_guess_mode():
     image = np.random.randint(255, size=(28, 28, 3))
     wbimg = wandb.Image(image)
-    assert wbimg.image.mode == "RGB"
+    assert wbimg._image.mode == "RGB"
 
 
 def test_pil():
     pil = PIL.Image.new("L", (28, 28))
     img = wandb.Image(pil)
-    assert img.image == pil
+    assert img._image == pil
 
 
 def test_matplotlib_image():
     plt.plot([1, 2, 2, 4])
     img = wandb.Image(plt)
-    assert img.image.width == 640
+    assert img._image.width == 640
 
 
 def test_html_str():
     with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
         html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
-        wandb.Html.transform([html], ".", "rad", "summary")
-        assert os.path.exists("media/html/rad_summary_0.html")
+        wandb.Html.seq_to_json([html], run, "rad", "summary")
+        assert os.path.exists(os.path.join(run.dir, "media/html/rad_summary_0.html"))
 
 
 def test_html_styles():
@@ -147,26 +183,31 @@ def test_html_styles():
 
 def test_html_file():
     with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
         with open("test.html", "w") as f:
             f.write("<html><body><h1>Hello</h1></body></html>")
         html = wandb.Html(open("test.html"))
-        wandb.Html.transform([html, html], ".", "rad", "summary")
-        assert os.path.exists("media/html/rad_summary_0.html")
-        assert os.path.exists("media/html/rad_summary_1.html")
+        wandb.Html.seq_to_json([html, html], run, "rad", "summary")
+        assert os.path.exists(os.path.join(run.dir, "media/html/rad_summary_0.html"))
+        assert os.path.exists(os.path.join(run.dir, "media/html/rad_summary_0.html"))
 
 
 def test_table_default():
     table = wandb.Table()
     table.add_row("Some awesome text", "Positive", "Negative")
-    assert wandb.Table.transform(table) == {"_type": "table",
-                                            "data": [["Some awesome text", "Positive", "Negative"]],
-                                            "columns": ["Input", "Output", "Expected"]}
+    assert table.to_json() == {
+        "_type": "table",
+        "data": [["Some awesome text", "Positive", "Negative"]],
+        "columns": ["Input", "Output", "Expected"]
+    }
 
 
 def test_table_custom():
     table = wandb.Table(["Foo", "Bar"])
     table.add_row("So", "Cool")
     table.add_row("&", "Rad")
-    assert wandb.Table.transform(table) == {"_type": "table",
-                                            "data": [["So", "Cool"], ["&", "Rad"]],
-                                            "columns": ["Foo", "Bar"]}
+    assert table.to_json() == {
+        "_type": "table",
+        "data": [["So", "Cool"], ["&", "Rad"]],
+        "columns": ["Foo", "Bar"]
+    }
