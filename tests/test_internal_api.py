@@ -168,9 +168,9 @@ def test_upsert_run_bad_request(request_mocker, mocker, upsert_run):
     deleted."""
     update_mock = upsert_run(request_mocker, status_code=400)
     with pytest.raises(wandb.apis.CommError) as excinfo:
+        api.upsert_run(project="new-test")
         assert excinfo.type == requests.exceptions.HTTPError
         assert excinfo.value.exc.response.status_code == 400
-        api.upsert_run(project="new-test")
 
 def test_settings(mocker):
     os.environ.pop('WANDB_ENTITY', None)
