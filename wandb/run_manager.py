@@ -877,6 +877,14 @@ class RunManager(object):
                 raise LaunchError(
                     "resume='never' but run (%s) exists" % self._run.id)
             else:
+                # Detect bad request code -- this is usually trying to
+                # create a run that has been already deleted
+                if (isinstance(e.exc, requests.exceptions.HTTPError) and
+                    e.exc.response.status_code == 400):
+                    raise LaunchError(
+                        'Failed to connect to W&B. See {} for details.'.format(
+                        util.get_log_file_path()))
+
                 if isinstance(e.exc, (requests.exceptions.HTTPError,
                                       requests.exceptions.Timeout,
                                       requests.exceptions.ConnectionError)):

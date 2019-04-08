@@ -508,8 +508,13 @@ def no_retry_auth(e):
         e = e.exception
     if not isinstance(e, requests.HTTPError):
         return True
+    # Don't retry bad request errors; raise immediately
+    if e.response.status_code == 400:
+        return False
+    # Retry all non-forbidden/unauthorized errors.
     if e.response.status_code not in (401, 403):
         return True
+    # Crash w/message on forbidden/unauthorized errors.
     raise CommError("Invalid or missing api_key.  Run wandb login")
 
 
