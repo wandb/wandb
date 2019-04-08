@@ -167,7 +167,9 @@ def test_upsert_run_bad_request(request_mocker, mocker, upsert_run):
     """This happens for instance if you try to upload to run that has been
     deleted."""
     update_mock = upsert_run(request_mocker, status_code=400)
-    with pytest.raises(requests.exceptions.HTTPError):
+    with pytest.raises(wandb.apis.CommError) as excinfo:
+        assert excinfo.type == requests.exceptions.HTTPError
+        assert excinfo.value.exc.response.status_code == 400
         api.upsert_run(project="new-test")
 
 def test_settings(mocker):
