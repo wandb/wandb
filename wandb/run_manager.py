@@ -877,6 +877,14 @@ class RunManager(object):
                 raise LaunchError(
                     "resume='never' but run (%s) exists" % self._run.id)
             else:
+                # Detect bad request code -- this is usually trying to
+                # create a run that has been already deleted
+                if (isinstance(e.exc, requests.exceptions.HTTPError) and
+                    e.exc.response.status_code == 400):
+                    raise LaunchError(
+                        'Failed to connect to W&B. See {} for details.'.format(
+                        util.get_log_file_path()))
+
                 if isinstance(e.exc, (requests.exceptions.HTTPError,
                                       requests.exceptions.Timeout,
                                       requests.exceptions.ConnectionError)):
@@ -1176,7 +1184,7 @@ class RunManager(object):
 
         # Show run summary/history
         self._run.summary.load()
-        summary = self._run.summary._summary
+        summary = self._run.summary._json_dict
         if len(summary):
             logger.info("rendering summary")
             wandb.termlog('Run summary:')

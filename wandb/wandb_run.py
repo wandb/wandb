@@ -328,7 +328,9 @@ class Run(object):
     def _mkdir(self):
         util.mkdir_exists_ok(self._dir)
 
-    def project_name(self, api):
+    def project_name(self, api=None):
+        if api is None:
+            api = InternalApi()
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
 
     def get_url(self, api=None):

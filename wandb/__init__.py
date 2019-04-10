@@ -135,7 +135,7 @@ def watch(models, criterion=None, log="gradients"):
         graph = wandb_torch.TorchGraph.hook_torch(model, criterion)
         graphs.append(graph)
         # We access the raw summary because we don't want transform called until after the forward pass
-        run.summary._summary["graph_%i" % i] = graph
+        run.summary._dict["graph_%i" % i] = graph
     return graphs
 
 
