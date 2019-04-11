@@ -302,7 +302,7 @@ class Embedding(nn.Module):
 def test_embedding(wandb_init_run):
     net = Embedding(d_embedding=300, d_word=300,
                     d_hidden=300, word_dim=100, dropout=0)
-    wandb.watch(net, log="all")
+    wandb.watch(net, log="all", log_freq=1)
     for i in range(2):
         output = net(torch.ones((1, 4, 3, 224, 224)),
                      torch.ones((1, 4, 3, 20)))
@@ -320,7 +320,7 @@ def test_double_log(wandb_init_run):
 
 def test_gradient_logging(wandb_init_run):
     net = ConvNet()
-    wandb.watch(net)
+    wandb.watch(net, log_freq=1)
     for i in range(3):
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
@@ -332,9 +332,27 @@ def test_gradient_logging(wandb_init_run):
     assert(len(wandb_init_run.history.rows) == 3)
 
 
+def test_gradient_logging_freq(wandb_init_run):
+    net = ConvNet()
+    default_log_freq = 100
+    wandb.watch(net)
+    for i in range(210):
+        output = net(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output.backward(grads)
+        if (i + 1) % default_log_freq == 0:
+            assert(len(wandb_init_run.history.row) == 8)
+            assert(
+                wandb_init_run.history.row['gradients/fc2.bias'].histogram[0] > 0)
+        else:
+            assert(len(wandb_init_run.history.row) == 0)
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 210)
+
+
 def test_all_logging(wandb_init_run):
     net = ConvNet()
-    wandb.hook_torch(net, log="all")
+    wandb.hook_torch(net, log="all", log_freq=1)
     for i in range(3):
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
@@ -348,9 +366,29 @@ def test_all_logging(wandb_init_run):
     assert(len(wandb_init_run.history.rows) == 3)
 
 
+def test_all_logging_freq(wandb_init_run):
+    net = ConvNet()
+    default_log_freq = 100
+    wandb.hook_torch(net, log="all")
+    for i in range(210):
+        output = net(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output.backward(grads)
+        if (i + 1) % default_log_freq == 0:
+            assert(len(wandb_init_run.history.row) == 16)
+            assert(
+                wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
+            assert(
+                wandb_init_run.history.row['gradients/fc2.bias'].histogram[0] > 0)
+        else:
+            assert(len(wandb_init_run.history.row) == 0)
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 210)
+
+
 def test_parameter_logging(wandb_init_run):
     net = ConvNet()
-    wandb.hook_torch(net, log="parameters")
+    wandb.hook_torch(net, log="parameters", log_freq=1)
     for i in range(3):
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
@@ -360,6 +398,24 @@ def test_parameter_logging(wandb_init_run):
             wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
+
+
+def test_parameter_logging_freq(wandb_init_run):
+    net = ConvNet()
+    default_log_freq = 100
+    wandb.hook_torch(net, log="parameters")
+    for i in range(210):
+        output = net(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output.backward(grads)
+        if (i + 1) % default_log_freq == 0:
+            assert(len(wandb_init_run.history.row) == 8)
+            assert(
+                wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
+        else:
+            assert(len(wandb_init_run.history.row) == 0)
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 210)
 
 
 def test_simple_net():
@@ -456,7 +512,7 @@ def test_false_requires_grad(wandb_init_run):
 
     net = ConvNet()
     net.fc1.weight.requires_grad = False
-    wandb.watch(net)
+    wandb.watch(net, log_freq=1)
     output = net(dummy_torch_tensor((64, 1, 28, 28)))
     grads = torch.ones(64, 10)
     output.backward(grads)

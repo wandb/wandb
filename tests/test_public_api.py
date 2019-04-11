@@ -17,7 +17,7 @@ from .api_mocks import _run, _query
 from click.testing import CliRunner
 import git
 import json
-from .utils import git_repo
+from .utils import git_repo, runner
 import h5py
 import numpy as np
 
@@ -130,30 +130,31 @@ def test_run_update(request_mocker, query_run_v2, upsert_run, query_download_h5,
     assert update_mock.called
 
 
-def test_run_files(request_mocker, query_run_v2, query_run_files):
-    run_mock = query_run_v2(request_mocker)
-    query_run_files(request_mocker)
-    run = api.run("test/test/test")
-    file = run.files()[0]
-    file.download()
-    assert os.path.exists("weights.h5")
-    raised = False
-    try:
+def test_run_files(runner, request_mocker, query_run_v2, query_run_files):
+    with runner.isolated_filesystem():
+        run_mock = query_run_v2(request_mocker)
+        query_run_files(request_mocker)
+        run = api.run("test/test/test")
+        file = run.files()[0]
         file.download()
-    except wandb.CommError:
-        raised = True
-    assert raised
-    os.remove("weights.h5")
+        assert os.path.exists("weights.h5")
+        raised = False
+        try:
+            file.download()
+        except wandb.CommError:
+            raised = True
+        assert raised
 
 
-def test_run_file(request_mocker, query_run_v2, query_run_files):
-    run_mock = query_run_v2(request_mocker)
-    query_run_files(request_mocker)
-    run = api.run("test/test/test")
-    file = run.file("weights.h5")
-    file.download()
-    assert os.path.exists("weights.h5")
-    os.remove("weights.h5")
+def test_run_file(runner, request_mocker, query_run_v2, query_run_files):
+    with runner.isolated_filesystem():
+        run_mock = query_run_v2(request_mocker)
+        query_run_files(request_mocker)
+        run = api.run("test/test/test")
+        file = run.file("weights.h5")
+        assert not os.path.exists("weights.h5")
+        file.download()
+        assert os.path.exists("weights.h5")
 
 
 def test_runs_from_path(request_mocker, query_runs_v2, query_download_h5):
@@ -177,28 +178,30 @@ def test_runs_from_path_index(mocker, request_mocker, query_runs_v2, query_downl
     assert len(runs.objects) == 4
 
 
-def test_read_advanced_summary(request_mocker, upsert_run, query_download_h5, query_upload_h5):
-    run = _run()
-    run["summaryMetrics"] = json.dumps({
-        "special": {"_type": "numpy.ndarray", "min": 0, "max": 20},
-        "normal": 32,
-        "nested": {"deep": {"_type": "numpy.ndarray", "min": 0, "max": 20}}})
-    _query('project', {'run': run})(request_mocker)
-    file = os.path.join(tempfile.gettempdir(), "test.h5")
-    with h5py.File(file, 'w') as h5:
-        h5["summary/special"] = np.random.rand(100)
-        h5["summary/nested.deep"] = np.random.rand(100)
-    query_download_h5(request_mocker, content=open(file, "rb").read())
-    api.flush()
-    run = api.run("test/test/test")
-    assert len(run.summary["special"]) == 100
-    assert len(run.summary["nested"]["deep"]) == 100
-    update_mock = upsert_run(request_mocker)
-    h5_mock = query_upload_h5(request_mocker)
-    run.summary.update({"nd_time": np.random.rand(1000)})
-    assert len(run.summary["nd_time"]) == 1000
-    # TODO: this passes locally, but fails consistently in CI?!?
-    #assert h5_mock.called
-    del run.summary["nd_time"]
-    assert list(run.summary._h5["summary"].keys()) == [
-        "nested.deep", "special"]
+def test_read_advanced_summary(runner, request_mocker, upsert_run, query_download_h5, query_upload_h5):
+    with runner.isolated_filesystem():
+        run = _run()
+        run["summaryMetrics"] = json.dumps({
+            "special": {"_type": "numpy.ndarray", "min": 0, "max": 20},
+            "normal": 32,
+            "nested": {"deep": {"_type": "numpy.ndarray", "min": 0, "max": 20}}})
+        _query('project', {'run': run})(request_mocker)
+        file = os.path.join(tempfile.gettempdir(), "test.h5")
+        with h5py.File(file, 'w') as h5:
+            h5["summary/special"] = np.random.rand(100)
+            h5["summary/nested.deep"] = np.random.rand(100)
+        query_download_h5(request_mocker, content=open(file, "rb").read())
+        api.flush()
+        run = api.run("test/test/test")
+        assert len(run.summary["special"]) == 100
+        assert len(run.summary["nested"]["deep"]) == 100
+        update_mock = upsert_run(request_mocker)
+        h5_mock = query_upload_h5(request_mocker)
+        run.summary.update({"nd_time": np.random.rand(1000)})
+        assert len(run.summary["nd_time"]) == 1000
+        # TODO: this passes locally, but fails consistently in CI?!?
+        #assert h5_mock.called
+        del run.summary["nd_time"]
+        run.summary.open_h5()
+        assert list(sorted(run.summary._h5["summary"].keys())) == [
+            "nested.deep", "special"]

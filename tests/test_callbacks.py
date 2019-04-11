@@ -64,7 +64,7 @@ def test_basic_keras(dummy_model, dummy_data, run):
     wandb.run.summary.load()
     assert run.history.rows[0]["epoch"] == 0
     assert run.summary["acc"] > 0
-    assert len(run.summary["graph"]["nodes"]) == 3
+    assert len(run.summary["graph"].nodes) == 3
 
 
 def test_keras_image_bad_data(dummy_model, dummy_data, run):

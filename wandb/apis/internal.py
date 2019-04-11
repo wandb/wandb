@@ -22,11 +22,13 @@ if os.name == 'posix' and sys.version_info[0] < 3:
 else:
     import subprocess
 
+import six
 from six import b
 from six import BytesIO
 from six.moves import configparser
 import wandb
 from wandb import __version__, wandb_dir, Error
+from wandb import termlog
 from wandb import env
 from wandb.git_repo import GitRepo
 from wandb import retry
@@ -94,10 +96,36 @@ class Api(object):
                 url='%s/graphql' % self.settings('base_url')
             )
         )
-        self.gql = retry.Retry(self.client.execute, retry_timedelta=retry_timedelta, check_retry_fn=util.no_retry_auth,
-                               retryable_exceptions=(RetryError, requests.RequestException))
+        self.gql = retry.Retry(self.execute,
+            retry_timedelta=retry_timedelta,
+            check_retry_fn=util.no_retry_auth,
+            retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None
+
+    def execute(self, *args, **kwargs):
+        """Wrapper around execute that logs in cases of failure."""
+        try:
+            return self.client.execute(*args, **kwargs)
+        except requests.exceptions.HTTPError as err:
+            res = err.response
+            logger.error("%s response executing GraphQL." % res.status_code)
+            logger.error(res.text)
+            self.display_gorilla_error_if_found(res)
+            six.reraise(*sys.exc_info())
+
+    def display_gorilla_error_if_found(self, res):
+        try:
+            data = res.json()
+        except ValueError:
+            return
+
+        if 'errors' in data and isinstance(data['errors'], list):
+            for err in data['errors']:
+                if 'message' not in err:
+                    continue
+                termlog('Error while calling W&B API: %s' % err['message'])
+
 
     def disabled(self):
         try:
