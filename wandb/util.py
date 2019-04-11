@@ -2,7 +2,6 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
 
-import pprint
 import base64
 import errno
 import hashlib
@@ -461,7 +460,8 @@ def encode_data_frame(name, df, run):
     pandas = get_module("pandas")
     fastparquet = get_module("fastparquet")
     if not pandas or not fastparquet:
-        raise wandb.Error("Failed to save data frame: unable to import either pandas or fastparquet.")
+        raise wandb.Error(
+            "Failed to save data frame: unable to import either pandas or fastparquet.")
 
     data_frame_id = generate_id()
 

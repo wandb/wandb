@@ -8,12 +8,10 @@ import io
 import logging
 import six
 import wandb
-import numpy
 import uuid
 import json
 import codecs
 from wandb import util
-from wandb import util3D
 
 
 def val_to_json(key, val, mode="summary", step=None):
@@ -524,8 +522,15 @@ class Audio(IterableMedia):
             return ['' if c == None else c for c in captions]
 
 
+def isNumpyArray(data):
+    np = util.get_module(
+        "numpy", required="Logging Raw Point cloud data requires numpy")
+    isinstance(data, np.ndarray):
+
+
 class Object3D(IterableMedia):
     MAX_3D_COUNT = 20
+    SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', '.stl'])
 
     def __init__(self, data, **kwargs):
         """
@@ -535,10 +540,7 @@ class Object3D(IterableMedia):
             if hasattr(data, 'seek'):
                 data.seek(0)
             self.object3D = data.read()
-            if data.name:
-                self.extension = data.name.split('.').pop()
-        elif isinstance(data, numpy.ndarray):
-            self.extension = "obj"
+        elif isNumpyArray(data):
             self.numpyData = data
         else:
             raise ValueError("data must be a string or an io object")
@@ -557,8 +559,6 @@ class Object3D(IterableMedia):
         for i, obj in enumerate(truncated):
             # Encode the numpy array as json and send it to the server so we can use it
             # later when needed.
-            #
-            # NOTE: The xyz->obj, makes poor visualizations and large files, but was an easy way to start
             if hasattr(obj, "numpyData"):
                 data = obj.numpyData.tolist()
                 filename = "point_cloud_key:{}_step:{}_i:{}.pts.json".format(
@@ -569,10 +569,15 @@ class Object3D(IterableMedia):
             else:
                 # Log file as is.
                 # TODO(nbardy): Add warning for unsupported types.
-                filename = "{}_{}_{}.{}".format(key, step, i, obj.extension)
-                file_path = os.path.join(base_path, filename)
-                with open(file_path, "w") as f:
-                    f.write(obj.object3D)
+                if obj.extension in SUPPORTED_TYPES:
+                    filename = "{}_{}_{}.{}".format(
+                        key, step, i, obj.extension)
+                    file_path = os.path.join(base_path, filename)
+                    with open(file_path, "w") as f:
+                        f.write(obj.object3D)
+                else
+                raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
+                                 " ,".join(SUPPORTED_TYPES))
 
             filenames.append(filename)
 
