@@ -143,7 +143,8 @@ class TorchHistory(object):
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
         history.row.update({
-            name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))
+            name: wandb.Histogram(np_histogram=(
+                tensor.tolist(), bins.tolist()))
         })
 
     def _hook_variable_gradient_stats(self, var, name):
