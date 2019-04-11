@@ -1,10 +1,10 @@
-'''WandB Callback for fast.ai
+'''W&B Callback for fast.ai
 
 This module hooks fast.ai Learners to Weights & Biases through a callback.
 Requested logged data can be configured through the callback constructor.
 
 Examples:
-    WandBCalback can be used when initializing the Learner::
+    WandbCallback can be used when initializing the Learner::
 
         from wandb_fastai import WandbCallback
         [...]
