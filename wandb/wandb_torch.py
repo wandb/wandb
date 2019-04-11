@@ -57,7 +57,7 @@ def log_track_update(log_track):
     """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached
     """
     log_track[LOG_TRACK_COUNT] += 1
-    if log_track[LOG_TRACK_COUNT] <  log_track[LOG_TRACK_THRESHOLD]:
+    if log_track[LOG_TRACK_COUNT] < log_track[LOG_TRACK_THRESHOLD]:
         return False
     log_track[LOG_TRACK_COUNT] = 0
     return True
@@ -95,7 +95,8 @@ class TorchHistory(object):
                     self.log_tensor_stats(
                         data.cpu(), 'parameters/' + prefix + name)
             log_track_params = log_track_init(log_freq)
-            module.register_forward_hook(lambda mod, inp, outp: parameter_log_hook(mod, inp, outp, log_track_params))
+            module.register_forward_hook(
+                lambda mod, inp, outp: parameter_log_hook(mod, inp, outp, log_track_params))
 
         if log_gradients:
             for name, parameter in module.named_parameters():
