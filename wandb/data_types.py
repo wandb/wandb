@@ -644,6 +644,7 @@ class Image(IterableMedia):
 
         If grouping is set to a number the interface combines N images.
         """
+
         PILImage = util.get_module(
             "PIL.Image", required="wandb.Image requires the PIL package, to get it run: pip install pillow")
         if util.is_matplotlib_typename(util.get_full_typename(data)):
