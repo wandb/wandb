@@ -6,14 +6,14 @@ Requested logged data can be configured through the callback constructor.
 Examples:
     WandbCallback can be used when initializing the Learner::
 
-        from wandb_fastai import WandbCallback
+        from wandb.fastai import WandbCallback
         [...]
         learn = Learner(data, ..., callback_fns=WandbCallback)
         learn.fit(epochs)
     
     Custom parameters can be given using functools.partial::
 
-        from wandb_fastai import WandbCallback
+        from wandb.fastai import WandbCallback
         from functools import partialmethod
         [...]
         learn = Learner(data,
