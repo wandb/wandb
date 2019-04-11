@@ -110,7 +110,6 @@ class WandbCallback(TrackerCallback):
         # Log sample predictions
         if self.show_results:
             self.learn.show_results()  # pyplot display of sample predictions
-            plt.tight_layout()  # adjust layout
             wandb.log({"Prediction Samples": plt}, commit=False)
 
         # Log losses & metrics
