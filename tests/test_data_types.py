@@ -170,3 +170,10 @@ def test_table_custom():
     assert wandb.Table.transform(table) == {"_type": "table",
                                             "data": [["So", "Cool"], ["&", "Rad"]],
                                             "columns": ["Foo", "Bar"]}
+
+
+def test_object3d_image():
+    plt.plot([1, 2, 2, 4])
+    obj = wandb.Object3D(open("fixtures/cube.obj"))
+    print obj
+    # assert obj == 640

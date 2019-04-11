@@ -61,3 +61,7 @@ If you are using [docker](https://docker.com) to run your code, we provide a wra
 ## Detailed Usage
 
 Framework specific and detailed usage can be found in our [documentation](http://docs.wandb.com/).
+
+## Testing
+
+To run the tests we use `pytest`.
