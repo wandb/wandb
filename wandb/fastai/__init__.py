@@ -14,7 +14,7 @@ Examples:
     Custom parameters can be given using functools.partial::
 
         from wandb.fastai import WandbCallback
-        from functools import partialmethod
+        from functools import partial
         [...]
         learn = Learner(data,
                     callback_fns=partial(WandbCallback, ...),
@@ -36,7 +36,6 @@ matplotlib.use('Agg')  # non-interactive back-end (avoid issues with tkinter)
 import matplotlib.pyplot as plt
 from fastai.callbacks import TrackerCallback
 from pathlib import Path
-from functools import partial
 
 
 class WandbCallback(TrackerCallback):
