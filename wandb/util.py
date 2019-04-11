@@ -42,6 +42,8 @@ from wandb import wandb_dir
 from wandb.apis import CommError
 from wandb import wandb_config
 
+DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
+
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
@@ -201,7 +203,7 @@ def is_pytorch_tensor_typename(typename):
     return typename.startswith('torch.') and ('Tensor' in typename or 'Variable' in typename)
 
 
-def is_pandas_dataframe_typename(typename):
+def is_pandas_data_frame_typename(typename):
     return typename.startswith('pandas.') and 'DataFrame' in typename
 
 
@@ -213,8 +215,8 @@ def is_plotly_typename(typename):
     return typename.startswith("plotly.")
 
 
-def is_pandas_dataframe(obj):
-    return is_pandas_dataframe_typename(get_full_typename(obj))
+def is_pandas_data_frame(obj):
+    return is_pandas_data_frame_typename(get_full_typename(obj))
 
 
 def ensure_matplotlib_figure(obj):
@@ -416,29 +418,71 @@ def json_dumps_safer_history(obj, **kwargs):
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
-def can_write_dataframe_as_parquet():
+def encode_data_frame(name, df, run):
+    """Encode a Pandas DataFrame into the JSON/backend format.
+
+    Writes the data to a file and returns a dictionary that we use to represent
+    it in `Summary`'s.
+
+    Arguments:
+        name (str): Name of the DataFrame, eg. the summary key in which it's
+            stored. This is for convenience, so people exploring the
+            directory tree can have some idea of what is in the Parquet files.
+        df (pandas.DataFrame): The DataFrame. Must not have columns named
+            "wandb_run_id" or "wandb_data_frame_id". They will be added to the
+            DataFrame here.
+        run (wandb_run.Run): The Run the DataFrame is associated with. We need
+            this because the information we store on the DataFrame is derived
+            from the Run it's in.
+
+    Returns:
+        A dict representing the DataFrame that we can store in summaries or
+        histories. This is the format:
+        {
+            '_type': 'data-frame',
+                # Magic field that indicates that this object is a data frame as
+                # opposed to a normal dictionary or anything else.
+            'id': 'asdf',
+                # ID for the data frame that is unique to this Run.
+            'format': 'parquet',
+                # The file format in which the data frame is stored. Currently can
+                # only be Parquet.
+            'current_project_name': 'wfeas',
+                # (Current) name of the project that this Run is in. It'd be
+                # better to store the project's ID because we know it'll never
+                # change but we don't have that here. We store this just in
+                # case because we use the project name in identifiers on the
+                # backend.
+            'path': 'media/data_frames/sdlk.parquet',
+                # Path to the Parquet file in the Run directory.
+        }
+    """
     pandas = get_module("pandas")
     fastparquet = get_module("fastparquet")
-    return pandas and fastparquet
+    if not pandas or not fastparquet:
+        raise wandb.Error("Failed to save data frame: unable to import either pandas or fastparquet.")
 
+    data_frame_id = generate_id()
 
-def write_dataframe(df, run_name, run_state_id, run_dir, table_name):
-    pandas = get_module("pandas")
-    fastparquet = get_module("fastparquet")
-    if pandas and fastparquet:
-        # we have to call this wandb_run_id because that name is treated specially by
-        # our filtering code
-        df['wandb_run_id'] = pandas.Series(
-            [six.text_type(run_name)] * len(df.index), index=df.index)
-        df['wandb_run_state_id'] = pandas.Series(
-            [six.text_type(run_state_id)] * len(df.index), index=df.index)
-        tables_dir = os.path.join(run_dir, 'media', 'tables')
-        mkdir_exists_ok(tables_dir)
-        path = os.path.join(tables_dir, '{}-{}.parquet'.format(run_state_id, table_name))
-        fastparquet.write(path, df)
-        return path
-    else:
-        raise wandb.Error("Unable to load pandas or fastparquet. Not saving summary dataframe.")
+    # We have to call this wandb_run_id because that name is treated specially by
+    # our filtering code
+    df['wandb_run_id'] = pandas.Series(
+        [six.text_type(run.name)] * len(df.index), index=df.index)
+
+    df['wandb_data_frame_id'] = pandas.Series(
+        [six.text_type(data_frame_id)] * len(df.index), index=df.index)
+    frames_dir = os.path.join(run.dir, DATA_FRAMES_SUBDIR)
+    mkdir_exists_ok(frames_dir)
+    path = os.path.join(frames_dir, '{}-{}.parquet'.format(name, data_frame_id))
+    fastparquet.write(path, df)
+
+    return {
+        'id': data_frame_id,
+        '_type': 'data-frame',
+        'format': 'parquet',
+        'current_project_name': run.project_name(),  # we don't have the project ID here
+        'path': path,
+    }
 
 
 def make_json_if_not_number(v):
