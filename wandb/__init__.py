@@ -92,7 +92,7 @@ def hook_torch(*args, **kwargs):
 watch_called = False
 
 
-def watch(models, criterion=None, log="gradients"):
+def watch(models, criterion=None, log="gradients", log_freq=100):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
@@ -100,6 +100,7 @@ def watch(models, criterion=None, log="gradients"):
     :param (torch.Module) models: The model to hook, can be a tuple
     :param (torch.F) criterion: An optional loss value being optimized
     :param (str) log: One of "gradients", "parameters", "all", or None
+    :param (int) log_freq: log gradients and parameters every N batches
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
     global watch_called
@@ -130,12 +131,12 @@ def watch(models, criterion=None, log="gradients"):
             prefix = "graph_%i" % i
 
         run.history.torch.add_log_hooks_to_pytorch_module(
-            model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix)
+            model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
 
         graph = wandb_torch.TorchGraph.hook_torch(model, criterion)
         graphs.append(graph)
         # We access the raw summary because we don't want transform called until after the forward pass
-        run.summary._summary["graph_%i" % i] = graph
+        run.summary._dict["graph_%i" % i] = graph
     return graphs
 
 
@@ -570,7 +571,8 @@ def join():
 
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
-         group=None, allow_val_change=False, resume=False, force=False, tensorboard=False):
+         group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
+         name=None, id=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -652,6 +654,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.JOB_TYPE] = job_type
     if tags:
         os.environ[env.TAGS] = ",".join(tags)
+    if id:
+        os.environ[env.RUN_ID] = id
+    if name:
+        os.environ[env.DESCRIPTION] = name + \
+            "\n" + os.getenv(env.DESCRIPTION, "")
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
@@ -660,7 +667,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.RESUME] = "auto"
     elif resume:
         os.environ[env.RESUME] = os.environ.get(env.RESUME, "allow")
-        os.environ[env.RUN_ID] = resume
+        # TODO: remove allowing resume as a string in the future
+        os.environ[env.RUN_ID] = id or resume
     elif os.path.exists(resume_path):
         os.remove(resume_path)
     if os.environ.get(env.RESUME) == 'auto' and os.path.exists(resume_path):

@@ -89,12 +89,17 @@ class Run(object):
         # socket server, currently only available in headless mode
         self.socket = None
 
+        self.name_and_description = None
         if description is not None:
-            self.description = description
+            self.name_and_description = description
+        elif os.path.exists(self.description_path):
+            with open(self.description_path) as d_file:
+                self.name_and_description = d_file.read()
+
         # An empty description.md may have been created by RunManager() so it's
         # important that we overwrite empty strings here.
-        if not self.description:
-            self.description = self.id
+        if not self.name_and_description:
+            self.name_and_description = self.id
         self.tags = tags
 
         self.sweep_id = sweep_id
@@ -164,13 +169,14 @@ class Run(object):
         run_dir = environment.get(env.RUN_DIR)
         sweep_id = environment.get(env.SWEEP_ID)
         program = environment.get(env.PROGRAM)
+        description = environment.get(env.DESCRIPTION)
         args = env.get_args()
         wandb_dir = env.get_dir()
         tags = env.get_tags()
         config = Config.from_environment_or_defaults()
         run = cls(run_id, mode, run_dir,
                   group, job_type, config,
-                  sweep_id, storage_id, program=program,
+                  sweep_id, storage_id, program=program, description=description,
                   args=args, wandb_dir=wandb_dir, tags=tags,
                   resume=resume)
         return run
@@ -283,7 +289,7 @@ class Run(object):
                                            "entity"),
                                        group=self.group, tags=self.tags if len(
                                            self.tags) > 0 else None,
-                                       config=self.config.as_dict(), description=self.description, host=socket.gethostname(),
+                                       config=self.config.as_dict(), description=self.name_and_description, host=socket.gethostname(),
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
                                        summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
         self.storage_id = upsert_result['id']
@@ -314,13 +320,17 @@ class Run(object):
             environment[env.PROGRAM] = self.program
         if self.args is not None:
             environment[env.ARGS] = json.dumps(self.args)
+        if self.name_and_description is not None:
+            environment[env.DESCRIPTION] = self.name_and_description
         if len(self.tags) > 0:
             environment[env.TAGS] = ",".join(self.tags)
 
     def _mkdir(self):
         util.mkdir_exists_ok(self._dir)
 
-    def project_name(self, api):
+    def project_name(self, api=None):
+        if api is None:
+            api = InternalApi()
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
 
     def get_url(self, api=None):
@@ -358,11 +368,34 @@ class Run(object):
 
     @property
     def name(self):
-        """For compatibility with wandb.api.public.Run, which has storage IDs
-        in self.id and names in self.name, whereas this has storage IDs in
-        self.storage_id and names in self.id
+        """We assume the first line of the description is the name users
+        want to use, and we automatically set it to id if the user didn't specify
         """
-        return self.id
+        return self.name_and_description.split("\n")[0]
+
+    @name.setter
+    def name(self, name):
+        parts = self.name_and_description.split("\n", 1)
+        parts[0] = name
+        self.name_and_description = "\n".join(parts)
+
+    @property
+    def description(self):
+        parts = self.name_and_description.split("\n", 1)
+        if len(parts) > 1:
+            return parts[1]
+        else:
+            return ""
+
+    @description.setter
+    def description(self, desc):
+        parts = self.name_and_description.split("\n", 1)
+        if len(parts) == 1:
+            parts.append("")
+        parts[1] = desc
+        self.name_and_description = "\n".join(parts)
+        with open(self.description_path, 'w') as d_file:
+            d_file.write(self.name_and_description)
 
     @property
     def host(self):
@@ -447,21 +480,6 @@ class Run(object):
     @property
     def description_path(self):
         return os.path.join(self.dir, DESCRIPTION_FNAME)
-
-    @property
-    def description(self):
-        try:
-            with open(self.description_path) as d_file:
-                return d_file.read()
-        except IOError:
-            # TODO(adrian): should probably check specifically for a nonexistant file error
-            return None
-
-    @description.setter
-    def description(self, description):
-        with open(self.description_path, 'w') as d_file:
-            d_file.write(description)
-        return description
 
     def close_files(self):
         """Close open files to avoid Python warnings on termination:
