@@ -110,7 +110,7 @@ class Graph(object):
     @classmethod
     def from_keras(cls, model):
         graph = cls()
-
+        from tensorflow.python.util import nest
         # Shamelessly copied from keras/keras/utils/layer_utils.py
 
         if model.__class__.__name__ == 'Sequential':
@@ -165,7 +165,7 @@ class Graph(object):
                     if relevant_nodes and in_node not in relevant_nodes:
                         # node is not part of the current network
                         continue
-                    for in_layer in in_node.inbound_layers:
+                    for in_layer in nest.flatten(in_node.inbound_layers):
                         inbound_keras_node = Node.from_keras(in_layer)
 
                         if (inbound_keras_node.id not in graph.nodes_by_id):

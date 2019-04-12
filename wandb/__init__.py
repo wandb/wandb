@@ -762,6 +762,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     if config:
         run.config.update(config, allow_val_change=allow_val_change)
 
+    # Access history to ensure resumed is set when resuming
+    run.history
+
     atexit.register(run.close_files)
 
     return run
@@ -770,6 +773,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
 keras = util.LazyLoader('keras', globals(), 'wandb.keras')
+fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 
 __all__ = ['init', 'config', 'termlog', 'termerror', 'tensorflow',
