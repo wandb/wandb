@@ -4,6 +4,7 @@
 
 -   wandb-docker-run accepts image digests
 -   keras callback works in tensorflow2-alpha0
+-   keras model graph now puts input layer first
 
 #### :nail_care: Enhancement
 

@@ -10,6 +10,7 @@ import six
 import wandb
 from wandb import util
 
+
 def nest(thing):
     """Use tensorflows nest function if available, otherwise just wrap object in an array"""
     tfutil = util.get_module('tensorflow.python.util')
@@ -165,8 +166,6 @@ class Graph(object):
         layers = model.layers
         for i in range(len(layers)):
             node = Node.from_keras(layers[i])
-            graph.add_node(node)
-
             if hasattr(layers[i], '_inbound_nodes'):
                 for in_node in layers[i]._inbound_nodes:
                     if relevant_nodes and in_node not in relevant_nodes:
@@ -180,7 +179,7 @@ class Graph(object):
                         inbound_node = graph.nodes_by_id[inbound_keras_node.id]
 
                         graph.add_edge(inbound_node, node)
-
+            graph.add_node(node)
         return graph
 
     @staticmethod
