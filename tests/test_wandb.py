@@ -228,6 +228,16 @@ def test_tensorboard(wandb_init_run):
     assert wandb.run.history.row['foo'] == 1.0
 
 
+@pytest.mark.args(id="123456")
+def test_run_id(wandb_init_run):
+    assert wandb.run.id == "123456"
+
+
+@pytest.mark.args(name="coolio")
+def test_run_name(wandb_init_run):
+    assert wandb.run.name == "coolio"
+
+
 @pytest.mark.unconfigured
 def test_not_logged_in(wandb_init_run, capsys):
     out, err = capsys.readouterr()

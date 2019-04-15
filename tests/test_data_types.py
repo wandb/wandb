@@ -1,3 +1,6 @@
+from click.testing import CliRunner
+import soundfile
+import matplotlib.pyplot as plt
 import wandb
 import numpy as np
 import pytest
@@ -5,9 +8,6 @@ import PIL
 import os
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import soundfile
-from click.testing import CliRunner
 
 data = np.random.randint(255, size=(1000))
 
@@ -157,7 +157,7 @@ def test_html_file():
 
 def test_table_default():
     table = wandb.Table()
-    table.add_row("Some awesome text", "Positive", "Negative")
+    table.add_data("Some awesome text", "Positive", "Negative")
     assert wandb.Table.transform(table) == {"_type": "table",
                                             "data": [["Some awesome text", "Positive", "Negative"]],
                                             "columns": ["Input", "Output", "Expected"]}
@@ -165,7 +165,7 @@ def test_table_default():
 
 def test_table_custom():
     table = wandb.Table(["Foo", "Bar"])
-    table.add_row("So", "Cool")
+    table.add_data("So", "Cool")
     table.add_row("&", "Rad")
     assert wandb.Table.transform(table) == {"_type": "table",
                                             "data": [["So", "Cool"], ["&", "Rad"]],
@@ -177,3 +177,10 @@ def test_object3d_image():
     obj = wandb.Object3D(open("fixtures/cube.obj"))
     print obj
     # assert obj == 640
+
+
+def test_table_init():
+    table = wandb.Table(data=[["Some awesome text", "Positive", "Negative"]])
+    assert wandb.Table.transform(table) == {"_type": "table",
+                                            "data": [["Some awesome text", "Positive", "Negative"]],
+                                            "columns": ["Input", "Output", "Expected"]}

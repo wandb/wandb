@@ -29,6 +29,33 @@ def test_wandb_run_args_sys(git_repo):
     assert run.args == ["cool"]
 
 
+def test_name_and_desc_only_name(git_repo):
+    os.environ[env.DESCRIPTION] = "myrunid"
+    run = wandb_run.Run.from_environment_or_defaults()
+    assert run.name == "myrunid"
+    assert run.description == ""
+    del os.environ[env.DESCRIPTION]
+
+
+def test_name_and_desc(git_repo):
+    os.environ[env.DESCRIPTION] = "myrunid\nmydesc"
+    run = wandb_run.Run.from_environment_or_defaults()
+    assert run.name == "myrunid"
+    assert run.description == "mydesc"
+    del os.environ[env.DESCRIPTION]
+
+
+def test_name_and_desc_setters(git_repo):
+    run = wandb_run.Run.from_environment_or_defaults()
+    run.name = "123"
+    run.description = "so much desc\nthis is fun"
+    assert run.name == "123"
+    assert run.description == "so much desc\nthis is fun"
+    my_env = {}
+    run.set_environment(my_env)
+    assert my_env[env.DESCRIPTION] == "123\nso much desc\nthis is fun"
+
+
 def test_history_updates_keys_until_summary_writes(git_repo):
     run = wandb_run.Run()
 
