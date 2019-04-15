@@ -172,11 +172,28 @@ def test_table_custom():
                                             "columns": ["Foo", "Bar"]}
 
 
-def test_object3d_image():
-    plt.plot([1, 2, 2, 4])
-    obj = wandb.Object3D(open("fixtures/cube.obj"))
-    print obj
-    # assert obj == 640
+point_cloud = np.array([[0, 0, 0, 1],
+                        [0, 0, 1, 2],
+                        [0, 1, 0, 2],
+                        [0, 1, 0, 4]])
+
+
+def test_object3d_numpy():
+    obj = wandb.Object3D(point_cloud)
+    print(obj)
+    assert 1 == 2
+
+
+def test_object3d_obj():
+    obj = wandb.Object3D(open("tests/fixtures/cube.obj"))
+    print(obj)
+    assert obj.filenames
+
+
+def test_object3d_gltf():
+    obj = wandb.Object3D(open("tests/fixtures/Box.gltf"))
+    print(obj)
+    assert obj == 640
 
 
 def test_table_init():

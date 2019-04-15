@@ -531,16 +531,16 @@ class Audio(IterableMedia):
 def isNumpyArray(data):
     np = util.get_module(
         "numpy", required="Logging Raw Point cloud data requires numpy")
-    isinstance(data, np.ndarray):
+    isinstance(data, np.ndarray)
 
 
 class Object3D(IterableMedia):
     MAX_3D_COUNT = 20
-    SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', '.stl'])
+    SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', 'stl'])
 
     def __init__(self, data, **kwargs):
         """
-        Accepts a 3D File; Accepts all file types supported by babylon.js
+        Accepts a 3D File or numpy array
         """
         if hasattr(data, 'read'):
             if hasattr(data, 'seek'):
@@ -573,17 +573,15 @@ class Object3D(IterableMedia):
                 json.dump(data, codecs.open(file_path, 'w', encoding='utf-8'),
                           separators=(',', ':'), sort_keys=True, indent=4)
             else:
-                # Log file as is.
-                # TODO(nbardy): Add warning for unsupported types.
                 if obj.extension in SUPPORTED_TYPES:
                     filename = "{}_{}_{}.{}".format(
                         key, step, i, obj.extension)
                     file_path = os.path.join(base_path, filename)
                     with open(file_path, "w") as f:
                         f.write(obj.object3D)
-                else
-                raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
-                                 " ,".join(SUPPORTED_TYPES))
+                else:
+                    raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
+                                     " ,".join(SUPPORTED_TYPES))
 
             filenames.append(filename)
 
