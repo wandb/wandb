@@ -10,6 +10,14 @@ import six
 import wandb
 from wandb import util
 
+def nest(thing):
+    """Use tensorflows nest function if available, otherwise just wrap object in an array"""
+    tfutil = util.get_module('tensorflow.python.util')
+    if tfutil:
+        return tfutil.nest.flatten(thing)
+    else:
+        return [thing]
+
 
 def val_to_json(key, val, mode="summary", step=None):
     """Converts a wandb datatype to its JSON representation"""
@@ -110,7 +118,6 @@ class Graph(object):
     @classmethod
     def from_keras(cls, model):
         graph = cls()
-        from tensorflow.python.util import nest
         # Shamelessly copied from keras/keras/utils/layer_utils.py
 
         if model.__class__.__name__ == 'Sequential':
@@ -165,7 +172,7 @@ class Graph(object):
                     if relevant_nodes and in_node not in relevant_nodes:
                         # node is not part of the current network
                         continue
-                    for in_layer in nest.flatten(in_node.inbound_layers):
+                    for in_layer in nest(in_node.inbound_layers):
                         inbound_keras_node = Node.from_keras(in_layer)
 
                         if (inbound_keras_node.id not in graph.nodes_by_id):
