@@ -12,6 +12,8 @@
 -   wandb.init now accepts a name parameter for naming runs
 -   wandb.run.name reflects custom display names
 -   Improvements to nested summary values
+-   Deprecated wandb.Table.add_row in favor of wandb.Table.add_data
+-   Initial support for a fast.ai callback thanks to @borisdayma!
 
 ## 0.7.2 (March 19, 2019)
 
