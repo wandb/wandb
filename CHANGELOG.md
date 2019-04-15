@@ -1,8 +1,17 @@
-## 0.7.3 (TBD)
+## 0.7.3 (April 15, 2019)
 
 #### :bug: Bug Fix
 
 -   wandb-docker-run accepts image digests
+-   keras callback works in tensorflow2-alpha0
+
+#### :nail_care: Enhancement
+
+-   PyTorch log frequency added for gradients and weights
+-   PyTorch logging performance enhancements
+-   wandb.init now accepts a name parameter for naming runs
+-   wandb.run.name reflects custom display names
+-   Improvements to nested summary values
 
 ## 0.7.2 (March 19, 2019)
 
