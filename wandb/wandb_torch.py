@@ -215,9 +215,9 @@ class TorchGraph(wandb.data_types.Graph):
         super(TorchGraph, self).__init__("torch")
 
     @classmethod
-    def hook_torch(cls, model, criterion=None):
+    def hook_torch(cls, model, criterion=None, graph_idx=0):
         graph = TorchGraph()
-        graph.hook_torch_modules(model, criterion)
+        graph.hook_torch_modules(model, criterion, graph_idx)
         return graph
 
     def create_forward_hook(self, name, modules):
@@ -249,7 +249,7 @@ class TorchGraph(wandb.data_types.Graph):
                 graph.criterion = output[0].grad_fn
         return after_forward_hook
 
-    def hook_torch_modules(self, module, criterion=None, prefix=None):
+    def hook_torch_modules(self, module, criterion=None, prefix=None, graph_idx=0):
         torch = util.get_module("torch", "Could not import torch")
         hooks = []
         modules = set()
@@ -283,6 +283,7 @@ class TorchGraph(wandb.data_types.Graph):
                 def backward_hook(module, input, output):
                     [hook.remove() for hook in hooks]
                     graph.loaded = True
+                    wandb.run.summary["graph_%i" % graph_idx] = graph
                     # TODO: Keeping this here as a starting point for adding graph data
                     if not graph.loaded:
                         def traverse(node, functions=[]):

@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import wandb
 import pytest
+import json
+import os
 from pprint import pprint
 from torchvision import models
 from torch.autograd import Variable
@@ -352,7 +354,7 @@ def test_gradient_logging_freq(wandb_init_run):
 
 def test_all_logging(wandb_init_run):
     net = ConvNet()
-    wandb.hook_torch(net, log="all", log_freq=1)
+    wandb.watch(net, log="all", log_freq=1)
     for i in range(3):
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
@@ -369,7 +371,7 @@ def test_all_logging(wandb_init_run):
 def test_all_logging_freq(wandb_init_run):
     net = ConvNet()
     default_log_freq = 100
-    wandb.hook_torch(net, log="all")
+    wandb.watch(net, log="all")
     for i in range(210):
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
@@ -388,7 +390,7 @@ def test_all_logging_freq(wandb_init_run):
 
 def test_parameter_logging(wandb_init_run):
     net = ConvNet()
-    wandb.hook_torch(net, log="parameters", log_freq=1)
+    wandb.watch(net, log="parameters", log_freq=1)
     for i in range(3):
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
@@ -397,6 +399,10 @@ def test_parameter_logging(wandb_init_run):
         assert(
             wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
         wandb.log({"a": 2})
+    assert wandb_init_run.summary["graph_0"]
+    file_summary = json.loads(
+        open(os.path.join(wandb_init_run.dir, "wandb-summary.json")).read())
+    assert file_summary["graph_0"]
     assert(len(wandb_init_run.history.rows) == 3)
 
 

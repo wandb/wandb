@@ -126,17 +126,16 @@ def watch(models, criterion=None, log="gradients", log_freq=100):
         models = (models,)
     graphs = []
     prefix = ''
-    for i, model in enumerate(models):
-        if i > 0:
-            prefix = "graph_%i" % i
+    for idx, model in enumerate(models):
+        if idx > 0:
+            prefix = "graph_%i" % idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
             model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
 
-        graph = wandb_torch.TorchGraph.hook_torch(model, criterion)
+        graph = wandb_torch.TorchGraph.hook_torch(model, criterion, idx)
         graphs.append(graph)
-        # We access the raw summary because we don't want transform called until after the forward pass
-        run.summary._dict["graph_%i" % i] = graph
+        # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
 
 
