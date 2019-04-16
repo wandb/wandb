@@ -25,8 +25,10 @@ import wandb
 run = wandb.init()
 config = run.config
 config.img_size = 50
-config.batch_size = 256
+config.batch_size = 32
 config.epochs = 0
+config.train_path = os.path.join('simpsons', 'train')
+config.test_path = os.path.join('simpsons', 'test')
 
 # download the data if it doesn't exist
 if not os.path.exists("simpsons"):
@@ -46,13 +48,13 @@ test_datagen = ImageDataGenerator(rescale=1./255)
 # subfolers of 'data/train', and indefinitely generate
 # batches of augmented image data
 train_generator = train_datagen.flow_from_directory(
-    'simpsons/train',  # this is the target directory
+    config.train_path,
     target_size=(config.img_size, config.img_size),
     batch_size=config.batch_size)
 
 # this is a similar generator, for validation data
 test_generator = test_datagen.flow_from_directory(
-    'simpsons/test',
+    config.test_path,
     target_size=(config.img_size, config.img_size),
     batch_size=config.batch_size)
 
@@ -70,7 +72,7 @@ model.compile(optimizer=optimizers.Adam(),
 
 def results_data_frame(test_datagen, model):
     gen = test_datagen.flow_from_directory(
-        'simpsons/test',
+        config.test_path,
         target_size=(config.img_size, config.img_size),
         batch_size=config.batch_size, shuffle=False)
 
@@ -89,6 +91,7 @@ def results_data_frame(test_datagen, model):
     class_probs = [[] for c in class_names]
 
     num_batches = int(math.ceil(len(gen.filenames) / float(gen.batch_size)))
+    num_batches = 1  # XXX
     for batch_i in range(num_batches):
         examples, truth = next(gen)
         preds = model.predict(np.stack(examples))
@@ -112,9 +115,10 @@ Actual:
 ![](https://api.wandb.ai/adrianbg/simpsons/tgw7wnqj/simpsons/{idx}.jpg)
 ```'''.format(true_class=true_classes[i], true_prob=true_probs[i], pred_class=pred_classes[i], pred_prob=pred_probs[i], idx=i))
 
-    all_cols = ['wandb_example_id', 'card', 'true_class', 'true_prob', 'pred_class', 'pred_prob'] + class_cols
+    all_cols = ['wandb_example_id', 'image', 'card', 'true_class', 'true_prob', 'pred_class', 'pred_prob'] + class_cols
     frame_dict = {
         'wandb_example_id': [six.text_type(s) for s in gen.filenames[:len(cards)]],
+        'image': [wandb.Image(os.path.join(config.test_path, f)) for f in gen.filenames[:len(cards)]],
         'card': cards,
         'true_class': true_classes,
         'true_prob': true_probs,
@@ -148,4 +152,4 @@ model.fit_generator(
 
 if config.epochs == 0:
     #run.summary["results"] = results_data_frame(test_datagen, model)
-    run.summary.update({ "results2": results_data_frame(test_datagen, model) })
+    run.summary.update({ "results3": results_data_frame(test_datagen, model) })

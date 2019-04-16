@@ -6,7 +6,6 @@ import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import soundfile
 from click.testing import CliRunner
 
 data = np.random.randint(255, size=(1000))
@@ -27,12 +26,12 @@ def test_manual_histogram():
     assert len(wbhist.histogram) == 3
 
 
-def test_fucked_up_histogram():
+def test_invalid_histogram():
     with pytest.raises(ValueError):
         wbhist = wandb.Histogram(np_histogram=([1, 2, 3], [1]))
 
 
-def test_transform():
+def test_histogram_to_json():
     wbhist = wandb.Histogram(data)
     json = wbhist.to_json()
     assert json["_type"] == "histogram"
@@ -113,7 +112,7 @@ def test_audio_captions():
     assert wandb.Audio.captions([wbaudio5, wbaudio6]) == ['', caption2]
 
 
-def test_audio_transform():
+def test_audio_to_json():
     audio = np.zeros(44100)
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
