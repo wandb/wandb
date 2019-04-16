@@ -7,7 +7,7 @@ import pytest
 import PIL
 import os
 import matplotlib
-import io
+import six
 
 matplotlib.use("Agg")
 
@@ -198,7 +198,7 @@ def test_object3d_gltf():
 def test_object3d_io():
     f = open("tests/fixtures/Box.gltf")
     body = f.read()
-    ioObj = io.StringIO(unicode(body, "utf-8"))
+    ioObj = six.StringIO(unicode(body, "utf-8"))
     obj = wandb.Object3D(ioObj, file_type="obj")
 
     assert obj.extension == "obj"
@@ -219,7 +219,7 @@ def test_object3d_unsupported_numpy():
 
     f = open("tests/fixtures/Box.gltf")
     body = f.read()
-    ioObj = io.StringIO(unicode(body, "utf-8"))
+    ioObj = six.StringIO(unicode(body, "utf-8"))
 
     with pytest.raises(ValueError):
         obj = wandb.Object3D(ioObj)
