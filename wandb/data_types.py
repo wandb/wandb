@@ -476,7 +476,7 @@ class Audio(IterableMedia):
 
     def __init__(self, data, sample_rate=None, caption=None):
         """
-        Accepts numpy array of audio data. 
+        Accepts numpy array of audio data.
         """
         if sample_rate == None:
             raise ValueError('Missing argument "sample_rate" in wandb.Audio')
@@ -530,7 +530,7 @@ class Audio(IterableMedia):
 
 def isNumpyArray(data):
     np = util.get_module(
-        "numpy", required="Logging Raw Point cloud data requires numpy")
+        "numpy", required="Logging raw point cloud data requires numpy")
     return isinstance(data, np.ndarray)
 
 
@@ -550,15 +550,15 @@ class Object3D(IterableMedia):
             if hasattr(data, 'seek'):
                 data.seek(0)
             self.object3D = data.read()
+            extension = kwargs.pop("file_type", None)
             if hasattr(data, 'name'):
                 try:
                     extension = os.path.splitext(data.name)[1][1:]
                 except:
                     raise ValueError(
                         "File type must have an extension")
-            elif hasattr(kwargs, "file_type"):
-                extension = kwargs["file_type"]
-            else:
+
+            if extension == None:
                 raise ValueError(
                     "Must pass file type keyword argument when using io objects.")
 
@@ -623,7 +623,7 @@ class Html(IterableMedia):
         """
         Accepts a string or file object containing valid html
 
-        By default we inject a style reset into the doc to make it 
+        By default we inject a style reset into the doc to make it
         look resonable, passing inject=False will disable it.
         """
         if isinstance(data, str):
@@ -703,7 +703,7 @@ class Image(IterableMedia):
 
     def guess_mode(self, data):
         """
-        Guess what type of image the np.array is representing 
+        Guess what type of image the np.array is representing
         """
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:
