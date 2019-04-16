@@ -192,13 +192,13 @@ point_cloud_3 = np.array([[0, 0, 0, 100, 100, 100],
 
 def test_object3d_numpy():
     obj = wandb.Object3D(point_cloud_1)
-    np.testing.assert_array_equal(obj.numpyData, point_cloud)
+    np.testing.assert_array_equal(obj.numpyData, point_cloud_1)
 
     obj = wandb.Object3D(point_cloud_2)
-    np.testing.assert_array_equal(obj.numpyData, point_cloud)
+    np.testing.assert_array_equal(obj.numpyData, point_cloud_2)
 
     obj = wandb.Object3D(point_cloud_3)
-    np.testing.assert_array_equal(obj.numpyData, point_cloud)
+    np.testing.assert_array_equal(obj.numpyData, point_cloud_3)
 
 
 def test_object3d_obj():
@@ -245,7 +245,7 @@ def test_object3d_transform():
     obj = wandb.Object3D.transform([
         wandb.Object3D(open("tests/fixtures/Box.gltf")),
         wandb.Object3D(open("tests/fixtures/cube.obj")),
-        wandb.Object3D(point_cloud)], "tests/output", "pc", 1)
+        wandb.Object3D(point_cloud_1)], "tests/output", "pc", 1)
 
     assert os.path.exists("tests/output/media/object3D/pc_1_0.gltf")
     assert os.path.exists("tests/output/media/object3D/pc_1_1.obj")
