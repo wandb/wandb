@@ -219,7 +219,7 @@ def test_object3d_unsupported_numpy():
 
     f = open("tests/fixtures/Box.gltf")
     body = f.read()
-    ioObj = six.StringIO(six.text_type(body, "utf-8"))
+    ioObj = six.StringIO(six.u(body))
 
     with pytest.raises(ValueError):
         obj = wandb.Object3D(ioObj)
