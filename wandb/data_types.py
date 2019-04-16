@@ -560,7 +560,7 @@ class Object3D(IterableMedia):
                 extension = kwargs["file_type"]
             else:
                 raise ValueError(
-                    "Must pass file type keyword argument when usin io objects.")
+                    "Must pass file type keyword argument when using io objects.")
 
             if extension in Object3D.SUPPORTED_TYPES:
                 self.extension = extension
