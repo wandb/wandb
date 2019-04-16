@@ -193,9 +193,15 @@ def test_object3d_gltf():
     assert obj.extension == "gltf"
 
 
-def test_object3d_unsupported():
+def test_object3d_unsupported_numpy():
     with pytest.raises(ValueError):
-        wandb.Object3D(open("tests/fixtures/empty.xkcd"))
+        wandb.Object3D(np.array([1]))
+    with pytest.raises(ValueError):
+        wandb.Object3D(np.array([[1, 2], [3, 4], [1, 2]]))
+    with pytest.raises(ValueError):
+        wandb.Object3D(np.array([1, 3, 4, 5, 6, 7, 8, 8, 3]))
+    with pytest.raises(ValueError):
+        wandb.Object3D(np.array([[1, 3, 4, 5, 6, 7, 8, 8, 3]]))
 
 
 def test_object3d_transform():
@@ -213,7 +219,7 @@ def test_object3d_transform():
     assert obj["filenames"] == [
         "pc_1_0.gltf",
         "pc_1_1.obj",
-        "point_cloud_key:pc_step:1_i:2.pts.json",
+        "pc_1_2.pts.json",
     ]
 
 

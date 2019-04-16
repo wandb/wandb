@@ -557,7 +557,15 @@ class Object3D(IterableMedia):
                 raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
                                  ", ".join(Object3D.SUPPORTED_TYPES))
         elif isNumpyArray(data):
-            self.numpyData = data
+            shape = data.shape
+            print(shape)
+            if len(data.shape) == 2 and data.shape[1] in {3, 4, 6}:
+                self.numpyData = data
+            else:
+                raise ValueError("""The shape of the numpy array must be one of either
+                                    [[x y z],       ...] nx3
+                                     [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+                                     [x y z r g b], ...] nx4 where is rgb is color""")
         else:
             raise ValueError("data must be a numpy or a file object")
 
@@ -577,7 +585,7 @@ class Object3D(IterableMedia):
             # later when needed.
             if hasattr(obj, "numpyData"):
                 data = obj.numpyData.tolist()
-                filename = "point_cloud_key:{}_step:{}_i:{}.pts.json".format(
+                filename = "{}_{}_{}.pts.json".format(
                     key, step, i)
                 file_path = os.path.join(base_path, filename)
                 json.dump(data, codecs.open(file_path, 'w', encoding='utf-8'),
