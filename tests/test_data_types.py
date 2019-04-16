@@ -198,7 +198,7 @@ def test_object3d_gltf():
 def test_object3d_io():
     f = open("tests/fixtures/Box.gltf")
     body = f.read()
-    ioObj = six.StringIO(six.text_type(body, "utf-8"))
+    ioObj = six.StringIO(six.u(body))
     obj = wandb.Object3D(ioObj, file_type="obj")
 
     assert obj.extension == "obj"
