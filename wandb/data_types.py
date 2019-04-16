@@ -540,17 +540,28 @@ class Object3D(IterableMedia):
 
     def __init__(self, data, **kwargs):
         """
-        Accepts a 3D File or numpy array
-        """
+        Accepts a numpy array or a 3D File of type: obj, gltf, babylon, stl
+
+        The shape of the numpy array must be one of either:
+        [[x y z],       ...] nx3
+         [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+         [x y z r g b], ...] nx4 where is rgb is color"""
         if hasattr(data, 'read'):
             if hasattr(data, 'seek'):
                 data.seek(0)
             self.object3D = data.read()
-            try:
-                extension = os.path.splitext(data.name)[1][1:]
-            except:
+            if hasattr(data, 'name'):
+                try:
+                    extension = os.path.splitext(data.name)[1][1:]
+                except:
+                    raise ValueError(
+                        "File type must have an extension")
+            elif hasattr(kwargs, "file_type"):
+                extension = kwargs["file_type"]
+            else:
                 raise ValueError(
-                    "Object3D must be called with a python file object that has a name attribute")
+                    "Must pass file type keyword argument when usin io objects.")
+
             if extension in Object3D.SUPPORTED_TYPES:
                 self.extension = extension
             else:

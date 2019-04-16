@@ -213,7 +213,7 @@ def test_object3d_transform():
     assert os.path.exists("tests/output/media/object3D/pc_1_0.gltf")
     assert os.path.exists("tests/output/media/object3D/pc_1_1.obj")
     assert os.path.exists(
-        "tests/output/media/object3D/point_cloud_key:pc_step:1_i:2.pts.json")
+        "tests/output/media/object3D/pc_1_2.pts.json")
 
     assert obj["_type"] == "object3D"
     assert obj["filenames"] == [
