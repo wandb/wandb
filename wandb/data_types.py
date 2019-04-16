@@ -531,7 +531,7 @@ class Audio(IterableMedia):
 def isNumpyArray(data):
     np = util.get_module(
         "numpy", required="Logging Raw Point cloud data requires numpy")
-    isinstance(data, np.ndarray)
+    return isinstance(data, np.ndarray)
 
 
 class Object3D(IterableMedia):
@@ -546,10 +546,20 @@ class Object3D(IterableMedia):
             if hasattr(data, 'seek'):
                 data.seek(0)
             self.object3D = data.read()
+            try:
+                extension = os.path.splitext(data.name)[1][1:]
+            except:
+                raise ValueError(
+                    "Object3D must be called with a python file object that has a name attribute")
+            if extension in Object3D.SUPPORTED_TYPES:
+                self.extension = extension
+            else:
+                raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
+                                 ", ".join(Object3D.SUPPORTED_TYPES))
         elif isNumpyArray(data):
             self.numpyData = data
         else:
-            raise ValueError("data must be a string or an io object")
+            raise ValueError("data must be a numpy or a file object")
 
     @staticmethod
     def transform(threeD_list, out_dir, key, step):
@@ -573,15 +583,11 @@ class Object3D(IterableMedia):
                 json.dump(data, codecs.open(file_path, 'w', encoding='utf-8'),
                           separators=(',', ':'), sort_keys=True, indent=4)
             else:
-                if obj.extension in SUPPORTED_TYPES:
-                    filename = "{}_{}_{}.{}".format(
-                        key, step, i, obj.extension)
-                    file_path = os.path.join(base_path, filename)
-                    with open(file_path, "w") as f:
-                        f.write(obj.object3D)
-                else:
-                    raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
-                                     " ,".join(SUPPORTED_TYPES))
+                filename = "{}_{}_{}.{}".format(
+                    key, step, i, obj.extension)
+                file_path = os.path.join(base_path, filename)
+                with open(file_path, "w") as f:
+                    f.write(obj.object3D)
 
             filenames.append(filename)
 

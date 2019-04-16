@@ -180,20 +180,41 @@ point_cloud = np.array([[0, 0, 0, 1],
 
 def test_object3d_numpy():
     obj = wandb.Object3D(point_cloud)
-    print(obj)
-    assert 1 == 2
+    np.testing.assert_array_equal(obj.numpyData, point_cloud)
 
 
 def test_object3d_obj():
     obj = wandb.Object3D(open("tests/fixtures/cube.obj"))
-    print(obj)
-    assert obj.filenames
+    assert obj.extension == "obj"
 
 
 def test_object3d_gltf():
     obj = wandb.Object3D(open("tests/fixtures/Box.gltf"))
-    print(obj)
-    assert obj == 640
+    assert obj.extension == "gltf"
+
+
+def test_object3d_unsupported():
+    with pytest.raises(ValueError):
+        wandb.Object3D(open("tests/fixtures/empty.xkcd"))
+
+
+def test_object3d_transform():
+    obj = wandb.Object3D.transform([
+        wandb.Object3D(open("tests/fixtures/Box.gltf")),
+        wandb.Object3D(open("tests/fixtures/cube.obj")),
+        wandb.Object3D(point_cloud)], "tests/output", "pc", 1)
+
+    assert os.path.exists("tests/output/media/object3D/pc_1_0.gltf")
+    assert os.path.exists("tests/output/media/object3D/pc_1_1.obj")
+    assert os.path.exists(
+        "tests/output/media/object3D/point_cloud_key:pc_step:1_i:2.pts.json")
+
+    assert obj["_type"] == "object3D"
+    assert obj["filenames"] == [
+        "pc_1_0.gltf",
+        "pc_1_1.obj",
+        "point_cloud_key:pc_step:1_i:2.pts.json",
+    ]
 
 
 def test_table_init():
