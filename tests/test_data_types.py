@@ -1,13 +1,15 @@
+from click.testing import CliRunner
+import matplotlib.pyplot as plt
+import soundfile
 import wandb
 import numpy as np
 import pytest
 import PIL
 import os
 import matplotlib
+import io
+
 matplotlib.use("Agg")
-import soundfile
-import matplotlib.pyplot as plt
-from click.testing import CliRunner
 
 data = np.random.randint(255, size=(1000))
 
@@ -193,15 +195,34 @@ def test_object3d_gltf():
     assert obj.extension == "gltf"
 
 
+def test_object3d_io():
+    f = open("tests/fixtures/Box.gltf")
+    body = f.read()
+    ioObj = io.StringIO(unicode(body, "utf-8"))
+    obj = wandb.Object3D(ioObj, file_type="obj")
+
+    assert obj.extension == "obj"
+
+
 def test_object3d_unsupported_numpy():
     with pytest.raises(ValueError):
         wandb.Object3D(np.array([1]))
+
     with pytest.raises(ValueError):
         wandb.Object3D(np.array([[1, 2], [3, 4], [1, 2]]))
+
     with pytest.raises(ValueError):
         wandb.Object3D(np.array([1, 3, 4, 5, 6, 7, 8, 8, 3]))
+
     with pytest.raises(ValueError):
         wandb.Object3D(np.array([[1, 3, 4, 5, 6, 7, 8, 8, 3]]))
+
+    f = open("tests/fixtures/Box.gltf")
+    body = f.read()
+    ioObj = io.StringIO(unicode(body, "utf-8"))
+
+    with pytest.raises(ValueError):
+        obj = wandb.Object3D(ioObj)
 
 
 def test_object3d_transform():

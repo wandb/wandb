@@ -569,7 +569,6 @@ class Object3D(IterableMedia):
                                  ", ".join(Object3D.SUPPORTED_TYPES))
         elif isNumpyArray(data):
             shape = data.shape
-            print(shape)
             if len(data.shape) == 2 and data.shape[1] in {3, 4, 6}:
                 self.numpyData = data
             else:
