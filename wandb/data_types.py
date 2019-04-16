@@ -568,7 +568,6 @@ class Object3D(IterableMedia):
                 raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
                                  ", ".join(Object3D.SUPPORTED_TYPES))
         elif isNumpyArray(data):
-            shape = data.shape
             if len(data.shape) == 2 and data.shape[1] in {3, 4, 6}:
                 self.numpyData = data
             else:

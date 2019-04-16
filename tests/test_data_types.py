@@ -175,13 +175,29 @@ def test_table_custom():
 
 
 point_cloud = np.array([[0, 0, 0, 1],
-                        [0, 0, 1, 2],
+                        [0, 0, 1, 13],
                         [0, 1, 0, 2],
                         [0, 1, 0, 4]])
 
+point_cloud_2 = np.array([[0, 0, 0],
+                          [0, 0, 1],
+                          [0, 1, 0],
+                          [0, 1, 0]])
+
+point_cloud_3 = np.array([[0, 0, 0, 100, 100, 100],
+                          [0, 0, 1, 100, 100, 100],
+                          [0, 1, 0, 100, 100, 100],
+                          [0, 1, 0, 100, 100, 100]])
+
 
 def test_object3d_numpy():
-    obj = wandb.Object3D(point_cloud)
+    obj = wandb.Object3D(point_cloud_1)
+    np.testing.assert_array_equal(obj.numpyData, point_cloud)
+
+    obj = wandb.Object3D(point_cloud_2)
+    np.testing.assert_array_equal(obj.numpyData, point_cloud)
+
+    obj = wandb.Object3D(point_cloud_3)
     np.testing.assert_array_equal(obj.numpyData, point_cloud)
 
 
