@@ -133,7 +133,7 @@ def watch(models, criterion=None, log="gradients", log_freq=100):
         run.history.torch.add_log_hooks_to_pytorch_module(
             model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
 
-        graph = wandb_torch.TorchGraph.hook_torch(model, criterion, idx)
+        graph = wandb_torch.TorchGraph.hook_torch(model, criterion, graph_idx=idx)
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs

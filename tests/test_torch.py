@@ -451,7 +451,7 @@ def test_sequence_net():
 
 def test_multi_net(wandb_init_run):
     net = ConvNet()
-    graphs = wandb.hook_torch((net, net))
+    graphs = wandb.watch((net, net))
     output = net.forward(dummy_torch_tensor((64, 1, 28, 28)))
     grads = torch.ones(64, 10)
     output.backward(grads)

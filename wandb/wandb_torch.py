@@ -217,7 +217,7 @@ class TorchGraph(wandb.data_types.Graph):
     @classmethod
     def hook_torch(cls, model, criterion=None, graph_idx=0):
         graph = TorchGraph()
-        graph.hook_torch_modules(model, criterion, graph_idx)
+        graph.hook_torch_modules(model, criterion, graph_idx=graph_idx)
         return graph
 
     def create_forward_hook(self, name, modules):
@@ -283,7 +283,11 @@ class TorchGraph(wandb.data_types.Graph):
                 def backward_hook(module, input, output):
                     [hook.remove() for hook in hooks]
                     graph.loaded = True
-                    wandb.run.summary["graph_%i" % graph_idx] = graph
+                    if wandb.run:
+                        wandb.run.summary["graph_%i" % graph_idx] = graph
+                    else:
+                        wandb.termlog(
+                            "wandb.watch was called without a call to wandb.init, call wandb.init before wandb.watch")
                     # TODO: Keeping this here as a starting point for adding graph data
                     if not graph.loaded:
                         def traverse(node, functions=[]):
