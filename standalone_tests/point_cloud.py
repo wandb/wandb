@@ -1,4 +1,4 @@
-# This files wandb run hosted: http://app.test/nbaryd/client-standalone_tests/runs/vymxkjdn?workspace=user-
+# http://app.wandb.ai/nbaryd/client-standalone_tests/runs/w1iqzmdw?workspace=user-
 
 import numpy as np
 import wandb
