@@ -3,4 +3,7 @@ numpy
 torchvision_nightly
 fastai
 absl
-https://download.pytorch.org/whl/nightly/cu90/torch_nightly.html
+ipython
+matplotlib
+plotly
+https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
