@@ -207,12 +207,12 @@ def test_object3d_obj():
 
 
 def test_object3d_gltf():
-    obj = wandb.Object3D(open("tests/fixtures/Box.gltf"))
+    obj = wandb.Object3D(open("tests/fixtures/Duck.gltf"))
     assert obj.extension == "gltf"
 
 
 def test_object3d_io():
-    f = open("tests/fixtures/Box.gltf")
+    f = open("tests/fixtures/Duck.gltf")
     body = f.read()
     ioObj = six.StringIO(six.u(body))
     obj = wandb.Object3D(ioObj, file_type="obj")
@@ -233,7 +233,7 @@ def test_object3d_unsupported_numpy():
     with pytest.raises(ValueError):
         wandb.Object3D(np.array([[1, 3, 4, 5, 6, 7, 8, 8, 3]]))
 
-    f = open("tests/fixtures/Box.gltf")
+    f = open("tests/fixtures/Duck.gltf")
     body = f.read()
     ioObj = six.StringIO(six.u(body))
 
@@ -243,7 +243,7 @@ def test_object3d_unsupported_numpy():
 
 def test_object3d_transform():
     obj = wandb.Object3D.transform([
-        wandb.Object3D(open("tests/fixtures/Box.gltf")),
+        wandb.Object3D(open("tests/fixtures/Duck.gltf")),
         wandb.Object3D(open("tests/fixtures/cube.obj")),
         wandb.Object3D(point_cloud_1)], "tests/output", "pc", 1)
 
