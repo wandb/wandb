@@ -27,6 +27,7 @@ def test_tensorboard_s3(run_manager, capsys, mocker):
     from tensorflow.python.summary.writer import event_file_writer
 
     def fake_init(self, logdir, **kwargs):
+        self._closed = False
         writer = event_file_writer.EventFileWriter("test")
         mocker.patch.object(writer._ev_writer, "FileName",
                             lambda: logdir.encode("utf8"))
@@ -71,11 +72,13 @@ def test_tensorboardX(run_manager):
     rows = run_manager.run.history.rows
     events = []
     for root, dirs, files in os.walk(run_manager.run.dir):
+        print("ROOT", root, files)
         for file in files:
             if "tfevent" in file:
                 events.append(file)
     assert rows[0]["matplotlib"] == {
         "width": 640, "height": 480, "count": 1, "_type": "images"}
+    print("WHOA", rows[1])
     assert rows[1]["data/scalar_group/foo"] == 10
     assert rows[1]["data/scalar_group/bar"] == 100
     assert len(events) == 3

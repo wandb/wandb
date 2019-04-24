@@ -6,4 +6,3 @@ absl
 ipython
 matplotlib
 plotly
-https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html

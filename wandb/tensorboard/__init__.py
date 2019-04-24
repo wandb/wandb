@@ -108,8 +108,10 @@ def history_image_key(key, namespace=""):
 
 
 def namespaced_tag(tag, namespace=""):
-    namespace = (namespace or "").replace(tag, "")
-    if namespace == "":
+    if tag in namespace:
+        # This happens with tensorboardX
+        return namespace
+    elif namespace == "":
         return tag
     else:
         return namespace + "/" + tag
@@ -125,9 +127,10 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
 
     if hasattr(tf_summary_str_or_pb, "summary"):
         summary_pb = tf_summary_str_or_pb.summary
-        #values["global_step"] = tf_summary_str_or_pb.step
+        values[namespaced_tag("global_step", namespace)
+               ] = tf_summary_str_or_pb.step
         values["_timestamp"] = tf_summary_str_or_pb.wall_time
-    elif isinstance(tf_summary_str_or_pb, str):
+    elif isinstance(tf_summary_str_or_pb, (str, bytes, bytearray)):
         summary_pb = Summary()
         summary_pb.ParseFromString(tf_summary_str_or_pb)
     else:

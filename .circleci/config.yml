@@ -74,6 +74,7 @@ jobs:
                       . venv/bin/activate
                       pip install -r requirements_edgeml.txt
                       pip install -e .[dev]
+                      python install-ml.py
             - save_cache:
                   paths:
                       - ./venv
