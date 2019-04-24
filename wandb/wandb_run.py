@@ -126,14 +126,19 @@ class Run(object):
         """ Sends a message to the wandb process changing the policy
         of saved files.  This is primarily used internally by wandb.save
         """
-        if not options.get("save_policy"):
-            raise ValueError("Only configuring save_policy is supported")
+        if not options.get("save_policy") and not options.get("tensorboard"):
+            raise ValueError(
+                "Only configuring save_policy and tensorboard is supported")
         if self.socket:
             self.socket.send(options)
         elif self._jupyter_agent:
             self._jupyter_agent.start()
-            self._jupyter_agent.rm.update_user_file_policy(
-                options["save_policy"])
+            if options.get("save_policy"):
+                self._jupyter_agent.rm.update_user_file_policy(
+                    options["save_policy"])
+            elif options.get("tensorboard"):
+                self._jupyter_agent.rm.start_tensorboard_watcher(
+                    options["tensorboard"]["logdir"])
         else:
             wandb.termerror(
                 "wandb.init hasn't been called, can't configure run")

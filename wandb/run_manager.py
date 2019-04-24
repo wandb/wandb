@@ -441,6 +441,10 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
+        self._tensorboard_watchers = []
+        self._tensorboard_consumer = None
+        self._tensorboard_lock = threading.Lock()
+        self._watcher_queue = queue.PriorityQueue()
 
         # This allows users to specify files they want uploaded during the run
         self._user_file_policies = {
@@ -926,6 +930,10 @@ class RunManager(object):
         logger.info("shutting down system stats and metadata service")
         self._system_stats.shutdown()
         self._meta.shutdown()
+        for watcher in self._tensorboard_watchers:
+            watcher.shutdown()
+        if self._tensorboard_consumer:
+            self._tensorboard_consumer.shutdown()
 
         if self._cloud:
             logger.info("stopping streaming files and file change observer")
@@ -1042,6 +1050,30 @@ class RunManager(object):
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy["policy"]].append(policy["glob"])
 
+    def start_tensorboard_watcher(self, logdir):
+        try:
+            from wandb.tensorboard.watcher import Watcher, Consumer
+            dirs = [logdir] + [w.logdir for w in self._tensorboard_watchers]
+            # TODO: we don't handle the case of a single tfevent file in the root of logdir
+            rootdir = os.path.dirname(os.path.commonprefix(dirs))
+            if os.path.isfile(logdir):
+                filename = os.path.basename(logdir)
+            else:
+                filename = ""
+            # Tensorboard loads all tfevents files in a directory and prepends
+            # their values with the path.  Passing namespace to log allows us
+            # to nest the values in wandb
+            namespace = logdir.replace(filename, "").replace(
+                rootdir, "").strip(os.sep)
+            with self._tensorboard_lock:
+                self._tensorboard_watchers.append(Watcher(logdir, self._watcher_queue, namespace=namespace))
+                if self._tensorboard_consumer is None:
+                    self._tensorboard_consumer = Consumer(self._watcher_queue)
+                    self._tensorboard_consumer.start()
+            self._tensorboard_watchers[-1].start()
+            return self._tensorboard_watchers
+        except ImportError:
+            wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
@@ -1097,6 +1129,11 @@ class RunManager(object):
                         break
                     elif parsed.get("save_policy"):
                         self.update_user_file_policy(parsed["save_policy"])
+                        payload = b''
+                        parse = False
+                    elif parsed.get("tensorboard"):
+                        if parsed["tensorboard"].get("logdir"):
+                            self.start_tensorboard_watcher(parsed["tensorboard"]["logdir"])
                         payload = b''
                         parse = False
                     else:

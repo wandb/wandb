@@ -126,7 +126,7 @@ class History(object):
                     "Step must be an integer, not {}".format(step))
             elif step < self._steps:
                 warnings.warn(
-                    "Adding to old History rows isn't currently supported. Dropping.", wandb.WandbWarning)
+                    "Adding to old History rows isn't currently supported. Dropping: {}".format(row), wandb.WandbWarning)
                 return
             elif step == self._steps:
                 pass
@@ -145,8 +145,10 @@ class History(object):
         for k, v in six.iteritems(new_vals):
             k = k.strip()
             if k in self.row:
-                warnings.warn("Adding history key ({}) that is already set in this step".format(
-                    k), wandb.WandbWarning)
+                # Don't warn on timestamp for tensorboard logging
+                if k != "_timestamp":
+                    warnings.warn("Adding history key ({}) that is already set in this step".format(
+                        k), wandb.WandbWarning)
             self.row[k] = v
 
     @contextlib.contextmanager

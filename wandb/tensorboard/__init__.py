@@ -12,9 +12,11 @@ if not tensorboardX_loaded and not tensorflow_loaded:
 
 if tensorboardX_loaded:
     from tensorboardX.proto.summary_pb2 import Summary
-    from tensorboardX.proto.event_pb2 import Event
 else:
-    from tensorflow.summary import Summary, Event
+    try:
+        from tensorboard.compat.proto.summary_pb2 import Summary
+    except ImportError:
+        from tensorflow.core.framework.summary_pb2 import Summary
 
 
 def patch(save=True, tensorboardX=tensorboardX_loaded):
@@ -25,21 +27,20 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
         save, default: True - Passing False will skip sending events.
         tensorboardX, default: True if module can be imported - You can override this when calling patch
     """
-    global Summary, Event
+
+    tensorboard2_module = "tensorflow.python.ops.gen_summary_ops"
     if tensorboardX:
-        tensorboard_module = "tensorboardX.writer"
+        tensorboard1_module = "tensorboardX.writer"
         if tensorflow_loaded:
             wandb.termlog(
                 "Found TensorboardX and tensorflow, pass tensorboardX=False to patch regular tensorboard.")
-        from tensorboardX.proto.summary_pb2 import Summary
-        from tensorboardX.proto.event_pb2 import Event
     else:
-        tensorboard_module = "tensorflow.python.summary.writer.writer"
-        from tensorflow.summary import Summary, Event
+        tensorboard1_module = "tensorflow.python.summary.writer.writer"
 
     writers = set()
 
     def _add_event(self, event, step, walltime=None):
+        """TF summary V1 override"""
         event.wall_time = time.time() if walltime is None else walltime
         if step is not None:
             event.step = int(step)
@@ -70,13 +71,27 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
                 wandb.termerror("Unable to log event %s" % e)
                 # six.reraise(type(e), e, sys.exc_info()[2])
         self.event_writer.add_event(event)
-    writer = wandb.util.get_module(tensorboard_module)
-    writer.SummaryToEventTransformer._add_event = _add_event
+    v1writer = wandb.util.get_module(tensorboard1_module)
+    if v1writer:
+        v1writer.SummaryToEventTransformer._add_event = _add_event
+
+    v2writer = wandb.util.get_module(tensorboard2_module)
+
+    if v2writer:
+        old_csfw_func = v2writer.create_summary_file_writer
+
+        def new_csfw_func(*args, **kwargs):
+            logdir = kwargs['logdir'].numpy()
+            wandb.run.send_message(
+                {"tensorboard": {"logdir": logdir.decode("utf8")}})
+            return old_csfw_func(*args, **kwargs)
+
+        v2writer.create_summary_file_writer = new_csfw_func
 
 
 def log(tf_summary_str, **kwargs):
     namespace = kwargs.get("namespace")
-    if namespace is not None:
+    if "namespace" in kwargs:
         del kwargs["namespace"]
     wandb.log(tf_summary_to_dict(tf_summary_str, namespace), **kwargs)
 
@@ -94,7 +109,10 @@ def history_image_key(key, namespace=""):
 
 def namespaced_tag(tag, namespace=""):
     namespace = (namespace or "").replace(tag, "")
-    return tag + namespace
+    if namespace == "":
+        return tag
+    else:
+        return namespace + "/" + tag
 
 
 def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
@@ -104,15 +122,20 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
     or one encoded as a string.
     """
     values = {}
-    if isinstance(tf_summary_str_or_pb, Summary):
-        summary_pb = tf_summary_str_or_pb
-    elif isinstance(tf_summary_str_or_pb, Event):
+
+    if hasattr(tf_summary_str_or_pb, "summary"):
         summary_pb = tf_summary_str_or_pb.summary
-        values["global_step"] = tf_summary_str_or_pb.step
+        #values["global_step"] = tf_summary_str_or_pb.step
         values["_timestamp"] = tf_summary_str_or_pb.wall_time
-    else:
+    elif isinstance(tf_summary_str_or_pb, str):
         summary_pb = Summary()
         summary_pb.ParseFromString(tf_summary_str_or_pb)
+    else:
+        if not hasattr(tf_summary_str_or_pb, "value"):
+            raise ValueError(
+                "Can't log %s, only Event, Summary, or Summary proto buffer strings are accepted")
+        else:
+            summary_pb = tf_summary_str_or_pb
 
     for value in summary_pb.value:
         kind = value.WhichOneof("value")
@@ -125,9 +148,10 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
             tag_idx = value.tag.rsplit('/', 1)
             if len(tag_idx) > 1 and tag_idx[1].isdigit():
                 tag, idx = tag_idx
-                values.setdefault(history_image_key(tag), []).append(image)
+                values.setdefault(history_image_key(
+                    tag, namespace), []).append(image)
             else:
-                values[history_image_key(value.tag)] = image
+                values[history_image_key(value.tag, namespace)] = image
         # Coming soon...
         # elif kind == "audio":
         #    audio = wandb.Audio(six.BytesIO(value.audio.encoded_audio_string),
@@ -139,7 +163,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
                 value.histo.bucket_limit[-2] - value.histo.bucket_limit[-3]
             np_histogram = (list(value.histo.bucket), [
                 first] + value.histo.bucket_limit[:-1] + [last])
-            values[namespaced_tag(value.tag)] = wandb.Histogram(
+            values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
                 np_histogram=np_histogram)
 
     return values

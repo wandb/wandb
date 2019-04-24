@@ -1,6 +1,5 @@
 import itertools
 import pprint
-from six.moves import queue
 
 import collections
 import os
