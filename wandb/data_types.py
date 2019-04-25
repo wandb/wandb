@@ -44,6 +44,15 @@ MEDIA_TMP = tempfile.TemporaryDirectory('wandb-media')
 DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
 
 
+def nest(thing):
+    """Use tensorflows nest function if available, otherwise just wrap object in an array"""
+    tfutil = util.get_module('tensorflow.python.util')
+    if tfutil:
+        return tfutil.nest.flatten(thing)
+    else:
+        return [thing]
+
+
 def history_dict_to_json(run, payload, step=None):
     """Converts a History row dict's elements so they're friendly for JSON serialization.
     """
@@ -254,7 +263,6 @@ class Graph(WBValue):
     @classmethod
     def from_keras(cls, model):
         graph = cls()
-
         # Shamelessly copied from keras/keras/utils/layer_utils.py
 
         if model.__class__.__name__ == 'Sequential':
@@ -302,14 +310,12 @@ class Graph(WBValue):
         layers = model.layers
         for i in range(len(layers)):
             node = Node.from_keras(layers[i])
-            graph.add_node(node)
-
             if hasattr(layers[i], '_inbound_nodes'):
                 for in_node in layers[i]._inbound_nodes:
                     if relevant_nodes and in_node not in relevant_nodes:
                         # node is not part of the current network
                         continue
-                    for in_layer in in_node.inbound_layers:
+                    for in_layer in nest(in_node.inbound_layers):
                         inbound_keras_node = Node.from_keras(in_layer)
 
                         if (inbound_keras_node.id not in graph.nodes_by_id):
@@ -317,7 +323,7 @@ class Graph(WBValue):
                         inbound_node = graph.nodes_by_id[inbound_keras_node.id]
 
                         graph.add_edge(inbound_node, node)
-
+            graph.add_node(node)
         return graph
 
 
@@ -568,21 +574,27 @@ class Histogram(WBValue):
 class Table(WBValue):
     MAX_ROWS = 300
 
-    def __init__(self, columns=["Input", "Output", "Expected"], rows=[]):
+    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
+        """rows is kept for legacy reasons, we use data to mimic the Pandas api
+        """
         self.columns = columns
-        self.rows = list(rows)
+        self.data = list(rows or data or [])
 
     def add_row(self, *row):
-        if len(row) != len(self.columns):
+        logging.warn("add_row is deprecated, use add_data")
+        self.add_data(*row)
+
+    def add_data(self, *data):
+        if len(data) != len(self.columns):
             raise ValueError("This table expects {} columns: {}".format(
                 len(self.columns), self.columns))
-        self.rows.append(list(row))
+        self.data.append(list(data))
 
     def to_json(self):
-        if len(self.rows) > Table.MAX_ROWS:
+        if len(self.data) > Table.MAX_ROWS:
             logging.warn(
                 "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
-        return {"_type": "table", "columns": self.columns, "data": self.rows[:Table.MAX_ROWS]}
+        return {"_type": "table", "columns": self.columns, "data": self.data[:Table.MAX_ROWS]}
 
 
 class Media(WBValue):

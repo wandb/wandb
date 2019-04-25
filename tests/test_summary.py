@@ -111,6 +111,7 @@ def test_matplot_image(summary):
 
 
 def test_matplot_plotly(summary):
+    plt.cla()
     plt.plot([1, 2, 3])
     summary["plot"] = plt
     plt.close()
@@ -161,7 +162,8 @@ def test_tensorflow_tensor(summary):
 
 
 def test_pandas(summary):
-    summary.update({"pandas": pandas.DataFrame(data=np.random.rand(1000), columns=['col'])})
+    summary.update({"pandas": pandas.DataFrame(
+        data=np.random.rand(1000), columns=['col'])})
 
 
 def test_read_numpy(summary):
@@ -178,9 +180,11 @@ def test_read_nested_numpy(summary):
 
 def test_read_very_nested_numpy(summary):
     # Test that even deeply nested writes are written to disk.
-    summary.update({"a": {"b": {"c": {"d": {"e": {"f": {"g": {"h": {"i": {}}}}}}}}}})
+    summary.update(
+        {"a": {"b": {"c": {"d": {"e": {"f": {"g": {"h": {"i": {}}}}}}}}}})
     summary['a']['b']['c']['d']['e']['f']['g']['h']['i']['j'] = True
-    assert disk_summary(summary)['a']['b']['c']['d']['e']['f']['g']['h']['i']['j'] is True
+    assert disk_summary(summary)[
+        'a']['b']['c']['d']['e']['f']['g']['h']['i']['j'] is True
 
 
 def test_key_locking(summary):
@@ -190,6 +194,3 @@ def test_key_locking(summary):
     assert summary['a'] == 'b'
     summary.update({'a': 'c'}, overwrite=False)
     assert summary['a'] == 'b'
-
-
-

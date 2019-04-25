@@ -42,6 +42,27 @@ def nested_shape(array_or_tuple):
         return []
 
 
+LOG_TRACK_COUNT, LOG_TRACK_THRESHOLD = range(2)
+
+
+def log_track_init(log_freq):
+    """create tracking structure used by log_track_update
+    """
+    l = [0] * 2
+    l[LOG_TRACK_THRESHOLD] = log_freq
+    return l
+
+
+def log_track_update(log_track):
+    """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached
+    """
+    log_track[LOG_TRACK_COUNT] += 1
+    if log_track[LOG_TRACK_COUNT] < log_track[LOG_TRACK_THRESHOLD]:
+        return False
+    log_track[LOG_TRACK_COUNT] = 0
+    return True
+
+
 class TorchHistory(object):
     """History methods specific to PyTorch
     """
@@ -51,17 +72,22 @@ class TorchHistory(object):
         torch = wandb.util.get_module("torch", "Could not import torch")
         self._history = weakref.ref(history)
         self._hook_handles = {}
+        self._num_bins = 64
+        self._is_cuda_histc_supported = None
 
-    def add_log_hooks_to_pytorch_module(self, module, name=None, prefix='', log_parameters=True, log_gradients=True):
+    def add_log_hooks_to_pytorch_module(self, module, name=None, prefix='', log_parameters=True, log_gradients=True, log_freq=0):
         """ This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
+        log_freq - log gradients/parameters every N batches
         """
         if name is not None:
             prefix = prefix + name
 
         if log_parameters:
-            def parameter_log_hook(module, input_, output):
+            def parameter_log_hook(module, input_, output, log_track):
+                if not log_track_update(log_track):
+                    return
                 for name, parameter in module.named_parameters():
                     # for pytorch 0.3 Variables
                     if isinstance(parameter, torch.autograd.Variable):
@@ -70,19 +96,20 @@ class TorchHistory(object):
                         data = parameter
                     self.log_tensor_stats(
                         data.cpu(), 'parameters/' + prefix + name)
-            module.register_forward_hook(parameter_log_hook)
+            log_track_params = log_track_init(log_freq)
+            module.register_forward_hook(
+                lambda mod, inp, outp: parameter_log_hook(mod, inp, outp, log_track_params))
 
         if log_gradients:
             for name, parameter in module.named_parameters():
                 if parameter.requires_grad:
+                    log_track_grad = log_track_init(log_freq)
                     self._hook_variable_gradient_stats(
-                        parameter, 'gradients/' + prefix + name)
+                        parameter, 'gradients/' + prefix + name, log_track_grad)
 
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
         """
-        # LB We could potentially speed this up by using pytorch's torch.histc instead of
-        # converting to numpy
         # TODO Handle the case of duplicate names.
 
         if (isinstance(tensor, tuple) or isinstance(tensor, list)):
@@ -98,20 +125,56 @@ class TorchHistory(object):
         history = self._history()
         if history is None or not history.compute:
             return
+
+        # HalfTensors on cpu do not support view(), upconvert to 32bit
+        if isinstance(tensor, torch.HalfTensor):
+            tensor = tensor.clone().type(torch.FloatTensor).detach()
+
         flat = tensor.view(-1)
 
-        # detach is new in 0.4
-        tensor = flat.cpu().clone()
-        if (hasattr(tensor, "detach")):
-            tensor = tensor.detach()
-        else:
-            tensor = tensor.numpy()
+        # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
+        if not hasattr(flat, "detach"):
+            tensor = flat.cpu().clone().numpy()
+            history.row.update({
+                name: wandb.Histogram(tensor)
+            })
+            return
+
+        if flat.is_cuda:
+            # TODO(jhr): see if pytorch will accept something upstream to check cuda support for ops
+            # until then, we are going to have to catch a specific exception to check for histc support.
+            if self._is_cuda_histc_supported is None:
+                self._is_cuda_histc_supported = True
+                check = torch.cuda.FloatTensor(1).fill_(0)
+                try:
+                    check = flat.histc(bins=self._num_bins)
+                except RuntimeError as e:
+                    # Only work around missing support with specific exception
+                    if str(e).startswith("_th_histc is not implemented"):
+                        self._is_cuda_histc_supported = False
+
+            if not self._is_cuda_histc_supported:
+                flat = flat.cpu().clone().detach()
+
+            # As of torch 1.0.1.post2+nightly, float16 cuda summary ops are not supported (convert to float32)
+            if isinstance(flat, torch.cuda.HalfTensor):
+                flat = flat.clone().type(torch.cuda.FloatTensor).detach()
+
+        if isinstance(flat, torch.HalfTensor):
+            flat = flat.clone().type(torch.FloatTensor).detach()
+
+        tmin = flat.min().item()
+        tmax = flat.max().item()
+        tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
+        tensor = tensor.cpu().clone().detach()
+        bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
         history.row.update({
-            name: wandb.Histogram(tensor)
+            name: wandb.Histogram(np_histogram=(
+                tensor.tolist(), bins.tolist()))
         })
 
-    def _hook_variable_gradient_stats(self, var, name):
+    def _hook_variable_gradient_stats(self, var, name, log_track):
         """Logs a Variable's gradient's distribution statistics next time backward()
         is called on it.
         """
@@ -125,10 +188,12 @@ class TorchHistory(object):
             raise ValueError(
                 'A hook has already been set under name "{}"'.format(name))
 
-        def _callback(grad):
+        def _callback(grad, log_track):
+            if not log_track_update(log_track):
+                return
             self.log_tensor_stats(grad.data, name)
 
-        handle = var.register_hook(_callback)
+        handle = var.register_hook(lambda grad: _callback(grad, log_track))
         self._hook_handles[name] = handle
         return handle
 
@@ -150,9 +215,9 @@ class TorchGraph(wandb.data_types.Graph):
         super(TorchGraph, self).__init__("torch")
 
     @classmethod
-    def hook_torch(cls, model, criterion=None):
+    def hook_torch(cls, model, criterion=None, graph_idx=0):
         graph = TorchGraph()
-        graph.hook_torch_modules(model, criterion)
+        graph.hook_torch_modules(model, criterion, graph_idx=graph_idx)
         return graph
 
     def create_forward_hook(self, name, modules):
@@ -184,7 +249,7 @@ class TorchGraph(wandb.data_types.Graph):
                 graph.criterion = output[0].grad_fn
         return after_forward_hook
 
-    def hook_torch_modules(self, module, criterion=None, prefix=None):
+    def hook_torch_modules(self, module, criterion=None, prefix=None, graph_idx=0):
         torch = util.get_module("torch", "Could not import torch")
         hooks = []
         modules = set()
@@ -218,6 +283,11 @@ class TorchGraph(wandb.data_types.Graph):
                 def backward_hook(module, input, output):
                     [hook.remove() for hook in hooks]
                     graph.loaded = True
+                    if wandb.run:
+                        wandb.run.summary["graph_%i" % graph_idx] = graph
+                    else:
+                        wandb.termlog(
+                            "wandb.watch was called without a call to wandb.init, call wandb.init before wandb.watch")
                     # TODO: Keeping this here as a starting point for adding graph data
                     if not graph.loaded:
                         def traverse(node, functions=[]):

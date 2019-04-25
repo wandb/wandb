@@ -74,6 +74,9 @@ def test_throttle_file_poller(mocker, run_manager):
 def test_pip_freeze(mocker, run_manager):
     run_manager._block_file_observer()
     run_manager.init_run()
+    # TODO(adrian): I've seen issues with this test when the W&B version
+    # installed for the current python differs from the one (eg. from git)
+    # that is running this test. Easy fix is to do "pip install -e ."
     reqs = open(os.path.join(wandb.run.dir, "requirements.txt")).read()
     print([r for r in reqs.split("\n") if "wandb" in r])
     wbv = "wandb==%s" % wandb.__version__

@@ -7,11 +7,11 @@ import sys
 from importlib import import_module
 from itertools import chain
 try:
-    import keras
-    import keras.backend as K
-except ImportError:
     import tensorflow.keras as keras
     import tensorflow.keras.backend as K
+except ImportError:
+    import keras
+    import keras.backend as K
 
 
 class WandbCallback(keras.callbacks.Callback):

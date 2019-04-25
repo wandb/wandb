@@ -193,7 +193,7 @@ def test_html_file():
 
 def test_table_default():
     table = wandb.Table()
-    table.add_row("Some awesome text", "Positive", "Negative")
+    table.add_data("Some awesome text", "Positive", "Negative")
     assert table.to_json() == {
         "_type": "table",
         "data": [["Some awesome text", "Positive", "Negative"]],
@@ -203,10 +203,17 @@ def test_table_default():
 
 def test_table_custom():
     table = wandb.Table(["Foo", "Bar"])
-    table.add_row("So", "Cool")
+    table.add_data("So", "Cool")
     table.add_row("&", "Rad")
     assert table.to_json() == {
         "_type": "table",
         "data": [["So", "Cool"], ["&", "Rad"]],
         "columns": ["Foo", "Bar"]
     }
+
+
+def test_table_init():
+    table = wandb.Table(data=[["Some awesome text", "Positive", "Negative"]])
+    assert table.to_json() == {"_type": "table",
+                                "data": [["Some awesome text", "Positive", "Negative"]],
+                                "columns": ["Input", "Output", "Expected"]}
