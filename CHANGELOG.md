@@ -1,3 +1,18 @@
+## 0.7.4 (tbd)
+
+#### :bug: Bug Fix
+
+-   Better error messages on access denied
+-   Better error messages when optional packages aren't installed
+-   urls printed to the termial are url-escaped
+-   namespaced tensorboard events work with histograms
+
+#### :nail_care: Enhancement
+
+-   wandb.init(tensorboard=True) works with Tensorflow 2
+-   socket only binds to localhost for improved security and prevents firewall warnings in OSX
+
+
 ## 0.7.3 (April 15, 2019)
 
 #### :bug: Bug Fix

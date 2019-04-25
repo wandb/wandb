@@ -26,7 +26,7 @@ class Server(object):
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind(('', 0))
+        self.socket.bind(('localhost', 0))
         self.socket.listen(1)
         self.socket.settimeout(30)
         self.port = self.socket.getsockname()[1]
