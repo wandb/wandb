@@ -108,11 +108,11 @@ def history_image_key(key, namespace=""):
 
 
 def namespaced_tag(tag, namespace=""):
-    if tag in namespace:
+    if not namespace:
+        return tag
+    elif tag in namespace:
         # This happens with tensorboardX
         return namespace
-    elif namespace == "":
-        return tag
     else:
         return namespace + "/" + tag
 

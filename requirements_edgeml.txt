@@ -2,7 +2,7 @@ tensorflow==2.0.0-alpha0
 numpy
 torchvision_nightly
 fastai
-absl
+absl-py
 ipython
 matplotlib
 plotly

@@ -468,6 +468,7 @@ def test_alex_net():
     grads = torch.ones(2, 1000)
     output.backward(grads)
     graph = wandb.Graph.transform(graph)
+    print(graph["nodes"])
     assert len(graph["nodes"]) == 20
     assert graph["nodes"][0]['class_name'] == "Conv2d(3, 64, kernel_size=(11, 11), stride=(4, 4), padding=(2, 2))"
     assert graph["nodes"][0]['name'] == "features.0"
