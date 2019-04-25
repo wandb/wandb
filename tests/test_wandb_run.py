@@ -27,14 +27,14 @@ def test_wandb_run_args(git_repo):
 
 def test_url_escape(git_repo):
     os.environ[env.ENTITY] = "†est"
+    os.environ[env.PROJECT] = "wild projo"
     os.environ[env.API_KEY] = "abcdefghijabcdefghijabcdefghijabcdefghij"
     run = wandb_run.Run.from_environment_or_defaults(
         {env.RUN_ID: "my wild run"})
-    api = InternalApi({"project": "wild projo"}, load_settings=False)
-    assert run.get_url(
-        api) == "https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run"
+    assert run.get_url() == "https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run"
     del os.environ[env.ENTITY]
     del os.environ[env.API_KEY]
+    del os.environ[env.PROJECT]
 
 
 def test_wandb_run_args_sys(git_repo):

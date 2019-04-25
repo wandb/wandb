@@ -75,6 +75,8 @@ class Server(object):
         self.send({"exitcode": exitcode or 0})
 
     def send(self, data):
+        if not self.connection:
+            self.connect()
         data = json.dumps(data).encode('utf8') + b'\0'
         self.connection.sendall(data)
 
