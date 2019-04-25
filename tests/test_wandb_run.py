@@ -7,6 +7,7 @@ from .utils import git_repo
 
 from wandb import wandb_run
 from wandb import env
+from wandb.apis import InternalApi
 
 
 def get_last_val(history, key):
@@ -21,6 +22,16 @@ def test_wandb_run_args(git_repo):
     run = wandb_run.Run.from_environment_or_defaults()
     assert run.args == ["foo", "bar"]
     del os.environ[env.ARGS]
+
+
+def test_url_escape(git_repo):
+    os.environ[env.ENTITY] = "†est"
+    run = wandb_run.Run.from_environment_or_defaults(
+        {env.RUN_ID: "my wild run"})
+    api = InternalApi({"project": "wild projo"}, load_settings=False)
+    assert run.get_url(
+        api) == "https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run"
+    del os.environ[env.ENTITY]
 
 
 def test_wandb_run_args_sys(git_repo):

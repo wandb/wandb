@@ -19,6 +19,7 @@ from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 import six
 from six.moves import configparser
+from six.moves import urllib
 import atexit
 import sys
 from watchdog.utils.dirsnapshot import DirectorySnapshot
@@ -349,9 +350,9 @@ class Run(object):
             if api.settings('entity'):
                 return "{base}/{entity}/{project}/runs/{run}".format(
                     base=api.app_url,
-                    entity=api.settings('entity'),
-                    project=self.project_name(api),
-                    run=self.id
+                    entity=urllib.parse.quote_plus(api.settings('entity')),
+                    project=urllib.parse.quote_plus(self.project_name(api)),
+                    run=urllib.parse.quote_plus(self.id)
                 )
             else:
                 # TODO: I think this could only happen if the api key is invalid
