@@ -6,6 +6,7 @@ import pytest
 import json
 import os
 import sys
+import time
 from pprint import pprint
 from torchvision import models
 from torch.autograd import Variable
@@ -413,6 +414,8 @@ def test_parameter_logging_freq(wandb_init_run):
     log_freq = 50
     wandb.hook_torch(net, log="parameters", log_freq=log_freq)
     for i in range(110):
+        #TO debug timeouts
+        print("i: %i, time: %s" % (i, time.time()))
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
         output.backward(grads)

@@ -106,14 +106,12 @@ def get_module(name, required=None):
     if name not in _not_importable:
         try:
             return import_module(name)
-        except ImportError:
-            _not_importable.add(name)
-            if required:
-                raise ValueError(required)
         except Exception as e:
             _not_importable.add(name)
             msg = "Error importing optional module {}".format(name)
             logger.exception(msg)
+    if required and name in _not_importable:
+        raise wandb.Error(required)
 
 
 class LazyLoader(types.ModuleType):
@@ -285,8 +283,7 @@ def json_friendly(obj):
 
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
-        tools = get_module(
-            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+        tools = get_module("plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
         obj = tools.mpl_to_plotly(obj)
 
     if is_plotly_typename(get_full_typename(obj)):
