@@ -334,8 +334,7 @@ def test_gradient_logging(wandb_init_run):
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
 
-# These were timing out in old python
-@pytest.mark.skipif(sys.version_info < (3, 6))
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_gradient_logging_freq(wandb_init_run):
     net = ConvNet()
     default_log_freq = 100
@@ -390,7 +389,7 @@ def test_all_logging_freq(wandb_init_run):
     assert(len(wandb_init_run.history.rows) == 210)
 
 # These were timing out in old python
-@pytest.mark.skipif(sys.version_info < (3, 6))
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_parameter_logging(wandb_init_run):
     net = ConvNet()
     wandb.watch(net, log="parameters", log_freq=1)

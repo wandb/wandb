@@ -84,7 +84,7 @@ jobs:
                   command: |
                       . venv/bin/activate
                       mkdir -p results
-                      pytest --cov=wandb --junitxml="results/pytest.xml" tests/test_edgeml.py
+                      pytest --cov=wandb --junitxml="results/pytest.xml" edgeml_tests
             - store_test_results:
                   path: results
     test-3.7-no-ml:
