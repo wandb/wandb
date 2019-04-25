@@ -337,20 +337,20 @@ def test_gradient_logging(wandb_init_run):
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_gradient_logging_freq(wandb_init_run):
     net = ConvNet()
-    default_log_freq = 100
-    wandb.watch(net)
-    for i in range(210):
+    log_freq = 50
+    wandb.watch(net, log_freq=log_freq)
+    for i in range(110):
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
         output.backward(grads)
-        if (i + 1) % default_log_freq == 0:
+        if (i + 1) % log_freq == 0:
             assert(len(wandb_init_run.history.row) == 8)
             assert(
                 wandb_init_run.history.row['gradients/fc2.bias'].histogram[0] > 0)
         else:
             assert(len(wandb_init_run.history.row) == 0)
         wandb.log({"a": 2})
-    assert(len(wandb_init_run.history.rows) == 210)
+    assert(len(wandb_init_run.history.rows) == 110)
 
 
 def test_all_logging(wandb_init_run):
@@ -368,16 +368,16 @@ def test_all_logging(wandb_init_run):
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
 
-
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_all_logging_freq(wandb_init_run):
     net = ConvNet()
-    default_log_freq = 100
-    wandb.watch(net, log="all")
-    for i in range(210):
+    log_freq = 50
+    wandb.watch(net, log="all", log_freq=log_freq)
+    for i in range(110):
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
         grads = torch.ones(64, 10)
         output.backward(grads)
-        if (i + 1) % default_log_freq == 0:
+        if (i + 1) % log_freq == 0:
             assert(len(wandb_init_run.history.row) == 16)
             assert(
                 wandb_init_run.history.row['parameters/fc2.bias'].histogram[0] > 0)
@@ -386,7 +386,7 @@ def test_all_logging_freq(wandb_init_run):
         else:
             assert(len(wandb_init_run.history.row) == 0)
         wandb.log({"a": 2})
-    assert(len(wandb_init_run.history.rows) == 210)
+    assert(len(wandb_init_run.history.rows) == 110)
 
 # These were timing out in old python
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
