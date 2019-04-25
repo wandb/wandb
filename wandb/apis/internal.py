@@ -28,7 +28,6 @@ from six import BytesIO
 from six.moves import configparser
 import wandb
 from wandb import __version__, wandb_dir, Error
-from wandb import termlog
 from wandb import env
 from wandb.git_repo import GitRepo
 from wandb import retry
@@ -124,7 +123,7 @@ class Api(object):
             for err in data['errors']:
                 if 'message' not in err:
                     continue
-                termlog('Error while calling W&B API: %s' % err['message'])
+                wandb.termerror('Error while calling W&B API: %s' % err['message'])
 
 
     def disabled(self):

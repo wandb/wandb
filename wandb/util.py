@@ -512,8 +512,10 @@ def no_retry_auth(e):
     if e.response.status_code not in (401, 403):
         return True
     # Crash w/message on forbidden/unauthorized errors.
-    raise CommError("Invalid or missing api_key.  Run wandb login")
-
+    if e.response.status_code == 401:
+        raise CommError("Invalid or missing api_key.  Run wandb login")
+    else:
+        raise CommError("Permission denied, ask the project owner to grant you access")
 
 def write_settings(entity, project, url):
     if not os.path.isdir(wandb_dir()):

@@ -34,6 +34,7 @@ class CommError(Error):
 
     def __init__(self, msg, exc=None):
         super(CommError, self).__init__(msg)
+        self.message = msg
         self.exc = exc
 
 
