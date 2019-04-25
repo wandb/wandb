@@ -1,6 +1,3 @@
-from click.testing import CliRunner
-import matplotlib.pyplot as plt
-import soundfile
 import wandb
 import numpy as np
 import pytest
@@ -10,6 +7,9 @@ import matplotlib
 import six
 
 matplotlib.use("Agg")
+from click.testing import CliRunner
+import matplotlib.pyplot as plt
+import soundfile
 
 data = np.random.randint(255, size=(1000))
 
