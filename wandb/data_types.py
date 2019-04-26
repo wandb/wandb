@@ -766,7 +766,7 @@ class Image(IterableMedia):
             num_images_to_log = Image.MAX_IMAGES
 
         if total_width > Image.MAX_DIMENSION:
-            max_images_by_dimension = Image.MAX_DIMENSION // (len(images) or 1)
+            max_images_by_dimension = Image.MAX_DIMENSION // len(images)
             logging.warn("The maximum total dimension for all images in a collection is 65500, or {} images with {} pixels each. Only logging the first {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
             num_images_to_log = max_images_by_dimension
 
