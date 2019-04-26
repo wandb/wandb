@@ -63,7 +63,7 @@ def test_transform_caps_at_65500():
     with CliRunner().isolated_filesystem():
         meta = wandb.Image.transform(large_list, ".", "test2.jpg")
         assert meta == {'_type': 'images',
-                        'count': 65, 'height': 65000, 'width': 10}
+                        'count': 65, 'height': 10, 'width': 65000}
         assert os.path.exists("media/images/test2.jpg")
 
 def test_audio_sample_rates():

@@ -780,7 +780,7 @@ class Image(IterableMedia):
         util.mkdir_exists_ok(base)
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
-                "count": len(images), "_type": "images"}
+                "count": num_images_to_log, "_type": "images"}
         # TODO: hacky way to enable image grouping for now
         grouping = images[0].grouping
         if grouping:
