@@ -57,6 +57,14 @@ def test_transform():
                         'count': 1, 'height': 28, 'width': 28}
         assert os.path.exists("media/images/test.jpg")
 
+def test_transform_caps_at_65500():
+    large_image = np.random.randint(255, size=(1000, 10))
+    large_list = [wandb.Image(large_image)] * 100
+    with CliRunner().isolated_filesystem():
+        meta = wandb.Image.transform(large_list, ".", "test2.jpg")
+        assert meta == {'_type': 'images',
+                        'count': 65, 'height': 65000, 'width': 10}
+        assert os.path.exists("media/images/test2.jpg")
 
 def test_audio_sample_rates():
     audio1 = np.random.uniform(-1, 1, 44100)
