@@ -61,11 +61,11 @@ def main():
     html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
 
     table_default_columns = wandb.Table()
-    table_default_columns.add_row("Some awesome text", "Positive", "Negative")
+    table_default_columns.add_data("Some awesome text", "Positive", "Negative")
 
     table_custom_columns = wandb.Table(["Foo", "Bar"])
-    table_custom_columns.add_row("So", "Cool")
-    table_custom_columns.add_row("&", "Rad")
+    table_custom_columns.add_data("So", "Cool")
+    table_custom_columns.add_data("&", "Rad")
 
     #plot_figure = matplotlib.pyplot.plt.figure()
     #c1 = matplotlib.pyplot.plt.Circle((0.2, 0.5), 0.2, color='r')
@@ -150,7 +150,7 @@ def main():
                 'tensorflow-variable-single': tensorflow_variable_single,
                 'tensorflow-variable-multi': tensorflow_variable_multi,
 
-                'graph': graph,
+                #'graph': graph,
             })
 
         wandb.run.summary.update({

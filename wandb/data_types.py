@@ -22,11 +22,11 @@ from __future__ import print_function
 import hashlib
 import itertools
 import json
-import tempfile
 import pprint
 import shutil
 from six.moves import queue
 
+import backports.tempfile
 import collections
 import os
 import io
@@ -38,7 +38,7 @@ from wandb import util
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
-MEDIA_TMP = tempfile.TemporaryDirectory('wandb-media')
+MEDIA_TMP = backports.tempfile.TemporaryDirectory('wandb-media')
 
 
 DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
