@@ -675,6 +675,9 @@ class Html(IterableMedia):
 class Image(IterableMedia):
     MAX_IMAGES = 100
 
+    # PIL limit
+    MAX_DIMENSION = 65500
+
     def __init__(self, data, mode=None, caption=None, grouping=None):
         """
         Accepts numpy array of image data, or a PIL image. The class attempts to infer
@@ -753,12 +756,23 @@ class Image(IterableMedia):
         from PIL import Image as PILImage
         base = os.path.join(out_dir, "media", "images")
         width, height = images[0].image.size
-        if len(images) > Image.MAX_IMAGES:
+        total_width = width * len(images)
+
+        num_images_to_log = len(images)
+
+        if num_images_to_log > Image.MAX_IMAGES:
             logging.warn(
                 "The maximum number of images to store per step is %i." % Image.MAX_IMAGES)
+            num_images_to_log = Image.MAX_IMAGES
+
+        if total_width > Image.MAX_DIMENSION:
+            max_images_by_dimension = Image.MAX_DIMENSION // (len(images) or 1)
+            logging.warn("The maximum total dimension for all images in a collection is 65500, or {} images with {} pixels each. Only logging the first {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
+            num_images_to_log = max_images_by_dimension
+
         sprite = PILImage.new(
             mode='RGB',
-            size=(width * len(images), height),
+            size=(total_width, height),
             color=(0, 0, 0, 0))
         for i, image in enumerate(images[:Image.MAX_IMAGES]):
             location = width * i
