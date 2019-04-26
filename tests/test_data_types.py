@@ -58,7 +58,7 @@ def test_transform():
         assert os.path.exists("media/images/test.jpg")
 
 def test_transform_caps_at_65500():
-    large_image = np.random.randint(255, size=(1000, 10))
+    large_image = np.random.randint(255, size=(10, 1000))
     large_list = [wandb.Image(large_image)] * 100
     with CliRunner().isolated_filesystem():
         meta = wandb.Image.transform(large_list, ".", "test2.jpg")
