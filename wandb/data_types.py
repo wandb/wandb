@@ -33,6 +33,9 @@ import io
 import logging
 import six
 import wandb
+import uuid
+import json
+import codecs
 from wandb import util
 
 
@@ -542,7 +545,8 @@ class Histogram(WBValue):
         """Accepts a sequence to be converted into a histogram or np_histogram can be set
         to a tuple of (values, bins_edges) as np.histogram returns i.e.
 
-        wandb.log({"histogram": wandb.Histogram(np_histogram=np.histogram(data))})
+        wandb.log({"histogram": wandb.Histogram(
+            np_histogram=np.histogram(data))})
 
         The maximum number of bins currently supported is 512
         """
@@ -772,11 +776,105 @@ class Audio(BatchableMedia):
             return ['' if c == None else c for c in captions]
 
 
+def is_numpy_array(data):
+    np = util.get_module(
+        "numpy", required="Logging raw point cloud data requires numpy")
+    return isinstance(data, np.ndarray)
+
+
+class Object3D(BatchableMedia):
+    SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', 'stl'])
+
+    def __init__(self, data_or_path, **kwargs):
+        """
+        Accepts a path, a numpy array, or a 3D File of type: obj, gltf, babylon, stl.
+
+        The shape of the numpy array must be one of either:
+        [[x y z],       ...] nx3
+         [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+         [x y z r g b], ...] nx4 where is rgb is color"""
+        if hasattr(data_or_path, 'name'):
+            # if the file has a path, we just detect the type and copy it from there
+            data_or_path = data_or_path.name
+
+        if hasattr(data_or_path, 'read'):
+            if hasattr(data_or_path, 'seek'):
+                data_or_path.seek(0)
+            object3D = data_or_path.read()
+
+            extension = kwargs.pop("file_type", None)
+            if extension == None:
+                raise ValueError(
+                    "Must pass file type keyword argument when using io objects.")
+            if extension not in Object3D.SUPPORTED_TYPES:
+                raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
+                                 ", ".join(Object3D.SUPPORTED_TYPES))
+
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.' + extension)
+            with open(tmp_path, "w") as f:
+                f.write(object3D)
+
+            super(Object3D, self).__init__(tmp_path, is_tmp=True)
+        elif isinstance(data_or_path, six.string_types):
+            path = data_or_path
+            try:
+                extension = os.path.splitext(data_or_path)[1][1:]
+            except:
+                raise ValueError(
+                    "File type must have an extension")
+            if extension not in Object3D.SUPPORTED_TYPES:
+                raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
+                                 ", ".join(Object3D.SUPPORTED_TYPES))
+
+            super(Object3D, self).__init__(data_or_path, is_tmp=False)
+        elif is_numpy_array(data_or_path):
+            data = data_or_path
+
+            if len(data.shape) != 2 or data.shape[1] not in {3, 4, 6}:
+                raise ValueError("""The shape of the numpy array must be one of either
+                                    [[x y z],       ...] nx3
+                                     [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+                                     [x y z r g b], ...] nx4 where is rgb is color""")
+
+            data = data.tolist()
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
+            json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
+                      separators=(',', ':'), sort_keys=True, indent=4)
+            super(Object3D, self).__init__(tmp_path, is_tmp=True)
+        else:
+            raise ValueError("data must be a numpy or a file object")
+
+    @classmethod
+    def get_media_subdir(self):
+        return os.path.join('media', 'object3D')
+
+    def to_json(self):
+        json_dict = super(Object3D, self).to_json()
+        json_dict['type'] = 'object3D'
+        return json_dict
+
+    @classmethod
+    def seq_to_json(cls, threeD_list, run, key, step):
+        threeD_list = list(threeD_list)
+        for i, obj in enumerate(threeD_list):
+            if not obj.is_bound():
+                obj.bind_to_run(run, key, step, id_=i)
+
+        jsons = [obj.to_json() for obj in threeD_list]
+
+        return {
+            "_type": "object3D",
+            "filenames": [j['path'] for j in jsons],
+            "count": len(jsons),
+            'objects': jsons,
+        }
+
+
 class Html(BatchableMedia):
     def __init__(self, data, inject=True):
         """Accepts a string or file object containing valid html
 
-        By default we inject a style reset into the doc to make it 
+        By default we inject a style reset into the doc to make it
         look resonable, passing inject=False will disable it.
         """
         if isinstance(data, str):
@@ -840,6 +938,7 @@ class Image(BatchableMedia):
 
         If grouping is set to a number the interface combines N images.
         """
+
         self._grouping = grouping
         self._caption = caption
         self._width = None
@@ -899,7 +998,7 @@ class Image(BatchableMedia):
 
     def guess_mode(self, data):
         """
-        Guess what type of image the np.array is representing 
+        Guess what type of image the np.array is representing
         """
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:

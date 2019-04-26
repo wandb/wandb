@@ -4,7 +4,10 @@ import pytest
 import PIL
 import os
 import matplotlib
+import six
+
 matplotlib.use("Agg")
+from click.testing import CliRunner
 import matplotlib.pyplot as plt
 from click.testing import CliRunner
 
@@ -210,6 +213,93 @@ def test_table_custom():
         "data": [["So", "Cool"], ["&", "Rad"]],
         "columns": ["Foo", "Bar"]
     }
+
+
+point_cloud_1 = np.array([[0, 0, 0, 1],
+                          [0, 0, 1, 13],
+                          [0, 1, 0, 2],
+                          [0, 1, 0, 4]])
+
+point_cloud_2 = np.array([[0, 0, 0],
+                          [0, 0, 1],
+                          [0, 1, 0],
+                          [0, 1, 0]])
+
+point_cloud_3 = np.array([[0, 0, 0, 100, 100, 100],
+                          [0, 0, 1, 100, 100, 100],
+                          [0, 1, 0, 100, 100, 100],
+                          [0, 1, 0, 100, 100, 100]])
+
+
+def test_object3d_numpy():
+    obj = wandb.Object3D(point_cloud_1)
+    obj = wandb.Object3D(point_cloud_2)
+    obj = wandb.Object3D(point_cloud_3)
+
+
+def test_object3d_obj():
+    obj = wandb.Object3D(open("tests/fixtures/cube.obj"))
+
+
+def test_object3d_gltf():
+    obj = wandb.Object3D(open("tests/fixtures/Box.gltf"))
+
+
+def test_object3d_io():
+    f = open("tests/fixtures/Box.gltf")
+    body = f.read()
+
+    ioObj = six.StringIO(six.u(body))
+    obj = wandb.Object3D(ioObj, file_type="obj")
+
+
+def test_object3d_unsupported_numpy():
+    with pytest.raises(ValueError):
+        wandb.Object3D(np.array([1]))
+
+    with pytest.raises(ValueError):
+        wandb.Object3D(np.array([[1, 2], [3, 4], [1, 2]]))
+
+    with pytest.raises(ValueError):
+        wandb.Object3D(np.array([1, 3, 4, 5, 6, 7, 8, 8, 3]))
+
+    with pytest.raises(ValueError):
+        wandb.Object3D(np.array([[1, 3, 4, 5, 6, 7, 8, 8, 3]]))
+
+    f = open("tests/fixtures/Box.gltf")
+    body = f.read()
+    ioObj = six.StringIO(six.u(body))
+
+    with pytest.raises(ValueError):
+        obj = wandb.Object3D(ioObj)
+
+
+def test_object3d_seq_to_json():
+    cwd = os.getcwd()
+
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+
+        obj = wandb.Object3D.seq_to_json([
+            wandb.Object3D(open(os.path.join(cwd, "tests/fixtures/Box.gltf"))),
+            wandb.Object3D(open(os.path.join(cwd, "tests/fixtures/cube.obj"))),
+            wandb.Object3D(point_cloud_1)
+        ], run, "pc", 1)
+
+        print(obj)
+
+
+        assert os.path.exists(os.path.join(run.dir, "media/object3D/Box_be115756.gltf"))
+        assert os.path.exists(os.path.join(run.dir, "media/object3D/cube_afff12bc.obj"))
+        assert os.path.exists(os.path.join(run.dir, 
+            "media/object3D/pc_1_2.json"))
+
+        assert obj["_type"] == "object3D"
+        assert obj["filenames"] == [
+            "media/object3D/Box_be115756.gltf",
+            "media/object3D/cube_afff12bc.obj",
+            "media/object3D/pc_1_2.json",
+        ]
 
 
 def test_table_init():
