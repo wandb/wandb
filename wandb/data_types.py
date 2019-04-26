@@ -756,8 +756,6 @@ class Image(IterableMedia):
         from PIL import Image as PILImage
         base = os.path.join(out_dir, "media", "images")
         width, height = images[0].image.size
-        total_width = width * len(images)
-
         num_images_to_log = len(images)
 
         if num_images_to_log > Image.MAX_IMAGES:
@@ -765,11 +763,12 @@ class Image(IterableMedia):
                 "The maximum number of images to store per step is %i." % Image.MAX_IMAGES)
             num_images_to_log = Image.MAX_IMAGES
 
-        if total_width > Image.MAX_DIMENSION:
-            max_images_by_dimension = Image.MAX_DIMENSION // len(images)
-            logging.warn("The maximum total dimension for all images in a collection is 65500, or {} images with {} pixels each. Only logging the first {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
+        if width * num_images_to_log > Image.MAX_DIMENSION:
+            max_images_by_dimension = Image.MAX_DIMENSION // width
+            logging.warn("The maximum total width for all images in a collection is 65500, or {} images, each with a width of {} pixels. Only logging the first {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
             num_images_to_log = max_images_by_dimension
 
+        total_width = width * num_images_to_log
         sprite = PILImage.new(
             mode='RGB',
             size=(total_width, height),
