@@ -773,7 +773,7 @@ class Image(IterableMedia):
         sprite = PILImage.new(
             mode='RGB',
             size=(total_width, height),
-            color=(0, 0, 0, 0))
+            color=(0, 0, 0))
         for i, image in enumerate(images[:Image.MAX_IMAGES]):
             location = width * i
             sprite.paste(image.image, (location, 0))
