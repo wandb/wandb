@@ -774,7 +774,7 @@ class Image(IterableMedia):
             mode='RGB',
             size=(total_width, height),
             color=(0, 0, 0))
-        for i, image in enumerate(images[:Image.MAX_IMAGES]):
+        for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image.image, (location, 0))
         util.mkdir_exists_ok(base)
@@ -785,7 +785,7 @@ class Image(IterableMedia):
         grouping = images[0].grouping
         if grouping:
             meta["grouping"] = grouping
-        captions = Image.captions(images[:Image.MAX_IMAGES])
+        captions = Image.captions(images[:num_images_to_log])
         if captions:
             meta["captions"] = captions
         return meta
