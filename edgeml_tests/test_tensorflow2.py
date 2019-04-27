@@ -133,7 +133,7 @@ def test_tfkeras_validation_data_array(wandb_init_run, image_model):
                     validation_split=0.2, callbacks=[WandbCallback(data_type="image")])
     print("WHOA", wandb_init_run.history.rows[0])
     assert wandb_init_run.history.rows[0]["examples"] == {
-        'width': 28, 'height': 28, 'count': 2, '_type': 'images', 'captions': [7, 7]}
+        'width': 28, 'height': 28, 'count': 2, '_type': 'images', 'captions': [1, 1]}
 
 
 def test_tfkeras_no_validation_data(wandb_init_run, image_model, capsys):
@@ -150,10 +150,10 @@ def test_tfkeras_validation_generator(wandb_init_run, image_model):
         while True:
             yield (np.ones((2, 28, 28, 1)), np.ones((2,)))
     image_model.fit_generator(generator(), steps_per_epoch=10, epochs=2,
-                              validation_data=(np.ones((10, 28, 28, 1)), np.ones((10,))), callbacks=[WandbCallback(data_type="image")])
+                              validation_data=generator(), validation_steps=2, callbacks=[WandbCallback(data_type="image")])
     print("WHOA", wandb_init_run.history.rows[0])
     assert wandb_init_run.history.rows[0]["examples"] == {
-        'width': 28, 'height': 28, 'count': 2, '_type': 'images', 'captions': [7, 7]}
+        'width': 28, 'height': 28, 'count': 2, '_type': 'images', 'captions': [1, 1]}
 
 
 def test_tfkeras_tf_dataset(wandb_init_run, image_model):

@@ -35,6 +35,6 @@ ipython
 matplotlib
 plotly
 Keras
-torch
+torch==1.0.1
 torchvision
 tensorflow
