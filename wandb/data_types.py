@@ -675,6 +675,9 @@ class Html(IterableMedia):
 class Image(IterableMedia):
     MAX_IMAGES = 100
 
+    # PIL limit
+    MAX_DIMENSION = 65500
+
     def __init__(self, data, mode=None, caption=None, grouping=None):
         """
         Accepts numpy array of image data, or a PIL image. The class attempts to infer
@@ -753,25 +756,35 @@ class Image(IterableMedia):
         from PIL import Image as PILImage
         base = os.path.join(out_dir, "media", "images")
         width, height = images[0].image.size
-        if len(images) > Image.MAX_IMAGES:
+        num_images_to_log = len(images)
+
+        if num_images_to_log > Image.MAX_IMAGES:
             logging.warn(
                 "The maximum number of images to store per step is %i." % Image.MAX_IMAGES)
+            num_images_to_log = Image.MAX_IMAGES
+
+        if width * num_images_to_log > Image.MAX_DIMENSION:
+            max_images_by_dimension = Image.MAX_DIMENSION // width
+            logging.warn("The maximum total width for all images in a collection is 65500, or {} images, each with a width of {} pixels. Only logging the first {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
+            num_images_to_log = max_images_by_dimension
+
+        total_width = width * num_images_to_log
         sprite = PILImage.new(
             mode='RGB',
-            size=(width * len(images), height),
-            color=(0, 0, 0, 0))
-        for i, image in enumerate(images[:Image.MAX_IMAGES]):
+            size=(total_width, height),
+            color=(0, 0, 0))
+        for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image.image, (location, 0))
         util.mkdir_exists_ok(base)
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
-                "count": len(images), "_type": "images"}
+                "count": num_images_to_log, "_type": "images"}
         # TODO: hacky way to enable image grouping for now
         grouping = images[0].grouping
         if grouping:
             meta["grouping"] = grouping
-        captions = Image.captions(images[:Image.MAX_IMAGES])
+        captions = Image.captions(images[:num_images_to_log])
         if captions:
             meta["captions"] = captions
         return meta
