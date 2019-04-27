@@ -53,6 +53,18 @@ def model():
     return model
 
 
+@pytest.fixture
+def image_model():
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Conv2D(
+        3, 3, activation="relu", input_shape=(28, 28, 1)))
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dense(10, activation="softmax"))
+    model.compile(loss="sparse_categorical_crossentropy",
+                  optimizer="sgd", metrics=["accuracy"])
+    return model
+
+
 def test_tfflags(wandb_init_run):
     FLAGS = flags.FLAGS
     flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
@@ -114,3 +126,42 @@ def test_tensorboard_hyper_params(wandb_init_run, model):
     print("KEYS", wandb_init_run.history.rows[-1].keys())
     assert wandb_init_run.config["dropout_rate"] == 0.1
     assert wandb_init_run.config["optimizer"] == "adam"
+
+
+def test_tfkeras_validation_data_array(wandb_init_run, image_model):
+    image_model.fit(np.ones((10, 28, 28, 1)), np.ones((10,)), epochs=1,
+                    validation_split=0.2, callbacks=[WandbCallback(data_type="image")])
+    print("WHOA", wandb_init_run.history.rows[0])
+    assert wandb_init_run.history.rows[0]["examples"] == {
+        'width': 28, 'height': 28, 'count': 2, '_type': 'images', 'captions': [7, 7]}
+
+
+def test_tfkeras_no_validation_data(wandb_init_run, image_model, capsys):
+    image_model.fit(np.ones((10, 28, 28, 1)), np.ones((10,)), epochs=1,
+                    callbacks=[WandbCallback(data_type="image")])
+    print("WHOA", wandb_init_run.history.rows[0])
+    captured_out, captured_err = capsys.readouterr()
+    assert "No validation_data set" not in captured_out
+    assert wandb_init_run.history.rows[0].get("examples") is None
+
+
+def test_tfkeras_validation_generator(wandb_init_run, image_model):
+    def generator(*args):
+        while True:
+            yield (np.ones((2, 28, 28, 1)), np.ones((2,)))
+    image_model.fit_generator(generator(), steps_per_epoch=10, epochs=2,
+                              validation_data=(np.ones((10, 28, 28, 1)), np.ones((10,))), callbacks=[WandbCallback(data_type="image")])
+    print("WHOA", wandb_init_run.history.rows[0])
+    assert wandb_init_run.history.rows[0]["examples"] == {
+        'width': 28, 'height': 28, 'count': 2, '_type': 'images', 'captions': [7, 7]}
+
+
+def test_tfkeras_tf_dataset(wandb_init_run, image_model):
+    dataset = tf.data.Dataset.from_tensor_slices(
+        (np.ones((10, 28, 28, 1)), np.ones((10,))))
+
+    image_model.fit(dataset.batch(5).repeat(), steps_per_epoch=10, epochs=2,
+                    validation_data=dataset.batch(5).repeat(), validation_steps=2, callbacks=[WandbCallback(data_type="image")])
+    print("WHOA", wandb_init_run.history.rows[0])
+    assert wandb_init_run.history.rows[0]["examples"] == {
+        'width': 28, 'height': 28, 'count': 5, '_type': 'images', 'captions': [1, 1, 1, 1, 1]}

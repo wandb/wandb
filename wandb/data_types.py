@@ -605,6 +605,9 @@ class Image(IterableMedia):
             self.image = PILImage.fromarray(data.mul(255).clamp(
                 0, 255).byte().permute(1, 2, 0).cpu().numpy())
         else:
+            # Handle TF eager tensors
+            if hasattr(data, "numpy"):
+                data = data.numpy()
             data = data.squeeze()  # get rid of trivial dimensions as a convenience
             self.image = PILImage.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data))

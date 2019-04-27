@@ -6,9 +6,23 @@ from click.testing import CliRunner
 import pytest
 import six
 import wandb
+import numpy as np
 from wandb import tensorflow as wandb_tensorflow
+from wandb.keras import WandbCallback
 
-import tensorflow
+import tensorflow as tf
+
+
+@pytest.fixture
+def image_model():
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Conv2D(
+        3, 3, activation="relu", input_shape=(28, 28, 1)))
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dense(10, activation="softmax"))
+    model.compile(loss="sparse_categorical_crossentropy",
+                  optimizer="sgd", metrics=["accuracy"])
+    return model
 
 
 @pytest.fixture
@@ -18,6 +32,17 @@ def history():
         wandb.util.mkdir_exists_ok(wandb.run.dir)
         yield wandb.run.history
         wandb.run = None
+
+
+def test_tfkeras_tf_dataset(wandb_init_run, image_model):
+    dataset = tf.data.Dataset.from_tensor_slices(
+        (np.ones((10, 28, 28, 1)), np.ones((10,))))
+
+    image_model.fit(dataset.batch(5).repeat(), steps_per_epoch=10, epochs=2,
+                    validation_data=dataset.batch(5).repeat(), validation_steps=2, callbacks=[WandbCallback(data_type="image")])
+    print("WHOA", wandb_init_run.history.rows[0])
+    assert wandb_init_run.history.rows[0]["examples"] == {
+        'width': 28, 'height': 28, 'count': 5, '_type': 'images', 'captions': [1, 1, 1, 1, 1]}
 
 
 def test_tf_summary():
@@ -71,14 +96,14 @@ def test_tf_summary_in_history(history):
 
 
 def test_hook(history):
-    g1 = tensorflow.Graph()
+    g1 = tf.Graph()
     with g1.as_default():
-        c1 = tensorflow.constant(42)
-        tensorflow.summary.scalar('c1', c1)
-        summary_op = tensorflow.summary.merge_all()
+        c1 = tf.constant(42)
+        tf.summary.scalar('c1', c1)
+        summary_op = tf.summary.merge_all()
 
         hook = wandb_tensorflow.WandbHook(summary_op)
-        with tensorflow.train.MonitoredTrainingSession(hooks=[hook]) as sess:
+        with tf.train.MonitoredTrainingSession(hooks=[hook]) as sess:
             summary, acc = sess.run([summary_op, c1])
 
     assert wandb_tensorflow.tf_summary_to_dict(summary) == {'c1': 42.0}
