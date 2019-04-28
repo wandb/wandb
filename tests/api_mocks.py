@@ -128,7 +128,8 @@ index 30d74d2..9a2c773 100644
 
 
 def success_or_failure(payload=None, body_match="query"):
-    def wrapper(mocker, status_code=200, error=None):
+    def wrapper(mocker, status_code=200, error=None, attempts=1):
+        """attempts will pass the status_code provided until the final attempt when it will pass 200"""
         if error:
             body = {'errors': error}
         else:
@@ -137,8 +138,14 @@ def success_or_failure(payload=None, body_match="query"):
         def match_body(request):
             return body_match in (request.text or '')
 
+        res = [{'json': body, 'status_code': status_code}]
+        if attempts > 1:
+            for i in range(attempts - 1):
+                if i == attempts - 2:
+                    status_code = 200
+                res.append({'json': body, 'status_code': status_code})
         return mocker.register_uri('POST', 'https://api.wandb.ai/graphql',
-                                   [{'json': body, 'status_code': status_code}], additional_matcher=match_body)
+                                   res, additional_matcher=match_body)
     return wrapper
 
 

@@ -7,6 +7,7 @@ import json
 import re
 import six
 import tempfile
+import datetime
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
@@ -14,6 +15,7 @@ from gql.transport.requests import RequestsHTTPTransport
 import wandb
 from wandb import Error, __version__
 from wandb import util
+from wandb.retry import retriable
 from wandb.summary import HTTPSummary, download_h5
 from wandb.env import get_dir
 from wandb.env import get_base_url
@@ -56,6 +58,18 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
 }'''
 
 
+class RetryingClient(object):
+    def __init__(self, client):
+        self._client = client
+
+    @retriable(retry_timedelta=datetime.timedelta(
+        seconds=10),
+        check_retry_fn=util.no_retry_auth,
+        retryable_exceptions=(RetryError, requests.RequestException))
+    def execute(self, *args, **kwargs):
+        return self._client.execute(*args, **kwargs)
+
+
 class Api(object):
     """W&B Public API
 
@@ -74,14 +88,7 @@ class Api(object):
             'base_url': get_base_url("https://api.wandb.ai")
         }
         self._runs = {}
-        self.settings.update(overrides)
-
-    def create_run(self, **kwargs):
-        return Run.create(self, **kwargs)
-
-    @property
-    def client(self):
-        return Client(
+        self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent},
                 use_json=True,
@@ -92,6 +99,15 @@ class Api(object):
                 url='%s/graphql' % self.settings['base_url']
             )
         )
+        self._client = RetryingClient(self._base_client)
+        self.settings.update(overrides)
+
+    def create_run(self, **kwargs):
+        return Run.create(self, **kwargs)
+
+    @property
+    def client(self):
+        return self._client
 
     @property
     def user_agent(self):
