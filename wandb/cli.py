@@ -45,6 +45,7 @@ import wandb
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 from wandb import agent as wandb_agent
+from wandb import controller as wandb_controller
 from wandb import env
 from wandb import wandb_run
 from wandb import wandb_dir
@@ -841,9 +842,11 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
+@click.option('--controller', is_flag=True, default=False, help="Run local controller")
+@click.option('--verbose', is_flag=True, default=False, help="Run local controller")
 @click.argument('config_yaml')
 @display_error
-def sweep(ctx, config_yaml):
+def sweep(ctx, controller, verbose, config_yaml):
     click.echo('Creating sweep from: %s' % config_yaml)
     try:
         yaml_file = open(config_yaml)
@@ -860,6 +863,10 @@ def sweep(ctx, config_yaml):
         return
     sweep_id = api.upsert_sweep(config)
     print('Create sweep with ID:', sweep_id)
+    if controller:
+        click.echo('Starting wandb controller...')
+        wandb_controller.run_controller(sweep_id, verbose=verbose)
+
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -872,6 +879,15 @@ def agent(sweep_id):
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
     #                'args': ['--max_epochs=10']})
+
+
+@cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
+@click.option('--verbose', is_flag=True, default=False, help="Run local controller")
+@click.argument('sweep_id')
+@display_error
+def controller(verbose, sweep_id):
+    click.echo('Starting wandb controller...')
+    wandb_controller.run_controller(sweep_id, verbose=verbose)
 
 
 if __name__ == "__main__":
