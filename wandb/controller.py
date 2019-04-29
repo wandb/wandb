@@ -275,7 +275,7 @@ class Sweep(object):
     def __init__(self, api, sweep_id, verbose=False):
         self._api = api
         self._sweep_id = sweep_id
-        specs = '{"keys": ["_step", "val_loss"], "samples": 100000}'
+        specs = '{}'
         specs_json = json.loads(specs)
         sweep = api.sweep(sweep_id, specs)
         if sweep is None:
@@ -423,8 +423,16 @@ class Sweep(object):
     def reload(self):
         obj = self._sweep_obj
         sweepid = obj['name']
-        specs = '{"keys": ["_step", "val_loss"], "samples": 100000}'
-        specs_json = json.loads(specs)
+        #specs = '{"keys": ["_step", "zval_loss"], "samples": 100000}'
+        #specs_json = json.loads(specs)
+        k = ["_step"]
+        conf = obj['config']
+        conf = yaml.safe_load(conf)
+        metric = conf.get("metric", {}).get("name")
+        if metric:
+            k.append(metric)
+        specs_json = {"keys": k, "samples": 100000}
+        specs = json.dumps(specs_json)
         sweep = self._api.sweep(sweepid, specs)
         self._sweep_obj = sweep
 
