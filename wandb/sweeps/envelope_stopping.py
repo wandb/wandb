@@ -1,9 +1,13 @@
 """
+Envelope Early Terminate
+
 Library to help with early termination of runs
 Here we use a strategy where we take the top k runs or top k percent of runs
 and then we build up an envelope where we stop jobs where the metric doesn't get better
 """
+
 import numpy as np
+from .base import EarlyTerminate
 
 
 def top_k_indicies(arr, k):
@@ -62,3 +66,41 @@ def is_inside_envelope(history, envelope, ignore_first_n_iters=0):
     if cur_iter >= len(envelope):
         cur_iter = len(envelope) - 1
     return min_val < envelope[cur_iter]
+
+
+class EnvelopeEarlyTerminate(EarlyTerminate):
+    def __init__(self, fraction=0.3, min_runs=3, start_iter=3):
+        self.fraction = fraction
+        self.min_runs = min_runs
+        self.start_iter = start_iter
+
+    def stop_runs(self, sweep_config, runs):
+        terminate_run_names = []
+        self._load_metric_name_and_goal(sweep_config)
+
+        complete_run_histories = []
+        complete_run_metrics = []
+        for run in runs:
+            if run.state == "finished":  # complete run
+                history = self._load_run_metric_history(run)
+                if len(history) > 0:
+                    complete_run_histories.append(history)
+                    complete_run_metrics.append(min(history))
+
+        complete_runs_count = len(complete_run_histories)
+        if complete_runs_count < self.min_runs:
+            return []
+
+        n = max(int(np.ceil(complete_runs_count * self.fraction)), self.min_runs)
+
+        envelope = early_terminate.envelope_from_top_n(
+            complete_run_histories, complete_run_metrics, n)
+
+        for run in runs:
+            if run.state == "running":
+                history = self._load_run_metric_history(run)
+
+                if not early_terminate.is_inside_envelope(history, envelope,
+                                                          ignore_first_n_iters=self.start_iter):
+                    terminate_run_names.append(run.name)
+        return terminate_run_names

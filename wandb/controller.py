@@ -58,7 +58,7 @@ import random
 import string
 
 from wandb.apis import internal
-from .sweeps.search import Search
+from .sweeps.sweeps import Sweeps
 
 
 #api = wandb.Api()
@@ -373,6 +373,8 @@ class Sweep(object):
             history = r['sampledHistory']
             history = history[0]
             summaryMetrics = r['summaryMetrics']
+            if summaryMetrics:
+                summaryMetrics = json.loads(summaryMetrics)
             # TODO(jhr): build history
             n = Run(name, state, history, config, summaryMetrics)
             runs.append(n)
@@ -442,15 +444,16 @@ class Sweep(object):
         conf = yaml.safe_load(conf)
         #print("CCC", conf, type(conf))
         config['config'] = conf
-        search = Search.to_class(conf)
+        #print("DDDDD", config)
+        search = Sweeps.to_class(conf)
         next_run = search.next_run(config)
         #print("NNNN", next_run)
         endsweep = False
         if next_run:
-            next_run, err = next_run
-            if err:
-                print("ERROR", err)
-                return
+            next_run, info = next_run
+            if info:
+                #print("DEBUG", info)
+                pass
         else:
             endsweep = True
             #print("END OF SWEEP?")

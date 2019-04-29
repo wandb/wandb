@@ -1,4 +1,5 @@
 """
+Bayesian Search
 
 Check out https://www.iro.umontreal.ca/~bengioy/cifar/NCAP2014-summerschool/slides/Ryan_adams_140814_bayesopt_ncap.pdf
  for explanation of bayesian optimization
@@ -12,6 +13,9 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern
 import scipy.stats as stats
+import math
+from .base import Search
+from .params import HyperParameter, HyperParameterSet
 
 
 def fit_normalized_gaussian_process(X, y, nu=1.5):
@@ -342,8 +346,103 @@ def target(x):
     return np.exp(-(x - 2) ** 2) + np.exp(-(x - 6) ** 2 / 10) + 1 / (x ** 2 + 1)
 
 
-X = np.append(
-    np.array([np.random.uniform([0.], [1.]) for x in range(200)]),
-    np.array([np.random.uniform([0.], [1.]) + 3. for x in range(200)]),
-    axis=0,
-)
+class BayesianSearch(Search):
+    def __init__(self, minimum_improvement=0.1):
+        self.minimum_improvement = minimum_improvement
+
+    def next_run(self, sweep):
+        if 'parameters' not in sweep['config']:
+            raise ValueError('Bayesian search requires "parameters" section')
+        config = sweep['config']['parameters']
+        params = HyperParameterSet.from_config(config)
+
+        sample_X = []
+        sample_y = []
+        current_X = []
+        y = []
+
+        params.index_searchable_params()
+
+        # X_bounds = [[0., 1.]] * len(self.searchable_params)
+        # params.numeric_bounds()
+        X_bounds = [[0., 1.]] * len(params.searchable_params)
+
+        runs = sweep['runs']
+
+        # we calc the max metric to put as the metric for failed runs
+        # so that our bayesian search stays away from them
+        max_metric = 0.
+        if any(run.state == "finished" for run in runs):
+            for run in runs:
+                print("DEBUG1", run, run.summaryMetrics)
+            max_metric = max([self._metric_from_run(sweep['config'], run) for run in runs
+                              if run.state == "finished"])
+
+        for run in runs:
+            X_norm = params.convert_run_to_normalized_vector(run)
+            if run.state == "finished":
+                # run is complete
+                print("DEBUG2", run)
+                metric = self._metric_from_run(sweep['config'], run)
+                if math.isnan(metric):
+                    metric = max_metric
+                y.append(metric)
+                sample_X.append(X_norm)
+            elif run.state == "running":
+                # run is in progress
+                # we wont use the metric, but we should pass it into our optimizer to
+                # account for the fact that it is running
+                current_X.append(X_norm)
+            elif run.state == "failed" or run.state == "crashed":
+                # run failed, but we're still going to use it
+                # maybe we should be smarter about this
+                y.append(max_metric)
+                sample_X.append(X_norm)
+            else:
+                raise ValueError("Run is in unknown state")
+
+        if len(sample_X) == 0:
+            sample_X = np.empty([0, 0])
+
+        if len(current_X) == 0:
+            current_X = None
+        else:
+            np.array(current_X)
+        (try_params, success_prob, pred,
+            test_X, y_pred, y_pred_std, prob_of_improve,
+            prob_of_failure, expected_runtime) = next_sample(
+                np.array(sample_X),
+                np.array(y), X_bounds,
+                current_X=current_X, improvement=self.minimum_improvement)
+
+        # convert the parameters from vector of [0,1] values
+        # to the original ranges
+
+        for param in params:
+            if param.type == HyperParameter.CONSTANT:
+                continue
+
+            # try_value = try_params[params.param_names_to_index[param.name]]
+            # if param.type == HyperParameter.CATEGORICAL:
+            #     param.value = param.values[int(try_value)]
+            # elif param.type == HyperParameter.INT_UNIFORM:
+            #     param.value = int(try_value)
+            # elif param.type == HyperParameter.UNIFORM:
+            #     param.value = try_value
+            try_value = try_params[params.param_names_to_index[param.name]]
+            param.value = param.ppf(try_value)
+
+        metric_name = sweep['config']['metric']['name']
+
+        ret_dict = params.to_config()
+        info = {}
+        info['predictions'] = {metric_name: pred}
+        info['success_probability'] = success_prob
+        if test_X is not None:
+            info['acq_func'] = {}
+            info['acq_func']['sample_x'] = params.denormalize_vector(test_X)
+            info['acq_func']['y_pred'] = y_pred
+            info['acq_func']['y_pred_std'] = y_pred_std
+            info['acq_func']['score'] = prob_of_improve
+
+        return ret_dict, info
