@@ -77,6 +77,9 @@ class Run(object):
         self.history = history
         self.summaryMetrics = summaryMetrics
 
+    def __repr__(self):
+        return 'Run(%s,%s,%s,%s,%s)' % (self.name, self.state, self.config, self.history, self.summaryMetrics)
+
 
 def id_generator(size=10, chars=string.ascii_lowercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
@@ -573,3 +576,20 @@ def run_controller(sweep_id=None, verbose=False):
     sweep = Sweep(api, sweep_id=sweep_id, verbose=verbose)
     sweep.run()
 
+def validate(config):
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    sweep = {}
+    sweep['config'] = config
+    sweep['runs'] = []
+    search = Sweeps.to_class(config)
+    try:
+        next_run = search.next_run(sweep)
+    except Exception as err:
+        return str(err)

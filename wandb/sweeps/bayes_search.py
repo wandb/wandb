@@ -373,8 +373,8 @@ class BayesianSearch(Search):
         # so that our bayesian search stays away from them
         max_metric = 0.
         if any(run.state == "finished" for run in runs):
-            for run in runs:
-                print("DEBUG1", run, run.summaryMetrics)
+            #for run in runs:
+            #    print("DEBUG0", run)
             max_metric = max([self._metric_from_run(sweep['config'], run) for run in runs
                               if run.state == "finished"])
 
@@ -382,7 +382,7 @@ class BayesianSearch(Search):
             X_norm = params.convert_run_to_normalized_vector(run)
             if run.state == "finished":
                 # run is complete
-                print("DEBUG2", run)
+                #print("DEBUG0.1", run)
                 metric = self._metric_from_run(sweep['config'], run)
                 if math.isnan(metric):
                     metric = max_metric

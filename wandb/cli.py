@@ -864,6 +864,17 @@ def sweep(ctx, controller, verbose, config_yaml):
     if config is None:
         wandb.termerror('Configuration file is empty')
         return
+
+    is_local = config.get('controller', {}).get('type') == 'local'
+    if is_local:
+        err = wandb_controller.validate(config)
+        if err:
+            wandb.termerror('Error in sweep file: %s' % err)
+            return
+    else:
+        if controller:
+            wandb.termerror('Option "controller" only permitted for controller type "local"')
+            return
     sweep_id = api.upsert_sweep(config)
     print('Create sweep with ID:', sweep_id)
     if controller:
