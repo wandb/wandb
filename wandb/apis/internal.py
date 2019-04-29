@@ -363,6 +363,63 @@ class Api(object):
             'entity': entity, 'project': project})['model']
 
     @normalize_exceptions
+    def sweep(self, sweep, specs, project=None, entity=None):
+        """Retrieve sweep.
+
+        Args:
+            sweep (str): The sweep to get details for
+            specs (str): history specs
+            project (str, optional): The project to scope this sweep to.
+            entity (str, optional): The entity to scope this sweep to.
+
+        Returns:
+                [{"id","name","repo","dockerImage","description"}]
+        """
+        query = gql('''
+        query Models($entity: String, $project: String!, $sweep: String!, $specs: [JSONString!]!) {
+            model(name: $project, entityName: $entity) {
+                sweep(sweepName: $sweep) {
+                    id
+                    name
+                    method
+                    state
+                    description
+                    config
+                    createdAt
+                    heartbeatAt
+                    updatedAt
+                    earlyStopJobRunning
+                    bestLoss
+                    controller
+                    scheduler
+                    runs {
+                        edges {
+                            node {
+                                name
+                                state
+                                config
+                                exitcode
+                                heartbeatAt
+                                shouldStop
+                                failed
+                                stopped
+                                running
+                                summaryMetrics
+                                sampledHistory(specs: $specs)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ''')
+        data =  self.gql(query, variable_values={
+            'entity': entity or self.settings('entity'), 'project': project or self.settings('project'), 'sweep': sweep, 'specs': specs})['model']['sweep']
+        if data:
+            data['runs'] = self._flatten_edges(data['runs'])
+        return data
+
+    @normalize_exceptions
     def list_runs(self, project, entity=None):
         """Lists runs in W&B scoped by project.
 
@@ -964,7 +1021,7 @@ class Api(object):
             return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
-    def upsert_sweep(self, config):
+    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None):
         """Upsert a sweep object.
 
         Args:
@@ -972,16 +1029,22 @@ class Api(object):
         """
         mutation = gql('''
         mutation UpsertSweep(
+            $id: ID,
             $config: String,
             $description: String,
             $entityName: String!,
-            $projectName: String!
+            $projectName: String!,
+            $controller: JSONString,
+            $scheduler: JSONString
         ) {
             upsertSweep(input: {
+                id: $id,
                 config: $config,
                 description: $description,
                 entityName: $entityName,
-                projectName: $projectName
+                projectName: $projectName,
+                controller: $controller,
+                scheduler: $scheduler
             }) {
                 sweep {
                     name
@@ -1001,10 +1064,13 @@ class Api(object):
             raise UsageError(body['errors'][0]['message'])
 
         response = self.gql(mutation, variable_values={
+            'id': obj_id,
             'config': yaml.dump(config),
             'description': config.get("description"),
             'entityName': self.settings("entity"),
-            'projectName': self.settings("project")},
+            'projectName': self.settings("project"),
+            'controller': controller,
+            'scheduler': scheduler},
             check_retry_fn=no_retry_400_or_404)
         return response['upsertSweep']['sweep']['name']
 
