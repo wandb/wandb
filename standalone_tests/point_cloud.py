@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Numpy Clouds
 # http://app.wandb.ai/nbaryd/client-standalone_tests/runs/ly8g46vm?workspace=user-nbaryd
 
