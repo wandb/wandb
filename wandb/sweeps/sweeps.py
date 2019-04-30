@@ -6,9 +6,9 @@ import itertools
 import random
 import numpy as np
 import math
-from . import grid_search, bayes_search, random_search
-from . import hyperband_stopping, envelope_stopping
-from . import base
+from wandb.sweeps import grid_search, bayes_search, random_search
+from wandb.sweeps import hyperband_stopping, envelope_stopping
+from wandb.sweeps import base
 
 
 class Search(base.Search):

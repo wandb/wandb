@@ -4,7 +4,7 @@ Hyperparameter search parameters
 
 import random
 import numpy as np
-from ..util import get_module
+from wandb.util import get_module
 #import scipy.stats as stats
 
 

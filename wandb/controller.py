@@ -17,7 +17,7 @@ import time
 import json
 import random
 import string
-from .sweeps.sweeps import Search, EarlyTerminate
+from wandb.sweeps.sweeps import Search, EarlyTerminate
 
 logger = logging.getLogger(__name__)
 

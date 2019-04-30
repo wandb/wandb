@@ -4,7 +4,7 @@ Hyperband Early Terminate
 
 import random
 import numpy as np
-from .base import EarlyTerminate
+from wandb.sweeps.base import EarlyTerminate
 
 
 class HyperbandEarlyTerminate(EarlyTerminate):

@@ -14,9 +14,9 @@ import numpy as np
 #from sklearn.gaussian_process.kernels import Matern
 #import scipy.stats as stats
 import math
-from ..util import get_module
-from .base import Search
-from .params import HyperParameter, HyperParameterSet
+from wandb.util import get_module
+from wandb.sweeps.base import Search
+from wandb.sweeps.params import HyperParameter, HyperParameterSet
 
 sklearn_gaussian = get_module('sklearn.gaussian_process')
 scipy_stats = get_module('scipy.stats')

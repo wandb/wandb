@@ -2,8 +2,8 @@
 Random Search
 """
 
-from .base import Search
-from .params import HyperParameterSet
+from wandb.sweeps.base import Search
+from wandb.sweeps.params import HyperParameterSet
 
 
 class RandomSearch(Search):
