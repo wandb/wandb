@@ -98,14 +98,14 @@ class EnvelopeEarlyTerminate(EarlyTerminate):
 
         n = max(int(np.ceil(complete_runs_count * self.fraction)), self.min_runs)
 
-        envelope = early_terminate.envelope_from_top_n(
+        envelope = envelope_from_top_n(
             complete_run_histories, complete_run_metrics, n)
 
         for run in runs:
             if run.state == "running":
                 history = self._load_run_metric_history(run)
 
-                if not early_terminate.is_inside_envelope(history, envelope,
-                                                          ignore_first_n_iters=self.start_iter):
+                if not is_inside_envelope(history, envelope,
+                                          ignore_first_n_iters=self.start_iter):
                     terminate_run_names.append(run.name)
         return terminate_run_names, info
