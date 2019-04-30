@@ -440,8 +440,8 @@ def test_sequence_net():
     net = Sequence()
     graph = wandb.wandb_torch.TorchGraph.hook_torch(net)
     output = net.forward(dummy_torch_tensor(
-        (97, 999)))
-    output.backward(torch.zeros((97, 999)))
+        (97, 100)))
+    output.backward(torch.zeros((97, 100)))
     graph = graph.to_json()
     assert len(graph["nodes"]) == 3
     assert len(graph["nodes"][0]['parameters']) == 4
