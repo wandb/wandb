@@ -4,7 +4,11 @@ Hyperparameter search parameters
 
 import random
 import numpy as np
-import scipy.stats as stats
+from ..util import get_module
+#import scipy.stats as stats
+
+
+stats = get_module('scipy.stats')
 
 
 class HyperParameter():
