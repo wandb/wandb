@@ -913,6 +913,11 @@ class Html(BatchableMedia):
     def get_media_subdir(self):
         return os.path.join('media', 'html')
 
+    def to_json(self):
+        json_dict = super(Html, self).to_json()
+        json_dict['_type'] = 'html-file'
+        return json_dict
+
     @classmethod
     def seq_to_json(cls, html_list, run, key, step):
         base_path = os.path.join(run.dir, cls.get_media_subdir())
