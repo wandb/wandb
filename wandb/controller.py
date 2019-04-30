@@ -479,6 +479,16 @@ class Sweep(object):
             for l in debug_lines:
                 self.logline("# " + l)
 
+        if stop_runs:
+            self.log("Stopping", ','.join(stop_runs))
+            controller = {}
+            controller['earlystop'] = stop_runs
+            controller = json.dumps(controller)
+            x = self._api.upsert_sweep(conf, controller=controller, obj_id=obj['id'])
+            #print("RESP: ", x)
+            # FIXME(jhr): for now go to next iteration if we stopped runs
+            return
+
         #stop_runs = ['fdfsddds']
         if next_run or endsweep:
             old_controller = obj['controller']
@@ -487,13 +497,14 @@ class Sweep(object):
                 schedule = old_controller.get("schedule")
                 if schedule:
                     # TODO(jhr): check to see if we already have something scheduled
+                    #print("....")
                     return
 
             if not endsweep:
                 #nr = json.loads(next_run)
                 nr = next_run
                 #print("NR", nr)
-                nr = ','.join(['%s=%s' % (d[0], d[1]['value']) for d in nr.items()])
+                nr = ', '.join(['%s = %s' % (d[0], d[1]['value']) for d in nr.items()])
                 self.log("Scheduling", nr)
             #controller = '{"hello": 1}'
             #controller = json.loads(controller)
@@ -505,14 +516,6 @@ class Sweep(object):
             controller = {"schedule": schedule_list}
             controller = json.dumps(controller)
             #print("ADD: ", controller)
-            x = self._api.upsert_sweep(conf, controller=controller, obj_id=obj['id'])
-            #print("RESP: ", x)
-
-        for r in stop_runs:
-            self.log("Stopping", r)
-            controller = {}
-            controller['earlystop'] = [r]
-            controller = json.dumps(controller)
             x = self._api.upsert_sweep(conf, controller=controller, obj_id=obj['id'])
             #print("RESP: ", x)
 
