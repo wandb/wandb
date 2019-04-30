@@ -279,7 +279,7 @@ class Sweep(object):
         specs_json = json.loads(specs)
         sweep = api.sweep(sweep_id, specs)
         if sweep is None:
-            raise SweepError("Can not find sweep: %s", sweepid)
+            raise SweepError("Can not find sweep: %s" % sweep_id)
         self._sweep_obj = sweep
         self._laststatus = None
         self._logged = 0
@@ -591,7 +591,11 @@ def run_controller(sweep_id=None, verbose=False):
     logger.addHandler(ch)
 
     api = InternalApi()
-    sweep = Sweep(api, sweep_id=sweep_id, verbose=verbose)
+    try:
+        sweep = Sweep(api, sweep_id=sweep_id, verbose=verbose)
+    except SweepError as err:
+        wandb.termerror('Controller Error: %s' % err)
+        return
     sweep.run()
 
 def validate(config):
@@ -611,8 +615,8 @@ def validate(config):
         next_run = search.next_run(sweep)
     except Exception as err:
         return str(err)
-    stopper = EarlyTerminate.to_class(config)
     try:
+        stopper = EarlyTerminate.to_class(config)
         runs = stopper.stop_runs(config, [])
     except Exception as err:
         return str(err)

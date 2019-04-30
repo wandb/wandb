@@ -23,9 +23,9 @@ class HyperbandEarlyTerminate(EarlyTerminate):
     """
     def __init__(self, bands, r):
         if len(bands) < 1:
-            raise "Bands must be an array of length at least 1"
+            raise ValueError("Bands must be an array of length at least 1")
         if r < 0 or r > 1:
-            raise "r must be a float between 0 and 1"
+            raise ValueError("r must be a float between 0 and 1")
 
         self.bands = bands
         self.r = r
@@ -47,9 +47,9 @@ class HyperbandEarlyTerminate(EarlyTerminate):
     @classmethod
     def init_from_min_iter(cls, min_iter, eta):
         if eta <= 1:
-            raise "eta must be greater than 1"
+            raise ValueError("eta must be greater than 1")
         if min_iter < 1:
-            raise "min_iter must be at least 1"
+            raise ValueError("min_iter must be at least 1")
 
         band = min_iter
         bands = []
@@ -72,7 +72,7 @@ class HyperbandEarlyTerminate(EarlyTerminate):
             if 's' in et_config:
                 s = et_config['s']
             else:
-                raise "Must define s for hyperband algorithm if max_iter is defined"
+                raise ValueError("Must define s for hyperband algorithm if max_iter is defined")
 
             return cls.init_from_max_iter(max_iter, eta, s)
         # another way of defining hyperband with min_iter and possibly eta
@@ -83,7 +83,7 @@ class HyperbandEarlyTerminate(EarlyTerminate):
                 eta = et_config['eta']
             return cls.init_from_min_iter(min_iter, eta)
 
-        raise "Must define min_iter or max_iter for hyperband algorithm"
+        raise ValueError("Must define min_iter or max_iter for hyperband algorithm")
 
     def stop_runs(self, sweep_config, runs):
         terminate_run_names = []
