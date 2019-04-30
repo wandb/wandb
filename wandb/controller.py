@@ -58,7 +58,7 @@ import random
 import string
 
 from wandb.apis import internal
-from .sweeps.sweeps import Sweeps
+from .sweeps.sweeps import Search, EarlyTerminate
 
 
 #api = wandb.Api()
@@ -298,14 +298,17 @@ class Sweep(object):
     #    inst.args = args
     #    return inst
 
-    def log(self, key, value):
+    def logline(self, line):
         if not self._verbose:
             return
-        line = "# %-10s %s" % (key + ":", value)
         if len(line) > 120:
             line = line[:120] + ".."
         print(line)
         self._logged += 1
+
+    def log(self, key, value):
+        line = "# %-10s %s" % (key + ":", value)
+        self.logline(line)
 
     def status(self):
         # Scheduled: runid (Params:)
@@ -456,7 +459,7 @@ class Sweep(object):
         #print("CCC", conf, type(conf))
         config['config'] = conf
         #print("DDDDD", config)
-        search = Sweeps.to_class(conf)
+        search = Search.to_class(conf)
         next_run = search.next_run(config)
         #print("NNNN", next_run)
         endsweep = False
@@ -468,7 +471,14 @@ class Sweep(object):
         else:
             endsweep = True
             #print("END OF SWEEP?")
-        stop_runs = search.stop_runs(config)
+        #print("STTTT")
+        stopper = EarlyTerminate.to_class(conf)
+        stop_runs, info = stopper.stop_runs(config['config'], config['runs'])
+        debug_lines = info.get('lines', [])
+        if self._verbose and debug_lines:
+            for l in debug_lines:
+                self.logline("# " + l)
+
         #stop_runs = ['fdfsddds']
         if next_run or endsweep:
             old_controller = obj['controller']
@@ -596,8 +606,13 @@ def validate(config):
     sweep = {}
     sweep['config'] = config
     sweep['runs'] = []
-    search = Sweeps.to_class(config)
+    search = Search.to_class(config)
     try:
         next_run = search.next_run(sweep)
+    except Exception as err:
+        return str(err)
+    stopper = EarlyTerminate.to_class(config)
+    try:
+        runs = stopper.stop_runs(config, [])
     except Exception as err:
         return str(err)

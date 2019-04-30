@@ -59,6 +59,32 @@ class HyperbandEarlyTerminate(EarlyTerminate):
 
         return cls(bands, 1.0/eta)
 
+    @classmethod
+    def init_from_config(cls, et_config):
+        # one way of defining hyperband, with max_iter, s and possibly eta
+        if 'max_iter' in et_config:
+            max_iter = et_config['max_iter']
+            eta = 3
+            if 'eta' in et_config:
+                eta = et_config['eta']
+
+            s = 0
+            if 's' in et_config:
+                s = et_config['s']
+            else:
+                raise "Must define s for hyperband algorithm if max_iter is defined"
+
+            return cls.init_from_max_iter(max_iter, eta, s)
+        # another way of defining hyperband with min_iter and possibly eta
+        if 'min_iter' in et_config:
+            min_iter = et_config['min_iter']
+            eta = 3
+            if 'eta' in et_config:
+                eta = et_config['eta']
+            return cls.init_from_min_iter(min_iter, eta)
+
+        raise "Must define min_iter or max_iter for hyperband algorithm"
+
     def stop_runs(self, sweep_config, runs):
         terminate_run_names = []
         self._load_metric_name_and_goal(sweep_config)
@@ -83,6 +109,9 @@ class HyperbandEarlyTerminate(EarlyTerminate):
 
             self.thresholds.append(threshold)
 
+        info = {}
+        info['lines'] = []
+        info['lines'].append("Bands: %s" % (', '.join(["%s = %s" % (band, threshold) for band, threshold in zip(self.bands, self.thresholds)])))
 
         for run in runs:
             if run.state == "running":
@@ -90,6 +119,8 @@ class HyperbandEarlyTerminate(EarlyTerminate):
 
                 closest_band = -1
                 closest_threshold = 0
+                bandstr = ""
+                termstr = ""
                 for band, threshold in zip(self.bands, self.thresholds):
                     if band < len(history):
                         closest_band = band
@@ -97,11 +128,12 @@ class HyperbandEarlyTerminate(EarlyTerminate):
                     else:
                         break
 
-                if closest_band == -1: # no bands apply yet
-                    break
-                else:
+                if closest_band != -1: # no bands apply yet
+                    bandstr = " (Metric: %f Band: %d Threshold %f)" % (min(history), closest_band, closest_threshold)
                     if min(history) > closest_threshold:
                         terminate_run_names.append(run.name)
+                        termstr = " STOP"
 
+                info['lines'].append("Run: %s Step: %d%s%s" % (run.name, len(history), bandstr, termstr))
 
-        return terminate_run_names
+        return terminate_run_names, info

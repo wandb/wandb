@@ -74,7 +74,12 @@ class EnvelopeEarlyTerminate(EarlyTerminate):
         self.min_runs = min_runs
         self.start_iter = start_iter
 
+    @classmethod
+    def init_from_config(cls, config):
+        pass
+
     def stop_runs(self, sweep_config, runs):
+        info = {}
         terminate_run_names = []
         self._load_metric_name_and_goal(sweep_config)
 
@@ -89,12 +94,13 @@ class EnvelopeEarlyTerminate(EarlyTerminate):
 
         complete_runs_count = len(complete_run_histories)
         if complete_runs_count < self.min_runs:
-            return []
+            return [], info
 
         n = max(int(np.ceil(complete_runs_count * self.fraction)), self.min_runs)
 
         envelope = early_terminate.envelope_from_top_n(
             complete_run_histories, complete_run_metrics, n)
+
 
         for run in runs:
             if run.state == "running":
@@ -103,4 +109,4 @@ class EnvelopeEarlyTerminate(EarlyTerminate):
                 if not early_terminate.is_inside_envelope(history, envelope,
                                                           ignore_first_n_iters=self.start_iter):
                     terminate_run_names.append(run.name)
-        return terminate_run_names
+        return terminate_run_names, info
