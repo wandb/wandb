@@ -10,12 +10,16 @@ as well as the case where X is very large.
 """
 
 import numpy as np
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import Matern
-import scipy.stats as stats
+#from sklearn.gaussian_process import GaussianProcessRegressor
+#from sklearn.gaussian_process.kernels import Matern
+#import scipy.stats as stats
 import math
+from ..util import get_module
 from .base import Search
 from .params import HyperParameter, HyperParameterSet
+
+sklearn_gaussian = get_module('sklearn.gaussian_process')
+scipy_stats = get_module('scipy.stats')
 
 
 def fit_normalized_gaussian_process(X, y, nu=1.5):
@@ -23,8 +27,8 @@ def fit_normalized_gaussian_process(X, y, nu=1.5):
         We fit a gaussian process but first subtract the mean and divide by stddev.
         To undo at prediction tim, call y_pred = gp.predict(X) * y_stddev + y_mean
     """
-    gp = GaussianProcessRegressor(
-        kernel=Matern(nu=nu), n_restarts_optimizer=2, alpha=0.0000001, random_state=2
+    gp = sklearn_gaussian.GaussianProcessRegressor(
+        kernel=sklearn_gaussian.kernels.Matern(nu=nu), n_restarts_optimizer=2, alpha=0.0000001, random_state=2
     )
     if len(y) == 1:
         y = np.array(y)
@@ -319,8 +323,8 @@ def next_sample(
     elif opt_func == "expected_improvement":
         min_norm_y = (min_unnorm_y - y_mean) / y_stddev
         Z = -(y_pred - min_norm_y) / (y_pred_std + epsilon)
-        prob_of_improve = stats.norm.cdf(Z)
-        e_i = -(y_pred - min_norm_y) * stats.norm.cdf(Z) + y_pred_std * stats.norm.pdf(
+        prob_of_improve = scipy_stats.norm.cdf(Z)
+        e_i = -(y_pred - min_norm_y) * scipy_stats.norm.cdf(Z) + y_pred_std * scipy_stats.norm.pdf(
             Z
         )
         best_test_X_index = np.argmax(e_i)
