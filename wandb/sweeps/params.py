@@ -2,10 +2,8 @@
 Hyperparameter search parameters
 """
 
-import itertools
 import random
 import numpy as np
-import math
 import scipy.stats as stats
 
 

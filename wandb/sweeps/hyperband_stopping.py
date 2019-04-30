@@ -2,11 +2,8 @@
 Hyperband Early Terminate
 """
 
-import itertools
 import random
 import numpy as np
-import math
-import scipy.stats as stats
 from .base import EarlyTerminate
 
 
@@ -21,6 +18,7 @@ class HyperbandEarlyTerminate(EarlyTerminate):
     r - float in [0, 1] - fraction of runs to allow to pass through a band
         r=1 means let all runs through and r=0 means let no runs through
     """
+
     def __init__(self, bands, r):
         if len(bands) < 1:
             raise ValueError("Bands must be an array of length at least 1")
@@ -42,7 +40,6 @@ class HyperbandEarlyTerminate(EarlyTerminate):
             bands.append(int(band))
 
         return cls(sorted(bands), 1.0/eta)
-
 
     @classmethod
     def init_from_min_iter(cls, min_iter, eta):
@@ -72,7 +69,8 @@ class HyperbandEarlyTerminate(EarlyTerminate):
             if 's' in et_config:
                 s = et_config['s']
             else:
-                raise ValueError("Must define s for hyperband algorithm if max_iter is defined")
+                raise ValueError(
+                    "Must define s for hyperband algorithm if max_iter is defined")
 
             return cls.init_from_max_iter(max_iter, eta, s)
         # another way of defining hyperband with min_iter and possibly eta
@@ -83,7 +81,8 @@ class HyperbandEarlyTerminate(EarlyTerminate):
                 eta = et_config['eta']
             return cls.init_from_min_iter(min_iter, eta)
 
-        raise ValueError("Must define min_iter or max_iter for hyperband algorithm")
+        raise ValueError(
+            "Must define min_iter or max_iter for hyperband algorithm")
 
     def stop_runs(self, sweep_config, runs):
         terminate_run_names = []
@@ -91,7 +90,7 @@ class HyperbandEarlyTerminate(EarlyTerminate):
 
         all_run_histories = []  # we're going to look at every run
         for run in runs:
-            #if run.state == "finished":  # complete run
+            # if run.state == "finished":  # complete run
             history = self._load_run_metric_history(run)
             if len(history) > 0:
                 all_run_histories.append(history)
@@ -105,13 +104,15 @@ class HyperbandEarlyTerminate(EarlyTerminate):
             if len(band_values) == 0:
                 threshold = np.inf
             else:
-                threshold = sorted(band_values)[int((self.r) * len(band_values))]
+                threshold = sorted(band_values)[
+                    int((self.r) * len(band_values))]
 
             self.thresholds.append(threshold)
 
         info = {}
         info['lines'] = []
-        info['lines'].append("Bands: %s" % (', '.join(["%s = %s" % (band, threshold) for band, threshold in zip(self.bands, self.thresholds)])))
+        info['lines'].append("Bands: %s" % (', '.join(["%s = %s" % (
+            band, threshold) for band, threshold in zip(self.bands, self.thresholds)])))
 
         for run in runs:
             if run.state == "running":
@@ -128,12 +129,14 @@ class HyperbandEarlyTerminate(EarlyTerminate):
                     else:
                         break
 
-                if closest_band != -1: # no bands apply yet
-                    bandstr = " (Metric: %f Band: %d Threshold %f)" % (min(history), closest_band, closest_threshold)
+                if closest_band != -1:  # no bands apply yet
+                    bandstr = " (Metric: %f Band: %d Threshold %f)" % (
+                        min(history), closest_band, closest_threshold)
                     if min(history) > closest_threshold:
                         terminate_run_names.append(run.name)
                         termstr = " STOP"
 
-                info['lines'].append("Run: %s Step: %d%s%s" % (run.name, len(history), bandstr, termstr))
+                info['lines'].append("Run: %s Step: %d%s%s" % (
+                    run.name, len(history), bandstr, termstr))
 
         return terminate_run_names, info

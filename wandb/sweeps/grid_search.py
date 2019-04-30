@@ -21,7 +21,8 @@ class GridSearch(Search):
         # Check that all parameters are categorical or constant
         for p in params:
             if p.type != HyperParameter.CATEGORICAL and p.type != HyperParameter.CONSTANT:
-                raise ValueError(f'Parameter {p.name} is a disallowed type with grid search. Grid search requires all parameters to be categorical or constant')
+                raise ValueError(
+                    f'Parameter {p.name} is a disallowed type with grid search. Grid search requires all parameters to be categorical or constant')
 
         # we can only deal with discrete params in a grid search
         discrete_params = [p for p in params if p.type ==

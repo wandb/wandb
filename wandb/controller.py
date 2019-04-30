@@ -1,39 +1,3 @@
-from __future__ import print_function
-#import collections
-#import json
-import logging
-#import multiprocessing
-#import os
-#import socket
-#import subprocess
-#import sys
-#import traceback
-#import time
-#
-#import six
-#
-#import wandb
-from wandb.apis import InternalApi
-#from wandb.wandb_config import Config
-#from wandb import util
-#from wandb import wandb_run
-
-
-logger = logging.getLogger(__name__)
-
-
-"""Sweep manager.
-
-Usage:
-    sweep.py create <file.yaml>
-    sweep.py controller <file.yaml>
-    sweep.py controller <sweep>
-
-Options:
-    -h --help     Show this screen.
-    --version     Show version.
-"""
-
 # TODO(jhr): yaml config: controller:  type: local
 # TODO(jhr): add method to get advanced info from "method" and "early_terminate"
 # TODO(jhr): can we get which parts are variable from next_args
@@ -44,31 +8,25 @@ Options:
 # TODO(jhr): log more run changes
 # TODO(jhr): tunables (line length, update frequency, status frequency, debug level, number of outputs per update)
 
-
-
-import argparse
-import pickle
+from __future__ import print_function
 import wandb
-import numpy as np
+from wandb.apis import InternalApi
+import logging
 import yaml
 import time
-import sys
 import json
 import random
 import string
-
-from wandb.apis import internal
 from .sweeps.sweeps import Search, EarlyTerminate
 
+logger = logging.getLogger(__name__)
 
-#api = wandb.Api()
 
 # Name:           run.Name,
 # Config:         json.RawMessage(config),
 # History:        json.RawMessage(history),
 # State:          state,
 # SummaryMetrics: json.RawMessage(summary),
-
 class Run(object):
     def __init__(self, name, state, history, config, summaryMetrics):
         self.name = name
@@ -83,159 +41,6 @@ class Run(object):
 
 def id_generator(size=10, chars=string.ascii_lowercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
-
-def getsweep(user, proj, sw, max_search=None, max_get=None):
-    """xxx"""
-    fn = '%s__%s__%s.pkl' % (user, proj, sw)
-    try:
-        with open(fn, "rb") as fp:
-            return pickle.load(fp)
-    except FileNotFoundError:
-        pass
-        
-    runs = api.runs("%s/%s" % (user, proj))
-    ret = {}
-    num = 0
-    found = 0
-    for r in runs:
-        print("Run: %d.....    \r" % num, end='')
-        num += 1
-        #print(r.client, r.project, r.username, r.name, r.dir, r.state, r._summary, 'sweep:', r.sweep)
-        sname = None
-        s = r.sweep
-        if max_search and num > max_search:
-            break
-        if s:
-            sname = s.get('name')
-            sconf = s.get('config')
-        if sname != sw:
-            continue
-        print(r.name, sname)
-        ret['name'] = sname
-        ret['config'] = sconf
-        h = r.history(pandas=False)
-        run = {}
-        run['name'] = r.name
-        run['history'] = h
-        run['state'] = r.state
-        run['config'] = r.config
-        run['shouldStop'] = r.shouldStop
-        run['stopped'] = r.stopped
-        run['running'] = r.running
-        run['failed'] = r.failed
-        #print("run", run)
-        ret.setdefault('runs',[]).append(run)
-        found += 1
-        if max_get and found > max_get:
-            break
-    print("done.          ")
-    with open(fn, "wb") as fp:
-        pickle.dump(ret,fp)
-    return ret
-
-
-def showsweeps(sweep):
-    import matplotlib.pyplot as plt
-    import matplotlib.tri as tri
-    data = []
-
-    cfg = None
-    try:
-        cfg = yaml.load(sweep.get('config'))
-    except yaml.YAMLError as exc:
-        print(exc)
-        return
-
-    print("CONFIG", cfg)
-    targ = cfg.get("metric").get("name")
-    print("target", targ)
-    #targ = "accuracy_top_5"
-    params = cfg.get("parameters")
-    axis = []
-    for k, v in params.items():
-        vals = v.get("values")
-        if vals and type(vals) is type([]) and len(vals) > 1:
-            axis.append(k)
-        if v.get("distribution"):
-            axis.append(k)
-
-    print("axis:", axis)
-    axis = axis[:2]
-    #axis = ("train.batch_size", "optimizer.args.lr")
-
-    xmax = None
-    ymax = None
-    xmin = None
-    ymin = None
-    bad = []
-    for r in sweep.get('runs'):
-        c = r.get('config')
-        hc = c.copy()
-
-        x, y = c.get(axis[0]), c.get(axis[1])
-        if x is not None:
-            xmin = min(xmin, x) if xmin is not None else x
-            xmax = max(xmax, x) if xmax is not None else x
-        if y is not None:
-            ymin = min(ymin, y) if ymin is not None else y
-            ymax = max(ymax, y) if ymax is not None else y
-        if r.get("state") in ("failed", "crashed"):
-            bad.append((x, y, 0))
-
-        point = None
-        for h in r.get('history'):
-            if targ not in h:
-                continue
-            point=(c[axis[0]], c[axis[1]], h[targ])
-        if point:
-            data.append(point)
-        print(r.get('name'), r.get('state'), r.get('stopped'), r.get('shouldStop'), x, y, point)
-
-    print("points", data)
-    x, y, z = [list(t) for t in zip(*data)]
-
-    if bad:
-        bx, by, _ = [list(t) for t in zip(*bad)]
-
-    ngridx = 100
-    ngridy = 200
-    print('xmax', xmax)
-    print('ymax', ymax)
-    xi = np.linspace(xmin, xmax, ngridx)
-    yi = np.linspace(ymin, ymax, ngridy)
-    triang = tri.Triangulation(x, y)
-    interpolator = tri.LinearTriInterpolator(triang, z)
-    Xi, Yi = np.meshgrid(xi, yi)
-    zi = interpolator(Xi, Yi)
-        
-    print("config", sweep.get('config'))
-    # train.batch_size optimizer.args.lr
-    # accuracy_top_5
-    #xlist = np.linspace(-3.0, 3.0, 100)
-    #ylist = np.linspace(-3.0, 3.0, 100)
-    #X, Y = np.meshgrid(xlist, ylist)
-    #Z = np.sqrt(X**2 + Y**2)
-    plt.figure()
-    cp = plt.contourf(xi, yi, zi)
-    if bad:
-        l2 = plt.plot(bx,by,'ko', ms=3)
-        plt.setp(l2, markersize=5)
-        plt.setp(l2, markerfacecolor='C5')
-    l = plt.plot(x,y,'ko', ms=3)
-    plt.setp(l, markersize=10)
-    plt.setp(l, markerfacecolor='C0')
-
-    plt.colorbar(cp)
-    plt.title(targ)
-    plt.xlabel(axis[0])
-    plt.ylabel(axis[1])
-    plt.show()
-    # https://matplotlib.org/gallery/images_contours_and_fields/irregulardatagrid.html
-
-
-def log(s):
-    print("INFO: %s" % s)
-
 
 
 def get_run_metrics(runs):
@@ -310,7 +115,7 @@ class Sweep(object):
             k.append(metric)
         specs_json = {"keys": k, "samples": 100000}
         specs = json.dumps(specs_json)
-        #FIXME(jhr): catch exceptions?
+        # FIXME(jhr): catch exceptions?
         sweep = self._api.sweep(self._sweep_id, specs)
         controller = sweep.get('controller')
         controller = json.loads(controller)
@@ -347,8 +152,9 @@ class Sweep(object):
 
     def save(self, controller):
         controller = json.dumps(controller)
-        self._api.upsert_sweep(self._config, controller=controller, obj_id=self._sweep_obj_id)
-        #FIXME(jhr): check return? catch exceptions?
+        self._api.upsert_sweep(
+            self._config, controller=controller, obj_id=self._sweep_obj_id)
+        # FIXME(jhr): check return? catch exceptions?
         self.reload()
 
     def reset(self):
@@ -481,7 +287,7 @@ class Sweep(object):
                 self.logline("# " + l)
 
         if stop_runs:
-            #TODO(jhr): check previous stopped runs
+            # TODO(jhr): check previous stopped runs
             earlystop = self._controller.get('earlystop', []) + stop_runs
             earlystop = list(set(earlystop))
             self.log("Stopping", ','.join(earlystop))
@@ -494,14 +300,15 @@ class Sweep(object):
                 schedule = old_controller.get("schedule")
                 if schedule:
                     # TODO(jhr): check to see if we already have something scheduled
-                    #print("....")
+                    # print("....")
                     return
 
             if not endsweep:
                 #nr = json.loads(next_run)
                 nr = next_run
                 #print("NR", nr)
-                nr = ', '.join(['%s = %s' % (d[0], d[1]['value']) for d in nr.items()])
+                nr = ', '.join(['%s = %s' % (d[0], d[1]['value'])
+                                for d in nr.items()])
                 self.log("Scheduling", nr)
             #controller = '{"hello": 1}'
             #controller = json.loads(controller)
@@ -509,14 +316,15 @@ class Sweep(object):
             #print("next", next_run)
             schedule_list = []
             schedule_id = id_generator()
-            schedule_list.append({'id': schedule_id, 'data': {'args': next_run}})
+            schedule_list.append(
+                {'id': schedule_id, 'data': {'args': next_run}})
             self._controller["schedule"] = schedule_list
             #print("ADD: ", controller)
             #print("RESP: ", x)
         return endsweep
 
     def controller(self):
-        #log("Controller")
+        # log("Controller")
         done = False
         while not done:
             self.status()
@@ -529,53 +337,6 @@ class Sweep(object):
     def run(self):
         self.reset()
         self.controller()
-
-
-def simulate(args):
-    sweep = getsweep(args.entity, args.project, args.sweep)
-    pass
-
-
-def visualize(args):
-    pass
-    #showsweeps(sweep)
-
-
-def usage(s=None):
-    u = __doc__.split("Usage:", 1)[-1]
-    if not s:
-        return u
-    print(u)
-    print(s)
-    sys.exit(1)
-
-
-def xmain():
-    parser = argparse.ArgumentParser(usage=usage(), formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--entity", type=str, help="project name")
-    parser.add_argument("--project", type=str, help="project name")
-    parser.add_argument("--sweep", type=str, help="sweep name")
-    parser.add_argument("command", type=str, choices=("controller", "create", "simulate"), help="sweep command")
-    parser.add_argument("params", type=str, nargs="*", help="sweep args")
-
-    args = parser.parse_args()
-    if args.command == "create":
-        sweep = Sweep.create(args)
-        sweep.controller()
-    elif args.command == "controller":
-        if len(args.params) != 1:
-            usage("controller requires 1 argument")
-        sweep = Sweep.find(args.sweep, args=args)
-        sweep.reset()
-        sweep.controller()
-
-    #args, unknown = parser.parse_known_args()
-    #print("args", args)
-    #user, proj, sw = 'jeffr', 'bad-sweep', 'gho3bmio'
-    #user, proj, sw = 'tri', 'sweep_test', '6ygj1md9'
-    #user, proj, sw = 'tri', 'monodepth-vitor-sweep','tgy3wshc'
-    #sweep = getsweep(user, proj, sw, max_search=5000, max_get=1000)
-    #print(sweep)
 
 
 def run_controller(sweep_id=None, verbose=False):
@@ -594,6 +355,7 @@ def run_controller(sweep_id=None, verbose=False):
         wandb.termerror('Controller Error: %s' % err)
         return
     sweep.run()
+
 
 def validate(config):
     logger.setLevel(logging.DEBUG)

@@ -8,7 +8,7 @@ from .params import HyperParameterSet
 
 class RandomSearch(Search):
     def next_run(self, sweep):
-        #print(sweep)
+        # print(sweep)
         if 'parameters' not in sweep['config']:
             raise ValueError('Random search requires "parameters" section')
         config = sweep['config']['parameters']

@@ -42,4 +42,5 @@ class EarlyTerminate(base.EarlyTerminate):
             return envelopestopping_stopping.EnvelopeEarlyTerminate.init_from_config(et_config)
         elif et_type == 'hyperband':
             return hyperband_stopping.HyperbandEarlyTerminate.init_from_config(et_config)
-        raise ValueError('unsupported early termination type %s'.format(et_type))
+        raise ValueError(
+            'unsupported early termination type %s'.format(et_type))

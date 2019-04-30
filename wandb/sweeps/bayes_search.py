@@ -49,7 +49,8 @@ def random_sample(X_bounds, num_test_samples):
         for jj in range(num_hyperparameters):
             if type(X_bounds[jj][0]) == int:
                 assert (type(X_bounds[jj][1]) == int)
-                test_X[ii, jj] = np.random.randint(X_bounds[jj][0], X_bounds[jj][1])
+                test_X[ii, jj] = np.random.randint(
+                    X_bounds[jj][0], X_bounds[jj][1])
             else:
                 test_X[ii, jj] = np.random.uniform() * (
                     X_bounds[jj][1] - X_bounds[jj][0]
@@ -119,7 +120,7 @@ def train_gaussian_process(
             print(
                 "current_X is bigger than max samples - 5 so dropping some currently running parameters"
             )
-            current_X = current_X[:(max_samples - 5),:]
+            current_X = current_X[:(max_samples - 5), :]
     if len(sample_y.shape) != 1:
         raise ValueError("Sample y must be a 1 dimensional array")
 
@@ -157,7 +158,7 @@ def train_gaussian_process(
 
 def filter_weird_values(sample_X, sample_y):
     is_row_finite = ~(np.isnan(sample_X).any(axis=1) | np.isnan(sample_y))
-    sample_X = sample_X[is_row_finite,:]
+    sample_X = sample_X[is_row_finite, :]
     sample_y = sample_y[is_row_finite]
     return sample_X, sample_y
 
@@ -270,7 +271,7 @@ def next_sample(
         if test_X is not None:
             # pick a random row from test_X
             row = np.random.choice(test_X.shape[0])
-            X = test_X[row,:]
+            X = test_X[row, :]
         else:
             X = random_sample(X_bounds, 1)[0]
         if filtered_X.shape[0] < 1:
@@ -373,7 +374,7 @@ class BayesianSearch(Search):
         # so that our bayesian search stays away from them
         max_metric = 0.
         if any(run.state == "finished" for run in runs):
-            #for run in runs:
+            # for run in runs:
             #    print("DEBUG0", run)
             max_metric = max([self._metric_from_run(sweep['config'], run) for run in runs
                               if run.state == "finished"])
