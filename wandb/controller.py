@@ -254,7 +254,7 @@ def get_run_metrics(runs):
 
 
 def metrics_status(metrics):
-    categories = ('running', 'finished', 'crashed', 'failed', 'unknown')
+    categories = ('finished', 'crashed', 'failed', 'unknown', 'running')
     mlist = []
     for c in categories:
         if not metrics.get(c):
