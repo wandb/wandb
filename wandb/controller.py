@@ -10,6 +10,7 @@
 
 from __future__ import print_function
 import wandb
+from wandb.util import get_module
 from wandb.apis import InternalApi
 import logging
 import yaml
@@ -17,7 +18,14 @@ import time
 import json
 import random
 import string
-from wandb.sweeps.sweeps import Search, EarlyTerminate
+#from wandb.sweeps.sweeps import Search, EarlyTerminate
+import sys
+
+
+wandb_sweeps = None
+if sys.version_info >= (3, 6, 0):
+    wandb_sweeps = get_module("wandb.sweeps.sweeps")
+
 
 logger = logging.getLogger(__name__)
 
@@ -267,7 +275,7 @@ class Sweep(object):
         sweep = self._sweep_obj.copy()
         sweep['runs'] = self._sweep_runs
         sweep['config'] = self._config
-        search = Search.to_class(self._config)
+        search = wandb_sweeps.Search.to_class(self._config)
         #print("NEXT", sweep)
         next_run = search.next_run(sweep)
         endsweep = False
@@ -279,7 +287,7 @@ class Sweep(object):
         else:
             endsweep = True
         #print("XXXX", endsweep)
-        stopper = EarlyTerminate.to_class(self._config)
+        stopper = wandb_sweeps.EarlyTerminate.to_class(self._config)
         stop_runs, info = stopper.stop_runs(self._config, sweep['runs'])
         debug_lines = info.get('lines', [])
         if self._verbose and debug_lines:
@@ -369,13 +377,13 @@ def validate(config):
     sweep = {}
     sweep['config'] = config
     sweep['runs'] = []
-    search = Search.to_class(config)
+    search = wandb_sweeps.Search.to_class(config)
     try:
         next_run = search.next_run(sweep)
     except Exception as err:
         return str(err)
     try:
-        stopper = EarlyTerminate.to_class(config)
+        stopper = wandb_sweeps.EarlyTerminate.to_class(config)
         runs = stopper.stop_runs(config, [])
     except Exception as err:
         return str(err)
