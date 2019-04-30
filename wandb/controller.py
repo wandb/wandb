@@ -273,30 +273,23 @@ class Sweep(object):
     delay = 5
 
     def __init__(self, api, sweep_id, verbose=False):
-        self._api = api
-        self._sweep_id = sweep_id
-        specs = '{}'
-        specs_json = json.loads(specs)
-        sweep = api.sweep(sweep_id, specs)
-        if sweep is None:
-            raise SweepError("Can not find sweep: %s" % sweep_id)
-        self._sweep_obj = sweep
         self._laststatus = None
         self._logged = 0
         self._verbose = verbose
-
-    #@classmethod
-    #def create(cls, args=None):
-    #    log("Create sweep")
-    #    # TODO(jhr): implement me
-    #    c = cls(sweep)
-    #    return c
-
-    #@classmethod
-    #def find(cls, sweepid, args=None):
-    #    inst = cls(sweep, api=api)
-    #    inst.args = args
-    #    return inst
+        self._api = api
+        self._sweep_id = sweep_id
+        self._scheduler = {}
+        self._controller = {}
+        self._controller_last = {}
+        sweep_obj = api.sweep(sweep_id, '{}')
+        if sweep_obj is None:
+            raise SweepError("Can not find sweep: %s" % sweep_id)
+        self._config = yaml.safe_load(sweep_obj['config'])
+        self._sweep_obj = sweep_obj
+        self._sweep_obj_id = sweep_obj['id']
+        self._sweep_runs = []
+        self._sweep_runs_dict = {}
+        #print("INIT: ", self._sweep_obj)
 
     def logline(self, line):
         if not self._verbose:
@@ -309,6 +302,110 @@ class Sweep(object):
     def log(self, key, value):
         line = "# %-10s %s" % (key + ":", value)
         self.logline(line)
+
+    def reload(self):
+        k = ["_step"]
+        metric = self._config.get("metric", {}).get("name")
+        if metric:
+            k.append(metric)
+        specs_json = {"keys": k, "samples": 100000}
+        specs = json.dumps(specs_json)
+        #FIXME(jhr): catch exceptions?
+        sweep = self._api.sweep(self._sweep_id, specs)
+        controller = sweep.get('controller')
+        controller = json.loads(controller)
+        self._controller = controller
+        self._controller_last = controller.copy()
+        scheduler = sweep.get('scheduler', "{}")
+        if scheduler is None:
+            scheduler = "{}"
+        scheduler = json.loads(scheduler)
+        self._scheduler = scheduler
+
+        run_dicts = sweep['runs']
+        runs = []
+        rmap = {}
+        for r in run_dicts:
+            #print("GOT:", r)
+            name = r['name']
+            state = r['state']
+            config = r['config']
+            config = json.loads(config)
+            history = r['sampledHistory']
+            history = history[0]
+            summaryMetrics = r['summaryMetrics']
+            if summaryMetrics:
+                summaryMetrics = json.loads(summaryMetrics)
+            # TODO(jhr): build history
+            n = Run(name, state, history, config, summaryMetrics)
+            runs.append(n)
+            rmap[name] = r
+        self._sweep_runs = runs
+        self._sweep_runs_dict = rmap
+        self._sweep_obj = sweep
+        self._sweep_obj_id = sweep['id']
+
+    def save(self, controller):
+        controller = json.dumps(controller)
+        self._api.upsert_sweep(self._config, controller=controller, obj_id=self._sweep_obj_id)
+        #FIXME(jhr): check return? catch exceptions?
+        self.reload()
+
+    def reset(self):
+        self.save({})
+
+    def prepare(self):
+        self.reload()
+        obj = self._sweep_obj
+        #print("SW-c:", obj.get("controller", "NOTFOUND"))
+        #print("SW-s:", obj.get("scheduler", "NOTFOUND"))
+
+        # find completed runs
+        # TODO(jhr): crashed runs are hard?
+        schedlist = self._scheduler.get('scheduled', [])
+        # why is this null? really thought it should be an empty list
+        if schedlist is None:
+            schedlist = []
+
+        done_ids = []
+        done_runs = []
+        stopped_runs = []
+        for s in schedlist:
+            #print("SSS", s)
+            r = self._sweep_runs_dict.get(s['runid'])
+            if r:
+                #print("RRR", r)
+                st = r['state']
+                if r.get('stopped'):
+                    stopped_runs.append(s['runid'])
+                if st == 'running':
+                    continue
+                #print("CLEAN", r)
+                done_ids.append(s['id'])
+                done_runs.append(s['runid'])
+
+        newclist = []
+        clist = self._controller.get('schedule', [])
+        for c in clist:
+            if c['id'] not in done_ids:
+                newclist.append(c)
+        # NOTE: we arent saving it here
+        self._controller['schedule'] = newclist
+
+        # TODO(jhr): Check for stopped runs, if stopped already remove from list
+        earlystop = self._controller.get('earlystop', [])
+        earlystop_new = []
+        for r in earlystop:
+            if r not in done_runs and r not in stopped_runs:
+                earlystop_new.append(r)
+        if earlystop_new:
+            self._controller['earlystop'] = earlystop_new
+        else:
+            self._controller.pop('earlystop', None)
+
+    def update(self):
+        if self._controller != self._controller_last:
+            self.save(self._controller)
 
     def status(self):
         # Scheduled: runid (Params:)
@@ -360,108 +457,13 @@ class Sweep(object):
         self._laststatus = sections
         self._logged = 0
 
-    def update(self):
-        self.reload()
-        obj = self._sweep_obj
-        #print("SW-c:", obj.get("controller", "NOTFOUND"))
-        #print("SW-s:", obj.get("scheduler", "NOTFOUND"))
-
-
-        run_dicts = obj['runs']
-        runs = []
-        rmap = {}
-        for r in run_dicts:
-            #print("GOT:", r)
-            name = r['name']
-            state = r['state']
-            config = r['config']
-            config = json.loads(config)
-            history = r['sampledHistory']
-            history = history[0]
-            summaryMetrics = r['summaryMetrics']
-            if summaryMetrics:
-                summaryMetrics = json.loads(summaryMetrics)
-            # TODO(jhr): build history
-            n = Run(name, state, history, config, summaryMetrics)
-            runs.append(n)
-            rmap[name] = r
-
-        # find completed runs
-        # TODO(jhr): crashed runs are hard?
-        scheduler = obj.get('scheduler', "{}")
-        if scheduler is None:
-            scheduler = "{}"
-        scheduler = json.loads(scheduler)
-        #print("SSSS", scheduler)
-        schedlist = scheduler.get('scheduled', [])
-        # why is this null? really thought it should be an empty list
-        if schedlist is None:
-            schedlist = []
-
-        done = []
-        for s in schedlist:
-            #print("SSS", s)
-            r = rmap.get(s['runid'])
-            if r:
-                #print("RRR", r)
-                st = r['state']
-                if st == 'running':
-                    continue
-                #print("CLEAN", r)
-                done.append(s['id'])
-
-        controller = obj.get('controller')
-        controller = json.loads(controller)
-        newclist = []
-        clist = controller.get('schedule', [])
-        for c in clist:
-            if c['id'] not in done:
-                newclist.append(c)
-        controller['schedule'] = newclist
-        controller = json.dumps(controller)
-        obj['controller'] = controller
-        # NOTE: we arent saving it here
-        obj['_runs'] = runs
-
-    def reload(self):
-        obj = self._sweep_obj
-        sweepid = obj['name']
-        #specs = '{"keys": ["_step", "zval_loss"], "samples": 100000}'
-        #specs_json = json.loads(specs)
-        k = ["_step"]
-        conf = obj['config']
-        conf = yaml.safe_load(conf)
-        metric = conf.get("metric", {}).get("name")
-        if metric:
-            k.append(metric)
-        specs_json = {"keys": k, "samples": 100000}
-        specs = json.dumps(specs_json)
-        sweep = self._api.sweep(sweepid, specs)
-        self._sweep_obj = sweep
-
-    def reset(self):
-        obj = self._sweep_obj
-        conf = obj['config']
-        conf = yaml.safe_load(conf)
-        controller = {}
-        controller = json.dumps(controller)
-        x = self._api.upsert_sweep(conf, controller=controller, obj_id=obj['id'])
-        #print("RRR", x)
-        self.reload()
-
     def schedule(self):
-        obj = self._sweep_obj
-
-        config = obj.copy()
-        config['runs'] = config['_runs']
-        conf = config['config']
-        conf = yaml.safe_load(conf)
-        #print("CCC", conf, type(conf))
-        config['config'] = conf
-        #print("DDDDD", config)
-        search = Search.to_class(conf)
-        next_run = search.next_run(config)
-        #print("NNNN", next_run)
+        sweep = self._sweep_obj.copy()
+        sweep['runs'] = self._sweep_runs
+        sweep['config'] = self._config
+        search = Search.to_class(self._config)
+        #print("NEXT", sweep)
+        next_run = search.next_run(sweep)
         endsweep = False
         if next_run:
             next_run, info = next_run
@@ -470,30 +472,25 @@ class Sweep(object):
                 pass
         else:
             endsweep = True
-            #print("END OF SWEEP?")
-        #print("STTTT")
-        stopper = EarlyTerminate.to_class(conf)
-        stop_runs, info = stopper.stop_runs(config['config'], config['runs'])
+        #print("XXXX", endsweep)
+        stopper = EarlyTerminate.to_class(self._config)
+        stop_runs, info = stopper.stop_runs(self._config, sweep['runs'])
         debug_lines = info.get('lines', [])
         if self._verbose and debug_lines:
             for l in debug_lines:
                 self.logline("# " + l)
 
         if stop_runs:
-            self.log("Stopping", ','.join(stop_runs))
-            controller = {}
-            controller['earlystop'] = stop_runs
-            controller = json.dumps(controller)
-            x = self._api.upsert_sweep(conf, controller=controller, obj_id=obj['id'])
-            #print("RESP: ", x)
-            # FIXME(jhr): for now go to next iteration if we stopped runs
-            return
+            #TODO(jhr): check previous stopped runs
+            earlystop = self._controller.get('earlystop', []) + stop_runs
+            earlystop = list(set(earlystop))
+            self.log("Stopping", ','.join(earlystop))
+            self._controller['earlystop'] = earlystop
 
         #stop_runs = ['fdfsddds']
         if next_run or endsweep:
-            old_controller = obj['controller']
+            old_controller = self._controller
             if old_controller:
-                old_controller = json.loads(old_controller)
                 schedule = old_controller.get("schedule")
                 if schedule:
                     # TODO(jhr): check to see if we already have something scheduled
@@ -513,22 +510,19 @@ class Sweep(object):
             schedule_list = []
             schedule_id = id_generator()
             schedule_list.append({'id': schedule_id, 'data': {'args': next_run}})
-            controller = {"schedule": schedule_list}
-            controller = json.dumps(controller)
+            self._controller["schedule"] = schedule_list
             #print("ADD: ", controller)
-            x = self._api.upsert_sweep(conf, controller=controller, obj_id=obj['id'])
             #print("RESP: ", x)
-
         return endsweep
-
 
     def controller(self):
         #log("Controller")
         done = False
         while not done:
             self.status()
-            self.update()
+            self.prepare()
             done = self.schedule()
+            self.update()
             time.sleep(self.delay)
         self.status()
 
