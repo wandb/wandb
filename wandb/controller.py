@@ -8,6 +8,9 @@
 # TODO(jhr): log more run changes
 # TODO(jhr): tunables (line length, update frequency, status frequency, debug level, number of outputs per update)
 
+# TODO(jhr): alert for missing libraries scikit etc
+# TODO(jhr): alert for older python version (or migrate code to older print strings)
+
 from __future__ import print_function
 import wandb
 from wandb.util import get_module

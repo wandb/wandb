@@ -775,6 +775,7 @@ tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
 keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
+tune = util.LazyLoader('tune', globals(), 'wandb.tune')
 
 __all__ = ['init', 'config', 'termlog', 'termerror', 'tensorflow',
            'run', 'types', 'callbacks', 'join']
