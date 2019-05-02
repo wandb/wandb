@@ -35,6 +35,10 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     description
     systemMetrics
     summaryMetrics
+    user {
+        name
+        username
+    }
 }'''
 
 FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
@@ -184,6 +188,27 @@ class Api(object):
         return self._runs[path]
 
 
+class Attrs(object):
+    def __init__(self, attrs):
+        self._attrs = attrs
+
+    def snake_to_camel(self, string):
+        camel = "".join([i.title() for i in string.split("_")])
+        return camel[0].lower() + camel[1:]
+
+    def __getattr__(self, name):
+        key = self.snake_to_camel(name)
+        if key == "user":
+            raise AttributeError()
+        if key in self._attrs.keys():
+            return self._attrs[key]
+        elif name in self._attrs.keys():
+            return self._attrs[name]
+        else:
+            raise AttributeError(
+                "'{}' object has no attribute '{}'".format(self.__repr__, name))
+
+
 class Paginator(object):
     QUERY = None
 
@@ -242,6 +267,11 @@ class Paginator(object):
         return self.objects[self.index]
 
     next = __next__
+
+
+class User(Attrs):
+    def init(self, attrs):
+        super(User, self).__init__(attrs)
 
 
 class Runs(Paginator):
@@ -307,7 +337,7 @@ class Runs(Paginator):
         return "<Runs {}/{} ({})>".format(self.username, self.project, len(self))
 
 
-class Run(object):
+class Run(Attrs):
     """A single run associated with a user and project"""
 
     def __init__(self, client, username, project, name, attrs={}):
@@ -323,7 +353,7 @@ class Run(object):
         except OSError:
             pass
         self._summary = None
-        self._attrs = attrs
+        super(Run, self).__init__(attrs)
         self.state = attrs.get("state", "not found")
         self.load()
 
@@ -387,11 +417,13 @@ class Run(object):
             self._attrs = response['project']['run']
             self.state = self._attrs['state']
         self._attrs['summaryMetrics'] = json.loads(
-            self._attrs['summaryMetrics']) if self._attrs['summaryMetrics'] else {}
+            self._attrs['summaryMetrics']) if self._attrs.get('summaryMetrics') else {}
         self._attrs['systemMetrics'] = json.loads(
-            self._attrs['systemMetrics']) if self._attrs['systemMetrics'] else {}
+            self._attrs['systemMetrics']) if self._attrs.get('systemMetrics') else {}
+        if self._attrs.get('user'):
+            self.user = User(self._attrs["user"])
         config = {}
-        for key, value in six.iteritems(json.loads(self._attrs['config'] or "{}")):
+        for key, value in six.iteritems(json.loads(self._attrs.get('config') or "{}")):
             if isinstance(value, dict) and value.get("value"):
                 config[key] = value["value"]
             else:
@@ -415,25 +447,12 @@ class Run(object):
                          description=self.description, config=self.json_config)
         self.summary.update()
 
-    def snake_to_camel(self, string):
-        camel = "".join([i.title() for i in string.split("_")])
-        return camel[0].lower() + camel[1:]
-
     @property
     def json_config(self):
         config = {}
         for k, v in six.iteritems(self.config):
             config[k] = {"value": v, "desc": None}
         return json.dumps(config)
-
-    def __getattr__(self, name):
-        key = self.snake_to_camel(name)
-        if key in self._attrs.keys():
-            return self._attrs[key]
-        elif name in self._attrs.keys():
-            return self._attrs[name]
-        else:
-            raise AttributeError("'Run' object has no attribute '%s'" % name)
 
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
