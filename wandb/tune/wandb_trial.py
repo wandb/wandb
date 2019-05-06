@@ -27,7 +27,6 @@ from ray.tune import TuneError
 
 
 
-
 DEBUG_PRINT_INTERVAL = 5
 RESOURCE_REFRESH_PERIOD = 0.5  # Refresh resources every 500 ms
 
@@ -38,6 +37,19 @@ NONTRIVIAL_WAIT_TIME_THRESHOLD_S = 1e-3
 MAX_DEBUG_TRIALS = 20
 
 
+tune_controller = None
+def set_controller(controller):
+    global tune_controller
+    tune_controller = controller
+
+def wandb_should_schedule():
+    global tune_controller
+    r = tune_controller.should_schedule()
+    return r
+
+def wandb_schedule(x):
+    r = tune_controller.schedule(x)
+    return r
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +83,7 @@ class TrialRunner(object):
         self.trial_executor = (trial_executor or WandbTrialExecutor(
             queue_trials=queue_trials, reuse_actors=reuse_actors))
 
+        print("JHRRUNNER", trial_executor, queue_trials)
         # For debugging, it may be useful to halt trials after some time has
         # elapsed. TODO(ekl) consider exposing this in the API.
         #self._global_time_limit = float(
@@ -281,6 +294,8 @@ class TrialRunner(object):
     # unmodified
     def has_resources(self, resources):
         """Returns whether this runner has at least the specified resources."""
+        print("JHR has resources")
+        #return False
         return self.trial_executor.has_resources(resources)
 
     # unmodified
@@ -308,7 +323,8 @@ class TrialRunner(object):
 
             self._total_time += result[TIME_THIS_ITER_S]
 
-            if trial.should_stop(result):
+            # JHR added False and
+            if False and trial.should_stop(result):
                 # Hook into scheduler
                 self._scheduler_alg.on_trial_complete(self, trial, result)
                 self._search_alg.on_trial_complete(
@@ -393,6 +409,23 @@ class WandbTrialExecutor(TrialExecutor):
         #if ray.is_initialized():
         #    self._update_avail_resources()
 
+    def resource_string(self):
+        """Returns a string describing the total resources available."""
+
+        print("JHRRESOURCE")
+        if self._resources_initialized:
+            res_str = "{} CPUs, {} GPUs".format(self._avail_resources.cpu,
+                                                self._avail_resources.gpu)
+            if self._avail_resources.custom_resources:
+                custom = ", ".join(
+                    "{} {}".format(
+                        self._avail_resources.get_res_total(name), name)
+                    for name in self._avail_resources.custom_resources)
+                res_str += " ({})".format(custom)
+            return res_str
+        else:
+            return "? CPUs, ? GPUs"
+
     def debug_string(self):
         return "ImplementMe:WandbTrialExecutor.debug_string()"
 
@@ -436,6 +469,9 @@ class WandbTrialExecutor(TrialExecutor):
         has exceeded self._refresh_period. This also assumes that the
         cluster is not resizing very frequently.
         """
+        r = wandb_should_schedule()
+        return r
+
         if time.time() - self._last_resource_refresh > self._refresh_period:
             self._update_avail_resources()
 
@@ -601,7 +637,7 @@ class WandbTrialExecutor(TrialExecutor):
         # Local Mode
         #if isinstance(remote, dict):
         #    remote = _LocalWrapper(remote)
-        remote = _wandb_remote_get()
+        remote = _wandb_remote_get(trial)
 
         self._running[remote] = trial
         print("JHR_train")
@@ -778,9 +814,11 @@ def _prompt_restore(checkpoint_dir, resume):
 
 
 _wandb_objects = {}
-def _wandb_remote_get():
+def _wandb_remote_get(trial):
+    print("JHR REMOTEGET:", trial)
     remote = "JHRrem" + Trial.generate_id()
     _wandb_objects[remote] = 1
+    wandb_schedule(trial)
     return remote
 
 
@@ -796,6 +834,10 @@ def wandb_ray_get(trial):
     print("RAY GET", trial)
     #result = "JHRhack"
     result = {'episode_reward_mean': 0.67030268899518, 'done': False, 'timesteps_total': None, 'episodes_total': None, 'training_iteration': 1, 'experiment_id': 'b50d06632bb340d69d118d43eb0add2a', 'date': '2019-04-08_20-28-27', 'timestamp': 1554780507, 'time_this_iter_s': 4.57763671875e-05, 'time_total_s': 4.57763671875e-05, 'pid': 87955, 'hostname': 'jhr-mbp.localdomain', 'node_ip': '192.168.1.57', 'config': {'width': 91, 'height': 61}, 'time_since_restore': 4.57763671875e-05, 'timesteps_since_restore': 0, 'iterations_since_restore': 1}
+    # {'timesteps_total': 22, 'neg_mean_loss': -143.0, 'time_this_iter_s': 0.030900001525878906, 'done': False, 'episodes_total': None, 'training_iteration': 23, 'experiment_id': '57cf73edf4d44b4cbedddc7379e41512', 'date': '2019-05-03_09-31-58', 'timestamp': 1556901118, 'time_total_s': 0.8475849628448486, 'pid': 84850, 'hostname': 'jhr-mbp.localdomain', 'node_ip': '192.168.1.57', 'config': {'iterations': 100, 'activation': 'tanh', 'height': 2.0, 'width': 4.0}, 'time_since_restore': 0.8475849628448486, 'timesteps_since_restore': 0, 'iterations_since_restore': 23}
+    # {'timesteps_total': 20, 'neg_mean_loss': -142.0, 'time_this_iter_s': 0.028484106063842773, 'done': False, 'episodes_total': None, 'training_iteration': 21, 'experiment_id': '6d94fb7f33f2453eae1394298a2591b5', 'date': '2019-05-03_09-31-58', 'timestamp': 1556901118, 'time_total_s': 0.8100039958953857, 'pid': 84849, 'hostname': 'jhr-mbp.localdomain', 'node_ip': '192.168.1.57', 'config': {'iterations': 100, 'activation': 'relu', 'height': 2.0, 'width': 1.0}, 'time_since_restore': 0.8100039958953857, 'timesteps_since_restore': 0, 'iterations_since_restore': 21}
+    # for hyperopt_example.py
+    result = {'timesteps_total': 22, 'neg_mean_loss': -143.0, 'time_this_iter_s': 0.030900001525878906, 'done': False, 'episodes_total': None, 'training_iteration': 23, 'experiment_id': '57cf73edf4d44b4cbedddc7379e41512', 'date': '2019-05-03_09-31-58', 'timestamp': 1556901118, 'time_total_s': 0.8475849628448486, 'pid': 84850, 'hostname': 'jhr-mbp.localdomain', 'node_ip': '192.168.1.57', 'config': {'iterations': 100, 'activation': 'tanh', 'height': 2.0, 'width': 4.0}, 'time_since_restore': 0.8475849628448486, 'timesteps_since_restore': 0, 'iterations_since_restore': 23}
     return result
 
 def run(run_or_experiment,
@@ -839,6 +881,7 @@ def run(run_or_experiment,
     checkpoint_dir = _find_checkpoint_dir(experiment)
     should_restore = _prompt_restore(checkpoint_dir, resume)
 
+    print("JHRRUN", queue_trials)
     runner = None
     if should_restore:
         try:
