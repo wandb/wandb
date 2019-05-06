@@ -1,3 +1,14 @@
+## 0.7.4 (TBD)
+
+#### :bug: Bug Fix
+
+-   Public API now retries on failures and re-uses connection pool
+-   Catch git errors when remotes aren't pushed to origin
+
+#### :nail_care: Enhancement
+
+-   Added user object to public api for getting the source user
+
 ## 0.7.3 (April 15, 2019)
 
 #### :bug: Bug Fix

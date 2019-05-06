@@ -7,6 +7,7 @@ import json
 import re
 import six
 import tempfile
+import datetime
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
@@ -14,6 +15,7 @@ from gql.transport.requests import RequestsHTTPTransport
 import wandb
 from wandb import Error, __version__
 from wandb import util
+from wandb.retry import retriable
 from wandb.summary import HTTPSummary, download_h5
 from wandb.env import get_dir
 from wandb.env import get_base_url
@@ -33,6 +35,10 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     description
     systemMetrics
     summaryMetrics
+    user {
+        name
+        username
+    }
 }'''
 
 FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
@@ -56,6 +62,18 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
 }'''
 
 
+class RetryingClient(object):
+    def __init__(self, client):
+        self._client = client
+
+    @retriable(retry_timedelta=datetime.timedelta(
+        seconds=10),
+        check_retry_fn=util.no_retry_auth,
+        retryable_exceptions=(RetryError, requests.RequestException))
+    def execute(self, *args, **kwargs):
+        return self._client.execute(*args, **kwargs)
+
+
 class Api(object):
     """W&B Public API
 
@@ -74,14 +92,7 @@ class Api(object):
             'base_url': get_base_url("https://api.wandb.ai")
         }
         self._runs = {}
-        self.settings.update(overrides)
-
-    def create_run(self, **kwargs):
-        return Run.create(self, **kwargs)
-
-    @property
-    def client(self):
-        return Client(
+        self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent},
                 use_json=True,
@@ -92,6 +103,15 @@ class Api(object):
                 url='%s/graphql' % self.settings['base_url']
             )
         )
+        self._client = RetryingClient(self._base_client)
+        self.settings.update(overrides)
+
+    def create_run(self, **kwargs):
+        return Run.create(self, **kwargs)
+
+    @property
+    def client(self):
+        return self._client
 
     @property
     def user_agent(self):
@@ -168,6 +188,27 @@ class Api(object):
         return self._runs[path]
 
 
+class Attrs(object):
+    def __init__(self, attrs):
+        self._attrs = attrs
+
+    def snake_to_camel(self, string):
+        camel = "".join([i.title() for i in string.split("_")])
+        return camel[0].lower() + camel[1:]
+
+    def __getattr__(self, name):
+        key = self.snake_to_camel(name)
+        if key == "user":
+            raise AttributeError()
+        if key in self._attrs.keys():
+            return self._attrs[key]
+        elif name in self._attrs.keys():
+            return self._attrs[name]
+        else:
+            raise AttributeError(
+                "'{}' object has no attribute '{}'".format(self.__repr__, name))
+
+
 class Paginator(object):
     QUERY = None
 
@@ -226,6 +267,11 @@ class Paginator(object):
         return self.objects[self.index]
 
     next = __next__
+
+
+class User(Attrs):
+    def init(self, attrs):
+        super(User, self).__init__(attrs)
 
 
 class Runs(Paginator):
@@ -291,7 +337,7 @@ class Runs(Paginator):
         return "<Runs {}/{} ({})>".format(self.username, self.project, len(self))
 
 
-class Run(object):
+class Run(Attrs):
     """A single run associated with a user and project"""
 
     def __init__(self, client, username, project, name, attrs={}):
@@ -307,7 +353,7 @@ class Run(object):
         except OSError:
             pass
         self._summary = None
-        self._attrs = attrs
+        super(Run, self).__init__(attrs)
         self.state = attrs.get("state", "not found")
         self.load()
 
@@ -371,11 +417,13 @@ class Run(object):
             self._attrs = response['project']['run']
             self.state = self._attrs['state']
         self._attrs['summaryMetrics'] = json.loads(
-            self._attrs['summaryMetrics']) if self._attrs['summaryMetrics'] else {}
+            self._attrs['summaryMetrics']) if self._attrs.get('summaryMetrics') else {}
         self._attrs['systemMetrics'] = json.loads(
-            self._attrs['systemMetrics']) if self._attrs['systemMetrics'] else {}
+            self._attrs['systemMetrics']) if self._attrs.get('systemMetrics') else {}
+        if self._attrs.get('user'):
+            self.user = User(self._attrs["user"])
         config = {}
-        for key, value in six.iteritems(json.loads(self._attrs['config'] or "{}")):
+        for key, value in six.iteritems(json.loads(self._attrs.get('config') or "{}")):
             if isinstance(value, dict) and value.get("value"):
                 config[key] = value["value"]
             else:
@@ -399,25 +447,12 @@ class Run(object):
                          description=self.description, config=self.json_config)
         self.summary.update()
 
-    def snake_to_camel(self, string):
-        camel = "".join([i.title() for i in string.split("_")])
-        return camel[0].lower() + camel[1:]
-
     @property
     def json_config(self):
         config = {}
         for k, v in six.iteritems(self.config):
             config[k] = {"value": v, "desc": None}
         return json.dumps(config)
-
-    def __getattr__(self, name):
-        key = self.snake_to_camel(name)
-        if key in self._attrs.keys():
-            return self._attrs[key]
-        elif name in self._attrs.keys():
-            return self._attrs[name]
-        else:
-            raise AttributeError("'Run' object has no attribute '%s'" % name)
 
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
