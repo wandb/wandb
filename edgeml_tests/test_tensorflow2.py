@@ -91,6 +91,22 @@ def test_tensorboard(wandb_init_run, model):
     assert wandb_init_run.history.rows[0]["_step"] == 0
     assert wandb_init_run.history.rows[-1]["_step"] == 4
     assert wandb_init_run.history.rows[-1]['train/dense_1/kernel_0']
+    assert len(wandb_init_run.run_manager._user_file_policies['live']) == 2
+    assert len(glob.glob(wandb_init_run.dir + "/*.tfevents.*")) == 2
+
+
+@pytest.mark.mocked_run_manager()
+def test_tensorboard_no_save(wandb_init_run, model):
+    wandb.tensorboard.patch(tensorboardX=False, save=False)
+    cb = tf.keras.callbacks.TensorBoard(
+        histogram_freq=1, log_dir=wandb_init_run.dir)
+    model.fit(np.ones((10, 784)), np.ones((10,)), epochs=5,
+              validation_split=0.2, callbacks=[cb])
+    wandb_init_run.run_manager.test_shutdown()
+    assert wandb_init_run.history.rows[0]["_step"] == 0
+    assert wandb_init_run.history.rows[-1]["_step"] == 4
+    assert wandb_init_run.history.rows[-1]['train/dense_1/kernel_0']
+    assert len(wandb_init_run.run_manager._user_file_policies['live']) == 0
 
 
 @pytest.mark.mocked_run_manager()
@@ -105,11 +121,11 @@ def test_tensorboard_hyper_params(wandb_init_run, model):
         def on_train_begin(self, logs):
             with cb._validation_writer.as_default():
                 exp = create_experiment_summary(
-                    [16, 32], [0.1, 0.2], ['adam', 'sgd'])
+                    [16, 32], [0.1, 0.5], ['adam', 'sgd'])
                 tf.summary.import_event(tf.compat.v1.Event(
                     summary=exp).SerializeToString())
                 summary_start = hparams_summary.session_start_pb(
-                    hparams={'num_units': 16, 'dropout_rate': 0.1, 'optimizer': 'adam'})
+                    hparams={'num_units': 16, 'dropout_rate': 0.5, 'optimizer': 'adam'})
                 summary_end = hparams_summary.session_end_pb(
                     api_pb2.STATUS_SUCCESS)
                 tf.summary.import_event(tf.compat.v1.Event(
@@ -124,7 +140,7 @@ def test_tensorboard_hyper_params(wandb_init_run, model):
     assert wandb_init_run.history.rows[0]["_step"] == 0
     assert wandb_init_run.history.rows[-1]["_step"] == 4
     print("KEYS", wandb_init_run.history.rows[-1].keys())
-    assert wandb_init_run.config["dropout_rate"] == 0.1
+    assert wandb_init_run.config["dropout_rate"] == 0.5
     assert wandb_init_run.config["optimizer"] == "adam"
 
 
