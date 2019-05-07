@@ -2,8 +2,6 @@ import pytest
 from click.testing import CliRunner
 import os
 import json
-from .utils import git_repo
-from tensorflow.keras.layers import Dense, Flatten, Reshape, Input, LSTM, Embedding, Input, Concatenate
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras import backend as K
 import wandb
@@ -53,23 +51,16 @@ def dummy_data(request):
     return (data, labels)
 
 
-@pytest.fixture
-def run(git_repo):
-    return wandb_run.Run.from_environment_or_defaults()
-
-
-def test_basic_keras(dummy_model, dummy_data, run):
-    wandb.run = run
+def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36,
                     callbacks=[WandbCallback()])
     wandb.run.summary.load()
-    assert run.history.rows[0]["epoch"] == 0
-    assert run.summary["acc"] > 0
-    assert len(run.summary["graph"].nodes) == 3
+    assert wandb.run.history.rows[0]["epoch"] == 0
+    assert wandb.run.summary["acc"] > 0
+    assert len(wandb.run.summary["graph"].nodes) == 3
 
 
-def test_keras_image_bad_data(dummy_model, dummy_data, run):
-    wandb.run = run
+def test_keras_image_bad_data(dummy_model, dummy_data, wandb_init_run):
     error = False
     data, labels = dummy_data
 
@@ -81,61 +72,52 @@ def test_keras_image_bad_data(dummy_model, dummy_data, run):
     assert error
 
 
-def test_keras_image_binary(dummy_model, dummy_data, run):
-    wandb.run = run
+def test_keras_image_binary(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image")])
-    assert len(run.history.rows[0]["examples"]['captions']) == 36
+    assert len(wandb.run.history.rows[0]["examples"]['captions']) == 36
 
 
-def test_keras_image_binary_captions(dummy_model, dummy_data, run):
-    wandb.run = run
+def test_keras_image_binary_captions(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice"])])
-    print(run.history.rows[0])
-    assert run.history.rows[0]["examples"]['captions'][0] in ["Rad", "Nice"]
+    assert wandb.run.history.rows[0]["examples"]['captions'][0] in [
+        "Rad", "Nice"]
 
 
 @pytest.mark.multiclass
-def test_keras_image_multiclass(dummy_model, dummy_data, run):
-    wandb.run = run
+def test_keras_image_multiclass(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", predictions=10)])
-    print(run.history.rows[0])
-    assert len(run.history.rows[0]["examples"]['captions']) == 10
+    assert len(wandb_init_run.history.rows[0]["examples"]['captions']) == 10
 
 
 @pytest.mark.multiclass
-def test_keras_image_multiclass_captions(dummy_model, dummy_data, run):
-    wandb.run = run
+def test_keras_image_multiclass_captions(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice", "Fun", "Rad", "Nice", "Fun", "Rad", "Nice", "Fun", "Rad"])])
-    print(run.history.rows[0])
-    assert run.history.rows[0]["examples"]['captions'][0] in [
+    assert wandb_init_run.history.rows[0]["examples"]['captions'][0] in [
         "Rad", "Nice", "Fun"]
 
 
 @pytest.mark.image_output
-def test_keras_image_output(dummy_model, dummy_data, run):
-    wandb.run = run
+def test_keras_image_output(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", predictions=10)])
-    assert run.history.rows[0]["examples"]['count'] == 30
-    assert run.history.rows[0]["examples"]['grouping'] == 3
+    assert wandb_init_run.history.rows[0]["examples"]['count'] == 30
+    assert wandb_init_run.history.rows[0]["examples"]['grouping'] == 3
 
 
-def test_keras_log_weights(dummy_model, dummy_data, run):
-    wandb.run = run
+def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", log_weights=True)])
-    assert run.history.rows[0]['parameters/dense.weights']['_type'] == "histogram"
+    assert wandb_init_run.history.rows[0]['parameters/dense.weights']['_type'] == "histogram"
 
 
-def test_keras_save_model(dummy_model, dummy_data, run):
-    wandb.run = run
+def test_keras_save_model(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
                     callbacks=[WandbCallback(data_type="image", save_model=True)])
-    assert len(glob.glob(run.dir + "/model-best.h5")) == 1
+    assert len(glob.glob(wandb_init_run.dir + "/model-best.h5")) == 1
 
 
 def test_keras_convert_sequential():
@@ -188,7 +170,7 @@ def test_keras_convert_model_non_sequential():
                                            'class_name': 'InputLayer', 'output_shape': (None, 100), 'num_parameters': 0}
     assert wandb_model_out['edges'] == [
         ['main_input', 'embedding'], ['embedding',
-                                        'lstm'], ['lstm', 'concatenate'],
+                                      'lstm'], ['lstm', 'concatenate'],
         ['aux_input', 'concatenate'], [
             'concatenate', 'dense'], ['dense', 'dense_1'],
         ['dense_1', 'dense_2'], ['dense_2', 'main_output'], ['lstm', 'aux_output']]

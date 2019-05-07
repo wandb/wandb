@@ -48,6 +48,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
     # save the environment so we can restore it later. pytest
     # may actually do this itself. didn't check.
     orig_environ = dict(os.environ)
+    orig_namespace = None
     run = None
     api = InternalApi(load_settings=False)
     try:
@@ -222,7 +223,10 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
         os.environ.update(orig_environ)
         wandb.uninit()
         wandb.get_ipython = lambda: None
-        assert vars(wandb) == orig_namespace
+        if orig_namespace:
+            assert vars(wandb) == orig_namespace
+        else:
+            print("SOMETHING TERRIBLE HAPPENED")
 
 
 def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunManager):

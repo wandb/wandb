@@ -14,8 +14,13 @@ if "keras" in sys.modules:
             "WARNING: found both keras and tensorflow.python.keras. Use `from tensorflow import keras` and remove `import keras` to use the latest W&B features.")
     import keras
     import keras.backend as K
+elif "tensorflow.python.keras" in sys.modules:
+    import tensorflow.keras as keras
+    import tensorflow.keras.backend as K
 else:
     try:
+        wandb.termlog(
+            "WARNING: import wandb.keras called before import keras or import tensorflow.keras.  This can lead to a version mismatch")
         import tensorflow.keras as keras
         import tensorflow.keras.backend as K
     except ImportError:

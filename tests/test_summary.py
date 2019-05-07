@@ -1,20 +1,22 @@
-import pytest
 import matplotlib
+# this needs to be called before importing wandb Graph
 matplotlib.use("Agg")
-from click.testing import CliRunner
-from wandb import Histogram, Image, Graph, Table
-import matplotlib.pyplot as plt
-import plotly.graph_objs as go
-import numpy as np
-import os
-import glob
-import json
-import torch
-import tensorflow as tf
-import pandas
 
-from wandb.summary import FileSummary
+
 from wandb import wandb_run
+from wandb.summary import FileSummary
+import pandas
+import tensorflow as tf
+import torch
+import json
+import glob
+import os
+import numpy as np
+import plotly.graph_objs as go
+import matplotlib.pyplot as plt
+from wandb import Histogram, Image, Graph, Table
+from click.testing import CliRunner
+import pytest
 
 
 @pytest.fixture
@@ -78,10 +80,12 @@ def test_image(summary):
     summary["image"] = Image(np.random.rand(28, 28))
     assert disk_summary(summary)['image'] == {
         '_type': 'images', 'count': 1, 'height': 28, 'width': 28}
+    print("Glob ", glob.glob("**/*"))
     assert os.path.exists("media/images/image_summary.jpg")
 
 
 def test_matplot_image(summary):
+    print("Summary fname", summary._fname)
     img = plt.imshow(np.random.rand(28, 28), cmap='gray')
     summary["fig"] = img
     plt.close()

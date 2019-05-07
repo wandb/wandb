@@ -14,35 +14,12 @@ import tensorflow as tf
 
 
 @pytest.fixture
-def image_model():
-    model = tf.keras.models.Sequential()
-    model.add(tf.keras.layers.Conv2D(
-        3, 3, activation="relu", input_shape=(28, 28, 1)))
-    model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(10, activation="softmax"))
-    model.compile(loss="sparse_categorical_crossentropy",
-                  optimizer="sgd", metrics=["accuracy"])
-    return model
-
-
-@pytest.fixture
 def history():
     with CliRunner().isolated_filesystem():
         wandb.run = wandb.wandb_run.Run.from_environment_or_defaults()
         wandb.util.mkdir_exists_ok(wandb.run.dir)
         yield wandb.run.history
         wandb.run = None
-
-
-def test_tfkeras_tf_dataset(wandb_init_run, image_model):
-    dataset = tf.data.Dataset.from_tensor_slices(
-        (np.ones((10, 28, 28, 1)), np.ones((10,))))
-
-    image_model.fit(dataset.batch(5).repeat(), steps_per_epoch=10, epochs=2,
-                    validation_data=dataset.batch(5).repeat(), validation_steps=2, callbacks=[WandbCallback(data_type="image")])
-    print("WHOA", wandb_init_run.history.rows[0])
-    assert wandb_init_run.history.rows[0]["examples"] == {
-        'width': 28, 'height': 28, 'count': 5, '_type': 'images', 'captions': [1, 1, 1, 1, 1]}
 
 
 def test_tf_summary():

@@ -1,12 +1,13 @@
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
-from tensorboardX import SummaryWriter
-import tensorflow as tf
-import wandb
-import glob
-import pytest
-import os
+
 import sys
+import os
+import pytest
+import glob
+import wandb
+import tensorflow as tf
+from tensorboardX import SummaryWriter
 
 
 def test_tensorboard(run_manager):
@@ -17,6 +18,7 @@ def test_tensorboard(run_manager):
         value=[tf.Summary.Value(tag="foo", simple_value=1)]), 0)
     summary.flush()
     run_manager.test_shutdown()
+    print("Run History Rows", wandb.run.history.rows)
     assert wandb.run.history.rows[0]["foo"] == 1.0
     assert wandb.run.history.rows[0]["global_step"] == 0
     assert len(glob.glob(wandb.run.dir + "/*tfevents*")) == 1
