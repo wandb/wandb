@@ -17,3 +17,4 @@ absl-py
 ipython
 matplotlib
 plotly
+tb-nightly

@@ -8,16 +8,15 @@ import wandb
 tensorboardX_loaded = "tensorboardX" in sys.modules
 tensorflow_loaded = "tensorflow" in sys.modules
 if not tensorboardX_loaded and not tensorflow_loaded:
-    tensorboardX_loaded = wandb.util.get_module("tensorflowX") is not None
+    tensorboardX_loaded = wandb.util.get_module("tensorboardX") is not None
 
 if tensorboardX_loaded:
     from tensorboardX.proto.summary_pb2 import Summary
 else:
     try:
         from tensorboard.compat.proto.summary_pb2 import Summary
-        from tensorboard.compat.proto.event_pb2 import Event
     except ImportError:
-        from tensorflow.summary import Summary, Event
+        from tensorflow.summary import Summary
 
 
 def patch(save=True, tensorboardX=tensorboardX_loaded):
@@ -34,29 +33,42 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
         tensorboard_py_module = "tensorboardX.writer"
         if tensorflow_loaded:
             wandb.termlog(
-                "Found TensorboardX and tensorflow, pass tensorboardX=False to patch regular tensorboard.")
+                "Found tensorboardX and tensorflow, pass tensorboardX=False to patch regular tensorboard.")
     else:
-        tensorboard_py_module = "tensorflow.python.summary.writer.writer"
-        try:
-            from tensorboard.compat.proto.summary_pb2 import Summary
-            from tensorboard.compat.proto.event_pb2 import Event
+        if wandb.util.get_module("tensorboard.summary.writer.event_file_writer") and not tensorflow_loaded:
+            # If we haven't imported tensorflow, let's patch the python tensorboard writer
             tensorboard_py_module = "tensorboard.summary.writer.event_file_writer"
-        except ImportError:
-            from tensorflow.summary import Summary, Event
+        else:
+            # If we're using tensorflow >= 2.0 this patch won't be used, but we'll do it anyway
+            tensorboard_py_module = "tensorflow.python.summary.writer.writer"
 
     writers = set()
+    writer = wandb.util.get_module(tensorboard_py_module)
 
-    def _add_event(self, event, step, walltime=None):
-        """Tensorboard < 1.14 patch"""
-        event.wall_time = time.time() if walltime is None else walltime
-        if step is not None:
-            event.step = int(step)
+    def add_event(orig_event):
+        """TensorboardX, TensorFlow <= 1.14 patch, and Tensorboard Patch"""
+
+        def _add_event(self, event):
+            orig_event(self, event)
             try:
-                # TensorboardX uses _file_name
-                if hasattr(self.event_writer._ev_writer, "_file_name"):
-                    name = self.event_writer._ev_writer._file_name
+                if hasattr(self, "_file_name"):
+                    # Current Tensorboard
+                    name = self._file_name
+                elif hasattr(self, "_ev_writer"):
+                    if hasattr(self._ev_writer, "FileName"):
+                        # Legacy Tensorflow
+                        name = self._ev_writer.FileName().decode("utf-8")
+                    elif hasattr(self._ev_writer, "_file_name"):
+                        # Current TensorboardX
+                        name = self._ev_writer._file_name
+                    else:
+                        # Legacy TensorboardX
+                        name = self._ev_writer._file_prefix
                 else:
-                    name = self.event_writer._ev_writer.FileName().decode("utf-8")
+                    wandb.termerror(
+                        "Couldn't patch tensorboard, email support@wandb.com with the tensorboard version you're using.")
+                    writer.EventFileWriter.add_event = orig_event
+                    return None
                 writers.add(name)
                 # This is a little hacky, there is a case where the log_dir changes.
                 # Because the events files will have the same names in sub directories
@@ -76,38 +88,13 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
                 log(event, namespace=namespace, step=event.step)
             except Exception as e:
                 wandb.termerror("Unable to log event %s" % e)
-                # six.reraise(type(e), e, sys.exc_info()[2])
-        self.event_writer.add_event(event)
-
-    def add_event(orig_event):
-        """Tensorboard 1.14+ patch"""
-
-        def _add_event(self, event):
-            orig_event(event)
-            try:
-                name = self._file_name
-                writers.add(name)
-                log_dir = os.path.dirname(os.path.commonprefix(list(writers)))
-                filename = os.path.basename(name)
-                namespace = name.replace(filename, "").replace(
-                    log_dir, "").strip(os.sep)
-                if save:
-                    wandb.save(name, base_path=log_dir)
-                    wandb.save(os.path.join(log_dir, "*.pbtxt"),
-                               base_path=log_dir)
-                log(event, namespace=namespace, step=event.step)
-            except Exception as e:
-                wandb.termerror("Unable to log event %s" % e)
         return _add_event
 
-    writer = wandb.util.get_module(tensorboard_py_module)
-    if tensorboard_py_module == "tensorflow.python.summary.writer.writer":
-        # This is for legacy TensorFlow 1 / TensorflowX logging
-        writer.SummaryToEventTransformer._add_event = _add_event
-    elif writer:
-        # This is for PyTorch 1.1 python tensorboard logging
+    if writer:
+        # This is for TensorboardX and PyTorch 1.1 python tensorboard logging
         writer.EventFileWriter.add_event = add_event(
             writer.EventFileWriter.add_event)
+        wandb.patched["tensorboard"].append(tensorboard_py_module)
 
     # This configures TensorFlow 2 style Tensorboard logging
     c_writer = wandb.util.get_module(tensorboard_c_module)
@@ -115,12 +102,14 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
         old_csfw_func = c_writer.create_summary_file_writer
 
         def new_csfw_func(*args, **kwargs):
+            """Tensorboard 2+ hook for streaming events from the filesystem"""
             logdir = kwargs['logdir'].numpy()
             wandb.run.send_message(
                 {"tensorboard": {"logdir": logdir.decode("utf8"), "save": save}})
             return old_csfw_func(*args, **kwargs)
 
         c_writer.create_summary_file_writer = new_csfw_func
+        wandb.patched["tensorboard"].append(tensorboard_c_module)
 
 
 def log(tf_summary_str, **kwargs):

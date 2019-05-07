@@ -223,10 +223,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
         os.environ.update(orig_environ)
         wandb.uninit()
         wandb.get_ipython = lambda: None
-        if orig_namespace:
-            assert vars(wandb) == orig_namespace
-        else:
-            print("SOMETHING TERRIBLE HAPPENED")
+        assert vars(wandb) == orig_namespace
 
 
 def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunManager):
@@ -242,7 +239,14 @@ def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunM
     api._file_stream_api = mocker.MagicMock()
     run_manager = rm_class(
         api, wandb.run, port=wandb.run.socket.port)
-    run_manager.proc = mocker.MagicMock()
+
+    class FakeProc(object):
+        def poll(self):
+            return None
+
+        def exit(self, code=0):
+            return None
+    run_manager.proc = FakeProc()
     run_manager._meta = mocker.MagicMock()
     run_manager._stdout_tee = mocker.MagicMock()
     run_manager._stderr_tee = mocker.MagicMock()

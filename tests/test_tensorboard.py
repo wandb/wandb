@@ -24,6 +24,23 @@ def test_tensorboard(run_manager):
     assert len(glob.glob(wandb.run.dir + "/*tfevents*")) == 1
 
 
+def test_tensorboard_no_step(run_manager, capsys):
+    wandb.tensorboard.patch(tensorboardX=False)
+    tf.summary.FileWriterCache.clear()
+    summary = tf.summary.FileWriter(".")
+    summary.add_summary(tf.Summary(
+        value=[tf.Summary.Value(tag="foo", simple_value=1)]), 0)
+    wandb.log({"foo": 10})
+    summary.add_summary(tf.Summary(
+        value=[tf.Summary.Value(tag="foo", simple_value=2)]), 1)
+    summary.flush()
+    run_manager.test_shutdown()
+    out, err = capsys.readouterr()
+    assert "WARNING: wandb.log called without a step" in err
+    assert wandb.run.history.rows[1]["foo"] == 2
+    assert len(wandb.run.history.rows) == 2
+
+
 def test_tensorboard_s3(run_manager, capsys, mocker):
     # This mocks out the tensorboard writer so we dont attempt to talk to s3
     from tensorflow.python.summary.writer import event_file_writer

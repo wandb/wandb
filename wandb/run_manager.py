@@ -1052,7 +1052,6 @@ class RunManager(object):
         try:
             from wandb.tensorboard.watcher import Watcher, Consumer
             dirs = [logdir] + [w.logdir for w in self._tensorboard_watchers]
-            # TODO: we don't handle the case of a single tfevent file in the root of logdir
             rootdir = os.path.dirname(os.path.commonprefix(dirs))
             if os.path.isfile(logdir):
                 filename = os.path.basename(logdir)
@@ -1063,6 +1062,10 @@ class RunManager(object):
             # to nest the values in wandb
             namespace = logdir.replace(filename, "").replace(
                 rootdir, "").strip(os.sep)
+            # TODO: revisit this heuristic, it exists because we don't know the
+            # root log directory until more than one tfevents file is written to
+            if len(dirs) == 1 and namespace not in ["train", "validation"]:
+                namespace = None
             with self._tensorboard_lock:
                 self._tensorboard_watchers.append(Watcher(logdir, self._watcher_queue, namespace=namespace, save=save))
                 if self._tensorboard_consumer is None:

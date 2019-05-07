@@ -7,4 +7,4 @@ version = "".join([str(v) for v in sys.version_info[:2]])
 if version == "27":
     pass
 call(["venv/bin/pip", "install", "torch_nightly", "-f",
-      "https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html"])
+      "https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html", "--upgrade"])

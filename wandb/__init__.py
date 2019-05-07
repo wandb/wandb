@@ -354,6 +354,11 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 run = None
 config = None  # config object shared with the global run
 Api = PublicApi
+# Stores what modules have been patched
+patched = {
+    "tensorboard": [],
+    "keras": []
+}
 
 _saved_files = set()
 
@@ -463,8 +468,9 @@ def monitor(options={}):
     return Monitor(options)
 
 
-def log(row=None, commit=True, *args, **kargs):
+def log(row=None, commit=True, *args, **kwargs):
     """Log a dict to the global run's history.  If commit is false, enables multiple calls before commiting.
+    You can also specify step to have metrics pushed any time step changes.
 
     Eg.
 
@@ -474,12 +480,16 @@ def log(row=None, commit=True, *args, **kargs):
         raise ValueError(
             "You must call `wandb.init` in the same process before calling log")
 
+    if kwargs.get("step") is None and len(patched["tensorboard"]) > 0:
+        termlog(
+            "WARNING: wandb.log called without a step keyword argument and tensorboard is patched.  Pass the same step that tensorboard is using to avoid data loss.")
+
     if row is None:
         row = {}
     if commit:
-        run.history.add(row, *args, **kargs)
+        run.history.add(row, *args, **kwargs)
     else:
-        run.history.update(row, *args, **kargs)
+        run.history.update(row, *args, **kwargs)
 
 
 def ensure_configured():
@@ -490,9 +500,10 @@ def ensure_configured():
 def uninit():
     """Undo the effects of init(). Useful for testing.
     """
-    global run, config, watch_called, _saved_files
+    global run, config, watch_called, patched, _saved_files
     run = config = None
     watch_called = False
+    patched = {"tensorboard": [], "keras": []}
     _saved_files = set()
 
 

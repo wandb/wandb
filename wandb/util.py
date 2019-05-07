@@ -109,7 +109,8 @@ def get_module(name, required=None):
         except Exception as e:
             _not_importable.add(name)
             msg = "Error importing optional module {}".format(name)
-            logger.exception(msg)
+            if required:
+                logger.exception(msg)
     if required and name in _not_importable:
         raise wandb.Error(required)
 

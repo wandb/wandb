@@ -20,7 +20,7 @@ elif "tensorflow.python.keras" in sys.modules:
 else:
     try:
         wandb.termlog(
-            "WARNING: import wandb.keras called before import keras or import tensorflow.keras.  This can lead to a version mismatch")
+            "WARNING: import wandb.keras called before import keras or import tensorflow.keras.  This can lead to a version mismatch, W&B now assumes tensorflow.keras")
         import tensorflow.keras as keras
         import tensorflow.keras.backend as K
     except ImportError:
@@ -43,7 +43,12 @@ def is_generator_like(data):
     iterator_ops = wandb.util.get_module(
         "tensorflow.python.data.ops.iterator_ops")
     if iterator_ops:
-        types = types + (iterator_ops.Iterator, iterator_ops.EagerIterator)
+        types = types + (iterator_ops.Iterator,)
+        # EagerIterator was in tensorflow < 2
+        if hasattr(iterator_ops, "EagerIterator"):
+            types = types + (iterator_ops.EagerIterator,)
+        elif hasattr(iterator_ops, "IteratorV2"):
+            types = types + (iterator_ops.IteratorV2,)
     return (hasattr(data, 'next') or hasattr(data, '__next__') or isinstance(
         data, types))
 
@@ -96,6 +101,7 @@ def patch_tf_keras():
 
     training_arrays.fit_loop = new_arrays
     training_generator.fit_generator = new_generator
+    wandb.patched["keras"].append(wandb.util.get_full_typename(keras))
 
 
 if "tensorflow" in wandb.util.get_full_typename(keras):
