@@ -57,7 +57,7 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
                     callbacks=[WandbCallback()])
     wandb.run.summary.load()
     assert wandb.run.history.rows[0]["epoch"] == 0
-    assert wandb.run.summary["acc"] > 0
+    assert wandb.run.summary["accuracy"] > 0
     assert len(wandb.run.summary["graph"].nodes) == 3
 
 
@@ -134,12 +134,12 @@ def test_keras_convert_sequential():
     print(wandb_model_out)
     assert wandb_model_out == {'_type': 'graph', 'format': 'keras',
                                'nodes': [
-                                   {'name': 'dense_input', 'id': 'dense_input', 'class_name': 'InputLayer',
-                                    'output_shape': (None, 3), 'num_parameters': 0},
-                                   {'name': 'dense', 'id': 'dense', 'class_name': 'Dense',
-                                    'output_shape': (None, 4), 'num_parameters': 16},
-                                   {'name': 'dense_1', 'id': 'dense_1', 'class_name': 'Dense',
-                                    'output_shape': (None, 5), 'num_parameters': 25},
+                                   {'name': 'dense_input', 'id': 'dense_input', 'class_name': 'InputLayer', 'output_shape': [
+                                       (None, 3)], 'num_parameters': 0},
+                                   {'name': 'dense', 'id': 'dense', 'class_name': 'Dense', 'output_shape': (
+                                       None, 4), 'num_parameters': 16},
+                                   {'name': 'dense_1', 'id': 'dense_1', 'class_name': 'Dense', 'output_shape': (
+                                       None, 5), 'num_parameters': 25},
                                    {'name': 'dense_2', 'id': 'dense_2', 'class_name': 'Dense', 'output_shape': (None, 6), 'num_parameters': 36}],
                                'edges': [['dense_input', 'dense'], ['dense', 'dense_1'], ['dense_1', 'dense_2']]}
 
@@ -168,7 +168,7 @@ def test_keras_convert_model_non_sequential():
 
     print(wandb_model_out['edges'])
     assert wandb_model_out['nodes'][0] == {'name': 'main_input', 'id': 'main_input',
-                                           'class_name': 'InputLayer', 'output_shape': (None, 100), 'num_parameters': 0}
+                                           'class_name': 'InputLayer', 'output_shape': [(None, 100)], 'num_parameters': 0}
     assert wandb_model_out['edges'] == [
         ['main_input', 'embedding'], ['embedding',
                                       'lstm'], ['lstm', 'concatenate'],

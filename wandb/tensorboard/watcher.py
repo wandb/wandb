@@ -77,6 +77,7 @@ class Watcher(object):
         self.namespace = namespace
         self.queue = queue
         self.logdir = logdir
+        # TODO: prepend the namespace here?
         loader = EventFileLoader if save else event_file_loader.EventFileLoader
         self._generator = directory_watcher.DirectoryWatcher(
             logdir,
