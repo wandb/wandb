@@ -72,7 +72,7 @@ jobs:
                   name: Install dependencies
                   command: |
                       . venv/bin/activate
-                      pip install -r requirements_edgeml.txt
+                      pip install -r requirements_edgeml.txt --upgrade
                       pip install -e .[dev]
                       python install-ml.py
             - save_cache:

@@ -169,9 +169,5 @@ def test_keras_convert_model_non_sequential():
     print(wandb_model_out['edges'])
     assert wandb_model_out['nodes'][0] == {'name': 'main_input', 'id': 'main_input',
                                            'class_name': 'InputLayer', 'output_shape': [(None, 100)], 'num_parameters': 0}
-    assert wandb_model_out['edges'] == [
-        ['main_input', 'embedding'], ['embedding',
-                                      'lstm'], ['lstm', 'concatenate'],
-        ['aux_input', 'concatenate'], [
-            'concatenate', 'dense'], ['dense', 'dense_1'],
-        ['dense_1', 'dense_2'], ['dense_2', 'main_output'], ['lstm', 'aux_output']]
+    assert wandb_model_out['edges'] == [['main_input', 'embedding'], ['embedding', 'unified_lstm'], ['unified_lstm', 'concatenate'], ['aux_input', 'concatenate'], [
+        'concatenate', 'dense'], ['dense', 'dense_1'], ['dense_1', 'dense_2'], ['dense_2', 'main_output'], ['unified_lstm', 'aux_output']]

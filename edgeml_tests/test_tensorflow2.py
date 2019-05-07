@@ -169,8 +169,8 @@ def test_tfkeras_validation_generator(wandb_init_run, image_model):
     image_model.fit_generator(generator(), steps_per_epoch=10, epochs=2,
                               validation_data=generator(), validation_steps=2, callbacks=[WandbCallback(data_type="image")])
     print("WHOA", wandb_init_run.history.rows[0])
-    assert wandb_init_run.history.rows[0]["examples"] == {
-        'width': 28, 'height': 28, 'count': 2, '_type': 'images', 'captions': [1, 1]}
+    assert wandb_init_run.history.rows[0]["examples"]["count"] == 2
+    assert len(wandb_init_run.history.rows[0]["examples"]["captions"]) == 2
 
 
 def test_tfkeras_tf_dataset(wandb_init_run, image_model):
