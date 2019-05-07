@@ -144,11 +144,6 @@ class History(object):
         """
         for k, v in six.iteritems(new_vals):
             k = k.strip()
-            if k in self.row:
-                # Don't warn on timestamp for tensorboard logging
-                if k != "_timestamp":
-                    warnings.warn("Adding history key ({}) that is already set in this step".format(
-                        k), wandb.WandbWarning)
             self.row[k] = v
 
     @contextlib.contextmanager

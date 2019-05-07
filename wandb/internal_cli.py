@@ -40,6 +40,9 @@ def headless(args):
         rm = wandb.run_manager.RunManager(
             api, run, cloud=args['cloud'],
             port=args['port'])
+        # We add a reference to _run_manager to enable wandb.save to work for tfevents files
+        # TODO: REFACTOR
+        run._run_manager = rm
         rm.wrap_existing_process(
             user_process_pid, stdout_master_fd, stderr_master_fd)
     except Exception as e:

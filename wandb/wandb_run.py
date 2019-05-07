@@ -109,6 +109,7 @@ class Run(object):
         self._events = None
         self._summary = None
         self._meta = None
+        self._run_manager = None
         self._jupyter_agent = None
 
     @property
@@ -131,15 +132,22 @@ class Run(object):
             raise ValueError(
                 "Only configuring save_policy and tensorboard is supported")
         if self.socket:
+            # In the user process
             self.socket.send(options)
         elif self._jupyter_agent:
+            # Running in jupyter
             self._jupyter_agent.start()
             if options.get("save_policy"):
                 self._jupyter_agent.rm.update_user_file_policy(
                     options["save_policy"])
             elif options.get("tensorboard"):
                 self._jupyter_agent.rm.start_tensorboard_watcher(
-                    options["tensorboard"]["logdir"])
+                    options["tensorboard"]["logdir"], options["tensorboard"]["save"])
+        elif self._run_manager:
+            # Running in the wandb process, used for tfevents saving
+            if options.get("save_policy"):
+                self._run_manager.update_user_file_policy(
+                    options["save_policy"])
         else:
             wandb.termerror(
                 "wandb.init hasn't been called, can't configure run")

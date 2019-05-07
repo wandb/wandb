@@ -66,14 +66,21 @@ class Consumer(object):
         log(event.event, step=event.event.step, namespace=event.namespace)
 
 
+class EventFileLoader(event_file_loader.EventFileLoader):
+    def __init__(self, file_path):
+        super(EventFileLoader, self).__init__(file_path)
+        wandb.save(file_path)
+
+
 class Watcher(object):
-    def __init__(self, logdir, queue, namespace=None):
+    def __init__(self, logdir, queue, namespace=None, save=True):
         self.namespace = namespace
         self.queue = queue
         self.logdir = logdir
+        loader = EventFileLoader if save else event_file_loader.EventFileLoader
         self._generator = directory_watcher.DirectoryWatcher(
             logdir,
-            event_file_loader.EventFileLoader,
+            loader,
             io_wrapper.IsTensorFlowEventsFile)
         self._first_event_timestamp = None
         self._shutdown = False
@@ -112,20 +119,4 @@ class Watcher(object):
             self.file_version = event.file_version
 
         if event.HasField('summary'):
-            hparam = False
-            for value in event.summary.value:
-                if value.tag == "_hparams_/session_start_info":
-                    hparam = True
-                    if util.get_module("tensorboard.plugins.hparams"):
-                        from tensorboard.plugins.hparams import plugin_data_pb2
-                        plugin_data = plugin_data_pb2.HParamsPluginData()
-                        plugin_data.ParseFromString(
-                            value.metadata.plugin_data.content)
-                        for key, param in six.iteritems(plugin_data.session_start_info.hparams):
-                            if not wandb.run.config.get(key):
-                                wandb.run.config[key] = param.number_value or param.string_value or param.bool_value
-                    else:
-                        wandb.termerror(
-                            "Received hparams tf.summary, but could not import the hparams plugin from tensorboard")
-            if not hparam:
-                self.queue.put(Event(event, self.namespace))
+            self.queue.put(Event(event, self.namespace))

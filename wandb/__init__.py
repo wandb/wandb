@@ -386,6 +386,7 @@ def save(glob_str, base_path=None, policy="live"):
     if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
         termlog(
             "%s is a cloud storage url, can't save file to wandb." % glob_str)
+        return []
     run.send_message(
         {"save_policy": {"glob": wandb_glob_str, "policy": policy}})
     files = []

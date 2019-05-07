@@ -1048,7 +1048,7 @@ class RunManager(object):
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy["policy"]].append(policy["glob"])
 
-    def start_tensorboard_watcher(self, logdir):
+    def start_tensorboard_watcher(self, logdir, save=True):
         try:
             from wandb.tensorboard.watcher import Watcher, Consumer
             dirs = [logdir] + [w.logdir for w in self._tensorboard_watchers]
@@ -1064,7 +1064,7 @@ class RunManager(object):
             namespace = logdir.replace(filename, "").replace(
                 rootdir, "").strip(os.sep)
             with self._tensorboard_lock:
-                self._tensorboard_watchers.append(Watcher(logdir, self._watcher_queue, namespace=namespace))
+                self._tensorboard_watchers.append(Watcher(logdir, self._watcher_queue, namespace=namespace, save=save))
                 if self._tensorboard_consumer is None:
                     self._tensorboard_consumer = Consumer(self._watcher_queue)
                     self._tensorboard_consumer.start()
@@ -1131,7 +1131,7 @@ class RunManager(object):
                         parse = False
                     elif parsed.get("tensorboard"):
                         if parsed["tensorboard"].get("logdir"):
-                            self.start_tensorboard_watcher(parsed["tensorboard"]["logdir"])
+                            self.start_tensorboard_watcher(parsed["tensorboard"]["logdir"], parsed["tensorboard"]["save"])
                         payload = b''
                         parse = False
                     else:

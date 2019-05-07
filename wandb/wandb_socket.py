@@ -24,12 +24,12 @@ class Server(object):
         JSON terminated by \0
     """
 
-    def __init__(self):
+    def __init__(self, port=None):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind(('localhost', 0))
         self.socket.listen(1)
         self.socket.settimeout(30)
-        self.port = self.socket.getsockname()[1]
+        self.port = port or self.socket.getsockname()[1]
         self.connection = None
 
     def connect(self):
@@ -89,7 +89,7 @@ class Client(object):
         self.socket.settimeout(1.0)
         self.port = port
         if self.port:
-            self.socket.connect(('', self.port))
+            self.socket.connect(('localhost', self.port))
             self.connected = True
         else:
             self.connected = False
