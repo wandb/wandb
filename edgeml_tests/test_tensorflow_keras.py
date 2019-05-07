@@ -3,6 +3,7 @@ from click.testing import CliRunner
 import os
 import json
 from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Flatten, Dense, Reshape, Embedding, Input, LSTM, Concatenate
 from tensorflow.keras import backend as K
 import wandb
 from wandb import wandb_run

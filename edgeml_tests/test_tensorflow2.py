@@ -91,9 +91,9 @@ def test_tensorboard(wandb_init_run, model):
     assert wandb_init_run.history.rows[0]["_step"] == 0
     assert wandb_init_run.history.rows[-1]["_step"] == 4
     assert wandb_init_run.history.rows[-1]['train/dense_1/kernel_0']
-    assert wandb_init_run.history.rows[-1]['validation/loss']
+    assert wandb_init_run.history.rows[-1]['validation/epoch_loss']
     assert len(wandb_init_run.run_manager._user_file_policies['live']) == 2
-    assert len(glob.glob(wandb_init_run.dir + "/*.tfevents.*")) == 2
+    assert len(glob.glob(wandb_init_run.dir + "**/*.tfevents.*")) == 2
 
 
 @pytest.mark.mocked_run_manager()
