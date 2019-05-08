@@ -506,7 +506,7 @@ def uninit():
     run = config = None
     watch_called = False
     for mod in patched["tensorboard"] + patched["keras"]:
-        reload_module(import_module(mod))
+        reload_module(import_module(mod.split(".")[0]))
     patched = {"tensorboard": [], "keras": []}
     _saved_files = set()
 

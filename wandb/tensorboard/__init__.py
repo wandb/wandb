@@ -99,7 +99,6 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
         writer.EventFileWriter.add_event = add_event(
             writer.EventFileWriter.add_event)
         wandb.patched["tensorboard"].append(tensorboard_py_module)
-        wandb.patched["tensorboard"].append("tensorflow.summary")
 
     # This configures TensorFlow 2 style Tensorboard logging
     c_writer = wandb.util.get_module(tensorboard_c_module)
