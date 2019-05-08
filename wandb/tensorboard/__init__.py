@@ -28,6 +28,9 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
         tensorboardX, default: True if module can be imported - You can override this when calling patch
     """
 
+    if len(wandb.patched["tensorboard"]) > 0:
+        raise ValueError(
+            "Tensorboard already patched, remove tensorboard=True from wandb.init or only call wandb.tensorboard.patch once.")
     tensorboard_c_module = "tensorflow.python.ops.gen_summary_ops"
     if tensorboardX:
         tensorboard_py_module = "tensorboardX.writer"
@@ -49,6 +52,7 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
         """TensorboardX, TensorFlow <= 1.14 patch, and Tensorboard Patch"""
 
         def _add_event(self, event):
+            """Add event monkeypatch for python event writers"""
             orig_event(self, event)
             try:
                 if hasattr(self, "_file_name"):
@@ -102,10 +106,11 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
         old_csfw_func = c_writer.create_summary_file_writer
 
         def new_csfw_func(*args, **kwargs):
-            """Tensorboard 2+ hook for streaming events from the filesystem"""
-            logdir = kwargs['logdir'].numpy()
+            """Tensorboard 2+ monkeypatch for streaming events from the filesystem"""
+            logdir = kwargs['logdir'].numpy().decode("utf8") if hasattr(
+                kwargs['logdir'], 'numpy') else kwargs['logdir']
             wandb.run.send_message(
-                {"tensorboard": {"logdir": logdir.decode("utf8"), "save": save}})
+                {"tensorboard": {"logdir": logdir, "save": save}})
             return old_csfw_func(*args, **kwargs)
 
         c_writer.create_summary_file_writer = new_csfw_func
@@ -147,7 +152,6 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
     or one encoded as a string.
     """
     values = {}
-
     if hasattr(tf_summary_str_or_pb, "summary"):
         summary_pb = tf_summary_str_or_pb.summary
         values[namespaced_tag("global_step", namespace)

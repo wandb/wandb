@@ -2,9 +2,12 @@ import tensorflow as tf
 import numpy as np
 import wandb
 import pytest
+import time
 from absl import flags
 from wandb.keras import WandbCallback
+from tensorflow.keras import backend as K
 import glob
+import os
 
 
 def create_experiment_summary(num_units_list, dropout_rate_list, optimizer_list):
@@ -45,6 +48,7 @@ def create_experiment_summary(num_units_list, dropout_rate_list, optimizer_list)
 
 @pytest.fixture
 def model():
+    K.clear_session()
     model = tf.keras.models.Sequential()
     model.add(tf.keras.layers.Dense(128, activation="relu"))
     model.add(tf.keras.layers.Dense(10, activation="softmax"))
@@ -55,6 +59,7 @@ def model():
 
 @pytest.fixture
 def image_model():
+    K.clear_session()
     model = tf.keras.models.Sequential()
     model.add(tf.keras.layers.Conv2D(
         3, 3, activation="relu", input_shape=(28, 28, 1)))
@@ -81,35 +86,41 @@ def test_keras(wandb_init_run, model):
 
 
 @pytest.mark.mocked_run_manager()
-def test_tensorboard(wandb_init_run, model):
+def test_tensorboard_basic(wandb_init_run, model):
     wandb.tensorboard.patch(tensorboardX=False)
     cb = tf.keras.callbacks.TensorBoard(
-        histogram_freq=1, log_dir=wandb_init_run.dir)
+        histogram_freq=1, log_dir=os.getcwd())
     model.fit(np.ones((10, 784)), np.ones((10,)), epochs=5,
               validation_split=0.2, callbacks=[cb])
     wandb_init_run.run_manager.test_shutdown()
+    print(wandb_init_run.history.rows[0].keys())
     assert wandb_init_run.history.rows[0]["_step"] == 0
     assert wandb_init_run.history.rows[-1]["_step"] == 4
-    assert wandb_init_run.history.rows[-1]['train/dense_1/kernel_0']
+    # TODO: No histos in eager mode with TF callback 1.0
+    assert wandb_init_run.history.rows[-1]['train/sequential/dense_1/kernel_0']
     assert wandb_init_run.history.rows[-1]['validation/epoch_loss']
+    # TODO: will change to 2 event files in V2 callback
     assert len(wandb_init_run.run_manager._user_file_policies['live']) == 2
-    assert len(glob.glob(wandb_init_run.dir + "**/*.tfevents.*")) == 2
+    assert len(glob.glob(wandb_init_run.dir + "/train/*.tfevents.*")) == 2
+    assert len(glob.glob(wandb_init_run.dir + "/validation/*.tfevents.*")) == 1
 
 
 @pytest.mark.mocked_run_manager()
 def test_tensorboard_no_save(wandb_init_run, model):
     wandb.tensorboard.patch(tensorboardX=False, save=False)
     cb = tf.keras.callbacks.TensorBoard(
-        histogram_freq=1, log_dir=wandb_init_run.dir)
+        histogram_freq=1, log_dir=os.getcwd())
     model.fit(np.ones((10, 784)), np.ones((10,)), epochs=5,
               validation_split=0.2, callbacks=[cb])
     wandb_init_run.run_manager.test_shutdown()
+    print(wandb_init_run.history.rows[0].keys())
     assert wandb_init_run.history.rows[0]["_step"] == 0
     assert wandb_init_run.history.rows[-1]["_step"] == 4
-    assert wandb_init_run.history.rows[-1]['train/dense_1/kernel_0']
+    assert wandb_init_run.history.rows[-1]['train/sequential/dense_1/kernel_0']
     assert len(wandb_init_run.run_manager._user_file_policies['live']) == 0
 
 
+@pytest.mark.skip("TF-Nightly got rid of tf.summary.import_event")
 @pytest.mark.mocked_run_manager()
 def test_tensorboard_hyper_params(wandb_init_run, model):
     from tensorboard.plugins.hparams import api_pb2
@@ -120,7 +131,8 @@ def test_tensorboard_hyper_params(wandb_init_run, model):
 
     class HParams(tf.keras.callbacks.Callback):
         def on_train_begin(self, logs):
-            with cb._validation_writer.as_default():
+            # TODO: v2 of the callback has a "writers" object
+            with cb._writers["train"].as_default():
                 exp = create_experiment_summary(
                     [16, 32], [0.1, 0.5], ['adam', 'sgd'])
                 tf.summary.import_event(tf.compat.v1.Event(
@@ -149,8 +161,8 @@ def test_tfkeras_validation_data_array(wandb_init_run, image_model):
     image_model.fit(np.ones((10, 28, 28, 1)), np.ones((10,)), epochs=1,
                     validation_split=0.2, callbacks=[WandbCallback(data_type="image")])
     print("WHOA", wandb_init_run.history.rows[0])
-    assert wandb_init_run.history.rows[0]["examples"] == {
-        'width': 28, 'height': 28, 'count': 2, '_type': 'images', 'captions': [1, 1]}
+    assert wandb_init_run.history.rows[0]["examples"]["count"] == 2
+    assert len(wandb_init_run.history.rows[0]["examples"]["captions"]) == 2
 
 
 def test_tfkeras_no_validation_data(wandb_init_run, image_model, capsys):

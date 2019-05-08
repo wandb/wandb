@@ -30,6 +30,8 @@ import tempfile
 import types
 import re
 import glob
+from importlib import import_module
+from six.moves import reload_module
 
 from . import env
 from . import io_wrap
@@ -503,6 +505,8 @@ def uninit():
     global run, config, watch_called, patched, _saved_files
     run = config = None
     watch_called = False
+    for mod in patched["tensorboard"] + patched["keras"]:
+        reload_module(import_module(mod))
     patched = {"tensorboard": [], "keras": []}
     _saved_files = set()
 

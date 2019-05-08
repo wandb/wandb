@@ -4,6 +4,7 @@ from tensorboard.backend.event_processing import io_wrapper
 from wandb.tensorboard import log
 from wandb import util
 import six
+import os
 from six.moves import queue
 import wandb
 import time
@@ -12,6 +13,8 @@ import collections
 
 
 class Event(object):
+    """An event wrapper to enable priority queueing"""
+
     def __init__(self, event, namespace):
         self.event = event
         self.namespace = namespace
@@ -66,22 +69,33 @@ class Consumer(object):
         log(event.event, step=event.event.step, namespace=event.namespace)
 
 
-class EventFileLoader(event_file_loader.EventFileLoader):
-    def __init__(self, file_path):
-        super(EventFileLoader, self).__init__(file_path)
-        wandb.save(file_path)
+def loader(save=True, namespace=None):
+    """Incredibly hacky class generator to optionally save / prefix tfevent files"""
+    class EventFileLoader(event_file_loader.EventFileLoader):
+        def __init__(self, file_path):
+            super(EventFileLoader, self).__init__(file_path)
+            if save:
+                # TODO: save plugins?
+                logdir = os.path.dirname(file_path)
+                parts = list(os.path.split(logdir))
+                if namespace and parts[-1] == namespace:
+                    parts.pop()
+                    logdir = os.path.join(*parts)
+                wandb.save(file_path, base_path=logdir)
+    return EventFileLoader
 
 
 class Watcher(object):
     def __init__(self, logdir, queue, namespace=None, save=True):
+        """Uses tensorboard to watch a directory for tfevents files 
+        and put them on a queue"""
         self.namespace = namespace
         self.queue = queue
         self.logdir = logdir
         # TODO: prepend the namespace here?
-        loader = EventFileLoader if save else event_file_loader.EventFileLoader
         self._generator = directory_watcher.DirectoryWatcher(
             logdir,
-            loader,
+            loader(save, namespace),
             io_wrapper.IsTensorFlowEventsFile)
         self._first_event_timestamp = None
         self._shutdown = False

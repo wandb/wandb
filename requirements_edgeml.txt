@@ -16,5 +16,5 @@ absl-py
 ipython
 matplotlib
 plotly
-tf-nightly
+tf-nightly-2.0-preview
 tb-nightly
