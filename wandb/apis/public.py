@@ -26,6 +26,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     id
     tags
     name
+    displayName
     state
     config
     readOnly

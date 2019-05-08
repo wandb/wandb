@@ -382,6 +382,7 @@ class Api(object):
                         node {
                             id
                             name
+                            displayName
                             description
                         }
                     }
@@ -510,6 +511,7 @@ class Api(object):
                 bucket(name: $name, missingOk: true) {
                     id
                     name
+                    displayName
                     logLineCount
                     historyLineCount
                     eventsLineCount
@@ -625,6 +627,7 @@ class Api(object):
                 bucket {
                     id
                     name
+                    displayName
                     description
                     config
                     project {

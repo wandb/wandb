@@ -902,7 +902,7 @@ class RunManager(object):
 
         if self._output:
             url = self._run.get_url(self._api)
-            wandb.termlog("Syncing to %s" % url)
+            wandb.termlog("Syncing to {}: {}".format(self._run.display_name, url))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         self._run.set_environment(environment=env)
@@ -1316,6 +1316,6 @@ class RunManager(object):
             else:
                 wandb.termlog('Synced %s' % url)
 
-        wandb.termlog('Synced %s' % url)
+        wandb.termlog('Synced {}: {}'.format(self._run.display_name, url))
         logger.info("syncing complete: %s" % url)
         sys.exit(exitcode)

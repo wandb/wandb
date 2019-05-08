@@ -40,6 +40,7 @@ class Run(object):
                  program=None, args=None, wandb_dir=None, tags=[]):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else util.generate_id()
+        self.display_name = self.id
         self.resume = resume if resume else 'never'
         self.mode = mode if mode else 'run'
         self.group = group
@@ -308,6 +309,7 @@ class Run(object):
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
                                        summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
         self.storage_id = upsert_result['id']
+        self.display_name = upsert_result.get('displayName') or self.id
         return upsert_result
 
     def set_environment(self, environment=None):
