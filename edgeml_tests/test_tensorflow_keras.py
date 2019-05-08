@@ -57,7 +57,7 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
                     callbacks=[WandbCallback()])
     wandb.run.summary.load()
     assert wandb.run.history.rows[0]["epoch"] == 0
-    assert wandb.run.summary["acc"] > 0
+    assert wandb.run.summary["loss"] > 0
     assert len(wandb.run.summary["graph"].nodes) == 3
 
 

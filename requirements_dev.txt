@@ -35,7 +35,7 @@ ipython
 matplotlib
 plotly
 Keras
-torch==1.0.1
+torch
 torchvision
 tensorflow
 protobuf>=3.6.0

@@ -30,9 +30,7 @@ jobs:
                   name: Install python dependencies
                   command: |
                       . venv/bin/activate
-                      pip install -r requirements_dev.txt
-                      pip install torch
-                      pip install torchvision tensorflow
+                      pip install -r requirements_dev.txt --upgrade
                       pip install -e .[dev]
             - save_cache:
                   paths:

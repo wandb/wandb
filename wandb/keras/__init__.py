@@ -378,7 +378,8 @@ class WandbCallback(keras.callbacks.Callback):
             else:
                 self.model.save(self.filepath, overwrite=True)
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
-        except (ImportError, RuntimeError) as e:
+        # also saw `TypeError: can't pickle _thread.RLock objects`
+        except (ImportError, RuntimeError, TypeError) as e:
             wandb.termerror(
                 "Can't save model, h5py returned error: %s" % e)
             self.save_model = False

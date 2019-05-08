@@ -18,3 +18,4 @@ matplotlib
 plotly
 tf-nightly-2.0-preview
 tb-nightly
+future
