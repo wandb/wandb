@@ -188,7 +188,6 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_gradients = log_gradients
         self.training_data = training_data
         self.generator = generator
-        self.initial_step = wandb.run.step
         self._graph_rendered = False
 
         if self.training_data:
@@ -239,7 +238,7 @@ class WandbCallback(keras.callbacks.Callback):
                     num_images=self.predictions)}, commit=False)
 
         wandb.log({'epoch': epoch}, commit=False)
-        wandb.log(logs, step=self.initial_step + epoch)
+        wandb.log(logs, commit=True)
 
         self.current = logs.get(self.monitor)
         if self.current and self.monitor_op(self.current, self.best) and self.save_model:

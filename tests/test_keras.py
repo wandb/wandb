@@ -58,7 +58,20 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36,
                     callbacks=[WandbCallback()])
     wandb.run.summary.load()
-    assert wandb.run.history.rows[0]["epoch"] == 1
+    assert wandb.run.history.rows[0]["epoch"] == 0
+    assert wandb.run.summary["acc"] > 0
+    assert len(wandb.run.summary["graph"].nodes) == 3
+
+
+def test_basic_keras_multi_fit(dummy_model, dummy_data, wandb_init_run):
+    dummy_model.fit(*dummy_data, epochs=2, batch_size=36,
+                    callbacks=[WandbCallback()])
+    dummy_model.fit(*dummy_data, epochs=2, batch_size=36,
+                    callbacks=[WandbCallback()])
+    wandb.run.summary.load()
+    assert wandb.run.history.rows[0]["epoch"] == 0
+    assert wandb.run.history.rows[-1]["epoch"] == 1
+    assert wandb.run.history.rows[-1]["_step"] == 3
     assert wandb.run.summary["acc"] > 0
     assert len(wandb.run.summary["graph"].nodes) == 3
 
