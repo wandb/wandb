@@ -414,6 +414,7 @@ class Process(object):
 class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
+    CRASH_NOSYNC_TIME = 30
 
     def __init__(self, api, run, project=None, tags=[], cloud=True, output=True, port=None):
         self._api = api
@@ -934,7 +935,6 @@ class RunManager(object):
 
         self._run.history.close()
 
-
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
 
@@ -1172,12 +1172,13 @@ class RunManager(object):
         self._close_stdout_stderr_streams()
         self.shutdown(exitcode)
 
+        crash_nosync_time = env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
             wandb.termlog("You can sync this run to the cloud by running: ")
             wandb.termlog("wandb sync %s" % os.path.relpath(self._run.dir))
             sys.exit(exitcode)
-        elif exitcode != 0 and time.time() - START_TIME < 30:
+        elif exitcode != 0 and crash_nosync_time and time.time() - START_TIME < crash_nosync_time:
             wandb.termlog("Process crashed early, not syncing files")
             logger.info("process only ran for %d seconds, not syncing files" % (time.time() - START_TIME))
             sys.exit(exitcode)
