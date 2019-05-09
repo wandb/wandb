@@ -187,6 +187,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_gradients = log_gradients
         self.training_data = training_data
         self.generator = generator
+        self._graph_rendered = False
 
         if self.training_data:
             if len(self.training_data) != 2:
@@ -243,13 +244,16 @@ class WandbCallback(keras.callbacks.Callback):
             self._save_model(epoch)
 
     def on_batch_begin(self, batch, logs=None):
-        pass
+        if not self._graph_rendered:
+            # Couldn't do this in train_begin because keras may still not be compiled
+            wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
+            self._graph_rendered = True
 
     def on_batch_end(self, batch, logs=None):
         pass
 
     def on_train_begin(self, logs=None):
-        wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
+        pass
 
     def on_train_end(self, logs=None):
         pass
