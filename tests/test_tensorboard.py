@@ -24,20 +24,20 @@ def test_tensorboard(run_manager):
     assert len(glob.glob(wandb.run.dir + "/*tfevents*")) == 1
 
 
-def test_tensorboard_no_step(run_manager, capsys):
+def test_tensorboard_no_step(run_manager):
     wandb.tensorboard.patch(tensorboardX=False)
     tf.summary.FileWriterCache.clear()
     summary = tf.summary.FileWriter(".")
     summary.add_summary(tf.Summary(
         value=[tf.Summary.Value(tag="foo", simple_value=1)]), 0)
-    wandb.log({"foo": 10})
+    wandb.log({"foo": 10, "bar": 32})
     summary.add_summary(tf.Summary(
         value=[tf.Summary.Value(tag="foo", simple_value=2)]), 1)
     summary.flush()
     run_manager.test_shutdown()
-    out, err = capsys.readouterr()
-    assert "WARNING: wandb.log called without a step" in err
+    print("Shutdown", wandb.run.history.rows)
     assert wandb.run.history.rows[1]["foo"] == 2
+    assert wandb.run.history.rows[0]["bar"] == 32
     assert len(wandb.run.history.rows) == 2
 
 

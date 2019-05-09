@@ -462,7 +462,7 @@ def monitor(options={}):
 
         def __enter__(self):
             termlog(
-                "DEPRECATED: with wandb.monitor(): is deprecated, just call wandb.monitor() to see live results.")
+                "DEPRECATED: with wandb.monitor(): is deprecated, add %%wandb to the beginning of a cell to see live results.")
             pass
 
         def __exit__(self, *args):
@@ -471,26 +471,38 @@ def monitor(options={}):
     return Monitor(options)
 
 
-def log(row=None, commit=True, *args, **kwargs):
-    """Log a dict to the global run's history.  If commit is false, enables multiple calls before commiting.
-    You can also specify step to have metrics pushed any time step changes.
-
-    Eg.
+def log(row=None, commit=None, step=None, *args, **kwargs):
+    """Log a dict to the global run's history.
 
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
+
+    Args:
+        row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types 
+        commit (boolean, optional): Persist a set of metrics, if false just update the existing dict
+        step (integer, optional): The global step in processing. This sets commit=True any time step increases
     """
+
     if run is None:
         raise ValueError(
             "You must call `wandb.init` in the same process before calling log")
 
-    if kwargs.get("step") is None and len(patched["tensorboard"]) > 0:
+    tensorboard_patched = len(patched["tensorboard"]) > 0
+
+    if commit is None:
+        # Let tensorboard commit custom metrics if we patched it
+        if tensorboard_patched:
+            commit = False
+            step = run.step if step is None else step
+        else:
+            commit = True
+    if commit == True and tensorboard_patched and step is None:
         termlog(
             "WARNING: wandb.log called without a step keyword argument and tensorboard is patched.  Pass the same step that tensorboard is using to avoid data loss.")
 
     if row is None:
         row = {}
-    if commit:
-        run.history.add(row, *args, **kwargs)
+    if commit or step is not None:
+        run.history.add(row, *args, step=step, **kwargs)
     else:
         run.history.update(row, *args, **kwargs)
 
@@ -595,11 +607,11 @@ def join():
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
-         name=None, id=None):
+         sync_tensorboard=False, name=None, id=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
-    `wandb.monitor` to begin pushing metrics.  Otherwise, spawns a new process
+    `wandb.log` to begin pushing metrics.  Otherwise, spawns a new process
     to communicate with W&B.
 
     Args:
@@ -610,10 +622,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         dir (str, optional): An absolute path to a directory where metadata will be stored
         group (str, optional): A unique string shared by all runs in a given group
         tags (list, optional): A list of tags to apply to the run
+        id (str, optional): A globally unique (per project) identifier for the run
         reinit (bool, optional): Allow multiple calls to init in the same process
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id
-        tensorboard (bool, optional): Patch tensorboard or tensorboardX to log all events
+        sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or tensorboardX
         force (bool, optional): Force authentication with wandb, defaults to False
 
     Returns:
@@ -628,7 +641,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         reset_env(exclude=[env.DIR, env.ENTITY, env.PROJECT, env.API_KEY])
         run = None
 
-    if tensorboard:
+    # TODO: deprecate tensorboard
+    if tensorboard or sync_tensorboard:
         util.get_module("wandb.tensorboard").patch()
 
     sagemaker_config = util.parse_sm_config()

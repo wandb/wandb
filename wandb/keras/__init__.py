@@ -161,6 +161,7 @@ class WandbCallback(keras.callbacks.Callback):
         if wandb.run is None:
             raise wandb.Error(
                 'You must call wandb.init() before WandbCallback()')
+
         self.validation_data = None
         # This is kept around for legacy reasons
         if validation_data is not None:
@@ -187,6 +188,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_gradients = log_gradients
         self.training_data = training_data
         self.generator = generator
+        self.initial_step = wandb.run.step
         self._graph_rendered = False
 
         if self.training_data:
@@ -237,7 +239,7 @@ class WandbCallback(keras.callbacks.Callback):
                     num_images=self.predictions)}, commit=False)
 
         wandb.log({'epoch': epoch}, commit=False)
-        wandb.log(logs)
+        wandb.log(logs, step=self.initial_step + epoch)
 
         self.current = logs.get(self.monitor)
         if self.current and self.monitor_op(self.current, self.best) and self.save_model:
@@ -248,7 +250,7 @@ class WandbCallback(keras.callbacks.Callback):
 
     def on_batch_end(self, batch, logs=None):
         if not self._graph_rendered:
-            # Couldn't do this in train_begin because keras may still not be compiled
+            # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
 
