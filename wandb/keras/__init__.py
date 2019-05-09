@@ -99,9 +99,14 @@ def patch_tf_keras():
                 set_wandb_attrs(cbk, val_data)
         return old_generator(*args, **kwargs)
 
+    training_arrays.orig_fit_loop = old_arrays
     training_arrays.fit_loop = new_arrays
+    training_generator.orig_fit_generator = old_generator
     training_generator.fit_generator = new_generator
-    wandb.patched["keras"].append(wandb.util.get_full_typename(keras))
+    wandb.patched["keras"].append(
+        ["tensorflow.python.keras.engine.training_arrays", "fit_loop"])
+    wandb.patched["keras"].append(
+        ["tensorflow.python.keras.engine.training_generator", "fit_generator"])
 
 
 if "tensorflow" in wandb.util.get_full_typename(keras):

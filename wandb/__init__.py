@@ -27,11 +27,11 @@ import subprocess
 import sys
 import traceback
 import tempfile
-import types
 import re
 import glob
 from importlib import import_module
 from six.moves import reload_module
+from types import ModuleType
 
 from . import env
 from . import io_wrap
@@ -505,8 +505,14 @@ def uninit():
     global run, config, watch_called, patched, _saved_files
     run = config = None
     watch_called = False
+    # UNDO patches
     for mod in patched["tensorboard"] + patched["keras"]:
-        reload_module(import_module(mod.split(".")[0]))
+        module = import_module(mod[0])
+        parts = mod[1].split(".")
+        if len(parts) > 1:
+            module = getattr(module, parts[0])
+            mod[1] = parts[1]
+        setattr(module, mod[1], getattr(module, "orig_"+mod[1]))
     patched = {"tensorboard": [], "keras": []}
     _saved_files = set()
 

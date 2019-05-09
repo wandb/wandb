@@ -7,6 +7,7 @@ import wandb
 
 tensorboardX_loaded = "tensorboardX" in sys.modules
 tensorflow_loaded = "tensorflow" in sys.modules
+
 if not tensorboardX_loaded and not tensorflow_loaded:
     tensorboardX_loaded = wandb.util.get_module("tensorboardX") is not None
 
@@ -19,7 +20,7 @@ else:
         from tensorflow.summary import Summary
 
 
-def patch(save=True, tensorboardX=tensorboardX_loaded):
+def patch(save=True, tensorboardX=tensorboardX_loaded, pytorch=not tensorflow_loaded):
     """Monkeypatches tensorboard or tensorboardX so that all events are logged to tfevents files and wandb.
     We save the tfevents files and graphs to wandb by default.
 
@@ -31,6 +32,7 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
             "Tensorboard already patched, remove tensorboard=True from wandb.init or only call wandb.tensorboard.patch once.")
+
     tensorboard_c_module = "tensorflow.python.ops.gen_summary_ops"
     if tensorboardX:
         tensorboard_py_module = "tensorboardX.writer"
@@ -38,7 +40,7 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
             wandb.termlog(
                 "Found tensorboardX and tensorflow, pass tensorboardX=False to patch regular tensorboard.")
     else:
-        if wandb.util.get_module("tensorboard.summary.writer.event_file_writer") and not tensorflow_loaded:
+        if wandb.util.get_module("tensorboard.summary.writer.event_file_writer") and pytorch:
             # If we haven't imported tensorflow, let's patch the python tensorboard writer
             tensorboard_py_module = "tensorboard.summary.writer.event_file_writer"
         else:
@@ -96,9 +98,11 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
 
     if writer:
         # This is for TensorboardX and PyTorch 1.1 python tensorboard logging
+        writer.EventFileWriter.orig_add_event = writer.EventFileWriter.add_event
         writer.EventFileWriter.add_event = add_event(
             writer.EventFileWriter.add_event)
-        wandb.patched["tensorboard"].append(tensorboard_py_module)
+        wandb.patched["tensorboard"].append(
+            [tensorboard_py_module, "EventFileWriter.add_event"])
 
     # This configures TensorFlow 2 style Tensorboard logging
     c_writer = wandb.util.get_module(tensorboard_c_module)
@@ -113,8 +117,10 @@ def patch(save=True, tensorboardX=tensorboardX_loaded):
                 {"tensorboard": {"logdir": logdir, "save": save}})
             return old_csfw_func(*args, **kwargs)
 
+        c_writer.orig_create_summary_file_writer = old_csfw_func
         c_writer.create_summary_file_writer = new_csfw_func
-        wandb.patched["tensorboard"].append(tensorboard_c_module)
+        wandb.patched["tensorboard"].append(
+            [tensorboard_c_module, "create_summary_file_writer"])
 
 
 def log(tf_summary_str, **kwargs):

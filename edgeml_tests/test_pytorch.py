@@ -2,6 +2,7 @@ import wandb
 import pytest
 import torch
 import glob
+import sys
 import logging
 import torch.nn as nn
 import torch.nn.functional as F
@@ -31,7 +32,7 @@ class ConvNet(nn.Module):
 def test_tensorboard_pytorch(wandb_init_run, caplog):
     caplog.set_level(logging.INFO)
     writer = SummaryWriter()
-    wandb.tensorboard.patch(tensorboardX=False)
+    wandb.tensorboard.patch(tensorboardX=False, pytorch=True)
     net = ConvNet()
     wandb.watch(net, log_freq=1)
     for i in range(3):
