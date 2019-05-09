@@ -190,8 +190,8 @@ class Api(object):
                     with open(upstream_patch_path, 'wb') as upstream_patch:
                         subprocess.check_call(
                             ['git', 'diff', sha], stdout=upstream_patch, cwd=root, timeout=5)
-        # TODO: A customer saw `ValueError: Reference at 'refs/remotes/origin/foo' does not exist` 
-        # so we now catch ValueError.  Catching this error feels too generic. 
+        # TODO: A customer saw `ValueError: Reference at 'refs/remotes/origin/foo' does not exist`
+        # so we now catch ValueError.  Catching this error feels too generic.
         except (ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             logger.error('Error generating diff: %s' % e)
 

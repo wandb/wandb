@@ -4,14 +4,23 @@
 
 -   Better error messages on access denied
 -   Better error messages when optional packages aren't installed
--   urls printed to the termial are url-escaped
--   namespaced tensorboard events work with histograms
+-   Urls printed to the termial are url-escaped
+-   Namespaced tensorboard events work with histograms
+-   Public API now retries on failures and re-uses connection pool
+-   Catch git errors when remotes aren't pushed to origin
+-   Moved keras graph collection to on_train_begin to handle unbuilt models
+-   Handle more cases of not being able to save weights
 
 #### :nail_care: Enhancement
 
--   wandb.init(tensorboard=True) works with Tensorflow 2
--   socket only binds to localhost for improved security and prevents firewall warnings in OSX
-
+-   wandb.init(tensorboard=True) works with Tensorflow 2 and Eager Execution
+-   wandb.init(tensorboard=True) now works with tb-nightly and PyTorch
+-   Automatically log examples with tf.keras by adding missing validation_data
+-   Socket only binds to localhost for improved security and prevents firewall warnings in OSX
+-   Added user object to public api for getting the source user
+-   Added run.display_name to the public api
+-   Show display name in console output
+-   Added --tags, --job_group, and --job_type to `wandb run`
 
 ## 0.7.3 (April 15, 2019)
 

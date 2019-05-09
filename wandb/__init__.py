@@ -51,6 +51,7 @@ from wandb.data_types import Image
 from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Html
+from wandb.data_types import Object3D
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 
