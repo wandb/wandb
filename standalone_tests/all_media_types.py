@@ -94,6 +94,7 @@ def main():
             'image-random-summary': image_random,
             'image-pil-summary': image_pil,
             #'image-plot-summary': image_plot,
+            'image-list-summary': [image_cool, image_nice, image_random, image_pil],
 
             'audio1-summary': audio1,
             'audio2-summary': audio2,
@@ -130,6 +131,7 @@ def main():
                 'image-random': image_random,
                 'image-pil': image_pil,
                 #'image-plot': image_plot,
+                'image-list': [image_cool, image_nice, image_random, image_pil],
 
                 'audio1': audio1,
                 'audio2': audio2,
@@ -165,6 +167,7 @@ def main():
             'image-random-summary': image_random,
             'image-pil-summary': image_pil,
             #'image-plot-summary': image_plot,
+            'image-list-summary': [image_cool, image_nice, image_random, image_pil],
 
             'audio1-summary': audio1,
             'audio2-summary': audio2,

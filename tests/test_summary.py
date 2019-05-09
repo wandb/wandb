@@ -77,18 +77,15 @@ def test_delete(summary):
 def test_image(summary):
     summary["image"] = Image(np.zeros((28, 28)))
     ds = disk_summary(summary)
-    del ds['image']['run']
-    del ds['image']['sha256']
     assert os.path.exists(os.path.join(summary._run.dir, ds['image']['path']))
-    del ds['image']['path']
-    del ds['image']['entity']
-    del ds['image']['project']
-    assert ds['image'] == {
-        '_type': 'image',
+
+    expected = {
+        '_type': 'image-file',
         'height': 28,
         'width': 28,
         'size': 73,
     }
+    assert set(ds['image'].items()) >= set(expected.items())
 
 
 def test_matplot_image(summary):
@@ -97,17 +94,11 @@ def test_matplot_image(summary):
     plt.close()
     ds = disk_summary(summary)
     assert os.path.exists(os.path.join(summary._run.dir, ds['fig']['path']))
-    del ds['fig']['run']
-    del ds['fig']['sha256']
-    del ds['fig']['path']
-    del ds['fig']['entity']
-    del ds['fig']['project']
-    del ds['fig']['size']
-    assert ds["fig"] == {
-        "_type": "image",
+    assert set(ds["fig"].items()) >= set({
+        "_type": "image-file",
         "height": 480,
         "width": 640,
-    }
+    }.items())
 
 
 def test_matplot_plotly(summary):

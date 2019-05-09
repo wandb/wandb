@@ -91,7 +91,7 @@ def results_data_frame(test_datagen, model):
     class_probs = [[] for c in class_names]
 
     num_batches = int(math.ceil(len(gen.filenames) / float(gen.batch_size)))
-    num_batches = 1  # XXX
+    #num_batches = 1
     for batch_i in range(num_batches):
         examples, truth = next(gen)
         preds = model.predict(np.stack(examples))

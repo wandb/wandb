@@ -98,35 +98,44 @@ def val_to_json(run, key, val, step='summary'):
     elif isinstance(val, collections.Sequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if len(val) and isinstance(val[0], BatchableMedia) and all(isinstance(v, type(val[0])) for v in val):
-            try:
-                return val[0].seq_to_json(val, run, key, step)
-            except TypeError:
-                pass
-
-        # TODO(adrian): Good idea to pass on the same key here? Maybe include
-        # the array index?
-        # There is a bug here: if this array contains two arrays of the same type of
-        # anonymous media objects, their eventual names will collide.
-        return [val_to_json(run, key, v, step=step) for v in val]
+            return val[0].seq_to_json(val, run, key, step)
+        else:
+            # TODO(adrian): Good idea to pass on the same key here? Maybe include
+            # the array index?
+            # There is a bug here: if this array contains two arrays of the same type of
+            # anonymous media objects, their eventual names will collide.
+            return [val_to_json(run, key, v, step=step) for v in val]
 
     if isinstance(val, WBValue):
         if isinstance(val, Media) and not val.is_bound():
             val.bind_to_run(run, key, step)
-        return val.to_json()
+        return val.to_json(run)
 
     return converted
 
 
 class WBValue(object):
     """Parent class for things that can be converted to JSON objects and
-    stored in Summary, History, DataFrames, etc.
+    stored in `run.summary`, `run.history` (`wandb.log()`), DataFrames,
+    etc.
 
     The JSON objects will always have a _type attribute that indicates how
     to interpret the other fields.
 
     We picked the name "WBValue" to match what we call it on the front end.
+
+    Arguments:
+        run: A `wandb_run.Run` object in which this `WBValue` is going to
+    be stored. This is a required parameter here to support referring to
+    `Media` objects that are bound to other runs. In practice, many
+    `WBValue` children may not need a Run to be passed to them because
+    their JSON representations are self-contained.
+
+    Returns:
+        JSON-friendly `dict` representation of this object that can later be
+    serialized to a string.
     """
-    def to_json(self):
+    def to_json(self, run):
         """
         """
         raise NotImplementedError
@@ -232,7 +241,7 @@ class Graph(WBValue):
         self.criterion_passed = False
         self.root = None  # optional root Node if applicable
 
-    def to_json(self):
+    def to_json(self, run=None):
         return {"_type": "graph", "format": self.format,
                 "nodes": [node.to_json() for node in self.nodes],
                 "edges": [edge.to_json() for edge in self.edges]}
@@ -360,7 +369,7 @@ class Node(WBValue):
         if num_parameters is not None:
             self.num_parameters = num_parameters
 
-    def to_json(self):
+    def to_json(self, run=None):
         return self._attributes
 
     def __repr__(self):
@@ -506,7 +515,7 @@ class Edge(WBValue):
         temp_attr['to_id'] = self.to_node.id
         return str(temp_attr)
 
-    def to_json(self):
+    def to_json(self, run=None):
         return [self.from_node.id, self.to_node.id]
 
     @property
@@ -571,7 +580,7 @@ class Histogram(WBValue):
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
-    def to_json(self):
+    def to_json(self, run=None):
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
 
 
@@ -594,7 +603,7 @@ class Table(WBValue):
                 len(self.columns), self.columns))
         self.data.append(list(data))
 
-    def to_json(self):
+    def to_json(self, run=None):
         if len(self.data) > Table.MAX_ROWS:
             logging.warn(
                 "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
@@ -662,7 +671,7 @@ class Media(WBValue):
                 shutil.copy(self._path, new_path)
                 self._path = new_path
 
-    def to_json(self):
+    def to_json(self, run):
         """Get the JSON-friendly dict that represents this object.
 
         Only works if `self.bind_to_run()` has previously been called.
@@ -672,14 +681,16 @@ class Media(WBValue):
         if not self.is_bound():
             raise RuntimeError('Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.'.format(type(self).__name__))
 
+        assert self._run is run, "For now we don't support referring to media files across runs."
+
         return {
             '_type': 'file',  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
             'path': os.path.relpath(self._path, self._run.dir),  # TODO(adrian): Convert this to a path with forward slashes.
             'sha256': self._sha256,
             'size': self._size,
-            'entity': self._run.entity,
-            'project': self._run.project_name(),
-            'run': self._run.name,
+            #'entity': self._run.entity,
+            #'project': self._run.project_name(),
+            #'run': self._run.name,
         }
 
 
@@ -722,8 +733,8 @@ class Audio(BatchableMedia):
     def get_media_subdir(cls):
         return os.path.join('media', 'audio')
 
-    def to_json(self):
-        json_dict = super(Audio, self).to_json()
+    def to_json(self, run):
+        json_dict = super(Audio, self).to_json(run)
         json_dict.update({
             '_type': 'audio-file',
             'sample_rate': self._sample_rate,
@@ -745,7 +756,7 @@ class Audio(BatchableMedia):
         meta = {
             "_type": "audio",
             "count": len(audio_list),
-            'audio': [a.to_json() for a in audio_list],
+            'audio': [a.to_json(run) for a in audio_list],
         }
         sample_rates = cls.sample_rates(audio_list)
         if sample_rates:
@@ -848,9 +859,9 @@ class Object3D(BatchableMedia):
     def get_media_subdir(self):
         return os.path.join('media', 'object3D')
 
-    def to_json(self):
-        json_dict = super(Object3D, self).to_json()
-        json_dict['type'] = 'object3D'
+    def to_json(self, run):
+        json_dict = super(Object3D, self).to_json(run)
+        json_dict['type'] = 'object3D-file'
         return json_dict
 
     @classmethod
@@ -860,7 +871,7 @@ class Object3D(BatchableMedia):
             if not obj.is_bound():
                 obj.bind_to_run(run, key, step, id_=i)
 
-        jsons = [obj.to_json() for obj in threeD_list]
+        jsons = [obj.to_json(run) for obj in threeD_list]
 
         return {
             "_type": "object3D",
@@ -913,8 +924,8 @@ class Html(BatchableMedia):
     def get_media_subdir(self):
         return os.path.join('media', 'html')
 
-    def to_json(self):
-        json_dict = super(Html, self).to_json()
+    def to_json(self, run):
+        json_dict = super(Html, self).to_json(run)
         json_dict['_type'] = 'html-file'
         return json_dict
 
@@ -928,7 +939,7 @@ class Html(BatchableMedia):
         meta = {
             "_type": "html",
             "count": len(html_list),
-            'html': [h.to_json() for h in html_list]
+            'html': [h.to_json(run) for h in html_list]
         }
         return meta
 
@@ -986,9 +997,9 @@ class Image(BatchableMedia):
     def get_media_subdir(cls):
         return os.path.join('media', 'images')
 
-    def to_json(self):
-        json_dict = super(Image, self).to_json()
-        json_dict['_type'] = 'image'
+    def to_json(self, run):
+        json_dict = super(Image, self).to_json(run)
+        json_dict['_type'] = 'image-file'
 
         if self._width is not None:
             json_dict['width'] = self._width
@@ -1063,7 +1074,7 @@ class Image(BatchableMedia):
             "height": height,
             "count": len(images),
             "_type": "images",
-            'images': [image.to_json() for image in images],
+            'images': [image.to_json(run) for image in images],
         }
         # TODO: hacky way to enable image grouping for now
         grouping = images[0]._grouping

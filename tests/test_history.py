@@ -125,23 +125,19 @@ def test_list_of_images(history):
     image = np.random.randint(255, size=(28, 28))
     history.add({"images": [data_types.Image(image)]})
     h = disk_history(history)
-    del h[0]['images']['images'][0]['run']
-    del h[0]['images']['images'][0]['sha256']
-    del h[0]['images']['images'][0]['entity']
-    del h[0]['images']['images'][0]['project']
-    del h[0]['images']['images'][0]['size']
-    assert h[0]["images"] == {
+    expected = {
         '_type': 'images',
         'count': 1,
         'height': 28,
         'width': 28,
-        'images': [{
-            '_type': 'image',
-            'height': 28,
-            'path': 'media/images/images_0_0.png',
-            'width': 28
-        }],
     }
+    assert utils.subdict(h[0]['images'], expected) == expected
+    assert set(h[0]["images"]['images'][0].items()) >= set({
+        '_type': 'image-file',
+        'height': 28,
+        'path': 'media/images/images_0_0.png',
+        'width': 28
+    }.items())
 
 
 def test_single_image(history):
@@ -149,17 +145,11 @@ def test_single_image(history):
     history.add({"images": data_types.Image(image)})
     h = disk_history(history)
     assert os.path.exists(os.path.join(history._run.dir, h[0]['images']['path']))
-    del h[0]['images']['path']
-    del h[0]['images']['run']
-    del h[0]['images']['sha256']
-    del h[0]['images']['entity']
-    del h[0]['images']['project']
-    del h[0]['images']['size']
-    assert h[0]["images"] == {
-        '_type': 'image',
+    assert set(h[0]["images"].items()) >= set({
+        '_type': 'image-file',
         'height': 28,
         'width': 28,
-    }
+    }.items())
 
 
 def test_newline(history):
@@ -180,17 +170,11 @@ def test_matplotlib(history):
     plt.imshow(np.zeros((28, 28)), cmap='gray')
     history.add({"plt": plt})
     h = disk_history(history)
-    del h[0]['plt']['path']
-    del h[0]['plt']['run']
-    del h[0]['plt']['sha256']
-    del h[0]['plt']['entity']
-    del h[0]['plt']['project']
-    del h[0]['plt']['size']
-    assert h[0]["plt"] == {
-        '_type': 'image',
+    assert set(h[0]["plt"].items()) >= set({
+        '_type': 'image-file',
         'height': 480,
         'width': 640,
-    }
+    }.items())
 
 
 def test_table(history):

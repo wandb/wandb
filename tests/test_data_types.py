@@ -11,6 +11,8 @@ from click.testing import CliRunner
 import matplotlib.pyplot as plt
 from click.testing import CliRunner
 
+from . import utils
+
 data = np.random.randint(255, size=(1000))
 
 
@@ -50,31 +52,54 @@ def test_captions():
     assert wandb.Image.captions([wbone, wbtwo]) == ["Cool", "Nice"]
 
 
-def test_transform():
+def test_bind_image():
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        wb_image = wandb.Image(image)
+        wb_image.bind_to_run(run, 'stuff', 10)
+        assert wb_image.is_bound()
+
+        with pytest.raises(RuntimeError):
+            wb_image.bind_to_run(run, 'stuff', 10)
+
+
+def test_cant_serialize_to_other_run():
+    """This isn't implemented yet. Should work eventually.
+    """
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        other_run = wandb.wandb_run.Run()
+        wb_image = wandb.Image(image)
+
+        wb_image.bind_to_run(run, 'stuff', 10)
+
+        with pytest.raises(AssertionError):
+            wb_image.to_json(other_run)
+
+
+def test_image_seq_to_json():
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
         wb_image = wandb.Image(image)
         meta = wandb.Image.seq_to_json([wb_image], run, "test", 'summary')
         assert os.path.exists(os.path.join(run.dir, meta['images'][0]['path']))
-        del meta['images'][0]['entity']
-        del meta['images'][0]['project']
-        del meta['images'][0]['sha256']
-        del meta['images'][0]['run']
-        #del meta['images'][0]['size']
-        #del meta['images'][0]['entity']
-        assert meta == {
+
+        meta_expected = {
             '_type': 'images',
             'count': 1,
             'height': 28,
             'width': 28,
-            'images': [{
-                '_type': 'image',
-                'height': 28,
-                'path': 'media/images/test_summary_0.png',
-                'size': 73,
-                'width': 28
-            }],
         }
+        assert utils.subdict(meta, meta_expected) == meta_expected
+
+        img_expected = {
+            '_type': 'image-file',
+            'height': 28,
+            'path': 'media/images/test_summary_0.png',
+            'size': 73,
+            'width': 28
+        }
+        assert utils.subdict(meta['images'][0], img_expected) == img_expected
 
 
 def test_audio_sample_rates():
@@ -122,23 +147,22 @@ def test_audio_to_json():
         meta = wandb.Audio.seq_to_json(
             [wandb.Audio(audio, sample_rate=44100)], run, "test", 0)
         assert os.path.exists(os.path.join(run.dir, meta['audio'][0]['path']))
-        del meta['audio'][0]['run']
-        del meta['audio'][0]['path']
-        del meta['audio'][0]['sha256']
-        del meta['audio'][0]['entity']
-        del meta['audio'][0]['project']
-        assert meta == {
+
+        meta_expected = {
             '_type': 'audio',
             'count': 1,
             'sampleRates': [44100],
             'durations': [1.0],
-            'audio': [{
-                '_type': 'audio-file',
-                'caption': None,
-                'sample_rate': 44100,
-                'size': 88244,
-            }],
         }
+        assert utils.subdict(meta, meta_expected) == meta_expected
+
+        audio_expected = {
+            '_type': 'audio-file',
+            'caption': None,
+            'sample_rate': 44100,
+            'size': 88244,
+        }
+        assert utils.subdict(meta['audio'][0], audio_expected) == audio_expected
 
 
 def test_guess_mode():

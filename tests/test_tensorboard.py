@@ -76,7 +76,7 @@ def test_tensorboardX(run_manager):
                 events.append(file)
     assert rows[0]["matplotlib"]['width'] == 640
     assert rows[0]["matplotlib"]['height'] == 480
-    assert rows[0]["matplotlib"]['_type'] == 'image'
+    assert rows[0]["matplotlib"]['_type'] == 'image-file'
     assert rows[1]["data/scalar_group/foo"] == 10
     assert rows[1]["data/scalar_group/bar"] == 100
     assert len(events) == 3
