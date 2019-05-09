@@ -217,7 +217,6 @@ class WandbCallback(keras.callbacks.Callback):
 
     def set_model(self, model):
         self.model = model
-        wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
@@ -250,7 +249,7 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_begin(self, logs=None):
-        pass
+        wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
 
     def on_train_end(self, logs=None):
         pass
