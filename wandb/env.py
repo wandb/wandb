@@ -41,6 +41,7 @@ ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
 DOCKER = 'WANDB_DOCKER'
 AGENT_REPORT_INTERVAL = 'WANDB_AGENT_REPORT_INTERVAL'
 AGENT_KILL_DELAY = 'WANDB_AGENT_KILL_DELAY'
+CRASH_NOSYNC_TIME = 'WANDB_CRASH_NOSYNC_TIME'
 
 
 def is_debug(default=None, env=None):
@@ -171,6 +172,17 @@ def get_agent_kill_delay(default=None, env=None):
     if env is None:
         env = os.environ
     val = env.get(AGENT_KILL_DELAY, default)
+    try:
+        val = int(val)
+    except ValueError:
+        val = None  # silently ignore env format errors, caller should handle.
+    return val
+
+
+def get_crash_nosync_time(default=None, env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(CRASH_NOSYNC_TIME, default)
     try:
         val = int(val)
     except ValueError:
