@@ -8,7 +8,19 @@ import io
 import logging
 import six
 import wandb
+import uuid
+import json
+import codecs
 from wandb import util
+
+
+def nest(thing):
+    """Use tensorflows nest function if available, otherwise just wrap object in an array"""
+    tfutil = util.get_module('tensorflow.python.util')
+    if tfutil:
+        return tfutil.nest.flatten(thing)
+    else:
+        return [thing]
 
 
 def val_to_json(key, val, mode="summary", step=None):
@@ -45,6 +57,8 @@ def val_to_json(key, val, mode="summary", step=None):
                 converted = Audio.transform(val, cwd, key, step)
             elif isinstance(val[0], Html):
                 converted = Html.transform(val, cwd, key, step)
+            elif isinstance(val[0], Object3D):
+                converted = Object3D.transform(val, cwd, key, step)
         elif any(is_media):
             raise ValueError(
                 "Mixed media types in the same list aren't supported")
@@ -110,7 +124,6 @@ class Graph(object):
     @classmethod
     def from_keras(cls, model):
         graph = cls()
-
         # Shamelessly copied from keras/keras/utils/layer_utils.py
 
         if model.__class__.__name__ == 'Sequential':
@@ -158,14 +171,12 @@ class Graph(object):
         layers = model.layers
         for i in range(len(layers)):
             node = Node.from_keras(layers[i])
-            graph.add_node(node)
-
             if hasattr(layers[i], '_inbound_nodes'):
                 for in_node in layers[i]._inbound_nodes:
                     if relevant_nodes and in_node not in relevant_nodes:
                         # node is not part of the current network
                         continue
-                    for in_layer in in_node.inbound_layers:
+                    for in_layer in nest(in_node.inbound_layers):
                         inbound_keras_node = Node.from_keras(in_layer)
 
                         if (inbound_keras_node.id not in graph.nodes_by_id):
@@ -173,7 +184,7 @@ class Graph(object):
                         inbound_node = graph.nodes_by_id[inbound_keras_node.id]
 
                         graph.add_edge(inbound_node, node)
-
+            graph.add_node(node)
         return graph
 
     @staticmethod
@@ -400,7 +411,8 @@ class Histogram(object):
         """Accepts a sequence to be converted into a histogram or np_histogram can be set
         to a tuple of (values, bins_edges) as np.histogram returns i.e.
 
-        wandb.log({"histogram": wandb.Histogram(np_histogram=np.histogram(data))})
+        wandb.log({"histogram": wandb.Histogram(
+            np_histogram=np.histogram(data))})
 
         The maximum number of bins currently supported is 512
         """
@@ -436,22 +448,28 @@ class Histogram(object):
 class Table(object):
     MAX_ROWS = 300
 
-    def __init__(self, columns=["Input", "Output", "Expected"], rows=[]):
+    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
+        """rows is kept for legacy reasons, we use data to mimic the Pandas api
+        """
         self.columns = columns
-        self.rows = list(rows)
+        self.data = list(rows or data or [])
 
     def add_row(self, *row):
-        if len(row) != len(self.columns):
+        logging.warn("add_row is deprecated, use add_data")
+        self.add_data(*row)
+
+    def add_data(self, *data):
+        if len(data) != len(self.columns):
             raise ValueError("This table expects {} columns: {}".format(
                 len(self.columns), self.columns))
-        self.rows.append(list(row))
+        self.data.append(list(data))
 
     @staticmethod
     def transform(table):
-        if len(table.rows) > Table.MAX_ROWS:
+        if len(table.data) > Table.MAX_ROWS:
             logging.warn(
                 "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
-        return {"_type": "table", "columns": table.columns, "data": table.rows[:Table.MAX_ROWS]}
+        return {"_type": "table", "columns": table.columns, "data": table.data[:Table.MAX_ROWS]}
 
 
 class IterableMedia(object):
@@ -464,7 +482,7 @@ class Audio(IterableMedia):
 
     def __init__(self, data, sample_rate=None, caption=None):
         """
-        Accepts numpy array of audio data. 
+        Accepts numpy array of audio data.
         """
         if sample_rate == None:
             raise ValueError('Missing argument "sample_rate" in wandb.Audio')
@@ -516,6 +534,93 @@ class Audio(IterableMedia):
             return ['' if c == None else c for c in captions]
 
 
+def isNumpyArray(data):
+    np = util.get_module(
+        "numpy", required="Logging raw point cloud data requires numpy")
+    return isinstance(data, np.ndarray)
+
+
+class Object3D(IterableMedia):
+    MAX_3D_COUNT = 20
+    SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', 'stl'])
+
+    def __init__(self, data, **kwargs):
+        """
+        Accepts a numpy array or a 3D File of type: obj, gltf, babylon, stl
+
+        The shape of the numpy array must be one of either:
+        [[x y z],       ...] nx3
+         [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+         [x y z r g b], ...] nx4 where is rgb is color"""
+        if hasattr(data, 'read'):
+            if hasattr(data, 'seek'):
+                data.seek(0)
+            self.object3D = data.read()
+            extension = kwargs.pop("file_type", None)
+            if hasattr(data, 'name'):
+                try:
+                    extension = os.path.splitext(data.name)[1][1:]
+                except:
+                    raise ValueError(
+                        "File type must have an extension")
+
+            if extension == None:
+                raise ValueError(
+                    "Must pass file type keyword argument when using io objects.")
+
+            if extension in Object3D.SUPPORTED_TYPES:
+                self.extension = extension
+            else:
+                raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
+                                 ", ".join(Object3D.SUPPORTED_TYPES))
+        elif isNumpyArray(data):
+            if len(data.shape) == 2 and data.shape[1] in {3, 4, 6}:
+                self.numpyData = data
+            else:
+                raise ValueError("""The shape of the numpy array must be one of either
+                                    [[x y z],       ...] nx3
+                                     [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+                                     [x y z r g b], ...] nx4 where is rgb is color""")
+        else:
+            raise ValueError("data must be a numpy or a file object")
+
+    @staticmethod
+    def transform(threeD_list, out_dir, key, step):
+        if len(threeD_list) > Object3D.MAX_3D_COUNT:
+            logging.warn(
+                "The maximum number of Object3D files to store per key is %i." % Object3D.MAX_3D_COUNT)
+        base_path = os.path.join(out_dir, "media", "object3D")
+        util.mkdir_exists_ok(base_path)
+        truncated = threeD_list[:Object3D.MAX_3D_COUNT]
+
+        filenames = []
+
+        for i, obj in enumerate(truncated):
+            # Encode the numpy array as json and send it to the server so we can use it
+            # later when needed.
+            if hasattr(obj, "numpyData"):
+                data = obj.numpyData.tolist()
+                filename = "{}_{}_{}.pts.json".format(
+                    key, step, i)
+                file_path = os.path.join(base_path, filename)
+                json.dump(data, codecs.open(file_path, 'w', encoding='utf-8'),
+                          separators=(',', ':'), sort_keys=True, indent=4)
+            else:
+                filename = "{}_{}_{}.{}".format(
+                    key, step, i, obj.extension)
+                file_path = os.path.join(base_path, filename)
+                with open(file_path, "w") as f:
+                    f.write(obj.object3D)
+
+            filenames.append(filename)
+
+        meta = {"_type": "object3D",
+                "filenames": filenames,
+                "count": len(truncated)}
+
+        return meta
+
+
 class Html(IterableMedia):
     MAX_HTML_COUNT = 100
 
@@ -523,7 +628,7 @@ class Html(IterableMedia):
         """
         Accepts a string or file object containing valid html
 
-        By default we inject a style reset into the doc to make it 
+        By default we inject a style reset into the doc to make it
         look resonable, passing inject=False will disable it.
         """
         if isinstance(data, str):
@@ -570,6 +675,9 @@ class Html(IterableMedia):
 class Image(IterableMedia):
     MAX_IMAGES = 100
 
+    # PIL limit
+    MAX_DIMENSION = 65500
+
     def __init__(self, data, mode=None, caption=None, grouping=None):
         """
         Accepts numpy array of image data, or a PIL image. The class attempts to infer
@@ -577,6 +685,7 @@ class Image(IterableMedia):
 
         If grouping is set to a number the interface combines N images.
         """
+
         PILImage = util.get_module(
             "PIL.Image", required="wandb.Image requires the PIL package, to get it run: pip install pillow")
         if util.is_matplotlib_typename(util.get_full_typename(data)):
@@ -602,7 +711,7 @@ class Image(IterableMedia):
 
     def guess_mode(self, data):
         """
-        Guess what type of image the np.array is representing 
+        Guess what type of image the np.array is representing
         """
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:
@@ -647,25 +756,35 @@ class Image(IterableMedia):
         from PIL import Image as PILImage
         base = os.path.join(out_dir, "media", "images")
         width, height = images[0].image.size
-        if len(images) > Image.MAX_IMAGES:
+        num_images_to_log = len(images)
+
+        if num_images_to_log > Image.MAX_IMAGES:
             logging.warn(
                 "The maximum number of images to store per step is %i." % Image.MAX_IMAGES)
+            num_images_to_log = Image.MAX_IMAGES
+
+        if width * num_images_to_log > Image.MAX_DIMENSION:
+            max_images_by_dimension = Image.MAX_DIMENSION // width
+            logging.warn("The maximum total width for all images in a collection is 65500, or {} images, each with a width of {} pixels. Only logging the first {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
+            num_images_to_log = max_images_by_dimension
+
+        total_width = width * num_images_to_log
         sprite = PILImage.new(
             mode='RGB',
-            size=(width * len(images), height),
-            color=(0, 0, 0, 0))
-        for i, image in enumerate(images[:Image.MAX_IMAGES]):
+            size=(total_width, height),
+            color=(0, 0, 0))
+        for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image.image, (location, 0))
         util.mkdir_exists_ok(base)
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
-                "count": len(images), "_type": "images"}
+                "count": num_images_to_log, "_type": "images"}
         # TODO: hacky way to enable image grouping for now
         grouping = images[0].grouping
         if grouping:
             meta["grouping"] = grouping
-        captions = Image.captions(images[:Image.MAX_IMAGES])
+        captions = Image.captions(images[:num_images_to_log])
         if captions:
             meta["captions"] = captions
         return meta

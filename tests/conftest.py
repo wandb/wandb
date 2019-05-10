@@ -198,6 +198,8 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 run = wandb.init(**kwargs)
                 api.set_current_run_id(run.id)
                 if request.node.get_closest_marker('resume'):
+                    # Reset history so run.resumed is true in tests
+                    run._history = None
                     rm = wandb.run_manager.RunManager(api, run)
                     rm.init_run(os.environ)
                 if request.node.get_closest_marker('mock_socket'):

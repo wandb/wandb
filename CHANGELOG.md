@@ -1,8 +1,31 @@
-## 0.7.3 (TBD)
+## 0.7.4 (TBD)
+
+#### :bug: Bug Fix
+
+-   Public API now retries on failures and re-uses connection pool
+-   Catch git errors when remotes aren't pushed to origin
+
+#### :nail_care: Enhancement
+
+-   Added user object to public api for getting the source user
+
+## 0.7.3 (April 15, 2019)
 
 #### :bug: Bug Fix
 
 -   wandb-docker-run accepts image digests
+-   keras callback works in tensorflow2-alpha0
+-   keras model graph now puts input layer first
+
+#### :nail_care: Enhancement
+
+-   PyTorch log frequency added for gradients and weights
+-   PyTorch logging performance enhancements
+-   wandb.init now accepts a name parameter for naming runs
+-   wandb.run.name reflects custom display names
+-   Improvements to nested summary values
+-   Deprecated wandb.Table.add_row in favor of wandb.Table.add_data
+-   Initial support for a fast.ai callback thanks to @borisdayma!
 
 ## 0.7.2 (March 19, 2019)
 

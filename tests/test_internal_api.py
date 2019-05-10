@@ -163,6 +163,15 @@ def test_upsert_run_defaults(request_mocker, mocker, upsert_run):
     assert api.settings('entity') == 'bagsy'
 
 
+def test_upsert_run_bad_request(request_mocker, mocker, upsert_run):
+    """This happens for instance if you try to upload to run that has been
+    deleted."""
+    update_mock = upsert_run(request_mocker, status_code=400)
+    with pytest.raises(wandb.apis.CommError) as excinfo:
+        api.upsert_run(project="new-test")
+        assert excinfo.type == requests.exceptions.HTTPError
+        assert excinfo.value.exc.response.status_code == 400
+
 def test_settings(mocker):
     os.environ.pop('WANDB_ENTITY', None)
     os.environ.pop('WANDB_PROJECT', None)
