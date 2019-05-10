@@ -15,9 +15,7 @@ def wandb_keras_hooks_install():
         print("self", self)
         self._fit(*args, **kwargs, callbacks=callbacks)
 
-    print("JHR4")
     if not run_once:
-        print("JHR5")
         run_once = True
         keras.engine.Model._fit = keras.engine.Model.fit
         keras.engine.Model.fit = fit
