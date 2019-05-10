@@ -150,8 +150,11 @@ class TorchHistory(object):
                     check = flat.histc(bins=self._num_bins)
                 except RuntimeError as e:
                     # Only work around missing support with specific exception
-                    if str(e).startswith("_th_histc is not implemented"):
-                        self._is_cuda_histc_supported = False
+                    #if str(e).startswith("_th_histc is not implemented"):
+                    #    self._is_cuda_histc_supported = False
+                    # On second thought, 0.4.1 doesnt have support and maybe there are other issues
+                    # lets disable more broadly for now
+                    self._is_cuda_histc_supported = False
 
             if not self._is_cuda_histc_supported:
                 flat = flat.cpu().clone().detach()
