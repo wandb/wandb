@@ -955,6 +955,9 @@ class Html(BatchableMedia):
 class Image(BatchableMedia):
     MAX_THUMBNAILS = 100
 
+    # PIL limit
+    MAX_DIMENSION = 65500
+
     def __init__(self, data_or_path, mode=None, caption=None, grouping=None):
         """
         Accepts numpy array of image data, or a PIL image. The class attempts to infer
@@ -1065,22 +1068,30 @@ class Image(BatchableMedia):
         from PIL import Image as PILImage
         base = os.path.join(run.dir, cls.get_media_subdir())
         width, height = images[0]._image.size
+        num_images_to_log = len(images)
+
+        if width * num_images_to_log > Image.MAX_DIMENSION:
+            max_images_by_dimension = Image.MAX_DIMENSION // width
+            logging.warn("The maximum total width for all images in a collection is 65500, or {} images, each with a width of {} pixels. There will only be thumbnails for {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
+            num_images_to_log = max_images_by_dimension
+
+        total_width = width * num_images_to_log
         sprite = PILImage.new(
             mode='RGB',
-            size=(width * len(images), height),
-            color=(0, 0, 0, 0))
+            size=(total_width, height),
+            color=(0, 0, 0))
         for i, image in enumerate(images):
             if not image.is_bound():
                 image.bind_to_run(run, key, step, id_=i)
-        for i, image in enumerate(images[:cls.MAX_THUMBNAILS]):
+        for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image._image, (location, 0))
         util.mkdir_exists_ok(base)
-        sprite.save(os.path.join(base, '{}_{}.jpg'.format(key, step)), transparency=0)
+        sprite.save(os.path.join(base, fname), transparency=0)
         meta = {
             "width": width,
             "height": height,
-            "count": len(images),
+            "count": num_images_to_log,
             "_type": "images",
             'images': [image.to_json(run) for image in images],
         }
@@ -1088,7 +1099,7 @@ class Image(BatchableMedia):
         grouping = images[0]._grouping
         if grouping:
             meta["grouping"] = grouping
-        captions = cls.captions(images[:cls.MAX_THUMBNAILS])
+        captions = Image.captions(images[:num_images_to_log])
         if captions:
             meta["captions"] = captions
         return meta

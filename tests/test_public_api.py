@@ -76,6 +76,13 @@ def test_run_from_path(request_mocker, query_run_v2, query_download_h5):
     assert run.summary_metrics == {"acc": 100, "loss": 0}
 
 
+def test_run_retry(request_mocker, query_run_v2, query_download_h5):
+    run_mock = query_run_v2(request_mocker, status_code=500, attempts=3)
+    query_download_h5(request_mocker)
+    run = api.run("test/test/test")
+    assert run.summary_metrics == {"acc": 100, "loss": 0}
+
+
 def test_run_history(request_mocker, query_run_v2, query_download_h5):
     run_mock = query_run_v2(request_mocker)
     query_download_h5(request_mocker)

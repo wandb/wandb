@@ -36,7 +36,7 @@ DESCRIPTION_FNAME = 'description.md'
 class Run(object):
     def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None,
                  config=None, sweep_id=None, storage_id=None, description=None, resume=None,
-                 program=None, args=None, wandb_dir=None, tags=[]):
+                 program=None, args=None, wandb_dir=None, tags=None):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else util.generate_id()
         self.resume = resume if resume else 'never'
@@ -99,7 +99,7 @@ class Run(object):
         # important that we overwrite empty strings here.
         if not self.name_and_description:
             self.name_and_description = self.id
-        self.tags = tags
+        self.tags = tags if tags else []
 
         self.sweep_id = sweep_id
 
