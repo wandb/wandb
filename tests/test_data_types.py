@@ -316,13 +316,13 @@ def test_object3d_seq_to_json():
         assert os.path.exists(os.path.join(run.dir, "media/object3D/Box_be115756.gltf"))
         assert os.path.exists(os.path.join(run.dir, "media/object3D/cube_afff12bc.obj"))
         assert os.path.exists(os.path.join(run.dir, 
-            "media/object3D/pc_1_2.json"))
+            "media/object3D/pc_1_2.pts.json"))
 
         assert obj["_type"] == "object3D"
         assert obj["filenames"] == [
             "media/object3D/Box_be115756.gltf",
             "media/object3D/cube_afff12bc.obj",
-            "media/object3D/pc_1_2.json",
+            "media/object3D/pc_1_2.pts.json",
         ]
 
 

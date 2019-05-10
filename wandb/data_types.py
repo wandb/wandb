@@ -618,9 +618,13 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self, path, is_tmp=False):
+    def __init__(self, path, is_tmp=False, extension=None):
         self._path = path
         self._is_tmp = is_tmp
+        self._extension = extension
+        if extension is not None and not path.endswith(extension):
+            raise ValueError('Media file extension "{}" must occur at the end of path "{}".'.format(extension, path))
+
         self._sha256 = hashlib.sha256(open(self._path, 'rb').read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
@@ -654,11 +658,16 @@ class Media(WBValue):
             base_path = os.path.join(self._run.dir, self.get_media_subdir())
             util.mkdir_exists_ok(base_path)
 
+            if self._extension is None:
+                rootname, extension = os.path.splitext(os.path.basename(self._path))
+            else:
+                extension = self._extension
+                rootname = os.path.basename(self._path)[:-len(extension)]
+
             if self._is_tmp:
                 if id_ is None:
                     id_ = self._sha256[:8]
 
-                extension = os.path.splitext(self._path)[1]
                 new_path = os.path.join(base_path, '{}_{}_{}{}'.format(key, step, id_, extension))
 
                 shutil.move(self._path, new_path)
@@ -666,8 +675,7 @@ class Media(WBValue):
                 self._path = new_path
                 self._is_tmp = False
             else:
-                basename, extension = os.path.splitext(os.path.basename(self._path))
-                new_path = os.path.join(base_path, '{}_{}{}'.format(basename, self._sha256[:8], extension))
+                new_path = os.path.join(base_path, '{}_{}{}'.format(rootname, self._sha256[:8], extension))
                 shutil.copy(self._path, new_path)
                 self._path = new_path
 
@@ -851,7 +859,7 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
             json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
                       separators=(',', ':'), sort_keys=True, indent=4)
-            super(Object3D, self).__init__(tmp_path, is_tmp=True)
+            super(Object3D, self).__init__(tmp_path, is_tmp=True, extension='.pts.json')
         else:
             raise ValueError("data must be a numpy or a file object")
 
@@ -861,7 +869,7 @@ class Object3D(BatchableMedia):
 
     def to_json(self, run):
         json_dict = super(Object3D, self).to_json(run)
-        json_dict['type'] = 'object3D-file'
+        json_dict['_type'] = 'object3D-file'
         return json_dict
 
     @classmethod
