@@ -49,6 +49,7 @@ def _run_resume_status(name='test', empty=False, files=None):
             'name': name,
             'displayName': 'funky-town-13',
             'id': name,
+            'summaryMetrics': '{"acc": 10}',
             'logLineCount': 14,
             'historyLineCount': 15,
             'eventsLineCount': 0,

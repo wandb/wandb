@@ -511,6 +511,7 @@ class Api(object):
                 bucket(name: $name, missingOk: true) {
                     id
                     name
+                    summaryMetrics
                     displayName
                     logLineCount
                     historyLineCount
@@ -644,7 +645,7 @@ class Api(object):
         ''')
         if config is not None:
             config = json.dumps(config)
-        if not description:
+        if not description or description.isspace():
             description = None
 
         kwargs = {}

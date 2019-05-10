@@ -11,7 +11,7 @@ from itertools import chain
 if "keras" in sys.modules:
     if "tensorflow.python.keras" in sys.modules:
         wandb.termlog(
-            "WARNING: found both keras and tensorflow.python.keras. Use `from tensorflow import keras` and remove `import keras` to use the latest W&B features.")
+            "Found keras and tensorflow.keras. WandbCallback will be configured for keras not tensorflow.keras.")
     import keras
     import keras.backend as K
 elif "tensorflow.python.keras" in sys.modules:

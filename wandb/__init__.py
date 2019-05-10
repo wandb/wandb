@@ -356,6 +356,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # pass the run into WandbCallback)
 run = None
 config = None  # config object shared with the global run
+summary = None  # summary object shared with the global run
 Api = PublicApi
 # Stores what modules have been patched
 patched = {
@@ -515,8 +516,8 @@ def ensure_configured():
 def uninit():
     """Undo the effects of init(). Useful for testing.
     """
-    global run, config, watch_called, patched, _saved_files
-    run = config = None
+    global run, config, summary, watch_called, patched, _saved_files
+    run = config = summary = None
     watch_called = False
     # UNDO patches
     for mod in patched["tensorboard"]:
@@ -748,6 +749,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         global config  # because we already have a local config
         config = run.config
     set_global_config(run)
+    global summary
+    summary = run.summary
 
     # set this immediately after setting the run and the config. if there is an
     # exception after this it'll probably break the user script anyway
@@ -801,6 +804,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     # Access history to ensure resumed is set when resuming
     run.history
+    # Load the summary to support resuming
+    run.summary.load()
 
     atexit.register(run.close_files)
 

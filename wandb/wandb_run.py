@@ -91,17 +91,13 @@ class Run(object):
         # socket server, currently only available in headless mode
         self.socket = None
 
-        self.name_and_description = None
+        self.name_and_description = ""
         if description is not None:
             self.name_and_description = description
         elif os.path.exists(self.description_path):
             with open(self.description_path) as d_file:
                 self.name_and_description = d_file.read()
 
-        # An empty description.md may have been created by RunManager() so it's
-        # important that we overwrite empty strings here.
-        if not self.name_and_description:
-            self.name_and_description = self.id
         self.tags = tags if tags else []
 
         self.sweep_id = sweep_id

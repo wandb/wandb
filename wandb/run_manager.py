@@ -410,6 +410,9 @@ class Process(object):
     def kill(self):
         os.kill(self.pid, signal.SIGKILL)
 
+def format_display_name(run):
+    "Simple helper to not show display name if its the same as id"
+    return " "+run.display_name+":" if run.display_name != run.id else ":"
 
 class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
@@ -762,7 +765,7 @@ class RunManager(object):
             jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.HISTORY_FNAME),
                                        history_tail)
         except ValueError:
-            print("warning: couldn't load recent history")
+            wandb.termlog("WARNING: couldn't load recent history")
 
         # write the tail of the events file
         try:
@@ -770,7 +773,10 @@ class RunManager(object):
             jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.EVENTS_FNAME),
                                        events_tail)
         except ValueError:
-            print("warning: couldn't load recent events")
+            wandb.termlog("WARNING: couldn't load recent events")
+
+        # load the previous runs summary to avoid losing it, the user process will need to load it
+        self._run.summary.update(json.loads(resume_status['summaryMetrics'] or "{}"))
 
         # Note: these calls need to happen after writing the files above. Because the access
         # to self._run.events below triggers events to initialize, but we need the previous
@@ -902,7 +908,7 @@ class RunManager(object):
 
         if self._output:
             url = self._run.get_url(self._api)
-            wandb.termlog("Syncing to {}: {}".format(self._run.display_name, url))
+            wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_display_name(self._run), url))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         self._run.set_environment(environment=env)
@@ -1316,6 +1322,6 @@ class RunManager(object):
             else:
                 wandb.termlog('Synced %s' % url)
 
-        wandb.termlog('Synced {}: {}'.format(self._run.display_name, url))
+        wandb.termlog('Synced{} {}'.format(format_display_name(self._run), url))
         logger.info("syncing complete: %s" % url)
         sys.exit(exitcode)

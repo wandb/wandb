@@ -454,7 +454,7 @@ class Table(object):
         self.data = list(rows or data or [])
 
     def add_row(self, *row):
-        logging.warn("add_row is deprecated, use add_data")
+        logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
     def add_data(self, *data):
@@ -466,7 +466,7 @@ class Table(object):
     @staticmethod
     def transform(table):
         if len(table.data) > Table.MAX_ROWS:
-            logging.warn(
+            logging.warning(
                 "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
         return {"_type": "table", "columns": table.columns, "data": table.data[:Table.MAX_ROWS]}
 
@@ -492,7 +492,7 @@ class Audio(IterableMedia):
     @staticmethod
     def transform(audio_list, out_dir, key, step):
         if len(audio_list) > Audio.MAX_AUDIO_COUNT:
-            logging.warn(
+            logging.warning(
                 "The maximum number of audio files to store per step is %i." % Audio.MAX_AUDIO_COUNT)
         sf = util.get_module(
             "soundfile", required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile")
@@ -586,7 +586,7 @@ class Object3D(IterableMedia):
     @staticmethod
     def transform(threeD_list, out_dir, key, step):
         if len(threeD_list) > Object3D.MAX_3D_COUNT:
-            logging.warn(
+            logging.warning(
                 "The maximum number of Object3D files to store per key is %i." % Object3D.MAX_3D_COUNT)
         base_path = os.path.join(out_dir, "media", "object3D")
         util.mkdir_exists_ok(base_path)
@@ -659,7 +659,7 @@ class Html(IterableMedia):
     @staticmethod
     def transform(html_list, out_dir, key, step):
         if len(html_list) > Html.MAX_HTML_COUNT:
-            logging.warn(
+            logging.warning(
                 "The maximum number of html files to store per key is %i." % Html.MAX_HTML_COUNT)
         base_path = os.path.join(out_dir, "media", "html")
         util.mkdir_exists_ok(base_path)
@@ -761,13 +761,13 @@ class Image(IterableMedia):
         num_images_to_log = len(images)
 
         if num_images_to_log > Image.MAX_IMAGES:
-            logging.warn(
+            logging.warning(
                 "The maximum number of images to store per step is %i." % Image.MAX_IMAGES)
             num_images_to_log = Image.MAX_IMAGES
 
         if width * num_images_to_log > Image.MAX_DIMENSION:
             max_images_by_dimension = Image.MAX_DIMENSION // width
-            logging.warn("The maximum total width for all images in a collection is 65500, or {} images, each with a width of {} pixels. Only logging the first {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
+            logging.warning("The maximum total width for all images in a collection is 65500, or {} images, each with a width of {} pixels. Only logging the first {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
             num_images_to_log = max_images_by_dimension
 
         total_width = width * num_images_to_log
