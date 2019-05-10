@@ -147,6 +147,30 @@ class WandbCallback(keras.callbacks.Callback):
     def on_train_end(self, logs=None):
         pass
 
+    def on_test_begin(self, logs=None):
+        pass
+
+    def on_test_end(self, logs=None):
+        pass
+
+    def on_test_batch_begin(self, batch, logs=None):
+        pass
+
+    def on_test_batch_end(self, batch, logs=None):
+        pass
+
+    def on_predict_begin(self, logs=None):
+        pass
+
+    def on_predict_end(self, logs=None):
+        pass
+
+    def on_predict_batch_begin(self, batch, logs=None):
+        pass
+
+    def on_predict_batch_end(self, batch, logs=None):
+        pass
+
     def _log_images(self, num_images=36):
         validation_X = self.validation_data[0]
         validation_y = self.validation_data[1]

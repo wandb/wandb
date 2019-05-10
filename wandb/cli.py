@@ -50,7 +50,7 @@ from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import run_manager
 from wandb import Error
-from wandb.magic import wandb_keras_hooks_install
+from wandb.magic_impl import wandb_keras_hooks_install
 
 DOCS_URL = 'http://docs.wandb.com/'
 logger = logging.getLogger(__name__)
