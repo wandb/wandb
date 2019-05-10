@@ -50,6 +50,7 @@ from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import run_manager
 from wandb import Error
+from wandb.magic import wandb_keras_hooks_install
 
 DOCS_URL = 'http://docs.wandb.com/'
 logger = logging.getLogger(__name__)
@@ -842,36 +843,18 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
     subprocess.call(command)
 
 
-# Move this to a more appropriate place
-def wandb_keras_hooks_install():
-    # TODO: Need to safely check if keras is installed
-    import keras
-    import wandb
-
-    def fit(self, *args, **kwargs):
-        #print("INFO: wandb wrapped fit")
-        callbacks = kwargs.pop("callbacks", [])
-        callbacks.append(keras.callbacks.TensorBoard(log_dir=wandb.run.dir))
-        callbacks.append(wandb.keras.WandbCallback())
-        self._fit(*args, **kwargs, callbacks=callbacks)
-
-    keras.engine.Model._fit = keras.engine.Model.fit
-    keras.engine.Model.fit = fit
-    # TODO: Need to be able to pass options to init?
-    wandb.init()
-
 
 MONKEY_CONTEXT = copy.copy(CONTEXT)
 MONKEY_CONTEXT['allow_extra_args'] = True
 
-@cli.command(context_settings=MONKEY_CONTEXT, help="Wrap a job")
+@cli.command(context_settings=MONKEY_CONTEXT, help="Run any script with wandb")
 @click.pass_context
 @click.argument('program')
 @click.argument('args', nargs=-1)
 @click.option('--configs', default=None,
               help='Config file paths to load')
 @display_error
-def monkey(ctx, program, args, configs):
+def magic(ctx, program, args, configs):
 
     def monkey_run(cmd, globals, locals, configs):
         try:
