@@ -1072,7 +1072,7 @@ class Image(BatchableMedia):
 
         if width * num_images_to_log > Image.MAX_DIMENSION:
             max_images_by_dimension = Image.MAX_DIMENSION // width
-            logging.warn("The maximum total width for all images in a collection is 65500, or {} images, each with a width of {} pixels. There will only be thumbnails for {} images.".format(max_images_by_dimension, width, max_images_by_dimension))
+            logging.warn('There will only be thumbnails for {} images. The maximum total width for a set of thumbnails is 65,500px, or {} images, each with a width of {} pixels.'.format(max_images_by_dimension, max_images_by_dimension, width))
             num_images_to_log = max_images_by_dimension
 
         total_width = width * num_images_to_log
@@ -1087,7 +1087,7 @@ class Image(BatchableMedia):
             location = width * i
             sprite.paste(image._image, (location, 0))
         util.mkdir_exists_ok(base)
-        sprite.save(os.path.join(base, fname), transparency=0)
+        sprite.save(os.path.join(base, '{}_{}.jpg'.format(key, step)), transparency=0)
         meta = {
             "width": width,
             "height": height,

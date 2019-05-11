@@ -105,11 +105,12 @@ def test_transform_caps_at_65500(caplog):
     large_image = np.random.randint(255, size=(10, 1000))
     large_list = [wandb.Image(large_image)] * 100
     with CliRunner().isolated_filesystem():
-        meta = wandb.Image.transform(large_list, ".", "test2.jpg")
-        assert meta == {'_type': 'images',
-                        'count': 65, 'height': 10, 'width': 1000}
-        assert os.path.exists("media/images/test2.jpg")
-        assert 'The maximum total width for all images in a collection is 65500, or 65 images, each with a width of 1000 pixels. Only logging the first 65 images.' in caplog.text
+        run = wandb.wandb_run.Run()
+        meta = wandb.Image.seq_to_json(large_list, run, "test2", 0)
+        expected = {'_type': 'images', 'count': 65, 'height': 10, 'width': 1000}
+        assert utils.subdict(meta, expected) == expected
+        assert os.path.exists(os.path.join(run.dir, "media/images/test2_0.jpg"))
+        assert 'There will only be thumbnails for 65 images. The maximum total width for a set of thumbnails is 65,500px, or 65 images, each with a width of 1000 pixels.' in caplog.text
 
 def test_audio_sample_rates():
     audio1 = np.random.uniform(-1, 1, 44100)
