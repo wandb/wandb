@@ -11,7 +11,8 @@ def wandb_keras_hooks_install():
         callbacks = kwargs.pop("callbacks", [])
         callbacks.append(keras.callbacks.TensorBoard(log_dir=wandb.run.dir))
         callbacks.append(wandb.keras.WandbCallback())
-        self._fit(*args, **kwargs, callbacks=callbacks)
+        kwargs["callbacks"] = callbacks
+        self._fit(*args, **kwargs)
 
     if not run_once:
         run_once = True

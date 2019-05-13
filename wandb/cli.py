@@ -859,18 +859,21 @@ MONKEY_CONTEXT['allow_extra_args'] = True
 @click.pass_context
 @click.argument('program')
 @click.argument('args', nargs=-1)
+# TODO(jhr): do something with configs
+# TODO(jhr): need other args, how do i pass -m
 @click.option('--configs', default=None,
               help='Config file paths to load')
 @display_error
 def magic(ctx, program, args, configs):
 
-    def monkey_run(cmd, globals, locals, configs):
+    def magic_run(cmd, globals, locals, configs):
         try:
             exec(cmd, globals, locals)
         finally:
             pass
 
     sys.argv[:] = args
+    sys.argv.insert(0, program)
     sys.path.insert(0, os.path.dirname(program))
     with open(program, 'rb') as fp:
         code = compile(fp.read(), program, 'exec')
@@ -880,9 +883,13 @@ def magic(ctx, program, args, configs):
             '__package__': None,
             'wandb_keras_hooks_install': wandb_keras_hooks_install,
         }
-    prep = 'wandb_keras_hooks_install()'
-    monkey_run(prep, globs, None, configs)
-    monkey_run(code, globs, None, configs)
+    prep = '''
+import __main__
+__main__.__file__ = "%s"
+wandb_keras_hooks_install()
+''' % program
+    magic_run(prep, globs, None, configs)
+    magic_run(code, globs, None, configs)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
