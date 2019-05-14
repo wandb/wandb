@@ -4,6 +4,7 @@
 """
 
 from collections import namedtuple
+import itertools
 import weakref
 from six.moves import reduce
 from distutils.version import LooseVersion
