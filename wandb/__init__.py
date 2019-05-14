@@ -11,6 +11,7 @@ __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.7.3'
 
+import ipdb
 import atexit
 import click
 import io
@@ -64,7 +65,12 @@ if __stage_dir__ is not None:
     GLOBAL_LOG_FNAME = wandb_dir() + 'debug.log'
 else:
     GLOBAL_LOG_FNAME = os.path.join(tempfile.gettempdir(), 'wandb-debug.log')
-GLOBAL_LOG_FNAME = os.path.relpath(GLOBAL_LOG_FNAME, os.getcwd())
+
+if sys.platform == 'win32':
+    GLOBAL_LOG_FNAME = os.path.normpath(os.path.join(os.getcwd(),
+                                                     GLOBAL_LOG_FNAME))
+else:
+    GLOBAL_LOG_FNAME = os.path.relpath(GLOBAL_LOG_FNAME, os.getcwd())
 
 
 def _debugger(*args):
