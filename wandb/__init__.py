@@ -11,7 +11,6 @@ __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.7.3'
 
-import ipdb
 import atexit
 import click
 import io
