@@ -22,7 +22,7 @@ def dummy_torch_tensor(size, requires_grad=True):
 
 class DynamicModule(nn.Module):
     def __init__(self):
-        super(MyModule, self).__init__()
+        super(DynamicModule, self).__init__()
         self.choices = nn.ModuleDict({
             'conv': nn.Conv2d(10, 10, 3),
             'pool': nn.MaxPool2d(3)
