@@ -477,7 +477,7 @@ def login(key, server=LocalServer(), browser=True):
     if key or not browser:
         launched = False
     else:
-        launched = webbrowser.open_new_tab(url + "&{}".format(server.qs()))
+        launched = webbrowser.open_new_tab(url + "?{}".format(server.qs()))
     if launched:
         click.echo(
             'Opening [{}] in your default browser'.format(url))
