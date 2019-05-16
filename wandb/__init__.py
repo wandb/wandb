@@ -30,8 +30,6 @@ import tempfile
 import re
 import glob
 from importlib import import_module
-from six.moves import reload_module
-from types import ModuleType
 
 from . import env
 from . import io_wrap

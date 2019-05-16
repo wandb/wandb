@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 import sys
-# Enusre we don't have the wandb directory in the path to avoid importing our tensorboard
+# Ensure we don't have the wandb directory in the path to avoid importing our tensorboard
 # module.  This should only happen when wandb is installed with pip -e
 for path in sys.path:
     if "client/wandb" in path:
