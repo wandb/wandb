@@ -27,9 +27,9 @@ import subprocess
 import sys
 import traceback
 import tempfile
-import types
 import re
 import glob
+from importlib import import_module
 
 from . import env
 from . import io_wrap
@@ -134,7 +134,8 @@ def watch(models, criterion=None, log="gradients", log_freq=100):
         run.history.torch.add_log_hooks_to_pytorch_module(
             model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
 
-        graph = wandb_torch.TorchGraph.hook_torch(model, criterion, graph_idx=idx)
+        graph = wandb_torch.TorchGraph.hook_torch(
+            model, criterion, graph_idx=idx)
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
@@ -353,7 +354,13 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # pass the run into WandbCallback)
 run = None
 config = None  # config object shared with the global run
+summary = None  # summary object shared with the global run
 Api = PublicApi
+# Stores what modules have been patched
+patched = {
+    "tensorboard": [],
+    "keras": []
+}
 
 _saved_files = set()
 
@@ -386,6 +393,7 @@ def save(glob_str, base_path=None, policy="live"):
     if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
         termlog(
             "%s is a cloud storage url, can't save file to wandb." % glob_str)
+        return []
     run.send_message(
         {"save_policy": {"glob": wandb_glob_str, "policy": policy}})
     files = []
@@ -453,7 +461,7 @@ def monitor(options={}):
 
         def __enter__(self):
             termlog(
-                "DEPRECATED: with wandb.monitor(): is deprecated, just call wandb.monitor() to see live results.")
+                "DEPRECATED: with wandb.monitor(): is deprecated, add %%wandb to the beginning of a cell to see live results.")
             pass
 
         def __exit__(self, *args):
@@ -462,23 +470,33 @@ def monitor(options={}):
     return Monitor(options)
 
 
-def log(row=None, commit=True, *args, **kargs):
-    """Log a dict to the global run's history.  If commit is false, enables multiple calls before commiting.
-
-    Eg.
+def log(row=None, commit=True, step=None, *args, **kwargs):
+    """Log a dict to the global run's history.
 
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
+
+    Args:
+        row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types 
+        commit (boolean, optional): Persist a set of metrics, if false just update the existing dict
+        step (integer, optional): The global step in processing. This sets commit=True any time step increases
     """
+
     if run is None:
         raise ValueError(
             "You must call `wandb.init` in the same process before calling log")
 
+    tensorboard_patched = len(patched["tensorboard"]) > 0
+
+    if tensorboard_patched and step is None:
+        termwarn(
+            "wandb.log called without a step keyword argument and tensorboard is patched.  Pass the same step that tensorboard is using to avoid data loss.", repeat=False)
+
     if row is None:
         row = {}
-    if commit:
-        run.history.add(row, *args, **kargs)
+    if commit or step is not None:
+        run.history.add(row, *args, step=step, **kwargs)
     else:
-        run.history.update(row, *args, **kargs)
+        run.history.update(row, *args, **kwargs)
 
 
 def ensure_configured():
@@ -489,9 +507,18 @@ def ensure_configured():
 def uninit():
     """Undo the effects of init(). Useful for testing.
     """
-    global run, config, watch_called, _saved_files
-    run = config = None
+    global run, config, summary, watch_called, patched, _saved_files
+    run = config = summary = None
     watch_called = False
+    # UNDO patches
+    for mod in patched["tensorboard"]:
+        module = import_module(mod[0])
+        parts = mod[1].split(".")
+        if len(parts) > 1:
+            module = getattr(module, parts[0])
+            mod[1] = parts[1]
+        setattr(module, mod[1], getattr(module, "orig_"+mod[1]))
+    patched["tensorboard"] = []
     _saved_files = set()
 
 
@@ -572,11 +599,11 @@ def join():
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
-         name=None, id=None):
+         sync_tensorboard=False, name=None, id=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
-    `wandb.monitor` to begin pushing metrics.  Otherwise, spawns a new process
+    `wandb.log` to begin pushing metrics.  Otherwise, spawns a new process
     to communicate with W&B.
 
     Args:
@@ -587,10 +614,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         dir (str, optional): An absolute path to a directory where metadata will be stored
         group (str, optional): A unique string shared by all runs in a given group
         tags (list, optional): A list of tags to apply to the run
+        id (str, optional): A globally unique (per project) identifier for the run
         reinit (bool, optional): Allow multiple calls to init in the same process
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id
-        tensorboard (bool, optional): Patch tensorboard or tensorboardX to log all events
+        sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or tensorboardX
         force (bool, optional): Force authentication with wandb, defaults to False
 
     Returns:
@@ -605,7 +633,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         reset_env(exclude=[env.DIR, env.ENTITY, env.PROJECT, env.API_KEY])
         run = None
 
-    if tensorboard:
+    # TODO: deprecate tensorboard
+    if tensorboard or sync_tensorboard:
         util.get_module("wandb.tensorboard").patch()
 
     sagemaker_config = util.parse_sm_config()
@@ -711,6 +740,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         global config  # because we already have a local config
         config = run.config
     set_global_config(run)
+    global summary
+    summary = run.summary
 
     # set this immediately after setting the run and the config. if there is an
     # exception after this it'll probably break the user script anyway
@@ -764,6 +795,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     # Access history to ensure resumed is set when resuming
     run.history
+    # Load the summary to support resuming
+    run.summary.load()
 
     atexit.register(run.close_files)
 
@@ -776,5 +809,5 @@ keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 
-__all__ = ['init', 'config', 'termlog', 'termerror', 'tensorflow',
+__all__ = ['init', 'config', 'termlog', 'termwarn', 'termerror', 'tensorflow',
            'run', 'types', 'callbacks', 'join']

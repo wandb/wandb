@@ -7,6 +7,7 @@ workflows:
             - test-3.5
             - test-2.7
             - test-3.7-no-ml
+            - test-3.7-edge-ml
 jobs:
     test-3.6: &test-template
         docker:
@@ -23,20 +24,18 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.2-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
-                      - v3.2-dependencies-{{ .Environment.CIRCLE_JOB }}
+                      - v3.3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
+                      - v3.3-dependencies-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Install python dependencies
                   command: |
                       . venv/bin/activate
-                      pip install -r requirements_dev.txt
-                      pip install torch
-                      pip install torchvision tensorflow
+                      pip install -r requirements_dev.txt --upgrade
                       pip install -e .[dev]
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.2-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
+                  key: v3.3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Run tests
                   command: |
@@ -54,6 +53,38 @@ jobs:
         resource_class: xlarge # installing torch takes a ton of ram
         docker:
             - image: python:2.7
+    test-3.7-edge-ml:
+        <<: *test-template
+        docker:
+            - image: python:3.7
+        steps:
+            - checkout
+            - run:
+                  name: Setup venv
+                  command: python -m venv venv || virtualenv venv
+            - restore_cache:
+                  keys:
+                      - v3.1-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+                      - v3.1-dependencies-edge-ml
+            - run:
+                  name: Install dependencies
+                  command: |
+                      . venv/bin/activate
+                      pip install -r requirements_edgeml.txt --upgrade
+                      pip install -e .[dev]
+                      python install-ml.py
+            - save_cache:
+                  paths:
+                      - ./venv
+                  key: v3.1-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+            - run:
+                  name: Run tests
+                  command: |
+                      . venv/bin/activate
+                      mkdir -p results
+                      pytest --cov=wandb --junitxml="results/pytest.xml" edgeml_tests
+            - store_test_results:
+                  path: results
     test-3.7-no-ml:
         <<: *test-template
         docker:

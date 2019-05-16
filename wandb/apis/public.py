@@ -11,6 +11,7 @@ import datetime
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
+from six.moves import urllib
 
 import wandb
 from wandb import Error, __version__
@@ -27,6 +28,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     id
     tags
     name
+    displayName
     state
     config
     readOnly
@@ -510,7 +512,7 @@ class Run(Attrs):
 
     @property
     def path(self):
-        return [str(self.username), str(self.project), str(self.name)]
+        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.name))]
 
     @property
     def url(self):

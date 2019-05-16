@@ -6,9 +6,11 @@ from click.testing import CliRunner
 import pytest
 import six
 import wandb
+import numpy as np
 from wandb import tensorflow as wandb_tensorflow
+from wandb.keras import WandbCallback
 
-import tensorflow
+import tensorflow as tf
 
 
 @pytest.fixture
@@ -71,14 +73,14 @@ def test_tf_summary_in_history(history):
 
 
 def test_hook(history):
-    g1 = tensorflow.Graph()
+    g1 = tf.Graph()
     with g1.as_default():
-        c1 = tensorflow.constant(42)
-        tensorflow.summary.scalar('c1', c1)
-        summary_op = tensorflow.summary.merge_all()
+        c1 = tf.constant(42)
+        tf.summary.scalar('c1', c1)
+        summary_op = tf.summary.merge_all()
 
         hook = wandb_tensorflow.WandbHook(summary_op)
-        with tensorflow.train.MonitoredTrainingSession(hooks=[hook]) as sess:
+        with tf.train.MonitoredTrainingSession(hooks=[hook]) as sess:
             summary, acc = sess.run([summary_op, c1])
 
     assert wandb_tensorflow.tf_summary_to_dict(summary) == {'c1': 42.0}

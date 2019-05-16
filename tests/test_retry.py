@@ -52,11 +52,23 @@ def test_retry_with_timeout():
             0, 0, 0, 50), retry_sleep_base=0.001)
 
 
-def test_retry_with_noauth(capsys):
+def test_retry_with_noauth_401(capsys):
     def fail():
         res = requests.Response()
         res.status_code = 401
         raise retry.TransientException(exc=requests.HTTPError(response=res))
     fn = retry.Retry(fail, check_retry_fn=util.no_retry_auth)
-    with pytest.raises(CommError):
+    with pytest.raises(CommError) as excinfo:
         fn()
+    assert excinfo.value.message == 'Invalid or missing api_key.  Run wandb login'
+
+
+def test_retry_with_noauth_403(capsys):
+    def fail():
+        res = requests.Response()
+        res.status_code = 403
+        raise retry.TransientException(exc=requests.HTTPError(response=res))
+    fn = retry.Retry(fail, check_retry_fn=util.no_retry_auth)
+    with pytest.raises(CommError) as excinfo:
+        fn()
+    assert excinfo.value.message == 'Permission denied, ask the project owner to grant you access'
