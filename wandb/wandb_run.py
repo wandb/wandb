@@ -170,8 +170,8 @@ class Run(object):
         if not mode and disabled:
             mode = "dryrun"
         elif disabled and mode != "dryrun":
-            wandb.termlog(
-                "WARNING: WANDB_MODE is set to run, but W&B was disabled.  Run `wandb on` to remove this message")
+            wandb.termwarn(
+                "WANDB_MODE is set to run, but W&B was disabled.  Run `wandb on` to remove this message")
         elif disabled:
             wandb.termlog(
                 'W&B is disabled in this directory.  Run `wandb on` to enable cloud syncing.')

@@ -12,6 +12,7 @@ import traceback
 
 import six
 import wandb
+from wandb import env
 import wandb.io_wrap
 import wandb.run_manager
 import wandb.wandb_run
@@ -33,6 +34,12 @@ def headless(args):
     try:
         run = wandb.wandb_run.Run.from_environment_or_defaults()
         run.enable_logging()
+        # Clear inited for the wandb process
+        del os.environ[env.INITED]
+        # Set global run so save can work
+        wandb.run = run
+        # Access history to avoid sync issues
+        run.history
 
         api = wandb.apis.InternalApi()
         api.set_current_run_id(run.id)

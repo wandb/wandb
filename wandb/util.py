@@ -54,7 +54,6 @@ if wandb.core.IS_GIT:
 else:
     SENTRY_ENV = 'production'
 
-
 sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
                 release=wandb.__version__,
                 default_integrations=False,
@@ -216,7 +215,6 @@ def is_plotly_typename(typename):
 
 def is_pandas_data_frame(obj):
     return is_pandas_data_frame_typename(get_full_typename(obj))
-
 
 def ensure_matplotlib_figure(obj):
     """Extract the current figure from a matplotlib object or return the object if it's a figure.

@@ -766,7 +766,8 @@ class RunManager(object):
             jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.HISTORY_FNAME),
                                        history_tail)
         except ValueError:
-            wandb.termlog("WARNING: couldn't load recent history")
+            logger.error("Couldn't parse history")
+            wandb.termwarn("Couldn't load recent history, resuming may not function properly")
 
         # write the tail of the events file
         try:
@@ -774,7 +775,7 @@ class RunManager(object):
             jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.EVENTS_FNAME),
                                        events_tail)
         except ValueError:
-            wandb.termlog("WARNING: couldn't load recent events")
+            logger.error("Couldn't parse system metrics / events")
 
         # load the previous runs summary to avoid losing it, the user process will need to load it
         self._run.summary.update(json.loads(resume_status['summaryMetrics'] or "{}"))
@@ -1079,7 +1080,7 @@ class RunManager(object):
                     self._tensorboard_consumer.start()
             self._tensorboard_watchers[-1].start()
             return self._tensorboard_watchers
-        except ImportError:
+        except ImportError as e:
             wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
     def _sync_etc(self, headless=False):

@@ -472,7 +472,7 @@ def monitor(options={}):
     return Monitor(options)
 
 
-def log(row=None, commit=None, step=None, *args, **kwargs):
+def log(row=None, commit=True, step=None, *args, **kwargs):
     """Log a dict to the global run's history.
 
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
@@ -489,16 +489,9 @@ def log(row=None, commit=None, step=None, *args, **kwargs):
 
     tensorboard_patched = len(patched["tensorboard"]) > 0
 
-    if commit is None:
-        # Let tensorboard commit custom metrics if we patched it
-        if tensorboard_patched:
-            commit = False
-            step = run.step if step is None else step
-        else:
-            commit = True
-    if commit == True and tensorboard_patched and step is None:
-        termlog(
-            "WARNING: wandb.log called without a step keyword argument and tensorboard is patched.  Pass the same step that tensorboard is using to avoid data loss.")
+    if tensorboard_patched and step is None:
+        termwarn(
+            "wandb.log called without a step keyword argument and tensorboard is patched.  Pass the same step that tensorboard is using to avoid data loss.", repeat=False)
 
     if row is None:
         row = {}
@@ -818,5 +811,5 @@ keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 
-__all__ = ['init', 'config', 'termlog', 'termerror', 'tensorflow',
+__all__ = ['init', 'config', 'termlog', 'termwarn', 'termerror', 'tensorflow',
            'run', 'types', 'callbacks', 'join']

@@ -3,24 +3,39 @@ import os
 import re
 import six
 import sys
+import glob
 import wandb
 
-tensorboardX_loaded = "tensorboardX" in sys.modules
-tensorflow_loaded = "tensorflow" in sys.modules
+# Constants for patching tensorboard
+TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
+TENSORBOARD_PYTORCH_MODULE = "tensorboard.summary.writer.event_file_writer"
+TENSORBOARD_LEGACY_MODULE = "tensorflow.python.summary.writer.writer"
 
-if not tensorboardX_loaded and not tensorflow_loaded:
-    tensorboardX_loaded = wandb.util.get_module("tensorboardX") is not None
+TENSORBOARDX_LOADED = "tensorboardX" in sys.modules
+TENSORFLOW_LOADED = "tensorflow" in sys.modules
+PYTORCH_TENSORBOARD = "torch" in sys.modules and wandb.util.get_module(
+    "torch.utils.tensorboard") is not None
 
-if tensorboardX_loaded:
+if not TENSORBOARDX_LOADED and not TENSORFLOW_LOADED and not PYTORCH_TENSORBOARD:
+    # If we couldn't detect any libraries default to tensorboardX
+    TENSORBOARDX_LOADED = wandb.util.get_module("tensorboardX") is not None
+
+if TENSORBOARDX_LOADED:
     from tensorboardX.proto.summary_pb2 import Summary
 else:
-    try:
-        from tensorboard.compat.proto.summary_pb2 import Summary
-    except ImportError:
-        from tensorflow.summary import Summary
+    pb = wandb.util.get_module("tensorboard.compat.proto.summary_pb2") or wandb.util.get_module(
+        "tensorflow.summary")
+    if pb:
+        Summary = pb.Summary
+    else:
+        Summary = None
 
 
-def patch(save=True, tensorboardX=tensorboardX_loaded, pytorch=not tensorflow_loaded):
+def tensorflow2_patched():
+    return any((mod == TENSORBOARD_C_MODULE for mod, meth in wandb.patched["tensorboard"]))
+
+
+def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOARD):
     """Monkeypatches tensorboard or tensorboardX so that all events are logged to tfevents files and wandb.
     We save the tfevents files and graphs to wandb by default.
 
@@ -32,20 +47,22 @@ def patch(save=True, tensorboardX=tensorboardX_loaded, pytorch=not tensorflow_lo
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
             "Tensorboard already patched, remove tensorboard=True from wandb.init or only call wandb.tensorboard.patch once.")
+    elif Summary is None:
+        raise ValueError(
+            "Couldn't import tensorboard or tensorflow, ensure you have have tensorboard installed.")
 
-    tensorboard_c_module = "tensorflow.python.ops.gen_summary_ops"
     if tensorboardX:
         tensorboard_py_module = "tensorboardX.writer"
-        if tensorflow_loaded:
+        if TENSORFLOW_LOADED:
             wandb.termlog(
                 "Found tensorboardX and tensorflow, pass tensorboardX=False to patch regular tensorboard.")
     else:
         if wandb.util.get_module("tensorboard.summary.writer.event_file_writer") and pytorch:
             # If we haven't imported tensorflow, let's patch the python tensorboard writer
-            tensorboard_py_module = "tensorboard.summary.writer.event_file_writer"
+            tensorboard_py_module = TENSORBOARD_PYTORCH_MODULE
         else:
             # If we're using tensorflow >= 2.0 this patch won't be used, but we'll do it anyway
-            tensorboard_py_module = "tensorflow.python.summary.writer.writer"
+            tensorboard_py_module = TENSORBOARD_LEGACY_MODULE
 
     writers = set()
     writer = wandb.util.get_module(tensorboard_py_module)
@@ -89,8 +106,9 @@ def patch(save=True, tensorboardX=tensorboardX_loaded, pytorch=not tensorflow_lo
                     log_dir, "").strip(os.sep)
                 if save:
                     wandb.save(name, base_path=log_dir)
-                    wandb.save(os.path.join(log_dir, "*.pbtxt"),
-                               base_path=log_dir)
+                    for path in glob.glob(os.path.join(log_dir, "*.pbtxt")):
+                        if os.stat(path).st_mtime >= wandb.START_TIME:
+                            wandb.save(path, base_path=log_dir)
                 log(event, namespace=namespace, step=event.step)
             except Exception as e:
                 wandb.termerror("Unable to log event %s" % e)
@@ -105,7 +123,7 @@ def patch(save=True, tensorboardX=tensorboardX_loaded, pytorch=not tensorflow_lo
             [tensorboard_py_module, "EventFileWriter.add_event"])
 
     # This configures TensorFlow 2 style Tensorboard logging
-    c_writer = wandb.util.get_module(tensorboard_c_module)
+    c_writer = wandb.util.get_module(TENSORBOARD_C_MODULE)
     if c_writer:
         old_csfw_func = c_writer.create_summary_file_writer
 
@@ -120,7 +138,7 @@ def patch(save=True, tensorboardX=tensorboardX_loaded, pytorch=not tensorflow_lo
         c_writer.orig_create_summary_file_writer = old_csfw_func
         c_writer.create_summary_file_writer = new_csfw_func
         wandb.patched["tensorboard"].append(
-            [tensorboard_c_module, "create_summary_file_writer"])
+            [TENSORBOARD_C_MODULE, "create_summary_file_writer"])
 
 
 def log(tf_summary_str, **kwargs):

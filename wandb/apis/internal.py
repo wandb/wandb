@@ -257,7 +257,7 @@ class Api(object):
                         self._settings[option] = self.settings_parser.get(
                             section, option)
             except configparser.InterpolationSyntaxError:
-                print("WARNING: Unable to parse settings file")
+                wandb.termwarn("Unable to parse settings file")
             self._settings["project"] = env.get_project(
                 self._settings.get("project"))
             self._settings["entity"] = env.get_entity(

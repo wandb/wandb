@@ -1,6 +1,13 @@
+from __future__ import absolute_import
+import sys
+# Enusre we don't have the wandb directory in the path to avoid importing our tensorboard
+# module.  This should only happen when wandb is installed with pip -e
+for path in sys.path:
+    if "client/wandb" in path:
+        sys.path.remove(path)
 from tensorboard.backend.event_processing import directory_watcher
 from tensorboard.backend.event_processing import event_file_loader
-from tensorboard.backend.event_processing import io_wrapper
+from tensorboard.compat import tf
 from wandb.tensorboard import log
 from wandb import util
 import six
@@ -85,6 +92,14 @@ def loader(save=True, namespace=None):
     return EventFileLoader
 
 
+def IsNewTensorFlowEventsFile(path):
+    """Checks if a path has been modified since launch and contains tfevents"""
+    if not path:
+        raise ValueError('Path must be a nonempty string')
+    path = tf.compat.as_str_any(path)
+    return 'tfevents' in os.path.basename(path) and os.stat(path).st_mtime >= wandb.START_TIME
+
+
 class Watcher(object):
     def __init__(self, logdir, queue, namespace=None, save=True):
         """Uses tensorboard to watch a directory for tfevents files 
@@ -96,7 +111,7 @@ class Watcher(object):
         self._generator = directory_watcher.DirectoryWatcher(
             logdir,
             loader(save, namespace),
-            io_wrapper.IsTensorFlowEventsFile)
+            IsNewTensorFlowEventsFile)
         self._first_event_timestamp = None
         self._shutdown = False
         self._thread = threading.Thread(target=self._thread_body)

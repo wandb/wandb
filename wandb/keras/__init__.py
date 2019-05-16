@@ -9,9 +9,6 @@ from itertools import chain
 
 # Use system keras if it's been imported
 if "keras" in sys.modules:
-    if "tensorflow.python.keras" in sys.modules:
-        wandb.termlog(
-            "Found keras and tensorflow.keras. WandbCallback will be configured for keras not tensorflow.keras.")
     import keras
     import keras.backend as K
 elif "tensorflow.python.keras" in sys.modules:
@@ -19,8 +16,8 @@ elif "tensorflow.python.keras" in sys.modules:
     import tensorflow.keras.backend as K
 else:
     try:
-        wandb.termlog(
-            "WARNING: import wandb.keras called before import keras or import tensorflow.keras.  This can lead to a version mismatch, W&B now assumes tensorflow.keras")
+        wandb.termwarn(
+            "import wandb.keras called before import keras or import tensorflow.keras.  This can lead to a version mismatch, W&B now assumes tensorflow.keras")
         import tensorflow.keras as keras
         import tensorflow.keras.backend as K
     except ImportError:
@@ -70,8 +67,8 @@ def patch_tf_keras():
                 if context.executing_eagerly():
                     cbk.generator = iter(val_data)
                 else:
-                    wandb.termlog(
-                        "WARNING: Found a validation dataset in graph mode, can't patch Keras.")
+                    wandb.termwarn(
+                        "Found a validation dataset in graph mode, can't patch Keras.")
             elif isinstance(val_data, tuple) and isinstance(val_data[0], tf.Tensor):
                 # Graph mode dataset generator
                 def gen():
@@ -113,8 +110,8 @@ if "tensorflow" in wandb.util.get_full_typename(keras):
     try:
         patch_tf_keras()
     except Exception:
-        wandb.termlog(
-            "WARNING: Unable to patch tensorflow.keras for use with W&B.  You will not be able to log images unless you set the generator argument of the callback.")
+        wandb.termwarn(
+            "Unable to patch tensorflow.keras for use with W&B.  You will not be able to log images unless you set the generator argument of the callback.")
 
 
 class WandbCallback(keras.callbacks.Callback):
@@ -231,8 +228,8 @@ class WandbCallback(keras.callbacks.Callback):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
-                wandb.termlog(
-                    "WARNING: No validation_data set, pass a generator to the callback.")
+                wandb.termwarn(
+                    "No validation_data set, pass a generator to the callback.")
             elif self.validation_data and len(self.validation_data) > 0:
                 wandb.log({"examples": self._log_images(
                     num_images=self.predictions)}, commit=False)
@@ -252,6 +249,24 @@ class WandbCallback(keras.callbacks.Callback):
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
+
+    def on_train_batch_begin(self, batch, logs=None):
+        pass
+
+    def on_train_batch_end(self, batch, logs=None):
+        pass
+
+    def on_test_begin(self, logs=None):
+        pass
+
+    def on_test_end(self, logs=None):
+        pass
+
+    def on_test_batch_begin(self, batch, logs=None):
+        pass
+
+    def on_test_batch_end(self, batch, logs=None):
+        pass
 
     def on_train_begin(self, logs=None):
         pass
@@ -292,8 +307,8 @@ class WandbCallback(keras.callbacks.Callback):
                                 0.5 else self.labels[0] for prediction in predictions]
                 else:
                     if len(self.labels) != 0:
-                        wandb.termlog(
-                            "WARNING: keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
+                        wandb.termwarn(
+                            "keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
                     captions = [prediction[0] for prediction in predictions]
 
                 return [wandb.Image(data, caption=str(captions[i])) for i, data in enumerate(test_data)]
