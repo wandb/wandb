@@ -622,7 +622,7 @@ def find_runner(program):
         # program is a path to a non-executable file
         try:
             opened = open(program)
-        except PermissionError:
+        except IOError: # PermissionError doesn't exist in 2.7
             return None
         first_line = opened.readline().strip()
         if first_line.startswith('#!'):
