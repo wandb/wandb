@@ -475,12 +475,12 @@ def login(key, server=LocalServer(), browser=True):
     # Import in here for performance reasons
     import webbrowser
     # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
-    url = api.app_url + '/profile?message=key'
+    url = api.app_url + '/authorize'
     browser = util.launch_browser(browser)
     if key or not browser:
         launched = False
     else:
-        launched = webbrowser.open_new_tab(url + "&{}".format(server.qs()))
+        launched = webbrowser.open_new_tab(url + "?{}".format(server.qs()))
     if launched:
         click.echo(
             'Opening [{}] in your default browser'.format(url))

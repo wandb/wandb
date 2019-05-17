@@ -288,7 +288,7 @@ def _init_jupyter(run):
     api = InternalApi()
     if not api.api_key:
         termerror(
-            "Not authenticated.  Copy a key from https://app.wandb.ai/profile?message=true")
+            "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
         key = getpass.getpass("API Key: ").strip()
         if len(key) == 40:
             os.environ[env.API_KEY] = key
