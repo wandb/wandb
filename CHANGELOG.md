@@ -1,4 +1,4 @@
-## 0.7.4 (tbd)
+## 0.8.0 (May 17, 2019)
 
 #### :bug: Bug Fix
 
@@ -25,6 +25,7 @@
 -   Show display name in console output
 -   Added --tags, --job_group, and --job_type to `wandb run`
 -   Added environment variable for minimum time to run before considering crashed
+-   Added flake8 tests to CI, thanks @cclauss!
 
 ## 0.7.3 (April 15, 2019)
 
