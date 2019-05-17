@@ -98,7 +98,7 @@ class WandbCallback(TrackerCallback):
             current = self.get_monitor_value()
             if current is not None and self.operator(current, self.best):
                 print(
-                    f'Better model found at epoch {epoch} with {self.monitor} value: {current}.'
+                    'Better model found at epoch {} with {} value: {}.'.format(epoch, self.monitor, current)
                 )
                 self.best = current
 
