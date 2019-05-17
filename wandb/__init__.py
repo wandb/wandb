@@ -499,7 +499,7 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
 
 
 def ensure_configured():
-    global GLOBAL_LOG_FNAME
+    global GLOBAL_LOG_FNAME, api
     # We re-initialize here for tests
     api = InternalApi()
     GLOBAL_LOG_FNAME = os.path.abspath(os.path.join(wandb_dir(), 'debug.log'))
