@@ -76,6 +76,7 @@ class WandbCallback(TrackerCallback):
 
         self.log = log
         self.show_results = show_results
+        self.best = None
 
     def on_train_begin(self, **kwargs):
         "Call watch method to log model topology, gradients & weights"
@@ -133,4 +134,4 @@ class WandbCallback(TrackerCallback):
             if self.model_path.is_file():
                 with self.model_path.open('rb') as model_file:
                     self.learn.load(model_file, purge=False)
-                    print(f'Loaded best saved model from {self.model_path}')
+                    print('Loaded best saved model from {}'.format(self.model_path))
