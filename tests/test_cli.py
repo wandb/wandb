@@ -662,6 +662,7 @@ def test_run_simple(runner, monkeypatch, request_mocker, upsert_run, query_proje
     upload_url(request_mocker)
     with open("simple.py", "w") as f:
         f.write('print("Done!")')
+    print(os.getcwd())
     monkeypatch.setattr('wandb.cli.api.push', lambda *args, **kwargs: True)
     monkeypatch.setattr('time.sleep', lambda s: True)
     result = runner.invoke(
@@ -735,8 +736,9 @@ def test_resume_never(runner, request_mocker, upsert_run, query_run_resume_statu
     assert result.exit_code == 1
 
 
-def test_resume_must(runner, request_mocker, query_no_run_resume_status, git_repo):
+def test_resume_must(runner, request_mocker, query_no_run_resume_status, query_viewer, git_repo):
     query_no_run_resume_status(request_mocker)
+    query_viewer(request_mocker)
     result = runner.invoke(cli.run, ["--resume=must", "missing.py"])
     print(result.output)
     print(result.exception)

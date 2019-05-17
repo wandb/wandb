@@ -16,10 +16,10 @@ from . import io_wrap
 
 
 # We use the hidden version if it already exists, otherwise non-hidden.
-if os.path.exists(os.path.join(env.get_dir('./'), '.wandb')):
-    __stage_dir__ = '.wandb/'
-elif os.path.exists(os.path.join(env.get_dir('./'), 'wandb')):
-    __stage_dir__ = "wandb/"
+if os.path.exists(os.path.join(env.get_dir(os.getcwd()), '.wandb')):
+    __stage_dir__ = '.wandb' + os.sep
+elif os.path.exists(os.path.join(env.get_dir(os.getcwd()), 'wandb')):
+    __stage_dir__ = "wandb" + os.sep
 else:
     __stage_dir__ = None
 
@@ -30,7 +30,7 @@ IS_GIT = os.path.exists(os.path.join(LIB_ROOT, '.git'))
 
 
 def wandb_dir():
-    return os.path.join(env.get_dir('./'), __stage_dir__ or "wandb/")
+    return os.path.join(env.get_dir(os.getcwd()), __stage_dir__ or ("wandb" + os.sep))
 
 
 def _set_stage_dir(stage_dir):

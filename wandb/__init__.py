@@ -61,11 +61,9 @@ logger = logging.getLogger(__name__)
 
 # this global W&B debug log gets re-written by every W&B process
 if __stage_dir__ is not None:
-    GLOBAL_LOG_FNAME = wandb_dir() + 'debug.log'
+    GLOBAL_LOG_FNAME = os.path.abspath(os.path.join(wandb_dir(), 'debug.log'))
 else:
     GLOBAL_LOG_FNAME = os.path.join(tempfile.gettempdir(), 'wandb-debug.log')
-GLOBAL_LOG_FNAME = os.path.relpath(GLOBAL_LOG_FNAME, os.getcwd())
-
 
 def _debugger(*args):
     import pdb
@@ -245,8 +243,9 @@ def _init_headless(run, cloud=True):
             termerror('Failed to kill wandb process, PID {}'.format(
                 wandb_process.pid))
         # TODO attempt to upload a debug log
+        path = GLOBAL_LOG_FNAME.replace(os.getcwd()+os.sep, "")
         raise LaunchError(
-            "W&B process failed to launch, see: {}".format(GLOBAL_LOG_FNAME))
+            "W&B process failed to launch, see: {}".format(path))
 
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
@@ -500,9 +499,10 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
 
 
 def ensure_configured():
+    global GLOBAL_LOG_FNAME
     # We re-initialize here for tests
     api = InternalApi()
-
+    GLOBAL_LOG_FNAME = os.path.abspath(os.path.join(wandb_dir(), 'debug.log'))
 
 def uninit():
     """Undo the effects of init(). Useful for testing.

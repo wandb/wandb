@@ -74,9 +74,12 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             # no i/o wrapping - it breaks pytest
             os.environ['WANDB_MODE'] = 'clirun'
 
-            def mock_headless(run, cloud=True):
-                print("_init_headless called with cloud=%s" % cloud)
-            mocker.patch('wandb._init_headless', mock_headless)
+            if request.node.get_closest_marker('headless'):
+                mocker.patch('subprocess.Popen')
+            else:
+                def mock_headless(run, cloud=True):
+                    print("_init_headless called with cloud=%s" % cloud)
+                mocker.patch('wandb._init_headless', mock_headless)
 
             if not request.node.get_closest_marker('unconfigured'):
                 os.environ['WANDB_API_KEY'] = 'test'
@@ -127,6 +130,9 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                             'wandb.wandb_run.Run.from_environment_or_defaults', error)
                     elif err == "socket":
                         class Error(object):
+                            @property
+                            def port(self):
+                                return 123
                             def listen(self, secs):
                                 return False, None
                         monkeypatch.setattr("wandb.wandb_socket.Server", Error)
