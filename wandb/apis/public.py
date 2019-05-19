@@ -69,7 +69,7 @@ class RetryingClient(object):
         self._client = client
 
     @retriable(retry_timedelta=datetime.timedelta(
-        seconds=10),
+        seconds=20),
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException))
     def execute(self, *args, **kwargs):
@@ -84,7 +84,7 @@ class Api(object):
         username, project, and run here as well as which api server to use.
     """
 
-    HTTP_TIMEOUT = 10
+    HTTP_TIMEOUT = 9
 
     def __init__(self, overrides={}):
         self.settings = {
@@ -608,9 +608,13 @@ class File(object):
         return int(self._attrs["sizeBytes"])
 
     @normalize_exceptions
+    @retriable(retry_timedelta=datetime.timedelta(
+        seconds=10),
+        check_retry_fn=util.no_retry_auth,
+        retryable_exceptions=(RetryError, requests.RequestException))
     def download(self, replace=False, root="."):
         response = requests.get(self._attrs["url"], auth=(
-            "api", Api().api_key), stream=True)
+            "api", Api().api_key), stream=True, timeout=5)
         response.raise_for_status()
         path = os.path.join(root, self._attrs["name"])
         if os.path.exists(path) and not replace:
