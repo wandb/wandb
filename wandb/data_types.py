@@ -10,6 +10,7 @@ import wandb
 import uuid
 import json
 import codecs
+import tempfile
 from wandb import util
 
 
@@ -46,7 +47,7 @@ def val_to_json(key, val, mode="summary", step=None):
     if isinstance(val, collections.Sequence) and len(val) > 0:
         is_media = [isinstance(v, IterableMedia) for v in val]
         if all(is_media):
-            cwd = wandb.run.dir if wandb.run else "."
+            cwd = wandb.run.dir if wandb.run else tempfile.gettempdir()
             if step is None:
                 step = "summary"
             if isinstance(val[0], Image):
@@ -778,7 +779,7 @@ class Image(IterableMedia):
         for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image.image, (location, 0))
-        util.mkdir_exists_ok(base)
+        util.mkdir_exists_ok(os.path.dirname(os.path.join(base, fname)))
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
                 "count": num_images_to_log, "_type": "images"}

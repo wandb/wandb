@@ -615,6 +615,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         group (str, optional): A unique string shared by all runs in a given group
         tags (list, optional): A list of tags to apply to the run
         id (str, optional): A globally unique (per project) identifier for the run
+        name (str, optional): A display name which does not have to be unique
         reinit (bool, optional): Allow multiple calls to init in the same process
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id
