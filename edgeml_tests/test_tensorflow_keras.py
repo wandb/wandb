@@ -2,6 +2,7 @@ import pytest
 from click.testing import CliRunner
 import os
 import json
+import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import Flatten, Dense, Reshape, Embedding, Input, LSTM, Concatenate
 from tensorflow.keras import backend as K
@@ -108,6 +109,17 @@ def test_keras_image_output(dummy_model, dummy_data, wandb_init_run):
     assert wandb_init_run.history.rows[0]["examples"]['count'] == 30
     assert wandb_init_run.history.rows[0]["examples"]['grouping'] == 3
 
+
+def test_dataset_functional(wandb_init_run):
+    data = tf.data.Dataset.range(5).map(lambda x: (x, 1)).batch(1)
+    inputs = tf.keras.Input(shape=(1,))
+    outputs = tf.keras.layers.Dense(1)(inputs)
+    wandb_callback = WandbCallback(save_model=False)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mse')
+    model.fit(data, callbacks=[wandb_callback])
+    assert wandb.data_types.Graph.transform(wandb_init_run.summary["graph"])['nodes'][0]['class_name'] == "InputLayer"
 
 def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,

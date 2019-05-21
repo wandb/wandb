@@ -12,6 +12,7 @@ import json
 import glob
 import os
 import numpy as np
+import tempfile
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 from wandb import Histogram, Image, Graph, Table
@@ -81,7 +82,7 @@ def test_image(summary):
     assert disk_summary(summary)['image'] == {
         '_type': 'images', 'count': 1, 'height': 28, 'width': 28}
     print("Glob ", glob.glob("**/*"))
-    assert os.path.exists("media/images/image_summary.jpg")
+    assert os.path.exists(tempfile.gettempdir() + "/media/images/image_summary.jpg")
 
 
 def test_matplot_image(summary):
@@ -91,7 +92,7 @@ def test_matplot_image(summary):
     plt.close()
     assert disk_summary(summary)["fig"] == {
         "_type": "images", "count": 1, "height": 480, "width": 640}
-    assert os.path.exists("media/images/fig_summary.jpg")
+    assert os.path.exists(tempfile.gettempdir() + "/media/images/fig_summary.jpg")
 
 
 def test_matplot_plotly(summary):

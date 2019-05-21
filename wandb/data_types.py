@@ -137,7 +137,11 @@ class Graph(object):
             nodes_by_depth = model._nodes_by_depth.values()
             nodes = []
             for v in nodes_by_depth:
-                if (len(v) > 1) or (len(v) == 1 and len(v[0].inbound_layers) > 1):
+                # TensorFlow2 doesn't insure inbound is always a list
+                inbound = v[0].inbound_layers
+                if not hasattr(inbound, '__len__'):
+                    inbound = [inbound]
+                if (len(v) > 1) or (len(v) == 1 and len(inbound) > 1):
                     # if the model has multiple nodes
                     # or if the nodes have multiple inbound_layers
                     # the model is no longer sequential

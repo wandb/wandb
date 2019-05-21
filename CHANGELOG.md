@@ -1,3 +1,18 @@
+## 0.8.1 (May 21, 2019)
+
+#### :bug: Bug Fix
+
+-   wandb sync handles tensorboard embeddings
+-   wandb sync correctly handles images in tensorboard
+-   tf.keras correctly handles single input functional models
+-   wandb.Api().runs returns an iterator that's reusable
+-   WANDB_DIR within a hidden directory doesn't prevent syncing
+
+#### :nail_care: Enhancement
+
+-   wandb sync accepts an --ignore argument with globs to skip files
+-   run.summary now has an items() method for iterating over all keys
+
 ## 0.8.0 (May 17, 2019)
 
 #### :bug: Bug Fix

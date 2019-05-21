@@ -41,7 +41,7 @@ jobs:
                   command: |
                       . venv/bin/activate
                       mkdir -p results
-                      pytest --cov=wandb --junitxml="results/pytest.xml"
+                      pytest --cov=wandb --vcr-record=none --junitxml="results/pytest.xml"
                       flake8 .
             - store_test_results:
                   path: results
@@ -83,7 +83,7 @@ jobs:
                   command: |
                       . venv/bin/activate
                       mkdir -p results
-                      pytest --cov=wandb --junitxml="results/pytest.xml" edgeml_tests
+                      pytest --cov=wandb --vcr-record=none --junitxml="results/pytest.xml" edgeml_tests
             - store_test_results:
                   path: results
     test-3.7-no-ml:
@@ -116,6 +116,6 @@ jobs:
                   command: |
                       . venv/bin/activate
                       mkdir -p results
-                      pytest --cov=wandb --junitxml="results/pytest.xml" tests/test_headless.py tests/test_cli.py tests/test_wandb.py
+                      pytest --cov=wandb --vcr-record=none --junitxml="results/pytest.xml" tests/test_headless.py tests/test_cli.py tests/test_wandb.py
             - store_test_results:
                   path: results
