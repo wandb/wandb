@@ -265,6 +265,7 @@ class Paginator(object):
         self.index += 1
         if len(self.objects) <= self.index:
             if not self._load_page():
+                self.index = 0
                 raise StopIteration
         return self.objects[self.index]
 
