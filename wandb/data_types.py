@@ -225,7 +225,7 @@ def data_frame_to_json(df, run, key, step):
         'format': 'parquet',
         'project': run.project_name(),  # we don't have the project ID here
         'entity': run.entity,
-        'run': run.name,
+        'run': run.id,
         'path': path,
     }
 
