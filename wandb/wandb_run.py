@@ -64,7 +64,6 @@ class Run(object):
         with configure_scope() as scope:
             api = InternalApi()
             self.project = api.settings("project")
-            self.entity = api.settings("entity")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
             scope.set_tag("url", self.get_url(api))
@@ -108,6 +107,14 @@ class Run(object):
         self._meta = None
         self._run_manager = None
         self._jupyter_agent = None
+
+    @property
+    def entity(self):
+        return InternalApi().settings('entity')
+
+    @entity.setter
+    def entity(self, entity):
+        InternalApi().set_setting("entity", entity)
 
     @property
     def path(self):
@@ -297,8 +304,7 @@ class Run(object):
         if project is None:
             project = self.auto_project_name(api)
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
-                                       project=project, entity=api.settings(
-                                           "entity"),
+                                       project=project, entity=self.entity,
                                        group=self.group, tags=self.tags if len(
                                            self.tags) > 0 else None,
                                        config=self.config.as_dict(), description=self.name_and_description, host=socket.gethostname(),
@@ -467,7 +473,7 @@ class Run(object):
         if self._history is None:
             jupyter_callback = self._jupyter_agent.start if self._jupyter_agent else None
             self._history = history.History(
-                HISTORY_FNAME, self._dir, add_callback=self._history_added, jupyter_callback=jupyter_callback)
+                self, add_callback=self._history_added, jupyter_callback=jupyter_callback)
             if self._history._steps > 0:
                 self.resumed = True
         return self._history

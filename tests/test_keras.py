@@ -145,7 +145,8 @@ def test_keras_convert_sequential():
     model.add(Dense(5))
     model.add(Dense(6))
     wandb_model = wandb.data_types.Graph.from_keras(model)
-    wandb_model_out = wandb.Graph.transform(wandb_model)
+    wandb_model_out = wandb_model.to_json()
+    print(wandb_model_out)
     assert wandb_model_out == {'_type': 'graph', 'format': 'keras',
                                'nodes': [
                                    {'name': 'dense_1_input', 'id': 'dense_1_input', 'class_name': 'InputLayer',
@@ -178,7 +179,7 @@ def test_keras_convert_model_non_sequential():
     model = Model(inputs=[main_input, auxiliary_input],
                   outputs=[main_output, auxiliary_output])
     wandb_model = wandb.data_types.Graph.from_keras(model)
-    wandb_model_out = wandb.Graph.transform(wandb_model)
+    wandb_model_out = wandb_model.to_json()
 
     assert wandb_model_out['nodes'][0] == {'name': 'main_input', 'id': 'main_input',
                                            'class_name': 'InputLayer', 'output_shape': (None, 100), 'num_parameters': 0}
