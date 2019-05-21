@@ -223,6 +223,7 @@ class Paginator(object):
         self.last_response = None
 
     def __iter__(self):
+        self.index = -1
         return self
 
     def __len__(self):
@@ -265,7 +266,6 @@ class Paginator(object):
         self.index += 1
         if len(self.objects) <= self.index:
             if not self._load_page():
-                self.index = 0
                 raise StopIteration
         return self.objects[self.index]
 
