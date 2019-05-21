@@ -1077,7 +1077,7 @@ class Image(BatchableMedia):
 
         if width * num_images_to_log > Image.MAX_DIMENSION:
             max_images_by_dimension = Image.MAX_DIMENSION // width
-            logging.warning("The maximum total width for all images in a collection is 65500, or {} images, each with a width of {} pixels. Only {} thumbnails will be visible.".format(max_images_by_dimension, width, max_images_by_dimension))
+            logging.warning('There will only be thumbnails for {} images. The maximum total width for a set of thumbnails is 65,500px, or {} images, each with a width of {} pixels.'.format(max_images_by_dimension, max_images_by_dimension, width))
             num_images_to_log = max_images_by_dimension
 
         total_width = width * num_images_to_log
