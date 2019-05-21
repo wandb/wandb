@@ -1,12 +1,13 @@
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
-from tensorboardX import SummaryWriter
-import tensorflow as tf
-import wandb
-import glob
-import pytest
-import os
+
 import sys
+import os
+import pytest
+import glob
+import wandb
+import tensorflow as tf
+from tensorboardX import SummaryWriter
 
 
 def test_tensorboard(run_manager):
@@ -17,9 +18,27 @@ def test_tensorboard(run_manager):
         value=[tf.Summary.Value(tag="foo", simple_value=1)]), 0)
     summary.flush()
     run_manager.test_shutdown()
+    print("Run History Rows", wandb.run.history.rows)
     assert wandb.run.history.rows[0]["foo"] == 1.0
     assert wandb.run.history.rows[0]["global_step"] == 0
     assert len(glob.glob(wandb.run.dir + "/*tfevents*")) == 1
+
+
+def test_tensorboard_no_step(run_manager):
+    wandb.tensorboard.patch(tensorboardX=False)
+    tf.summary.FileWriterCache.clear()
+    summary = tf.summary.FileWriter(".")
+    summary.add_summary(tf.Summary(
+        value=[tf.Summary.Value(tag="foo", simple_value=1)]), 0)
+    wandb.log({"foo": 10, "bar": 32})
+    summary.add_summary(tf.Summary(
+        value=[tf.Summary.Value(tag="foo", simple_value=2)]), 1)
+    summary.flush()
+    run_manager.test_shutdown()
+    print("Shutdown", wandb.run.history.rows)
+    assert wandb.run.history.rows[1]["foo"] == 2
+    assert wandb.run.history.rows[0]["bar"] == 32
+    assert len(wandb.run.history.rows) == 2
 
 
 def test_tensorboard_s3(run_manager, capsys, mocker):
@@ -27,6 +46,7 @@ def test_tensorboard_s3(run_manager, capsys, mocker):
     from tensorflow.python.summary.writer import event_file_writer
 
     def fake_init(self, logdir, **kwargs):
+        self._closed = False
         writer = event_file_writer.EventFileWriter("test")
         mocker.patch.object(writer._ev_writer, "FileName",
                             lambda: logdir.encode("utf8"))
@@ -71,6 +91,7 @@ def test_tensorboardX(run_manager):
     rows = run_manager.run.history.rows
     events = []
     for root, dirs, files in os.walk(run_manager.run.dir):
+        print("ROOT", root, files)
         for file in files:
             if "tfevent" in file:
                 events.append(file)

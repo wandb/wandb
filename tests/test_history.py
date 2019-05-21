@@ -241,7 +241,7 @@ def test_tensorflow_in_log(history):
 
 def test_log_blows_up(history):
     class Foo():
-        def init(bar):
+        def init(self, bar):
             self.bar = bar
     raised = False
     try:

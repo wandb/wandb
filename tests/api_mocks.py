@@ -47,7 +47,9 @@ def _run_resume_status(name='test', empty=False, files=None):
     return {
         'bucket': {
             'name': name,
+            'displayName': 'funky-town-13',
             'id': name,
+            'summaryMetrics': '{"acc": 10}',
             'logLineCount': 14,
             'historyLineCount': 15,
             'eventsLineCount': 0,
@@ -79,6 +81,7 @@ def _run(name='test'):
     return {
         'id': 'test',
         'name': name,
+        'displayName': 'beast-bug-33',
         'state': "running",
         'config': '{"epochs": {"value": 10}}',
         'description': "",

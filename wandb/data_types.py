@@ -594,7 +594,7 @@ class Table(WBValue):
         self.data = list(rows or data or [])
 
     def add_row(self, *row):
-        logging.warn("add_row is deprecated, use add_data")
+        logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
     def add_data(self, *data):
@@ -1070,9 +1070,14 @@ class Image(BatchableMedia):
         width, height = images[0]._image.size
         num_images_to_log = len(images)
 
+        if num_images_to_log > Image.MAX_THUMBNAILS:
+            logging.warning(
+                "Only %i thumbnails will be visible in the media viewer." % Image.MAX_THUMBNAILS)
+            num_images_to_log = Image.MAX_THUMBNAILS
+
         if width * num_images_to_log > Image.MAX_DIMENSION:
             max_images_by_dimension = Image.MAX_DIMENSION // width
-            logging.warn('There will only be thumbnails for {} images. The maximum total width for a set of thumbnails is 65,500px, or {} images, each with a width of {} pixels.'.format(max_images_by_dimension, max_images_by_dimension, width))
+            logging.warning("The maximum total width for all images in a collection is 65500, or {} images, each with a width of {} pixels. Only {} thumbnails will be visible.".format(max_images_by_dimension, width, max_images_by_dimension))
             num_images_to_log = max_images_by_dimension
 
         total_width = width * num_images_to_log

@@ -1,10 +1,12 @@
 <div align="center">
-  <img src="https://app.wandb.ai/logo.svg" width="350" /><br><br>
+  <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
 </div>
 
 # Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb)
 
-The **W&B** client is an open source library and CLI (wandb) for organizing and analyzing your machine learning experiments. Think of it as a framework-agnostic lightweight TensorBoard that persists additional information such as the state of your code, system metrics, and configuration parameters.
+Use W&B to organize and analyze machine learning experiments. It's framework-agnostic and lighter than TensorBoard. Each time you run a script instrumented with `wandb`, we save your hyperparameters and output metrics. Visualize models over the course of training, and compare versions of your models easily. We also automatically track the state of your code, system metrics, and configuration parameters.
+
+[Sign up for a free account →](https://wandb.com)
 
 ## Features
 
@@ -14,7 +16,9 @@ The **W&B** client is an open source library and CLI (wandb) for organizing and 
 -   Collaborate with team members
 -   Replicate historic results
 -   Run parameter sweeps
--   Persist runs forever
+-   Keep records of experiments available forever
+
+[Documentation →](https://docs.wandb.com)
 
 ## Quickstart
 
@@ -54,9 +58,11 @@ Run your script with `python my_script.py` and all metadata will be synced to th
 
 If you are using [docker](https://docker.com) to run your code, we provide a wrapper command `wandb docker` that mounts your current directory, sets environment variables, and ensures the wandb library is installed. Training your models in docker gives you the ability to restore the exact code and environment with the `wandb restore` command.
 
-## Demo
+## Web Interface
 
-[![Watch the video](https://img.youtube.com/vi/EeqhOSvNX-A/maxresdefault.jpg)](https://youtu.be/EeqhOSvNX-A)
+[Sign up for a free account →](https://wandb.com)
+[![Watch the video](https://i.imgur.com/PW0Ejlc.png)](https://youtu.be/EeqhOSvNX-A)
+[Introduction video →](https://youtu.be/EeqhOSvNX-A)
 
 ## Detailed Usage
 

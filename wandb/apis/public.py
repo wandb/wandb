@@ -11,6 +11,7 @@ import datetime
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
+from six.moves import urllib
 
 import wandb
 from wandb import Error, __version__
@@ -27,6 +28,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     id
     tags
     name
+    displayName
     state
     config
     readOnly
@@ -67,7 +69,7 @@ class RetryingClient(object):
         self._client = client
 
     @retriable(retry_timedelta=datetime.timedelta(
-        seconds=10),
+        seconds=20),
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException))
     def execute(self, *args, **kwargs):
@@ -82,7 +84,7 @@ class Api(object):
         username, project, and run here as well as which api server to use.
     """
 
-    HTTP_TIMEOUT = 10
+    HTTP_TIMEOUT = 9
 
     def __init__(self, overrides={}):
         self.settings = {
@@ -510,7 +512,7 @@ class Run(Attrs):
 
     @property
     def path(self):
-        return [str(self.username), str(self.project), str(self.name)]
+        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.name))]
 
     @property
     def url(self):
@@ -606,9 +608,13 @@ class File(object):
         return int(self._attrs["sizeBytes"])
 
     @normalize_exceptions
+    @retriable(retry_timedelta=datetime.timedelta(
+        seconds=10),
+        check_retry_fn=util.no_retry_auth,
+        retryable_exceptions=(RetryError, requests.RequestException))
     def download(self, replace=False, root="."):
         response = requests.get(self._attrs["url"], auth=(
-            "api", Api().api_key), stream=True)
+            "api", Api().api_key), stream=True, timeout=5)
         response.raise_for_status()
         path = os.path.join(root, self._attrs["name"])
         if os.path.exists(path) and not replace:

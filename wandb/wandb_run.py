@@ -19,6 +19,7 @@ from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 import six
 from six.moves import configparser
+from six.moves import urllib
 import atexit
 import sys
 from watchdog.utils.dirsnapshot import DirectorySnapshot
@@ -39,6 +40,7 @@ class Run(object):
                  program=None, args=None, wandb_dir=None, tags=None):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else util.generate_id()
+        self.display_name = self.id
         self.resume = resume if resume else 'never'
         self.mode = mode if mode else 'run'
         self.group = group
@@ -88,17 +90,13 @@ class Run(object):
         # socket server, currently only available in headless mode
         self.socket = None
 
-        self.name_and_description = None
+        self.name_and_description = ""
         if description is not None:
             self.name_and_description = description
         elif os.path.exists(self.description_path):
             with open(self.description_path) as d_file:
                 self.name_and_description = d_file.read()
 
-        # An empty description.md may have been created by RunManager() so it's
-        # important that we overwrite empty strings here.
-        if not self.name_and_description:
-            self.name_and_description = self.id
         self.tags = tags if tags else []
 
         self.sweep_id = sweep_id
@@ -107,6 +105,7 @@ class Run(object):
         self._events = None
         self._summary = None
         self._meta = None
+        self._run_manager = None
         self._jupyter_agent = None
 
     @property
@@ -133,14 +132,26 @@ class Run(object):
         """ Sends a message to the wandb process changing the policy
         of saved files.  This is primarily used internally by wandb.save
         """
-        if not options.get("save_policy"):
-            raise ValueError("Only configuring save_policy is supported")
+        if not options.get("save_policy") and not options.get("tensorboard"):
+            raise ValueError(
+                "Only configuring save_policy and tensorboard is supported")
         if self.socket:
+            # In the user process
             self.socket.send(options)
         elif self._jupyter_agent:
+            # Running in jupyter
             self._jupyter_agent.start()
-            self._jupyter_agent.rm.update_user_file_policy(
-                options["save_policy"])
+            if options.get("save_policy"):
+                self._jupyter_agent.rm.update_user_file_policy(
+                    options["save_policy"])
+            elif options.get("tensorboard"):
+                self._jupyter_agent.rm.start_tensorboard_watcher(
+                    options["tensorboard"]["logdir"], options["tensorboard"]["save"])
+        elif self._run_manager:
+            # Running in the wandb process, used for tfevents saving
+            if options.get("save_policy"):
+                self._run_manager.update_user_file_policy(
+                    options["save_policy"])
         else:
             wandb.termerror(
                 "wandb.init hasn't been called, can't configure run")
@@ -166,8 +177,8 @@ class Run(object):
         if not mode and disabled:
             mode = "dryrun"
         elif disabled and mode != "dryrun":
-            wandb.termlog(
-                "WARNING: WANDB_MODE is set to run, but W&B was disabled.  Run `wandb on` to remove this message")
+            wandb.termwarn(
+                "WANDB_MODE is set to run, but W&B was disabled.  Run `wandb on` to remove this message")
         elif disabled:
             wandb.termlog(
                 'W&B is disabled in this directory.  Run `wandb on` to enable cloud syncing.')
@@ -300,6 +311,7 @@ class Run(object):
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
                                        summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
         self.storage_id = upsert_result['id']
+        self.display_name = upsert_result.get('displayName') or self.id
         return upsert_result
 
     def set_environment(self, environment=None):
@@ -350,9 +362,9 @@ class Run(object):
             if api.settings('entity'):
                 return "{base}/{entity}/{project}/runs/{run}".format(
                     base=api.app_url,
-                    entity=api.settings('entity'),
-                    project=self.project_name(api),
-                    run=self.id
+                    entity=urllib.parse.quote_plus(api.settings('entity')),
+                    project=urllib.parse.quote_plus(self.project_name(api)),
+                    run=urllib.parse.quote_plus(self.id)
                 )
             else:
                 # TODO: I think this could only happen if the api key is invalid

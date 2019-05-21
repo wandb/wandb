@@ -410,6 +410,9 @@ class Process(object):
     def kill(self):
         os.kill(self.pid, signal.SIGKILL)
 
+def format_display_name(run):
+    "Simple helper to not show display name if its the same as id"
+    return " "+run.display_name+":" if run.display_name != run.id else ":"
 
 class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
@@ -442,6 +445,10 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
+        self._tensorboard_watchers = []
+        self._tensorboard_consumer = None
+        self._tensorboard_lock = threading.Lock()
+        self._watcher_queue = queue.PriorityQueue()
 
         # This allows users to specify files they want uploaded during the run
         self._user_file_policies = {
@@ -759,7 +766,8 @@ class RunManager(object):
             jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.HISTORY_FNAME),
                                        history_tail)
         except ValueError:
-            print("warning: couldn't load recent history")
+            logger.error("Couldn't parse history")
+            wandb.termwarn("Couldn't load recent history, resuming may not function properly")
 
         # write the tail of the events file
         try:
@@ -767,7 +775,10 @@ class RunManager(object):
             jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.EVENTS_FNAME),
                                        events_tail)
         except ValueError:
-            print("warning: couldn't load recent events")
+            logger.error("Couldn't parse system metrics / events")
+
+        # load the previous runs summary to avoid losing it, the user process will need to load it
+        self._run.summary.update(json.loads(resume_status['summaryMetrics'] or "{}"))
 
         # Note: these calls need to happen after writing the files above. Because the access
         # to self._run.events below triggers events to initialize, but we need the previous
@@ -894,14 +905,12 @@ class RunManager(object):
                     return False
 
                 launch_error_s = 'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path())
-                if 'Permission denied' in str(e):
-                    launch_error_s += '\nRun "wandb login", or provide your API key with the WANDB_API_KEY environment variable.'
 
                 raise LaunchError(launch_error_s)
 
         if self._output:
             url = self._run.get_url(self._api)
-            wandb.termlog("Syncing to %s" % url)
+            wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_display_name(self._run), url))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         self._run.set_environment(environment=env)
@@ -927,6 +936,10 @@ class RunManager(object):
         logger.info("shutting down system stats and metadata service")
         self._system_stats.shutdown()
         self._meta.shutdown()
+        for watcher in self._tensorboard_watchers:
+            watcher.shutdown()
+        if self._tensorboard_consumer:
+            self._tensorboard_consumer.shutdown()
 
         if self._cloud:
             logger.info("stopping streaming files and file change observer")
@@ -1042,6 +1055,33 @@ class RunManager(object):
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy["policy"]].append(policy["glob"])
 
+    def start_tensorboard_watcher(self, logdir, save=True):
+        try:
+            from wandb.tensorboard.watcher import Watcher, Consumer
+            dirs = [logdir] + [w.logdir for w in self._tensorboard_watchers]
+            rootdir = os.path.dirname(os.path.commonprefix(dirs))
+            if os.path.isfile(logdir):
+                filename = os.path.basename(logdir)
+            else:
+                filename = ""
+            # Tensorboard loads all tfevents files in a directory and prepends
+            # their values with the path.  Passing namespace to log allows us
+            # to nest the values in wandb
+            namespace = logdir.replace(filename, "").replace(
+                rootdir, "").strip(os.sep)
+            # TODO: revisit this heuristic, it exists because we don't know the
+            # root log directory until more than one tfevents file is written to
+            if len(dirs) == 1 and namespace not in ["train", "validation"]:
+                namespace = None
+            with self._tensorboard_lock:
+                self._tensorboard_watchers.append(Watcher(logdir, self._watcher_queue, namespace=namespace, save=save))
+                if self._tensorboard_consumer is None:
+                    self._tensorboard_consumer = Consumer(self._watcher_queue)
+                    self._tensorboard_consumer.start()
+            self._tensorboard_watchers[-1].start()
+            return self._tensorboard_watchers
+        except ImportError as e:
+            wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
@@ -1097,6 +1137,11 @@ class RunManager(object):
                         break
                     elif parsed.get("save_policy"):
                         self.update_user_file_policy(parsed["save_policy"])
+                        payload = b''
+                        parse = False
+                    elif parsed.get("tensorboard"):
+                        if parsed["tensorboard"].get("logdir"):
+                            self.start_tensorboard_watcher(parsed["tensorboard"]["logdir"], parsed["tensorboard"]["save"])
                         payload = b''
                         parse = False
                     else:
@@ -1279,6 +1324,6 @@ class RunManager(object):
             else:
                 wandb.termlog('Synced %s' % url)
 
-        wandb.termlog('Synced %s' % url)
+        wandb.termlog('Synced{} {}'.format(format_display_name(self._run), url))
         logger.info("syncing complete: %s" % url)
         sys.exit(exitcode)

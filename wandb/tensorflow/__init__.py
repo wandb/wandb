@@ -33,9 +33,9 @@ def stream_tfevents(path, file_api, step=0):
     last_row = {}
     for summary in tf.train.summary_iterator(path):
         parsed = tf_summary_to_dict(summary)
-        if last_step != parsed["tensorflow_step"]:
+        if last_step != parsed["global_step"]:
             step += 1
-            last_step = parsed["tensorflow_step"]
+            last_step = parsed["global_step"]
             # TODO: handle time
             if len(row) > 0:
                 row['_step'] = last_step
