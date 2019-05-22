@@ -468,8 +468,8 @@ class SweepController(object):
         for k,v in six.iteritems(x.config):
             d.setdefault(k, {})
             d[k]['value'] = v
-        d.setdefault('wandb_tune_run', {})
-        d['wandb_tune_run']['value'] = True
+        d.setdefault('_wandb_tune_run', {})
+        d['_wandb_tune_run']['value'] = True
         self._sweep.schedule_generic(d, schedule_id=id)
         self._sweep.update()
         r = None

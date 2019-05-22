@@ -13,9 +13,11 @@ def reporter(**args):
 
 def _call_run(func):
     run = wandb.init()
+    # force a config update
+    run.config.update({})
     # prefer using wandb.config over command line since types will be preserved
     config = dict(run.config)
-    config.pop('wandb_tune_run')
+    config.pop('_wandb_tune_run')
     #print("CONFIG", config)
     func(config, reporter)
 
@@ -23,7 +25,7 @@ def _call_run(func):
 def init_run(func=None):
     #print("INIT", sys.argv)
     for arg in sys.argv[1:]:
-        if arg.startswith('--wandb_tune_run='):
+        if arg.startswith('--_wandb_tune_run='):
             # call func
             _call_run(func)
             sys.exit(0)
