@@ -56,8 +56,8 @@ def vcr_config():
 def vcr(vcr):
     def graphql_matcher(r1, r2):
         if "/graphql" in r1.uri and "/graphql" in r2.uri:
-            body1 = json.loads(r1.body)
-            body2 = json.loads(r2.body)
+            body1 = json.loads(r1.body.decode("utf-8"))
+            body2 = json.loads(r2.body.decode("utf-8"))
             return body1["query"].strip() == body2["query"].strip()
         return True
 
