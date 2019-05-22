@@ -518,8 +518,9 @@ class RunManager(object):
             os.path.join(self._watch_dir, os.path.normpath('*'))]
         # Ignore hidden files/folders and output.log because we stream it specially
         file_event_handler._ignore_patterns = [
-            '*/.*',
             '*.tmp',
+            os.path.join(self._run.dir, ".*"),
+            os.path.join(self._run.dir, "*/.*"),
             os.path.join(self._run.dir, OUTPUT_FNAME)
         ]
         for glob in self._api.settings("ignore_globs"):
