@@ -9,7 +9,9 @@ import six
 matplotlib.use("Agg")
 from click.testing import CliRunner
 import matplotlib.pyplot as plt
-import soundfile
+from click.testing import CliRunner
+
+from . import utils
 
 data = np.random.randint(255, size=(1000))
 
@@ -29,19 +31,19 @@ def test_manual_histogram():
     assert len(wbhist.histogram) == 3
 
 
-def test_fucked_up_histogram():
+def test_invalid_histogram():
     with pytest.raises(ValueError):
         wbhist = wandb.Histogram(np_histogram=([1, 2, 3], [1]))
 
 
-def test_transform():
+def test_histogram_to_json():
     wbhist = wandb.Histogram(data)
-    json = wandb.Histogram.transform(wbhist)
+    json = wbhist.to_json()
     assert json["_type"] == "histogram"
     assert len(json["values"]) == 64
 
 
-image = np.random.randint(255, size=(28, 28))
+image = np.zeros((28, 28))
 
 
 def test_captions():
@@ -50,22 +52,65 @@ def test_captions():
     assert wandb.Image.captions([wbone, wbtwo]) == ["Cool", "Nice"]
 
 
-def test_transform():
+def test_bind_image():
     with CliRunner().isolated_filesystem():
-        meta = wandb.Image.transform([wandb.Image(image)], ".", "test.jpg")
-        assert meta == {'_type': 'images',
-                        'count': 1, 'height': 28, 'width': 28}
-        assert os.path.exists("media/images/test.jpg")
+        run = wandb.wandb_run.Run()
+        wb_image = wandb.Image(image)
+        wb_image.bind_to_run(run, 'stuff', 10)
+        assert wb_image.is_bound()
+
+        with pytest.raises(RuntimeError):
+            wb_image.bind_to_run(run, 'stuff', 10)
+
+
+def test_cant_serialize_to_other_run():
+    """This isn't implemented yet. Should work eventually.
+    """
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        other_run = wandb.wandb_run.Run()
+        wb_image = wandb.Image(image)
+
+        wb_image.bind_to_run(run, 'stuff', 10)
+
+        with pytest.raises(AssertionError):
+            wb_image.to_json(other_run)
+
+
+def test_image_seq_to_json():
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        wb_image = wandb.Image(image)
+        meta = wandb.Image.seq_to_json([wb_image], run, "test", 'summary')
+        assert os.path.exists(os.path.join(run.dir, meta['images'][0]['path']))
+
+        meta_expected = {
+            '_type': 'images',
+            'count': 1,
+            'height': 28,
+            'width': 28,
+        }
+        assert utils.subdict(meta, meta_expected) == meta_expected
+
+        img_expected = {
+            '_type': 'image-file',
+            'height': 28,
+            'path': 'media/images/test_summary_0.png',
+            'size': 73,
+            'width': 28
+        }
+        assert utils.subdict(meta['images'][0], img_expected) == img_expected
 
 def test_transform_caps_at_65500(caplog):
     large_image = np.random.randint(255, size=(10, 1000))
     large_list = [wandb.Image(large_image)] * 100
     with CliRunner().isolated_filesystem():
-        meta = wandb.Image.transform(large_list, ".", "test2.jpg")
-        assert meta == {'_type': 'images',
-                        'count': 65, 'height': 10, 'width': 1000}
-        assert os.path.exists("media/images/test2.jpg")
-        assert 'The maximum total width for all images in a collection is 65500, or 65 images, each with a width of 1000 pixels. Only logging the first 65 images.' in caplog.text
+        run = wandb.wandb_run.Run()
+        meta = wandb.Image.seq_to_json(large_list, run, "test2", 0)
+        expected = {'_type': 'images', 'count': 65, 'height': 10, 'width': 1000}
+        assert utils.subdict(meta, expected) == expected
+        assert os.path.exists(os.path.join(run.dir, "media/images/test2_0.jpg"))
+        assert 'There will only be thumbnails for 65 images. The maximum total width for a set of thumbnails is 65,500px, or 65 images, each with a width of 1000 pixels.' in caplog.text
 
 def test_audio_sample_rates():
     audio1 = np.random.uniform(-1, 1, 44100)
@@ -105,39 +150,55 @@ def test_audio_captions():
     assert wandb.Audio.captions([wbaudio5, wbaudio6]) == ['', caption2]
 
 
-def test_audio_transform():
-    audio = np.random.uniform(-1, 1, 44100)
+def test_audio_to_json():
+    audio = np.zeros(44100)
     with CliRunner().isolated_filesystem():
-        meta = wandb.Audio.transform(
-            [wandb.Audio(audio, sample_rate=44100)], ".", "test", 0)
-        assert meta == {'_type': 'audio',
-                        'count': 1, 'sampleRates': [44100], 'durations': [1.0]}
-        assert os.path.exists("media/audio/test_0_0.wav")
+        run = wandb.wandb_run.Run()
+        meta = wandb.Audio.seq_to_json(
+            [wandb.Audio(audio, sample_rate=44100)], run, "test", 0)
+        assert os.path.exists(os.path.join(run.dir, meta['audio'][0]['path']))
+
+        meta_expected = {
+            '_type': 'audio',
+            'count': 1,
+            'sampleRates': [44100],
+            'durations': [1.0],
+        }
+        assert utils.subdict(meta, meta_expected) == meta_expected
+
+        audio_expected = {
+            '_type': 'audio-file',
+            'caption': None,
+            'sample_rate': 44100,
+            'size': 88244,
+        }
+        assert utils.subdict(meta['audio'][0], audio_expected) == audio_expected
 
 
 def test_guess_mode():
     image = np.random.randint(255, size=(28, 28, 3))
     wbimg = wandb.Image(image)
-    assert wbimg.image.mode == "RGB"
+    assert wbimg._image.mode == "RGB"
 
 
 def test_pil():
     pil = PIL.Image.new("L", (28, 28))
     img = wandb.Image(pil)
-    assert img.image == pil
+    assert img._image == pil
 
 
 def test_matplotlib_image():
     plt.plot([1, 2, 2, 4])
     img = wandb.Image(plt)
-    assert img.image.width == 640
+    assert img._image.width == 640
 
 
 def test_html_str():
     with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
         html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
-        wandb.Html.transform([html], ".", "rad", "summary")
-        assert os.path.exists("media/html/rad_summary_0.html")
+        wandb.Html.seq_to_json([html], run, "rad", "summary")
+        assert os.path.exists(os.path.join(run.dir, "media/html/rad_summary_0.html"))
 
 
 def test_html_styles():
@@ -158,29 +219,34 @@ def test_html_styles():
 
 def test_html_file():
     with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
         with open("test.html", "w") as f:
             f.write("<html><body><h1>Hello</h1></body></html>")
         html = wandb.Html(open("test.html"))
-        wandb.Html.transform([html, html], ".", "rad", "summary")
-        assert os.path.exists("media/html/rad_summary_0.html")
-        assert os.path.exists("media/html/rad_summary_1.html")
+        wandb.Html.seq_to_json([html, html], run, "rad", "summary")
+        assert os.path.exists(os.path.join(run.dir, "media/html/rad_summary_0.html"))
+        assert os.path.exists(os.path.join(run.dir, "media/html/rad_summary_0.html"))
 
 
 def test_table_default():
     table = wandb.Table()
     table.add_data("Some awesome text", "Positive", "Negative")
-    assert wandb.Table.transform(table) == {"_type": "table",
-                                            "data": [["Some awesome text", "Positive", "Negative"]],
-                                            "columns": ["Input", "Output", "Expected"]}
+    assert table.to_json() == {
+        "_type": "table",
+        "data": [["Some awesome text", "Positive", "Negative"]],
+        "columns": ["Input", "Output", "Expected"]
+    }
 
 
 def test_table_custom():
     table = wandb.Table(["Foo", "Bar"])
     table.add_data("So", "Cool")
     table.add_row("&", "Rad")
-    assert wandb.Table.transform(table) == {"_type": "table",
-                                            "data": [["So", "Cool"], ["&", "Rad"]],
-                                            "columns": ["Foo", "Bar"]}
+    assert table.to_json() == {
+        "_type": "table",
+        "data": [["So", "Cool"], ["&", "Rad"]],
+        "columns": ["Foo", "Bar"]
+    }
 
 
 point_cloud_1 = np.array([[0, 0, 0, 1],
@@ -201,23 +267,16 @@ point_cloud_3 = np.array([[0, 0, 0, 100, 100, 100],
 
 def test_object3d_numpy():
     obj = wandb.Object3D(point_cloud_1)
-    np.testing.assert_array_equal(obj.numpyData, point_cloud_1)
-
     obj = wandb.Object3D(point_cloud_2)
-    np.testing.assert_array_equal(obj.numpyData, point_cloud_2)
-
     obj = wandb.Object3D(point_cloud_3)
-    np.testing.assert_array_equal(obj.numpyData, point_cloud_3)
 
 
 def test_object3d_obj():
     obj = wandb.Object3D(open("tests/fixtures/cube.obj"))
-    assert obj.extension == "obj"
 
 
 def test_object3d_gltf():
     obj = wandb.Object3D(open("tests/fixtures/Box.gltf"))
-    assert obj.extension == "gltf"
 
 
 def test_object3d_io():
@@ -226,8 +285,6 @@ def test_object3d_io():
 
     ioObj = six.StringIO(six.u(body))
     obj = wandb.Object3D(ioObj, file_type="obj")
-
-    assert obj.extension == "obj"
 
 
 def test_object3d_unsupported_numpy():
@@ -251,27 +308,36 @@ def test_object3d_unsupported_numpy():
         obj = wandb.Object3D(ioObj)
 
 
-def test_object3d_transform():
-    obj = wandb.Object3D.transform([
-        wandb.Object3D(open("tests/fixtures/Box.gltf")),
-        wandb.Object3D(open("tests/fixtures/cube.obj")),
-        wandb.Object3D(point_cloud_1)], "tests/output", "pc", 1)
+def test_object3d_seq_to_json():
+    cwd = os.getcwd()
 
-    assert os.path.exists("tests/output/media/object3D/pc_1_0.gltf")
-    assert os.path.exists("tests/output/media/object3D/pc_1_1.obj")
-    assert os.path.exists(
-        "tests/output/media/object3D/pc_1_2.pts.json")
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
 
-    assert obj["_type"] == "object3D"
-    assert obj["filenames"] == [
-        "pc_1_0.gltf",
-        "pc_1_1.obj",
-        "pc_1_2.pts.json",
-    ]
+        obj = wandb.Object3D.seq_to_json([
+            wandb.Object3D(open(os.path.join(cwd, "tests/fixtures/Box.gltf"))),
+            wandb.Object3D(open(os.path.join(cwd, "tests/fixtures/cube.obj"))),
+            wandb.Object3D(point_cloud_1)
+        ], run, "pc", 1)
+
+        print(obj)
+
+
+        assert os.path.exists(os.path.join(run.dir, "media/object3D/Box_be115756.gltf"))
+        assert os.path.exists(os.path.join(run.dir, "media/object3D/cube_afff12bc.obj"))
+        assert os.path.exists(os.path.join(run.dir, 
+            "media/object3D/pc_1_2.pts.json"))
+
+        assert obj["_type"] == "object3D"
+        assert obj["filenames"] == [
+            "media/object3D/Box_be115756.gltf",
+            "media/object3D/cube_afff12bc.obj",
+            "media/object3D/pc_1_2.pts.json",
+        ]
 
 
 def test_table_init():
     table = wandb.Table(data=[["Some awesome text", "Positive", "Negative"]])
-    assert wandb.Table.transform(table) == {"_type": "table",
-                                            "data": [["Some awesome text", "Positive", "Negative"]],
-                                            "columns": ["Input", "Output", "Expected"]}
+    assert table.to_json() == {"_type": "table",
+                                "data": [["Some awesome text", "Positive", "Negative"]],
+                                "columns": ["Input", "Output", "Expected"]}

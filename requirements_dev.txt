@@ -37,5 +37,5 @@ plotly
 Keras
 torch
 torchvision
-tensorflow>=1.12.1
+tensorflow==1.13.1
 protobuf>=3.6.0

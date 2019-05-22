@@ -26,7 +26,10 @@ class History(object):
     See the documentation online: https://docs.wandb.com/docs/logs.html
     """
 
-    def __init__(self, fname, out_dir='.', add_callback=None, jupyter_callback=None, stream_name="default"):
+    def __init__(self, run, add_callback=None, jupyter_callback=None, stream_name="default"):
+        self._run = run
+        out_dir = run.dir
+        fname = wandb.wandb_run.HISTORY_FNAME
         self._start_time = wandb.START_TIME
         self.out_dir = out_dir
         self.fname = os.path.join(out_dir, fname)
@@ -88,7 +91,7 @@ class History(object):
         if self.stream_name != "default":
             raise ValueError("Nested streams aren't supported")
         if self._streams.get(name) == None:
-            self._streams[name] = History(self.fname, out_dir=self.out_dir,
+            self._streams[name] = History(self._run,
                                           add_callback=self._add_callback, stream_name=name)
         return self._streams[name]
 
@@ -191,7 +194,7 @@ class History(object):
 
     def _transform(self):
         """Transforms special classes into the proper format before writing"""
-        self.row = data_types.to_json(self.row)
+        self.row = data_types.history_dict_to_json(self._run, self.row)
 
     def _write(self):
         # Saw a race in tests where we closed history and another log was called

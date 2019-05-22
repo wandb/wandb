@@ -71,3 +71,9 @@ def assert_deep_lists_equal(a, b, indices=None):
             finally:
                 if top and indices:
                     print('Diff at index: %s' % list(reversed(indices)))
+
+
+def subdict(d, expected_dict):
+    """Return a new dict with only the items from `d` whose keys occur in `expected_dict`.
+    """
+    return {k: v for k, v in d.items() if k in expected_dict}
