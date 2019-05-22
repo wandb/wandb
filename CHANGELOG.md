@@ -1,3 +1,32 @@
+## 0.8.0 (May 17, 2019)
+
+#### :bug: Bug Fix
+
+-   Better error messages on access denied
+-   Better error messages when optional packages aren't installed
+-   Urls printed to the termial are url-escaped
+-   Namespaced tensorboard events work with histograms
+-   Public API now retries on failures and re-uses connection pool
+-   Catch git errors when remotes aren't pushed to origin
+-   Moved keras graph collection to on_train_begin to handle unbuilt models
+-   Handle more cases of not being able to save weights
+-   Updates to summary after resuming are persisted
+-   PyTorch histc logging fixed in 0.4.1
+-   Fixed `wandb sync` tensorboard import
+
+#### :nail_care: Enhancement
+
+-   wandb.init(tensorboard=True) works with Tensorflow 2 and Eager Execution
+-   wandb.init(tensorboard=True) now works with tb-nightly and PyTorch
+-   Automatically log examples with tf.keras by adding missing validation_data
+-   Socket only binds to localhost for improved security and prevents firewall warnings in OSX
+-   Added user object to public api for getting the source user
+-   Added run.display_name to the public api
+-   Show display name in console output
+-   Added --tags, --job_group, and --job_type to `wandb run`
+-   Added environment variable for minimum time to run before considering crashed
+-   Added flake8 tests to CI, thanks @cclauss!
+
 ## 0.7.3 (April 15, 2019)
 
 #### :bug: Bug Fix

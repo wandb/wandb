@@ -6,5 +6,6 @@
     "**/*.pyc": true,
     "docs/_build": true,
     "build": true
-  }
+  },
+  "git.ignoreLimitWarning": true
 }

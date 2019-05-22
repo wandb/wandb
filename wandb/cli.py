@@ -81,6 +81,9 @@ class CallbackHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.wfile.write(b'Success')
         self.server.stop()
 
+    def log_message(self, format, *args):
+        pass
+
 
 class LocalServer():
     """A local HTTP server that finds an open port and listens for a callback.
@@ -671,8 +674,14 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help='Message to associate with the run.')
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
+@click.option('--tags', default=None,
+              help='Tags to associate with the run (comma seperated).')
+@click.option('--run_group', default=None,
+              help='Run group to associate with the run.')
+@click.option('--job_type', default=None,
+              help='Job type to associate with the run.')
 @display_error
-def run(ctx, program, args, id, resume, dir, configs, message, show):
+def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_group, job_type):
     wandb.ensure_configured()
     if configs:
         config_paths = configs.split(',')
@@ -680,9 +689,11 @@ def run(ctx, program, args, id, resume, dir, configs, message, show):
         config_paths = []
     config = Config(config_paths=config_paths,
                     wandb_dir=dir or wandb.wandb_dir())
+    tags = [tag for tag in tags.split(",") if tag] if tags else None
     run = wandb_run.Run(run_id=id, mode='clirun',
                         config=config, description=message,
-                        program=program,
+                        program=program, tags=tags,
+                        group=run_group, job_type=job_type,
                         resume=resume)
     run.enable_logging()
 

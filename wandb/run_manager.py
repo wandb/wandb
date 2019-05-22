@@ -280,6 +280,7 @@ class FileEventHandlerSummary(FileEventHandler):
         self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
 
     def finish(self):
+        self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
@@ -410,10 +411,14 @@ class Process(object):
     def kill(self):
         os.kill(self.pid, signal.SIGKILL)
 
+def format_display_name(run):
+    "Simple helper to not show display name if its the same as id"
+    return " "+run.display_name+":" if run.display_name != run.id else ":"
 
 class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
+    CRASH_NOSYNC_TIME = 30
 
     def __init__(self, api, run, project=None, tags=[], cloud=True, output=True, port=None):
         self._api = api
@@ -425,7 +430,6 @@ class RunManager(object):
         self._project = self._resolve_project_name(project)
 
         self._tags = tags
-        self._watch_dir = self._run.dir
 
         self._config = run.config
 
@@ -441,6 +445,10 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
+        self._tensorboard_watchers = []
+        self._tensorboard_consumer = None
+        self._tensorboard_lock = threading.Lock()
+        self._watcher_queue = queue.PriorityQueue()
 
         # This allows users to specify files they want uploaded during the run
         self._user_file_policies = {
@@ -473,7 +481,7 @@ class RunManager(object):
 
         # We use the polling observer because inotify was flaky and could require changes to sysctl.conf
         self._file_observer = PollingObserver()
-        self._file_observer.schedule(self._per_file_event_handler(), self._watch_dir, recursive=True)
+        self._file_observer.schedule(self._per_file_event_handler(), self._run.dir, recursive=True)
 
         # We lock this when the back end is down so Watchdog will keep track of all
         # the file events that happen. Then, when the back end comes back up, we unlock
@@ -507,11 +515,12 @@ class RunManager(object):
         file_event_handler.on_modified = self._on_file_modified
         file_event_handler.on_moved = self._on_file_moved
         file_event_handler._patterns = [
-            os.path.join(self._watch_dir, os.path.normpath('*'))]
+            os.path.join(self._run.dir, os.path.normpath('*'))]
         # Ignore hidden files/folders and output.log because we stream it specially
         file_event_handler._ignore_patterns = [
-            '*/.*',
             '*.tmp',
+            os.path.join(self._run.dir, ".*"),
+            os.path.join(self._run.dir, "*/.*"),
             os.path.join(self._run.dir, OUTPUT_FNAME)
         ]
         for glob in self._api.settings("ignore_globs"):
@@ -530,7 +539,7 @@ class RunManager(object):
         self._block_file_observer()
         self._unblock_file_observer()
 
-    def _stop_file_observer(self):
+    def _end_file_syncing(self, exitcode):
         try:
             # avoid hanging if we crashed before the observer was started
             if self._file_observer.is_alive():
@@ -556,10 +565,19 @@ class RunManager(object):
         except SystemError:
             pass
 
-    def _end_file_syncing(self, exitcode):
+        # Ensure we've at least noticed every file in the run directory. Sometimes
+        # we miss things because asynchronously watching filesystems isn't reliable.
+        for dirpath, dirnames, filenames in os.walk(self._run.dir):
+            for fname in filenames:
+                file_path = os.path.join(dirpath, fname)
+                save_name = os.path.relpath(file_path, self._run.dir)
+                if save_name not in self._file_event_handlers:
+                    self._get_file_event_handler(file_path, save_name).on_created()
+
         """Stops file syncing/streaming but doesn't actually wait for everything to
         finish. We print progress info later.
         """
+
         # TODO: there was a case where _file_event_handlers was getting modified in the loop.
         for handler in list(self._file_event_handlers.values()):
             handler.finish()
@@ -579,7 +597,7 @@ class RunManager(object):
         self._file_count += 1
         if self._file_count % 100 == 0:
             self.emitter._timeout = int(self._file_count / 100) + 1
-        save_name = os.path.relpath(event.src_path, self._watch_dir)
+        save_name = os.path.relpath(event.src_path, self._run.dir)
         self._ensure_file_observer_is_unblocked()
         self._get_file_event_handler(event.src_path, save_name).on_created()
 
@@ -587,7 +605,7 @@ class RunManager(object):
         logger.info('file/dir modified: %s', event.src_path)
         if os.path.isdir(event.src_path):
             return None
-        save_name = os.path.relpath(event.src_path, self._watch_dir)
+        save_name = os.path.relpath(event.src_path, self._run.dir)
         self._ensure_file_observer_is_unblocked()
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
@@ -596,8 +614,8 @@ class RunManager(object):
                     event.src_path, event.dest_path)
         if os.path.isdir(event.dest_path):
             return None
-        old_save_name = os.path.relpath(event.src_path, self._watch_dir)
-        new_save_name = os.path.relpath(event.dest_path, self._watch_dir)
+        old_save_name = os.path.relpath(event.src_path, self._run.dir)
+        new_save_name = os.path.relpath(event.dest_path, self._run.dir)
         self._ensure_file_observer_is_unblocked()
 
         # We have to move the existing file handler to the new name, and update the stats
@@ -758,7 +776,8 @@ class RunManager(object):
             jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.HISTORY_FNAME),
                                        history_tail)
         except ValueError:
-            print("warning: couldn't load recent history")
+            logger.error("Couldn't parse history")
+            wandb.termwarn("Couldn't load recent history, resuming may not function properly")
 
         # write the tail of the events file
         try:
@@ -766,7 +785,10 @@ class RunManager(object):
             jsonlfile.write_jsonl_file(os.path.join(self._run.dir, wandb_run.EVENTS_FNAME),
                                        events_tail)
         except ValueError:
-            print("warning: couldn't load recent events")
+            logger.error("Couldn't parse system metrics / events")
+
+        # load the previous runs summary to avoid losing it, the user process will need to load it
+        self._run.summary.update(json.loads(resume_status['summaryMetrics'] or "{}"))
 
         # Note: these calls need to happen after writing the files above. Because the access
         # to self._run.events below triggers events to initialize, but we need the previous
@@ -893,22 +915,20 @@ class RunManager(object):
                     return False
 
                 launch_error_s = 'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path())
-                if 'Permission denied' in str(e):
-                    launch_error_s += '\nRun "wandb login", or provide your API key with the WANDB_API_KEY environment variable.'
 
                 raise LaunchError(launch_error_s)
 
         if self._output:
             url = self._run.get_url(self._api)
-            wandb.termlog("Syncing to %s" % url)
+            wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_display_name(self._run), url))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         self._run.set_environment(environment=env)
 
         logger.info("saving patches")
-        self._api.save_patches(self._watch_dir)
+        self._api.save_patches(self._run.dir)
         logger.info("saving pip packages")
-        self._api.save_pip(self._watch_dir)
+        self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")
         self._api.get_file_stream_api().set_file_policy(
             OUTPUT_FNAME, CRDedupeFilePolicy())
@@ -926,14 +946,16 @@ class RunManager(object):
         logger.info("shutting down system stats and metadata service")
         self._system_stats.shutdown()
         self._meta.shutdown()
+        for watcher in self._tensorboard_watchers:
+            watcher.shutdown()
+        if self._tensorboard_consumer:
+            self._tensorboard_consumer.shutdown()
 
         if self._cloud:
             logger.info("stopping streaming files and file change observer")
-            self._stop_file_observer()
             self._end_file_syncing(exitcode)
 
         self._run.history.close()
-
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.
@@ -1034,7 +1056,7 @@ class RunManager(object):
     def update_user_file_policy(self, policy):
         with self._file_policy_lock:
             for path in glob.glob(policy["glob"]):
-                save_name = os.path.relpath(path, self._watch_dir)
+                save_name = os.path.relpath(path, self._run.dir)
                 # Remove the existing handler if we haven't already made it live
                 current = self._file_event_handlers.get(save_name)
                 is_live = isinstance(current, FileEventHandlerThrottledOverwriteMinWait)
@@ -1042,6 +1064,33 @@ class RunManager(object):
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy["policy"]].append(policy["glob"])
 
+    def start_tensorboard_watcher(self, logdir, save=True):
+        try:
+            from wandb.tensorboard.watcher import Watcher, Consumer
+            dirs = [logdir] + [w.logdir for w in self._tensorboard_watchers]
+            rootdir = os.path.dirname(os.path.commonprefix(dirs))
+            if os.path.isfile(logdir):
+                filename = os.path.basename(logdir)
+            else:
+                filename = ""
+            # Tensorboard loads all tfevents files in a directory and prepends
+            # their values with the path.  Passing namespace to log allows us
+            # to nest the values in wandb
+            namespace = logdir.replace(filename, "").replace(
+                rootdir, "").strip(os.sep)
+            # TODO: revisit this heuristic, it exists because we don't know the
+            # root log directory until more than one tfevents file is written to
+            if len(dirs) == 1 and namespace not in ["train", "validation"]:
+                namespace = None
+            with self._tensorboard_lock:
+                self._tensorboard_watchers.append(Watcher(logdir, self._watcher_queue, namespace=namespace, save=save))
+                if self._tensorboard_consumer is None:
+                    self._tensorboard_consumer = Consumer(self._watcher_queue)
+                    self._tensorboard_consumer.start()
+            self._tensorboard_watchers[-1].start()
+            return self._tensorboard_watchers
+        except ImportError as e:
+            wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
@@ -1097,6 +1146,11 @@ class RunManager(object):
                         break
                     elif parsed.get("save_policy"):
                         self.update_user_file_policy(parsed["save_policy"])
+                        payload = b''
+                        parse = False
+                    elif parsed.get("tensorboard"):
+                        if parsed["tensorboard"].get("logdir"):
+                            self.start_tensorboard_watcher(parsed["tensorboard"]["logdir"], parsed["tensorboard"]["save"])
                         payload = b''
                         parse = False
                     else:
@@ -1172,12 +1226,13 @@ class RunManager(object):
         self._close_stdout_stderr_streams()
         self.shutdown(exitcode)
 
+        crash_nosync_time = env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
             wandb.termlog("You can sync this run to the cloud by running: ")
             wandb.termlog("wandb sync %s" % os.path.relpath(self._run.dir))
             sys.exit(exitcode)
-        elif exitcode != 0 and time.time() - START_TIME < 30:
+        elif exitcode != 0 and crash_nosync_time and time.time() - START_TIME < crash_nosync_time:
             wandb.termlog("Process crashed early, not syncing files")
             logger.info("process only ran for %d seconds, not syncing files" % (time.time() - START_TIME))
             sys.exit(exitcode)
@@ -1219,7 +1274,7 @@ class RunManager(object):
         other_files = set(self._file_pusher.files()) - wandb_files - media_files
         logger.info("syncing files to cloud storage")
         if other_files:
-            wandb.termlog('Syncing files in %s:' % os.path.relpath(self._watch_dir))
+            wandb.termlog('Syncing files in %s:' % os.path.relpath(self._run.dir))
             for save_name in sorted(other_files):
                 wandb.termlog('  %s' % save_name)
             wandb.termlog('plus {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
@@ -1252,7 +1307,7 @@ class RunManager(object):
                 for fname, info in download_urls.items():
                     if fname == 'wandb-history.h5' or fname == OUTPUT_FNAME:
                         continue
-                    local_path = os.path.join(self._watch_dir, fname)
+                    local_path = os.path.join(self._run.dir, fname)
                     local_md5 = util.md5_file(local_path)
                     if local_md5 != info['md5']:
                         mismatched.append((local_path, local_md5, info['md5']))
@@ -1278,6 +1333,6 @@ class RunManager(object):
             else:
                 wandb.termlog('Synced %s' % url)
 
-        wandb.termlog('Synced %s' % url)
+        wandb.termlog('Synced{} {}'.format(format_display_name(self._run), url))
         logger.info("syncing complete: %s" % url)
         sys.exit(exitcode)

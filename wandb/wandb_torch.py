@@ -4,6 +4,7 @@
 """
 
 from collections import namedtuple
+import itertools
 import weakref
 from six.moves import reduce
 from distutils.version import LooseVersion
@@ -150,8 +151,11 @@ class TorchHistory(object):
                     check = flat.histc(bins=self._num_bins)
                 except RuntimeError as e:
                     # Only work around missing support with specific exception
-                    if str(e).startswith("_th_histc is not implemented"):
-                        self._is_cuda_histc_supported = False
+                    #if str(e).startswith("_th_histc is not implemented"):
+                    #    self._is_cuda_histc_supported = False
+                    # On second thought, 0.4.1 doesnt have support and maybe there are other issues
+                    # lets disable more broadly for now
+                    self._is_cuda_histc_supported = False
 
             if not self._is_cuda_histc_supported:
                 flat = flat.cpu().clone().detach()
@@ -286,8 +290,8 @@ class TorchGraph(wandb.data_types.Graph):
                     if wandb.run:
                         wandb.run.summary["graph_%i" % graph_idx] = graph
                     else:
-                        wandb.termlog(
-                            "wandb.watch was called without a call to wandb.init, call wandb.init before wandb.watch")
+                        wandb.termwarn(
+                            "wandb.watch was called without a call to wandb.init, call wandb.init before wandb.watch", repeat=False)
                     # TODO: Keeping this here as a starting point for adding graph data
                     if not graph.loaded:
                         def traverse(node, functions=[]):

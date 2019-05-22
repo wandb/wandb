@@ -1,3 +1,4 @@
+# This Python file uses the following encoding: utf-8
 import pytest
 import datetime
 import os
@@ -7,6 +8,7 @@ from .utils import git_repo
 
 from wandb import wandb_run
 from wandb import env
+from wandb.apis import InternalApi
 
 
 def get_last_val(history, key):
@@ -21,6 +23,18 @@ def test_wandb_run_args(git_repo):
     run = wandb_run.Run.from_environment_or_defaults()
     assert run.args == ["foo", "bar"]
     del os.environ[env.ARGS]
+
+
+def test_url_escape(git_repo):
+    os.environ[env.ENTITY] = "†est"
+    os.environ[env.PROJECT] = "wild projo"
+    os.environ[env.API_KEY] = "abcdefghijabcdefghijabcdefghijabcdefghij"
+    run = wandb_run.Run.from_environment_or_defaults(
+        {env.RUN_ID: "my wild run"})
+    assert run.get_url() == "https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run"
+    del os.environ[env.ENTITY]
+    del os.environ[env.API_KEY]
+    del os.environ[env.PROJECT]
 
 
 def test_wandb_run_args_sys(git_repo):

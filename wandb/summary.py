@@ -28,6 +28,7 @@ class SummarySubDict(object):
 
     This lets us do synchronous serialization and lazy loading of large values.
     """
+
     def __init__(self, root=None, path=()):
         if root is None:
             self._root = self
@@ -156,13 +157,13 @@ class SummarySubDict(object):
 
         for key, value in write_items:
             if isinstance(value, dict):
-                self._dict[key] = SummarySubDict(self._root, self._path + (key,))
+                self._dict[key] = SummarySubDict(
+                    self._root, self._path + (key,))
                 self._dict[key]._update(value, overwrite)
             else:
                 self._dict[key] = value
 
         return write_items
-
 
 
 class Summary(SummarySubDict):
@@ -293,8 +294,10 @@ class Summary(SummarySubDict):
             if util.is_pandas_data_frame(value):
                 return util.encode_data_frame(path, value, self._run)
             else:
-                friendly_value, converted = util.json_friendly(data_types.val_to_json(path, value))
-                json_value, compressed = util.maybe_compress_summary(friendly_value, util.get_h5_typename(value))
+                friendly_value, converted = util.json_friendly(
+                    data_types.val_to_json(path, value))
+                json_value, compressed = util.maybe_compress_summary(
+                    friendly_value, util.get_h5_typename(value))
                 if compressed:
                     self.write_h5(path_from_root, friendly_value)
 
@@ -356,6 +359,9 @@ class HTTPSummary(Summary):
         self._run = run
         self._client = client
         self._started = time.time()
+
+    def load(self):
+        pass
 
     def _write(self, commit=False):
         mutation = gql('''

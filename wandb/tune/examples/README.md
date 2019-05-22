@@ -159,7 +159,7 @@
     2019-05-22 10:30:06,730 - wandb.agent - INFO - Cleaning up dead run: 01v3cicv
     ```
 
-#### Dependancies
+#### Dependencies
 
 The following are the packages (and commit hashes) which are dependancies for the wandb ray/tune local controller.
 
@@ -174,3 +174,8 @@ The following are the packages (and commit hashes) which are dependancies for th
 - hyperopt
 
   hyperopt                 0.1.2 
+
+- skopt https://scikit-optimize.github.io/
+
+  scikit-optimize          0.5.2                
+

@@ -28,7 +28,6 @@ from six import BytesIO
 from six.moves import configparser
 import wandb
 from wandb import __version__, wandb_dir, Error
-from wandb import termlog
 from wandb import env
 from wandb.git_repo import GitRepo
 from wandb import retry
@@ -124,7 +123,7 @@ class Api(object):
             for err in data['errors']:
                 if 'message' not in err:
                     continue
-                termlog('Error while calling W&B API: %s' % err['message'])
+                wandb.termerror('Error while calling W&B API: %s' % err['message'])
 
 
     def disabled(self):
@@ -191,8 +190,10 @@ class Api(object):
                     with open(upstream_patch_path, 'wb') as upstream_patch:
                         subprocess.check_call(
                             ['git', 'diff', sha], stdout=upstream_patch, cwd=root, timeout=5)
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            logger.error('Error generating diff')
+        # TODO: A customer saw `ValueError: Reference at 'refs/remotes/origin/foo' does not exist`
+        # so we now catch ValueError.  Catching this error feels too generic.
+        except (ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            logger.error('Error generating diff: %s' % e)
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
@@ -256,7 +257,7 @@ class Api(object):
                         self._settings[option] = self.settings_parser.get(
                             section, option)
             except configparser.InterpolationSyntaxError:
-                print("WARNING: Unable to parse settings file")
+                wandb.termwarn("Unable to parse settings file")
             self._settings["project"] = env.get_project(
                 self._settings.get("project"))
             self._settings["entity"] = env.get_entity(
@@ -438,6 +439,7 @@ class Api(object):
                         node {
                             id
                             name
+                            displayName
                             description
                         }
                     }
@@ -566,6 +568,8 @@ class Api(object):
                 bucket(name: $name, missingOk: true) {
                     id
                     name
+                    summaryMetrics
+                    displayName
                     logLineCount
                     historyLineCount
                     eventsLineCount
@@ -681,6 +685,7 @@ class Api(object):
                 bucket {
                     id
                     name
+                    displayName
                     description
                     config
                     project {
@@ -697,7 +702,7 @@ class Api(object):
         ''')
         if config is not None:
             config = json.dumps(config)
-        if not description:
+        if not description or description.isspace():
             description = None
 
         kwargs = {}
