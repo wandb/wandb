@@ -629,7 +629,7 @@ def test_sync(runner, git_repo):
     assert "Uploading history metrics" in str(result.output)
     assert result.exit_code == 0
 
-@pytest.mark.skipif(os.getenv("NO_ML") or sys.version_info < (3, 5), reason="Tensorboard not installed and we don't support tensorboard syncing in py2")
+@pytest.mark.skipif(os.getenv("NO_ML") == "true" or sys.version_info < (3, 5), reason="Tensorboard not installed and we don't support tensorboard syncing in py2")
 @pytest.mark.vcr()
 def test_sync_tensorboard_ignore(runner, git_repo):
     # Un comment this line when re-recording the cassette

@@ -783,6 +783,7 @@ class Image(IterableMedia):
         for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image.image, (location, 0))
+        # fname may contain a slash so we create the directory
         util.mkdir_exists_ok(os.path.dirname(os.path.join(base, fname)))
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
