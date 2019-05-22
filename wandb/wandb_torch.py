@@ -18,13 +18,15 @@ import wandb
 torch = None
 
 
-def nested_shape(array_or_tuple):
+def nested_shape(array_or_tuple, seen=None):
     """Figures out the shape of tensors possibly embedded in tuples
      i.e 
      [0,0] returns (2)
      ([0,0], [0,0]) returns (2,2)
      (([0,0], [0,0]),[0,0]) returns ((2,2),2)
      """
+    if seen is None:
+        seen = set()
     if hasattr(array_or_tuple, 'size'):
         # pytorch tensors use V.size() to get size of tensor
         return list(array_or_tuple.size())
@@ -34,9 +36,10 @@ def nested_shape(array_or_tuple):
     elif hasattr(array_or_tuple, 'shape'):
         return array_or_tuple.shape
 
+    seen.add(id(array_or_tuple))
     try:
         # treat object as iterable
-        return [nested_shape(item) for item in list(array_or_tuple)]
+        return [nested_shape(item, seen) if id(item) not in seen else 0 for item in list(array_or_tuple)]
     except TypeError:
         # object is not actually iterable
         # LB: Maybe we should throw an error?

@@ -532,3 +532,18 @@ def test_false_requires_grad(wandb_init_run):
 
     # 7 gradients are logged because fc1.weight is fixed
     assert(len(wandb_init_run.history.row) == 7)
+
+
+def test_nested_shape():
+    shape = wandb.wandb_torch.nested_shape([2,4,5])
+    assert shape == [[],[],[]]
+    shape = wandb.wandb_torch.nested_shape([dummy_torch_tensor((2,3)),dummy_torch_tensor((4,5))])
+    assert shape == [[2,3],[4,5]]
+    # create recursive lists of tensors (t3 includes itself)
+    t1 = dummy_torch_tensor((2,3))
+    t2 = dummy_torch_tensor((4,5))
+    t3 = [t1, t2]
+    t3.append(t3)
+    t3.append(t2)
+    shape = wandb.wandb_torch.nested_shape([t1, t2, t3])
+    assert shape == [[2, 3], [4, 5], [[2, 3], [4, 5], 0, [4, 5]]]
