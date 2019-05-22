@@ -54,7 +54,6 @@ if wandb.core.IS_GIT:
 else:
     SENTRY_ENV = 'production'
 
-
 sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
                 release=wandb.__version__,
                 default_integrations=False,
@@ -106,14 +105,13 @@ def get_module(name, required=None):
     if name not in _not_importable:
         try:
             return import_module(name)
-        except ImportError:
-            _not_importable.add(name)
-            if required:
-                raise ValueError(required)
         except Exception as e:
             _not_importable.add(name)
             msg = "Error importing optional module {}".format(name)
-            logger.exception(msg)
+            if required:
+                logger.exception(msg)
+    if required and name in _not_importable:
+        raise wandb.Error(required)
 
 
 class LazyLoader(types.ModuleType):
@@ -218,7 +216,6 @@ def is_plotly_typename(typename):
 def is_pandas_data_frame(obj):
     return is_pandas_data_frame_typename(get_full_typename(obj))
 
-
 def ensure_matplotlib_figure(obj):
     """Extract the current figure from a matplotlib object or return the object if it's a figure.
     raises ValueError if the object can't be converted.
@@ -285,8 +282,7 @@ def json_friendly(obj):
 
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
-        tools = get_module(
-            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+        tools = get_module("plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
         obj = tools.mpl_to_plotly(obj)
 
     if is_plotly_typename(get_full_typename(obj)):
@@ -516,8 +512,10 @@ def no_retry_auth(e):
     if e.response.status_code not in (401, 403):
         return True
     # Crash w/message on forbidden/unauthorized errors.
-    raise CommError("Invalid or missing api_key.  Run wandb login")
-
+    if e.response.status_code == 401:
+        raise CommError("Invalid or missing api_key.  Run wandb login")
+    else:
+        raise CommError("Permission denied, ask the project owner to grant you access")
 
 def write_settings(entity, project, url):
     if not os.path.isdir(wandb_dir()):
@@ -624,7 +622,7 @@ def find_runner(program):
         # program is a path to a non-executable file
         try:
             opened = open(program)
-        except PermissionError:
+        except IOError: # PermissionError doesn't exist in 2.7
             return None
         first_line = opened.readline().strip()
         if first_line.startswith('#!'):

@@ -11,6 +11,7 @@ import datetime
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
+from six.moves import urllib
 
 import wandb
 from wandb import Error, __version__
@@ -27,6 +28,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     id
     tags
     name
+    displayName
     state
     config
     readOnly
@@ -53,6 +55,7 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
                 updatedAt
                 md5
             }
+            cursor
         }
         pageInfo {
             endCursor
@@ -67,7 +70,7 @@ class RetryingClient(object):
         self._client = client
 
     @retriable(retry_timedelta=datetime.timedelta(
-        seconds=10),
+        seconds=20),
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException))
     def execute(self, *args, **kwargs):
@@ -82,7 +85,7 @@ class Api(object):
         username, project, and run here as well as which api server to use.
     """
 
-    HTTP_TIMEOUT = 10
+    HTTP_TIMEOUT = 9
 
     def __init__(self, overrides={}):
         self.settings = {
@@ -221,6 +224,7 @@ class Paginator(object):
         self.last_response = None
 
     def __iter__(self):
+        self.index = -1
         return self
 
     def __len__(self):
@@ -243,11 +247,15 @@ class Paginator(object):
     def convert_objects(self):
         raise NotImplementedError()
 
+    def update_variables(self):
+        self.variables.update(
+            {'perPage': self.per_page, 'cursor': self.cursor})
+
     def _load_page(self):
         if not self.more:
             return False
-        self.variables.update(
-            {'perPage': self.per_page, 'cursor': self.cursor})
+
+        self.update_variables()
         self.last_response = self.client.execute(
             self.QUERY, variable_values=self.variables)
         self.objects.extend(self.convert_objects())
@@ -510,7 +518,7 @@ class Run(Attrs):
 
     @property
     def path(self):
-        return [str(self.username), str(self.project), str(self.name)]
+        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.name))]
 
     @property
     def url(self):
@@ -565,6 +573,9 @@ class Files(Paginator):
         else:
             return None
 
+    def update_variables(self):
+        self.variables.update({'fileLimit': self.per_page, 'fileCursor': self.cursor})
+
     def convert_objects(self):
         return [File(self.client, r["node"])
                 for r in self.last_response['project']['run']['files']['edges']]
@@ -606,9 +617,13 @@ class File(object):
         return int(self._attrs["sizeBytes"])
 
     @normalize_exceptions
+    @retriable(retry_timedelta=datetime.timedelta(
+        seconds=10),
+        check_retry_fn=util.no_retry_auth,
+        retryable_exceptions=(RetryError, requests.RequestException))
     def download(self, replace=False, root="."):
         response = requests.get(self._attrs["url"], auth=(
-            "api", Api().api_key), stream=True)
+            "api", Api().api_key), stream=True, timeout=5)
         response.raise_for_status()
         path = os.path.join(root, self._attrs["name"])
         if os.path.exists(path) and not replace:

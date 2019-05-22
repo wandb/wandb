@@ -12,6 +12,7 @@ import traceback
 
 import six
 import wandb
+from wandb import env
 import wandb.io_wrap
 import wandb.run_manager
 import wandb.wandb_run
@@ -33,6 +34,12 @@ def headless(args):
     try:
         run = wandb.wandb_run.Run.from_environment_or_defaults()
         run.enable_logging()
+        # Clear inited for the wandb process
+        del os.environ[env.INITED]
+        # Set global run so save can work
+        wandb.run = run
+        # Access history to avoid sync issues
+        run.history
 
         api = wandb.apis.InternalApi()
         api.set_current_run_id(run.id)
@@ -40,6 +47,9 @@ def headless(args):
         rm = wandb.run_manager.RunManager(
             api, run, cloud=args['cloud'],
             port=args['port'])
+        # We add a reference to _run_manager to enable wandb.save to work for tfevents files
+        # TODO: REFACTOR
+        run._run_manager = rm
         rm.wrap_existing_process(
             user_process_pid, stdout_master_fd, stderr_master_fd)
     except Exception as e:

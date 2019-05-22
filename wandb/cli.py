@@ -81,6 +81,9 @@ class CallbackHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.wfile.write(b'Success')
         self.server.stop()
 
+    def log_message(self, format, *args):
+        pass
+
 
 class LocalServer():
     """A local HTTP server that finds an open port and listens for a callback.

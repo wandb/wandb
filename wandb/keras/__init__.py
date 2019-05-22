@@ -6,12 +6,112 @@ import wandb
 import sys
 from importlib import import_module
 from itertools import chain
-try:
-    import tensorflow.keras as keras
-    import tensorflow.keras.backend as K
-except ImportError:
+
+# Use system keras if it's been imported
+if "keras" in sys.modules:
     import keras
     import keras.backend as K
+elif "tensorflow.python.keras" in sys.modules:
+    import tensorflow.keras as keras
+    import tensorflow.keras.backend as K
+else:
+    try:
+        wandb.termwarn(
+            "import wandb.keras called before import keras or import tensorflow.keras.  This can lead to a version mismatch, W&B now assumes tensorflow.keras")
+        import tensorflow.keras as keras
+        import tensorflow.keras.backend as K
+    except ImportError:
+        import keras
+        import keras.backend as K
+
+
+def is_dataset(data):
+    dataset_ops = wandb.util.get_module(
+        "tensorflow.python.data.ops.dataset_ops")
+    if dataset_ops:
+        return isinstance(data, (dataset_ops.DatasetV1, dataset_ops.DatasetV2))
+    else:
+        return False
+
+
+def is_generator_like(data):
+    """Checks if data is a generator, Sequence, or Iterator."""
+    types = (keras.utils.Sequence,)
+    iterator_ops = wandb.util.get_module(
+        "tensorflow.python.data.ops.iterator_ops")
+    if iterator_ops:
+        types = types + (iterator_ops.Iterator,)
+        # EagerIterator was in tensorflow < 2
+        if hasattr(iterator_ops, "EagerIterator"):
+            types = types + (iterator_ops.EagerIterator,)
+        elif hasattr(iterator_ops, "IteratorV2"):
+            types = types + (iterator_ops.IteratorV2,)
+    return (hasattr(data, 'next') or hasattr(data, '__next__') or isinstance(
+        data, types))
+
+
+def patch_tf_keras():
+    import tensorflow as tf
+    from tensorflow.python.eager import context
+    from tensorflow.python.keras.engine import training_arrays
+    from tensorflow.python.keras.engine import training_generator
+    from tensorflow.python.keras.engine import training_utils
+    old_arrays = training_arrays.fit_loop
+    old_generator = training_generator.fit_generator
+
+    def set_wandb_attrs(cbk, val_data):
+        if isinstance(cbk, WandbCallback):
+            if is_generator_like(val_data):
+                cbk.generator = val_data
+            elif is_dataset(val_data):
+                if context.executing_eagerly():
+                    cbk.generator = iter(val_data)
+                else:
+                    wandb.termwarn(
+                        "Found a validation dataset in graph mode, can't patch Keras.")
+            elif isinstance(val_data, tuple) and isinstance(val_data[0], tf.Tensor):
+                # Graph mode dataset generator
+                def gen():
+                    while True:
+                        yield K.get_session().run(val_data)
+                cbk.generator = gen()
+            else:
+                cbk.validation_data = val_data
+
+    def new_arrays(*args, **kwargs):
+        cbks = kwargs.get("callbacks")
+        val_inputs = kwargs.get("val_inputs")
+        val_targets = kwargs.get("val_targets")
+        # TODO: these could be generators, why index 0?
+        if val_inputs and val_targets:
+            for cbk in cbks:
+                set_wandb_attrs(cbk, (val_inputs[0], val_targets[0]))
+        return old_arrays(*args, **kwargs)
+
+    def new_generator(*args, **kwargs):
+        cbks = kwargs.get("callbacks")
+        val_data = kwargs.get("validation_data")
+        if val_data:
+            for cbk in cbks:
+                set_wandb_attrs(cbk, val_data)
+        return old_generator(*args, **kwargs)
+
+    training_arrays.orig_fit_loop = old_arrays
+    training_arrays.fit_loop = new_arrays
+    training_generator.orig_fit_generator = old_generator
+    training_generator.fit_generator = new_generator
+    wandb.patched["keras"].append(
+        ["tensorflow.python.keras.engine.training_arrays", "fit_loop"])
+    wandb.patched["keras"].append(
+        ["tensorflow.python.keras.engine.training_generator", "fit_generator"])
+
+
+if "tensorflow" in wandb.util.get_full_typename(keras):
+    try:
+        patch_tf_keras()
+    except Exception:
+        wandb.termwarn(
+            "Unable to patch tensorflow.keras for use with W&B.  You will not be able to log images unless you set the generator argument of the callback.")
 
 
 class WandbCallback(keras.callbacks.Callback):
@@ -49,7 +149,7 @@ class WandbCallback(keras.callbacks.Callback):
             log_gradients: if True log the training gradients in wandb.history
             training_data: tuple (X,y) needed for calculating gradients
             data_type: the type of data we're saving, set to "image" for saving images
-            labels: list of labels to convert numeric output to if you are building a 
+            labels: list of labels to convert numeric output to if you are building a
                 multiclass classifier.  If you are making a binary classifier you can pass in
                 a list of two labels ["label for false", "label for true"]
             predictions: the number of predictions to make each epic if data_type is set, max is 100.
@@ -58,14 +158,20 @@ class WandbCallback(keras.callbacks.Callback):
         if wandb.run is None:
             raise wandb.Error(
                 'You must call wandb.init() before WandbCallback()')
+
+        self.validation_data = None
+        # This is kept around for legacy reasons
         if validation_data is not None:
-            wandb.termlog(
-                "DEPRECATED: validation_data is pulled from the model definition, set data_type.")
+            if is_generator_like(validation_data):
+                self.generator = validation_data
+            else:
+                self.validation_data = validation_data
             # For backwards compatability
             self.data_type = data_type or "image"
+        else:
+            self.data_type = data_type
 
         self.labels = labels
-        self.data_type = data_type
         self.predictions = min(predictions, 100)
 
         self.monitor = monitor
@@ -79,6 +185,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_gradients = log_gradients
         self.training_data = training_data
         self.generator = generator
+        self._graph_rendered = False
 
         if self.training_data:
             if len(self.training_data) != 2:
@@ -109,7 +216,6 @@ class WandbCallback(keras.callbacks.Callback):
 
     def set_model(self, model):
         self.model = model
-        wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
@@ -118,18 +224,18 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.data_type == "image":
+        if self.data_type in ["image", "images"]:
             if self.generator:
                 self.validation_data = next(self.generator)
-            if not hasattr(self, "validation_data"):
-                wandb.termlog(
-                    "WARNING: No validation_data set, if you're using a generator pass it to the callback.")
+            if self.validation_data is None:
+                wandb.termwarn(
+                    "No validation_data set, pass a generator to the callback.")
             elif self.validation_data and len(self.validation_data) > 0:
                 wandb.log({"examples": self._log_images(
                     num_images=self.predictions)}, commit=False)
 
         wandb.log({'epoch': epoch}, commit=False)
-        wandb.log(logs)
+        wandb.log(logs, commit=True)
 
         self.current = logs.get(self.monitor)
         if self.current and self.monitor_op(self.current, self.best) and self.save_model:
@@ -139,6 +245,30 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_batch_end(self, batch, logs=None):
+        if not self._graph_rendered:
+            # Couldn't do this in train_begin because keras may still not be built
+            wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
+            self._graph_rendered = True
+
+    def on_train_batch_begin(self, batch, logs=None):
+        pass
+
+    def on_train_batch_end(self, batch, logs=None):
+        if not self._graph_rendered:
+            # Couldn't do this in train_begin because keras may still not be built
+            wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
+            self._graph_rendered = True
+
+    def on_test_begin(self, logs=None):
+        pass
+
+    def on_test_end(self, logs=None):
+        pass
+
+    def on_test_batch_begin(self, batch, logs=None):
+        pass
+
+    def on_test_batch_end(self, batch, logs=None):
         pass
 
     def on_train_begin(self, logs=None):
@@ -204,8 +334,8 @@ class WandbCallback(keras.callbacks.Callback):
                                 0.5 else self.labels[0] for prediction in predictions]
                 else:
                     if len(self.labels) != 0:
-                        print(
-                            "Warning: keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
+                        wandb.termwarn(
+                            "keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
                     captions = [prediction[0] for prediction in predictions]
 
                 return [wandb.Image(data, caption=str(captions[i])) for i, data in enumerate(test_data)]
@@ -298,6 +428,9 @@ class WandbCallback(keras.callbacks.Callback):
                 self.model.save_weights(self.filepath, overwrite=True)
             else:
                 self.model.save(self.filepath, overwrite=True)
-        except ImportError:
-            print("Warning: Can't save model without h5py installed")
+        # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
+        # also saw `TypeError: can't pickle _thread.RLock objects`
+        except (ImportError, RuntimeError, TypeError) as e:
+            wandb.termerror(
+                "Can't save model, h5py returned error: %s" % e)
             self.save_model = False

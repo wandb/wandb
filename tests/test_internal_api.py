@@ -172,6 +172,7 @@ def test_upsert_run_bad_request(request_mocker, mocker, upsert_run):
         assert excinfo.type == requests.exceptions.HTTPError
         assert excinfo.value.exc.response.status_code == 400
 
+
 def test_settings(mocker):
     os.environ.pop('WANDB_ENTITY', None)
     os.environ.pop('WANDB_PROJECT', None)

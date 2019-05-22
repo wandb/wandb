@@ -81,14 +81,16 @@ def test_bad_json_tfjob(wandb_init_run):
 
 
 @pytest.mark.args(error="io")
-def test_io_error(wandb_init_run):
+def test_io_error(wandb_init_run, capsys):
+    out, err = capsys.readouterr()
     assert isinstance(wandb_init_run, wandb.LaunchError)
 
-
-@pytest.mark.skip("Need to figure out the headless fun")
+@pytest.mark.headless()
 @pytest.mark.args(error="socket")
-def test_io_error(wandb_init_run):
-    assert isinstance(wandb_init_run, wandb.LaunchError)
+def test_io_headless(wandb_init_run, mocker):
+    with pytest.raises(wandb.LaunchError) as err:
+        wandb._init_headless(wandb_init_run)
+    assert "wandb/debug.log" in str(err.value)
 
 
 @pytest.mark.args(dir="/tmp")

@@ -12,7 +12,6 @@ import six
 from threading import Lock
 import time
 import traceback
-import warnings
 import weakref
 
 from wandb.wandb_torch import TorchHistory
@@ -125,8 +124,8 @@ class History(object):
                 raise wandb.Error(
                     "Step must be an integer, not {}".format(step))
             elif step < self._steps:
-                warnings.warn(
-                    "Adding to old History rows isn't currently supported. Dropping.", wandb.WandbWarning)
+                wandb.termwarn(
+                    "Adding to old History rows isn't currently supported.  Step {} < {} dropping: {}".format(step, self._steps, row))
                 return
             elif step == self._steps:
                 pass
@@ -144,9 +143,6 @@ class History(object):
         """
         for k, v in six.iteritems(new_vals):
             k = k.strip()
-            if k in self.row:
-                warnings.warn("Adding history key ({}) that is already set in this step".format(
-                    k), wandb.WandbWarning)
             self.row[k] = v
 
     @contextlib.contextmanager
