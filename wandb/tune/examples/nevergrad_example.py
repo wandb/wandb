@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""This test checks that HyperOpt is functional.
+"""This test checks that Nevergrad is functional.
 
 It also checks that it is usable with a separate scheduler.
 """
@@ -12,14 +12,12 @@ from __future__ import print_function
 import wandb
 from wandb.tune import run
 from ray.tune.schedulers import AsyncHyperBandScheduler
-from ray.tune.suggest.hyperopt import HyperOptSearch
+from ray.tune.suggest.nevergrad import NevergradSearch
 
 
 def easy_objective(config, reporter):
     import time
     time.sleep(0.2)
-    assert type(config["activation"]) == str, \
-        "Config is incorrect: {}".format(type(config["activation"]))
     for i in range(config["iterations"]):
         reporter(
             timesteps_total=i,
@@ -33,7 +31,7 @@ if __name__ == "__main__":
     wandb.tune.init_run(easy_objective)
 
     import argparse
-    from hyperopt import hp
+    from nevergrad.optimization import optimizerlib
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -41,38 +39,23 @@ if __name__ == "__main__":
     args, _ = parser.parse_known_args()
     #ray.init()
 
-    space = {
-        'width': hp.uniform('width', 0, 20),
-        'height': hp.uniform('height', -100, 100),
-        'activation': hp.choice("activation", ["relu", "tanh"])
-    }
-
-    current_best_params = [
-        {
-            "width": 1,
-            "height": 2,
-            "activation": 0  # Activation will be relu
-        },
-        {
-            "width": 4,
-            "height": 2,
-            "activation": 1  # Activation will be tanh
-        }
-    ]
-
     config = {
-        "num_samples": 10 if args.smoke_test else 1000,
+        "num_samples": 10 if args.smoke_test else 50,
         "config": {
             "iterations": 100,
         },
         "stop": {
             "timesteps_total": 100
-        },
+        }
     }
-    algo = HyperOptSearch(
-        space,
+    optimizer = optimizerlib.OnePlusOne(dimension=2)
+    algo = NevergradSearch(
+        optimizer, ["height", "width"],
         max_concurrent=4,
-        reward_attr="neg_mean_loss",
-        points_to_evaluate=current_best_params)
+        reward_attr="neg_mean_loss")
     scheduler = AsyncHyperBandScheduler(reward_attr="neg_mean_loss")
-    run(easy_objective, search_alg=algo, scheduler=scheduler, **config)
+    run(easy_objective,
+        name="nevergrad",
+        search_alg=algo,
+        scheduler=scheduler,
+        **config)

@@ -574,7 +574,7 @@ class SweepController(object):
         #print("get:", result)
         result['time_this_iter_s'] = 0.5
         result['time_total_s'] = 0.9
-        result['training_iteration'] = 2
+        result['training_iteration'] = result['_step']
         if r.state != "running":
             result['done'] = True
         return result
