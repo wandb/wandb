@@ -23,6 +23,7 @@ import random
 import string
 #from wandb.sweeps.sweeps import Search, EarlyTerminate
 import sys
+import six
 
 
 wandb_sweeps = None
@@ -39,12 +40,13 @@ logger = logging.getLogger(__name__)
 # State:          state,
 # SummaryMetrics: json.RawMessage(summary),
 class Run(object):
-    def __init__(self, name, state, history, config, summaryMetrics):
+    def __init__(self, name, state, history, config, summaryMetrics, stopped):
         self.name = name
         self.state = state
         self.config = config
         self.history = history
         self.summaryMetrics = summaryMetrics
+        self.stopped = stopped
 
     def __repr__(self):
         return 'Run(%s,%s,%s,%s,%s)' % (self.name, self.state, self.config, self.history, self.summaryMetrics)
@@ -105,6 +107,7 @@ class Sweep(object):
         self._sweep_obj_id = sweep_obj['id']
         self._sweep_runs = []
         self._sweep_runs_dict = {}
+        self._sweep_sched_map = {}
         #print("INIT: ", self._sweep_obj)
 
     def logline(self, line):
@@ -141,11 +144,14 @@ class Sweep(object):
         run_dicts = sweep['runs']
         runs = []
         rmap = {}
+        #print("RUNDICTS sweep", sweep)
+        #print("RUNDICTS control", run_dicts)
         for r in run_dicts:
             #print("GOT:", r)
             name = r['name']
             state = r['state']
             config = r['config']
+            stopped = r['stopped']
             config = json.loads(config)
             history = r['sampledHistory']
             history = history[0]
@@ -153,9 +159,9 @@ class Sweep(object):
             if summaryMetrics:
                 summaryMetrics = json.loads(summaryMetrics)
             # TODO(jhr): build history
-            n = Run(name, state, history, config, summaryMetrics)
+            n = Run(name, state, history, config, summaryMetrics, stopped)
             runs.append(n)
-            rmap[name] = r
+            rmap[name] = n
         self._sweep_runs = runs
         self._sweep_runs_dict = rmap
         self._sweep_obj = sweep
@@ -192,14 +198,23 @@ class Sweep(object):
             r = self._sweep_runs_dict.get(s['runid'])
             if r:
                 #print("RRR", r)
-                st = r['state']
-                if r.get('stopped'):
+                self._sweep_sched_map[s['id']] = s['runid']
+                st = r.state
+                if r.stopped:
                     stopped_runs.append(s['runid'])
-                if st == 'running':
+                # TODO(jhr): check to see if we have a result
+                sm = r.summaryMetrics
+                # if no metrics yet and running dont count this as done (not really done, more like started)
+                if not sm and st == 'running':
+                    #print("Not started", s['runid'])
                     continue
+                #print("Started", s['runid'], sm)
+                #if st == 'running':
+                #    continue
                 #print("CLEAN", r)
                 done_ids.append(s['id'])
                 done_runs.append(s['runid'])
+                # track started runs? #TODO
 
         newclist = []
         clist = self._controller.get('schedule', [])
@@ -222,6 +237,7 @@ class Sweep(object):
 
     def update(self):
         if self._controller != self._controller_last:
+            #print("CONTROLLER", self._controller)
             self.save(self._controller)
 
     def status(self):
@@ -274,7 +290,17 @@ class Sweep(object):
         self._laststatus = sections
         self._logged = 0
 
-    def schedule(self):
+    def schedule_generic(self, next_run, schedule_id=None, stop_runs=None):
+        schedule_list = self._controller.get('schedule', [])
+        #schedule_list = []
+        if not schedule_id:
+            schedule_id = id_generator()
+        schedule_list.append(
+            {'id': schedule_id, 'data': {'args': next_run}})
+        self._controller["schedule"] = schedule_list
+
+    # break this function up so it can be used by other uses
+    def schedule_wandb(self):
         sweep = self._sweep_obj.copy()
         sweep['runs'] = self._sweep_runs
         sweep['config'] = self._config
@@ -340,7 +366,7 @@ class Sweep(object):
         while not done:
             self.status()
             self.prepare()
-            done = self.schedule()
+            done = self.schedule_wandb()
             self.update()
             time.sleep(self.delay)
         self.status()
@@ -390,3 +416,168 @@ def validate(config):
         runs = stopper.stop_runs(config, [])
     except Exception as err:
         return str(err)
+
+
+class SweepController(object):
+    def __init__(self, prog):
+        self._running = 0
+        self._available = 12
+        self._sweep = None
+        self._laststep = {}
+        self._prog = prog
+
+    def create(self):
+        """Create a sweep."""
+        config = {'controller': {'type': 'local'}, 'program': self._prog, 'metric': {'name': 'neg_mean_loss'}}
+        api = InternalApi()
+        #print("c1")
+        sweep_id = api.upsert_sweep(config)
+        #print("c2")
+        print('Create sweep with ID:', sweep_id)
+        verbose = True
+        try:
+            sweep = Sweep(api, sweep_id=sweep_id, verbose=verbose)
+        except SweepError as err:
+            fail
+        sweep.reset()
+
+        sweep.status()
+        sweep.prepare()
+        #done = self.schedule()
+        #sweep.update()
+        self._sweep = sweep
+
+
+    def should_schedule(self):
+        """Should this task be scheduled?"""
+        r = False
+        #print("WANDB_SHOULD1", r, self._running, self._available)
+        if self._running < self._available:
+            return True
+        #print("WANDB_SHOULD", r)
+        return r
+
+    def schedule(self, x, id=None):
+        """Schedule a task."""
+        self._running += 1
+        #print("WANDB_SCHEDULE", x, x.config, self._running)
+        # TODO: Add to scheduler, upsert
+        self._sweep.status()
+        self._sweep.prepare()
+        d = {}
+        for k,v in six.iteritems(x.config):
+            d.setdefault(k, {})
+            d[k]['value'] = v
+        d.setdefault('wandb_tune_run', {})
+        d['wandb_tune_run']['value'] = True
+        self._sweep.schedule_generic(d, schedule_id=id)
+        self._sweep.update()
+        r = None
+        return r
+
+    def set_resources(self, c):
+        """Configure how many resources are available."""
+        #print("setavail", c)
+        self._available = c
+
+    def stop_trial(self, c):
+        #print("got trial to stop:", c)
+        self._running -= 1
+        return
+
+    def get_id(self, trial):
+        #print("JHR REMOTEGET:", trial)
+        remote = "JHRrem" + id_generator()
+        return remote
+
+    # _process_events -> get_next_available_trial  TODO: make blocking
+    def wait(self, object_ids):
+
+        # TODO(JHR): poll object_ids waiting for an update?
+        # if we are too early and return a ready_id before it is ready
+        # we will fail when checking should_stop
+        # how do we know we got a change?  keep a dict of previous results
+
+        # TODO(JHR): how do i map from tune objectids, to runids?
+        # summaryMetrics
+        # _sweep_sched_map is the annswer for now
+
+        #print("WANDB_WAIT", object_ids)
+        #result_id = sorted(object_ids)[0]
+
+
+        #print("JHRWAIT")
+        ready = None
+        while not ready:
+            time.sleep(0.5)
+            self._sweep.status()
+            self._sweep.prepare()
+            #done = self.schedule()
+            self._sweep.update()
+
+            sched_map = self._sweep._sweep_sched_map
+            sched_inv = dict([[v,k] for k,v in six.iteritems(sched_map)])
+            #print("WANDB_WAIT SCHED", sched_map)
+
+            runs = self._sweep._sweep_runs
+            #print("##################### JHRrd", runs)
+            # if rd or rd changed?
+            if runs:
+                for r in runs:
+                    o = r.summaryMetrics
+                    if not o:
+                        continue
+                    if r.name not in sched_inv:
+                        continue
+                    obj_id = sched_inv[r.name]
+                    if obj_id not in object_ids:
+                        continue
+                    # make sure we set the right readyid
+                    # check if changed
+                    s = o.get('_step')
+                    #print("we got", r, o, s, self._laststep)
+                    ls = self._laststep.get(r.name)
+                    if s != ls:
+                        ready = r.name
+                        self._laststep[r.name] = s
+                        break
+                    if r.state != 'running':
+                        #FIXME: hack to prevent hanging in wait
+                        ready = r.name
+                        break
+            # move sleep to start to avoid pegging cpu, or seperate sweep
+            if not ready:
+                time.sleep(self._sweep.delay)
+
+        #result_id = object_ids[0]
+        #ready_ids = [result_id]
+        result_id = sched_inv[ready]
+        ready_ids = [result_id]
+
+        return ready_ids, []
+
+    def get(self, trial_name):
+        #print("GETGET")
+        #print("GOTTRIAL", trial_name)
+        result = {}
+        runs = self._sweep._sweep_runs
+        sched_map = self._sweep._sweep_sched_map
+        runid = sched_map[trial_name]
+        r = None
+        for run in runs:
+            if run.name == runid:
+                r = run
+                break
+        # TODO check for no matching run
+        for k, v in six.iteritems(r.summaryMetrics):
+            result[k] = v
+        #print("get:", result)
+        result['time_this_iter_s'] = 0.5
+        result['time_total_s'] = 0.9
+        result['training_iteration'] = 2
+        if r.state != "running":
+            result['done'] = True
+        return result
+
+    def run(self):
+        pass

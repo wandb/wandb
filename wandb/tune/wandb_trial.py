@@ -14,6 +14,7 @@ from datetime import datetime
 import re
 import traceback
 import os
+import sys
 
 from ray.tune.suggest import BasicVariantGenerator
 from ray.tune.schedulers import FIFOScheduler, TrialScheduler
@@ -24,6 +25,8 @@ from ray.tune.trial import Trial, Resources, Checkpoint
 from ray.tune.util import warn_if_slow
 from ray.tune.result import TIME_THIS_ITER_S, RESULT_DUPLICATE
 from ray.tune import TuneError
+
+from wandb.controller import SweepController
 
 
 
@@ -47,8 +50,16 @@ def wandb_should_schedule():
     r = tune_controller.should_schedule()
     return r
 
-def wandb_schedule(x):
-    r = tune_controller.schedule(x)
+def wandb_schedule(x, id=None):
+    r = tune_controller.schedule(x, id=id)
+    return r
+
+def wandb_stop_trial(x):
+    r = tune_controller.stop_trial(x)
+    return r
+
+def wandb_get_id(trial):
+    r = tune_controller.get_id(trial)
     return r
 
 logger = logging.getLogger(__name__)
@@ -83,7 +94,7 @@ class TrialRunner(object):
         self.trial_executor = (trial_executor or WandbTrialExecutor(
             queue_trials=queue_trials, reuse_actors=reuse_actors))
 
-        print("JHRRUNNER", trial_executor, queue_trials)
+        #print("JHRRUNNER", trial_executor, queue_trials)
         # For debugging, it may be useful to halt trials after some time has
         # elapsed. TODO(ekl) consider exposing this in the API.
         #self._global_time_limit = float(
@@ -120,18 +131,25 @@ class TrialRunner(object):
         Callers should typically run this method repeatedly in a loop. They
         may inspect or modify the runner's state in between calls to step().
         """
+        #print("STEP")
         if self.is_finished():
             raise TuneError("Called step when all trials finished?")
         with warn_if_slow("on_step_begin"):
             self.trial_executor.on_step_begin()
-        next_trial = self._get_next_trial()  # blocking
+        next_trial = self._get_next_trial()  # blocking TODO TODO FIXME FIXME XXX: make blocking
+        #print("RUNNINGTRIALS", self.trial_executor.get_running_trials())
+        #print("JHRNEXTTRIAL", next_trial)
         if next_trial is not None:
             with warn_if_slow("start_trial"):
                 self.trial_executor.start_trial(next_trial)
         elif self.trial_executor.get_running_trials():
             self._process_events()  # blocking
         else:
+            #print("NORUNNING")
             for trial in self._trials:
+                #print("JHRTRIAL", trial, trial.status)
+                ##rapid loop, need to figure out how to make this blocking FIXME TODO
+                ##print("GOTTRIAL", trial)
                 if trial.status == Trial.PENDING:
                     if not self.has_resources(trial.resources):
                         raise TuneError(
@@ -157,7 +175,8 @@ class TrialRunner(object):
             logger.exception("Trial Runner checkpointing failed.")
         self._iteration += 1
 
-        if self._server:
+        if self._server or True:
+            #print("ISSERVER")
             with warn_if_slow("server"):
                 self._process_requests()
 
@@ -277,6 +296,7 @@ class TrialRunner(object):
             timeout (int): Seconds before blocking times out.
         """
         trials = self._search_alg.next_trials()
+        #print("BLOCKING", blocking, trials)
         if blocking and not trials:
             start = time.time()
             # Checking `is_finished` instead of _search_alg.is_finished
@@ -294,12 +314,13 @@ class TrialRunner(object):
     # unmodified
     def has_resources(self, resources):
         """Returns whether this runner has at least the specified resources."""
-        print("JHR has resources")
+        #print("JHR has resources")
         #return False
         return self.trial_executor.has_resources(resources)
 
     # unmodified
     def _process_events(self):
+        #print("JHRPROCEVENTS")
         trial = self.trial_executor.get_next_available_trial()  # blocking
         with warn_if_slow("process_trial"):
             self._process_trial(trial)
@@ -307,10 +328,11 @@ class TrialRunner(object):
     def HACK_process_trial(self, trial):
         result = self.trial_executor.fetch_result(trial)
 
-    # unmodified
+    # unmodified (except where noted)
     def _process_trial(self, trial):
         try:
             result = self.trial_executor.fetch_result(trial)
+            #print("JHR fr:", result)
 
             is_duplicate = RESULT_DUPLICATE in result
             # TrialScheduler and SearchAlgorithm still receive a
@@ -324,7 +346,8 @@ class TrialRunner(object):
             self._total_time += result[TIME_THIS_ITER_S]
 
             # JHR added False and
-            if False and trial.should_stop(result):
+            #if False and trial.should_stop(result):
+            if trial.should_stop(result):
                 # Hook into scheduler
                 self._scheduler_alg.on_trial_complete(self, trial, result)
                 self._search_alg.on_trial_complete(
@@ -334,6 +357,7 @@ class TrialRunner(object):
                 with warn_if_slow("scheduler.on_trial_result"):
                     decision = self._scheduler_alg.on_trial_result(
                         self, trial, result)
+                    #print("JHRDECISION:", decision)
                 with warn_if_slow("search_alg.on_trial_result"):
                     self._search_alg.on_trial_result(trial.trial_id, result)
                 if decision == TrialScheduler.STOP:
@@ -383,7 +407,53 @@ class TrialRunner(object):
                 self.trial_executor.save(trial, storage=Checkpoint.DISK)
             self.trial_executor.try_checkpoint_metadata(trial)
 
+    # unmodified
+    def request_stop_trial(self, trial):
+        self._stop_queue.append(trial)
 
+    # unmodified
+    def _process_requests(self):
+        while self._stop_queue:
+            t = self._stop_queue.pop()
+            self.stop_trial(t)
+
+    def stop_trial(self, trial):
+        """Stops trial.
+
+        Trials may be stopped at any time. If trial is in state PENDING
+        or PAUSED, calls `on_trial_remove`  for scheduler and
+        `on_trial_complete(..., early_terminated=True) for search_alg.
+        Otherwise waits for result for the trial and calls
+        `on_trial_complete` for scheduler and search_alg if RUNNING.
+        """
+        error = False
+        error_msg = None
+
+        if trial.status in [Trial.ERROR, Trial.TERMINATED]:
+            return
+        elif trial.status in [Trial.PENDING, Trial.PAUSED]:
+            self._scheduler_alg.on_trial_remove(self, trial)
+            self._search_alg.on_trial_complete(
+                trial.trial_id, early_terminated=True)
+        elif trial.status is Trial.RUNNING:
+            try:
+                result = self.trial_executor.fetch_result(trial)
+                trial.update_last_result(result, terminate=True)
+                self._scheduler_alg.on_trial_complete(self, trial, result)
+                self._search_alg.on_trial_complete(
+                    trial.trial_id, result=result)
+            except Exception:
+                error_msg = traceback.format_exc()
+                logger.exception("Error processing event.")
+                self._scheduler_alg.on_trial_error(self, trial)
+                self._search_alg.on_trial_complete(trial.trial_id, error=True)
+                error = True
+
+        self.trial_executor.stop_trial(trial, error=error, error_msg=error_msg)
+
+
+
+# move to wandb_trial_executor
 class WandbTrialExecutor(TrialExecutor):
     """An implemention of TrialExecutor based on Ray."""
 
@@ -427,7 +497,8 @@ class WandbTrialExecutor(TrialExecutor):
             return "? CPUs, ? GPUs"
 
     def debug_string(self):
-        return "ImplementMe:WandbTrialExecutor.debug_string()"
+        #return "ImplementMe:WandbTrialExecutor.debug_string()"
+        return ""
 
     def x_has_resources(self, resources):
         return True
@@ -462,6 +533,18 @@ class WandbTrialExecutor(TrialExecutor):
         self._last_resource_refresh = time.time()
         self._resources_initialized = True
 
+    # JHR modified
+    def export_trial_if_needed(self, trial):
+        """Exports model of this trial based on trial.export_formats.
+
+        Return:
+            A dict that maps ExportFormats to successfully exported models.
+        """
+        #if trial.export_formats and len(trial.export_formats) > 0:
+        #    return ray.get(
+        #        trial.runner.export_model.remote(trial.export_formats))
+        return {}
+
     def has_resources(self, resources):
         """Returns whether this runner has at least the specified resources.
 
@@ -469,6 +552,7 @@ class WandbTrialExecutor(TrialExecutor):
         has exceeded self._refresh_period. This also assumes that the
         cluster is not resizing very frequently.
         """
+        # TODO(jhr): check resources?
         r = wandb_should_schedule()
         return r
 
@@ -589,7 +673,7 @@ class WandbTrialExecutor(TrialExecutor):
                 self._cached_actor.__ray_terminate__.remote()
                 self._cached_actor = None
             existing_runner = None
-            print("JHR ray remote")
+            #print("JHR ray remote")
             #cls = ray.remote(
             #    num_cpus=trial.resources.cpu,
             #    num_gpus=trial.resources.gpu,
@@ -619,7 +703,7 @@ class WandbTrialExecutor(TrialExecutor):
         # Logging for trials is handled centrally by TrialRunner, so
         # configure the remote runner to use a noop-logger.
         #return cls.remote(config=trial.config, logger_creator=logger_creator)
-        print("JHR ray cls remote")
+        #print("JHR ray cls remote")
 
     def restore(self, trial, checkpoint=None):
         pass
@@ -637,13 +721,58 @@ class WandbTrialExecutor(TrialExecutor):
         # Local Mode
         #if isinstance(remote, dict):
         #    remote = _LocalWrapper(remote)
-        remote = _wandb_remote_get(trial)
+        remote = getattr(trial, 'wandb_remote', None)
+        if not remote:
+            remote = _wandb_remote_get(trial)
+            trial.wandb_remote = remote
 
         self._running[remote] = trial
-        print("JHR_train")
+        #print("JHR_train")
+
+    # JHR unmodified
+    def continue_training(self, trial):
+        """Continues the training of this trial."""
+
+        self._train(trial)
+
+    # JHR unmodified
+    def pause_trial(self, trial):
+        """Pauses the trial.
+
+        If trial is in-flight, preserves return value in separate queue
+        before pausing, which is restored when Trial is resumed.
+        """
+
+        trial_future = self._find_item(self._running, trial)
+        if trial_future:
+            self._paused[trial_future[0]] = trial
+        super(WandbTrialExecutor, self).pause_trial(trial)
+
+    def reset_trial(self, trial, new_config, new_experiment_tag):
+        """Tries to invoke `Trainable.reset_config()` to reset trial.
+
+        Args:
+            trial (Trial): Trial to be reset.
+            new_config (dict): New configuration for Trial
+                trainable.
+            new_experiment_tag (str): New experiment name
+                for trial.
+
+        Returns:
+            True if `reset_config` is successful else False.
+        """
+        #TODO(jhr): implement me?
+        BLAH
+        trial.experiment_tag = new_experiment_tag
+        trial.config = new_config
+        trainable = trial.runner
+        with warn_if_slow("reset_config"):
+            reset_val = ray.get(trainable.reset_config.remote(new_config))
+        return reset_val
 
     def get_running_trials(self):
         """Returns the running trials."""
+        #print("JHRRUNNING", self._running.values())
 
         return list(self._running.values())
 
@@ -746,6 +875,7 @@ class WandbTrialExecutor(TrialExecutor):
 
         try:
             trial.write_error_log(error_msg)
+            wandb_stop_trial(trial)
             if hasattr(trial, 'runner') and trial.runner:
                 if (not error and self._reuse_actors
                         and self._cached_actor is None):
@@ -815,29 +945,18 @@ def _prompt_restore(checkpoint_dir, resume):
 
 _wandb_objects = {}
 def _wandb_remote_get(trial):
-    print("JHR REMOTEGET:", trial)
-    remote = "JHRrem" + Trial.generate_id()
+    remote = wandb_get_id(trial)
     _wandb_objects[remote] = 1
-    wandb_schedule(trial)
+    wandb_schedule(trial, id=remote)
     return remote
 
 
 def wandb_ray_wait(object_ids, num_returns=1, timeout=None):
-    print("JHRDEBUGWAIT", object_ids, num_returns, timeout, _wandb_objects)
-    result_id = 'JHRhack'
-    result_id = sorted(object_ids)[0]
-    ready_ids = [result_id]
-    remaining_ids = []
-    return ready_ids, remaining_ids
+    r, x = tune_controller.wait(object_ids)
+    return r, x
 
 def wandb_ray_get(trial):
-    print("RAY GET", trial)
-    #result = "JHRhack"
-    result = {'episode_reward_mean': 0.67030268899518, 'done': False, 'timesteps_total': None, 'episodes_total': None, 'training_iteration': 1, 'experiment_id': 'b50d06632bb340d69d118d43eb0add2a', 'date': '2019-04-08_20-28-27', 'timestamp': 1554780507, 'time_this_iter_s': 4.57763671875e-05, 'time_total_s': 4.57763671875e-05, 'pid': 87955, 'hostname': 'jhr-mbp.localdomain', 'node_ip': '192.168.1.57', 'config': {'width': 91, 'height': 61}, 'time_since_restore': 4.57763671875e-05, 'timesteps_since_restore': 0, 'iterations_since_restore': 1}
-    # {'timesteps_total': 22, 'neg_mean_loss': -143.0, 'time_this_iter_s': 0.030900001525878906, 'done': False, 'episodes_total': None, 'training_iteration': 23, 'experiment_id': '57cf73edf4d44b4cbedddc7379e41512', 'date': '2019-05-03_09-31-58', 'timestamp': 1556901118, 'time_total_s': 0.8475849628448486, 'pid': 84850, 'hostname': 'jhr-mbp.localdomain', 'node_ip': '192.168.1.57', 'config': {'iterations': 100, 'activation': 'tanh', 'height': 2.0, 'width': 4.0}, 'time_since_restore': 0.8475849628448486, 'timesteps_since_restore': 0, 'iterations_since_restore': 23}
-    # {'timesteps_total': 20, 'neg_mean_loss': -142.0, 'time_this_iter_s': 0.028484106063842773, 'done': False, 'episodes_total': None, 'training_iteration': 21, 'experiment_id': '6d94fb7f33f2453eae1394298a2591b5', 'date': '2019-05-03_09-31-58', 'timestamp': 1556901118, 'time_total_s': 0.8100039958953857, 'pid': 84849, 'hostname': 'jhr-mbp.localdomain', 'node_ip': '192.168.1.57', 'config': {'iterations': 100, 'activation': 'relu', 'height': 2.0, 'width': 1.0}, 'time_since_restore': 0.8100039958953857, 'timesteps_since_restore': 0, 'iterations_since_restore': 21}
-    # for hyperopt_example.py
-    result = {'timesteps_total': 22, 'neg_mean_loss': -143.0, 'time_this_iter_s': 0.030900001525878906, 'done': False, 'episodes_total': None, 'training_iteration': 23, 'experiment_id': '57cf73edf4d44b4cbedddc7379e41512', 'date': '2019-05-03_09-31-58', 'timestamp': 1556901118, 'time_total_s': 0.8475849628448486, 'pid': 84850, 'hostname': 'jhr-mbp.localdomain', 'node_ip': '192.168.1.57', 'config': {'iterations': 100, 'activation': 'tanh', 'height': 2.0, 'width': 4.0}, 'time_since_restore': 0.8475849628448486, 'timesteps_since_restore': 0, 'iterations_since_restore': 23}
+    result = tune_controller.get(trial)
     return result
 
 def run(run_or_experiment,
@@ -867,6 +986,10 @@ def run(run_or_experiment,
         trial_executor=None,
         raise_on_failed_trial=True):
 
+    controller = SweepController(sys.argv[0])
+    set_controller(controller)
+    controller.create()
+
     experiment = run_or_experiment
     if not isinstance(run_or_experiment, Experiment):
         experiment = Experiment(
@@ -881,7 +1004,7 @@ def run(run_or_experiment,
     checkpoint_dir = _find_checkpoint_dir(experiment)
     should_restore = _prompt_restore(checkpoint_dir, resume)
 
-    print("JHRRUN", queue_trials)
+    #print("JHRRUN", queue_trials)
     runner = None
     if should_restore:
         try:
