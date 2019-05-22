@@ -1072,12 +1072,12 @@ class Image(BatchableMedia):
 
         if num_images_to_log > Image.MAX_THUMBNAILS:
             logging.warning(
-                "Only %i thumbnails will be visible in the media viewer." % Image.MAX_THUMBNAILS)
+                "Only %i images will be uploaded." % Image.MAX_THUMBNAILS)
             num_images_to_log = Image.MAX_THUMBNAILS
 
         if width * num_images_to_log > Image.MAX_DIMENSION:
             max_images_by_dimension = Image.MAX_DIMENSION // width
-            logging.warning('There will only be thumbnails for {} images. The maximum total width for a set of thumbnails is 65,500px, or {} images, each with a width of {} pixels.'.format(max_images_by_dimension, max_images_by_dimension, width))
+            logging.warning('Only {} images will be uploaded. The maximum total width for a set of thumbnails is 65,500px, or {} images, each with a width of {} pixels.'.format(max_images_by_dimension, max_images_by_dimension, width))
             num_images_to_log = max_images_by_dimension
 
         total_width = width * num_images_to_log
@@ -1085,9 +1085,6 @@ class Image(BatchableMedia):
             mode='RGB',
             size=(total_width, height),
             color=(0, 0, 0))
-        for i, image in enumerate(images):
-            if not image.is_bound():
-                image.bind_to_run(run, key, step, id_=i)
         for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image._image, (location, 0))
@@ -1098,7 +1095,6 @@ class Image(BatchableMedia):
             "height": height,
             "count": num_images_to_log,
             "_type": "images",
-            'images': [image.to_json(run) for image in images],
         }
         # TODO: hacky way to enable image grouping for now
         grouping = images[0]._grouping

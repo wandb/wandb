@@ -131,13 +131,6 @@ def test_list_of_images(history):
         'height': 28,
         'width': 28,
     }
-    assert utils.subdict(h[0]['images'], expected) == expected
-    assert set(h[0]["images"]['images'][0].items()) >= set({
-        '_type': 'image-file',
-        'height': 28,
-        'path': 'media/images/images_0_0.png',
-        'width': 28
-    }.items())
 
 
 def test_single_image(history):

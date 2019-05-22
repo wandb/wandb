@@ -82,7 +82,7 @@ def test_image_seq_to_json():
         run = wandb.wandb_run.Run()
         wb_image = wandb.Image(image)
         meta = wandb.Image.seq_to_json([wb_image], run, "test", 'summary')
-        assert os.path.exists(os.path.join(run.dir, meta['images'][0]['path']))
+        assert os.path.exists(os.path.join(run.dir, 'media', 'images', 'test_summary.jpg'))
 
         meta_expected = {
             '_type': 'images',
@@ -91,15 +91,6 @@ def test_image_seq_to_json():
             'width': 28,
         }
         assert utils.subdict(meta, meta_expected) == meta_expected
-
-        img_expected = {
-            '_type': 'image-file',
-            'height': 28,
-            'path': 'media/images/test_summary_0.png',
-            'size': 73,
-            'width': 28
-        }
-        assert utils.subdict(meta['images'][0], img_expected) == img_expected
 
 def test_transform_caps_at_65500(caplog):
     large_image = np.random.randint(255, size=(10, 1000))
@@ -110,7 +101,7 @@ def test_transform_caps_at_65500(caplog):
         expected = {'_type': 'images', 'count': 65, 'height': 10, 'width': 1000}
         assert utils.subdict(meta, expected) == expected
         assert os.path.exists(os.path.join(run.dir, "media/images/test2_0.jpg"))
-        assert 'There will only be thumbnails for 65 images. The maximum total width for a set of thumbnails is 65,500px, or 65 images, each with a width of 1000 pixels.' in caplog.text
+        assert 'Only 65 images will be uploaded. The maximum total width for a set of thumbnails is 65,500px, or 65 images, each with a width of 1000 pixels.' in caplog.text
 
 def test_audio_sample_rates():
     audio1 = np.random.uniform(-1, 1, 44100)
