@@ -7,6 +7,7 @@
 -   tf.keras correctly handles single input functional models
 -   wandb.Api().runs returns an iterator that's reusable
 -   WANDB_DIR within a hidden directory doesn't prevent syncing
+-   run.files() iterates over all files
 
 #### :nail_care: Enhancement
 
