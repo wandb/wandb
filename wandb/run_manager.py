@@ -280,6 +280,7 @@ class FileEventHandlerSummary(FileEventHandler):
         self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
 
     def finish(self):
+        self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
@@ -429,7 +430,6 @@ class RunManager(object):
         self._project = self._resolve_project_name(project)
 
         self._tags = tags
-        self._watch_dir = self._run.dir
 
         self._config = run.config
 
@@ -481,7 +481,7 @@ class RunManager(object):
 
         # We use the polling observer because inotify was flaky and could require changes to sysctl.conf
         self._file_observer = PollingObserver()
-        self._file_observer.schedule(self._per_file_event_handler(), self._watch_dir, recursive=True)
+        self._file_observer.schedule(self._per_file_event_handler(), self._run.dir, recursive=True)
 
         # We lock this when the back end is down so Watchdog will keep track of all
         # the file events that happen. Then, when the back end comes back up, we unlock
@@ -515,11 +515,12 @@ class RunManager(object):
         file_event_handler.on_modified = self._on_file_modified
         file_event_handler.on_moved = self._on_file_moved
         file_event_handler._patterns = [
-            os.path.join(self._watch_dir, os.path.normpath('*'))]
+            os.path.join(self._run.dir, os.path.normpath('*'))]
         # Ignore hidden files/folders and output.log because we stream it specially
         file_event_handler._ignore_patterns = [
-            '*/.*',
             '*.tmp',
+            os.path.join(self._run.dir, ".*"),
+            os.path.join(self._run.dir, "*/.*"),
             os.path.join(self._run.dir, OUTPUT_FNAME)
         ]
         for glob in self._api.settings("ignore_globs"):
@@ -538,7 +539,7 @@ class RunManager(object):
         self._block_file_observer()
         self._unblock_file_observer()
 
-    def _stop_file_observer(self):
+    def _end_file_syncing(self, exitcode):
         try:
             # avoid hanging if we crashed before the observer was started
             if self._file_observer.is_alive():
@@ -564,10 +565,19 @@ class RunManager(object):
         except SystemError:
             pass
 
-    def _end_file_syncing(self, exitcode):
+        # Ensure we've at least noticed every file in the run directory. Sometimes
+        # we miss things because asynchronously watching filesystems isn't reliable.
+        for dirpath, dirnames, filenames in os.walk(self._run.dir):
+            for fname in filenames:
+                file_path = os.path.join(dirpath, fname)
+                save_name = os.path.relpath(file_path, self._run.dir)
+                if save_name not in self._file_event_handlers:
+                    self._get_file_event_handler(file_path, save_name).on_created()
+
         """Stops file syncing/streaming but doesn't actually wait for everything to
         finish. We print progress info later.
         """
+
         # TODO: there was a case where _file_event_handlers was getting modified in the loop.
         for handler in list(self._file_event_handlers.values()):
             handler.finish()
@@ -587,7 +597,7 @@ class RunManager(object):
         self._file_count += 1
         if self._file_count % 100 == 0:
             self.emitter._timeout = int(self._file_count / 100) + 1
-        save_name = os.path.relpath(event.src_path, self._watch_dir)
+        save_name = os.path.relpath(event.src_path, self._run.dir)
         self._ensure_file_observer_is_unblocked()
         self._get_file_event_handler(event.src_path, save_name).on_created()
 
@@ -595,7 +605,7 @@ class RunManager(object):
         logger.info('file/dir modified: %s', event.src_path)
         if os.path.isdir(event.src_path):
             return None
-        save_name = os.path.relpath(event.src_path, self._watch_dir)
+        save_name = os.path.relpath(event.src_path, self._run.dir)
         self._ensure_file_observer_is_unblocked()
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
@@ -604,8 +614,8 @@ class RunManager(object):
                     event.src_path, event.dest_path)
         if os.path.isdir(event.dest_path):
             return None
-        old_save_name = os.path.relpath(event.src_path, self._watch_dir)
-        new_save_name = os.path.relpath(event.dest_path, self._watch_dir)
+        old_save_name = os.path.relpath(event.src_path, self._run.dir)
+        new_save_name = os.path.relpath(event.dest_path, self._run.dir)
         self._ensure_file_observer_is_unblocked()
 
         # We have to move the existing file handler to the new name, and update the stats
@@ -916,9 +926,9 @@ class RunManager(object):
         self._run.set_environment(environment=env)
 
         logger.info("saving patches")
-        self._api.save_patches(self._watch_dir)
+        self._api.save_patches(self._run.dir)
         logger.info("saving pip packages")
-        self._api.save_pip(self._watch_dir)
+        self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")
         self._api.get_file_stream_api().set_file_policy(
             OUTPUT_FNAME, CRDedupeFilePolicy())
@@ -943,7 +953,6 @@ class RunManager(object):
 
         if self._cloud:
             logger.info("stopping streaming files and file change observer")
-            self._stop_file_observer()
             self._end_file_syncing(exitcode)
 
         self._run.history.close()
@@ -1047,7 +1056,7 @@ class RunManager(object):
     def update_user_file_policy(self, policy):
         with self._file_policy_lock:
             for path in glob.glob(policy["glob"]):
-                save_name = os.path.relpath(path, self._watch_dir)
+                save_name = os.path.relpath(path, self._run.dir)
                 # Remove the existing handler if we haven't already made it live
                 current = self._file_event_handlers.get(save_name)
                 is_live = isinstance(current, FileEventHandlerThrottledOverwriteMinWait)
@@ -1265,7 +1274,7 @@ class RunManager(object):
         other_files = set(self._file_pusher.files()) - wandb_files - media_files
         logger.info("syncing files to cloud storage")
         if other_files:
-            wandb.termlog('Syncing files in %s:' % os.path.relpath(self._watch_dir))
+            wandb.termlog('Syncing files in %s:' % os.path.relpath(self._run.dir))
             for save_name in sorted(other_files):
                 wandb.termlog('  %s' % save_name)
             wandb.termlog('plus {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
@@ -1298,7 +1307,7 @@ class RunManager(object):
                 for fname, info in download_urls.items():
                     if fname == 'wandb-history.h5' or fname == OUTPUT_FNAME:
                         continue
-                    local_path = os.path.join(self._watch_dir, fname)
+                    local_path = os.path.join(self._run.dir, fname)
                     local_md5 = util.md5_file(local_path)
                     if local_md5 != info['md5']:
                         mismatched.append((local_path, local_md5, info['md5']))
