@@ -253,7 +253,8 @@ class TorchGraph(wandb.data_types.Graph):
                 graph.nodes_by_id[id(param)] = node
             graph.add_node(node)
             if not graph.criterion_passed:
-                graph.criterion = output[0].grad_fn
+               if hasattr(output[0], 'grad_fn'):
+                    graph.criterion = output[0].grad_fn
         return after_forward_hook
 
     def hook_torch_modules(self, module, criterion=None, prefix=None, graph_idx=0):
