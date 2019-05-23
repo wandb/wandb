@@ -1,4 +1,4 @@
-## 0.8.1 (May 21, 2019)
+## 0.8.1 (May 23, 2019)
 
 #### :bug: Bug Fix
 
@@ -8,6 +8,7 @@
 -   wandb.Api().runs returns an iterator that's reusable
 -   WANDB_DIR within a hidden directory doesn't prevent syncing
 -   run.files() iterates over all files
+-   pytorch recurssion too deep error
 
 #### :nail_care: Enhancement
 
