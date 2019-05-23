@@ -10,6 +10,7 @@ import wandb
 import uuid
 import json
 import codecs
+import tempfile
 from wandb import util
 
 
@@ -46,7 +47,7 @@ def val_to_json(key, val, mode="summary", step=None):
     if isinstance(val, collections.Sequence) and len(val) > 0:
         is_media = [isinstance(v, IterableMedia) for v in val]
         if all(is_media):
-            cwd = wandb.run.dir if wandb.run else "."
+            cwd = wandb.run.dir if wandb.run else tempfile.gettempdir()
             if step is None:
                 step = "summary"
             if isinstance(val[0], Image):
@@ -136,7 +137,11 @@ class Graph(object):
             nodes_by_depth = model._nodes_by_depth.values()
             nodes = []
             for v in nodes_by_depth:
-                if (len(v) > 1) or (len(v) == 1 and len(v[0].inbound_layers) > 1):
+                # TensorFlow2 doesn't insure inbound is always a list
+                inbound = v[0].inbound_layers
+                if not hasattr(inbound, '__len__'):
+                    inbound = [inbound]
+                if (len(v) > 1) or (len(v) == 1 and len(inbound) > 1):
                     # if the model has multiple nodes
                     # or if the nodes have multiple inbound_layers
                     # the model is no longer sequential
@@ -778,7 +783,8 @@ class Image(IterableMedia):
         for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image.image, (location, 0))
-        util.mkdir_exists_ok(base)
+        # fname may contain a slash so we create the directory
+        util.mkdir_exists_ok(os.path.dirname(os.path.join(base, fname)))
         sprite.save(os.path.join(base, fname), transparency=0)
         meta = {"width": width, "height": height,
                 "count": num_images_to_log, "_type": "images"}

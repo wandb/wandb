@@ -13,6 +13,7 @@ from wandb.history import History
 from wandb import data_types
 import torch
 import tensorflow as tf
+import tempfile
 
 from . import utils
 
@@ -135,7 +136,7 @@ def test_single_image(history):
     h = disk_history()
     assert h[0]["images"] == {'_type': 'images',
                               'count': 1, 'height': 28, 'width': 28}
-    assert os.path.exists("media/images/images_0.jpg")
+    assert os.path.exists(tempfile.gettempdir() + "/media/images/images_0.jpg")
 
 
 def test_newline(history):

@@ -235,4 +235,4 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
     return values
 
 
-__all__ = ["patch", "log", "tf_summary_to_dict", "history_image_key"]
+__all__ = ["patch", "log", "namespaced_tag", "tf_summary_to_dict", "history_image_key"]
