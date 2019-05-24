@@ -244,7 +244,7 @@ def json_friendly(obj):
 
     if is_tf_tensor_typename(typename):
         obj = obj.eval()
-    elif is_tf_eager_tensor_typename(obj):
+    elif is_tf_eager_tensor_typename(typename):
         obj = obj.numpy()
     elif is_pytorch_tensor_typename(typename):
         try:
