@@ -11,6 +11,7 @@ import pandas
 import PIL
 from pkg_resources import parse_version
 import plotly.graph_objs
+import matplotlib.pyplot as plt
 import tensorflow
 import torch
 from torchvision import models
@@ -41,8 +42,10 @@ def main():
     image_nice = wandb.Image(image_data, caption="Nice zeros")
     image_random = wandb.Image(numpy.random.randint(255, size=(28, 28, 3)))
     image_pil = wandb.Image(PIL.Image.new("L", (28, 28)))
-    #matplotlib.pyplot.plt.plot([1, 2, 2, 4])
-    #image_plot = wandb.Image(matplotlib.pyplot.plt)
+    plt.plot([1, 2, 3, 4])
+    plt.ylabel('some interesting numbers')
+    image_matplotlib_plot = wandb.Image(plt)
+    matplotlib_plot = plt
 
     audio_data = numpy.random.uniform(-1, 1, 44100)
     sample_rate = 44100
@@ -93,8 +96,13 @@ def main():
             'image-nice-summary': image_nice,
             'image-random-summary': image_random,
             'image-pil-summary': image_pil,
-            #'image-plot-summary': image_plot,
+            'image-plot-summary': image_matplotlib_plot,
             'image-list-summary': [image_cool, image_nice, image_random, image_pil],
+
+            # Doesn't work, because something has happened to the MPL object (MPL may
+            # be doing magical scope stuff). If you log it right after creating it,
+            # it works fine.
+            # 'matplotlib-plot': matplotlib_plot,
 
             'audio1-summary': audio1,
             'audio2-summary': audio2,
@@ -130,8 +138,10 @@ def main():
                 'image-nice': image_nice,
                 'image-random': image_random,
                 'image-pil': image_pil,
-                #'image-plot': image_plot,
+                'image-plot': image_matplotlib_plot,
                 'image-list': [image_cool, image_nice, image_random, image_pil],
+
+                # 'matplotlib-plot': matplotlib_plot,
 
                 'audio1': audio1,
                 'audio2': audio2,
@@ -166,8 +176,10 @@ def main():
             'image-nice-summary': image_nice,
             'image-random-summary': image_random,
             'image-pil-summary': image_pil,
-            #'image-plot-summary': image_plot,
+            'image-plot-summary': image_matplotlib_plot,
             'image-list-summary': [image_cool, image_nice, image_random, image_pil],
+
+            # 'matplotlib-plot': matplotlib_plot,
 
             'audio1-summary': audio1,
             'audio2-summary': audio2,
