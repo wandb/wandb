@@ -119,7 +119,7 @@ def test_dataset_functional(wandb_init_run):
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mse')
     model.fit(data, callbacks=[wandb_callback])
-    assert wandb.data_types.Graph.transform(wandb_init_run.summary["graph"])['nodes'][0]['class_name'] == "InputLayer"
+    assert wandb.data_types.Graph.to_json(wandb_init_run.summary["graph"])['nodes'][0]['class_name'] == "InputLayer"
 
 def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
@@ -142,7 +142,7 @@ def test_keras_convert_sequential():
     model.add(Dense(5))
     model.add(Dense(6))
     wandb_model = wandb.data_types.Graph.from_keras(model)
-    wandb_model_out = wandb.Graph.transform(wandb_model)
+    wandb_model_out = wandb.Graph.to_json(wandb_model)
     print(wandb_model_out)
     assert wandb_model_out == {'_type': 'graph', 'format': 'keras',
                                'nodes': [
@@ -176,7 +176,7 @@ def test_keras_convert_model_non_sequential():
     model = Model(inputs=[main_input, auxiliary_input],
                   outputs=[main_output, auxiliary_output])
     wandb_model = wandb.data_types.Graph.from_keras(model)
-    wandb_model_out = wandb.Graph.transform(wandb_model)
+    wandb_model_out = wandb.Graph.to_json(wandb_model)
 
     print(wandb_model_out['edges'])
     assert wandb_model_out['nodes'][0] == {'name': 'main_input', 'id': 'main_input',
