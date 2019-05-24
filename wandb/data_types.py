@@ -1002,8 +1002,9 @@ class Image(BatchableMedia):
                 self._image = PILImage.fromarray(data.mul(255).clamp(
                     0, 255).byte().permute(1, 2, 0).cpu().numpy())
             else:
-                if hasattr(data, "squeeze"): # tf eager tensors don't have squeeze
-                    data = data.squeeze()  # get rid of trivial dimensions as a convenience
+                if hasattr(data, "numpy"): # TF data eager tensors
+                    data = data.numpy()
+                data = data.squeeze()  # get rid of trivial dimensions as a convenience
                 self._image = PILImage.fromarray(
                     self.to_uint8(data), mode=mode or self.guess_mode(data))
 
