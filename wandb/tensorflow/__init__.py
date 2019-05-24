@@ -43,7 +43,9 @@ def stream_tfevents(path, file_api, run, step=0, namespace=""):
                 last_row = history_dict_to_json(run, row)
                 file_api.push("wandb-history.jsonl", util.json_dumps_safer_history(last_row))
         row.update(parsed)
-    return last_row
+    # TODO: It's not clear to me why we still have wandb.data_types in last_row here,
+    # but we do so we convert again
+    return history_dict_to_json(run, last_row)
 
 
 __all__ = ['log', 'patch', 'stream_tfevents', 'WandbHook']

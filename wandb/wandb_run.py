@@ -254,7 +254,7 @@ class Run(object):
                 filename = os.path.basename(path)
                 namespace = path.replace(filename, "").replace(directory, "").strip(os.sep)
                 summary.update(wbtf.stream_tfevents(path, file_api, run, namespace=namespace))
-            for path in glob.glob(os.path.join(tempfile.gettempdir(), "media/**/*"), recursive=True):
+            for path in glob.glob(os.path.join(directory, "media/**/*"), recursive=True):
                 if os.path.isfile(path):
                     paths.append(path)
         else:
@@ -289,20 +289,16 @@ class Run(object):
         wandb.termlog("Updating run and uploading files")
         api.upsert_run(**run_update)
         pusher = FilePusher(api)
-        tmpdir = tempfile.gettempdir()
         for k in paths:
-            if tmpdir in k:
-                path = k
-                k = k.replace(tmpdir + os.sep, "")
-            else:
-                path = os.path.abspath(os.path.join(directory, k))
+            path = os.path.abspath(os.path.join(directory, k))
             pusher.update_file(k, path)
             pusher.file_changed(k, path)
         pusher.finish()
         pusher.print_status()
         file_api.finish(0)
-        if os.path.exists(os.path.join(tmpdir, "media")):
-            shutil.rmtree(os.path.join(tmpdir, "media"))
+        # Remove temporary media images generated from tfevents
+        if history is None and os.path.exists(os.path.join(directory, "media")):
+            shutil.rmtree(os.path.join(directory, "media"))
         wandb.termlog("Finished!")
         return run
 

@@ -1,3 +1,11 @@
+## 0.8.2 (TBD)
+
+#### :bug: Bug Fix
+
+#### :nail_care: Enhancement
+
+-   summary now supports new dataframe fromat
+
 ## 0.8.1 (May 23, 2019)
 
 #### :bug: Bug Fix

@@ -205,7 +205,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
                 values.setdefault(history_image_key(
                     tag, namespace), []).append(image)
             else:
-                values[history_image_key(value.tag, namespace)] = image
+                values[history_image_key(value.tag, namespace)] = [image]
         # Coming soon...
         # elif kind == "audio":
         #    audio = wandb.Audio(six.BytesIO(value.audio.encoded_audio_string),
