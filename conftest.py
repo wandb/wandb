@@ -11,6 +11,8 @@ import six
 import json
 import sys
 import threading
+import logging
+from vcr.request import Request
 from wandb import wandb_socket
 from wandb import env
 from wandb.wandb_run import Run
@@ -20,6 +22,47 @@ def pytest_runtest_setup(item):
     # This is used to find tests that are leaking outside of tmp directories
     os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
 
+def request_repr(self):
+    try:
+        body = json.loads(self.body)
+        query = body.get("query") or "no_query"
+        render = query.split("(")[0].split("\n")[0] + " - vars: " + str(body.get("variables", {}).keys())
+    except ValueError:
+        render = "BINARY"
+    return "({}) {} - {}".format(self.method, self.uri, render)
+
+Request.__repr__ = request_repr
+# To enable VCR logging uncomment below
+#logging.basicConfig() # you need to initialize logging, otherwise you will not see anything from vcrpy
+#vcr_log = logging.getLogger("vcr")
+#vcr_log.setLevel(logging.DEBUG)
+@pytest.fixture(scope='module')
+def vcr_config():
+    def replace_body(request):
+        if "storage.googleapis.com" in request.uri:
+            request.body = "BINARY DATA"
+        elif "/file_stream" in request.uri:
+            request.body = 'FILES'
+        return request
+
+    return {
+        # Replace the Authorization request header with "DUMMY" in cassettes
+        "filter_headers": [('authorization', 'DUMMY')],
+        "match_on": ['method', 'uri', 'query', 'graphql'],
+        "before_record": replace_body,
+    }
+
+@pytest.fixture(scope='module')
+def vcr(vcr):
+    def graphql_matcher(r1, r2):
+        if "/graphql" in r1.uri and "/graphql" in r2.uri:
+            body1 = json.loads(r1.body.decode("utf-8"))
+            body2 = json.loads(r2.body.decode("utf-8"))
+            return body1["query"].strip() == body2["query"].strip()
+        return True
+
+    vcr.register_matcher('graphql', graphql_matcher)
+    return vcr
 
 @pytest.fixture
 def local_netrc(monkeypatch):

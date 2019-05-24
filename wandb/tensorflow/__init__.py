@@ -25,24 +25,24 @@ class WandbHook(tf.train.SessionRunHook):
             log(run_values.results["summary"])
 
 
-def stream_tfevents(path, file_api, step=0):
+def stream_tfevents(path, file_api, run, step=0, namespace=""):
     """Parses and streams a tfevents file to the server"""
     last_step = 0
     row = {}
     buffer = []
     last_row = {}
+    global_step_key = namespaced_tag("global_step", namespace)
     for summary in tf.train.summary_iterator(path):
-        parsed = tf_summary_to_dict(summary)
-        if last_step != parsed["global_step"]:
+        parsed = tf_summary_to_dict(summary, namespace=namespace)
+        if last_step != parsed[global_step_key]:
             step += 1
-            last_step = parsed["global_step"]
+            row["_step"] = step
+            last_step = parsed[global_step_key]
             # TODO: handle time
             if len(row) > 0:
-                row['_step'] = last_step
-                last_row = histroy_dict_to_json(row)
-                buffer.append(Chunk("wandb-history.jsonl", util.json_dumps_safer_history(last_row)))
+                last_row = history_dict_to_json(run, row)
+                file_api.push("wandb-history.jsonl", util.json_dumps_safer_history(last_row))
         row.update(parsed)
-    file_api._send(buffer)
     return last_row
 
 

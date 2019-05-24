@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.0'
+__version__ = '0.8.1'
 
 import atexit
 import click
@@ -288,7 +288,7 @@ def _init_jupyter(run):
     api = InternalApi()
     if not api.api_key:
         termerror(
-            "Not authenticated.  Copy a key from https://app.wandb.ai/profile?message=true")
+            "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
         key = getpass.getpass("API Key: ").strip()
         if len(key) == 40:
             os.environ[env.API_KEY] = key
@@ -615,6 +615,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         group (str, optional): A unique string shared by all runs in a given group
         tags (list, optional): A list of tags to apply to the run
         id (str, optional): A globally unique (per project) identifier for the run
+        name (str, optional): A display name which does not have to be unique
         reinit (bool, optional): Allow multiple calls to init in the same process
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id

@@ -65,6 +65,7 @@ def _bucket(name='test', entity_name='bagsy', project_name='new-project'):
         'description': "Description of the bucket",
         'framework': 'keras',
         'id': 'a1b2c3d4e5',
+        'displayName': 'glorious-flowers-63',
         'files': _files(),
         'project': {
             'id': '14',
@@ -104,6 +105,7 @@ def _run(name='test'):
 def _run_files():
     return {
         'fileCount': 2,
+        'id': 'abc123',
         'files': _files()
     }
 

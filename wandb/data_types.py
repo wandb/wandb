@@ -36,6 +36,7 @@ import wandb
 import uuid
 import json
 import codecs
+import tempfile
 from wandb import util
 
 
@@ -104,6 +105,9 @@ def val_to_json(run, key, val, step='summary'):
             # the array index?
             # There is a bug here: if this array contains two arrays of the same type of
             # anonymous media objects, their eventual names will collide.
+            # This used to happen. The frontend doesn't handle heterogenous arrays
+            #raise ValueError(
+            #    "Mixed media types in the same list aren't supported")
             return [val_to_json(run, key, v, step=step) for v in val]
 
     if isinstance(val, WBValue):
@@ -288,7 +292,11 @@ class Graph(WBValue):
             nodes_by_depth = model._nodes_by_depth.values()
             nodes = []
             for v in nodes_by_depth:
-                if (len(v) > 1) or (len(v) == 1 and len(v[0].inbound_layers) > 1):
+                # TensorFlow2 doesn't insure inbound is always a list
+                inbound = v[0].inbound_layers
+                if not hasattr(inbound, '__len__'):
+                    inbound = [inbound]
+                if (len(v) > 1) or (len(v) == 1 and len(inbound) > 1):
                     # if the model has multiple nodes
                     # or if the nodes have multiple inbound_layers
                     # the model is no longer sequential
@@ -1088,14 +1096,12 @@ class Image(BatchableMedia):
         for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image._image, (location, 0))
-        util.mkdir_exists_ok(base)
-        sprite.save(os.path.join(base, '{}_{}.jpg'.format(key, step)), transparency=0)
-        meta = {
-            "width": width,
-            "height": height,
-            "count": num_images_to_log,
-            "_type": "images",
-        }
+        fname = '{}_{}.jpg'.format(key, step)
+        # fname may contain a slash so we create the directory
+        util.mkdir_exists_ok(os.path.dirname(os.path.join(base, fname)))
+        sprite.save(os.path.join(base, fname), transparency=0)
+        meta = {"width": width, "height": height,
+                "count": num_images_to_log, "_type": "images"}
         # TODO: hacky way to enable image grouping for now
         grouping = images[0]._grouping
         if grouping:

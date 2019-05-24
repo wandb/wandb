@@ -55,6 +55,7 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
                 updatedAt
                 md5
             }
+            cursor
         }
         pageInfo {
             endCursor
@@ -223,6 +224,7 @@ class Paginator(object):
         self.last_response = None
 
     def __iter__(self):
+        self.index = -1
         return self
 
     def __len__(self):
@@ -245,11 +247,15 @@ class Paginator(object):
     def convert_objects(self):
         raise NotImplementedError()
 
+    def update_variables(self):
+        self.variables.update(
+            {'perPage': self.per_page, 'cursor': self.cursor})
+
     def _load_page(self):
         if not self.more:
             return False
-        self.variables.update(
-            {'perPage': self.per_page, 'cursor': self.cursor})
+
+        self.update_variables()
         self.last_response = self.client.execute(
             self.QUERY, variable_values=self.variables)
         self.objects.extend(self.convert_objects())
@@ -566,6 +572,9 @@ class Files(Paginator):
             return self.last_response['project']['run']['files']['edges'][-1]['cursor']
         else:
             return None
+
+    def update_variables(self):
+        self.variables.update({'fileLimit': self.per_page, 'fileCursor': self.cursor})
 
     def convert_objects(self):
         return [File(self.client, r["node"])

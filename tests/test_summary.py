@@ -12,6 +12,7 @@ import json
 import glob
 import os
 import numpy as np
+import tempfile
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 from wandb import Histogram, Image, Graph, Table

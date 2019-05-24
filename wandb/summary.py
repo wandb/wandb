@@ -94,6 +94,9 @@ class SummarySubDict(object):
             self._root._root_get(self._path + (k,), self._dict)
         return self._dict.get(k, default)
 
+    def items(self):
+        return six.iteritems(self._dict)
+
     def __getitem__(self, k):
         k = k.strip()
         self.get(k)  # load the value into _dict if it should be there
