@@ -48,6 +48,10 @@ logger = logging.getLogger(__name__)
 _not_importable = set()
 
 
+OUTPUT_FNAME = 'output.log'
+DIFF_FNAME = 'diff.patch'
+
+
 # these match the environments for gorilla
 if wandb.core.IS_GIT:
     SENTRY_ENV = 'development'
@@ -667,7 +671,7 @@ def get_log_file_path():
     return wandb.GLOBAL_LOG_FNAME
 
 def is_wandb_file(name):
-    return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt"
+    return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt" or name == OUTPUT_FNAME or name == 'DIFF_FNAME'
 
 def docker_image_regex(image):
     "regex for valid docker image names"
