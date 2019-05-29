@@ -24,7 +24,6 @@ def test_tensorboard(run_manager):
     assert len(glob.glob(wandb.run.dir + "/*tfevents*")) == 1
 
 
-@pytest.mark.skip()
 def test_tensorboard_no_step(run_manager):
     wandb.tensorboard.patch(tensorboardX=False)
     tf.summary.FileWriterCache.clear()
@@ -98,7 +97,6 @@ def test_tensorboardX(run_manager):
         for file in files:
             if "tfevent" in file:
                 events.append(file)
-
     assert rows[0]["matplotlib"]['width'] == 640
     assert rows[0]["matplotlib"]['height'] == 480
     assert rows[0]["matplotlib"]['_type'] == 'image-file'

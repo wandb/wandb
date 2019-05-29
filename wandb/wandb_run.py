@@ -69,7 +69,6 @@ class Run(object):
         with configure_scope() as scope:
             api = InternalApi()
             self.project = api.settings("project")
-            self.entity = api.settings("entity")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
             scope.set_tag("url", self.get_url(api))
@@ -113,6 +112,14 @@ class Run(object):
         self._meta = None
         self._run_manager = None
         self._jupyter_agent = None
+
+    @property
+    def entity(self):
+        return InternalApi().settings('entity')
+
+    @entity.setter
+    def entity(self, entity):
+        InternalApi().set_setting("entity", entity)
 
     @property
     def path(self):
@@ -246,8 +253,8 @@ class Run(object):
             for path in tfevents:
                 filename = os.path.basename(path)
                 namespace = path.replace(filename, "").replace(directory, "").strip(os.sep)
-                summary.update(wbtf.stream_tfevents(path, file_api, namespace=namespace))
-            for path in glob.glob(os.path.join(tempfile.gettempdir(), "media/**/*"), recursive=True):
+                summary.update(wbtf.stream_tfevents(path, file_api, run, namespace=namespace))
+            for path in glob.glob(os.path.join(directory, "media/**/*"), recursive=True):
                 if os.path.isfile(path):
                     paths.append(path)
         else:
@@ -265,7 +272,7 @@ class Run(object):
                                     for k, v in six.iteritems(user_config)}
         if isinstance(summary, dict):
             #TODO: summary should already have data_types converted here...
-            run_update["summary_metrics"] = util.json_dumps_safer(data_types.to_json(summary, mode="summary"))
+            run_update["summary_metrics"] = util.json_dumps_safer(summary)
         elif summary:
             run_update["summary_metrics"] = open(summary).read()
         if meta:
@@ -282,20 +289,16 @@ class Run(object):
         wandb.termlog("Updating run and uploading files")
         api.upsert_run(**run_update)
         pusher = FilePusher(api)
-        tmpdir = tempfile.gettempdir()
         for k in paths:
-            if tmpdir in k:
-                path = k
-                k = k.replace(tmpdir + os.sep, "")
-            else:
-                path = os.path.abspath(os.path.join(directory, k))
+            path = os.path.abspath(os.path.join(directory, k))
             pusher.update_file(k, path)
             pusher.file_changed(k, path)
         pusher.finish()
         pusher.print_status()
         file_api.finish(0)
-        if os.path.exists(os.path.join(tmpdir, "media")):
-            shutil.rmtree(os.path.join(tmpdir, "media"))
+        # Remove temporary media images generated from tfevents
+        if history is None and os.path.exists(os.path.join(directory, "media")):
+            shutil.rmtree(os.path.join(directory, "media"))
         wandb.termlog("Finished!")
         return run
 
@@ -325,8 +328,7 @@ class Run(object):
         if project is None:
             project = self.auto_project_name(api)
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
-                                       project=project, entity=api.settings(
-                                           "entity"),
+                                       project=project, entity=self.entity,
                                        group=self.group, tags=self.tags if len(
                                            self.tags) > 0 else None,
                                        config=self.config.as_dict(), description=self.name_and_description, host=socket.gethostname(),
@@ -495,7 +497,7 @@ class Run(object):
         if self._history is None:
             jupyter_callback = self._jupyter_agent.start if self._jupyter_agent else None
             self._history = history.History(
-                HISTORY_FNAME, self._dir, add_callback=self._history_added, jupyter_callback=jupyter_callback)
+                self, add_callback=self._history_added, jupyter_callback=jupyter_callback)
             if self._history._steps > 0:
                 self.resumed = True
         return self._history
