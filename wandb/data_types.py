@@ -889,9 +889,13 @@ class Object3D(BatchableMedia):
 
         jsons = [obj.to_json(run) for obj in threeD_list]
 
+        for obj in jsons:
+            if not obj['path'].startswith(cls.get_media_subdir()):
+                raise ValueError('Files in an array of Object3D\'s must be in the {} directory, not {}'.format(cls.get_media_subdir(), obj['path']))
+
         return {
             "_type": "object3D",
-            "filenames": [j['path'] for j in jsons],
+            "filenames": [os.path.relpath(j['path'], cls.get_media_subdir()) for j in jsons],
             "count": len(jsons),
             'objects': jsons,
         }
