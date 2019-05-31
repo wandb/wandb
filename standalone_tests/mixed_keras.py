@@ -4,7 +4,8 @@ import numpy as np
 import tensorflow as tf
 from wandb.keras import WandbCallback
 
-wandb.init(project="tf2")
+#wandb.init(project="tf2")
+wandb.init()
 
 model = tf.keras.models.Sequential()
 model.add(tf.keras.layers.Conv2D(
