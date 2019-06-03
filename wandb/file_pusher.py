@@ -5,8 +5,16 @@ import threading
 import time
 from six.moves import queue
 
+import backports.tempfile
 import wandb
 import wandb.util
+
+
+# Temporary directory for copies we make of some file types to
+# reduce the probability that the file gets changed while we're
+# uploading it.
+TMP_DIR = backports.tempfile.TemporaryDirectory('wandb')
+
 
 EventFileChanged = collections.namedtuple(
     'EventFileChanged', ('path', 'save_name', 'copy'))
@@ -29,7 +37,8 @@ class UploadJob(threading.Thread):
             #wandb.termlog('Uploading file: %s' % self.save_name)
             save_path = self.path
             if self.copy:
-                save_path = self.path + '.tmp'
+                save_path = os.path.join(TMP_DIR.name, self.save_name)
+                wandb.util.mkdir_exists_ok(os.path.dirname(save_path))
                 shutil.copy2(self.path, save_path)
             self._push_function(self.save_name, save_path)
             if self.copy:

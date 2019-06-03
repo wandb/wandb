@@ -568,7 +568,12 @@ class RunManager(object):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._run.dir)
-                if save_name not in self._file_event_handlers:
+                if save_name not in self._file_event_handlers: # and \
+                        #not save_name.endswith('.tmp') and \
+                        #save_name[:len('.tmp')] not in self._file_event_handlers:
+                    # Some types of files we copy to a .tmp file before we upload
+                    # them. We should be sure not to discover these .tmp files.
+                    # TODO(adrian): It'd be better to upload them from a
                     self._get_file_event_handler(file_path, save_name).on_created()
 
         """Stops file syncing/streaming but doesn't actually wait for everything to
