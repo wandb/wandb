@@ -752,7 +752,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # may depend on those things
     if sys.platform == 'win32' and run.mode != 'clirun':
         termerror(
-            'To use wandb on windows, you need to run the command "wandb run python <your_train_script>.py"')
+            'To use wandb on Windows, you need to run the command "wandb run python <your_train_script>.py"')
         return run
 
     if in_jupyter:
