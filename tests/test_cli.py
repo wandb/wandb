@@ -17,6 +17,7 @@ import time
 import yaml
 import git
 import re
+import shutil
 import webbrowser
 import wandb
 import threading
@@ -463,7 +464,7 @@ def test_signup(runner, empty_netrc, local_netrc, mocker, monkeypatch):
         print('Exception: ', result.exception)
         print('Traceback: ', traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "https://app.wandb.ai/profile?message=key" in result.output
+        assert "https://app.wandb.ai/authorize" in result.output
         assert "Successfully logged in to Weights & Biases!" in result.output
 
 def test_init_new_login_no_browser(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer, monkeypatch):
@@ -615,18 +616,37 @@ def test_enable_off(runner, git_repo):
     assert "disabled" in open("wandb/settings").read()
 
 
-def test_sync(runner, request_mocker, upsert_run, upload_url, git_repo, query_viewer):
-    os.environ["WANDB_API_KEY"] = "some invalid key"
-    query_viewer(request_mocker)
-    upsert_run(request_mocker)
-    upload_url(request_mocker)
+@pytest.mark.vcr()
+def test_sync(runner, git_repo):
+    # Un comment this line when re-recording the cassette
+    os.environ['WANDB_API_KEY'] = DUMMY_API_KEY
     with open("wandb-history.jsonl", "w") as f:
         f.write('{"acc":25}')
-    result = runner.invoke(cli.sync, ".")
+    result = runner.invoke(cli.sync, ["--id", "7ojulnsc", "."])
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert "Uploading history metrics" in str(result.output)
+    assert result.exit_code == 0
+
+@pytest.mark.skipif(os.getenv("NO_ML") == "true" or sys.version_info < (3, 5), reason="Tensorboard not installed and we don't support tensorboard syncing in py2")
+@pytest.mark.vcr()
+def test_sync_tensorboard_ignore(runner, git_repo):
+    # Un comment this line when re-recording the cassette
+    os.environ['WANDB_API_KEY'] = DUMMY_API_KEY
+    wandb.util.mkdir_exists_ok("logs/train")
+    wandb.util.mkdir_exists_ok("logs/val")
+    with open("logs/garbage.txt", "w") as f:
+        f.write("NOTHING")
+    tf_events="events.out.tfevents.111.test.localdomain"
+    shutil.copyfile(os.path.dirname(__file__) + "/fixtures/"+tf_events, "./logs/train/"+tf_events)
+    shutil.copyfile(os.path.dirname(__file__) + "/fixtures/"+tf_events, "./logs/val/"+tf_events)
+    result = runner.invoke(cli.sync, ["--id", "abc123", "-e", "vanpelt", "--ignore", "garbage.txt", "logs"], env=os.environ)
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "Found tfevents file, converting..." in str(result.output)
+    assert result.exit_code == 0
 
 
 def test_sync_runs(runner, request_mocker, upsert_run, upload_url, upload_logs, query_viewer, git_repo):

@@ -94,6 +94,9 @@ class SummarySubDict(object):
             self._root._root_get(self._path + (k,), self._dict)
         return self._dict.get(k, default)
 
+    def items(self):
+        return six.iteritems(self._dict)
+
     def __getitem__(self, k):
         k = k.strip()
         self.get(k)  # load the value into _dict if it should be there
@@ -291,23 +294,12 @@ class Summary(SummarySubDict):
             return json_value
         else:
             path = ".".join(path_from_root)
-            if util.is_pandas_data_frame(value):
-                return util.encode_data_frame(path, value, self._run)
-            else:
-                friendly_value, converted = util.json_friendly(
-                    data_types.val_to_json(path, value))
-                json_value, compressed = util.maybe_compress_summary(
-                    friendly_value, util.get_h5_typename(value))
-                if compressed:
-                    self.write_h5(path_from_root, friendly_value)
+            friendly_value, converted = util.json_friendly(data_types.val_to_json(self._run, path, value))
+            json_value, compressed = util.maybe_compress_summary(friendly_value, util.get_h5_typename(value))
+            if compressed:
+                self.write_h5(path_from_root, friendly_value)
 
-                return json_value
-        """
-            if isinstance(value, dict):
-                json_child[key], converted = util.json_friendly(
-                    self._encode(value, path_from_root + [key]))
-            else:
-        """
+            return json_value
 
 
 def download_h5(run, entity=None, project=None, out_dir=None):

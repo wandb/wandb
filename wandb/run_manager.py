@@ -48,8 +48,6 @@ from wandb.apis import InternalApi
 logger = logging.getLogger(__name__)
 
 
-OUTPUT_FNAME = 'output.log'
-
 class LaunchError(Error):
     """Raised when there's an error starting up."""
 
@@ -516,12 +514,11 @@ class RunManager(object):
         file_event_handler.on_moved = self._on_file_moved
         file_event_handler._patterns = [
             os.path.join(self._run.dir, os.path.normpath('*'))]
-        # Ignore hidden files/folders and output.log because we stream it specially
+        # Ignore hidden files/folders
         file_event_handler._ignore_patterns = [
             '*.tmp',
             os.path.join(self._run.dir, ".*"),
             os.path.join(self._run.dir, "*/.*"),
-            os.path.join(self._run.dir, OUTPUT_FNAME)
         ]
         for glob in self._api.settings("ignore_globs"):
             file_event_handler._ignore_patterns.append(
@@ -692,9 +689,9 @@ class RunManager(object):
         # TODO: Ideally we could start collecting logs without pushing
         fs_api = self._api.get_file_stream_api()
         io_wrap.SimpleTee(sys.stdout, streaming_log.TextStreamPusher(
-            fs_api, OUTPUT_FNAME, prepend_timestamp=True))
+            fs_api, util.OUTPUT_FNAME, prepend_timestamp=True))
         io_wrap.SimpleTee(sys.stderr, streaming_log.TextStreamPusher(
-            fs_api, OUTPUT_FNAME, prepend_timestamp=True, line_prepend='ERROR'))
+            fs_api, util.OUTPUT_FNAME, prepend_timestamp=True, line_prepend='ERROR'))
 
     def unmirror_stdout_stderr(self):
         sys.stdout.write = sys.stdout.orig_write
@@ -724,7 +721,7 @@ class RunManager(object):
                 stdout = sys.stdout.buffer
                 stderr = sys.stderr.buffer
 
-        output_log_path = os.path.join(self._run.dir, OUTPUT_FNAME)
+        output_log_path = os.path.join(self._run.dir, util.OUTPUT_FNAME)
         self._output_log = WriteSerializingFile(open(output_log_path, 'wb'))
 
         stdout_streams = [stdout, self._output_log]
@@ -734,9 +731,9 @@ class RunManager(object):
             # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
             fs_api = self._api.get_file_stream_api()
             self._stdout_stream = streaming_log.TextStreamPusher(
-                fs_api, OUTPUT_FNAME, prepend_timestamp=True)
+                fs_api, util.OUTPUT_FNAME, prepend_timestamp=True)
             self._stderr_stream = streaming_log.TextStreamPusher(
-                fs_api, OUTPUT_FNAME, line_prepend='ERROR',
+                fs_api, util.OUTPUT_FNAME, line_prepend='ERROR',
                 prepend_timestamp=True)
 
             stdout_streams.append(self._stdout_stream)
@@ -796,7 +793,7 @@ class RunManager(object):
 
         # output.log
         self._api.get_file_stream_api().set_file_policy(
-            OUTPUT_FNAME, CRDedupeFilePolicy(resume_status['logLineCount']))
+            util.OUTPUT_FNAME, CRDedupeFilePolicy(resume_status['logLineCount']))
 
         # history
         self._api.get_file_stream_api().set_file_policy(
@@ -931,7 +928,7 @@ class RunManager(object):
         self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")
         self._api.get_file_stream_api().set_file_policy(
-            OUTPUT_FNAME, CRDedupeFilePolicy())
+            util.OUTPUT_FNAME, CRDedupeFilePolicy())
         self._api.get_file_stream_api().start()
         self._project = self._api.settings("project")
 
@@ -1305,7 +1302,7 @@ class RunManager(object):
                 download_urls = self._api.download_urls(
                     self._project, run=self._run.id)
                 for fname, info in download_urls.items():
-                    if fname == 'wandb-history.h5' or fname == OUTPUT_FNAME:
+                    if fname == 'wandb-history.h5' or fname == util.OUTPUT_FNAME:
                         continue
                     local_path = os.path.join(self._run.dir, fname)
                     local_md5 = util.md5_file(local_path)

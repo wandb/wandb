@@ -12,6 +12,7 @@ import json
 import glob
 import os
 import numpy as np
+import tempfile
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 from wandb import Histogram, Image, Graph, Table
@@ -77,21 +78,30 @@ def test_delete(summary):
 
 
 def test_image(summary):
-    summary["image"] = Image(np.random.rand(28, 28))
-    assert disk_summary(summary)['image'] == {
-        '_type': 'images', 'count': 1, 'height': 28, 'width': 28}
-    print("Glob ", glob.glob("**/*"))
-    assert os.path.exists("media/images/image_summary.jpg")
+    summary["image"] = Image(np.zeros((28, 28)))
+    ds = disk_summary(summary)
+    assert os.path.exists(os.path.join(summary._run.dir, ds['image']['path']))
+
+    expected = {
+        '_type': 'image-file',
+        'height': 28,
+        'width': 28,
+        'size': 73,
+    }
+    assert set(ds['image'].items()) >= set(expected.items())
 
 
 def test_matplot_image(summary):
-    print("Summary fname", summary._fname)
-    img = plt.imshow(np.random.rand(28, 28), cmap='gray')
+    img = plt.imshow(np.zeros((28, 28)), cmap='gray')
     summary["fig"] = img
     plt.close()
-    assert disk_summary(summary)["fig"] == {
-        "_type": "images", "count": 1, "height": 480, "width": 640}
-    assert os.path.exists("media/images/fig_summary.jpg")
+    ds = disk_summary(summary)
+    assert os.path.exists(os.path.join(summary._run.dir, ds['fig']['path']))
+    assert set(ds["fig"].items()) >= set({
+        "_type": "image-file",
+        "height": 480,
+        "width": 640,
+    }.items())
 
 
 def test_matplot_plotly(summary):

@@ -4,6 +4,10 @@ import os
 import socket
 import json
 import yaml
+import fnmatch
+import tempfile
+import shutil
+import glob
 from sentry_sdk import configure_scope
 
 from . import env
@@ -14,6 +18,7 @@ from wandb import summary
 from wandb import meta
 from wandb import typedtable
 from wandb import util
+from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
@@ -64,7 +69,6 @@ class Run(object):
         with configure_scope() as scope:
             api = InternalApi()
             self.project = api.settings("project")
-            self.entity = api.settings("entity")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
             scope.set_tag("url", self.get_url(api))
@@ -108,6 +112,14 @@ class Run(object):
         self._meta = None
         self._run_manager = None
         self._jupyter_agent = None
+
+    @property
+    def entity(self):
+        return InternalApi().settings('entity')
+
+    @entity.setter
+    def entity(self, entity):
+        InternalApi().set_setting("entity", entity)
 
     @property
     def path(self):
@@ -194,7 +206,7 @@ class Run(object):
         return run
 
     @classmethod
-    def from_directory(cls, directory, project=None, entity=None, run_id=None, api=None):
+    def from_directory(cls, directory, project=None, entity=None, run_id=None, api=None, ignore_globs=None):
         api = api or InternalApi()
         run_id = run_id or util.generate_id()
         run = Run(run_id=run_id, dir=directory)
@@ -209,12 +221,18 @@ class Run(object):
         res = api.upsert_run(name=run_id, project=project, entity=entity)
         entity = res["project"]["entity"]["name"]
         wandb.termlog("Syncing {} to:".format(directory))
-        wandb.termlog(run.get_url(api))
+        wandb.termlog(res["displayName"] + " " + run.get_url(api))
 
         file_api = api.get_file_stream_api()
+        file_api.start()
         snap = DirectorySnapshot(directory)
         paths = [os.path.relpath(abs_path, directory)
                  for abs_path in snap.paths if os.path.isfile(abs_path)]
+        if ignore_globs:
+            paths = set(paths)
+            for g in ignore_globs:
+                paths = paths - set(fnmatch.filter(paths, g))
+            paths = list(paths)
         run_update = {"id": res["id"]}
         tfevents = sorted([p for p in snap.paths if ".tfevents." in p])
         history = next((p for p in snap.paths if HISTORY_FNAME in p), None)
@@ -230,9 +248,15 @@ class Run(object):
             snap.paths.remove(history)
         elif len(tfevents) > 0:
             from wandb import tensorflow as wbtf
-            wandb.termlog("Found tfevents file, converting.")
-            for file in tfevents:
-                summary = wbtf.stream_tfevents(file, file_api)
+            wandb.termlog("Found tfevents file, converting...")
+            summary = {}
+            for path in tfevents:
+                filename = os.path.basename(path)
+                namespace = path.replace(filename, "").replace(directory, "").strip(os.sep)
+                summary.update(wbtf.stream_tfevents(path, file_api, run, namespace=namespace))
+            for path in glob.glob(os.path.join(directory, "media/**/*"), recursive=True):
+                if os.path.isfile(path):
+                    paths.append(path)
         else:
             wandb.termerror(
                 "No history or tfevents files found, only syncing files")
@@ -246,7 +270,10 @@ class Run(object):
             # TODO: half backed support for config.json
             run_update["config"] = {k: {"value": v}
                                     for k, v in six.iteritems(user_config)}
-        if summary:
+        if isinstance(summary, dict):
+            #TODO: summary should already have data_types converted here...
+            run_update["summary_metrics"] = util.json_dumps_safer(summary)
+        elif summary:
             run_update["summary_metrics"] = open(summary).read()
         if meta:
             meta = json.load(open(meta))
@@ -268,6 +295,10 @@ class Run(object):
             pusher.file_changed(k, path)
         pusher.finish()
         pusher.print_status()
+        file_api.finish(0)
+        # Remove temporary media images generated from tfevents
+        if history is None and os.path.exists(os.path.join(directory, "media")):
+            shutil.rmtree(os.path.join(directory, "media"))
         wandb.termlog("Finished!")
         return run
 
@@ -297,8 +328,7 @@ class Run(object):
         if project is None:
             project = self.auto_project_name(api)
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
-                                       project=project, entity=api.settings(
-                                           "entity"),
+                                       project=project, entity=self.entity,
                                        group=self.group, tags=self.tags if len(
                                            self.tags) > 0 else None,
                                        config=self.config.as_dict(), description=self.name_and_description, host=socket.gethostname(),
@@ -467,7 +497,7 @@ class Run(object):
         if self._history is None:
             jupyter_callback = self._jupyter_agent.start if self._jupyter_agent else None
             self._history = history.History(
-                HISTORY_FNAME, self._dir, add_callback=self._history_added, jupyter_callback=jupyter_callback)
+                self, add_callback=self._history_added, jupyter_callback=jupyter_callback)
             if self._history._steps > 0:
                 self.resumed = True
         return self._history
