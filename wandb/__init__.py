@@ -752,7 +752,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # may depend on those things
     if sys.platform == 'win32' and run.mode != 'clirun':
         termerror(
-            'Headless mode isn\'t supported on Windows. If you want to use W&B, please use "wandb run ..."; running normally.')
+            'To use wandb on windows, you need to run the command "wandb run python <your_train_script>.py"')
         return run
 
     if in_jupyter:
