@@ -9,7 +9,7 @@ import wandb
 import tensorflow as tf
 from tensorboardX import SummaryWriter
 
-@pytest.mark.skip()
+
 def test_tensorboard(run_manager):
     wandb.tensorboard.patch(tensorboardX=False)
     tf.summary.FileWriterCache.clear()
@@ -41,7 +41,6 @@ def test_tensorboard_no_step(run_manager):
     assert len(wandb.run.history.rows) == 2
 
 
-@pytest.mark.skip()
 def test_tensorboard_s3(run_manager, capsys, mocker):
     # This mocks out the tensorboard writer so we dont attempt to talk to s3
     from tensorflow.python.summary.writer import event_file_writer
@@ -71,7 +70,6 @@ def test_tensorboard_s3(run_manager, capsys, mocker):
     assert len(glob.glob(wandb.run.dir + "/*tfevents*")) == 0
 
 
-@pytest.mark.skip()
 def test_tensorboardX(run_manager):
     wandb.tensorboard.patch(tensorboardX=True)
 
@@ -99,7 +97,7 @@ def test_tensorboardX(run_manager):
                 events.append(file)
     assert rows[0]["matplotlib"]['width'] == 640
     assert rows[0]["matplotlib"]['height'] == 480
-    assert rows[0]["matplotlib"]['_type'] == 'image-file'
+    assert rows[0]["matplotlib"]['_type'] == 'images'
     assert rows[1]["data/scalar_group/foo"] == 10
     assert rows[1]["data/scalar_group/bar"] == 100
     assert len(events) == 3

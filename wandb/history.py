@@ -214,6 +214,7 @@ class History(object):
                 self._file.write(util.json_dumps_safer_history(self.row))
                 self._file.write('\n')
                 self._file.flush()
+                os.fsync(self._file.fileno())
                 if self._add_callback:
                     self._add_callback(self.row)
                 self._index(self.row)
