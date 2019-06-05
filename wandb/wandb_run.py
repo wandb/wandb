@@ -124,7 +124,7 @@ class Run(object):
     @property
     def path(self):
         # TODO: theres an edge case where self.entity is None
-        return "/".join([str(self.entity), str(self.project), str(self.id)])
+        return "/".join([str(self.entity), self.project_name(), self.id])
 
     def _init_jupyter_agent(self):
         from wandb.jupyter import JupyterAgent
