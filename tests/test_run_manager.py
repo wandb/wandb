@@ -84,6 +84,8 @@ def test_pip_freeze(mocker, run_manager):
 
 
 def test_custom_file_policy(mocker, run_manager):
+    run_manager._block_file_observer()
+    run_manager.init_run()
     for i in range(5):
         with open(os.path.join(wandb.run.dir, "ckpt_%i.txt" % i), "w") as f:
             f.write(str(i))
