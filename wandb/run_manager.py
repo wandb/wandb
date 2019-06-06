@@ -121,8 +121,22 @@ class FileEventHandlerOverwrite(FileEventHandler):
         self._file_pusher.file_changed(
             self.save_name, self.file_path, copy=True)
 
-class FileEventHandlerThrottledOverwrite(FileEventHandler):
 
+class FileEventHandlerOverwriteOnce(FileEventHandler):
+    """This file handler is meant for files like metadata which may update during the run but should be uploaded upon creation"""
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        super(FileEventHandlerOverwriteOnce, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._file_pusher = file_pusher
+
+    def on_created(self):
+        self._file_pusher.file_changed(self.save_name, self.file_path)
+
+    def finish(self):
+        self._file_pusher.file_changed(self.save_name, self.file_path)
+
+class FileEventHandlerThrottledOverwrite(FileEventHandler):
+    """This file handler uploads the file atmost every 15 seconds and only if it's size has increased by 20%"""
     # Don't upload
     RATE_LIMIT_SECONDS = 15
 
@@ -172,6 +186,7 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
 
 
 class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwrite):
+    """This event handler will upload files every N seconds as it changes throttling as the size increases"""
     TEN_MB =     10000000
     HUNDRED_MB = 100000000
     ONE_GB =     1000000000
@@ -193,6 +208,7 @@ class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwri
             self.save_file()
 
 class FileEventHandlerOverwriteDeferred(FileEventHandler):
+    """This file handler only updates at the end of the run"""
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
         super(FileEventHandlerOverwriteDeferred, self).__init__(
             file_path, save_name, api, *args, **kwargs)
@@ -665,9 +681,12 @@ class RunManager(object):
                 self._api.get_file_stream_api().set_file_policy(save_name, OverwriteFilePolicy())
                 self._file_event_handlers[save_name] = FileEventHandlerSummary(
                     file_path, save_name, self._api, self._file_pusher, self._run)
-            elif save_name.startswith('media/'):
-                # Save media files immediately
+            elif save_name.startswith('media/') or save_name in ["requirements.txt", "diff.patch"]:
+                # Save media files and special wandb files immediately
                 self._file_event_handlers[save_name] = FileEventHandlerOverwrite(
+                    file_path, save_name, self._api, self._file_pusher)
+            elif save_name == meta.METADATA_FNAME:
+                self._file_event_handlers[save_name] = FileEventHandlerOverwriteOnce(
                     file_path, save_name, self._api, self._file_pusher)
             else:
                 Handler = FileEventHandlerOverwriteDeferred
