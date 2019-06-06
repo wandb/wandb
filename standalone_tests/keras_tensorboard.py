@@ -5,7 +5,8 @@ import tensorflow as tf
 import glob
 import os
 
-wandb.init(project="tf2", sync_tensorboard=True, resume=True)
+#wandb.init(project="tf2", sync_tensorboard=True, resume=True)
+wandb.init(sync_tensorboard=True, resume=True)
 
 wandb.config['nice'] = 'So cool fun'
 

@@ -52,6 +52,8 @@ class Run(object):
         self.job_type = job_type
         self.pid = os.getpid()
         self.resumed = False  # we set resume when history is first accessed
+        self._api = None
+
 
         self.program = program
         if not self.program:
@@ -67,11 +69,10 @@ class Run(object):
         self.wandb_dir = wandb_dir
 
         with configure_scope() as scope:
-            api = InternalApi()
-            self.project = api.settings("project")
+            self.project = self.api.settings("project")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
-            scope.set_tag("url", self.get_url(api))
+            scope.set_tag("url", self.get_url(self.api))
 
         if dir is None:
             self._dir = run_dir_path(self.id, dry=self.mode == 'dryrun')
@@ -114,17 +115,23 @@ class Run(object):
         self._jupyter_agent = None
 
     @property
+    def api(self):
+        if self._api is None:
+            self._api = InternalApi()
+        return self._api
+
+    @property
     def entity(self):
-        return InternalApi().settings('entity')
+        return self.api.settings('entity')
 
     @entity.setter
     def entity(self, entity):
-        InternalApi().set_setting("entity", entity)
+        self.api.set_setting("entity", entity)
 
     @property
     def path(self):
         # TODO: theres an edge case where self.entity is None
-        return "/".join([str(self.entity), str(self.project), str(self.id)])
+        return "/".join([str(self.entity), self.project_name(), self.id])
 
     def _init_jupyter_agent(self):
         from wandb.jupyter import JupyterAgent
@@ -178,7 +185,8 @@ class Run(object):
         resume = environment.get(env.RESUME)
         storage_id = environment.get(env.RUN_STORAGE_ID)
         mode = environment.get(env.MODE)
-        disabled = InternalApi().disabled()
+        api = InternalApi()
+        disabled = api.disabled()
         if not mode and disabled:
             mode = "dryrun"
         elif disabled and mode != "dryrun":
@@ -323,7 +331,7 @@ class Run(object):
         return project.replace(os.sep, '_')
 
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
-        api = api or InternalApi()
+        api = api or self.api
         project = api.settings('project')
         if project is None:
             project = self.auto_project_name(api)
@@ -372,12 +380,11 @@ class Run(object):
         util.mkdir_exists_ok(self._dir)
 
     def project_name(self, api=None):
-        if api is None:
-            api = InternalApi()
+        api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
 
     def get_url(self, api=None):
-        api = api or InternalApi()
+        api = api or self.api
         if api.api_key:
             if api.settings('entity') is None:
                 viewer = api.viewer()
@@ -399,9 +406,8 @@ class Run(object):
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
         if os.path.exists(self.log_fname):
-            api = InternalApi()
-            api.set_current_run_id(self.id)
-            pusher = FilePusher(api)
+            self.api.set_current_run_id(self.id)
+            pusher = FilePusher(self.api)
             pusher.update_file("wandb-debug.log", self.log_fname)
             pusher.file_changed("wandb-debug.log", self.log_fname)
             pusher.finish()
