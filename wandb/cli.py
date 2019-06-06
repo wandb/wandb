@@ -864,7 +864,7 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
 MONKEY_CONTEXT = copy.copy(CONTEXT)
 MONKEY_CONTEXT['allow_extra_args'] = True
 
-@cli.command(context_settings=MONKEY_CONTEXT, help="Run any script with wandb")
+@cli.command(context_settings=MONKEY_CONTEXT, help="Run any script with wandb", hidden=True)
 @click.pass_context
 @click.argument('program')
 @click.argument('args', nargs=-1)
