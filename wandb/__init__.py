@@ -488,7 +488,7 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
 
     if tensorboard_patched and step is None:
         termwarn(
-            "wandb.log called without a step keyword argument and tensorboard is patched.  Pass the same step that tensorboard is using to avoid data loss.", repeat=False)
+            "wandb.log called without a step keyword argument.  Pass the same step that tensorboard is using to avoid data loss see:\nhttps://docs.wandb.com/docs/integrations/tensorboard.html#custom-metrics", repeat=False)
 
     if row is None:
         row = {}
