@@ -136,6 +136,8 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                     'getpass.getpass', lambda x: "0123456789012345678901234567890123456789")
                 assert InternalApi().api_key == None
             os.environ['WANDB_RUN_DIR'] = str(tmpdir)
+            if request.node.get_closest_marker('silent'):
+                os.environ['WANDB_SILENT'] = "true"
 
             assert wandb.run is None
             assert wandb.config is None
@@ -301,7 +303,6 @@ def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunM
     run_manager._stderr_tee = mocker.MagicMock()
     run_manager._output_log = mocker.MagicMock()
     run_manager._stdout_stream = mocker.MagicMock()
-    run_manager._stderr_stream = mocker.MagicMock()
     run_manager._stderr_stream = mocker.MagicMock()
     run_manager.mirror_stdout_stderr = mocker.MagicMock()
     run_manager.unmirror_stdout_stderr = mocker.MagicMock()

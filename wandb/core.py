@@ -14,7 +14,6 @@ import click
 from . import env
 from . import io_wrap
 
-
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists(os.path.join(env.get_dir(os.getcwd()), '.wandb')):
     __stage_dir__ = '.wandb' + os.sep
@@ -75,8 +74,16 @@ def termlog(string='', newline=True, repeat=True):
         line = ''
     if not repeat and line in PRINTED_MESSAGES:
         return
-    PRINTED_MESSAGES.add(line)
-    click.echo(line, file=sys.stderr, nl=newline)
+    # Repeated line tracking limited to 1k messages
+    if len(PRINTED_MESSAGES) < 1000:
+        PRINTED_MESSAGES.add(line)
+    if os.getenv(env.SILENT):
+        from wandb import util
+        util.mkdir_exists_ok(os.path.dirname(util.get_log_file_path()))
+        with open(util.get_log_file_path(), 'w') as log:
+            click.echo(line, file=log, nl=newline)
+    else:
+        click.echo(line, file=sys.stderr, nl=newline)
 
 
 def termwarn(string, **kwargs):

@@ -11,7 +11,7 @@ from wandb.apis import internal
 import wandb
 from wandb import wandb_socket
 from wandb.wandb_run import Run, RESUME_FNAME
-from wandb.run_manager import FileEventHandlerThrottledOverwriteMinWait, FileEventHandlerOverwriteDeferred
+from wandb.run_manager import FileEventHandlerThrottledOverwriteMinWait, FileEventHandlerOverwriteDeferred, FileEventHandlerOverwrite, FileEventHandlerOverwriteOnce
 from click.testing import CliRunner
 
 
@@ -84,16 +84,24 @@ def test_pip_freeze(mocker, run_manager):
 
 
 def test_custom_file_policy(mocker, run_manager):
+    run_manager._block_file_observer()
+    run_manager.init_run()
     for i in range(5):
         with open(os.path.join(wandb.run.dir, "ckpt_%i.txt" % i), "w") as f:
             f.write(str(i))
     wandb.save("ckpt*")
+    with open(os.path.join(wandb.run.dir, "foo.bar"), "w") as f:
+        f.write("bar")
 
     run_manager.test_shutdown()
     assert isinstance(
         run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwriteMinWait)
     assert isinstance(
-        run_manager._file_event_handlers["wandb-metadata.json"], FileEventHandlerOverwriteDeferred)
+        run_manager._file_event_handlers["foo.bar"], FileEventHandlerOverwriteDeferred)
+    assert isinstance(
+        run_manager._file_event_handlers["wandb-metadata.json"], FileEventHandlerOverwriteOnce)
+    assert isinstance(
+        run_manager._file_event_handlers["requirements.txt"], FileEventHandlerOverwrite)
 
 
 def test_custom_file_policy_symlink(mocker, run_manager):
