@@ -2,9 +2,16 @@
 
 #### :bug: Bug Fix
 
+-   entity is persisted on wandb.run when queried from the server
+-   tmp files always use the temporary directory to avoid syncing
+
 #### :nail_care: Enhancement
 
--   summary now supports new dataframe fromat
+-   summary now supports new dataframe format
+-   WANDB_SILENT environment variable writes all wandb messages to debug.log
+-   Improved error messages for windows and tensorboard logging
+-   output.log is uploaded at the end of each run
+-   metadata, requirements, and patches are uploaded at the beginning of a run
 
 ## 0.8.1 (May 23, 2019)
 
