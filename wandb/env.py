@@ -43,6 +43,7 @@ DOCKER = 'WANDB_DOCKER'
 AGENT_REPORT_INTERVAL = 'WANDB_AGENT_REPORT_INTERVAL'
 AGENT_KILL_DELAY = 'WANDB_AGENT_KILL_DELAY'
 CRASH_NOSYNC_TIME = 'WANDB_CRASH_NOSYNC_TIME'
+MAGIC_EPOCHS = 'WANDB_MAGIC_EPOCHS'
 
 
 def is_debug(default=None, env=None):
@@ -184,6 +185,17 @@ def get_crash_nosync_time(default=None, env=None):
     if env is None:
         env = os.environ
     val = env.get(CRASH_NOSYNC_TIME, default)
+    try:
+        val = int(val)
+    except ValueError:
+        val = None  # silently ignore env format errors, caller should handle.
+    return val
+
+
+def get_magic_epochs(default=None, env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(MAGIC_EPOCHS, default)
     try:
         val = int(val)
     except ValueError:

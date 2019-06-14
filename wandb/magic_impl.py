@@ -66,9 +66,14 @@ def wandb_keras_hooks_install():
     global run_once
     global import_hook
  
+    # FIXME(jhr): consolidate fit and fit_generator
     def fit(self, *args, **kwargs):
         import wandb
         keras = sys.modules.get("keras")
+        epochs = kwargs.pop("epochs", None)
+        magic_epochs = get_magic_epochs()
+        if magic_epochs is not None:
+            epochs = magic_epochs
         callbacks = kwargs.pop("callbacks", [])
 
         try:
@@ -81,11 +86,17 @@ def wandb_keras_hooks_install():
 
         callbacks.append(wandb.keras.WandbCallback())
         kwargs["callbacks"] = callbacks
+        if epochs is not None:
+            kwargs["epochs"] = epochs
         self._fit(*args, **kwargs)
 
     def fit_generator(self, *args, **kwargs):
         import wandb
         keras = sys.modules.get("keras")
+        epochs = kwargs.pop("epochs", None)
+        magic_epochs = get_magic_epochs()
+        if magic_epochs is not None:
+            epochs = magic_epochs
         callbacks = kwargs.pop("callbacks", [])
 
         try:
@@ -98,6 +109,8 @@ def wandb_keras_hooks_install():
 
         callbacks.append(wandb.keras.WandbCallback())
         kwargs["callbacks"] = callbacks
+        if epochs is not None:
+            kwargs["epochs"] = epochs
         self._fit_generator(*args, **kwargs)
 
     def monkey_keras(keras=None):
