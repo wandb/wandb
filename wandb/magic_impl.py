@@ -71,7 +71,7 @@ def wandb_keras_hooks_install():
         import wandb
         keras = sys.modules.get("keras")
         epochs = kwargs.pop("epochs", None)
-        magic_epochs = get_magic_epochs()
+        magic_epochs = wandb.env.get_magic_epochs()
         if magic_epochs is not None:
             epochs = magic_epochs
         callbacks = kwargs.pop("callbacks", [])
@@ -94,7 +94,7 @@ def wandb_keras_hooks_install():
         import wandb
         keras = sys.modules.get("keras")
         epochs = kwargs.pop("epochs", None)
-        magic_epochs = get_magic_epochs()
+        magic_epochs = wandb.env.get_magic_epochs()
         if magic_epochs is not None:
             epochs = magic_epochs
         callbacks = kwargs.pop("callbacks", [])
