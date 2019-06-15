@@ -88,7 +88,7 @@ def wandb_keras_hooks_install():
         kwargs["callbacks"] = callbacks
         if epochs is not None:
             kwargs["epochs"] = epochs
-        self._fit(*args, **kwargs)
+        return self._fit(*args, **kwargs)
 
     def fit_generator(self, *args, **kwargs):
         import wandb
@@ -111,12 +111,13 @@ def wandb_keras_hooks_install():
         kwargs["callbacks"] = callbacks
         if epochs is not None:
             kwargs["epochs"] = epochs
-        self._fit_generator(*args, **kwargs)
+        return self._fit_generator(*args, **kwargs)
 
     def monkey_keras(keras=None):
         # by default we defer init until now
         # TODO: Need to be able to pass options to init?
         import wandb
+        # FIXME: add magic taint
         wandb.init()
 
         keras.engine.Model._fit = keras.engine.Model.fit
