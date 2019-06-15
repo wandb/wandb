@@ -196,6 +196,8 @@ def get_magic_epochs(default=None, env=None):
     if env is None:
         env = os.environ
     val = env.get(MAGIC_EPOCHS, default)
+    if val is None:
+        return val
     try:
         val = int(val)
     except ValueError:

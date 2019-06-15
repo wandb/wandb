@@ -61,13 +61,11 @@ class ArgumentParser(argparse.ArgumentParser):
 
 
 def wandb_keras_hooks_install():
-    # TODO: Need to safely check if keras is installed
-    #import keras
     global run_once
     global import_hook
  
-    # FIXME(jhr): consolidate fit and fit_generator
-    def fit(self, *args, **kwargs):
+    def _fit_wrapper(fn,
+            generator=None, *args, **kwargs):
         import wandb
         keras = sys.modules.get("keras")
         epochs = kwargs.pop("epochs", None)
@@ -88,30 +86,52 @@ def wandb_keras_hooks_install():
         kwargs["callbacks"] = callbacks
         if epochs is not None:
             kwargs["epochs"] = epochs
-        return self._fit(*args, **kwargs)
+        if generator:
+            return fn(generator, *args, **kwargs)
+        return fn(*args, **kwargs)
 
-    def fit_generator(self, *args, **kwargs):
-        import wandb
-        keras = sys.modules.get("keras")
-        epochs = kwargs.pop("epochs", None)
-        magic_epochs = wandb.env.get_magic_epochs()
-        if magic_epochs is not None:
-            epochs = magic_epochs
-        callbacks = kwargs.pop("callbacks", [])
+    # NOTE(jhr): needs to spell out all useable args so that users who inpspect can see args
+    def fit(self,
+            x=None,
+            y=None,
+            batch_size=None,
+            epochs=1,
+            # FIXME: there is more
+            #verbose=1,
+            #callbacks=None,
+            #validation_split=0.,
+            #validation_data=None,
+            #shuffle=True,
+            #class_weight=None,
+            #sample_weight=None,
+            #initial_epoch=0,
+            #steps_per_epoch=None,
+            #validation_steps=None,
+            #validation_freq=1,
+            #max_queue_size=10,
+            #workers=1,
+            #use_multiprocessing=False,
+            *args, **kwargs):
+        return _fit_wrapper(self._fit, x=x, y=y, batch_size=batch_size, epochs=epochs, *args, **kwargs)
 
-        try:
-            tb_callback = keras.callbacks.TensorBoard(log_dir=wandb.run.dir)
-        except ImportError:
-            pass
-            # TODO(jhr): warning that we were unable to add tensorboard
-        else:
-            callbacks.append(tb_callback)
-
-        callbacks.append(wandb.keras.WandbCallback())
-        kwargs["callbacks"] = callbacks
-        if epochs is not None:
-            kwargs["epochs"] = epochs
-        return self._fit_generator(*args, **kwargs)
+    def fit_generator(self, generator,
+                      steps_per_epoch=None,
+                      epochs=1,
+                      # FIXME: there is more
+                      #verbose=1,
+                      #verbose=1,
+                      #callbacks=None,
+                      #validation_data=None,
+                      #validation_steps=None,
+                      #validation_freq=1,
+                      #class_weight=None,
+                      #max_queue_size=10,
+                      #workers=1,
+                      ##use_multiprocessing=False,
+                      #shuffle=True,
+                      #initial_epoch=0,
+                      *args, **kwargs):
+        return _fit_wrapper(self._fit_generator, generator=generator, steps_per_epoch=steps_per_epoch, epochs=epochs, *args, **kwargs)
 
     def monkey_keras(keras=None):
         # by default we defer init until now
@@ -120,6 +140,8 @@ def wandb_keras_hooks_install():
         # FIXME: add magic taint
         wandb.init()
 
+        #print("JHRDEBUG", type(keras.engine.Model), keras.engine.Model.__qualname__)
+        #keras.engine.Model._fit_wrapper = _fit_wrapper
         keras.engine.Model._fit = keras.engine.Model.fit
         keras.engine.Model.fit = fit
         keras.engine.Model._fit_generator = keras.engine.Model.fit_generator
@@ -191,6 +213,7 @@ def wandb_keras_hooks_install():
         
 
     if not run_once:
+        #print("JHRDEBUG0")
         run_once = True
         #print("magic ready")
         #print("mods", tuple(sys.modules))
