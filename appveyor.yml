@@ -9,7 +9,7 @@ environment:
 
 install:
   - "python -m pip install pip --upgrade"
-  - "pip install -r requirements_dev.txt"
+  - "pip install -r requirements_windows.txt"
   - "pip install -e ."
 
 build: off
