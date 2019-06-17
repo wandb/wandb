@@ -8,9 +8,9 @@ environment:
    - PYTHON: "C:\\Python37-x64"
 
 install:
-  - "python -m pip install pip --upgrade"
-  - "pip install -r requirements_windows.txt"
-  - "pip install -e ."
+  - "python -m pip3 install pip --upgrade"
+  - "pip3 install -r requirements_windows.txt"
+  - "pip3 install -e ."
 
 build: off
 
