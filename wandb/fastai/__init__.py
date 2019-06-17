@@ -16,9 +16,7 @@ Examples:
         from wandb.fastai import WandbCallback
         from functools import partial
         [...]
-        learn = Learner(data,
-                    callback_fns=partial(WandbCallback, ...),
-                    ...)  # add "path=wandb.run.dir" if saving model
+        learn = Learner(data, ..., callback_fns=partial(WandbCallback, ...))
         learn.fit(epochs)
 
     Finally, it is possible to use WandbCallback only when starting
@@ -99,8 +97,8 @@ class WandbCallback(TrackerCallback):
             current = self.get_monitor_value()
             if current is not None and self.operator(current, self.best):
                 print(
-                    'Better model found at epoch {} with {} value: {}.'.format(epoch, self.monitor, current)
-                )
+                    'Better model found at epoch {} with {} value: {}.'.format(
+                        epoch, self.monitor, current))
                 self.best = current
 
                 # Section modified to save within wandb folder
@@ -134,4 +132,5 @@ class WandbCallback(TrackerCallback):
             if self.model_path.is_file():
                 with self.model_path.open('rb') as model_file:
                     self.learn.load(model_file, purge=False)
-                    print('Loaded best saved model from {}'.format(self.model_path))
+                    print('Loaded best saved model from {}'.format(
+                        self.model_path))
