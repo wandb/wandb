@@ -5,11 +5,11 @@ environment:
   matrix:
 
    - PYTHON: "C:\\Python36-x64"
-   - PYTHON: "C:\\Python37-x64"
 
 install:
   - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
   - python --version
+  - python -m pip install -U pip
   - "pip install -r requirements_windows.txt"
   - "pip install -e ."
 
