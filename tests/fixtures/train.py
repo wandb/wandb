@@ -3,7 +3,6 @@ import time
 import random
 import wandb
 import os
-import numpy as np
 import signal
 
 parser = argparse.ArgumentParser()
@@ -17,7 +16,6 @@ wandb.init(config=args)
 for i in range(0, wandb.config.epochs):
     loss = random.uniform(0, wandb.config.epochs - i)
     print("loss: %s" % loss)
-    wandb.log({"img": [wandb.Image(np.zeros((28, 28, 1)))]})
     wandb.log({"loss": loss}, commit=False)
     wandb.log({"cool": True})
 

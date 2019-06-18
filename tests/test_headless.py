@@ -26,8 +26,6 @@ def test_dry_run(runner):
             assert meta["program"] == "train.py"
             assert meta["exitcode"] == 0
             assert os.path.exists(os.path.join(run_dir, "output.log"))
-            assert os.path.exists(os.path.join(
-                run_dir, "media", "images", "img_0.jpg"))
             assert "loss:" in open(os.path.join(run_dir, "output.log")).read()
             assert os.path.exists(os.path.join(
                 run_dir, "wandb-history.jsonl"))
