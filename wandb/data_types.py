@@ -25,6 +25,7 @@ import json
 import pprint
 import shutil
 from six.moves import queue
+import warnings
 
 import backports.tempfile
 import collections
@@ -38,6 +39,10 @@ import json
 import codecs
 import tempfile
 from wandb import util
+
+
+# Get rid of cleanup warnings in Python 2.7.
+warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'backports.tempfile')
 
 
 # Staging directory so we can encode raw data into files, then hash them before

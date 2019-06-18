@@ -115,11 +115,7 @@ class FileEventHandlerOverwrite(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
-        # Tell file_pusher to copy the file, we want to allow the user to modify the
-        # original while this one is uploading (modifying while uploading seems to
-        # cause a hang somewhere in the google upload code, until the server times out)
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
 class FileEventHandlerOverwriteOnce(FileEventHandler):
@@ -181,8 +177,7 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
     def save_file(self):
         self._last_uploaded_time = time.time()
         self._last_uploaded_size = self.current_size
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
 class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwrite):
@@ -215,7 +210,9 @@ class FileEventHandlerOverwriteDeferred(FileEventHandler):
         self._file_pusher = file_pusher
 
     def finish(self):
-        self._file_pusher.file_changed(self.save_name, self.file_path)
+        # We use copy=False to avoid possibly expensive copies, and because
+        # user files shouldn't still be changing at the end of the run.
+        self._file_pusher.file_changed(self.save_name, self.file_path, copy=False)
 
 
 class FileEventHandlerConfig(FileEventHandler):
@@ -266,8 +263,7 @@ class FileEventHandlerConfig(FileEventHandler):
         # TODO(adrian): ensure the file content will exactly match Bucket.config
         # ie. push the file content as a string
         self._api.upsert_run(id=self._run.storage_id, config=config_dict)
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
         self._last_sent = time.time()
 
     def finish(self):
