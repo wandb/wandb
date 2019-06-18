@@ -15,6 +15,7 @@ import yaml
 import numbers
 import inspect
 import glob
+import platform
 
 import click
 from pkg_resources import parse_version
@@ -88,6 +89,9 @@ class FileTailer(object):
 class FileEventHandler(object):
     def __init__(self, file_path, save_name, api, *args, **kwargs):
         self.file_path = file_path
+        # Convert windows paths to unix paths 
+        if platform.system() == "Windows":
+            save_name = save_name.replace("\\", "/")
         self.save_name = save_name
         self._api = api
 
