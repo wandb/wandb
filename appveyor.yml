@@ -18,7 +18,7 @@ build: off
 test_script:
   # Run the project tests and store results in .xml log
   - mkdir results
-  - "pytest --cov=wandb --vcr-record=none --junitxml=results\\pytest.xml tests\\test_headless.py tests\\test_docker.py"
+  - "pytest --cov=wandb --vcr-record=none --junitxml=results\\pytest.xml tests\\test_cli.py tests\\test_docker.py"
 
 on_finish:
   # Upload test results to AppVeyor

@@ -18,7 +18,7 @@ def test_dry_run(runner):
         os.environ["WANDB_MODE"] = "dryrun"
         os.environ["WANDB_TEST"] = "true"
         try:
-            res = sh.python("train.py")
+            res = os.system("train.py")
             run_dir = glob.glob(os.path.join("wandb", "dry*"))[0]
             meta = json.loads(
                 open(os.path.join(run_dir, "wandb-metadata.json")).read())
