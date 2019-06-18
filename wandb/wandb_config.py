@@ -43,6 +43,7 @@ class Config(object):
         self._load_wandb()
         for conf_path in config_paths:
             self._load_file(conf_path)
+        self._set_wandb('cli_version', wandb.__version__)
 
         # Do this after defaults because it triggers loading of pre-existing
         # config.yaml (if it exists)
