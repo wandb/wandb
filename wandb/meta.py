@@ -8,6 +8,7 @@ import threading
 import time
 import socket
 import getpass
+from shutil import copyfile
 from datetime import datetime
 
 from wandb import util
@@ -23,6 +24,7 @@ class Meta(object):
     HEARTBEAT_INTERVAL_SECONDS = 15
 
     def __init__(self, api, out_dir='.'):
+        self.out_dir = out_dir
         self.fname = os.path.join(out_dir, METADATA_FNAME)
         self._api = api
         self._shutdown = False
@@ -40,6 +42,21 @@ class Meta(object):
 
     def setup(self):
         self.data["root"] = os.getcwd()
+        try:
+            import __main__
+            self.data["program"] = __main__.__file__
+        except (ImportError, AttributeError):
+            self.data["program"] = '<python with no main file>'
+            if wandb._get_python_type() != "python":
+                meta = wandb.jupyter.notebook_metadata()
+                if meta.get("path"):
+                    if "fileId=" in meta["path"]:
+                        self.data["colab"] = "https://colab.research.google.com/drive/"+meta["path"].split("fileId=")[0]
+                        self.data["program"] = meta["name"]
+                    else:
+                        self.data["program"] = meta["path"]
+                        self.data["root"] = meta["root"]
+
         if self._api.git.enabled:
             self.data["git"] = {
                 "remote": self._api.git.remote_url,
@@ -47,6 +64,9 @@ class Meta(object):
             }
             self.data["email"] = self._api.git.email
             self.data["root"] = self._api.git.root or self.data["root"]
+        elif os.path.exists(os.path.join(self.data["root"], self.data["program"])):
+            util.mkdir_exists_ok(os.path.join(self.out_dir, "code"))
+            copyfile(os.path.join(self.data["root"], self.data["program"]), os.path.join("code", self.data["program"]))
 
         self.data["startedAt"] = datetime.utcfromtimestamp(
             wandb.START_TIME).isoformat()
@@ -60,6 +80,7 @@ class Meta(object):
         self.data["username"] = os.getenv("WANDB_USERNAME", username)
         self.data["os"] = platform.platform(aliased=True)
         self.data["python"] = platform.python_version()
+        self.data["executable"] = sys.executable
         if env.get_docker():
             self.data["docker"] = env.get_docker()
         try:
@@ -73,11 +94,6 @@ class Meta(object):
             self.data["cpu_count"] = multiprocessing.cpu_count()
         except NotImplementedError:
             pass
-        try:
-            import __main__
-            self.data["program"] = __main__.__file__
-        except (ImportError, AttributeError):
-            self.data["program"] = '<python with no main file>'
         # TODO: we should use the cuda library to collect this
         if os.path.exists("/usr/local/cuda/version.txt"):
             self.data["cuda"] = open(

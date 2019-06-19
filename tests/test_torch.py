@@ -37,6 +37,17 @@ class DynamicModule(nn.Module):
         x = self.activations[act](x)
         return x
 
+class Multivariate(nn.Module):
+    def __init__(self, num_outputs = 2):
+        super().__init__()
+        self.stds = nn.Parameter(torch.ones(num_outputs))
+        torch.nn.init.constant_(self.stds, 1)
+        self.fc = nn.Linear(2, 2)
+
+    def forward(self, x):
+        dist = torch.distributions.MultivariateNormal(loc=x,
+            covariance_matrix=torch.diag(self.stds.exp()))
+        return F.log_softmax(self.fc(dist.sample()), dim=0)
 
 class ParameterModule(nn.Module):
     def __init__(self):
@@ -314,6 +325,15 @@ def test_embedding(wandb_init_run):
         wandb.log({"loss": 1})
     assert len(wandb_init_run.history.rows[0]) == 82
 
+def test_multivariate(wandb_init_run):
+    net = Multivariate(num_outputs=2)
+    wandb.watch(net, log="all", log_freq=1)
+    for i in range(2):
+        output = net(torch.ones((1)))
+        samp = output.backward(torch.ones((2)))
+        wandb.log({"loss": samp})
+    assert wandb_init_run.summary["graph_0"].to_json()
+    assert len(wandb_init_run.history.rows[0]) == 9
 
 def test_double_log(wandb_init_run):
     net = ConvNet()

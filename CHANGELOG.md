@@ -4,6 +4,8 @@
 
 -   entity is persisted on wandb.run when queried from the server
 -   tmp files always use the temporary directory to avoid syncing
+-   raise error if file shrinks while uploading
+-   images log properly in windows
 
 #### :nail_care: Enhancement
 
@@ -12,6 +14,13 @@
 -   Improved error messages for windows and tensorboard logging
 -   output.log is uploaded at the end of each run
 -   metadata, requirements, and patches are uploaded at the beginning of a run
+-   when not running from a git repository, store the main python file
+-   when running in jupyter store the name of the notebook
+-   auto-login support for colab
+-   store url to colab notebook
+-   store the version of this library in config
+-   store sys.executable in metadata
+-   fastai callback no longer requires path
 
 ## 0.8.1 (May 23, 2019)
 

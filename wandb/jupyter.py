@@ -36,6 +36,60 @@ class WandBMagics(Magics):
         if cell is not None:
             get_ipython().run_cell(cell)
 
+def attempt_colab_login():
+    from google.colab import output
+    from google.colab._message import MessageError
+    from IPython import display
+
+    display.display(display.Javascript('''
+        window._wandbApiKey = new Promise((resolve, reject) => {
+            function loadScript(url) {
+            return new Promise(function(resolve, reject) {
+                let newScript = document.createElement("script");
+                newScript.onerror = reject;
+                newScript.onload = resolve;
+                document.body.appendChild(newScript);
+                newScript.src = url;
+            });
+            }
+            loadScript("https://cdn.jsdelivr.net/npm/postmate/build/postmate.min.js").then(() => {
+            const iframe = document.createElement('iframe')
+            iframe.style.cssText = "width:0;height:0;border:none"
+            document.body.appendChild(iframe)
+            const handshake = new Postmate({
+                container: iframe,
+                url: 'https://app.test/authorize'
+            });
+            const timeout = setTimeout(() => reject("Couldn't auto auth"), 10000)
+            handshake.then(function(child) {
+                child.on('authorize', data => {
+                    clearTimeout(timeout)
+                    resolve(data)
+                });
+            });
+            })
+        });
+    '''))
+    try:
+        return output.eval_js('_wandbApiKey')
+    except MessageError:
+        return None
+
+def notebook_metadata():
+    """Queries jupyter for the path and name of the notebook file"""
+    import ipykernel
+    ipykernel.connect.get_connection_file()
+    from notebook.notebookapp import list_running_servers
+    import requests
+    from requests.compat import urljoin
+    import re
+    kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
+    for s in list_running_servers():
+        res = requests.get(urljoin(s['url'], 'api/sessions'), params={'token': s.get('token', '')}).json()
+        for nn in res:
+            if nn['kernel']['id'] == kernel_id:
+                return {"root": s['notebook_dir'], "path": nn['notebook']['path'], "name": nn['notebook']['name']}
+    return {}
 
 class JupyterAgent(object):
     """A class that only logs metrics after `wandb.log` has been called and stops logging at cell completion"""
