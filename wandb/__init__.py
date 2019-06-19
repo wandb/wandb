@@ -279,6 +279,7 @@ def _init_jupyter(run):
     Log pushing and system stats don't start until `wandb.monitor()` is called.
     """
     from wandb import jupyter
+    from IPython.core.display import display, HTML
     # TODO: Should we log to jupyter?
     # global logging had to be disabled because it set the level to debug
     # I also disabled run logging because we're rairly using it.
@@ -289,7 +290,7 @@ def _init_jupyter(run):
     if not api.api_key:
         key = None
         if 'google.colab' in sys.modules:
-            key = jupyter.attempt_colab_login()
+            key = jupyter.attempt_colab_login(api.app_url)
             if key:
                 os.environ[env.API_KEY] = key
                 util.write_netrc(api.api_url, "user", key)
@@ -304,11 +305,14 @@ def _init_jupyter(run):
                 raise ValueError("API Key must be 40 characters long")
         # Ensure our api client picks up the new key
         api = InternalApi()
+        run._api = api
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
     api.set_current_run_id(run.id)
-    print("W&B Run: %s" % run.get_url(api))
-    print("Call `%%wandb` in the cell containing your training loop to display live results.")
+    display(HTML('''
+        Notebook configured with W&B. You can <a href="{}">open</a> the run page, or call <code>%%wandb</code> 
+        in a cell containing your training loop to display live results.
+    '''.format(run.get_url(api))))
     try:
         run.save(api=api)
     except (CommError, ValueError) as e:

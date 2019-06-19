@@ -36,7 +36,7 @@ class WandBMagics(Magics):
         if cell is not None:
             get_ipython().run_cell(cell)
 
-def attempt_colab_login():
+def attempt_colab_login(app_url):
     from google.colab import output
     from google.colab._message import MessageError
     from IPython import display
@@ -58,7 +58,7 @@ def attempt_colab_login():
             document.body.appendChild(iframe)
             const handshake = new Postmate({
                 container: iframe,
-                url: 'https://app.test/authorize'
+                url: '{}/authorize'
             });
             const timeout = setTimeout(() => reject("Couldn't auto auth"), 10000)
             handshake.then(function(child) {
@@ -69,7 +69,7 @@ def attempt_colab_login():
             });
             })
         });
-    '''))
+    '''.format(app_url.replace("http:", "https:"))))
     try:
         return output.eval_js('_wandbApiKey')
     except MessageError:
