@@ -276,7 +276,7 @@ def load_ipython_extension(ipython):
 
 def _init_jupyter(run):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
-    Log pushing and system stats don't start until `wandb.monitor()` is called.
+    Log pushing and system stats don't start until `wandb.log()` is first called.
     """
     from wandb import jupyter
     from IPython.core.display import display, HTML
@@ -310,8 +310,8 @@ def _init_jupyter(run):
     run.resume = "allow"
     api.set_current_run_id(run.id)
     display(HTML('''
-        Notebook configured with W&B. You can <a href="{}">open</a> the run page, or call <code>%%wandb</code> 
-        in a cell containing your training loop to display live results.
+        Notebook configured with <a href="https://wandb.com">W&B</a>. You can <a href="{}">open</a> the run page, or call <code>%%wandb</code> 
+        in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html">docs</a>.
     '''.format(run.get_url(api))))
     try:
         run.save(api=api)

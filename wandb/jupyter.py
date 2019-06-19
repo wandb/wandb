@@ -58,9 +58,9 @@ def attempt_colab_login(app_url):
             document.body.appendChild(iframe)
             const handshake = new Postmate({
                 container: iframe,
-                url: '{}/authorize'
+                url: '%s/authorize'
             });
-            const timeout = setTimeout(() => reject("Couldn't auto auth"), 10000)
+            const timeout = setTimeout(() => reject("Couldn't auto authenticate"), 5000)
             handshake.then(function(child) {
                 child.on('authorize', data => {
                     clearTimeout(timeout)
@@ -69,7 +69,7 @@ def attempt_colab_login(app_url):
             });
             })
         });
-    '''.format(app_url.replace("http:", "https:"))))
+    ''' % app_url.replace("http:", "https:")))
     try:
         return output.eval_js('_wandbApiKey')
     except MessageError:
