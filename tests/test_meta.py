@@ -13,7 +13,7 @@ from wandb.apis import InternalApi
 
 
 def test_meta(git_repo, mocker):
-    mocker.patch('sys.argv', ["foo", "bar"])
+    mocker.patch.object(sys, 'argv', ["foo", "bar"])
     meta = Meta(InternalApi())
     print(meta.data)
     assert meta.data["cpu_count"] > 0

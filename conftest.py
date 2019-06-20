@@ -93,8 +93,6 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
     orig_environ = dict(os.environ)
     orig_namespace = None
     run = None
-    #TODO: We need this?
-    api = InternalApi(load_settings=False)
     try:
         with CliRunner().isolated_filesystem():
             upsert_run(request_mocker)
