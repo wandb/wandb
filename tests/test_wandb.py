@@ -19,6 +19,10 @@ from .utils import runner
 import wandb
 from wandb import wandb_run
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 
 def test_log(wandb_init_run):
     history_row = {'stuff': 5}

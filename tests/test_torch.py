@@ -12,6 +12,10 @@ from torchvision import models
 from torch.autograd import Variable
 from pkg_resources import parse_version
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 
 def dummy_torch_tensor(size, requires_grad=True):
     if parse_version(torch.__version__) >= parse_version('0.4'):

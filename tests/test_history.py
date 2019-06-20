@@ -10,6 +10,8 @@ import plotly.graph_objs as go
 
 import wandb
 from wandb.history import History
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+History.keep_rows = True
 from wandb import data_types
 import torch
 import tensorflow as tf

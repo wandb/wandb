@@ -9,6 +9,10 @@ import wandb
 import tensorflow as tf
 from tensorboardX import SummaryWriter
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 
 def test_tensorboard(run_manager):
     wandb.tensorboard.patch(tensorboardX=False)
