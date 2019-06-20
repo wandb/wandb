@@ -9,8 +9,6 @@ from IPython.core.getipython import get_ipython
 from IPython.core.magic import cell_magic, line_cell_magic, line_magic, Magics, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.display import display, Javascript
-import ipykernel
-from notebook.notebookapp import list_running_servers
 import requests
 from requests.compat import urljoin
 import re
@@ -42,6 +40,7 @@ class WandBMagics(Magics):
             get_ipython().run_cell(cell)
 
 def attempt_colab_login(app_url):
+    """This renders an iframe to wandb in the hopes it posts back an api key"""
     from google.colab import output
     from google.colab._message import MessageError
     from IPython import display
@@ -83,6 +82,8 @@ def attempt_colab_login(app_url):
 def notebook_metadata():
     """Attempts to query jupyter for the path and name of the notebook file"""
     try:
+        import ipykernel
+        from notebook.notebookapp import list_running_servers
         kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
     except Exception:
         return {}
