@@ -3,6 +3,7 @@ coveralls==1.1
 mock==2.0.0
 sh==1.12.14
 ipython==6.5.0
+PyYAML>=4.2b4
 pytest==4.1.1
 pytest-watch==4.1.0
 pytest-mock==1.10.0
