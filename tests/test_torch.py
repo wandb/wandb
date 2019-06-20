@@ -37,17 +37,27 @@ class DynamicModule(nn.Module):
         x = self.activations[act](x)
         return x
 
-class Multivariate(nn.Module):
-    def __init__(self, num_outputs = 2):
-        super().__init__()
-        self.stds = nn.Parameter(torch.ones(num_outputs))
-        torch.nn.init.constant_(self.stds, 1)
-        self.fc = nn.Linear(2, 2)
+class Discrete(nn.Module):
+    def __init__(self, num_outputs):
+        super(Discrete, self).__init__()
 
     def forward(self, x):
-        dist = torch.distributions.MultivariateNormal(loc=x,
-            covariance_matrix=torch.diag(self.stds.exp()))
-        return F.log_softmax(self.fc(dist.sample()), dim=0)
+        probs = nn.functional.softmax(x, dim=0)
+        dist = torch.distributions.Categorical(probs=probs)
+        # TODO: if we don't call entropy here, PyTorch blows up with because we added hooks...
+        return dist.entropy()
+
+class DiscreteModel(nn.Module):
+    def __init__(self, num_outputs=2):
+        super(DiscreteModel, self).__init__()
+        self.linear1 = nn.Linear(1, 10)
+        self.linear2 = nn.Linear(10, num_outputs)
+        self.dist = Discrete(num_outputs)
+
+    def forward(self, x):
+        x = self.linear1(x)
+        x = self.linear2(x)
+        return self.dist(x)
 
 class ParameterModule(nn.Module):
     def __init__(self):
@@ -325,15 +335,15 @@ def test_embedding(wandb_init_run):
         wandb.log({"loss": 1})
     assert len(wandb_init_run.history.rows[0]) == 82
 
-def test_multivariate(wandb_init_run):
-    net = Multivariate(num_outputs=2)
+def test_categorical(wandb_init_run):
+    net = DiscreteModel(num_outputs=2)
     wandb.watch(net, log="all", log_freq=1)
     for i in range(2):
         output = net(torch.ones((1)))
         samp = output.backward(torch.ones((2)))
         wandb.log({"loss": samp})
     assert wandb_init_run.summary["graph_0"].to_json()
-    assert len(wandb_init_run.history.rows[0]) == 9
+    assert len(wandb_init_run.history.rows[0]) == 12
 
 def test_double_log(wandb_init_run):
     net = ConvNet()
