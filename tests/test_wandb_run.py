@@ -37,8 +37,8 @@ def test_url_escape(git_repo):
     del os.environ[env.PROJECT]
 
 
-def test_wandb_run_args_sys(git_repo):
-    sys.argv = ["rad", "cool"]
+def test_wandb_run_args_sys(git_repo, mocker):
+    mocker.patch('sys.argv', ["rad", "cool"])
     run = wandb_run.Run.from_environment_or_defaults()
     assert run.args == ["cool"]
 
