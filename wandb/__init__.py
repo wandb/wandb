@@ -599,7 +599,7 @@ def join():
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
-         sync_tensorboard=False, name=None, id=None):
+         sync_tensorboard=False, name=None, notes=None, id=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -616,6 +616,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         tags (list, optional): A list of tags to apply to the run
         id (str, optional): A globally unique (per project) identifier for the run
         name (str, optional): A display name which does not have to be unique
+        notes (str, optional): A multiline string associated with the run
         reinit (bool, optional): Allow multiple calls to init in the same process
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id
@@ -687,8 +688,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     if id:
         os.environ[env.RUN_ID] = id
     if name:
-        os.environ[env.DESCRIPTION] = name + \
-            "\n" + os.getenv(env.DESCRIPTION, "")
+        os.environ[env.NAME] = name
+    if notes:
+        os.environ[env.NOTES] = notes
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())

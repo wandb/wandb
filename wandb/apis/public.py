@@ -35,6 +35,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     createdAt
     heartbeatAt
     description
+    notes
     systemMetrics
     summaryMetrics
     user {
@@ -404,6 +405,7 @@ class Run(Attrs):
             "summaryMetrics": "{}",
             "tags": [],
             "description": None,
+            "notes": None,
             "state": "running"
         })
 
@@ -442,8 +444,8 @@ class Run(Attrs):
     @normalize_exceptions
     def update(self):
         mutation = gql('''
-        mutation upsertRun($id: String!, $description: String, $tags: [String!], $config: JSONString!) {
-            upsertBucket(input: {id: $id, description: $description, tags: $tags, config: $config}) {
+        mutation upsertRun($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
+            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config}) {
                 bucket {
                     ...RunFragment
                 }
@@ -452,7 +454,7 @@ class Run(Attrs):
         %s
         ''' % RUN_FRAGMENT)
         res = self._exec(mutation, id=self.id, tags=self.tags,
-                         description=self.description, config=self.json_config)
+                         description=self.description, notes=self.notes, display_name=self.display_name, config=self.json_config)
         self.summary.update()
 
     @property
