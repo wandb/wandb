@@ -98,7 +98,8 @@ def _run(name='test'):
             '{"cpu": 20}',
             '{"cpu": 30}'
         ],
-        'tags': []
+        'tags': [],
+        'notes': None
     }
 
 

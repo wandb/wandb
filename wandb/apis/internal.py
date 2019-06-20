@@ -568,6 +568,7 @@ class Api(object):
     def upsert_run(self, id=None, name=None, project=None, host=None,
                    group=None, tags=None,
                    config=None, description=None, entity=None, state=None,
+                   display_name=None, notes=None,
                    repo=None, job_type=None, program_path=None, commit=None,
                    sweep_name=None, summary_metrics=None, num_retries=None):
         """Update a run
@@ -594,6 +595,8 @@ class Api(object):
             $entity: String!,
             $groupName: String,
             $description: String,
+            $displayName: String,
+            $notes: String,
             $commit: String,
             $config: JSONString,
             $host: String,
@@ -613,6 +616,8 @@ class Api(object):
                 modelName: $project,
                 entityName: $entity,
                 description: $description,
+                displayName: $displayName,
+                notes: $notes,
                 config: $config,
                 commit: $commit,
                 host: $host,
@@ -656,6 +661,7 @@ class Api(object):
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
+            'displayName': display_name, 'notes': notes,
             'host': host, 'debug': env.is_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
         }

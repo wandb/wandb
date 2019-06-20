@@ -452,6 +452,12 @@ class RunManager(object):
         self._meta = meta.Meta(api, self._run.dir)
         self._meta.data["jobType"] = self._run.job_type
         self._meta.data["mode"] = self._run.mode
+        if self._run.name:
+            self._meta.data["name"] = self._run.name
+        if self._run.notes:
+            self._meta.data["notes"] = self._run.notes
+        if self._project:
+            self._meta.data["project"] = self._project
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
