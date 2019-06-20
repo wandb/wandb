@@ -6,6 +6,8 @@
 -   tmp files always use the temporary directory to avoid syncing
 -   raise error if file shrinks while uploading
 -   images log properly in windows
+-   upgraded pyyaml requirement to address CVE
+-   no longer store a history of rows to prevent memory leak
 
 #### :nail_care: Enhancement
 
@@ -15,12 +17,15 @@
 -   output.log is uploaded at the end of each run
 -   metadata, requirements, and patches are uploaded at the beginning of a run
 -   when not running from a git repository, store the main python file
+-   added WANDB_DISABLE_CODE to prevent diffing and code saving
 -   when running in jupyter store the name of the notebook
 -   auto-login support for colab
 -   store url to colab notebook
 -   store the version of this library in config
 -   store sys.executable in metadata
 -   fastai callback no longer requires path
+-   wandb.init now accepts a notes argument
+-   The cli replaced the message argument with notes and name
 
 ## 0.8.1 (May 23, 2019)
 
