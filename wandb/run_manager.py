@@ -28,7 +28,7 @@ import webbrowser
 import wandb
 from wandb.apis.file_stream import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy, OverwriteFilePolicy
 from wandb import __version__
-from wandb import env
+from wandb import env as wandb_env
 from wandb import Error
 from wandb import io_wrap
 from wandb import jsonlfile
@@ -941,7 +941,7 @@ class RunManager(object):
 
         self._run.set_environment(environment=env)
 
-        if not os.getenv(env.DISABLE_CODE):
+        if not os.getenv(wandb_env.DISABLE_CODE):
             logger.info("saving patches")
             self._api.save_patches(self._run.dir)
         logger.info("saving pip packages")
@@ -1123,7 +1123,7 @@ class RunManager(object):
         # Add a space before user output
         wandb.termlog()
 
-        if env.get_show_run():
+        if wandb_env.get_show_run():
             webbrowser.open_new_tab(self._run.get_url(self._api))
 
         exitcode = None
@@ -1243,7 +1243,7 @@ class RunManager(object):
         self._close_stdout_stderr_streams()
         self.shutdown(exitcode)
 
-        crash_nosync_time = env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
+        crash_nosync_time = wandb_env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
             wandb.termlog("You can sync this run to the cloud by running: ")
