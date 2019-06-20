@@ -222,7 +222,7 @@ def test_restore_no_remote(runner, request_mocker, query_run, git_repo, docker, 
     assert result.exit_code == 0
     assert "Created branch wandb/abcdef" in result.output
     assert "Applied patch" in result.output
-    assert "Restored config variables to wandb/" in result.output
+    assert "Restored config variables to wandb" + os.sep in result.output
     assert "Launching docker container" in result.output
     docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v',
     wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e',
@@ -572,12 +572,12 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_view
     upsert_run(request_mocker)
     query_viewer(request_mocker)
     runner.invoke(cli.off)
-    result = runner.invoke(cli.run, ["missing.py"])
+    result = runner.invoke(cli.run, ["python", "missing.py"])
 
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
-    assert "not found" in str(result.output)
+    assert "not found" in str(result.output) or "No such file" in str(result.output)
     # TODO: there's a race between the sigint and the actual failure so exit_code could be 1 or 255
     assert result.exit_code > 0
 
