@@ -678,7 +678,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.option('--message', '-m', default=None, hidden=True,
               help='Message to associate with the run.')
 @click.option('--name', default=None,
-              help='Name of the run, defaulti is auto generated.')
+              help='Name of the run, default is auto generated.')
 @click.option('--notes', default=None,
               help='Notes to associate with the run.')
 @click.option("--show/--no-show", default=False,
