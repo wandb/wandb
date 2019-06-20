@@ -7,12 +7,13 @@ import six
 from click.testing import CliRunner
 import wandb
 import types
+from wandb import env
 from wandb.meta import Meta
 from wandb.apis import InternalApi
 
 
-def test_meta(git_repo):
-    sys.argv = ["foo", "bar"]
+def test_meta(git_repo, mocker):
+    mocker.patch('sys.argv', ["foo", "bar"])
     meta = Meta(InternalApi())
     print(meta.data)
     assert meta.data["cpu_count"] > 0
@@ -29,6 +30,13 @@ def test_meta(git_repo):
     assert meta.data["username"]
     assert meta.data["os"]
 
+def test_disable_code(git_repo):
+    os.environ[env.DISABLE_CODE] = "true"
+    meta = Meta(InternalApi())
+    assert meta.data.get("git") is None
+    del os.environ[env.DISABLE_CODE]
+
+
 def test_colab(mocker, monkeypatch):
     with CliRunner().isolated_filesystem():
         mocker.patch('wandb._get_python_type', lambda: "jupyter")
@@ -40,6 +48,7 @@ def test_colab(mocker, monkeypatch):
         meta = Meta(InternalApi())
         assert meta.data["colab"] == "https://colab.research.google.com/drive/123abc"
         assert meta.data["program"] == "test.ipynb"
+        assert meta.data["codeSaved"]
         assert os.path.exists("code/test.ipynb")
 
 def test_meta_cuda(mocker):

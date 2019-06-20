@@ -681,7 +681,7 @@ class RunManager(object):
                 self._api.get_file_stream_api().set_file_policy(save_name, OverwriteFilePolicy())
                 self._file_event_handlers[save_name] = FileEventHandlerSummary(
                     file_path, save_name, self._api, self._file_pusher, self._run)
-            elif save_name.startswith('media/') or save_name in ["requirements.txt", "diff.patch"]:
+            elif save_name.startswith('media/') or save_name.startswith('code/') or save_name in ["requirements.txt", "diff.patch"]:
                 # Save media files and special wandb files immediately
                 self._file_event_handlers[save_name] = FileEventHandlerOverwrite(
                     file_path, save_name, self._api, self._file_pusher)
@@ -941,8 +941,9 @@ class RunManager(object):
 
         self._run.set_environment(environment=env)
 
-        logger.info("saving patches")
-        self._api.save_patches(self._run.dir)
+        if not os.getenv(env.DISABLE_CODE):
+            logger.info("saving patches")
+            self._api.save_patches(self._run.dir)
         logger.info("saving pip packages")
         self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")

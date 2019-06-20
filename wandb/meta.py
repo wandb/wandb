@@ -58,18 +58,20 @@ class Meta(object):
                         self.data["root"] = meta["root"]
 
         program = os.path.join(self.data["root"], self.data["program"])
-        if self._api.git.enabled:
-            self.data["git"] = {
-                "remote": self._api.git.remote_url,
-                "commit": self._api.git.last_commit
-            }
-            self.data["email"] = self._api.git.email
-            self.data["root"] = self._api.git.root or self.data["root"]
-        elif os.path.exists(program):
-            util.mkdir_exists_ok(os.path.join(self.out_dir, "code"))
-            saved_program = os.path.join(self.out_dir, "code", self.data["program"])
-            if not os.path.exists(saved_program):
-                copyfile(program, saved_program)
+        if not os.getenv(env.DISABLE_CODE):
+            if self._api.git.enabled:
+                self.data["git"] = {
+                    "remote": self._api.git.remote_url,
+                    "commit": self._api.git.last_commit
+                }
+                self.data["email"] = self._api.git.email
+                self.data["root"] = self._api.git.root or self.data["root"]
+            elif os.path.exists(program):
+                util.mkdir_exists_ok(os.path.join(self.out_dir, "code"))
+                saved_program = os.path.join(self.out_dir, "code", self.data["program"])
+                if not os.path.exists(saved_program):
+                    self.data["codeSaved"] = True
+                    copyfile(program, saved_program)
 
         self.data["startedAt"] = datetime.utcfromtimestamp(
             wandb.START_TIME).isoformat()
@@ -80,7 +82,7 @@ class Meta(object):
             # getuser() could raise KeyError in restricted environments like
             # chroot jails or docker containers.  Return user id in these cases.
             username = str(os.getuid())
-        self.data["username"] = os.getenv("WANDB_USERNAME", username)
+        self.data["username"] = os.getenv(env.USERNAME, username)
         self.data["os"] = platform.platform(aliased=True)
         self.data["python"] = platform.python_version()
         self.data["executable"] = sys.executable
