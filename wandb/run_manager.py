@@ -29,7 +29,7 @@ import webbrowser
 import wandb
 from wandb.apis.file_stream import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy, OverwriteFilePolicy
 from wandb import __version__
-from wandb import env
+from wandb import env as wandb_env
 from wandb import Error
 from wandb import io_wrap
 from wandb import jsonlfile
@@ -434,8 +434,8 @@ class RunManager(object):
     """
     CRASH_NOSYNC_TIME = 30
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True, output=True, port=None):
-        self._api = api
+    def __init__(self, run, project=None, tags=[], cloud=True, output=True, port=None):
+        self._api = run.api
         self._run = run
         self._cloud = cloud
         self._port = port
@@ -452,8 +452,8 @@ class RunManager(object):
 
         self._socket = wandb_socket.Client(self._port)
         # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
-        self._system_stats = stats.SystemStats(run, api)
-        self._meta = meta.Meta(api, self._run.dir)
+        self._system_stats = stats.SystemStats(run, self._api)
+        self._meta = meta.Meta(self._api, self._run.dir)
         self._meta.data["jobType"] = self._run.job_type
         self._meta.data["mode"] = self._run.mode
         if self._run.name:
@@ -687,7 +687,7 @@ class RunManager(object):
                 self._api.get_file_stream_api().set_file_policy(save_name, OverwriteFilePolicy())
                 self._file_event_handlers[save_name] = FileEventHandlerSummary(
                     file_path, save_name, self._api, self._file_pusher, self._run)
-            elif save_name.startswith('media/') or save_name in ["requirements.txt", "diff.patch"]:
+            elif save_name.startswith('media/') or save_name.startswith('code/') or save_name in ["requirements.txt", "diff.patch"]:
                 # Save media files and special wandb files immediately
                 self._file_event_handlers[save_name] = FileEventHandlerOverwrite(
                     file_path, save_name, self._api, self._file_pusher)
@@ -947,8 +947,9 @@ class RunManager(object):
 
         self._run.set_environment(environment=env)
 
-        logger.info("saving patches")
-        self._api.save_patches(self._run.dir)
+        if not os.getenv(wandb_env.DISABLE_CODE):
+            logger.info("saving patches")
+            self._api.save_patches(self._run.dir)
         logger.info("saving pip packages")
         self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")
@@ -1128,7 +1129,7 @@ class RunManager(object):
         # Add a space before user output
         wandb.termlog()
 
-        if env.get_show_run():
+        if wandb_env.get_show_run():
             webbrowser.open_new_tab(self._run.get_url(self._api))
 
         exitcode = None
@@ -1248,7 +1249,7 @@ class RunManager(object):
         self._close_stdout_stderr_streams()
         self.shutdown(exitcode)
 
-        crash_nosync_time = env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
+        crash_nosync_time = wandb_env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
             wandb.termlog("You can sync this run to the cloud by running: ")

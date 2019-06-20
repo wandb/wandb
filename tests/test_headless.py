@@ -67,7 +67,7 @@ def test_dry_run_exc(runner):
             try:
                 res = sh.python("train.py")
             except sh.ErrorReturnCode as e:
-                res = e.stdout
+                res = e.stderr
             print(res)
             run_dir = glob.glob(os.path.join("wandb", "dry*"))[0]
             meta = json.loads(

@@ -707,8 +707,6 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
                         resume=resume)
     run.enable_logging()
 
-    api.set_current_run_id(run.id)
-
     environ = dict(os.environ)
     if configs:
         environ[env.CONFIG_PATHS] = configs
@@ -716,7 +714,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         environ[env.SHOW_RUN] = 'True'
 
     try:
-        rm = run_manager.RunManager(api, run)
+        rm = run_manager.RunManager(run)
         rm.init_run(environ)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
