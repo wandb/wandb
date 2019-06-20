@@ -106,7 +106,7 @@ jobs:
                   command: |
                       . venv/bin/activate
                       pip install -r requirements_noml.txt
-                      pip install -e .[dev]
+                      pip install --upgrade -e .[dev]
             - save_cache:
                   paths:
                       - ./venv
