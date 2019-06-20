@@ -11,6 +11,10 @@ import wandb
 from wandb import wandb_run
 from wandb.keras import WandbCallback
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 import sys
 import glob
 
