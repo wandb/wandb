@@ -9,6 +9,11 @@ from IPython.core.getipython import get_ipython
 from IPython.core.magic import cell_magic, line_cell_magic, line_magic, Magics, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.display import display, Javascript
+import ipykernel
+from notebook.notebookapp import list_running_servers
+import requests
+from requests.compat import urljoin
+import re
 from pkg_resources import resource_filename
 from importlib import import_module
 
@@ -76,16 +81,16 @@ def attempt_colab_login(app_url):
         return None
 
 def notebook_metadata():
-    """Queries jupyter for the path and name of the notebook file"""
-    import ipykernel
-    ipykernel.connect.get_connection_file()
-    from notebook.notebookapp import list_running_servers
-    import requests
-    from requests.compat import urljoin
-    import re
-    kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
+    """Attempts to query jupyter for the path and name of the notebook file"""
+    try:
+        kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
+    except Exception:
+        return {}
     for s in list_running_servers():
-        res = requests.get(urljoin(s['url'], 'api/sessions'), params={'token': s.get('token', '')}).json()
+        try:
+            res = requests.get(urljoin(s['url'], 'api/sessions'), params={'token': s.get('token', '')}).json()
+        except (requests.RequestException, ValueError):
+            return {}
         for nn in res:
             if nn['kernel']['id'] == kernel_id:
                 return {"root": s['notebook_dir'], "path": nn['notebook']['path'], "name": nn['notebook']['name']}

@@ -51,12 +51,13 @@ class Meta(object):
                 meta = wandb.jupyter.notebook_metadata()
                 if meta.get("path"):
                     if "fileId=" in meta["path"]:
-                        self.data["colab"] = "https://colab.research.google.com/drive/"+meta["path"].split("fileId=")[0]
+                        self.data["colab"] = "https://colab.research.google.com/drive/"+meta["path"].split("fileId=")[1]
                         self.data["program"] = meta["name"]
                     else:
                         self.data["program"] = meta["path"]
                         self.data["root"] = meta["root"]
 
+        program = os.path.join(self.data["root"], self.data["program"])
         if self._api.git.enabled:
             self.data["git"] = {
                 "remote": self._api.git.remote_url,
@@ -64,9 +65,11 @@ class Meta(object):
             }
             self.data["email"] = self._api.git.email
             self.data["root"] = self._api.git.root or self.data["root"]
-        elif os.path.exists(os.path.join(self.data["root"], self.data["program"])):
+        elif os.path.exists(program):
             util.mkdir_exists_ok(os.path.join(self.out_dir, "code"))
-            copyfile(os.path.join(self.data["root"], self.data["program"]), os.path.join("code", self.data["program"]))
+            saved_program = os.path.join(self.out_dir, "code", self.data["program"])
+            if not os.path.exists(saved_program):
+                copyfile(program, saved_program)
 
         self.data["startedAt"] = datetime.utcfromtimestamp(
             wandb.START_TIME).isoformat()

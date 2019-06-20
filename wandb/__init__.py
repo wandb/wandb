@@ -310,8 +310,8 @@ def _init_jupyter(run):
     run.resume = "allow"
     api.set_current_run_id(run.id)
     display(HTML('''
-        Notebook configured with <a href="https://wandb.com">W&B</a>. You can <a href="{}">open</a> the run page, or call <code>%%wandb</code> 
-        in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html">docs</a>.
+        Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
+        in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
     '''.format(run.get_url(api))))
     try:
         run.save(api=api)

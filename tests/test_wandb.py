@@ -261,4 +261,4 @@ def test_not_logged_in(wandb_init_run, capsys):
 def test_jupyter_manual_configure(wandb_init_run, capsys):
     out, err = capsys.readouterr()
     assert "Not authenticated" in err
-    assert "to display live results" in out
+    assert "Python.core.display.HTML" in out
