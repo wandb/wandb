@@ -9,6 +9,10 @@ from tensorflow.keras import backend as K
 import glob
 import os
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 
 def create_experiment_summary(num_units_list, dropout_rate_list, optimizer_list):
     from tensorboard.plugins.hparams import api_pb2
