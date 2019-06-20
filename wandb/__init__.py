@@ -286,35 +286,32 @@ def _init_jupyter(run):
     # try_to_set_up_global_logging()
     # run.enable_logging()
 
-    api = InternalApi()
-    if not api.api_key:
+    if not run.api.api_key:
         key = None
         if 'google.colab' in sys.modules:
-            key = jupyter.attempt_colab_login(api.app_url)
+            key = jupyter.attempt_colab_login(run.api.app_url)
             if key:
                 os.environ[env.API_KEY] = key
-                util.write_netrc(api.api_url, "user", key)
+                util.write_netrc(run.api.api_url, "user", key)
         if not key:
             termerror(
                 "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
             key = getpass.getpass("API Key: ").strip()
             if len(key) == 40:
                 os.environ[env.API_KEY] = key
-                util.write_netrc(api.api_url, "user", key)
+                util.write_netrc(run.api.api_url, "user", key)
             else:
                 raise ValueError("API Key must be 40 characters long")
         # Ensure our api client picks up the new key
-        api = InternalApi()
-        run._api = api
+        run.api.reauth()
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
-    api.set_current_run_id(run.id)
     display(HTML('''
         Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
         in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-    '''.format(run.get_url(api))))
+    '''.format(run.get_url())))
     try:
-        run.save(api=api)
+        run.save()
     except (CommError, ValueError) as e:
         termerror(str(e))
     run.set_environment()

@@ -102,6 +102,10 @@ class Api(object):
         self._current_run_id = None
         self._file_stream_api = None
 
+    def reauth(self):
+        """Ensures the current api key is set in the transport"""
+        self.client.transport.auth = ("api", self.api_key or "")
+
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
         try:

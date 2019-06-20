@@ -4,6 +4,7 @@ from wandb.run_manager import RunManager
 import time
 import os
 import threading
+import logging
 import uuid
 from IPython.core.getipython import get_ipython
 from IPython.core.magic import cell_magic, line_cell_magic, line_magic, Magics, magics_class
@@ -15,6 +16,7 @@ import re
 from pkg_resources import resource_filename
 from importlib import import_module
 
+logger = logging.getLogger(__name__)
 
 @magics_class
 class WandBMagics(Magics):
@@ -86,11 +88,13 @@ def notebook_metadata():
         from notebook.notebookapp import list_running_servers
         kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
     except Exception:
+        logger.exception("Failed to query for notebook kernels")
         return {}
     for s in list_running_servers():
         try:
             res = requests.get(urljoin(s['url'], 'api/sessions'), params={'token': s.get('token', '')}).json()
         except (requests.RequestException, ValueError):
+            logger.exception("Failed to query for notebook sessions")
             return {}
         for nn in res:
             if nn['kernel']['id'] == kernel_id:
@@ -105,10 +109,8 @@ class JupyterAgent(object):
 
     def start(self):
         if self.paused:
-            self.api = InternalApi()
-            self.rm = RunManager(self.api, wandb.run, output=False)
-            self.api._file_stream_api = None
-            self.api.set_current_run_id(wandb.run.id)
+            self.rm = RunManager(wandb.run, output=False)
+            wandb.run.api._file_stream_api = None
             self.rm.mirror_stdout_stderr()
             self.paused = False
             # Init will return the last step of a resumed run

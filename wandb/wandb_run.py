@@ -118,6 +118,7 @@ class Run(object):
     def api(self):
         if self._api is None:
             self._api = InternalApi()
+            self._api.set_current_run_id(self.id)
         return self._api
 
     @property
@@ -406,7 +407,6 @@ class Run(object):
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
         if os.path.exists(self.log_fname):
-            self.api.set_current_run_id(self.id)
             pusher = FilePusher(self.api)
             pusher.update_file("wandb-debug.log", self.log_fname)
             pusher.file_changed("wandb-debug.log", self.log_fname)

@@ -93,6 +93,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
     orig_environ = dict(os.environ)
     orig_namespace = None
     run = None
+    #TODO: We need this?
     api = InternalApi(load_settings=False)
     try:
         with CliRunner().isolated_filesystem():
@@ -146,9 +147,9 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             orig_rm = wandb.run_manager.RunManager
             mock = mocker.patch('wandb.run_manager.RunManager')
 
-            def fake_init(api, run, port=None, output=None):
+            def fake_init(run, port=None, output=None):
                 print("Initialized fake run manager")
-                rm = fake_run_manager(mocker, api, run, rm_class=orig_rm)
+                rm = fake_run_manager(mocker, run, rm_class=orig_rm)
                 rm._block_file_observer()
                 run.run_manager = rm
                 return rm
@@ -251,11 +252,10 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             try:
                 print("Initializing with", kwargs)
                 run = wandb.init(**kwargs)
-                api.set_current_run_id(run.id)
                 if request.node.get_closest_marker('resume') or request.node.get_closest_marker('mocked_run_manager'):
                     # Reset history
                     run._history = None
-                    rm = wandb.run_manager.RunManager(api, run)
+                    rm = wandb.run_manager.RunManager(run)
                     rm.init_run(os.environ)
                 if request.node.get_closest_marker('mock_socket'):
                     run.socket = mocker.MagicMock()
@@ -277,19 +277,19 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
         assert vars(wandb) == orig_namespace
 
 
-def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunManager):
+def fake_run_manager(mocker, run=None, rm_class=wandb.run_manager.RunManager):
     # NOTE: This will create a run directory so make sure it's called in an isolated file system
     # We have an optional rm_class object because we mock it above so we need it before it's mocked
-    api = api or InternalApi(load_settings=False)
+    api = InternalApi(load_settings=False)
     if wandb.run is None:
         wandb.run = run or Run()
+    wandb.run._api = api
     wandb.run._mkdir()
     wandb.run.socket = wandb_socket.Server()
     api.set_current_run_id(wandb.run.id)
     mocker.patch('wandb.apis.internal.FileStreamApi')
     api._file_stream_api = mocker.MagicMock()
-    run_manager = rm_class(
-        api, wandb.run, port=wandb.run.socket.port)
+    run_manager = rm_class(wandb.run, port=wandb.run.socket.port)
 
     class FakeProc(object):
         def poll(self):

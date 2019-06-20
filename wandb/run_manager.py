@@ -434,8 +434,8 @@ class RunManager(object):
     """
     CRASH_NOSYNC_TIME = 30
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True, output=True, port=None):
-        self._api = api
+    def __init__(self, run, project=None, tags=[], cloud=True, output=True, port=None):
+        self._api = run.api
         self._run = run
         self._cloud = cloud
         self._port = port
@@ -452,8 +452,8 @@ class RunManager(object):
 
         self._socket = wandb_socket.Client(self._port)
         # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
-        self._system_stats = stats.SystemStats(run, api)
-        self._meta = meta.Meta(api, self._run.dir)
+        self._system_stats = stats.SystemStats(run, self._api)
+        self._meta = meta.Meta(self._api, self._run.dir)
         self._meta.data["jobType"] = self._run.job_type
         self._meta.data["mode"] = self._run.mode
         if self._run.program:
