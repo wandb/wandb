@@ -184,7 +184,7 @@ class History(object):
         if self._jupyter_callback:
             self._jupyter_callback()
 
-    def _index(self, row, keep_rows=True):
+    def _index(self, row, keep_rows=False):
         """Add a row to the internal list of rows without writing it to disk.
 
         This function should keep the data structure consistent so it's usable
@@ -220,7 +220,7 @@ class History(object):
                 os.fsync(self._file.fileno())
                 if self._add_callback:
                     self._add_callback(self.row)
-                self._index(self.row, keep_rows=False)
+                self._index(self.row)
                 self.row = {}
             finally:
                 self._lock.release()

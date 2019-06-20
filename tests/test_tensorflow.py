@@ -10,6 +10,10 @@ import numpy as np
 from wandb import tensorflow as wandb_tensorflow
 from wandb.keras import WandbCallback
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 import tensorflow as tf
 
 
