@@ -46,7 +46,7 @@ def _is_update_avail(request_mocker, capsys, current, latest):
         retry_timedelta=datetime.timedelta(0, 0, 50))
     api.set_current_run_id(123)
     run = Run()
-    run_manager = wandb.run_manager.RunManager(api, run)
+    run_manager = wandb.run_manager.RunManager(run)
 
     # Without this mocking, during other tests, the _check_update_available
     # function will throw a "mock not found" error, then silently fail without
@@ -150,7 +150,7 @@ def test_init_run_network_down(mocker, caplog):
         run = Run()
         mocker.patch("wandb.run_manager.RunManager._upsert_run",
                      lambda *args: time.sleep(0.6))
-        rm = wandb.run_manager.RunManager(api, run)
+        rm = wandb.run_manager.RunManager(run)
         step = rm.init_run()
         assert step == 0
         assert "Failed to connect" in caplog.text

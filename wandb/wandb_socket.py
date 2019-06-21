@@ -26,7 +26,11 @@ class Server(object):
 
     def __init__(self, port=None):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind(('localhost', 0))
+        try:
+            self.socket.bind(('localhost', 0))
+        except OSError:
+            # Handles the case of not being able to resolve localhost
+            self.socket.bind(('127.0.0.1', 0))
         self.socket.listen(1)
         self.socket.settimeout(30)
         self.port = port or self.socket.getsockname()[1]
@@ -89,7 +93,10 @@ class Client(object):
         self.socket.settimeout(1.0)
         self.port = port
         if self.port:
-            self.socket.connect(('localhost', self.port))
+            try:
+                self.socket.connect(('localhost', self.port))
+            except socket.gaierror:
+                self.socket.connect(('127.0.0.1', self.port))
             self.connected = True
         else:
             self.connected = False

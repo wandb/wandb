@@ -42,7 +42,7 @@ DESCRIPTION_FNAME = 'description.md'
 class Run(object):
     def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None,
                  config=None, sweep_id=None, storage_id=None, description=None, resume=None,
-                 program=None, args=None, wandb_dir=None, tags=None):
+                 program=None, args=None, wandb_dir=None, tags=None, name=None, notes=None):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else util.generate_id()
         self.display_name = self.id
@@ -53,6 +53,8 @@ class Run(object):
         self.pid = os.getpid()
         self.resumed = False  # we set resume when history is first accessed
         self._api = None
+        self.run_name = None
+        self.notes = None
 
 
         self.program = program
@@ -103,6 +105,11 @@ class Run(object):
             with open(self.description_path) as d_file:
                 self.name_and_description = d_file.read()
 
+        if name is not None:
+            self.run_name = name
+        if notes is not None:
+            self.notes = notes
+
         self.tags = tags if tags else []
 
         self.sweep_id = sweep_id
@@ -118,6 +125,7 @@ class Run(object):
     def api(self):
         if self._api is None:
             self._api = InternalApi()
+            self._api.set_current_run_id(self.id)
         return self._api
 
     @property
@@ -202,6 +210,8 @@ class Run(object):
         sweep_id = environment.get(env.SWEEP_ID)
         program = environment.get(env.PROGRAM)
         description = environment.get(env.DESCRIPTION)
+        name = environment.get(env.NAME)
+        notes = environment.get(env.NOTES)
         args = env.get_args()
         wandb_dir = env.get_dir()
         tags = env.get_tags()
@@ -210,6 +220,7 @@ class Run(object):
                   group, job_type, config,
                   sweep_id, storage_id, program=program, description=description,
                   args=args, wandb_dir=wandb_dir, tags=tags,
+                  name=name, notes=notes,
                   resume=resume)
         return run
 
@@ -218,7 +229,17 @@ class Run(object):
         api = api or InternalApi()
         run_id = run_id or util.generate_id()
         run = Run(run_id=run_id, dir=directory)
-        project = project or api.settings(
+
+        run_name = None
+        project_from_meta = None
+        snap = DirectorySnapshot(directory)
+        meta = next((p for p in snap.paths if METADATA_FNAME in p), None)
+        if meta:
+            meta = json.load(open(meta))
+            run_name = meta.get("name")
+            project_from_meta = meta.get("project")
+
+        project = project or project_from_meta or api.settings(
             "project") or run.auto_project_name(api=api)
         if project is None:
             raise ValueError("You must specify project")
@@ -226,14 +247,13 @@ class Run(object):
         api.set_setting("project", project)
         if entity:
             api.set_setting("entity", entity)
-        res = api.upsert_run(name=run_id, project=project, entity=entity)
+        res = api.upsert_run(name=run_id, project=project, entity=entity, display_name=run_name)
         entity = res["project"]["entity"]["name"]
         wandb.termlog("Syncing {} to:".format(directory))
         wandb.termlog(res["displayName"] + " " + run.get_url(api))
 
         file_api = api.get_file_stream_api()
         file_api.start()
-        snap = DirectorySnapshot(directory)
         paths = [os.path.relpath(abs_path, directory)
                  for abs_path in snap.paths if os.path.isfile(abs_path)]
         if ignore_globs:
@@ -249,7 +269,6 @@ class Run(object):
         user_config = next(
             (p for p in snap.paths if USER_CONFIG_FNAME in p), None)
         summary = next((p for p in snap.paths if SUMMARY_FNAME in p), None)
-        meta = next((p for p in snap.paths if METADATA_FNAME in p), None)
         if history:
             wandb.termlog("Uploading history metrics")
             file_api.stream_file(history)
@@ -284,13 +303,13 @@ class Run(object):
         elif summary:
             run_update["summary_metrics"] = open(summary).read()
         if meta:
-            meta = json.load(open(meta))
             if meta.get("git"):
                 run_update["commit"] = meta["git"].get("commit")
                 run_update["repo"] = meta["git"].get("remote")
             run_update["host"] = meta["host"]
             run_update["program_path"] = meta["program"]
             run_update["job_type"] = meta.get("jobType")
+            run_update["notes"] = meta.get("notes")
         else:
             run_update["host"] = socket.gethostname()
 
@@ -341,6 +360,7 @@ class Run(object):
                                            self.tags) > 0 else None,
                                        config=self.config.as_dict(), description=self.name_and_description, host=socket.gethostname(),
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
+                                       display_name=self.run_name, notes=self.notes,
                                        summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
         self.storage_id = upsert_result['id']
         self.display_name = upsert_result.get('displayName') or self.id
@@ -373,6 +393,10 @@ class Run(object):
             environment[env.ARGS] = json.dumps(self.args)
         if self.name_and_description is not None:
             environment[env.DESCRIPTION] = self.name_and_description
+        if self.run_name is not None:
+            environment[env.NAME] = self.run_name
+        if self.notes is not None:
+            environment[env.NOTES] = self.notes
         if len(self.tags) > 0:
             environment[env.TAGS] = ",".join(self.tags)
 
@@ -406,7 +430,6 @@ class Run(object):
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
         if os.path.exists(self.log_fname):
-            self.api.set_current_run_id(self.id)
             pusher = FilePusher(self.api)
             pusher.update_file("wandb-debug.log", self.log_fname)
             pusher.file_changed("wandb-debug.log", self.log_fname)
@@ -420,14 +443,18 @@ class Run(object):
         """We assume the first line of the description is the name users
         want to use, and we automatically set it to id if the user didn't specify
         """
+        if self.run_name is not None:
+            return self.run_name
         return self.name_and_description.split("\n")[0]
 
     @name.setter
     def name(self, name):
+        self.run_name = name
         parts = self.name_and_description.split("\n", 1)
         parts[0] = name
         self.name_and_description = "\n".join(parts)
 
+    # deprecate description in future release in favor of notes
     @property
     def description(self):
         parts = self.name_and_description.split("\n", 1)

@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.1'
+__version__ = '0.8.2'
 
 import atexit
 import click
@@ -276,34 +276,42 @@ def load_ipython_extension(ipython):
 
 def _init_jupyter(run):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
-    Log pushing and system stats don't start until `wandb.monitor()` is called.
+    Log pushing and system stats don't start until `wandb.log()` is first called.
     """
     from wandb import jupyter
+    from IPython.core.display import display, HTML
     # TODO: Should we log to jupyter?
     # global logging had to be disabled because it set the level to debug
     # I also disabled run logging because we're rairly using it.
     # try_to_set_up_global_logging()
     # run.enable_logging()
 
-    api = InternalApi()
-    if not api.api_key:
-        termerror(
-            "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
-        key = getpass.getpass("API Key: ").strip()
-        if len(key) == 40:
-            os.environ[env.API_KEY] = key
-            util.write_netrc(api.api_url, "user", key)
-        else:
-            raise ValueError("API Key must be 40 characters long")
+    if not run.api.api_key:
+        key = None
+        if 'google.colab' in sys.modules:
+            key = jupyter.attempt_colab_login(run.api.app_url)
+            if key:
+                os.environ[env.API_KEY] = key
+                util.write_netrc(run.api.api_url, "user", key)
+        if not key:
+            termerror(
+                "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
+            key = getpass.getpass("API Key: ").strip()
+            if len(key) == 40:
+                os.environ[env.API_KEY] = key
+                util.write_netrc(run.api.api_url, "user", key)
+            else:
+                raise ValueError("API Key must be 40 characters long")
         # Ensure our api client picks up the new key
-        api = InternalApi()
+        run.api.reauth()
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
-    api.set_current_run_id(run.id)
-    print("W&B Run: %s" % run.get_url(api))
-    print("Call `%%wandb` in the cell containing your training loop to display live results.")
+    display(HTML('''
+        Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
+        in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
+    '''.format(run.get_url())))
     try:
-        run.save(api=api)
+        run.save()
     except (CommError, ValueError) as e:
         termerror(str(e))
     run.set_environment()
@@ -360,7 +368,6 @@ patched = {
     "tensorboard": [],
     "keras": []
 }
-
 _saved_files = set()
 
 
@@ -439,6 +446,24 @@ def restore(name, run_path=None, replace=False, root="."):
         return None
     return files[0].download(root=root, replace=True)
 
+_tunnel_process = None
+def tunnel(host, port):
+    """Simple helper to open a tunnel.  Returns a public HTTPS url or None"""
+    global _tunnel_process
+    if _tunnel_process:
+        _tunnel_process.kill()
+        _tunnel_process = None
+    process = subprocess.Popen("ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:{}:{} serveo.net".format(host, port), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    while process.returncode is None:
+        for line in process.stdout:
+            match = re.match(r".+(https.+)$", line.decode("utf-8").strip())
+            if match:
+                _tunnel_process = process
+                return match.group(1)
+        # set returncode if the process has exited
+        process.poll()
+        time.sleep(1)
+    return None
 
 def monitor(options={}):
     """Starts syncing with W&B if you're in Jupyter.  Displays your W&B charts live in a Jupyter notebook.
@@ -599,7 +624,7 @@ def join():
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
-         sync_tensorboard=False, name=None, id=None):
+         sync_tensorboard=False, name=None, notes=None, id=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -616,6 +641,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         tags (list, optional): A list of tags to apply to the run
         id (str, optional): A globally unique (per project) identifier for the run
         name (str, optional): A display name which does not have to be unique
+        notes (str, optional): A multiline string associated with the run
         reinit (bool, optional): Allow multiple calls to init in the same process
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id
@@ -687,8 +713,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     if id:
         os.environ[env.RUN_ID] = id
     if name:
-        os.environ[env.DESCRIPTION] = name + \
-            "\n" + os.getenv(env.DESCRIPTION, "")
+        os.environ[env.NAME] = name
+    if notes:
+        os.environ[env.NOTES] = notes
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
@@ -806,6 +833,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
+jupyter = util.LazyLoader('jupyter', globals(), 'wandb.jupyter')
 keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')

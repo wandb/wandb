@@ -676,8 +676,12 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help='Files in this directory will be saved to wandb, defaults to wandb')
 @click.option('--configs', default=None,
               help='Config file paths to load')
-@click.option('--message', '-m', default=None,
+@click.option('--message', '-m', default=None, hidden=True,
               help='Message to associate with the run.')
+@click.option('--name', default=None,
+              help='Name of the run, default is auto generated.')
+@click.option('--notes', default=None,
+              help='Notes to associate with the run.')
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
 @click.option('--tags', default=None,
@@ -687,7 +691,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.option('--job_type', default=None,
               help='Job type to associate with the run.')
 @display_error
-def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_group, job_type):
+def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show, tags, run_group, job_type):
     wandb.ensure_configured()
     if configs:
         config_paths = configs.split(',')
@@ -700,10 +704,9 @@ def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_g
                         config=config, description=message,
                         program=program, tags=tags,
                         group=run_group, job_type=job_type,
+                        name=name, notes=notes,
                         resume=resume)
     run.enable_logging()
-
-    api.set_current_run_id(run.id)
 
     environ = dict(os.environ)
     if configs:
@@ -712,7 +715,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_g
         environ[env.SHOW_RUN] = 'True'
 
     try:
-        rm = run_manager.RunManager(api, run)
+        rm = run_manager.RunManager(run)
         rm.init_run(environ)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()

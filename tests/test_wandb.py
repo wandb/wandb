@@ -19,6 +19,10 @@ from .utils import runner
 import wandb
 from wandb import wandb_run
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 
 def test_log(wandb_init_run):
     history_row = {'stuff': 5}
@@ -261,4 +265,4 @@ def test_not_logged_in(wandb_init_run, capsys):
 def test_jupyter_manual_configure(wandb_init_run, capsys):
     out, err = capsys.readouterr()
     assert "Not authenticated" in err
-    assert "to display live results" in out
+    assert "Python.core.display.HTML" in out
