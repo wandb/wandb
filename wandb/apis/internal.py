@@ -876,18 +876,17 @@ class Api(object):
                 url, data=progress, headers=extra_headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            total = progress.len
-            status = self._status_request(url, total)
-            # TODO(adrian): there's probably even more stuff we should add here
-            # like if we're offline, we should retry then too
-            if status.status_code in (308, 408, 500, 502, 503, 504):
+            status_code = e.response.status_code if e.response != None else 0
+            print("STATUS CODE", status_code)
+            # Retry errors from cloud storage or local network issues
+            if status_code in (308, 409, 429, 500, 502, 503, 504) or isinstance(e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
                 util.sentry_reraise(retry.TransientException(exc=e))
             else:
                 util.sentry_reraise(e)
 
         return response
 
-    upload_file_retry = normalize_exceptions(retry.retriable()(upload_file))
+    upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
 
     @normalize_exceptions
     def register_agent(self, host, sweep_id=None, project_name=None):
