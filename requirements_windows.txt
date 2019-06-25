@@ -1,5 +1,4 @@
 fastparquet==0.2.1
-pip==19.0.1
 bumpversion==0.5.3
 wheel==0.31.1
 watchdog==0.8.3
@@ -35,8 +34,8 @@ ipython
 matplotlib
 plotly
 Keras
-torch
-torchvision
+https://download.pytorch.org/whl/cpu/torch-1.1.0-cp36-cp36m-win_amd64.whl
+https://download.pytorch.org/whl/cpu/torchvision-0.3.0-cp36-cp36m-win_amd64.whl
 tensorflow==1.13.1
 protobuf>=3.6.0
 vcrpy>=2.0.0

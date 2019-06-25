@@ -197,7 +197,6 @@ class FileStreamApi(object):
                 self._file_policies[filename] = DefaultFilePolicy()
             files[filename] = self._file_policies[filename].process_chunks(
                 file_chunks)
-
         self._handle_response(util.request_with_retry(
             self._client.post, self._endpoint, json={'files': files}))
 

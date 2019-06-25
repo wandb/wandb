@@ -15,6 +15,7 @@ import yaml
 import numbers
 import inspect
 import glob
+import platform
 
 import click
 from pkg_resources import parse_version
@@ -28,7 +29,7 @@ import webbrowser
 import wandb
 from wandb.apis.file_stream import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy, OverwriteFilePolicy
 from wandb import __version__
-from wandb import env
+from wandb import env as wandb_env
 from wandb import Error
 from wandb import io_wrap
 from wandb import jsonlfile
@@ -47,8 +48,6 @@ from wandb.apis import InternalApi
 
 logger = logging.getLogger(__name__)
 
-
-OUTPUT_FNAME = 'output.log'
 
 class LaunchError(Error):
     """Raised when there's an error starting up."""
@@ -90,6 +89,9 @@ class FileTailer(object):
 class FileEventHandler(object):
     def __init__(self, file_path, save_name, api, *args, **kwargs):
         self.file_path = file_path
+        # Convert windows paths to unix paths 
+        if platform.system() == "Windows":
+            save_name = save_name.replace("\\", "/")
         self.save_name = save_name
         self._api = api
 
@@ -117,14 +119,24 @@ class FileEventHandlerOverwrite(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
-        # Tell file_pusher to copy the file, we want to allow the user to modify the
-        # original while this one is uploading (modifying while uploading seems to
-        # cause a hang somewhere in the google upload code, until the server times out)
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
+
+
+class FileEventHandlerOverwriteOnce(FileEventHandler):
+    """This file handler is meant for files like metadata which may update during the run but should be uploaded upon creation"""
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        super(FileEventHandlerOverwriteOnce, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._file_pusher = file_pusher
+
+    def on_created(self):
+        self._file_pusher.file_changed(self.save_name, self.file_path)
+
+    def finish(self):
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 class FileEventHandlerThrottledOverwrite(FileEventHandler):
-
+    """This file handler uploads the file atmost every 15 seconds and only if it's size has increased by 20%"""
     # Don't upload
     RATE_LIMIT_SECONDS = 15
 
@@ -169,11 +181,11 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
     def save_file(self):
         self._last_uploaded_time = time.time()
         self._last_uploaded_size = self.current_size
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
 class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwrite):
+    """This event handler will upload files every N seconds as it changes throttling as the size increases"""
     TEN_MB =     10000000
     HUNDRED_MB = 100000000
     ONE_GB =     1000000000
@@ -195,13 +207,16 @@ class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwri
             self.save_file()
 
 class FileEventHandlerOverwriteDeferred(FileEventHandler):
+    """This file handler only updates at the end of the run"""
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
         super(FileEventHandlerOverwriteDeferred, self).__init__(
             file_path, save_name, api, *args, **kwargs)
         self._file_pusher = file_pusher
 
     def finish(self):
-        self._file_pusher.file_changed(self.save_name, self.file_path)
+        # We use copy=False to avoid possibly expensive copies, and because
+        # user files shouldn't still be changing at the end of the run.
+        self._file_pusher.file_changed(self.save_name, self.file_path, copy=False)
 
 
 class FileEventHandlerConfig(FileEventHandler):
@@ -252,8 +267,7 @@ class FileEventHandlerConfig(FileEventHandler):
         # TODO(adrian): ensure the file content will exactly match Bucket.config
         # ie. push the file content as a string
         self._api.upsert_run(id=self._run.storage_id, config=config_dict)
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
         self._last_sent = time.time()
 
     def finish(self):
@@ -420,8 +434,8 @@ class RunManager(object):
     """
     CRASH_NOSYNC_TIME = 30
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True, output=True, port=None):
-        self._api = api
+    def __init__(self, run, project=None, tags=[], cloud=True, output=True, port=None):
+        self._api = run.api
         self._run = run
         self._cloud = cloud
         self._port = port
@@ -438,10 +452,16 @@ class RunManager(object):
 
         self._socket = wandb_socket.Client(self._port)
         # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
-        self._system_stats = stats.SystemStats(run, api)
-        self._meta = meta.Meta(api, self._run.dir)
+        self._system_stats = stats.SystemStats(run, self._api)
+        self._meta = meta.Meta(self._api, self._run.dir)
         self._meta.data["jobType"] = self._run.job_type
         self._meta.data["mode"] = self._run.mode
+        if self._run.name:
+            self._meta.data["name"] = self._run.name
+        if self._run.notes:
+            self._meta.data["notes"] = self._run.notes
+        if self._project:
+            self._meta.data["project"] = self._project
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
@@ -516,12 +536,11 @@ class RunManager(object):
         file_event_handler.on_moved = self._on_file_moved
         file_event_handler._patterns = [
             os.path.join(self._run.dir, os.path.normpath('*'))]
-        # Ignore hidden files/folders and output.log because we stream it specially
+        # Ignore hidden files/folders
         file_event_handler._ignore_patterns = [
             '*.tmp',
             os.path.join(self._run.dir, ".*"),
             os.path.join(self._run.dir, "*/.*"),
-            os.path.join(self._run.dir, OUTPUT_FNAME)
         ]
         for glob in self._api.settings("ignore_globs"):
             file_event_handler._ignore_patterns.append(
@@ -668,9 +687,12 @@ class RunManager(object):
                 self._api.get_file_stream_api().set_file_policy(save_name, OverwriteFilePolicy())
                 self._file_event_handlers[save_name] = FileEventHandlerSummary(
                     file_path, save_name, self._api, self._file_pusher, self._run)
-            elif save_name.startswith('media/'):
-                # Save media files immediately
+            elif save_name.startswith('media/') or save_name.startswith('code/') or save_name in ["requirements.txt", "diff.patch"]:
+                # Save media files and special wandb files immediately
                 self._file_event_handlers[save_name] = FileEventHandlerOverwrite(
+                    file_path, save_name, self._api, self._file_pusher)
+            elif save_name == meta.METADATA_FNAME:
+                self._file_event_handlers[save_name] = FileEventHandlerOverwriteOnce(
                     file_path, save_name, self._api, self._file_pusher)
             else:
                 Handler = FileEventHandlerOverwriteDeferred
@@ -692,9 +714,9 @@ class RunManager(object):
         # TODO: Ideally we could start collecting logs without pushing
         fs_api = self._api.get_file_stream_api()
         io_wrap.SimpleTee(sys.stdout, streaming_log.TextStreamPusher(
-            fs_api, OUTPUT_FNAME, prepend_timestamp=True))
+            fs_api, util.OUTPUT_FNAME, prepend_timestamp=True))
         io_wrap.SimpleTee(sys.stderr, streaming_log.TextStreamPusher(
-            fs_api, OUTPUT_FNAME, prepend_timestamp=True, line_prepend='ERROR'))
+            fs_api, util.OUTPUT_FNAME, prepend_timestamp=True, line_prepend='ERROR'))
 
     def unmirror_stdout_stderr(self):
         sys.stdout.write = sys.stdout.orig_write
@@ -724,7 +746,7 @@ class RunManager(object):
                 stdout = sys.stdout.buffer
                 stderr = sys.stderr.buffer
 
-        output_log_path = os.path.join(self._run.dir, OUTPUT_FNAME)
+        output_log_path = os.path.join(self._run.dir, util.OUTPUT_FNAME)
         self._output_log = WriteSerializingFile(open(output_log_path, 'wb'))
 
         stdout_streams = [stdout, self._output_log]
@@ -734,9 +756,9 @@ class RunManager(object):
             # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
             fs_api = self._api.get_file_stream_api()
             self._stdout_stream = streaming_log.TextStreamPusher(
-                fs_api, OUTPUT_FNAME, prepend_timestamp=True)
+                fs_api, util.OUTPUT_FNAME, prepend_timestamp=True)
             self._stderr_stream = streaming_log.TextStreamPusher(
-                fs_api, OUTPUT_FNAME, line_prepend='ERROR',
+                fs_api, util.OUTPUT_FNAME, line_prepend='ERROR',
                 prepend_timestamp=True)
 
             stdout_streams.append(self._stdout_stream)
@@ -796,7 +818,7 @@ class RunManager(object):
 
         # output.log
         self._api.get_file_stream_api().set_file_policy(
-            OUTPUT_FNAME, CRDedupeFilePolicy(resume_status['logLineCount']))
+            util.OUTPUT_FNAME, CRDedupeFilePolicy(resume_status['logLineCount']))
 
         # history
         self._api.get_file_stream_api().set_file_policy(
@@ -925,13 +947,14 @@ class RunManager(object):
 
         self._run.set_environment(environment=env)
 
-        logger.info("saving patches")
-        self._api.save_patches(self._run.dir)
+        if not os.getenv(wandb_env.DISABLE_CODE):
+            logger.info("saving patches")
+            self._api.save_patches(self._run.dir)
         logger.info("saving pip packages")
         self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")
         self._api.get_file_stream_api().set_file_policy(
-            OUTPUT_FNAME, CRDedupeFilePolicy())
+            util.OUTPUT_FNAME, CRDedupeFilePolicy())
         self._api.get_file_stream_api().start()
         self._project = self._api.settings("project")
 
@@ -1106,7 +1129,7 @@ class RunManager(object):
         # Add a space before user output
         wandb.termlog()
 
-        if env.get_show_run():
+        if wandb_env.get_show_run():
             webbrowser.open_new_tab(self._run.get_url(self._api))
 
         exitcode = None
@@ -1226,7 +1249,7 @@ class RunManager(object):
         self._close_stdout_stderr_streams()
         self.shutdown(exitcode)
 
-        crash_nosync_time = env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
+        crash_nosync_time = wandb_env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
             wandb.termlog("You can sync this run to the cloud by running: ")
@@ -1305,7 +1328,7 @@ class RunManager(object):
                 download_urls = self._api.download_urls(
                     self._project, run=self._run.id)
                 for fname, info in download_urls.items():
-                    if fname == 'wandb-history.h5' or fname == OUTPUT_FNAME:
+                    if fname == 'wandb-history.h5' or fname == util.OUTPUT_FNAME:
                         continue
                     local_path = os.path.join(self._run.dir, fname)
                     local_md5 = util.md5_file(local_path)

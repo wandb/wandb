@@ -41,7 +41,7 @@ jobs:
                   command: |
                       . venv/bin/activate
                       mkdir -p results
-                      pytest --cov=wandb --junitxml="results/pytest.xml"
+                      pytest --cov=wandb --vcr-record=none --junitxml="results/pytest.xml"
                       flake8 .
             - store_test_results:
                   path: results
@@ -65,8 +65,8 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.1-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
-                      - v3.1-dependencies-edge-ml
+                      - v3.2-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+                      - v3.2-dependencies-edge-ml
             - run:
                   name: Install dependencies
                   command: |
@@ -77,13 +77,13 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.1-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+                  key: v3.2-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
             - run:
                   name: Run tests
                   command: |
                       . venv/bin/activate
                       mkdir -p results
-                      pytest --cov=wandb --junitxml="results/pytest.xml" edgeml_tests
+                      pytest --cov=wandb --vcr-record=none --junitxml="results/pytest.xml" edgeml_tests
             - store_test_results:
                   path: results
     test-3.7-no-ml:
@@ -106,7 +106,7 @@ jobs:
                   command: |
                       . venv/bin/activate
                       pip install -r requirements_noml.txt
-                      pip install -e .[dev]
+                      pip install --upgrade -e .[dev]
             - save_cache:
                   paths:
                       - ./venv
@@ -116,6 +116,6 @@ jobs:
                   command: |
                       . venv/bin/activate
                       mkdir -p results
-                      pytest --cov=wandb --junitxml="results/pytest.xml" tests/test_headless.py tests/test_cli.py tests/test_wandb.py
+                      pytest --cov=wandb --vcr-record=none --junitxml="results/pytest.xml" tests/test_headless.py tests/test_cli.py tests/test_wandb.py
             - store_test_results:
                   path: results

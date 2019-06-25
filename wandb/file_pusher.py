@@ -4,9 +4,22 @@ import shutil
 import threading
 import time
 from six.moves import queue
+import warnings
 
+import backports.tempfile
 import wandb
 import wandb.util
+
+
+# Get rid of cleanup warnings in Python 2.7.
+warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'backports.tempfile')
+
+
+# Temporary directory for copies we make of some file types to
+# reduce the probability that the file gets changed while we're
+# uploading it.
+TMP_DIR = backports.tempfile.TemporaryDirectory('wandb')
+
 
 EventFileChanged = collections.namedtuple(
     'EventFileChanged', ('path', 'save_name', 'copy'))
@@ -15,7 +28,23 @@ EventFinish = collections.namedtuple('EventFinish', ())
 
 
 class UploadJob(threading.Thread):
-    def __init__(self, done_queue, push_function, save_name, path, copy=False):
+    def __init__(self, done_queue, push_function, save_name, path, copy=True):
+        """A file upload thread.
+
+        Arguments:
+            done_queue: queue.Queue in which to put an EventJobDone event when
+                the upload finishes.
+            push_function: function(save_name, actual_path) which actually uploads
+                the file.
+            save_name: string logical location of the file relative to the run
+                directory.
+            path: actual string path of the file to upload on the filesystem.
+            copy: (bool) Whether to copy the file before uploading it. Defaults
+                to True because if you try to upload a file while it's being
+                rewritten, it's possible that we'll upload something truncated
+                or corrupt. Our file-uploading rules are generally designed
+                so that that won't happen during normal operation.
+        """
         self._done_queue = done_queue
         self._push_function = push_function
         self.save_name = save_name
@@ -29,7 +58,8 @@ class UploadJob(threading.Thread):
             #wandb.termlog('Uploading file: %s' % self.save_name)
             save_path = self.path
             if self.copy:
-                save_path = self.path + '.tmp'
+                save_path = os.path.join(TMP_DIR.name, self.save_name)
+                wandb.util.mkdir_exists_ok(os.path.dirname(save_path))
                 shutil.copy2(self.path, save_path)
             self._push_function(self.save_name, save_path)
             if self.copy:
@@ -217,7 +247,19 @@ class FilePusher(object):
             time.sleep(self.RATE_LIMIT_SECONDS)
             self._start_job(save_name, path, copy)
 
-    def file_changed(self, save_name, path, copy=False):
+    def file_changed(self, save_name, path, copy=True):
+        """Tell the file pusher that a file's changed and should be uploaded.
+
+        Arguments:
+            save_name: string logical location of the file relative to the run
+                directory.
+            path: actual string path of the file to upload on the filesystem.
+            copy: (bool) Whether to copy the file before uploading it. Defaults
+                to True because if you try to upload a file while it's being
+                rewritten, it's possible that we'll upload something truncated
+                or corrupt. Our file-uploading rules are generally designed
+                so that that won't happen during normal operation.
+        """
         # Tests in linux were failing because wandb-events.jsonl didn't exist
         if os.path.exists(path) and os.path.getsize(path) != 0:
             self._queue.put(EventFileChanged(path, save_name, copy))

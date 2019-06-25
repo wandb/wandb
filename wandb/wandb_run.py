@@ -4,6 +4,10 @@ import os
 import socket
 import json
 import yaml
+import fnmatch
+import tempfile
+import shutil
+import glob
 from sentry_sdk import configure_scope
 
 from . import env
@@ -14,6 +18,7 @@ from wandb import summary
 from wandb import meta
 from wandb import typedtable
 from wandb import util
+from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
@@ -37,7 +42,7 @@ DESCRIPTION_FNAME = 'description.md'
 class Run(object):
     def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None,
                  config=None, sweep_id=None, storage_id=None, description=None, resume=None,
-                 program=None, args=None, wandb_dir=None, tags=None):
+                 program=None, args=None, wandb_dir=None, tags=None, name=None, notes=None):
         # self.id is actually stored in the "name" attribute in GQL
         self.id = run_id if run_id else util.generate_id()
         self.display_name = self.id
@@ -47,6 +52,10 @@ class Run(object):
         self.job_type = job_type
         self.pid = os.getpid()
         self.resumed = False  # we set resume when history is first accessed
+        self._api = None
+        self.run_name = None
+        self.notes = None
+
 
         self.program = program
         if not self.program:
@@ -62,12 +71,10 @@ class Run(object):
         self.wandb_dir = wandb_dir
 
         with configure_scope() as scope:
-            api = InternalApi()
-            self.project = api.settings("project")
-            self.entity = api.settings("entity")
+            self.project = self.api.settings("project")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
-            scope.set_tag("url", self.get_url(api))
+            scope.set_tag("url", self.get_url(self.api))
 
         if dir is None:
             self._dir = run_dir_path(self.id, dry=self.mode == 'dryrun')
@@ -98,6 +105,11 @@ class Run(object):
             with open(self.description_path) as d_file:
                 self.name_and_description = d_file.read()
 
+        if name is not None:
+            self.run_name = name
+        if notes is not None:
+            self.notes = notes
+
         self.tags = tags if tags else []
 
         self.sweep_id = sweep_id
@@ -110,9 +122,24 @@ class Run(object):
         self._jupyter_agent = None
 
     @property
+    def api(self):
+        if self._api is None:
+            self._api = InternalApi()
+            self._api.set_current_run_id(self.id)
+        return self._api
+
+    @property
+    def entity(self):
+        return self.api.settings('entity')
+
+    @entity.setter
+    def entity(self, entity):
+        self.api.set_setting("entity", entity)
+
+    @property
     def path(self):
         # TODO: theres an edge case where self.entity is None
-        return "/".join([str(self.entity), str(self.project), str(self.id)])
+        return "/".join([str(self.entity), self.project_name(), self.id])
 
     def _init_jupyter_agent(self):
         from wandb.jupyter import JupyterAgent
@@ -166,7 +193,8 @@ class Run(object):
         resume = environment.get(env.RESUME)
         storage_id = environment.get(env.RUN_STORAGE_ID)
         mode = environment.get(env.MODE)
-        disabled = InternalApi().disabled()
+        api = InternalApi()
+        disabled = api.disabled()
         if not mode and disabled:
             mode = "dryrun"
         elif disabled and mode != "dryrun":
@@ -182,6 +210,8 @@ class Run(object):
         sweep_id = environment.get(env.SWEEP_ID)
         program = environment.get(env.PROGRAM)
         description = environment.get(env.DESCRIPTION)
+        name = environment.get(env.NAME)
+        notes = environment.get(env.NOTES)
         args = env.get_args()
         wandb_dir = env.get_dir()
         tags = env.get_tags()
@@ -190,15 +220,26 @@ class Run(object):
                   group, job_type, config,
                   sweep_id, storage_id, program=program, description=description,
                   args=args, wandb_dir=wandb_dir, tags=tags,
+                  name=name, notes=notes,
                   resume=resume)
         return run
 
     @classmethod
-    def from_directory(cls, directory, project=None, entity=None, run_id=None, api=None):
+    def from_directory(cls, directory, project=None, entity=None, run_id=None, api=None, ignore_globs=None):
         api = api or InternalApi()
         run_id = run_id or util.generate_id()
         run = Run(run_id=run_id, dir=directory)
-        project = project or api.settings(
+
+        run_name = None
+        project_from_meta = None
+        snap = DirectorySnapshot(directory)
+        meta = next((p for p in snap.paths if METADATA_FNAME in p), None)
+        if meta:
+            meta = json.load(open(meta))
+            run_name = meta.get("name")
+            project_from_meta = meta.get("project")
+
+        project = project or project_from_meta or api.settings(
             "project") or run.auto_project_name(api=api)
         if project is None:
             raise ValueError("You must specify project")
@@ -206,15 +247,20 @@ class Run(object):
         api.set_setting("project", project)
         if entity:
             api.set_setting("entity", entity)
-        res = api.upsert_run(name=run_id, project=project, entity=entity)
+        res = api.upsert_run(name=run_id, project=project, entity=entity, display_name=run_name)
         entity = res["project"]["entity"]["name"]
         wandb.termlog("Syncing {} to:".format(directory))
-        wandb.termlog(run.get_url(api))
+        wandb.termlog(res["displayName"] + " " + run.get_url(api))
 
         file_api = api.get_file_stream_api()
-        snap = DirectorySnapshot(directory)
+        file_api.start()
         paths = [os.path.relpath(abs_path, directory)
                  for abs_path in snap.paths if os.path.isfile(abs_path)]
+        if ignore_globs:
+            paths = set(paths)
+            for g in ignore_globs:
+                paths = paths - set(fnmatch.filter(paths, g))
+            paths = list(paths)
         run_update = {"id": res["id"]}
         tfevents = sorted([p for p in snap.paths if ".tfevents." in p])
         history = next((p for p in snap.paths if HISTORY_FNAME in p), None)
@@ -223,16 +269,21 @@ class Run(object):
         user_config = next(
             (p for p in snap.paths if USER_CONFIG_FNAME in p), None)
         summary = next((p for p in snap.paths if SUMMARY_FNAME in p), None)
-        meta = next((p for p in snap.paths if METADATA_FNAME in p), None)
         if history:
             wandb.termlog("Uploading history metrics")
             file_api.stream_file(history)
             snap.paths.remove(history)
         elif len(tfevents) > 0:
             from wandb import tensorflow as wbtf
-            wandb.termlog("Found tfevents file, converting.")
-            for file in tfevents:
-                summary = wbtf.stream_tfevents(file, file_api)
+            wandb.termlog("Found tfevents file, converting...")
+            summary = {}
+            for path in tfevents:
+                filename = os.path.basename(path)
+                namespace = path.replace(filename, "").replace(directory, "").strip(os.sep)
+                summary.update(wbtf.stream_tfevents(path, file_api, run, namespace=namespace))
+            for path in glob.glob(os.path.join(directory, "media/**/*"), recursive=True):
+                if os.path.isfile(path):
+                    paths.append(path)
         else:
             wandb.termerror(
                 "No history or tfevents files found, only syncing files")
@@ -246,16 +297,19 @@ class Run(object):
             # TODO: half backed support for config.json
             run_update["config"] = {k: {"value": v}
                                     for k, v in six.iteritems(user_config)}
-        if summary:
+        if isinstance(summary, dict):
+            #TODO: summary should already have data_types converted here...
+            run_update["summary_metrics"] = util.json_dumps_safer(summary)
+        elif summary:
             run_update["summary_metrics"] = open(summary).read()
         if meta:
-            meta = json.load(open(meta))
             if meta.get("git"):
                 run_update["commit"] = meta["git"].get("commit")
                 run_update["repo"] = meta["git"].get("remote")
             run_update["host"] = meta["host"]
             run_update["program_path"] = meta["program"]
             run_update["job_type"] = meta.get("jobType")
+            run_update["notes"] = meta.get("notes")
         else:
             run_update["host"] = socket.gethostname()
 
@@ -268,6 +322,10 @@ class Run(object):
             pusher.file_changed(k, path)
         pusher.finish()
         pusher.print_status()
+        file_api.finish(0)
+        # Remove temporary media images generated from tfevents
+        if history is None and os.path.exists(os.path.join(directory, "media")):
+            shutil.rmtree(os.path.join(directory, "media"))
         wandb.termlog("Finished!")
         return run
 
@@ -292,17 +350,17 @@ class Run(object):
         return project.replace(os.sep, '_')
 
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
-        api = api or InternalApi()
+        api = api or self.api
         project = api.settings('project')
         if project is None:
             project = self.auto_project_name(api)
         upsert_result = api.upsert_run(id=id or self.storage_id, name=self.id, commit=api.git.last_commit,
-                                       project=project, entity=api.settings(
-                                           "entity"),
+                                       project=project, entity=self.entity,
                                        group=self.group, tags=self.tags if len(
                                            self.tags) > 0 else None,
                                        config=self.config.as_dict(), description=self.name_and_description, host=socket.gethostname(),
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
+                                       display_name=self.run_name, notes=self.notes,
                                        summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
         self.storage_id = upsert_result['id']
         self.display_name = upsert_result.get('displayName') or self.id
@@ -335,6 +393,10 @@ class Run(object):
             environment[env.ARGS] = json.dumps(self.args)
         if self.name_and_description is not None:
             environment[env.DESCRIPTION] = self.name_and_description
+        if self.run_name is not None:
+            environment[env.NAME] = self.run_name
+        if self.notes is not None:
+            environment[env.NOTES] = self.notes
         if len(self.tags) > 0:
             environment[env.TAGS] = ",".join(self.tags)
 
@@ -342,12 +404,11 @@ class Run(object):
         util.mkdir_exists_ok(self._dir)
 
     def project_name(self, api=None):
-        if api is None:
-            api = InternalApi()
+        api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
 
     def get_url(self, api=None):
-        api = api or InternalApi()
+        api = api or self.api
         if api.api_key:
             if api.settings('entity') is None:
                 viewer = api.viewer()
@@ -369,9 +430,7 @@ class Run(object):
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
         if os.path.exists(self.log_fname):
-            api = InternalApi()
-            api.set_current_run_id(self.id)
-            pusher = FilePusher(api)
+            pusher = FilePusher(self.api)
             pusher.update_file("wandb-debug.log", self.log_fname)
             pusher.file_changed("wandb-debug.log", self.log_fname)
             pusher.finish()
@@ -384,14 +443,18 @@ class Run(object):
         """We assume the first line of the description is the name users
         want to use, and we automatically set it to id if the user didn't specify
         """
+        if self.run_name is not None:
+            return self.run_name
         return self.name_and_description.split("\n")[0]
 
     @name.setter
     def name(self, name):
+        self.run_name = name
         parts = self.name_and_description.split("\n", 1)
         parts[0] = name
         self.name_and_description = "\n".join(parts)
 
+    # deprecate description in future release in favor of notes
     @property
     def description(self):
         parts = self.name_and_description.split("\n", 1)
@@ -467,7 +530,7 @@ class Run(object):
         if self._history is None:
             jupyter_callback = self._jupyter_agent.start if self._jupyter_agent else None
             self._history = history.History(
-                HISTORY_FNAME, self._dir, add_callback=self._history_added, jupyter_callback=jupyter_callback)
+                self, add_callback=self._history_added, jupyter_callback=jupyter_callback)
             if self._history._steps > 0:
                 self.resumed = True
         return self._history

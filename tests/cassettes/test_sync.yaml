@@ -1,0 +1,560 @@
+interactions:
+- request:
+    body: '{"query": "query Viewer {\n  viewer {\n    id\n    entity\n    teams {\n      edges
+      {\n        node {\n          name\n        }\n      }\n    }\n  }\n}\n", "variables":
+      {}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['173']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"viewer":{"id":"VXNlcjphaEp6Zm5kaGJtUmlMWEJ5YjJSMVkzUnBiMjV5SkFzU0JGVnpaWElpR21kdmIyZHNaUzFoY0hCemZHcGxabVpBZDJGdVpHSXVZMjl0REE=","entity":"jeffr","teams":{"edges":[{"node":{"name":"wandb"}},{"node":{"name":"jeffr"}}]}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['230']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:38 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2997']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "mutation UpsertBucket($id: String, $name: String, $project:
+      String, $entity: String!, $groupName: String, $description: String, $displayName:
+      String, $notes: String, $commit: String, $config: JSONString, $host: String,
+      $debug: Boolean, $program: String, $repo: String, $jobType: String, $state:
+      String, $sweep: String, $tags: [String!], $summaryMetrics: JSONString) {\n  upsertBucket(input:
+      {id: $id, name: $name, groupName: $groupName, modelName: $project, entityName:
+      $entity, description: $description, displayName: $displayName, notes: $notes,
+      config: $config, commit: $commit, host: $host, debug: $debug, jobProgram: $program,
+      jobRepo: $repo, jobType: $jobType, state: $state, sweep: $sweep, tags: $tags,
+      summaryMetrics: $summaryMetrics}) {\n    bucket {\n      id\n      name\n      displayName\n      description\n      config\n      project
+      {\n        id\n        name\n        entity {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"id": null, "entity": "jeffr", "name": "7ojulnsc", "project":
+      "tf2", "groupName": null, "tags": null, "description": null, "config": null,
+      "commit": null, "displayName": null, "notes": null, "host": null, "debug": false,
+      "repo": null, "program": null, "jobType": null, "state": null, "sweep": null,
+      "summaryMetrics": null}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['1312']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"upsertBucket":{"bucket":{"id":"UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==","name":"7ojulnsc","displayName":"comfy-water-7","description":"comfy-water-7","config":"{}","project":{"id":"UHJvamVjdDp2MTp0ZjI6amVmZnI=","name":"tf2","entity":{"id":"RW50aXR5OmFoSnpmbmRoYm1SaUxYQnliMlIxWTNScGIyNXlFUXNTQmtWdWRHbDBlU0lGYW1WbVpuSU0=","name":"jeffr"}}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['349']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:39 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2996']
+    status: {code: 200, message: OK}
+- request:
+    body: FILES
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['78']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/jeffr/tf2/7ojulnsc/file_stream
+  response:
+    body: {string: '{"exitcode":null,"limits":{"name":"default","rate_limit":"400/s","system_metrics":"2/m","sweeps_enabled":false,"teams_enabled":true,"private_projects":false,"gpu_enabled":1560566754,"hub_settings":{"repo":"wandb/simpsons","disk":"20Gi","expiration":2592000,"redis_enabled":false,"docker_enabled":false,"image":null}}}
+
+'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['318']
+      Content-Type: [text/plain; charset=utf-8]
+      Date: ['Thu, 20 Jun 2019 01:31:39 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['15']
+      X-Ratelimit-Remaining: ['14']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "mutation UpsertBucket($id: String, $name: String, $project:
+      String, $entity: String!, $groupName: String, $description: String, $displayName:
+      String, $notes: String, $commit: String, $config: JSONString, $host: String,
+      $debug: Boolean, $program: String, $repo: String, $jobType: String, $state:
+      String, $sweep: String, $tags: [String!], $summaryMetrics: JSONString) {\n  upsertBucket(input:
+      {id: $id, name: $name, groupName: $groupName, modelName: $project, entityName:
+      $entity, description: $description, displayName: $displayName, notes: $notes,
+      config: $config, commit: $commit, host: $host, debug: $debug, jobProgram: $program,
+      jobRepo: $repo, jobType: $jobType, state: $state, sweep: $sweep, tags: $tags,
+      summaryMetrics: $summaryMetrics}) {\n    bucket {\n      id\n      name\n      displayName\n      description\n      config\n      project
+      {\n        id\n        name\n        entity {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"id": "UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==", "entity": "jeffr",
+      "name": null, "project": null, "groupName": null, "tags": null, "description":
+      null, "config": null, "commit": null, "displayName": null, "notes": null, "host":
+      "jhr-mbp.localdomain", "debug": false, "repo": null, "program": null, "jobType":
+      null, "state": null, "sweep": null, "summaryMetrics": null}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['1356']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"upsertBucket":{"bucket":{"id":"UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==","name":"7ojulnsc","displayName":"comfy-water-7","description":"comfy-water-7","config":"{}","project":{"id":"UHJvamVjdDp2MTp0ZjI6amVmZnI=","name":"tf2","entity":{"id":"RW50aXR5OmFoSnpmbmRoYm1SaUxYQnliMlIxWTNScGIyNXlFUXNTQmtWdWRHbDBlU0lGYW1WbVpuSU0=","name":"jeffr"}}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['349']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:39 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2995']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "query Model($name: String!, $files: [String]!, $entity: String!,
+      $run: String!, $description: String) {\n  model(name: $name, entityName: $entity)
+      {\n    bucket(name: $run, desc: $description) {\n      id\n      files(names:
+      $files) {\n        edges {\n          node {\n            name\n            url(upload:
+      true)\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"name": "tf2", "run": "7ojulnsc", "entity": "jeffr", "description":
+      null, "files": [".git/description"]}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['524']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"model":{"bucket":{"id":"UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==","files":{"edges":[{"node":{"name":".git/description","url":"https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/description?Expires=1560994359\u0026GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com\u0026Signature=O%2B4pTk%2F9zhVZMUzjeBGrYjfDapn32v6f4FTJk1qC2oXsajO5Ahewb0vmNfsJXMFmpXX3%2Fokm8R%2FXhLxC8jFTnS2K7GJEOFAACzUGs5%2B192JR3V%2BLBxioF%2FWY1m8MdDGA5WwYBt6nvExNGD4nqd9iKQSOxM3onLaX4S8NplnrzWkAm8Rf2OwlDnsD6Mf9MYBxlGfDgMipEtGWo1jyz%2Fy9R0buziGLUCVPunGIqq2gaXs8nB9y%2B2WJ%2BUy13krh%2BF8%2FyGWYzx3ThNDwdZ6xTNVYdQT9MBuo3iAI1iDF%2F8uJsgLy82C6hWZN%2BlXZu2blyRjL9Wgl8MGnprDmmSAyNAvPYg%3D%3D","updatedAt":null}}]}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['749']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:39 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2989']
+    status: {code: 200, message: OK}
+- request:
+    body: !!python/object/new:_io.BytesIO
+      state: !!python/tuple
+      - !!binary |
+        QklOQVJZIERBVEE=
+      - 0
+      - null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['240']
+      User-Agent: [python-requests/2.22.0]
+    method: PUT
+    uri: https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/info/exclude?Expires=1560994359&GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com&Signature=hG4412WxCrSRoy2xgvVamN6QouLMDjYaoAvFNkT1pvfaa3D8RBhoPWN5I9SkIM6Zdw9YovVdSUirKZrwTaxh5ilqxTYsufqDm4g6KeKhv6j%2BC2dBn1JywX%2FerhDTeCP%2Fe448XHkz8ZXV46TjCgT%2B71SzGSGfAFxIPrOcXpm%2FwyS7J98TMMXkIL4yFEtxiqt6eoVKMpb9CabTfEVe87v2zvsGWIASu5FwAIpsKdxj%2BWkiMeHLoAH7lbqWkqqZSEShgkUI%2Fa5Ys45fW9yzlTxvxf1Ac%2By7WJQQfDqgdF0sDDb2PyGxn2x2E4OWFyuDVJoXG5aR8spNYFSJ4lnaI7EmCA%3D%3D
+  response:
+    body: {string: ''}
+    headers:
+      Alt-Svc: ['quic=":443"; ma=2592000; v="46,44,43,39"']
+      Content-Length: ['0']
+      Content-Type: [text/html; charset=UTF-8]
+      Date: ['Thu, 20 Jun 2019 01:31:39 GMT']
+      ETag: ['"036208b4a1ab4a235d75c181e685e5a3"']
+      Server: [UploadServer]
+      Vary: [Origin]
+      X-GUploader-UploadID: [AEnB2Urd_qv9ICFVCQ8a5nOgBr3eIyzDC3ceqxBn-pn2gYxo1dXmzDCtNTLjLXGG9wji5ArYIJN3XJh0GUJxz0hlMI6S8AttDg]
+      x-goog-generation: ['1560994299615381']
+      x-goog-hash: [crc32c=XzpcuA==, md5=A2IItKGrSiNddcGB5oXlow==]
+      x-goog-metageneration: ['1']
+      x-goog-stored-content-encoding: [identity]
+      x-goog-stored-content-length: ['240']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "query Model($name: String!, $files: [String]!, $entity: String!,
+      $run: String!, $description: String) {\n  model(name: $name, entityName: $entity)
+      {\n    bucket(name: $run, desc: $description) {\n      id\n      files(names:
+      $files) {\n        edges {\n          node {\n            name\n            url(upload:
+      true)\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"name": "tf2", "run": "7ojulnsc", "entity": "jeffr", "description":
+      null, "files": [".git/config"]}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['519']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"model":{"bucket":{"id":"UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==","files":{"edges":[{"node":{"name":".git/config","url":"https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/config?Expires=1560994359\u0026GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com\u0026Signature=fxd0Ck%2Bi52Q%2Bu%2B%2BVIyrYngVOPYCOzU3IMl7Cszc8AxwCO18pi93YpdzswXJImnBDYVEBiuOqIRRM4sCzj2RrO8wfi%2FxaNvdXG9hfP%2FUO6xJoZCdfF5BZ32Y4mVLJxW8kM7YWu%2F%2BpeGEBj6qjrDdIKLcMJdVU6cz3bmCjIsJczIwqOONS1IE9O8oc75FQfx9KaavY0ZaDKYiwCcE45h%2BRUAsOacVbLyLQxbVvDpRKveGuBT8EnIM6o8wdLP6ASmOSI1J92fy2uL2lht7ixRlrQozf%2BfEpWw%2Fn9I4YFvtnqBbFHB2vmW8ZzBlHZGb5lzztctNOq2RqDTORHff%2BNyhj8w%3D%3D","updatedAt":null}}]}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['735']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:39 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2988']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "query Model($name: String!, $files: [String]!, $entity: String!,
+      $run: String!, $description: String) {\n  model(name: $name, entityName: $entity)
+      {\n    bucket(name: $run, desc: $description) {\n      id\n      files(names:
+      $files) {\n        edges {\n          node {\n            name\n            url(upload:
+      true)\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"name": "tf2", "run": "7ojulnsc", "entity": "jeffr", "description":
+      null, "files": [".git/hooks/pre-applypatch.sample"]}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['540']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"model":{"bucket":{"id":"UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==","files":{"edges":[{"node":{"name":".git/hooks/pre-applypatch.sample","url":"https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/hooks/pre-applypatch.sample?Expires=1560994359\u0026GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com\u0026Signature=gk8r%2BrNd5jWPGT90a6P0Vq%2FVcuDWmF%2BIfavd6HbYEWsAfWuURsgPp3G4NP7xq6tJhzJyAZYSlnzPDlyFk%2Bp0orqE4cWHMDX3CqrPoe8PgKiu0ElYPD%2FvsVycEx3Vh9dmPLTkZkTREsA2PahQfSu0OaVnpsUX%2Fsazvn7yUXn%2Bi9zhADmkgLrNarigYibJeAlLoRvuphbu5il0OCbw32smlKkUXbhsAjfOw5Kg47s6PxRrnnUa0CKMbu12rGW2sTJtYIH%2Bp%2Bp%2Bne31AX9PyqVfHRQxDl9gF3IlAa%2Fi8vZZwNhkesVrNddok8OGskaP22ExF8GruBfF%2FIhkXFDjyAI7Tw%3D%3D","updatedAt":null}}]}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['777']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:39 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2985']
+    status: {code: 200, message: OK}
+- request:
+    body: !!python/object/new:_io.BytesIO
+      state: !!python/tuple
+      - !!binary |
+        QklOQVJZIERBVEE=
+      - 0
+      - null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['137']
+      User-Agent: [python-requests/2.22.0]
+    method: PUT
+    uri: https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/config?Expires=1560994359&GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com&Signature=fxd0Ck%2Bi52Q%2Bu%2B%2BVIyrYngVOPYCOzU3IMl7Cszc8AxwCO18pi93YpdzswXJImnBDYVEBiuOqIRRM4sCzj2RrO8wfi%2FxaNvdXG9hfP%2FUO6xJoZCdfF5BZ32Y4mVLJxW8kM7YWu%2F%2BpeGEBj6qjrDdIKLcMJdVU6cz3bmCjIsJczIwqOONS1IE9O8oc75FQfx9KaavY0ZaDKYiwCcE45h%2BRUAsOacVbLyLQxbVvDpRKveGuBT8EnIM6o8wdLP6ASmOSI1J92fy2uL2lht7ixRlrQozf%2BfEpWw%2Fn9I4YFvtnqBbFHB2vmW8ZzBlHZGb5lzztctNOq2RqDTORHff%2BNyhj8w%3D%3D
+  response:
+    body: {string: ''}
+    headers:
+      Alt-Svc: ['quic=":443"; ma=2592000; v="46,44,43,39"']
+      Content-Length: ['0']
+      Content-Type: [text/html; charset=UTF-8]
+      Date: ['Thu, 20 Jun 2019 01:31:40 GMT']
+      ETag: ['"38881ccff4dc4e249623736f3cd97a15"']
+      Server: [UploadServer]
+      Vary: [Origin]
+      X-GUploader-UploadID: [AEnB2UoK8qB7W6GtMDzhwjI4kCaM0RZ1Mj5nQVznjPzmXayYNbGZzWviPydtLiCmvfR8WzxlnZGzEpxmL0YQ8Y7nRplxQup9Xg]
+      x-goog-generation: ['1560994299970767']
+      x-goog-hash: [crc32c=A4jIUQ==, md5=OIgcz/TcTiSWI3NvPNl6FQ==]
+      x-goog-metageneration: ['1']
+      x-goog-stored-content-encoding: [identity]
+      x-goog-stored-content-length: ['137']
+    status: {code: 200, message: OK}
+- request:
+    body: !!python/object/new:_io.BytesIO
+      state: !!python/tuple
+      - !!binary |
+        QklOQVJZIERBVEE=
+      - 0
+      - null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['161']
+      User-Agent: [python-requests/2.22.0]
+    method: PUT
+    uri: https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/logs/HEAD?Expires=1560994359&GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com&Signature=QjZd6eikAB%2BjthW%2FcvuPyzv%2FxBGDHyXF1pZdtQJuvKuH8eprliS73ZsTFsi4ELuBtRnCSwcGWs%2FiFFlb4cIvV6noJiTcT7AGEc4KFx%2FZZ%2BnsLPlxlvTNEi%2BrZb0wYCCgnqDMna3qPGIXSGmzHVjRKMwyW3ug8%2Fc4k%2Fq4DnIX37y55tZzIh2WBQD%2FDbexciVAUW2Xj6WRy89zsPupAcWJ7hME8w4uWb3ormUxgh9HeC2qHTkanZ0Ye2qL6WUdflSqZDR9qo%2B8%2FwQf4bnbgT5GQhnI2PThuAWuugda2stwCeavF6hGDMDB%2FzmbH28LfNzRFbl0HIXUzto6sZ0wHrgITw%3D%3D
+  response:
+    body: {string: ''}
+    headers:
+      Alt-Svc: ['quic=":443"; ma=2592000; v="46,44,43,39"']
+      Content-Length: ['0']
+      Content-Type: [text/html; charset=UTF-8]
+      Date: ['Thu, 20 Jun 2019 01:31:40 GMT']
+      ETag: ['"5b892a9cf1c897f64684022433b18e74"']
+      Server: [UploadServer]
+      Vary: [Origin]
+      X-GUploader-UploadID: [AEnB2Uo6Ix3yYKRspkGAqZIXMPyQ20mJQH3DMTlzTYyzewIOl9B4rnRcrLiuwTfEaSMRJAGg_wZ0xB9MH-Hq5AerjCLdM6nYuQ]
+      x-goog-generation: ['1560994300014494']
+      x-goog-hash: [crc32c=x3JtzQ==, md5=W4kqnPHIl/ZGhAIkM7GOdA==]
+      x-goog-metageneration: ['1']
+      x-goog-stored-content-encoding: [identity]
+      x-goog-stored-content-length: ['161']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "query Model($name: String!, $files: [String]!, $entity: String!,
+      $run: String!, $description: String) {\n  model(name: $name, entityName: $entity)
+      {\n    bucket(name: $run, desc: $description) {\n      id\n      files(names:
+      $files) {\n        edges {\n          node {\n            name\n            url(upload:
+      true)\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"name": "tf2", "run": "7ojulnsc", "entity": "jeffr", "description":
+      null, "files": ["wandb-history.jsonl"]}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['527']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"model":{"bucket":{"id":"UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==","files":{"edges":[{"node":{"name":"wandb-history.jsonl","url":"https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/wandb-history.jsonl?Expires=1560994360\u0026GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com\u0026Signature=mB9f4wkQb85dPLdIFaw7X4777tuFDYDHL09Zc7ZgJdfJ9GRXVqxQ%2Fb80mx7k0PBMEFDxGnf1vdBGodWcQBfE2aPUyc3JRptRsNM0PNd6hvC5jzx7GG%2FjUgANG6hd1XhRASM%2BJkRr%2FDMzq0pOS%2BN%2BXfLacagw5PHeUyV%2F%2F3COFmcEZ2meJbnYP6Alck5diGFdyU4B%2F%2Fqcr3ayq8tP9m0e8%2BNuaDI%2BQ8E0wSbpEimXvjQ%2BfAuxiUpcex5PM0qPBZf2pkdhXsHnb76D9%2F0LRqbhMyo25dRKqrnwQexVZNgMLFVtHT72PK5J8RpFkAq5%2BUizWVzwYSdL%2F2Y7I9C6g09Nlw%3D%3D","updatedAt":null}}]}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['759']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:40 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2981']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "query Model($name: String!, $files: [String]!, $entity: String!,
+      $run: String!, $description: String) {\n  model(name: $name, entityName: $entity)
+      {\n    bucket(name: $run, desc: $description) {\n      id\n      files(names:
+      $files) {\n        edges {\n          node {\n            name\n            url(upload:
+      true)\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"name": "tf2", "run": "7ojulnsc", "entity": "jeffr", "description":
+      null, "files": [".git/hooks/pre-receive.sample"]}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['537']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"model":{"bucket":{"id":"UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==","files":{"edges":[{"node":{"name":".git/hooks/pre-receive.sample","url":"https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/hooks/pre-receive.sample?Expires=1560994360\u0026GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com\u0026Signature=lhQ6qf45gpsiEjSl6kbCW5sW5%2FKDnTcH%2F%2FsQ6lOPbxbx8WrNDC7%2FCgLsZ4VSM%2BZrzJKTEhG9Og1f8%2B47NDMsmQqdXowa6QcPse6TU%2FAPQ8nb6PA%2FDuY1dovUbfAJQ0EMfiXWOFoc1mJ8kXr%2Fcn6ke4vh3rS9%2Fd56IxnFYwReh0iDwI2wt1o9hGXkCyKT5%2F9eAKHDkbUDzhW4w8R53QrVUOIgcwwkqvAw7mKAjUhd7Uk5yLKCPSNquTDZf6WABl1v2fXeaDHh%2BkKI0ZCftwQ7Sdt6Xb63LbBxbCWt98jk9WZEQ4VWHjU%2BYr%2B33deN2lMPan9HhwZL2nEUDKczxHS5EQ%3D%3D","updatedAt":null}}]}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['775']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:40 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2977']
+    status: {code: 200, message: OK}
+- request:
+    body: !!python/object/new:_io.BytesIO
+      state: !!python/tuple
+      - !!binary |
+        QklOQVJZIERBVEE=
+      - 0
+      - null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['544']
+      User-Agent: [python-requests/2.22.0]
+    method: PUT
+    uri: https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/hooks/pre-receive.sample?Expires=1560994360&GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com&Signature=lhQ6qf45gpsiEjSl6kbCW5sW5%2FKDnTcH%2F%2FsQ6lOPbxbx8WrNDC7%2FCgLsZ4VSM%2BZrzJKTEhG9Og1f8%2B47NDMsmQqdXowa6QcPse6TU%2FAPQ8nb6PA%2FDuY1dovUbfAJQ0EMfiXWOFoc1mJ8kXr%2Fcn6ke4vh3rS9%2Fd56IxnFYwReh0iDwI2wt1o9hGXkCyKT5%2F9eAKHDkbUDzhW4w8R53QrVUOIgcwwkqvAw7mKAjUhd7Uk5yLKCPSNquTDZf6WABl1v2fXeaDHh%2BkKI0ZCftwQ7Sdt6Xb63LbBxbCWt98jk9WZEQ4VWHjU%2BYr%2B33deN2lMPan9HhwZL2nEUDKczxHS5EQ%3D%3D
+  response:
+    body: {string: ''}
+    headers:
+      Alt-Svc: ['quic=":443"; ma=2592000; v="46,44,43,39"']
+      Content-Length: ['0']
+      Content-Type: [text/html; charset=UTF-8]
+      Date: ['Thu, 20 Jun 2019 01:31:40 GMT']
+      ETag: ['"2ad18ec82c20af7b5926ed9cea6aeedd"']
+      Server: [UploadServer]
+      Vary: [Origin]
+      X-GUploader-UploadID: [AEnB2UqlO0vmP5T1gs4tQbzZHnQDTIcEvV0atqyfLqCK6w1XFQ-UQvgv3t3o8ivOzqLmpSzq8yimbC7W3BFYj8m6_ufI4fNgfg]
+      x-goog-generation: ['1560994300347314']
+      x-goog-hash: [crc32c=iOQeVA==, md5=KtGOyCwgr3tZJu2c6mru3Q==]
+      x-goog-metageneration: ['1']
+      x-goog-stored-content-encoding: [identity]
+      x-goog-stored-content-length: ['544']
+    status: {code: 200, message: OK}
+- request:
+    body: !!python/object/new:_io.BytesIO
+      state: !!python/tuple
+      - !!binary |
+        QklOQVJZIERBVEE=
+      - 0
+      - null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['23']
+      User-Agent: [python-requests/2.22.0]
+    method: PUT
+    uri: https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/wandb/settings?Expires=1560994360&GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com&Signature=Gjk5ghujBQw06GjmENweKd5JvI2EGCahH1bsOYiC0AtNtQ4ekdoz%2FFJFjxqZLiFVE1WqCOdSfi4jofQSZ5jqAbqYGfU4BDoFF5fleJGqKmmbVP7WRlG3TT9qBAJ54JITitAzi3lOuvpmlLgBf1D1RhM%2Bq0slPpja9A6yNcLYn2Aud%2But6DnrEJQ195giQ03mKvuN0VjLW3tS5a9DBZCKLqPF7P5hl7S92UUTAKCiHkvn8I5qW4mpe92faVlSLFsMF%2B2UDEt4SrEZelZSmxdPd8TV14MbW33276XF5alhjCT9UKKq%2FrLeE1JiN7oVkRJvW%2BzcXirDxoVHHCHb%2B5iQvQ%3D%3D
+  response:
+    body: {string: ''}
+    headers:
+      Alt-Svc: ['quic=":443"; ma=2592000; v="46,44,43,39"']
+      Content-Length: ['0']
+      Content-Type: [text/html; charset=UTF-8]
+      Date: ['Thu, 20 Jun 2019 01:31:40 GMT']
+      ETag: ['"48a57d4917e1b974b7f896a95817cd94"']
+      Server: [UploadServer]
+      Vary: [Origin]
+      X-GUploader-UploadID: [AEnB2UpiEp4HnnkpjabLgvmD_G95NRp69g53ju2hhRnnEalgN5MGK1YOkj3YJQqRwO_7JR5-LevG2IxuGHVphjpI42tJpJuriA]
+      x-goog-generation: ['1560994300349401']
+      x-goog-hash: [crc32c=hyS8mw==, md5=SKV9SRfhuXS3+JapWBfNlA==]
+      x-goog-metageneration: ['1']
+      x-goog-stored-content-encoding: [identity]
+      x-goog-stored-content-length: ['23']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "query Model($name: String!, $files: [String]!, $entity: String!,
+      $run: String!, $description: String) {\n  model(name: $name, entityName: $entity)
+      {\n    bucket(name: $run, desc: $description) {\n      id\n      files(names:
+      $files) {\n        edges {\n          node {\n            name\n            url(upload:
+      true)\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"name": "tf2", "run": "7ojulnsc", "entity": "jeffr", "description":
+      null, "files": [".git/hooks/post-update.sample"]}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['537']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"model":{"bucket":{"id":"UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==","files":{"edges":[{"node":{"name":".git/hooks/post-update.sample","url":"https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/hooks/post-update.sample?Expires=1560994360\u0026GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com\u0026Signature=NstMskaTO2%2F0OeaQdAuwhQEx5hRO8Ea5T6eKF5R5txM%2BUqEFNMTgznjUWr%2BqubvydA6ygRJjHyt6MjEWe9VhwaJARYyh5DNzeIoMVth2Eb9eeGrxgrnEgzNkhRX5Ds3o%2BlfiA1tFfeSPJF8tGJjKP9cIRva5uMS6DN2d0VDK5sP7rf%2BnLSZZpDr58xNWfUOJ3yawd2ZMQ8RERWk1ErnElPzrdFtAJUHIOgXjyrasmiShOmNZTTPp%2FWp%2BfOs3I4S8Pt6dEDY2Yme76d1RuG5KxjAAAE3dkJQx4%2FoMQ0AlGXJzw71xaszOCfAjkoLBkv%2Bw6ahlU22wQTNFW1VvWY2a%2Bw%3D%3D","updatedAt":null}}]}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['767']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:40 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2976']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "query Model($name: String!, $files: [String]!, $entity: String!,
+      $run: String!, $description: String) {\n  model(name: $name, entityName: $entity)
+      {\n    bucket(name: $run, desc: $description) {\n      id\n      files(names:
+      $files) {\n        edges {\n          node {\n            name\n            url(upload:
+      true)\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"name": "tf2", "run": "7ojulnsc", "entity": "jeffr", "description":
+      null, "files": [".git/hooks/pre-push.sample"]}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['534']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"model":{"bucket":{"id":"UnVuOnYxOjdvanVsbnNjOnRmMjpqZWZmcg==","files":{"edges":[{"node":{"name":".git/hooks/pre-push.sample","url":"https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/hooks/pre-push.sample?Expires=1560994360\u0026GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com\u0026Signature=PPpnVmtgQ9DyHQtTZle%2F%2ByEHHWx%2Bgm4OKmCIVwVJql5LEjr3ZYVJgqH3wfOzURV2w%2FNObOVzmQKHOhHPi0VNR1%2BSU9T6keNX2oLtL%2BaKMdUvGC%2B22ROxZd00joPbZhKRzMgBT1yE8VlOxBgUUgGlpo2MxHHgRgcn0wtV8%2BUQLdrbKSi6FzEAF%2FEWgODzaNR2cM9HEGd%2F%2Fk8qDMcRn1jFxKN8jDurInyT1Cxq%2B8JC8s%2BQnJvohtpS4CP5yT7Lqvu%2BeZ77Hit%2BRXtTMc5%2FlCcM5qhvIj7jbwNolDFDZxx5YBdYVuBjQ4BykMMAOM7PTOrwymMQX15L1fIrDJ9pS7Rwlw%3D%3D","updatedAt":null}}]}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['773']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:31:40 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2973']
+    status: {code: 200, message: OK}
+- request:
+    body: !!python/object/new:_io.BytesIO
+      state: !!python/tuple
+      - !!binary |
+        QklOQVJZIERBVEE=
+      - 0
+      - null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['478']
+      User-Agent: [python-requests/2.22.0]
+    method: PUT
+    uri: https://storage.googleapis.com/wandb-production.appspot.com/jeffr/tf2/7ojulnsc/.git/hooks/applypatch-msg.sample?Expires=1560994360&GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com&Signature=ItRuns0k8nPXvB8wzmHDgD7u%2BhwEbr3wBoRSdaKGsR5iIrfm3LhbCcFbq8HGmF8i%2BDcD9jKOXTf9MReHBnK%2Fy0XZdveyCgalOeAm5QWVNHyhAX1fE81f9l8uA1x4jQKQTVU2ccvOVQGhY%2FQk5jq2XEkB2oioSYWE8YzngU1qexmAVVBuHHwUugDAgV7aq%2F1p2ZhB72eDSpzjv24coL6a2%2B6Yu0XX5RZewDZPE%2B1QFQezaQ8mCvLLfjgIBLD9HGnXrRraPYWcJlfGnagOQzIjKorOOdV0cMCZlIkegODww4k8D2hIWWmxepDfpHp5%2FfuovZYjUQqbEzvRMs1onL37GQ%3D%3D
+  response:
+    body: {string: ''}
+    headers:
+      Alt-Svc: ['quic=":443"; ma=2592000; v="46,44,43,39"']
+      Content-Length: ['0']
+      Content-Type: [text/html; charset=UTF-8]
+      Date: ['Thu, 20 Jun 2019 01:31:40 GMT']
+      ETag: ['"ce562e08d8098926a3862fc6e7905199"']
+      Server: [UploadServer]
+      Vary: [Origin]
+      X-GUploader-UploadID: [AEnB2Urjc7XAwvfNzWMIiBimmdXRqPC8GTgnM7Hpyw9XF0-XsZOwaKpOnhJ7-JU89i6CP3pUnL7yUZP0zalGHtveNvnSWUta4Q]
+      x-goog-generation: ['1560994300765176']
+      x-goog-hash: [crc32c=fkIYyA==, md5=zlYuCNgJiSajhi/G55BRmQ==]
+      x-goog-metageneration: ['1']
+      x-goog-stored-content-encoding: [identity]
+      x-goog-stored-content-length: ['478']
+    status: {code: 200, message: OK}
+- request:
+    body: FILES
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['33']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/jeffr/tf2/7ojulnsc/file_stream
+  response:
+    body: {string: '{"exitcode":0,"limits":{"name":"default","rate_limit":"400/s","system_metrics":"2/m","sweeps_enabled":false,"teams_enabled":true,"private_projects":false,"gpu_enabled":1560566754,"hub_settings":{"repo":"wandb/simpsons","disk":"20Gi","expiration":2592000,"redis_enabled":false,"docker_enabled":false,"image":null}}}
+
+'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['315']
+      Content-Type: [text/plain; charset=utf-8]
+      Date: ['Thu, 20 Jun 2019 01:31:41 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['15']
+      X-Ratelimit-Remaining: ['13']
+    status: {code: 200, message: OK}
+version: 1

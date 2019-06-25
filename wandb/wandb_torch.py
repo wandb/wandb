@@ -18,13 +18,15 @@ import wandb
 torch = None
 
 
-def nested_shape(array_or_tuple):
+def nested_shape(array_or_tuple, seen=None):
     """Figures out the shape of tensors possibly embedded in tuples
      i.e 
      [0,0] returns (2)
      ([0,0], [0,0]) returns (2,2)
      (([0,0], [0,0]),[0,0]) returns ((2,2),2)
      """
+    if seen is None:
+        seen = set()
     if hasattr(array_or_tuple, 'size'):
         # pytorch tensors use V.size() to get size of tensor
         return list(array_or_tuple.size())
@@ -34,9 +36,10 @@ def nested_shape(array_or_tuple):
     elif hasattr(array_or_tuple, 'shape'):
         return array_or_tuple.shape
 
+    seen.add(id(array_or_tuple))
     try:
         # treat object as iterable
-        return [nested_shape(item) for item in list(array_or_tuple)]
+        return [nested_shape(item, seen) if id(item) not in seen else 0 for item in list(array_or_tuple)]
     except TypeError:
         # object is not actually iterable
         # LB: Maybe we should throw an error?
@@ -250,7 +253,10 @@ class TorchGraph(wandb.data_types.Graph):
                 graph.nodes_by_id[id(param)] = node
             graph.add_node(node)
             if not graph.criterion_passed:
-                graph.criterion = output[0].grad_fn
+                if hasattr(output[0], 'grad_fn'):
+                    graph.criterion = output[0].grad_fn
+                elif isinstance(output[0], list) and hasattr(output[0][0], 'grad_fn'):
+                    graph.criterion = output[0][0].grad_fn
         return after_forward_hook
 
     def hook_torch_modules(self, module, criterion=None, prefix=None, graph_idx=0):
@@ -445,3 +451,4 @@ class TorchGraph(wandb.data_types.Graph):
         node.class_name = type(module).__name__
 
         return node
+

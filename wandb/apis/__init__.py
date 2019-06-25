@@ -25,6 +25,14 @@ class Progress(object):
         """Read bytes and call the callback"""
         bites = self.file.read(size)
         self.bytes_read += len(bites)
+        if not bites and self.bytes_read < self.len:
+            # Files shrinking during uploads causes request timeouts. Maybe
+            # we could avoid those by updating the self.len in real-time, but
+            # files getting truncated while uploading seems like something
+            # that shouldn't really be happening anyway.
+            raise CommError('File {} size shrank from {} to {} while it was being uploaded.'.format(self.file.name, self.len, self.bytes_read))
+        # Growing files are also likely to be bad, but our code didn't break
+        # on those in the past so it's riskier to make that an error now.
         self.callback(len(bites), self.bytes_read)
         return bites
 

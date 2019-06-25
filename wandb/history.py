@@ -25,8 +25,13 @@ class History(object):
 
     See the documentation online: https://docs.wandb.com/docs/logs.html
     """
+    # Only tests are allowed to keep all row history in memory
+    keep_rows = False
 
-    def __init__(self, fname, out_dir='.', add_callback=None, jupyter_callback=None, stream_name="default"):
+    def __init__(self, run, add_callback=None, jupyter_callback=None, stream_name="default"):
+        self._run = run
+        out_dir = run.dir
+        fname = wandb.wandb_run.HISTORY_FNAME
         self._start_time = wandb.START_TIME
         self.out_dir = out_dir
         self.fname = os.path.join(out_dir, fname)
@@ -88,7 +93,7 @@ class History(object):
         if self.stream_name != "default":
             raise ValueError("Nested streams aren't supported")
         if self._streams.get(name) == None:
-            self._streams[name] = History(self.fname, out_dir=self.out_dir,
+            self._streams[name] = History(self._run,
                                           add_callback=self._add_callback, stream_name=name)
         return self._streams[name]
 
@@ -179,19 +184,20 @@ class History(object):
         if self._jupyter_callback:
             self._jupyter_callback()
 
-    def _index(self, row):
+    def _index(self, row, keep_rows=False):
         """Add a row to the internal list of rows without writing it to disk.
 
         This function should keep the data structure consistent so it's usable
         for both adding new rows, and loading pre-existing histories.
         """
-        self.rows.append(row)
+        if self.keep_rows or keep_rows:
+            self.rows.append(row)
         self._keys.update(row.keys())
         self._steps += 1
 
     def _transform(self):
         """Transforms special classes into the proper format before writing"""
-        self.row = data_types.to_json(self.row)
+        self.row = data_types.history_dict_to_json(self._run, self.row)
 
     def _write(self):
         # Saw a race in tests where we closed history and another log was called
@@ -211,6 +217,7 @@ class History(object):
                 self._file.write(util.json_dumps_safer_history(self.row))
                 self._file.write('\n')
                 self._file.flush()
+                os.fsync(self._file.fileno())
                 if self._add_callback:
                     self._add_callback(self.row)
                 self._index(self.row)

@@ -185,6 +185,7 @@ def test_runs_from_path_index(mocker, request_mocker, query_runs_v2, query_downl
     assert len(runs.objects) == 4
 
 
+# @pytest.mark.skip(readon='fails when I run the whole suite, but not when I run just this file')
 def test_read_advanced_summary(runner, request_mocker, upsert_run, query_download_h5, query_upload_h5):
     with runner.isolated_filesystem():
         run = _run()

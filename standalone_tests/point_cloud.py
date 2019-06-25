@@ -1,12 +1,20 @@
+#!/usr/bin/env python
+
 # Numpy Clouds
 # http://app.wandb.ai/nbaryd/client-standalone_tests/runs/ly8g46vm?workspace=user-nbaryd
 
 # 3D models
 # http://app.test/nbaryd/client-standalone_tests/runs/0rb3xwke?workspace=user-nbaryd
 
+import os
+
 import numpy as np
 import wandb
 from math import sin, cos, pi
+
+
+DIR = os.path.dirname(__file__)
+
 
 point_cloud_1 = np.array([[0, 0, 0, 1],
                           [0, 0, 1, 13],
@@ -48,10 +56,10 @@ wandb.init()
 
 # Tests 3d OBJ
 
-wandb.log({"gltf": wandb.Object3D(open("tests/fixtures/Duck.gltf")),
-           "obj": wandb.Object3D(open("tests/fixtures/cube.obj"))})
+#wandb.log({"gltf": wandb.Object3D(open(os.path.join(DIR, "../tests/fixtures/Duck.gltf"))),
+#           "obj": wandb.Object3D(open(os.path.join(DIR, "../tests/fixtures/cube.obj")))})
 
 # Tests numpy clouds
-# for i in range(0, 200, 10):
-#     wandb.log({"Clouds": [wandb.Object3D(point_cloud_1), wandb.Object3D(point_cloud_2)],
-#                "Colored_Cloud": wandb.Object3D(wave_pattern(i))})
+for i in range(0, 20, 10):
+    wandb.log({"Clouds": [wandb.Object3D(point_cloud_1), wandb.Object3D(point_cloud_2)],
+               "Colored_Cloud": wandb.Object3D(wave_pattern(i))})

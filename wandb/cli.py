@@ -416,10 +416,16 @@ Run `git clone %s` and restore from there or pass the --no-git flag.""" % repo
 @click.option("--id", envvar=env.RUN_ID, help="The run you want to upload to.")
 @click.option("--project", "-p", envvar=env.PROJECT, help="The project you want to upload to.")
 @click.option("--entity", "-e", envvar=env.ENTITY, help="The entity to scope to.")
+@click.option("--ignore", help="A comma seperated list of globs to ignore syncing with wandb.")
 @display_error
-def sync(ctx, path, id, project, entity):
+def sync(ctx, path, id, project, entity, ignore):
     if api.api_key is None:
         ctx.invoke(login)
+
+    if ignore:
+        globs = ignore.split(",")
+    else:
+        globs = None
 
     path = path[0] if len(path) > 0 else os.getcwd()
     wandb_dir = os.path.join(path, "wandb")
@@ -429,10 +435,10 @@ def sync(ctx, path, id, project, entity):
     if len(run_paths) > 0:
         for run_path in run_paths:
             wandb_run.Run.from_directory(run_path,
-                                         run_id=run_path.split("-")[-1], project=project, entity=entity)
+                                         run_id=run_path.split("-")[-1], project=project, entity=entity, ignore_globs=globs)
     else:
         wandb_run.Run.from_directory(
-            path, run_id=id, project=project, entity=entity)
+            path, run_id=id, project=project, entity=entity, ignore_globs=globs)
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -476,12 +482,12 @@ def login(key, server=LocalServer(), browser=True):
     # Import in here for performance reasons
     import webbrowser
     # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
-    url = api.app_url + '/profile?message=key'
+    url = api.app_url + '/authorize'
     browser = util.launch_browser(browser)
     if key or not browser:
         launched = False
     else:
-        launched = webbrowser.open_new_tab(url + "&{}".format(server.qs()))
+        launched = webbrowser.open_new_tab(url + "?{}".format(server.qs()))
     if launched:
         click.echo(
             'Opening [{}] in your default browser'.format(url))
@@ -670,8 +676,12 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help='Files in this directory will be saved to wandb, defaults to wandb')
 @click.option('--configs', default=None,
               help='Config file paths to load')
-@click.option('--message', '-m', default=None,
+@click.option('--message', '-m', default=None, hidden=True,
               help='Message to associate with the run.')
+@click.option('--name', default=None,
+              help='Name of the run, default is auto generated.')
+@click.option('--notes', default=None,
+              help='Notes to associate with the run.')
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
 @click.option('--tags', default=None,
@@ -681,7 +691,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.option('--job_type', default=None,
               help='Job type to associate with the run.')
 @display_error
-def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_group, job_type):
+def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show, tags, run_group, job_type):
     wandb.ensure_configured()
     if configs:
         config_paths = configs.split(',')
@@ -694,10 +704,9 @@ def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_g
                         config=config, description=message,
                         program=program, tags=tags,
                         group=run_group, job_type=job_type,
+                        name=name, notes=notes,
                         resume=resume)
     run.enable_logging()
-
-    api.set_current_run_id(run.id)
 
     environ = dict(os.environ)
     if configs:
@@ -706,7 +715,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_g
         environ[env.SHOW_RUN] = 'True'
 
     try:
-        rm = run_manager.RunManager(api, run)
+        rm = run_manager.RunManager(run)
         rm.init_run(environ)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()

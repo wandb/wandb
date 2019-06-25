@@ -1,0 +1,225 @@
+interactions:
+- request:
+    body: '{"query": "query Viewer {\n  viewer {\n    id\n    entity\n    teams {\n      edges
+      {\n        node {\n          name\n        }\n      }\n    }\n  }\n}\n", "variables":
+      {}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['173']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"viewer":{"id":"VXNlcjphaEp6Zm5kaGJtUmlMWEJ5YjJSMVkzUnBiMjV5SkFzU0JGVnpaWElpR21kdmIyZHNaUzFoY0hCemZHcGxabVpBZDJGdVpHSXVZMjl0REE=","entity":"jeffr","teams":{"edges":[{"node":{"name":"wandb"}},{"node":{"name":"jeffr"}}]}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['230']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:20:12 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2997']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "mutation UpsertBucket($id: String, $name: String, $project:
+      String, $entity: String!, $groupName: String, $description: String, $displayName:
+      String, $notes: String, $commit: String, $config: JSONString, $host: String,
+      $debug: Boolean, $program: String, $repo: String, $jobType: String, $state:
+      String, $sweep: String, $tags: [String!], $summaryMetrics: JSONString) {\n  upsertBucket(input:
+      {id: $id, name: $name, groupName: $groupName, modelName: $project, entityName:
+      $entity, description: $description, displayName: $displayName, notes: $notes,
+      config: $config, commit: $commit, host: $host, debug: $debug, jobProgram: $program,
+      jobRepo: $repo, jobType: $jobType, state: $state, sweep: $sweep, tags: $tags,
+      summaryMetrics: $summaryMetrics}) {\n    bucket {\n      id\n      name\n      displayName\n      description\n      config\n      project
+      {\n        id\n        name\n        entity {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"id": null, "entity": "vanpelt", "name": "abc123", "project":
+      "tf2", "groupName": null, "tags": null, "description": null, "config": null,
+      "commit": null, "displayName": null, "notes": null, "host": null, "debug": false,
+      "repo": null, "program": null, "jobType": null, "state": null, "sweep": null,
+      "summaryMetrics": null}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['1312']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"upsertBucket":{"bucket":{"id":"UnVuOnYxOmFiYzEyMzp0ZjI6dmFucGVsdA==","name":"abc123","displayName":"abc123","description":"abc123","config":"{}","project":{"id":"UHJvamVjdDp2MTp0ZjI6dmFucGVsdA==","name":"tf2","entity":{"id":"RW50aXR5OmFoSnpmbmRoYm1SaUxYQnliMlIxWTNScGIyNXlFd3NTQmtWdWRHbDBlU0lIZG1GdWNHVnNkQXc=","name":"vanpelt"}}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['343']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:20:12 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2996']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "mutation UpsertBucket($id: String, $name: String, $project:
+      String, $entity: String!, $groupName: String, $description: String, $displayName:
+      String, $notes: String, $commit: String, $config: JSONString, $host: String,
+      $debug: Boolean, $program: String, $repo: String, $jobType: String, $state:
+      String, $sweep: String, $tags: [String!], $summaryMetrics: JSONString) {\n  upsertBucket(input:
+      {id: $id, name: $name, groupName: $groupName, modelName: $project, entityName:
+      $entity, description: $description, displayName: $displayName, notes: $notes,
+      config: $config, commit: $commit, host: $host, debug: $debug, jobProgram: $program,
+      jobRepo: $repo, jobType: $jobType, state: $state, sweep: $sweep, tags: $tags,
+      summaryMetrics: $summaryMetrics}) {\n    bucket {\n      id\n      name\n      displayName\n      description\n      config\n      project
+      {\n        id\n        name\n        entity {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"id": "UnVuOnYxOmFiYzEyMzp0ZjI6dmFucGVsdA==", "entity": "vanpelt",
+      "name": null, "project": null, "groupName": null, "tags": null, "description":
+      null, "config": null, "commit": null, "displayName": null, "notes": null, "host":
+      "jhr-mbp.localdomain", "debug": false, "repo": null, "program": null, "jobType":
+      null, "state": null, "sweep": null, "summaryMetrics": "{\"train/global_step\":
+      6, \"_timestamp\": 1558465077.724705, \"train/epoch_loss\": 0.021266290917992592,
+      \"train/epoch_acc\": 1.0, \"train/epoch_val_loss\": 0.017094764858484268, \"train/epoch_val_acc\":
+      1.0, \"_step\": 6, \"val/global_step\": 6, \"val/epoch_loss\": 0.021266290917992592,
+      \"val/epoch_acc\": 1.0, \"val/epoch_val_loss\": 0.017094764858484268, \"val/epoch_val_acc\":
+      1.0}"}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['1743']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"upsertBucket":{"bucket":{"id":"UnVuOnYxOmFiYzEyMzp0ZjI6dmFucGVsdA==","name":"abc123","displayName":"abc123","description":"abc123","config":"{}","project":{"id":"UHJvamVjdDp2MTp0ZjI6dmFucGVsdA==","name":"tf2","entity":{"id":"RW50aXR5OmFoSnpmbmRoYm1SaUxYQnliMlIxWTNScGIyNXlFd3NTQmtWdWRHbDBlU0lIZG1GdWNHVnNkQXc=","name":"vanpelt"}}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['343']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:20:14 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2995']
+    status: {code: 200, message: OK}
+- request:
+    body: '{"query": "query Model($name: String!, $files: [String]!, $entity: String!,
+      $run: String!, $description: String) {\n  model(name: $name, entityName: $entity)
+      {\n    bucket(name: $run, desc: $description) {\n      id\n      files(names:
+      $files) {\n        edges {\n          node {\n            name\n            url(upload:
+      true)\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {"name": "tf2", "run": "abc123", "entity": "vanpelt", "description":
+      null, "files": ["train/events.out.tfevents.111.test.localdomain"]}}'
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['554']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/graphql
+  response:
+    body: {string: '{"data":{"model":{"bucket":{"id":"UnVuOnYxOmFiYzEyMzp0ZjI6dmFucGVsdA==","files":{"edges":[{"node":{"name":"train/events.out.tfevents.111.test.localdomain","url":"https://storage.googleapis.com/wandb-production.appspot.com/vanpelt/tf2/abc123/train/events.out.tfevents.111.test.localdomain?Expires=1560993674\u0026GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com\u0026Signature=nVW1PrcEQ7dXSBi1VnlqIIAKu%2BnbzfvMv3m4nvopuzFCz9eTFZFVAoqTtjw2uD9UvUp5PRURYgWDijjy9zpfVvGWrZQYhvM42eM49mLRQ4S3%2B%2F%2Fc5b5dMDPfhDXvUd9S9gB2%2BmPhkP7wFomPSX9Or499Q80rDCcpGvWTKmfistbwsMrc7KdgsD2qNURPmcc7acBDosZ0Clw%2Fr9KQIDE5DQa3evO6hIz2t7w796bO1Hjl1FRsBy6gwb5B3a6qvf2JvRiCX%2FcNpKcpEL3cpyFOGnU8GcnEp7Wv5NoYpfU6IPSBzDsaoB33IBs7A3%2FDtSJ2EEYnRrxCr%2BOl2kQnkVaR7g%3D%3D","updatedAt":null}}]}}}}}'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['799']
+      Content-Type: [application/json]
+      Date: ['Thu, 20 Jun 2019 01:20:14 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['3000']
+      X-Ratelimit-Remaining: ['2993']
+    status: {code: 200, message: OK}
+- request:
+    body: !!python/object/new:_io.BytesIO
+      state: !!python/tuple
+      - !!binary |
+        QklOQVJZIERBVEE=
+      - 0
+      - null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['172871']
+      User-Agent: [python-requests/2.22.0]
+    method: PUT
+    uri: https://storage.googleapis.com/wandb-production.appspot.com/vanpelt/tf2/abc123/val/events.out.tfevents.111.test.localdomain?Expires=1560993674&GoogleAccessId=gorilla-cloud-storage%40wandb-production.iam.gserviceaccount.com&Signature=EoYG1qFjqL9gT9KsRSmZt7WU7sIij0xZiFGuOBcF9wBGisKNgObTO%2FqOk3DiCMyqmhs7I3k%2FpJgkNs7hfxLjvjWpx3jRxa6q7BCZDRD7ViZWDkwEj8M5sZ%2BM8JElZygwRWiPmW2jWxKUAON4a3ByzaZyqRRgrvLB4cjLCGmdQfNFxdenA4uMcUS%2Big6m5J77DlAvchkoJ2PvGo1yhNT6gHDJI%2FaNBULpm9tx5EgB9vEIlxjz1oyK5zQmgt5YkSkA9r8EB%2B1bpU%2FGVzUkB4LBwVGD%2BbTT75o3Rpwg3wVPNW2%2FmC33CyUKIGTGAocNwmMMlig7LVVhwqkINCM5bOG3sQ%3D%3D
+  response:
+    body: {string: ''}
+    headers:
+      Alt-Svc: ['quic=":443"; ma=2592000; v="46,44,43,39"']
+      Content-Length: ['0']
+      Content-Type: [text/html; charset=UTF-8]
+      Date: ['Thu, 20 Jun 2019 01:20:14 GMT']
+      ETag: ['"0e838b5a7bccbec986c59f9fc598cd17"']
+      Server: [UploadServer]
+      Vary: [Origin]
+      X-GUploader-UploadID: [AEnB2UqqdfkJI7nDfJX7W4WoW9OGTIABvuAriUsw_x2_iK7cB44fW-CwQqEIC56Bcng74JzKgyrChojVUiUaay_EvV91RmE-gg]
+      x-goog-generation: ['1560993614758847']
+      x-goog-hash: [crc32c=2j9XMQ==, md5=DoOLWnvMvsmGxZ+fxZjNFw==]
+      x-goog-metageneration: ['1']
+      x-goog-stored-content-encoding: [identity]
+      x-goog-stored-content-length: ['172871']
+    status: {code: 200, message: OK}
+- request:
+    body: FILES
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['2698']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/vanpelt/tf2/abc123/file_stream
+  response:
+    body: {string: '{"exitcode":null,"limits":{"name":"default","rate_limit":"400/s","system_metrics":"2/m","sweeps_enabled":false,"teams_enabled":true,"private_projects":true,"gpu_enabled":1560557085,"hub_settings":{"repo":"wandb/simpsons","disk":"20Gi","expiration":2592000,"redis_enabled":false,"docker_enabled":false,"image":null}}}
+
+'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['317']
+      Content-Type: [text/plain; charset=utf-8]
+      Date: ['Thu, 20 Jun 2019 01:20:16 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['15']
+      X-Ratelimit-Remaining: ['14']
+    status: {code: 200, message: OK}
+- request:
+    body: FILES
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      Content-Length: ['33']
+      Content-Type: [application/json]
+      User-Agent: [W&B Internal Client 0.8.1]
+      authorization: [DUMMY]
+    method: POST
+    uri: https://api.wandb.ai/vanpelt/tf2/abc123/file_stream
+  response:
+    body: {string: '{"exitcode":0,"limits":{"name":"default","rate_limit":"400/s","system_metrics":"2/m","sweeps_enabled":false,"teams_enabled":true,"private_projects":true,"gpu_enabled":1560557085,"hub_settings":{"repo":"wandb/simpsons","disk":"20Gi","expiration":2592000,"redis_enabled":false,"docker_enabled":false,"image":null}}}
+
+'}
+    headers:
+      Alt-Svc: [clear]
+      Content-Length: ['314']
+      Content-Type: [text/plain; charset=utf-8]
+      Date: ['Thu, 20 Jun 2019 01:20:16 GMT']
+      Vary: [Origin]
+      Via: [1.1 google]
+      X-Ratelimit-Limit: ['15']
+      X-Ratelimit-Remaining: ['13']
+    status: {code: 200, message: OK}
+version: 1

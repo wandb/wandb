@@ -102,6 +102,10 @@ class Api(object):
         self._current_run_id = None
         self._file_stream_api = None
 
+    def reauth(self):
+        """Ensures the current api key is set in the transport"""
+        self.client.transport.auth = ("api", self.api_key or "")
+
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
         try:
@@ -625,6 +629,7 @@ class Api(object):
     def upsert_run(self, id=None, name=None, project=None, host=None,
                    group=None, tags=None,
                    config=None, description=None, entity=None, state=None,
+                   display_name=None, notes=None,
                    repo=None, job_type=None, program_path=None, commit=None,
                    sweep_name=None, summary_metrics=None, num_retries=None):
         """Update a run
@@ -651,6 +656,8 @@ class Api(object):
             $entity: String!,
             $groupName: String,
             $description: String,
+            $displayName: String,
+            $notes: String,
             $commit: String,
             $config: JSONString,
             $host: String,
@@ -670,6 +677,8 @@ class Api(object):
                 modelName: $project,
                 entityName: $entity,
                 description: $description,
+                displayName: $displayName,
+                notes: $notes,
                 config: $config,
                 commit: $commit,
                 host: $host,
@@ -713,6 +722,7 @@ class Api(object):
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
+            'displayName': display_name, 'notes': notes,
             'host': host, 'debug': env.is_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
         }
@@ -915,10 +925,10 @@ class Api(object):
         """
         extra_headers = extra_headers.copy()
         response = None
-        if os.stat(file.name).st_size == 0:
+        progress = Progress(file, callback=callback)
+        if progress.len == 0:
             raise CommError("%s is an empty file" % file.name)
         try:
-            progress = Progress(file, callback=callback)
             response = requests.put(
                 url, data=progress, headers=extra_headers)
             response.raise_for_status()
