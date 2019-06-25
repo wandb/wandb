@@ -686,7 +686,7 @@ def test_run_simple(runner, git_repo, mock_server, monkeypatch):
     assert result.exit_code == 0
     assert "Synced lovely-dawn-32" in result.output
 
-@pytest.mark.skipif(os.getenv("NO_ML") == "true")
+@pytest.mark.skipif(os.getenv("NO_ML") == "true", reason="No PIL win NO_ML")
 def test_run_image(runner, git_repo, mock_server):
     run_id = "123abc"
     with open("image.py", "w") as f:
