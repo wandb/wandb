@@ -1087,7 +1087,7 @@ class Api(object):
                 # To handle Windows paths
                 # TODO: this doesn't handle absolute paths...
                 normal_name = os.path.join(*file_name.split("/"))
-                open_file = files[normal_name] if isinstance(
+                open_file = files[file_name] if isinstance(
                     files, dict) else open(normal_name, "rb")
             except IOError:
                 print("%s does not exist" % file_name)

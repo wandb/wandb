@@ -704,7 +704,7 @@ wandb.log({"img": [wandb.Image(np.ones((28,28,1)))]})
     #print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "Synced lovely-dawn-32" in result.output
-    assert "ERROR" not in result.output
+    assert "CommError" not in result.output
 
 
 @pytest.mark.skip("Sweep command is disabled")
