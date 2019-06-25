@@ -877,7 +877,6 @@ class Api(object):
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             status_code = e.response.status_code if e.response != None else 0
-            print("STATUS CODE", status_code)
             # Retry errors from cloud storage or local network issues
             if status_code in (308, 409, 429, 500, 502, 503, 504) or isinstance(e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
                 util.sentry_reraise(retry.TransientException(exc=e))
