@@ -935,7 +935,6 @@ class RunManager(object):
                     wandb.termerror(
                         'Failed to connect to W&B. Retrying in the background.')
                     return False
-
                 launch_error_s = 'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path())
 
                 raise LaunchError(launch_error_s)

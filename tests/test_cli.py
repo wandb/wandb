@@ -672,18 +672,11 @@ def test_sync_runs(runner, request_mocker, upsert_run, upload_url, upload_logs, 
     assert len(found) == 2
 
 
-# TODO: this is hitting production
-def test_run_simple(runner, monkeypatch, request_mocker, upsert_run, query_project, query_viewer, git_repo, upload_logs, upload_url):
+def test_run_simple(runner, git_repo, mock_server, monkeypatch):
     run_id = "abc123"
-    upsert_run(request_mocker)
-    upload_logs(request_mocker, run_id)
-    query_viewer(request_mocker)
-    query_project(request_mocker)
-    upload_url(request_mocker)
     with open("simple.py", "w") as f:
         f.write('print("Done!")')
     print(os.getcwd())
-    monkeypatch.setattr('wandb.cli.api.push', lambda *args, **kwargs: True)
     monkeypatch.setattr('time.sleep', lambda s: True)
     result = runner.invoke(
         cli.run, ["--id=%s" % run_id, "python", "simple.py"])
@@ -693,6 +686,25 @@ def test_run_simple(runner, monkeypatch, request_mocker, upsert_run, query_proje
     # This is disabled for now because it hasn't worked for a long time:
     #assert "Verifying uploaded files... verified!" in result.output
     assert result.exit_code == 0
+    assert "Synced lovely-dawn-32" in result.output
+
+def test_run_image(runner, git_repo, mock_server):
+    run_id = "123abc"
+    with open("image.py", "w") as f:
+        f.write("""import wandb
+import sys
+import numpy as np
+
+wandb.init(entity="test", project="test")
+wandb.log({"img": [wandb.Image(np.ones((28,28,1)))]})
+""")
+    result = runner.invoke(cli.run, ["--id=%s" % run_id, "python", "image.py"])
+    print(result.output)
+    print(result.exception)
+    #print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Synced lovely-dawn-32" in result.output
+    assert "ERROR" not in result.output
 
 
 @pytest.mark.skip("Sweep command is disabled")
