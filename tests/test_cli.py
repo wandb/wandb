@@ -616,8 +616,7 @@ def test_enable_off(runner, git_repo):
     assert "disabled" in open("wandb/settings").read()
 
 
-@pytest.mark.vcr()
-def test_sync(runner, git_repo):
+def test_sync(runner, git_repo, mock_server):
     # Un comment this line when re-recording the cassette
     os.environ['WANDB_API_KEY'] = DUMMY_API_KEY
     with open("wandb-history.jsonl", "w") as f:
@@ -630,8 +629,7 @@ def test_sync(runner, git_repo):
     assert result.exit_code == 0
 
 @pytest.mark.skipif(os.getenv("NO_ML") == "true" or sys.version_info < (3, 5), reason="Tensorboard not installed and we don't support tensorboard syncing in py2")
-@pytest.mark.vcr()
-def test_sync_tensorboard_ignore(runner, git_repo):
+def test_sync_tensorboard_ignore(runner, git_repo, mock_server):
     # Un comment this line when re-recording the cassette
     os.environ['WANDB_API_KEY'] = DUMMY_API_KEY
     wandb.util.mkdir_exists_ok("logs/train")

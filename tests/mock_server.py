@@ -1,3 +1,5 @@
+"""Mock Server for simple tasks the cli does"""
+
 from flask import Flask, request
 import json
 app = Flask(__name__)
@@ -33,7 +35,13 @@ def graphql():
                 "upsertBucket": {
                     "bucket": {
                         "id": "storageid",
-                        "displayName": "lovely-dawn-32"
+                        "displayName": "lovely-dawn-32",
+                        "project": {
+                            "name": "test",
+                            "entity": {
+                                "name": "vanpelt"
+                            }
+                        }
                     }
                 }
             }

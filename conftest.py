@@ -69,7 +69,7 @@ def vcr(vcr):
         if "/graphql" in r1.uri and "/graphql" in r2.uri:
             body1 = json.loads(r1.body.decode("utf-8"))
             body2 = json.loads(r2.body.decode("utf-8"))
-            return body1["query"].strip() == body2["query"].strip() and body1["variables"].get("files") == body2["variables"].get("files")
+            return body1["query"].strip() == body2["query"].strip()
         elif "/file_stream" in r1.uri and "/file_stream" in r2.uri:
             body1 = json.loads(r1.body.decode("utf-8"))
             body2 = json.loads(r2.body.decode("utf-8"))
