@@ -3,7 +3,6 @@ import os
 import click
 from click.testing import CliRunner
 import git
-from .mock_server import app
 import requests
 import json
 from wandb import cli
@@ -93,8 +92,9 @@ class ResponseMock(object):
         return json.loads(self.response.data.decode('utf-8'))
 
 class RequestsMock(object):
-    def __init__(self, client):
+    def __init__(self, client, requests):
         self.client = client
+        self.requests = requests
 
     def Session(self):
         return self
@@ -122,14 +122,19 @@ class RequestsMock(object):
             del kwargs["timeout"]
         return kwargs
 
+    def _store_request(self, url, body):
+        key = url.split("/")[-1]
+        self.requests[key] = self.requests.get(key, [])
+        self.requests[key].append(body)
+
     def post(self, url, **kwargs):
-        res = self.client.post(url, **self._clean_kwargs(kwargs))
-        return ResponseMock(res)
+        self._store_request(url, kwargs.get("json"))
+        return ResponseMock(self.client.post(url, **self._clean_kwargs(kwargs)))
 
     def put(self, url, **kwargs):
-        res = self.client.put(url, **self._clean_kwargs(kwargs))
-        return ResponseMock(res)
+        self._store_request(url, kwargs.get("json"))
+        return ResponseMock(self.client.put(url, **self._clean_kwargs(kwargs)))
 
     def get(self, url, **kwargs):
-        res = self.client.get(url, **self._clean_kwargs(kwargs))
-        return ResponseMock(res)
+        self._store_request(url, kwargs.get("json"))
+        return ResponseMock(self.client.get(url, **self._clean_kwargs(kwargs)))

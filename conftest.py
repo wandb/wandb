@@ -18,7 +18,7 @@ from wandb import env
 from wandb import util
 from wandb.wandb_run import Run
 from tests import utils
-from tests.mock_server import app
+from tests.mock_server import create_app
 
 def pytest_runtest_setup(item):
     # This is used to find tests that are leaking outside of tmp directories
@@ -369,8 +369,9 @@ def request_mocker(request):
 
 @pytest.fixture
 def mock_server(mocker, request_mocker):
-    mock = utils.RequestsMock(app.test_client())
+    app = create_app()
+    mock = utils.RequestsMock(app.test_client(), {})
     mocker.patch("gql.transport.requests.requests", mock)
     mocker.patch("wandb.apis.file_stream.requests", mock)
     mocker.patch("wandb.apis.internal.requests", mock)
-    return app
+    return mock

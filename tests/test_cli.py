@@ -646,6 +646,22 @@ def test_sync_tensorboard_ignore(runner, git_repo, mock_server):
     assert "Found tfevents file, converting..." in str(result.output)
     assert result.exit_code == 0
 
+@pytest.mark.skipif(os.getenv("NO_ML") == "true" or sys.version_info < (3, 5), reason="Tensorboard not installed and we don't support tensorboard syncing in py2")
+def test_sync_tensorboard_single(runner, git_repo, mock_server):
+    # Un comment this line when re-recording the cassette
+    os.environ['WANDB_API_KEY'] = DUMMY_API_KEY
+    wandb.util.mkdir_exists_ok("logs")
+    tf_events="events.out.tfevents.111.simple.localdomain"
+    shutil.copyfile(os.path.dirname(__file__) + "/fixtures/"+tf_events, "./logs/"+tf_events)
+    result = runner.invoke(cli.sync, ["--id", "abc123", "-e", "vanpelt", "logs"], env=os.environ)
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "Found tfevents file, converting..." in str(result.output)
+    assert result.exit_code == 0
+    print(mock_server.requests["file_stream"][0]["files"]["wandb-history.jsonl"]["content"])
+    assert len(json.loads(mock_server.requests["file_stream"][0]["files"]["wandb-history.jsonl"]["content"][0]).keys()) == 5
+
 
 def test_sync_runs(runner, request_mocker, upsert_run, upload_url, upload_logs, query_viewer, git_repo):
     os.environ["WANDB_API_KEY"] = "some invalid key"
