@@ -232,6 +232,12 @@ class Config(object):
                              'desc': self._descriptions.get(key)}
         return defaults
 
+    def user_items(self):
+        """Retrieve user configured config parameters as a key value tuple generator"""
+        for key, val in self._items.items():
+            if key != '_wandb':
+                yield (key, val)
+
     def __str__(self):
         s = "wandb_version: 1"
         as_dict = self.as_dict()
