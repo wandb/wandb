@@ -3,6 +3,9 @@ import os
 import click
 from click.testing import CliRunner
 import git
+from .mock_server import app
+import requests
+import json
 from wandb import cli
 from wandb import util
 from wandb.apis import InternalApi
@@ -77,3 +80,56 @@ def subdict(d, expected_dict):
     """Return a new dict with only the items from `d` whose keys occur in `expected_dict`.
     """
     return {k: v for k, v in d.items() if k in expected_dict}
+
+
+class ResponseMock(object):
+    def __init__(self, response):
+        self.response = response
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return json.loads(self.response.data.decode('utf-8'))
+
+class RequestsMock(object):
+    def __init__(self, client):
+        self.client = client
+
+    def Session(self):
+        return self
+
+    @property
+    def RequestException(self):
+        return requests.RequestException
+
+    @property
+    def headers(self):
+        return {}
+
+    @property
+    def utils(self):
+        return requests.utils
+
+    @property
+    def exceptions(self):
+        return requests.exceptions
+
+    def _clean_kwargs(self, kwargs):
+        if "auth" in kwargs:
+            del kwargs["auth"]
+        if "timeout" in kwargs:
+            del kwargs["timeout"]
+        return kwargs
+
+    def post(self, url, **kwargs):
+        res = self.client.post(url, **self._clean_kwargs(kwargs))
+        return ResponseMock(res)
+
+    def put(self, url, **kwargs):
+        res = self.client.put(url, **self._clean_kwargs(kwargs))
+        return ResponseMock(res)
+
+    def get(self, url, **kwargs):
+        res = self.client.get(url, **self._clean_kwargs(kwargs))
+        return ResponseMock(res)
