@@ -1,3 +1,15 @@
+## 0.8.3 (June 26, 2019)
+
+#### :bug: Bug Fix
+
+-   image logging works in Windows
+-   wandb sync handles tfevents with a single timestep
+
+#### :nail_care: Enhancement
+
+-   new helper function for handling hyperparameters in sweeps `wandb.config.user_items()`
+-   better mocking for improved testing
+
 ## 0.8.2 (June 20, 2019)
 
 #### :bug: Bug Fix

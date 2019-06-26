@@ -9,7 +9,8 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.2.dev1'
+__version__ = '0.8.3.dev1'
+>>>>>>> master
 
 import atexit
 import click
@@ -223,7 +224,6 @@ def _init_headless(run, cloud=True):
         __version__, wandb_process.pid))
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
-
     # Listen on the socket waiting for the wandb process to be ready
     try:
         success, message = server.listen(30)
@@ -264,6 +264,7 @@ def _init_headless(run, cloud=True):
                                wandb_process, stdout_redirector, stderr_redirector)
     join = _wandb_join
     _user_process_finished_called = False
+
     # redirect output last of all so we don't miss out on error messages
     stdout_redirector.redirect()
     if not env.is_debug():
@@ -787,7 +788,6 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     elif run.mode == 'clirun':
         pass
     elif run.mode == 'run':
-
         api = InternalApi()
         # let init_jupyter handle this itself
         if not in_jupyter and not api.api_key:

@@ -23,7 +23,7 @@ from wandb import data_types
 class History(object):
     """Time series data for Runs.
 
-    See the documentation online: https://docs.wandb.com/docs/logs.html
+    See the documentation online: https://docs.wandb.com/docs/log.html
     """
     # Only tests are allowed to keep all row history in memory
     keep_rows = False

@@ -729,7 +729,6 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
             exc_type, exc_value, exc_traceback)
         logger.error('\n'.join(lines))
         sys.exit(1)
-
     rm.run_user_process(program, args, environ)
 
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")

@@ -3,6 +3,7 @@ from wandb import util
 from wandb.data_types import history_dict_to_json
 from wandb.tensorboard import *
 import wandb
+from copy import deepcopy
 from wandb.apis.file_stream import Chunk
 
 
@@ -35,17 +36,19 @@ def stream_tfevents(path, file_api, run, step=0, namespace=""):
     for summary in tf.train.summary_iterator(path):
         parsed = tf_summary_to_dict(summary, namespace=namespace)
         if last_step != parsed[global_step_key]:
-            step += 1
-            row["_step"] = step
             last_step = parsed[global_step_key]
-            # TODO: handle time
-            if len(row) > 0:
-                last_row = history_dict_to_json(run, row)
+            if len(row) > 3: #Must have more than _timestamp, _step, and global_step
+                step += 1
+                row["_step"] = step
+                last_row = history_dict_to_json(run, deepcopy(row))
                 file_api.push("wandb-history.jsonl", util.json_dumps_safer_history(last_row))
+                row = {}
         row.update(parsed)
-    # TODO: It's not clear to me why we still have wandb.data_types in last_row here,
-    # but we do so we convert again
-    return history_dict_to_json(run, last_row)
+    step += 1
+    row["_step"] = step
+    last_row = history_dict_to_json(run, deepcopy(row))
+    file_api.push("wandb-history.jsonl", util.json_dumps_safer_history(last_row))
+    return last_row
 
 
 __all__ = ['log', 'patch', 'stream_tfevents', 'WandbHook']
