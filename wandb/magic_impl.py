@@ -233,6 +233,7 @@ def _magic_fit_generator(self, generator,
 
 
 def _monkey_keras(keras):
+    # TODO(jhr): harden these overrides to check submodule assumptions
     keras.engine.Model._fit = keras.engine.Model.fit
     keras.engine.Model.fit = _magic_fit
     keras.engine.Model._fit_generator = keras.engine.Model.fit_generator
