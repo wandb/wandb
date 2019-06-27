@@ -465,6 +465,8 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
+        # Write our initial metadata after overriding the defaults
+        self._meta.write()
         self._tensorboard_watchers = []
         self._tensorboard_consumer = None
         self._tensorboard_lock = threading.Lock()
