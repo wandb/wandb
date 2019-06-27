@@ -47,7 +47,7 @@ def training_loop():
 If you're already using Tensorboard or [TensorboardX](https://github.com/lanpa/tensorboardX), you can integrate with one line:
 
 ```python
-wandb.init(sync_tensorboard=True)
+wandb.init(tensorboard=True)
 ```
 
 ## Running your script
