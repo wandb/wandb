@@ -428,6 +428,8 @@ def sync(ctx, path, id, project, entity, ignore):
         globs = None
 
     path = path[0] if len(path) > 0 else os.getcwd()
+    if os.path.isfile(path):
+        raise ClickException("path must be a directory")
     wandb_dir = os.path.join(path, "wandb")
     run_paths = glob.glob(os.path.join(wandb_dir, "*run-*"))
     if len(run_paths) == 0:
