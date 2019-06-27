@@ -52,6 +52,7 @@ from wandb.data_types import Html
 from wandb.data_types import Object3D
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
+from wandb import trigger
 
 from wandb import wandb_torch
 
@@ -336,6 +337,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     if _user_process_finished_called:
         return
     _user_process_finished_called = True
+    trigger.call('on_finished')
 
     stdout_redirector.restore()
     if not env.is_debug():
@@ -624,7 +626,7 @@ def join():
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
-         sync_tensorboard=False, name=None, notes=None, id=None):
+         sync_tensorboard=False, name=None, notes=None, id=None, magic=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -647,10 +649,13 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
             you can also pass a unique run_id
         sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or tensorboardX
         force (bool, optional): Force authentication with wandb, defaults to False
+        magic (bool, dict, or str, optional): magic configuration as bool, dict, json string,
+            yaml filename
 
     Returns:
         A wandb.run object for metric and config logging.
     """
+    trigger.call('on_init', **locals())
     global run
     global __stage_dir__
 
@@ -716,6 +721,17 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.NAME] = name
     if notes:
         os.environ[env.NOTES] = notes
+    if magic is not None and magic is not False:
+        if isinstance(magic, dict):
+            os.environ[env.MAGIC] = json.dumps(magic)
+        elif isinstance(magic, str):
+            os.environ[env.MAGIC] = magic
+        elif isinstance(magic, bool):
+            pass
+        else:
+            termwarn("wandb.init called with invalid magic parameter type", repeat=False)
+        from wandb import magic_impl
+        magic_impl.magic_install()
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
