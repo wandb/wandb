@@ -128,7 +128,7 @@ def _parse_magic(val):
     if os.path.isfile(val):
         try:
             with open(val, 'r') as stream:
-                val = yaml.safeload(stream)
+                val = yaml.safe_load(stream)
         except IOError as e:
             wandb.termwarn("Unable to read magic config file", repeat=False)
             return _magic_defaults
