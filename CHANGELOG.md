@@ -4,6 +4,9 @@
 
 -   image logging works in Windows
 -   wandb sync handles tfevents with a single timestep
+-   fix incorrect command in overview page for running runs
+-   handle histograms with > 512 bins when streaming tensorboard
+-   better error message when calling wandb sync on a file instead of a directory
 
 #### :nail_care: Enhancement
 

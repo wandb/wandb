@@ -105,7 +105,6 @@ class Meta(object):
                 "/usr/local/cuda/version.txt").read().split(" ")[-1].strip()
         self.data["args"] = sys.argv[1:]
         self.data["state"] = "running"
-        self.write()
 
     def write(self):
         self.lock.acquire()
