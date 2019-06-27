@@ -167,7 +167,6 @@ def _fit_wrapper(fn, generator=None, *args, **kwargs):
         epochs = magic_epochs
     callbacks = kwargs.pop("callbacks", [])
 
-    print("JHRWRAP", callbacks)
     tb_enabled = _magic_get_config("magic.keras.fit.callbacks.tensorboard.enable", None)
     if tb_enabled:
         if not any([isinstance(cb, keras.callbacks.TensorBoard) for cb in callbacks]):
@@ -234,7 +233,6 @@ def _magic_fit_generator(self, generator,
 
 
 def _monkey_keras(keras):
-    print("MONKEYKERAS")
     keras.engine.Model._fit = keras.engine.Model.fit
     keras.engine.Model.fit = _magic_fit
     keras.engine.Model._fit_generator = keras.engine.Model.fit_generator
