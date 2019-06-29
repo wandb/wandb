@@ -10,7 +10,6 @@ from __future__ import absolute_import, print_function
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
 __version__ = '0.8.3.dev1'
->>>>>>> master
 
 import atexit
 import click
