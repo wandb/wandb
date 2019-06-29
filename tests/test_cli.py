@@ -658,6 +658,7 @@ def test_sync_tensorboard_single(runner, git_repo, mock_server):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert "Found tfevents file, converting..." in str(result.output)
+    assert "WARNING Not logging key \"histo\"" in str(result.output)
     assert result.exit_code == 0
     print(mock_server.requests["file_stream"][0]["files"]["wandb-history.jsonl"]["content"])
     assert len(json.loads(mock_server.requests["file_stream"][0]["files"]["wandb-history.jsonl"]["content"][0]).keys()) == 5
