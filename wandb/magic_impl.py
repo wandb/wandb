@@ -7,6 +7,7 @@ import copy
 import json
 import os
 import yaml
+import importlib
 
 import wandb
 from wandb import trigger
@@ -42,7 +43,7 @@ class ImportMetaHook():
 
     def load_module(self, fullname):
         self.uninstall()
-        mod = __import__(fullname)
+        mod = importlib.import_module(fullname)
         self.install()
         self.modules[fullname] = mod
         if self.on_import:
