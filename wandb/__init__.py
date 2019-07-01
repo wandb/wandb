@@ -659,10 +659,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     global run
     global __stage_dir__
 
-    # We allow re-initialization when we're in Jupyter
+    # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
     if reinit or (in_jupyter and reinit != False):
-        reset_env(exclude=[env.DIR, env.ENTITY, env.PROJECT, env.API_KEY])
+        reset_env(exclude=env.immutable_keys())
         run = None
 
     # TODO: deprecate tensorboard

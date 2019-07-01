@@ -50,6 +50,12 @@ CRASH_NOSYNC_TIME = 'WANDB_CRASH_NOSYNC_TIME'
 MAGIC = 'WANDB_MAGIC'
 
 
+def immutable_keys():
+    """These are env keys that shouldn't change within a single process.  We use this to maintain
+    certain values between multiple calls to wandb.init within a single process."""
+    return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
+        ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, DIR, SILENT, CONFIG_PATHS]
+
 def is_debug(default=None, env=None):
     if env is None:
         env = os.environ
