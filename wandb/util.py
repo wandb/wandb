@@ -467,9 +467,10 @@ def write_settings(entity, project, url):
 
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
-    if len(key) != 40:
+    key_prefix, key_suffix = key.split('-') if '-' in key else (None, key)
+    if len(key_suffix) != 40:
         click.secho(
-            'API-key must be exactly 40 characters long: {} ({} chars)'.format(key, len(key)))
+            'API-key suffix must be exactly 40 characters long: {} ({} chars)'.format(key, len(key)))
         return None
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
