@@ -160,7 +160,8 @@ def set_entity(value, env=None):
 
 def _fit_wrapper(fn, generator=None, *args, **kwargs):
     trigger.call('on_fit')
-    keras = sys.modules.get("keras")
+    keras = sys.modules.get("keras", None)
+    tfkeras = sys.modules.get("tensorflow.python.keras", None)
     epochs = kwargs.pop("epochs", None)
 
     magic_epochs = _magic_get_config("magic.keras.fit.epochs", None)
@@ -170,8 +171,9 @@ def _fit_wrapper(fn, generator=None, *args, **kwargs):
 
     tb_enabled = _magic_get_config("magic.keras.fit.callbacks.tensorboard.enable", None)
     if tb_enabled:
-        if not any([isinstance(cb, keras.callbacks.TensorBoard) for cb in callbacks]):
-            tb_callback = keras.callbacks.TensorBoard(log_dir=wandb.run.dir)
+        k = tfkeras or keras
+        if k and not any([isinstance(cb, k.callbacks.TensorBoard) for cb in callbacks]):
+            tb_callback = k.callbacks.TensorBoard(log_dir=wandb.run.dir)
             callbacks.append(tb_callback)
     
     wandb_enabled = _magic_get_config("magic.keras.fit.callbacks.wandb.enable", None)
@@ -234,17 +236,32 @@ def _magic_fit_generator(self, generator,
 
 
 def _monkey_keras(keras):
-    # TODO(jhr): harden these overrides to check submodule assumptions
-    keras.engine.Model._fit = keras.engine.Model.fit
-    keras.engine.Model.fit = _magic_fit
-    keras.engine.Model._fit_generator = keras.engine.Model.fit_generator
-    keras.engine.Model.fit_generator = _magic_fit_generator
+    models = getattr(keras, 'engine', None)
+    if not models:
+        return
+    models.Model._fit = models.Model.fit
+    models.Model.fit = _magic_fit
+    models.Model._fit_generator = models.Model.fit_generator
+    models.Model.fit_generator = _magic_fit_generator
+
+
+def _monkey_tfkeras(tfkeras):
+    models = getattr(tfkeras, 'models', None)
+    if not models:
+        return
+    models.Model._fit = models.Model.fit
+    models.Model.fit = _magic_fit
+    models.Model._fit_generator = models.Model.fit_generator
+    models.Model.fit_generator = _magic_fit_generator
 
 
 def _on_import_keras(fullname):
     if fullname == 'keras':
         keras = _import_hook.get_module('keras')
         _monkey_keras(keras)
+    if fullname == 'tensorflow.python.keras':
+        keras = _import_hook.get_module('tensorflow.python.keras')
+        _monkey_tfkeras(keras)
 
 
 def _process_system_args():
@@ -344,7 +361,9 @@ def magic_install():
     global _magic_config
     _magic_config = _parse_magic(wandb.env.get_magic())
 
-    if 'keras' in sys.modules:
+    if 'tensorflow.python.keras' in sys.modules:
+        _monkey_tfkeras(sys.modules.get('tensorflow.python.keras'))
+    elif 'keras' in sys.modules:
         _monkey_keras(sys.modules.get('keras'))
     else:
         global _import_hook
