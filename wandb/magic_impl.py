@@ -205,7 +205,7 @@ def set_entity(value, env=None):
         env = os.environ
 
 
-def _fit_wrapper(fn, generator=None, *args, **kwargs):
+def _fit_wrapper(self, fn, generator=None, *args, **kwargs):
     trigger.call('on_fit')
     keras = sys.modules.get("keras", None)
     tfkeras = sys.modules.get("tensorflow.python.keras", None)
@@ -222,7 +222,7 @@ def _fit_wrapper(fn, generator=None, *args, **kwargs):
 
     tb_enabled = _magic_get_config("magic.keras.fit.callbacks.tensorboard.enable", None)
     if tb_enabled:
-        k = tfkeras or keras
+        k = getattr(self, '_keras_or_tfkeras', None)
         if k:
             tb_duplicate = _magic_get_config("magic.keras.fit.callbacks.tensorboard.duplicate", None)
             tb_overwrite = _magic_get_config("magic.keras.fit.callbacks.tensorboard.overwrite", None)
@@ -293,7 +293,7 @@ def _magic_fit(self,
         #workers=1,
         #use_multiprocessing=False,
         *args, **kwargs):
-    return _fit_wrapper(self._fit, x=x, y=y, batch_size=batch_size, epochs=epochs, *args, **kwargs)
+    return _fit_wrapper(self, self._fit, x=x, y=y, batch_size=batch_size, epochs=epochs, *args, **kwargs)
 
 
 def _magic_fit_generator(self, generator,
@@ -313,7 +313,7 @@ def _magic_fit_generator(self, generator,
                     #shuffle=True,
                     #initial_epoch=0,
                     *args, **kwargs):
-    return _fit_wrapper(self._fit_generator, generator=generator, steps_per_epoch=steps_per_epoch, epochs=epochs, *args, **kwargs)
+    return _fit_wrapper(self, self._fit_generator, generator=generator, steps_per_epoch=steps_per_epoch, epochs=epochs, *args, **kwargs)
 
 
 def _monkey_keras(keras):
@@ -324,6 +324,7 @@ def _monkey_keras(keras):
     models.Model.fit = _magic_fit
     models.Model._fit_generator = models.Model.fit_generator
     models.Model.fit_generator = _magic_fit_generator
+    models.Model._keras_or_tfkeras = keras
 
 
 def _monkey_tfkeras(tfkeras):
@@ -334,6 +335,7 @@ def _monkey_tfkeras(tfkeras):
     models.Model.fit = _magic_fit
     models.Model._fit_generator = models.Model.fit_generator
     models.Model.fit_generator = _magic_fit_generator
+    models.Model._keras_or_tfkeras = tfkeras
 
 
 def _monkey_absl(absl_app):
