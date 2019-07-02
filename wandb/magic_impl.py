@@ -236,7 +236,7 @@ def _magic_fit_generator(self, generator,
 
 
 def _monkey_keras(keras):
-    models = getattr(tfkeras, 'engine', None)
+    models = getattr(keras, 'engine', None)
     if not models:
         return
     models.Model._fit = models.Model.fit
