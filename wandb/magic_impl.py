@@ -17,6 +17,7 @@ _import_hook = None
 _run_once = False
 _args_argparse = None
 _args_system = None
+_args_absl = None
 _magic_init_seen = False
 _magic_config = {}
 
@@ -24,11 +25,19 @@ _magic_config = {}
 # PEP302 new import hooks, in python3 we could use importlib
 class ImportMetaHook():
     def __init__(self, watch=(), on_import=None):
-        if isinstance(watch, six.string_types):
-            watch = tuple([watch])
-        self.watch_items = frozenset(watch)
         self.modules = {}
-        self.on_import = on_import
+        self.watch_full = frozenset(())
+        self.watch_last = frozenset(())
+        self.on_import_full = {}
+        self.on_import_last = {}
+
+    def add(self, fullname=None, lastname=None, on_import=None):
+        if fullname:
+            self.on_import_full[fullname] = on_import
+            self.watch_full = frozenset(tuple(self.on_import_full.keys()))
+        if lastname:
+            self.on_import_last[lastname] = on_import
+            self.watch_last = frozenset(tuple(self.on_import_last.keys()))
 
     def install(self):
         sys.meta_path.insert(0, self)
@@ -37,8 +46,10 @@ class ImportMetaHook():
         sys.meta_path.remove(self)
 
     def find_module(self, fullname, path=None):
+        if fullname in self.watch_full:
+            return self
         lastname = fullname.split('.')[-1]
-        if lastname in self.watch_items:
+        if lastname in self.watch_last:
             return self
 
     def load_module(self, fullname):
@@ -46,8 +57,12 @@ class ImportMetaHook():
         mod = importlib.import_module(fullname)
         self.install()
         self.modules[fullname] = mod
-        if self.on_import:
-            self.on_import(fullname)
+        on_import = self.on_import_full.get(fullname)
+        if not on_import:
+            lastname = fullname.split('.')[-1]
+            on_import = self.on_import_last.get(lastname)
+        if on_import:
+            on_import(fullname)
         return mod
 
     def get_modules(self):
@@ -103,15 +118,47 @@ _magic_defaults = {
             'fit': {
                 'callbacks': {
                     'tensorboard': {
-                        'enable': True
+                        'enable': True,
+                        'duplicate': False,
+                        'overwrite': False,
+                        'write_graph': None,
+                        'histogram_freq': None,
+                        'update_freq': None,
+                        'write_grads': None,
+                        'write_images': None,
+                        'batch_size': None,
                         },
                     'wandb': {
-                        'enable': True
-                        }
+                        'enable': True,
+                        'duplicate': False,
+                        'overwrite': False,
+                        'log_gradients': None,
+                        'log_weights': None,
+                        'data_type': None,
+                        'predictions': None,
+                        'save_model': None,
+                        'save_weights_only': None,
+                        'monitor': None,
+                        'mode': None,
+                        'verbose': None,
+                        },
+                    'epochs': None,
+                    'batch_size': None,
                     }
-                }
-            }
-        }
+                },
+            #'compile': {
+            #       'optimizer': {
+            #           'name': False,
+            #           },
+            #       'loss': None,
+            #    },
+            },
+        'args': {
+            'absl': None,
+            'argparse': None,
+            'sys': None,
+            },
+        },
     }
             
 
@@ -158,33 +205,67 @@ def set_entity(value, env=None):
         env = os.environ
 
 
-def _fit_wrapper(fn, generator=None, *args, **kwargs):
+def _fit_wrapper(self, fn, generator=None, *args, **kwargs):
     trigger.call('on_fit')
     keras = sys.modules.get("keras", None)
     tfkeras = sys.modules.get("tensorflow.python.keras", None)
     epochs = kwargs.pop("epochs", None)
+    batch_size = kwargs.pop("batch_size", None)
 
     magic_epochs = _magic_get_config("magic.keras.fit.epochs", None)
     if magic_epochs is not None:
         epochs = magic_epochs
+    magic_batch_size = _magic_get_config("magic.keras.fit.batch_size", None)
+    if magic_batch_size is not None:
+        batch_size = magic_batch_size
     callbacks = kwargs.pop("callbacks", [])
 
     tb_enabled = _magic_get_config("magic.keras.fit.callbacks.tensorboard.enable", None)
     if tb_enabled:
-        k = tfkeras or keras
-        if k and not any([isinstance(cb, k.callbacks.TensorBoard) for cb in callbacks]):
-            tb_callback = k.callbacks.TensorBoard(log_dir=wandb.run.dir)
-            callbacks.append(tb_callback)
+        k = getattr(self, '_keras_or_tfkeras', None)
+        if k:
+            tb_duplicate = _magic_get_config("magic.keras.fit.callbacks.tensorboard.duplicate", None)
+            tb_overwrite = _magic_get_config("magic.keras.fit.callbacks.tensorboard.overwrite", None)
+            tb_present = any([isinstance(cb, k.callbacks.TensorBoard) for cb in callbacks])
+            if tb_present and tb_overwrite:
+                callbacks = [cb for cb in callbacks if not isinstance(cb, k.callbacks.TensorBoard)]
+            if tb_overwrite or tb_duplicate or not tb_present:
+                tb_callback_kwargs = {'log_dir': wandb.run.dir}
+                cb_args = ('write_graph','histogram_freq', 'update_freq', 'write_grads',
+                           'write_images','batch_size')
+                for cb_arg in cb_args:
+                    v = _magic_get_config("magic.keras.fit.callbacks.tensorboard." + cb_arg, None)
+                    if v is not None:
+                        tb_callback_kwargs[cb_arg] = v
+                tb_callback = k.callbacks.TensorBoard(**tb_callback_kwargs)
+                callbacks.append(tb_callback)
     
     wandb_enabled = _magic_get_config("magic.keras.fit.callbacks.wandb.enable", None)
     if wandb_enabled:
-        if not any([isinstance(cb, wandb.keras.WandbCallback) for cb in callbacks]):
-            wandb_callback = wandb.keras.WandbCallback()
+        wandb_duplicate = _magic_get_config("magic.keras.fit.callbacks.wandb.duplicate", None)
+        wandb_overwrite = _magic_get_config("magic.keras.fit.callbacks.wandb.overwrite", None)
+        wandb_present = any([isinstance(cb, wandb.keras.WandbCallback) for cb in callbacks])
+        if wandb_present and wandb_overwrite:
+            callbacks = [cb for cb in callbacks if not isinstance(cb, wandb.keras.WandbCallback)]
+        if wandb_overwrite or wandb_duplicate or not wandb_present:
+            wandb_callback_kwargs = {}
+            log_gradients = _magic_get_config("magic.keras.fit.callbacks.wandb.log_gradients", None)
+            if log_gradients and kwargs.get('x') and kwargs.get('y'):
+                wandb_callback_kwargs['log_gradients'] = log_gradients
+            cb_args = ("predictions", "log_weights", "data_type", "save_model", "save_weights_only",
+                       "monitor", "mode", "verbose")
+            for cb_arg in cb_args:
+                v = _magic_get_config("magic.keras.fit.callbacks.wandb." + cb_arg, None)
+                if v is not None:
+                    wandb_callback_kwargs[cb_arg] = v
+            wandb_callback = wandb.keras.WandbCallback(**wandb_callback_kwargs)
             callbacks.append(wandb_callback)
 
     kwargs["callbacks"] = callbacks
     if epochs is not None:
         kwargs["epochs"] = epochs
+    if batch_size is not None:
+        kwargs["batch_size"] = batch_size
     if generator:
         return fn(generator, *args, **kwargs)
     return fn(*args, **kwargs)
@@ -212,7 +293,7 @@ def _magic_fit(self,
         #workers=1,
         #use_multiprocessing=False,
         *args, **kwargs):
-    return _fit_wrapper(self._fit, x=x, y=y, batch_size=batch_size, epochs=epochs, *args, **kwargs)
+    return _fit_wrapper(self, self._fit, x=x, y=y, batch_size=batch_size, epochs=epochs, *args, **kwargs)
 
 
 def _magic_fit_generator(self, generator,
@@ -232,7 +313,7 @@ def _magic_fit_generator(self, generator,
                     #shuffle=True,
                     #initial_epoch=0,
                     *args, **kwargs):
-    return _fit_wrapper(self._fit_generator, generator=generator, steps_per_epoch=steps_per_epoch, epochs=epochs, *args, **kwargs)
+    return _fit_wrapper(self, self._fit_generator, generator=generator, steps_per_epoch=steps_per_epoch, epochs=epochs, *args, **kwargs)
 
 
 def _monkey_keras(keras):
@@ -243,6 +324,7 @@ def _monkey_keras(keras):
     models.Model.fit = _magic_fit
     models.Model._fit_generator = models.Model.fit_generator
     models.Model.fit_generator = _magic_fit_generator
+    models.Model._keras_or_tfkeras = keras
 
 
 def _monkey_tfkeras(tfkeras):
@@ -253,6 +335,36 @@ def _monkey_tfkeras(tfkeras):
     models.Model.fit = _magic_fit
     models.Model._fit_generator = models.Model.fit_generator
     models.Model.fit_generator = _magic_fit_generator
+    models.Model._keras_or_tfkeras = tfkeras
+
+
+def _monkey_absl(absl_app):
+    def _absl_callback():
+        absl_flags = sys.modules.get('absl.flags')
+        if not absl_flags:
+            return
+        _flags = getattr(absl_flags, 'FLAGS', None)
+        if not _flags:
+            return
+        _flags_as_dict = getattr(_flags, 'flag_values_dict', None)
+        if not _flags_as_dict:
+            return
+        _flags_module = getattr(_flags, 'find_module_defining_flag', None)
+        if not _flags_module:
+            return
+        flags_dict = {}
+        for f, v in six.iteritems(_flags_as_dict()):
+            m = _flags_module(f)
+            if not m or m.startswith("absl."):
+                continue
+            flags_dict[f] = v
+        global _args_absl
+        _args_absl = flags_dict
+
+    call_after_init = getattr(absl_app, 'call_after_init', None)
+    if not call_after_init:
+        return
+    call_after_init(_absl_callback)
 
 
 def _on_import_keras(fullname):
@@ -262,6 +374,12 @@ def _on_import_keras(fullname):
     if fullname == 'tensorflow.python.keras':
         keras = _import_hook.get_module('tensorflow.python.keras')
         _monkey_tfkeras(keras)
+
+
+def _on_import_absl(fullname):
+    if fullname == 'absl.app':
+        keras = _import_hook.get_module('absl.app')
+        _monkey_absl(keras)
 
 
 def _process_system_args():
@@ -326,8 +444,17 @@ def _magic_update_config():
         user_config = dict(c.user_items())
         if user_config:
             return
-    # prefer argparse values, fallback to parsed system args
-    args = _args_argparse or _args_system
+    if _magic_get_config("magic.args.absl", None) is False:
+        global _args_absl
+        _args_absl = None
+    if _magic_get_config("magic.args.argparse", None) is False:
+        global _args_argparse
+        _args_argparse = None
+    if _magic_get_config("magic.args.sys", None) is False:
+        global _args_system
+        _args_system = None
+    # prefer absl, then argparse values, fallback to parsed system args
+    args = _args_absl or _args_argparse or _args_system
     if args and wandb.run and wandb.run.config:
         wandb.run.config.update(args)
 
@@ -359,6 +486,7 @@ def magic_install():
 
     wandb.init(magic=True)
     global _magic_config
+    global _import_hook
     _magic_config = _parse_magic(wandb.env.get_magic())
 
     if 'tensorflow.python.keras' in sys.modules:
@@ -366,9 +494,18 @@ def magic_install():
     elif 'keras' in sys.modules:
         _monkey_keras(sys.modules.get('keras'))
     else:
-        global _import_hook
-        _import_hook = ImportMetaHook(watch='keras', on_import=_on_import_keras)
-        _import_hook.install()
+        if not _import_hook:
+            _import_hook = ImportMetaHook()
+            _import_hook.install()
+        _import_hook.add(lastname='keras', on_import=_on_import_keras)
+
+    if 'absl.app' in sys.modules:
+        _monkey_absl(sys.modules.get('absl.app'))
+    else:
+        if not _import_hook:
+            _import_hook = ImportMetaHook()
+            _import_hook.install()
+        _import_hook.add(fullname='absl.app', on_import=_on_import_absl)
 
     # update wandb.config on fit or program finish
     trigger.register('on_fit', _magic_update_config)
