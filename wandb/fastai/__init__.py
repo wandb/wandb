@@ -29,11 +29,9 @@ Examples:
         learn.fit(..., callbacks=WandBCallback(learn, ...))
 '''
 import wandb
-import matplotlib
-matplotlib.use('Agg')  # non-interactive back-end (avoid issues with tkinter)
-import matplotlib.pyplot as plt
 from fastai.callbacks import TrackerCallback
 from pathlib import Path
+import random
 
 
 class WandbCallback(TrackerCallback):
@@ -44,10 +42,12 @@ class WandbCallback(TrackerCallback):
     def __init__(self,
                  learn,
                  log=None,
-                 show_results=False,
                  save_model=False,
                  monitor='val_loss',
-                 mode='auto'):
+                 mode='auto',
+                 data_type='images',
+                 validation_data=None,
+                 predictions=32):
         """WandB fast.ai Callback
 
         Automatically saves model topology, losses & metrics.
@@ -55,11 +55,13 @@ class WandbCallback(TrackerCallback):
 
         Args:
             learn (fastai.basic_train.Learner): the fast.ai learner to hook.
-            log (str): One of "gradients", "parameters", "all", or None. Losses & metrics are always logged.
-            show_results (bool): whether we want to display sample predictions, works only with images at the moment
+            log (str): "gradients", "parameters", "all", or None. Losses & metrics are always logged.
             save_model (bool): save model at the end of each epoch.
             monitor (str): metric to monitor for saving best model.
             mode (str): "auto", "min" or "max" to compare "monitor" values and define best model.
+            data_type (str): "images" or None. Used to display sample predictions.
+            validation_data (list): data used for sample predictions if data_type is set.
+            predictions (int): number of predictions to make if data_type is set and validation_data is None.
         """
 
         # Check if wandb.init has been called
@@ -73,8 +75,16 @@ class WandbCallback(TrackerCallback):
         self.model_path = Path(wandb.run.dir) / 'bestmodel.pth'
 
         self.log = log
-        self.show_results = show_results
+        self.data_type = data_type
         self.best = None
+
+        # Select items for sample predictions to see evolution along training
+        self.validation_data = validation_data
+        if data_type and not self.validation_data:
+            predictions = min(predictions, len(learn.data.valid_ds))
+            indices = random.sample(range(len(learn.data.valid_ds)),
+                                    predictions)
+            self.validation_data = [learn.data.valid_ds[i] for i in indices]
 
     def on_train_begin(self, **kwargs):
         "Call watch method to log model topology, gradients & weights"
@@ -101,14 +111,26 @@ class WandbCallback(TrackerCallback):
                         epoch, self.monitor, current))
                 self.best = current
 
-                # Section modified to save within wandb folder
+                # Save within wandb folder
                 with self.model_path.open('wb') as model_file:
                     self.learn.save(model_file)
 
         # Log sample predictions
-        if self.show_results:
-            self.learn.show_results()  # pyplot display of sample predictions
-            wandb.log({"Prediction Samples": plt}, commit=False)
+        if self.validation_data:
+            pred_log = []
+
+            for x, y in self.validation_data:
+                pred = self.learn.predict(x)
+
+                # scalar -> likely to be a category
+                if not pred[1].shape:
+                    pred_log.append(
+                        wandb.Image(
+                            x.data,
+                            caption='Ground Truth: {}\nPrediction: {}'.format(
+                                y, pred[0])))
+
+            wandb.log({"Prediction Samples": pred_log}, commit=False)
 
         # Log losses & metrics
         # Adapted from fast.ai "CSVLogger"
@@ -120,10 +142,6 @@ class WandbCallback(TrackerCallback):
         }
         wandb.log(logs)
 
-        # We can now close results figure
-        if self.show_results:
-            plt.close('all')
-
     def on_train_end(self, **kwargs):
         "Load the best model."
 
@@ -134,3 +152,36 @@ class WandbCallback(TrackerCallback):
                     self.learn.load(model_file, purge=False)
                     print('Loaded best saved model from {}'.format(
                         self.model_path))
+
+
+# Functions imported from fastai.core
+
+
+def func_args(func) -> bool:
+    "Return the arguments of `func`."
+    code = func.__code__
+    return code.co_varnames[:code.co_argcount]
+
+
+def has_arg(func, arg) -> bool:
+    "Check if `func` accepts `arg`."
+    return arg in func_args(func)
+
+
+def split_kwargs_by_func(kwargs, func):
+    "Split `kwargs` between those expected by `func` and the others."
+    args = func_args(func)
+    func_kwargs = {a: kwargs.pop(a) for a in args if a in kwargs}
+    return func_kwargs, kwargs
+
+
+def grab_idx(x, i, batch_first: bool = True):
+    "Grab the `i`-th batch in `x`, `batch_first` stating the batch dimension."
+    if batch_first:
+        return ([o[i].cpu() for o in x] if is_listy(x) else x[i].cpu())
+    else:
+        return ([o[:, i].cpu() for o in x] if is_listy(x) else x[:, i].cpu())
+
+
+def is_listy(x) -> bool:
+    return isinstance(x, (tuple, list))
