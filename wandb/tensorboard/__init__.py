@@ -141,11 +141,15 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
             [TENSORBOARD_C_MODULE, "create_summary_file_writer"])
 
 
-def log(tf_summary_str, **kwargs):
+def log(tf_summary_str, history=None, **kwargs):
     namespace = kwargs.get("namespace")
     if "namespace" in kwargs:
         del kwargs["namespace"]
-    wandb.log(tf_summary_to_dict(tf_summary_str, namespace), **kwargs)
+    log_dict = tf_summary_to_dict(tf_summary_str, namespace)
+    if history is None:
+        wandb.log(log_dict, **kwargs)
+    else:
+        history.add(log_dict, **kwargs)
 
 
 def history_image_key(key, namespace=""):
