@@ -470,7 +470,7 @@ def write_netrc(host, entity, key):
     key_prefix, key_suffix = key.split('-') if '-' in key else (None, key)
     if len(key_suffix) != 40:
         click.secho(
-            'API-key suffix must be exactly 40 characters long: {} ({} chars)'.format(key, len(key)))
+            'API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
         return None
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
