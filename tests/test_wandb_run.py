@@ -10,6 +10,10 @@ from wandb import wandb_run
 from wandb import env
 from wandb.apis import InternalApi
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 
 def get_last_val(history, key):
     val = None
@@ -19,44 +23,54 @@ def get_last_val(history, key):
 
 
 def test_wandb_run_args(git_repo):
-    os.environ[env.ARGS] = json.dumps(["foo", "bar"])
-    run = wandb_run.Run.from_environment_or_defaults()
+    environ = dict(os.environ)
+    environ[env.ARGS] = json.dumps(["foo", "bar"])
+    run = wandb_run.Run.from_environment_or_defaults(environ)
     assert run.args == ["foo", "bar"]
-    del os.environ[env.ARGS]
 
 
 def test_url_escape(git_repo):
-    os.environ[env.ENTITY] = "†est"
-    os.environ[env.PROJECT] = "wild projo"
-    os.environ[env.API_KEY] = "abcdefghijabcdefghijabcdefghijabcdefghij"
-    run = wandb_run.Run.from_environment_or_defaults(
-        {env.RUN_ID: "my wild run"})
-    assert run.get_url() == "https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run"
-    del os.environ[env.ENTITY]
-    del os.environ[env.API_KEY]
-    del os.environ[env.PROJECT]
+    environ = dict(os.environ)
+    environ[env.API_KEY] = "abcdefghijabcdefghijabcdefghijabcdefghij"
+    environ[env.RUN_ID] = "my wild run"
+    run = wandb_run.Run.from_environment_or_defaults(environ)
+    url = run.get_url()
+    assert url.startswith('https://app.wandb.ai/')
+    # the middle part is the entity and the project, which depend on the current user.
+    assert url.endswith('/runs/my+wild+run')
 
 
 def test_wandb_run_args_sys(git_repo, mocker):
+    environ = dict(os.environ)
+    if env.ARGS in environ:
+        del environ[env.ARGS]  # force our code to use sys.argv.
     mocker.patch.object(sys, 'argv', ["rad", "cool"])
-    run = wandb_run.Run.from_environment_or_defaults()
+    run = wandb_run.Run.from_environment_or_defaults(environ)
     assert run.args == ["cool"]
 
 
 def test_name_and_desc_only_name(git_repo):
-    os.environ[env.DESCRIPTION] = "myrunid"
-    run = wandb_run.Run.from_environment_or_defaults()
+    environ = dict(os.environ)
+    if env.NAME in environ:
+        del environ[env.NAME]
+    if env.NOTES in environ:
+        del environ[env.NOTES]
+    environ[env.DESCRIPTION] = "myrunid"
+    run = wandb_run.Run.from_environment_or_defaults(environ)
     assert run.name == "myrunid"
     assert run.description == ""
-    del os.environ[env.DESCRIPTION]
 
 
 def test_name_and_desc(git_repo):
-    os.environ[env.DESCRIPTION] = "myrunid\nmydesc"
-    run = wandb_run.Run.from_environment_or_defaults()
+    environ = dict(os.environ)
+    if env.NAME in environ:
+        del environ[env.NAME]
+    if env.NOTES in environ:
+        del environ[env.NOTES]
+    environ[env.DESCRIPTION] = "myrunid\nmydesc"
+    run = wandb_run.Run.from_environment_or_defaults(environ)
     assert run.name == "myrunid"
     assert run.description == "mydesc"
-    del os.environ[env.DESCRIPTION]
 
 
 def test_name_and_desc_setters(git_repo):
