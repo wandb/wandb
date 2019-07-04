@@ -8,7 +8,6 @@ import fnmatch
 import tempfile
 import shutil
 import glob
-import warnings
 
 from sentry_sdk import configure_scope
 
@@ -77,7 +76,7 @@ class Run(object):
         # influence it. They have higher precedence.
         self._name_and_description = ""
         if description is not None:
-            warnings.warn('Run.description is deprecated. Please use wandb.init(notes="long notes") instead.', DeprecationWarning)
+            wandb.termwarn('Run.description is deprecated. Please use wandb.init(notes="long notes") instead.')
             self._name_and_description = description
         elif os.path.exists(self.description_path):
             with open(self.description_path) as d_file:
@@ -464,13 +463,8 @@ class Run(object):
         self._name_and_description = "\n".join(parts)
 
     @property
-    def display_name(self):
-        """For compatibility with the public API."""
-        return self.name
-
-    @property
     def description(self):
-        warnings.warn('Run.description is deprecated. Please use run.notes instead.', DeprecationWarning)
+        wandb.termwarn('Run.description is deprecated. Please use run.notes instead.')
 
         parts = self._name_and_description.split("\n", 1)
         if len(parts) > 1:
@@ -480,7 +474,7 @@ class Run(object):
 
     @description.setter
     def description(self, desc):
-        warnings.warn('Run.description is deprecated. Please use wandb.init(notes="long notes") instead.', DeprecationWarning)
+        wandb.termwarn('Run.description is deprecated. Please use wandb.init(notes="long notes") instead.')
 
         parts = self._name_and_description.split("\n", 1)
         if len(parts) == 1:

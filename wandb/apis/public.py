@@ -350,21 +350,22 @@ class Run(Attrs):
     """A single run associated with a user and project"""
 
     def __init__(self, client, username, project, name, attrs={}):
+        super(Run, self).__init__(dict(attrs))
         self.client = client
         self.username = username
         self.project = project
-        self.name = name
         self._files = {}
         self._base_dir = get_dir(tempfile.gettempdir())
+        self.name = name
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
         except OSError:
             pass
         self._summary = None
-        super(Run, self).__init__(attrs)
         self.state = attrs.get("state", "not found")
-        self.load()
+
+        self.load(force=not attrs)
 
     @property
     def storage_id(self):
@@ -372,7 +373,26 @@ class Run(Attrs):
         in self.storage_id and names in self.id, whereas this has storage IDs in
         self.id and names in self.id
         """
-        return self.id
+        return self._attrs.get('id')
+
+    @property
+    def id(self):
+        return self._attrs.get('name')
+
+    @id.setter
+    def id(self, new_id):
+        attrs = self._attrs
+        attrs['name'] = new_id
+        return new_id
+
+    @property
+    def name(self):
+        return self._attrs.get('displayName')
+
+    @name.setter
+    def name(self, new_name):
+        self._attrs['displayName'] = new_name
+        return new_name
 
     @classmethod
     def create(cls, api, run_id=None, project=None, username=None):
