@@ -8,9 +8,12 @@ from wandb.apis.file_stream import Chunk
 
 
 class WandbHook(tf.train.SessionRunHook):
-    def __init__(self, summary_op=None, steps_per_log=1000):
+    def __init__(self, summary_op=None, steps_per_log=1000, history=None):
         self._summary_op = summary_op
         self._steps_per_log = steps_per_log
+        # TODO(adrian): might be better to set this to wandb.run.history here
+        # because that is the de facto default.
+        self._history = history
 
     def begin(self):
         if self._summary_op is None:
@@ -23,7 +26,7 @@ class WandbHook(tf.train.SessionRunHook):
 
     def after_run(self, run_context, run_values):
         if self._step % self._steps_per_log == 0:
-            log(run_values.results["summary"])
+            log(run_values.results["summary"], history=self._history)
 
 
 def stream_tfevents(path, file_api, run, step=0, namespace=""):
