@@ -1,3 +1,5 @@
+`wandb --version && python --version && uname`
+
 * Weights and Biases version:
 * Python version:
 * Operating System:
