@@ -16,6 +16,7 @@ import numbers
 import inspect
 import glob
 import platform
+import fnmatch
 
 import click
 from pkg_resources import parse_version
@@ -588,10 +589,13 @@ class RunManager(object):
 
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
+        ignore_globs = self._api.settings("ignore_globs")
         for dirpath, dirnames, filenames in os.walk(self._run.dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._run.dir)
+                if any([fnmatch.fnmatch(save_name, glob) for glob in ignore_globs]):
+                    continue
                 if save_name not in self._file_event_handlers:
                     self._get_file_event_handler(file_path, save_name).on_created()
 

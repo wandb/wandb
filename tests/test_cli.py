@@ -703,6 +703,26 @@ def test_run_simple(runner, git_repo, mock_server, monkeypatch):
     assert result.exit_code == 0
     assert "Synced lovely-dawn-32" in result.output
 
+def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
+    run_id = "abc123"
+    os.environ["WANDB_IGNORE_GLOBS"] = "*.patch"
+    with open("simple.py", "w") as f:
+        f.write('print("Done!")')
+    with open("README", "w") as f:
+        f.write("Making it dirty")
+    print(os.getcwd())
+    result = runner.invoke(
+        cli.run, ["--id=%s" % run_id, "python", "simple.py"])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    # This is disabled for now because it hasn't worked for a long time:
+    #assert "Verifying uploaded files... verified!" in result.output
+    assert result.exit_code == 0
+    assert "Synced lovely-dawn-32" in result.output
+    assert 'storage?file=diff.patch' not in mock_server.requests.keys()
+    wandb.reset_env()
+
 @pytest.mark.skipif(os.getenv("NO_ML") == "true", reason="No PIL win NO_ML")
 def test_run_image(runner, git_repo, mock_server):
     run_id = "123abc"
