@@ -177,7 +177,6 @@ class ExitHooks(object):
 def _init_headless(run, cloud=True):
     global join
     global _user_process_finished_called
-    run.description = env.get_description(run.description)
 
     environ = dict(os.environ)
     run.set_environment(environ)

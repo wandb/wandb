@@ -31,14 +31,12 @@ def test_wandb_run_args(git_repo):
 
 def test_url_escape(git_repo):
     environ = dict(os.environ)
+    environ[env.ENTITY] = "†est"
+    environ[env.PROJECT] = "wild projo"
     environ[env.API_KEY] = "abcdefghijabcdefghijabcdefghijabcdefghij"
     environ[env.RUN_ID] = "my wild run"
     run = wandb_run.Run.from_environment_or_defaults(environ)
-    url = run.get_url()
-    assert url.startswith('https://app.wandb.ai/')
-    # the middle part is the entity and the project, which depend on the current user.
-    assert url.endswith('/runs/my+wild+run')
-
+    assert run.get_url() == 'https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run'
 
 def test_wandb_run_args_sys(git_repo, mocker):
     environ = dict(os.environ)

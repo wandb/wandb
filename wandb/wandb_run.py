@@ -43,7 +43,14 @@ DESCRIPTION_FNAME = 'description.md'
 class Run(object):
     def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None,
                  config=None, sweep_id=None, storage_id=None, description=None, resume=None,
-                 program=None, args=None, wandb_dir=None, tags=None, name=None, notes=None):
+                 program=None, args=None, wandb_dir=None, tags=None, name=None, notes=None,
+                 api=None):
+        """Create a Run.
+
+        Arguments:
+            description (str): This is the old, deprecated style of description: the run's
+                name followed by a newline, followed by multiline notes.
+        """
         # self.storage_id is "id" in GQL.
         self.storage_id = storage_id
         # self.id is "name" in GQL.
@@ -58,7 +65,12 @@ class Run(object):
         self.job_type = job_type
         self.pid = os.getpid()
         self.resumed = False  # we set resume when history is first accessed
-        self._api = None
+        if api:
+            if api.current_run_id and api.current_run_id != self.id:
+                raise RuntimeError('Api object passed to run {} is already being used by run {}'.format(self.id, api.current_run_id))
+            else:
+                api.set_current_run_id(self.id)
+        self._api = api
 
         if dir is None:
             self._dir = run_dir_path(self.id, dry=self.mode == 'dryrun')
@@ -75,7 +87,7 @@ class Run(object):
         # This needs to be set before name and notes because name and notes may
         # influence it. They have higher precedence.
         self._name_and_description = ""
-        if description is not None:
+        if description:
             wandb.termwarn('Run.description is deprecated. Please use wandb.init(notes="long notes") instead.')
             self._name_and_description = description
         elif os.path.exists(self.description_path):
@@ -203,7 +215,7 @@ class Run(object):
         resume = environment.get(env.RESUME)
         storage_id = environment.get(env.RUN_STORAGE_ID)
         mode = environment.get(env.MODE)
-        api = InternalApi()
+        api = InternalApi(environ=environment)
         disabled = api.disabled()
         if not mode and disabled:
             mode = "dryrun"
@@ -232,7 +244,8 @@ class Run(object):
                   sweep_id, storage_id, program=program, description=description,
                   args=args, wandb_dir=wandb_dir, tags=tags,
                   name=name, notes=notes,
-                  resume=resume)
+                  resume=resume, api=api)
+
         return run
 
     @classmethod
@@ -465,7 +478,6 @@ class Run(object):
     @property
     def description(self):
         wandb.termwarn('Run.description is deprecated. Please use run.notes instead.')
-
         parts = self._name_and_description.split("\n", 1)
         if len(parts) > 1:
             return parts[1]
@@ -475,7 +487,6 @@ class Run(object):
     @description.setter
     def description(self, desc):
         wandb.termwarn('Run.description is deprecated. Please use wandb.init(notes="long notes") instead.')
-
         parts = self._name_and_description.split("\n", 1)
         if len(parts) == 1:
             parts.append("")
