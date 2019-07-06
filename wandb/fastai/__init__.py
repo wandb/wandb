@@ -32,6 +32,10 @@ import wandb
 from fastai.callbacks import TrackerCallback
 from pathlib import Path
 import random
+try:
+    import matplotlib.pyplot as plt
+except:
+    print('Warning: matplotlib required if logging sample image predictions')
 
 
 class WandbCallback(TrackerCallback):
@@ -45,9 +49,9 @@ class WandbCallback(TrackerCallback):
                  save_model=False,
                  monitor='val_loss',
                  mode='auto',
-                 data_type='images',
+                 data_type=None,
                  validation_data=None,
-                 predictions=32):
+                 predictions=20):
         """WandB fast.ai Callback
 
         Automatically saves model topology, losses & metrics.
@@ -129,6 +133,45 @@ class WandbCallback(TrackerCallback):
                             x.data,
                             caption='Ground Truth: {}\nPrediction: {}'.format(
                                 y, pred[0])))
+
+                # most vision datasets have a "show" function we can use
+                elif hasattr(x, "show"):
+                    # log input data
+                    pred_log.append(
+                        wandb.Image(x.data, caption='Input data', grouping=3))
+
+                    # log label and prediction
+                    for im, capt in (y, "Ground Truth"), (pred[0],
+                                                          "Prediction"):
+                        # Resize plot to image resolution
+                        # from https://stackoverflow.com/a/13714915
+                        my_dpi = 100
+                        fig = plt.figure(frameon=False, dpi=my_dpi)
+                        h, w = x.size
+                        fig.set_size_inches(w / my_dpi, h / my_dpi)
+                        ax = plt.Axes(fig, [0., 0., 1., 1.])
+                        ax.set_axis_off()
+                        fig.add_axes(ax)
+
+                        # Superpose label or prediction to input image
+                        x.show(ax=ax, y=im)
+                        pred_log.append(wandb.Image(fig, caption=capt))
+                        plt.close(fig)
+
+                # likely to be an image
+                elif hasattr(y, "shape") and (
+                    (len(y.shape) == 2) or
+                    (len(y.shape) == 3 and y.shape[0] in [1, 3, 4])):
+
+                    pred_log.extend([
+                        wandb.Image(x.data, caption='Input data', grouping=3),
+                        wandb.Image(y.data, caption='Ground Truth'),
+                        wandb.Image(pred[0].data, caption='Prediction')
+                    ])
+
+                # we just log input data
+                else:
+                    pred_log.append(wandb.Image(x.data, caption='Input data'))
 
             wandb.log({"Prediction Samples": pred_log}, commit=False)
 
