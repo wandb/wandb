@@ -370,8 +370,7 @@ class Run(Attrs):
     @property
     def storage_id(self):
         """For compatibility with wandb.Run, which has storage IDs
-        in self.storage_id and names in self.id, whereas this has storage IDs in
-        self.id and names in self.id
+        in self.storage_id and names in self.id.
         """
         return self._attrs.get('id')
 
@@ -473,7 +472,7 @@ class Run(Attrs):
         }
         %s
         ''' % RUN_FRAGMENT)
-        res = self._exec(mutation, id=self.id, tags=self.tags,
+        res = self._exec(mutation, id=self.storage_id, tags=self.tags,
                          description=self.description, notes=self.notes, display_name=self.display_name, config=self.json_config)
         self.summary.update()
 
