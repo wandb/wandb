@@ -195,36 +195,3 @@ class WandbCallback(TrackerCallback):
                     self.learn.load(model_file, purge=False)
                     print('Loaded best saved model from {}'.format(
                         self.model_path))
-
-
-# Functions imported from fastai.core
-
-
-def func_args(func) -> bool:
-    "Return the arguments of `func`."
-    code = func.__code__
-    return code.co_varnames[:code.co_argcount]
-
-
-def has_arg(func, arg) -> bool:
-    "Check if `func` accepts `arg`."
-    return arg in func_args(func)
-
-
-def split_kwargs_by_func(kwargs, func):
-    "Split `kwargs` between those expected by `func` and the others."
-    args = func_args(func)
-    func_kwargs = {a: kwargs.pop(a) for a in args if a in kwargs}
-    return func_kwargs, kwargs
-
-
-def grab_idx(x, i, batch_first: bool = True):
-    "Grab the `i`-th batch in `x`, `batch_first` stating the batch dimension."
-    if batch_first:
-        return ([o[i].cpu() for o in x] if is_listy(x) else x[i].cpu())
-    else:
-        return ([o[:, i].cpu() for o in x] if is_listy(x) else x[:, i].cpu())
-
-
-def is_listy(x) -> bool:
-    return isinstance(x, (tuple, list))
