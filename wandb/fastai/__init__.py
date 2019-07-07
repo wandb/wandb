@@ -33,6 +33,8 @@ from fastai.callbacks import TrackerCallback
 from pathlib import Path
 import random
 try:
+    import matplotlib
+    matplotlib.use('Agg')  # non-interactive backend (avoid tkinter issues)
     import matplotlib.pyplot as plt
 except:
     print('Warning: matplotlib required if logging sample image predictions')
@@ -49,7 +51,7 @@ class WandbCallback(TrackerCallback):
                  save_model=True,
                  monitor='val_loss',
                  mode='auto',
-                 data_type=None,
+                 input_type=None,
                  validation_data=None,
                  predictions=36):
         """WandB fast.ai Callback
@@ -63,9 +65,9 @@ class WandbCallback(TrackerCallback):
             save_model (bool): save model at the end of each epoch.
             monitor (str): metric to monitor for saving best model.
             mode (str): "auto", "min" or "max" to compare "monitor" values and define best model.
-            data_type (str): "images" or None. Used to display sample predictions.
-            validation_data (list): data used for sample predictions if data_type is set.
-            predictions (int): number of predictions to make if data_type is set and validation_data is None.
+            input_type (str): "images" or None. Used to display sample predictions.
+            validation_data (list): data used for sample predictions if input_type is set.
+            predictions (int): number of predictions to make if input_type is set and validation_data is None.
         """
 
         # Check if wandb.init has been called
@@ -79,12 +81,12 @@ class WandbCallback(TrackerCallback):
         self.model_path = Path(wandb.run.dir) / 'bestmodel.pth'
 
         self.log = log
-        self.data_type = data_type
+        self.input_type = input_type
         self.best = None
 
         # Select items for sample predictions to see evolution along training
         self.validation_data = validation_data
-        if data_type and not self.validation_data:
+        if input_type and not self.validation_data:
             predictions = min(predictions, len(learn.data.valid_ds))
             indices = random.sample(range(len(learn.data.valid_ds)),
                                     predictions)
