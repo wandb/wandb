@@ -47,7 +47,7 @@ class WandbCallback(TrackerCallback):
 
     def __init__(self,
                  learn,
-                 log="all",
+                 log="gradients",
                  save_model=True,
                  monitor='val_loss',
                  mode='auto',
