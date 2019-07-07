@@ -45,13 +45,13 @@ class WandbCallback(TrackerCallback):
 
     def __init__(self,
                  learn,
-                 log=None,
-                 save_model=False,
+                 log="all",
+                 save_model=True,
                  monitor='val_loss',
                  mode='auto',
                  data_type=None,
                  validation_data=None,
-                 predictions=20):
+                 predictions=36):
         """WandB fast.ai Callback
 
         Automatically saves model topology, losses & metrics.
