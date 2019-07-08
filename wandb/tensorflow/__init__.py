@@ -36,17 +36,20 @@ def stream_tfevents(path, file_api, run, step=0, namespace=""):
     buffer = []
     last_row = {}
     global_step_key = namespaced_tag("global_step", namespace)
-    for summary in tf.train.summary_iterator(path):
-        parsed = tf_summary_to_dict(summary, namespace=namespace)
-        if last_step != parsed[global_step_key]:
-            last_step = parsed[global_step_key]
-            if len(row) > 3: #Must have more than _timestamp, _step, and global_step
-                step += 1
-                row["_step"] = step
-                last_row = history_dict_to_json(run, deepcopy(row))
-                file_api.push("wandb-history.jsonl", util.json_dumps_safer_history(last_row))
-                row = {}
-        row.update(parsed)
+    try:
+        for summary in tf.train.summary_iterator(path):
+            parsed = tf_summary_to_dict(summary, namespace=namespace)
+            if last_step != parsed[global_step_key]:
+                last_step = parsed[global_step_key]
+                if len(row) > 3: #Must have more than _timestamp, _step, and global_step
+                    step += 1
+                    row["_step"] = step
+                    last_row = history_dict_to_json(run, deepcopy(row))
+                    file_api.push("wandb-history.jsonl", util.json_dumps_safer_history(last_row))
+                    row = {}
+            row.update(parsed)
+    except tf.errors.DataLossError:
+        wandb.termwarn("Found a truncated record in tfevents file, stopping parse")
     step += 1
     row["_step"] = step
     last_row = history_dict_to_json(run, deepcopy(row))
