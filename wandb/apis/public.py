@@ -210,7 +210,7 @@ class Attrs(object):
             return self._attrs[name]
         else:
             raise AttributeError(
-                "'{}' object has no attribute '{}'".format(self.__repr__, name))
+                "'{}' object has no attribute '{}'".format(repr(self), name))
 
 
 class Paginator(object):
@@ -349,14 +349,14 @@ class Runs(Paginator):
 class Run(Attrs):
     """A single run associated with a user and project"""
 
-    def __init__(self, client, username, project, name, attrs={}):
+    def __init__(self, client, username, project, run_id, attrs={}):
         super(Run, self).__init__(dict(attrs))
         self.client = client
         self.username = username
         self.project = project
         self._files = {}
         self._base_dir = get_dir(tempfile.gettempdir())
-        self.name = name
+        self.id = run_id
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -370,8 +370,7 @@ class Run(Attrs):
     @property
     def storage_id(self):
         """For compatibility with wandb.Run, which has storage IDs
-        in self.storage_id and names in self.id, whereas this has storage IDs in
-        self.id and names in self.id
+        in self.storage_id and names in self.id.
         """
         return self._attrs.get('id')
 
@@ -473,7 +472,7 @@ class Run(Attrs):
         }
         %s
         ''' % RUN_FRAGMENT)
-        res = self._exec(mutation, id=self.id, tags=self.tags,
+        res = self._exec(mutation, id=self.storage_id, tags=self.tags,
                          description=self.description, notes=self.notes, display_name=self.display_name, config=self.json_config)
         self.summary.update()
 
@@ -487,7 +486,7 @@ class Run(Attrs):
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
         variables = {'entity': self.username,
-                     'project': self.project, 'name': self.name}
+                     'project': self.project, 'name': self.id}
         variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
 
@@ -531,7 +530,7 @@ class Run(Attrs):
     @property
     def summary(self):
         if self._summary is None:
-            download_h5(self.name, entity=self.username,
+            download_h5(self.id, entity=self.username,
                         project=self.project, out_dir=self.dir)
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(
@@ -540,7 +539,7 @@ class Run(Attrs):
 
     @property
     def path(self):
-        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.name))]
+        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
     @property
     def url(self):
@@ -569,7 +568,7 @@ class Files(Paginator):
     def __init__(self, client, run, names=[], per_page=50, upload=False):
         self.run = run
         variables = {
-            'project': run.project, 'entity': run.username, 'name': run.name,
+            'project': run.project, 'entity': run.username, 'name': run.id,
             'fileNames': names, 'upload': upload
         }
         super(Files, self).__init__(client, variables, per_page)
