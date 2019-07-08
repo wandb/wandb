@@ -222,16 +222,19 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
                     value.histo.bucket_limit[-2] - value.histo.bucket_limit[-3]
                 np_histogram = (list(value.histo.bucket), [
                     first] + value.histo.bucket_limit[:-1] + [last])
-                tag = namespaced_tag(value.tag, namespace)
-                try:
-                    #TODO: we should just re-bin if there are too many buckets
-                    values[tag] = wandb.Histogram(
-                        np_histogram=np_histogram)
-                except ValueError:
-                    wandb.termwarn("Not logging key \"{}\".  Histograms must have fewer than {} bins".format(
-                        tag, wandb.Histogram.MAX_LENGTH), repeat=False)
             else:
-                wandb.termwarn("Not logging key \"{}\".  Found an unsupported histogram format", repeat=False)
+                first = value.histo.bucket_limit[0]
+                last = value.histo.bucket_limit[-1]
+                np_histogram = (list(value.histo.bucket), [
+                    first] + value.histo.bucket_limit[:-1] + [last])
+            tag = namespaced_tag(value.tag, namespace)
+            try:
+                #TODO: we should just re-bin if there are too many buckets
+                values[tag] = wandb.Histogram(
+                    np_histogram=np_histogram)
+            except ValueError:
+                wandb.termwarn("Not logging key \"{}\".  Histograms must have fewer than {} bins".format(
+                    tag, wandb.Histogram.MAX_LENGTH), repeat=False)
         elif value.tag == "_hparams_/session_start_info":
             if wandb.util.get_module("tensorboard.plugins.hparams"):
                 from tensorboard.plugins.hparams import plugin_data_pb2
