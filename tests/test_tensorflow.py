@@ -83,11 +83,14 @@ def test_hook(history):
         tf.summary.scalar('c1', c1)
         summary_op = tf.summary.merge_all()
 
-        hook = wandb_tensorflow.WandbHook(summary_op)
+        hook = wandb_tensorflow.WandbHook(summary_op, history=history)
         with tf.train.MonitoredTrainingSession(hooks=[hook]) as sess:
             summary, acc = sess.run([summary_op, c1])
 
     assert wandb_tensorflow.tf_summary_to_dict(summary) == {'c1': 42.0}
+    print(history.rows)
+    # TODO(adrian): there is still some kind of bug here where the history
+    # is being shared with another test that manages to add rows before this one.
     assert history.rows[0]['c1'] == 42.0
 
 

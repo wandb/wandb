@@ -177,7 +177,6 @@ class ExitHooks(object):
 def _init_headless(run, cloud=True):
     global join
     global _user_process_finished_called
-    run.description = env.get_description(run.description)
 
     environ = dict(os.environ)
     run.set_environment(environ)
@@ -659,10 +658,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     global run
     global __stage_dir__
 
-    # We allow re-initialization when we're in Jupyter
+    # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
     if reinit or (in_jupyter and reinit != False):
-        reset_env(exclude=[env.DIR, env.ENTITY, env.PROJECT, env.API_KEY])
+        reset_env(exclude=env.immutable_keys())
         run = None
 
     # TODO: deprecate tensorboard
@@ -717,6 +716,16 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.TAGS] = ",".join(tags)
     if id:
         os.environ[env.RUN_ID] = id
+        if name is None:
+            # We do this because of https://github.com/wandb/core/issues/2170
+            # to ensure that the run's name is explicitly set to match its
+            # id. If we don't do this and the id is eight characters long, the
+            # backend will set the name to a generated human-friendly value.
+            #
+            # In any case, if the user is explicitly setting `id` but not
+            # `name`, their id is probably a meaningful string that we can
+            # use to label the run.
+            name = os.environ.get(env.NAME, id)  # environment variable takes precedence over this.
     if name:
         os.environ[env.NAME] = name
     if notes:

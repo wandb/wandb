@@ -16,6 +16,7 @@ import numbers
 import inspect
 import glob
 import platform
+import fnmatch
 
 import click
 from pkg_resources import parse_version
@@ -425,9 +426,9 @@ class Process(object):
     def kill(self):
         os.kill(self.pid, signal.SIGKILL)
 
-def format_display_name(run):
+def format_run_name(run):
     "Simple helper to not show display name if its the same as id"
-    return " "+run.display_name+":" if run.display_name != run.id else ":"
+    return " "+run.name+":" if run.name != run.id else ":"
 
 class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
@@ -588,10 +589,13 @@ class RunManager(object):
 
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
+        ignore_globs = self._api.settings("ignore_globs")
         for dirpath, dirnames, filenames in os.walk(self._run.dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._run.dir)
+                if any([fnmatch.fnmatch(save_name, glob) for glob in ignore_globs]):
+                    continue
                 if save_name not in self._file_event_handlers:
                     self._get_file_event_handler(file_path, save_name).on_created()
 
@@ -943,7 +947,7 @@ class RunManager(object):
 
         if self._output:
             url = self._run.get_url(self._api)
-            wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_display_name(self._run), url))
+            wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_run_name(self._run), url))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         self._run.set_environment(environment=env)
@@ -1308,55 +1312,8 @@ class RunManager(object):
         self._file_pusher.update_all_files()
         self._file_pusher.print_status()
 
-        # TODO(adrian): this code has been broken since september 2017
-        # commit ID: abee525b because of these lines:
-        # if fname == 'wandb-history.h5' or 'training.log':
-        #     continue
         url = self._run.get_url(self._api)
-        if False:
-            # Check md5s of uploaded files against what's on the file system.
-            # TODO: We're currently using the list of uploaded files as our source
-            #     of truth, but really we should use the files on the filesystem
-            #     (ie if we missed a file this wouldn't catch it).
-            # This polls the server, because there a delay between when the file
-            # is done uploading, and when the datastore gets updated with new
-            # metadata via pubsub.
-            wandb.termlog('Verifying uploaded files... ', newline=False)
-            error = False
-            mismatched = None
-            for delay_base in range(4):
-                mismatched = []
-                download_urls = self._api.download_urls(
-                    self._project, run=self._run.id)
-                for fname, info in download_urls.items():
-                    if fname == 'wandb-history.h5' or fname == util.OUTPUT_FNAME:
-                        continue
-                    local_path = os.path.join(self._run.dir, fname)
-                    local_md5 = util.md5_file(local_path)
-                    if local_md5 != info['md5']:
-                        mismatched.append((local_path, local_md5, info['md5']))
-                if not mismatched:
-                    break
-                wandb.termlog('  Retrying after %ss' % (delay_base**2))
-                time.sleep(delay_base ** 2)
 
-            if mismatched:
-                print('')
-                error = True
-                for local_path, local_md5, remote_md5 in mismatched:
-                    wandb.termerror(
-                        '{} ({}) did not match uploaded file ({}) md5'.format(
-                            local_path, local_md5, remote_md5))
-            else:
-                print('verified!')
-
-            if error:
-                message = 'Sync failed %s' % url
-                wandb.termerror(message)
-                util.sentry_exc(message)
-            else:
-                wandb.termlog('Synced %s' % url)
-
-        wandb.termlog('Synced{} {}'.format(format_display_name(self._run), url))
+        wandb.termlog('Synced{} {}'.format(format_run_name(self._run), url))
         logger.info("syncing complete: %s" % url)
         sys.exit(exitcode)

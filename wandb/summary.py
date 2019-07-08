@@ -139,10 +139,9 @@ class SummarySubDict(object):
 
         Otherwise, written keys will be added to the "locked" list.
         """
-        if not key_vals:
-            return
-        write_items = self._update(key_vals, overwrite)
-        self._root._root_set(self._path, write_items)
+        if key_vals:
+            write_items = self._update(key_vals, overwrite)
+            self._root._root_set(self._path, write_items)
         self._root._write(commit=True)
 
     def _update(self, key_vals, overwrite):
@@ -302,10 +301,10 @@ class Summary(SummarySubDict):
             return json_value
 
 
-def download_h5(run, entity=None, project=None, out_dir=None):
+def download_h5(run_id, entity=None, project=None, out_dir=None):
     api = Api()
     meta = api.download_url(project or api.settings(
-        "project"), DEEP_SUMMARY_FNAME, entity=entity or api.settings("entity"), run=run)
+        "project"), DEEP_SUMMARY_FNAME, entity=entity or api.settings("entity"), run=run_id)
     if meta and 'md5' in meta and meta['md5'] is not None:
         # TODO: make this non-blocking
         wandb.termlog("Downloading summary data...")
@@ -313,10 +312,10 @@ def download_h5(run, entity=None, project=None, out_dir=None):
         return path
 
 
-def upload_h5(file, run, entity=None, project=None):
+def upload_h5(file, run_id, entity=None, project=None):
     api = Api()
     wandb.termlog("Uploading summary data...")
-    api.push({os.path.basename(file): open(file, 'rb')}, run=run, project=project,
+    api.push({os.path.basename(file): open(file, 'rb')}, run=run_id, project=project,
              entity=entity)
 
 
