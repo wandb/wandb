@@ -1,3 +1,19 @@
+## 0.8.4 (July 8, 2019)
+
+#### :bug: Bug Fix
+
+-   WANDB_IGNORE_GLOBS is respected on the final scan of files
+-   Unified run.id, run.name, and run.notes across all apis
+-   Handle funky terminal sizes when setting up our psuedo tty
+-   Fixed Jupyter notebook introspection logic
+-   run.summary.update() persists changes to the server
+
+#### :nail_care: Enhancement
+
+-   preview release of magic, calling wandb.init(magic=True) should automatically track config and metrics when possible
+-   cli now supports local installs of the backend
+-   fastai callback supports logging example images
+
 ## 0.8.3 (June 26, 2019)
 
 #### :bug: Bug Fix

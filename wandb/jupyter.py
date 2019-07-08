@@ -88,7 +88,7 @@ def notebook_metadata():
         from notebook.notebookapp import list_running_servers
         kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
     except Exception:
-        logger.exception("Failed to query for notebook kernels")
+        logger.error("Failed to query for notebook kernels")
         return {}
     for s in list_running_servers():
         try:
