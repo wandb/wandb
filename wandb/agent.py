@@ -160,7 +160,7 @@ class Agent(object):
                  for name, config in command['args'].items()]
 
         self._run_processes[run.id] = subprocess.Popen(
-            ['/usr/bin/env', 'python', command['program']] + flags,
+            ['./' + command['program']] + flags,
             env=env, preexec_fn=os.setpgrp)
 
         # we keep track of when we sent the sigterm to give processes a chance
