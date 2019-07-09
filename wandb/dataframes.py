@@ -66,6 +66,7 @@ def image_categorizer_dataframe(x, y_true, y_pred, labels, example_ids=None):
     return pd.DataFrame(dfMap, columns=all_columns)
 
 def image_segmentation_dataframe(x, y_true, y_pred, labels=None, example_ids=None, class_colors=None):
+    np = util.get_module('numpy', required='dataframes require numpy')
     y_pred = np.array(y_pred)
     if y_pred[0].shape[-1] == 1:
         return image_segmentation_binary_dataframe(x, y_true, y_pred, example_ids=example_ids)
