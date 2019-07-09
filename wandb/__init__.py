@@ -53,6 +53,10 @@ from wandb.data_types import Object3D
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 from wandb import trigger
+from wandb.dataframes import image_categorizer_dataframe
+from wandb.dataframes import image_segmentation_dataframe
+from wandb.dataframes import image_segmentation_binary_dataframe
+from wandb.dataframes import image_segmentation_multiclass_dataframe
 
 from wandb import wandb_torch
 
@@ -427,7 +431,7 @@ def restore(name, run_path=None, replace=False, root="."):
     name: the name of the file
     run_path: optional path to a different run to pull files from
     replace: whether to download the file even if it already exists locally
-    root: the directory to download the file to.  Defaults to the current 
+    root: the directory to download the file to.  Defaults to the current
         directory or the run directory if wandb.init was called.
 
     returns None if it can't find the file, otherwise a file object open for reading
@@ -501,7 +505,7 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
 
     Args:
-        row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types 
+        row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types
         commit (boolean, optional): Persist a set of metrics, if false just update the existing dict
         step (integer, optional): The global step in processing. This sets commit=True any time step increases
     """
