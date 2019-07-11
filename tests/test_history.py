@@ -188,6 +188,11 @@ def test_plotly(history):
     assert plot["_type"] == "plotly"
     assert plot["plot"]['type'] == 'scatter'
 
+def test_plotly_big_numpy(history):
+    history.add({"plot": go.Scatter(x=np.random.normal(size=(100,)))})
+    plot = disk_history(history)[0]["plot"]
+    assert len(plot["plot"]["x"]) == 100
+
 
 def test_stream(history):
     history.stream("foo").add({"acc": 1})

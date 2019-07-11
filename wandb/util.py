@@ -212,10 +212,11 @@ def is_pandas_data_frame_typename(typename):
 def is_matplotlib_typename(typename):
     return typename.startswith("matplotlib.")
 
-
 def is_plotly_typename(typename):
     return typename.startswith("plotly.")
 
+def is_numpy_array(obj):
+    return np and isinstance(obj, np.ndarray)
 
 def is_pandas_data_frame(obj):
     return is_pandas_data_frame_typename(get_full_typename(obj))
@@ -267,7 +268,7 @@ def json_friendly(obj):
         else:
             return obj.item(), True
 
-    if np and isinstance(obj, np.ndarray):
+    if is_numpy_array(obj):
         if obj.size == 1:
             obj = obj.flatten()[0]
         elif obj.size <= 32:
