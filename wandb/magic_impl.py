@@ -11,7 +11,6 @@ import importlib
 
 import wandb
 from wandb import trigger
-from wandb import util
 
 
 _import_hook = None
