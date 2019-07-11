@@ -516,6 +516,9 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
         termwarn(
             "wandb.log called without a step keyword argument.  Pass the same step that tensorboard is using to avoid data loss see:\nhttps://docs.wandb.com/docs/integrations/tensorboard.html#custom-metrics", repeat=False)
 
+    if any(not isinstance(key, str) for key in row.keys()):
+        raise ValueError("Key values passed to `wandb.log` must be strings.")
+
     if row is None:
         row = {}
     if commit or step is not None:
