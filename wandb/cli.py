@@ -773,7 +773,7 @@ def docker_run(ctx, docker_run_args, help):
 @click.pass_context
 @click.argument('docker_run_args', nargs=-1)
 @click.argument('docker_image', required=False)
-@click.option('--nvidia/--no-nvidia', default=find_executable('nvidia-docker'),
+@click.option('--nvidia/--no-nvidia', default=find_executable('nvidia-docker') != None,
               help='Use the nvidia runtime, defaults to nvidia if nvidia-docker is present')
 @click.option('--digest', is_flag=True, default=False, help="Output the image digest and exit")
 @click.option('--jupyter/--no-jupyter', default=False, help="Run jupyter lab in the container")

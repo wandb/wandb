@@ -1,3 +1,16 @@
+## 0.8.5 (TBD)
+
+#### :bug: Bug Fix
+
+-   Fixed plotly charts with large numpy arrays not rendering
+-   `wandb docker` works when nvidia is present
+-   Better error when non string keys are sent to log
+
+#### :nail_care: Enhancement
+
+-   New preview release of auto-dataframes for Keras
+-   Added input_type and output_type to the Keras callback for simpler config
+
 ## 0.8.4 (July 8, 2019)
 
 #### :bug: Bug Fix
