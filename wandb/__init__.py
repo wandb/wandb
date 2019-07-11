@@ -519,7 +519,7 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
     if row is None:
         row = {}
 
-    if any(not isinstance(key, str) for key in row.keys()):
+    if any(not isinstance(key, six.string_types) for key in row.keys()):
         raise ValueError("Key values passed to `wandb.log` must be strings.")
 
     if commit or step is not None:
