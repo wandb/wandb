@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.3.dev1'
+__version__ = '0.8.4.dev1'
 
 import atexit
 import click
@@ -518,6 +518,10 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
 
     if row is None:
         row = {}
+
+    if any(not isinstance(key, six.string_types) for key in row.keys()):
+        raise ValueError("Key values passed to `wandb.log` must be strings.")
+
     if commit or step is not None:
         run.history.add(row, *args, step=step, **kwargs)
     else:

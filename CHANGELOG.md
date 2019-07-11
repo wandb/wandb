@@ -7,6 +7,7 @@
 -   Handle funky terminal sizes when setting up our psuedo tty
 -   Fixed Jupyter notebook introspection logic
 -   run.summary.update() persists changes to the server
+-   tensorboard syncing is robust to invalid histograms and truncated files
 
 #### :nail_care: Enhancement
 
