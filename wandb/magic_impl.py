@@ -11,6 +11,7 @@ import importlib
 
 import wandb
 from wandb import trigger
+from wandb import util
 
 
 _import_hook = None
@@ -479,7 +480,9 @@ def magic_install():
     # process system args
     _process_system_args()
     # install argparse wrapper
-    _monkey_argparse()
+    in_jupyter_or_ipython = util._get_python_type() != "python"
+    if not in_jupyter_or_ipython:
+        _monkey_argparse()
 
     # track init calls
     trigger.register('on_init', _magic_init)
