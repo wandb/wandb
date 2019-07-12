@@ -533,7 +533,7 @@ class Run(Attrs):
             samples (int, optional): The number of samples to return
             pandas (bool, optional): Return a pandas dataframe
             keys (list, optional): Only return metrics for specific keys
-            xAxis (str, optional): Use this metric as the xAxis defaults to _step
+            x_axis (str, optional): Use this metric as the xAxis defaults to _step
             stream (str, optional): "default" for metrics, "system" for machine metrics
         """
         if keys:
