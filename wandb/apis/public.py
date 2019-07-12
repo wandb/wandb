@@ -490,7 +490,7 @@ class Run(Attrs):
         variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
 
-    def _sampled_history(self, keys, x_axis="_step", samples=10000):
+    def _sampled_history(self, keys, x_axis="_step", samples=500):
         spec = {"keys": [x_axis] + keys, "samples": samples}
         query = gql('''
         query Run($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
@@ -536,7 +536,10 @@ class Run(Attrs):
             x_axis (str, optional): Use this metric as the xAxis defaults to _step
             stream (str, optional): "default" for metrics, "system" for machine metrics
         """
-        if keys:
+        if keys and stream != "default":
+            wandb.termerror("stream must be default when specifying keys")
+            return []
+        elif keys:
             lines = self._sampled_history(keys=keys, x_axis=x_axis, samples=samples)
         else:
             lines = self._full_history(samples=samples, stream=stream)
