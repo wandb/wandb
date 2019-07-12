@@ -14,16 +14,16 @@ def image_categorizer_dataframe(x, y_true, y_pred, labels, example_ids=None):
         y_pred = np.concatenate(1-y_pred, y_pred, axis=-1)
 
     if x.shape[0] != y_true.shape[0]:
-        print('Sample count mismatch: x(%d) != y_true(%d). skipping evaluation' % (x.shape[0], y_true.shape[0]))
+        wandb.termwarn('Sample count mismatch: x(%d) != y_true(%d). skipping evaluation' % (x.shape[0], y_true.shape[0]))
         return
     if x.shape[0] != y_pred.shape[0]:
-        print('Sample count mismatch: x(%d) != y_pred(%d). skipping evaluation' % (x.shape[0], y_pred.shape[0]))
+        wandb.termwarn('Sample count mismatch: x(%d) != y_pred(%d). skipping evaluation' % (x.shape[0], y_pred.shape[0]))
         return
     if y_true.shape[-1] != len(labels):
-        print('Label count mismatch: y_true(%d) != labels(%d). skipping evaluation' % (y_true.shape[-1], len(labels)))
+        wandb.termwarn('Label count mismatch: y_true(%d) != labels(%d). skipping evaluation' % (y_true.shape[-1], len(labels)))
         return
     if y_pred.shape[-1] != len(labels):
-        print('Label count mismatch: y_pred(%d) != labels(%d). skipping evaluation' % (y_pred.shape[-1], len(labels)))
+        wandb.termwarn('Label count mismatch: y_pred(%d) != labels(%d). skipping evaluation' % (y_pred.shape[-1], len(labels)))
         return
 
     class_preds = []
@@ -80,10 +80,10 @@ def image_segmentation_binary_dataframe(x, y_true, y_pred, example_ids=None):
     x, y_true, y_pred= np.array(x), np.array(y_true), np.array(y_pred)
 
     if x.shape[0] != y_true.shape[0]:
-        print('Sample count mismatch: x(%d) != y_true(%d). skipping evaluation' % (x.shape[0], y_true.shape[0]))
+        wandb.termwarn('Sample count mismatch: x(%d) != y_true(%d). skipping evaluation' % (x.shape[0], y_true.shape[0]))
         return
     if x.shape[0] != y_pred.shape[0]:
-        print('Sample count mismatch: x(%d) != y_pred(%d). skipping evaluation' % (x.shape[0], y_pred.shape[0]))
+        wandb.termwarn('Sample count mismatch: x(%d) != y_pred(%d). skipping evaluation' % (x.shape[0], y_pred.shape[0]))
         return
 
     y_pred_discrete = y_pred > 0.5
@@ -138,13 +138,13 @@ def image_segmentation_multiclass_dataframe(x, y_true, y_pred, labels, example_i
     x, y_true, y_pred= np.array(x), np.array(y_true), np.array(y_pred)
 
     if x.shape[0] != y_true.shape[0]:
-        print('Sample count mismatch: x(%d) != y_true(%d). skipping evaluation' % (x.shape[0], y_true.shape[0]))
+        wandb.termwarn('Sample count mismatch: x(%d) != y_true(%d). skipping evaluation' % (x.shape[0], y_true.shape[0]))
         return
     if x.shape[0] != y_pred.shape[0]:
-        print('Sample count mismatch: x(%d) != y_pred(%d). skipping evaluation' % (x.shape[0], y_pred.shape[0]))
+        wandb.termwarn('Sample count mismatch: x(%d) != y_pred(%d). skipping evaluation' % (x.shape[0], y_pred.shape[0]))
         return
     if class_colors is not None and len(class_colors) != y_true.shape[-1]:
-        print('Class color count mismatch: y_true(%d) != class_colors(%d). using generated colors' % (y_true.shape[-1], len(class_colors)))
+        wandb.termwarn('Class color count mismatch: y_true(%d) != class_colors(%d). using generated colors' % (y_true.shape[-1], len(class_colors)))
         class_colors = None
 
     class_count = y_true.shape[-1]

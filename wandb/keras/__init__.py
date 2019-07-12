@@ -471,7 +471,7 @@ class WandbCallback(keras.callbacks.Callback):
             y_pred = self.model.predict(x)
         elif self.generator:
             if not self.validation_steps:
-                print('when using a generator for validation data with dataframes, you must pass validation_steps. skipping')
+                wandb.termwarn('when using a generator for validation data with dataframes, you must pass validation_steps. skipping')
                 return None
 
             for i in range(self.validation_steps):
@@ -487,7 +487,7 @@ class WandbCallback(keras.callbacks.Callback):
         elif self.input_type in ('image', 'images') and self.output_type == 'segmentation_mask':
             return wandb.image_segmentation_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels, class_colors=self.class_colors)
         else:
-            print('unknown dataframe type for input_type=%s and output_type=%s' % (self.input_type, self.output_type))
+            wandb.termwarn('unknown dataframe type for input_type=%s and output_type=%s' % (self.input_type, self.output_type))
             return None
 
     def _save_model(self, epoch):
