@@ -490,6 +490,33 @@ class Run(Attrs):
         variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
 
+    def _sampled_history(self, keys, x_axis="_step", samples=10000):
+        spec = {"keys": [x_axis] + keys, "samples": samples}
+        query = gql('''
+        query Run($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { sampledHistory(specs: $specs) }
+            }
+        }
+        ''')
+
+        response = self._exec(query, specs=[json.dumps(spec)])
+        return [line for line in response['project']['run']['sampledHistory']]
+
+
+    def _full_history(self, samples=500, stream="default"):
+        node = "history" if stream == "default" else "events"
+        query = gql('''
+        query Run($project: String!, $entity: String!, $name: String!, $samples: Int) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { %s(samples: $samples) }
+            }
+        }
+        ''' % node)
+
+        response = self._exec(query, samples=samples)
+        return [json.loads(line) for line in response['project']['run'][node]]
+
     @normalize_exceptions
     def files(self, names=[], per_page=50):
         return Files(self.client, self, names, per_page)
@@ -499,26 +526,20 @@ class Run(Attrs):
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
-    def history(self, samples=500, pandas=True, stream="default"):
+    def history(self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"):
         """Return history metrics for a run
 
         Args:
             samples (int, optional): The number of samples to return
             pandas (bool, optional): Return a pandas dataframe
+            keys (list, optional): Only return metrics for specific keys
+            x_axis (str, optional): Use this metric as the xAxis defaults to _step
             stream (str, optional): "default" for metrics, "system" for machine metrics
         """
-        node = "history" if stream == "default" else "events"
-        query = gql('''
-        query Run($project: String!, $entity: String!, $name: String!, $samples: Int!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) { %s(samples: $samples) }
-            }
-        }
-        ''' % node)
-
-        response = self._exec(query, samples=samples)
-        lines = [json.loads(line)
-                 for line in response['project']['run'][node]]
+        if keys:
+            lines = self._sampled_history(keys=keys, x_axis=x_axis, samples=samples)
+        else:
+            lines = self._full_history(samples=samples, stream=stream)
         if pandas:
             pandas = util.get_module("pandas")
             if pandas:
