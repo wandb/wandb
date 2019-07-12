@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 import base64
+import colorsys
 import errno
 import hashlib
 import json
@@ -399,7 +400,7 @@ class WandBJSONEncoder(json.JSONEncoder):
 
 
 class WandBHistoryJSONEncoder(json.JSONEncoder):
-    """A JSON Encoder that handles some extra types.  
+    """A JSON Encoder that handles some extra types.
     This encoder turns numpy like objects with a size > 32 into histograms"""
 
     def default(self, obj):
@@ -729,3 +730,23 @@ def stopwatch_now():
     else:
         now = time.monotonic()
     return now
+
+def class_colors(class_count):
+    # make class 0 black, and the rest equally spaced fully saturated hues
+    return [[0, 0, 0]] + [colorsys.hsv_to_rgb(i / (class_count - 1.), 1.0, 1.0) for i in range(class_count-1)]
+
+def guess_data_type(shape):
+    # (samples,) or (samples,logits)
+    if len(shape) in (1, 2):
+        return 'label'
+    # (samples, height, width) = grayscale image
+    if len(shape) == 3:
+        return 'image'
+    if len(shape) == 4:
+        if shape[-1] in (1, 3, 4):
+            # (samples, height, width, Y \ RGB \ RGBA)
+            return 'image'
+        else:
+            # (samples, height, width, logits)
+            return 'segmentation_mask'
+    return None
