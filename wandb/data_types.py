@@ -77,12 +77,12 @@ def history_dict_to_json(run, payload, step=None):
 
     return payload
 
-def cast_numpy_arrays(payload):
+def numpy_arrays_to_lists(payload):
     """Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
     """
     for key,val in six.iteritems(payload):
         if isinstance(val, dict):
-            payload[key] = cast_numpy_arrays(val)
+            payload[key] = numpy_arrays_to_lists(val)
         elif util.is_numpy_array(val):
             payload[key] = val.tolist()
 
@@ -168,7 +168,7 @@ def plot_to_json(obj):
         obj = tools.mpl_to_plotly(obj)
 
     if util.is_plotly_typename(util.get_full_typename(obj)):
-        return {"_type": "plotly", "plot": cast_numpy_arrays(obj.to_plotly_json())}
+        return {"_type": "plotly", "plot": numpy_arrays_to_lists(obj.to_plotly_json())}
     else:
         return obj
 
