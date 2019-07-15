@@ -483,7 +483,7 @@ class WandbCallback(keras.callbacks.Callback):
                     x, y_true, y_pred = np.append(x, bx, axis=0), np.append(y_true, by_true, axis=0), np.append(y_pred, by_pred, axis=0)
 
         if self.input_type in ('image', 'images') and self.output_type == 'label':
-            return wandb.image_categorical_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels)
+            return wandb.image_categorizer_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels)
         elif self.input_type in ('image', 'images') and self.output_type == 'segmentation_mask':
             return wandb.image_segmentation_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels, class_colors=self.class_colors)
         else:
