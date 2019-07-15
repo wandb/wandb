@@ -201,6 +201,7 @@ def is_tf_tensor_typename(typename):
 
 
 def is_tf_eager_tensor_typename(typename):
+    return typename.startswith('tensorflow.') and ('EagerTensor' in typename)
 
 def is_pytorch_tensor(obj):
     import torch
