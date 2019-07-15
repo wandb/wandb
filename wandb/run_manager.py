@@ -958,7 +958,7 @@ class RunManager(object):
         logger.info("saving pip packages")
         self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")
-        self._api.get_file_stream_api().set_default_file_policy(
+        self._api.get_file_stream_api().set_file_policy(
             util.OUTPUT_FNAME, CRDedupeFilePolicy())
         self._api.get_file_stream_api().start()
         self._project = self._api.settings("project")
