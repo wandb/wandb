@@ -116,6 +116,12 @@ class FileStreamApi(object):
         self._init_endpoint()
         self._thread.start()
 
+    def set_default_file_policy(self, filename, file_policy):
+        """Set an upload policy for a file unless one has already been set.
+        """
+        if filename not in self._file_policies:
+            self._file_policies[filename] = file_policy
+
     def set_file_policy(self, filename, file_policy):
         self._file_policies[filename] = file_policy
 
@@ -193,8 +199,7 @@ class FileStreamApi(object):
         #print('fsapi', chunks)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
-            if filename not in self._file_policies:
-                self._file_policies[filename] = DefaultFilePolicy()
+            self.set_default_file_policy(filename, DefaultFilePolicy())
             files[filename] = self._file_policies[filename].process_chunks(
                 file_chunks)
         self._handle_response(util.request_with_retry(
