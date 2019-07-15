@@ -86,7 +86,7 @@ class Run(object):
         #
         # This needs to be set before name and notes because name and notes may
         # influence it. They have higher precedence.
-        self._name_and_description = ""
+        self._name_and_description = None
         if description:
             wandb.termwarn('Run.description is deprecated. Please use wandb.init(notes="long notes") instead.')
             self._name_and_description = description
@@ -466,18 +466,24 @@ class Run(object):
     def name(self):
         if self._name is not None:
             return self._name
-        return self._name_and_description.split("\n")[0]
+        elif self._name_and_description is not None:
+            return self._name_and_description.split("\n")[0]
+        else:
+            return None
 
     @name.setter
     def name(self, name):
         self._name = name
-        parts = self._name_and_description.split("\n", 1)
-        parts[0] = name
-        self._name_and_description = "\n".join(parts)
+        if self._name_and_description is not None:
+            parts = self._name_and_description.split("\n", 1)
+            parts[0] = name
+            self._name_and_description = "\n".join(parts)
 
     @property
     def description(self):
         wandb.termwarn('Run.description is deprecated. Please use run.notes instead.')
+        if self._name_and_description is None:
+            self._name_and_description = ''
         parts = self._name_and_description.split("\n", 1)
         if len(parts) > 1:
             return parts[1]
@@ -487,6 +493,8 @@ class Run(object):
     @description.setter
     def description(self, desc):
         wandb.termwarn('Run.description is deprecated. Please use wandb.init(notes="long notes") instead.')
+        if self._name_and_description is None:
+            self._name_and_description = ''
         parts = self._name_and_description.split("\n", 1)
         if len(parts) == 1:
             parts.append("")
