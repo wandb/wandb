@@ -190,11 +190,17 @@ def is_tf_tensor(obj):
     return isinstance(obj, tensorflow.Tensor)
 
 
+def is_jax_tensor_typename(typename):
+    return typename.endswith('_FilledConstant') or typename.endswith('DeviceArray')
+
 def is_tf_tensor_typename(typename):
     return typename.startswith('tensorflow.') and ('Tensor' in typename or 'Variable' in typename)
+    return typename.startswith("tensorflow.") and (
+        "Tensor" in typename or "Variable" in typename
+    )
+
 
 def is_tf_eager_tensor_typename(typename):
-    return typename.startswith('tensorflow.') and ('EagerTensor' in typename)
 
 def is_pytorch_tensor(obj):
     import torch
@@ -248,6 +254,9 @@ def json_friendly(obj):
 
     if is_tf_tensor_typename(typename):
         obj = obj.eval()
+    elif is_jax_tensor_typename(typename):
+        import numpy
+        obj = numpy.asarray(obj)
     elif is_tf_eager_tensor_typename(typename):
         obj = obj.numpy()
     elif is_pytorch_tensor_typename(typename):
