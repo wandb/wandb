@@ -195,9 +195,6 @@ def is_jax_tensor_typename(typename):
 
 def is_tf_tensor_typename(typename):
     return typename.startswith('tensorflow.') and ('Tensor' in typename or 'Variable' in typename)
-    return typename.startswith("tensorflow.") and (
-        "Tensor" in typename or "Variable" in typename
-    )
 
 
 def is_tf_eager_tensor_typename(typename):
