@@ -125,21 +125,29 @@ class History(object):
             if not self.batched:
                 self._write()
         else:
-            if not isinstance(step, numbers.Integral):
+            if not isinstance(step, numbers.Number):
                 raise wandb.Error(
-                    "Step must be an integer, not {}".format(step))
-            elif step < self._steps:
-                wandb.termwarn(
-                    "Adding to old History rows isn't currently supported.  Step {} < {} dropping: {}".format(step, self._steps, row))
-                return
-            elif step == self._steps:
-                pass
-            elif self.batched:
-                raise wandb.Error(
-                    "Can't log to a particular History step ({}) while in batched mode.".format(step))
-            else:  # step > self._steps
-                self._write()
-                self._steps = step
+                    "Step must be a number, not {}".format(step))
+            else:
+                if step != round(step):
+                    # tensorflow just applies `int()`. seems a little crazy.
+                    wandb.termwarn('Non-integer history step: {}; rounding.'.format(step))
+
+                # the backend actually handles floats right now. seems a bit weird to let those through though.
+                step = int(round(step))
+
+                if step < self._steps:
+                    wandb.termwarn(
+                        "Adding to old History rows isn't currently supported.  Step {} < {}; dropping {}.".format(step, self._steps, row))
+                    return
+                elif step == self._steps:
+                    pass
+                elif self.batched:
+                    raise wandb.Error(
+                        "Can't log to a particular History step ({}) while in batched mode.".format(step))
+                else:  # step > self._steps
+                    self._write()
+                    self._steps = step
 
             self.update(row)
 

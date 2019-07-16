@@ -17,7 +17,6 @@ requirements = [
     'shortuuid>=0.5.0',
     'six>=1.10.0',
     'watchdog>=0.8.3',
-    'PyYAML>=4.2b4',  # watchdog depends on pyyaml but doesnt specify safe version
     'psutil>=5.0.0',
     'sentry-sdk>=0.4.0',
     'subprocess32>=3.5.3',
@@ -37,7 +36,7 @@ kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
     name='wandb',
-    version='0.8.4.dev1',
+    version='0.8.5.dev1',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
