@@ -104,8 +104,6 @@ class Config(object):
                 raise ConfigError('Asked for {} but {} not present in {}'.format(
                     path, subkey, conf_path))
         for key, val in loaded.items():
-            if key == 'wandb_version':
-                continue
             if isinstance(val, dict):
                 if 'value' not in val:
                     raise ConfigError('In config {} value of {} is dict, but does not contain "value" key'.format(
@@ -138,8 +136,6 @@ class Config(object):
     def load_json(self, json):
         """Loads existing config from JSON"""
         for key in json:
-            if key == "wandb_version":
-                continue
             self._items[key] = json[key].get('value')
             self._descriptions[key] = json[key].get('desc')
 
@@ -239,8 +235,4 @@ class Config(object):
                 yield (key, val)
 
     def __str__(self):
-        s = "wandb_version: 1"
-        as_dict = self.as_dict()
-        if as_dict:  # adding an empty dictionary here causes a parse error
-            s += '\n\n' + yaml.dump(as_dict, default_flow_style=False)
-        return s
+        return yaml.dump(self.as_dict(), default_flow_style=False)
