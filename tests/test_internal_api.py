@@ -216,6 +216,7 @@ def test_default_settings():
         'entity': None,
         'section': 'default',
         'run': 'latest',
+        # TODO(adrian): it looks like this test interacts with test_settings. sometimes we get 'ignore_globs': ['*.patch']
         'ignore_globs': [],
         'git_remote': 'origin',
         'project': None,
