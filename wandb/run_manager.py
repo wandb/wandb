@@ -437,27 +437,37 @@ class RunStatusChecker(object):
     For now, we just use this to figure out if the user has requested a stop.
     TODO(adrnswanberg): Use this as more of a general heartbeat check.
     """
+
     def __init__(self, run, api, stop_requested_handler, polling_interval=15):
         self._run = run
         self._api = api
         self._polling_interval = polling_interval
         self._stop_requested_handler = stop_requested_handler
 
+        self._shutdown = False
         self._thread = threading.Thread(target=self.check_status)
-        self._thread.daemon = True
         self._thread.start()
 
     def check_status(self):
-        while True:
-            should_exit =  self._api.check_stop_requested(
-                project_name=self._run.project_name(),
-                entity_name=self._run.entity,
-                run_id=self._run.id)
+        while not self._shutdown:
+            try:
+                should_exit = self._api.check_stop_requested(
+                    project_name=self._run.project_name(),
+                    entity_name=self._run.entity,
+                    run_id=self._run.id)
+            except wandb.apis.CommError as e:
+                logger.exception("Failed to check stop requested status: %s" % e.exc)
+                should_exit = False
+
             if should_exit:
                 self._stop_requested_handler()
                 return
             else:
                 time.sleep(self._polling_interval)
+
+    def shutdown(self):
+         self._shutdown = True
+         self._thread.join()
 
 
 class RunManager(object):
@@ -465,13 +475,12 @@ class RunManager(object):
     """
     CRASH_NOSYNC_TIME = 30
 
-    def __init__(self, run, project=None, tags=[], cloud=True, output=True, port=None, agent_run=False):
+    def __init__(self, run, project=None, tags=[], cloud=True, output=True, port=None):
         self._run = run
         self._tags = tags
         self._cloud = cloud
         self._output = output
         self._port = port
-        self._agent_run = agent_run
 
         self._api = run.api
         self._project = self._resolve_project_name(project)
@@ -1012,6 +1021,9 @@ class RunManager(object):
         if self._tensorboard_consumer:
             self._tensorboard_consumer.shutdown()
 
+        if self._run_status_checker:
+            self._run_status_checker.shutdown()
+
         if self._cloud:
             logger.info("stopping streaming files and file change observer")
             self._end_file_syncing(exitcode)
@@ -1168,7 +1180,7 @@ class RunManager(object):
         # When not running in agent mode, start a status checker.
         # TODO(adrnswanberg): Remove 'stop' command checking in agent code,
         # and unconditionally start the status checker.
-        if not self._agent_run:
+        if self._run.sweep_id is None:
             def stop_handler():
                 if isinstance(self.proc, Process):
                     self.proc.interrupt()
