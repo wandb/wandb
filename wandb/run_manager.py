@@ -1170,7 +1170,10 @@ class RunManager(object):
         # and unconditionally start the status checker.
         if not self._agent_run:
             def stop_handler():
-                self.proc.interrupt()
+                if isinstance(self.proc, Process):
+                    self.proc.interrupt()
+                else:
+                    self.proc.send_signal(signal.SIGINT)
 
             self._run_status_checker = RunStatusChecker(
                 self._run, self._api, stop_requested_handler=stop_handler)
