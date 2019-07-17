@@ -457,7 +457,7 @@ class RunStatusChecker(object):
                 self._stop_requested_handler()
                 return
             else:
-                time.sleep(15)
+                time.sleep(self._polling_interval)
 
 
 class RunManager(object):
