@@ -345,6 +345,8 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     termlog()
     termlog("Waiting for W&B process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
+    import pdb
+    pdb.set_trace()
     try:
         while wandb_process.poll() is None:
             time.sleep(0.1)

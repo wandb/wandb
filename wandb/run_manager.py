@@ -430,21 +430,51 @@ def format_run_name(run):
     "Simple helper to not show display name if its the same as id"
     return " "+run.name+":" if run.name != run.id else ":"
 
+
+class RunStatusChecker(object):
+    """Polls the backend periodically to check on this run's status.
+
+    For now, we just use this to figure out if the user has requested a stop.
+    TODO(adrnswanberg): Use this as more of a general heartbeat check.
+    """
+    def __init__(self, run, api, stop_requested_handler, polling_interval=15):
+        self._run = run
+        self._api = api
+        self._polling_interval = polling_interval
+        self._stop_requested_handler = stop_requested_handler
+
+        self._thread = threading.Thread(target=self.check_status)
+        self._thread.daemon = True
+        self._thread.start()
+
+    def check_status(self):
+        while True:
+            should_exit =  self._api.check_stop_requested(
+                project_name=self._run.project_name(),
+                entity_name=self._run.entity,
+                run_id=self._run.id)
+            if should_exit:
+                self._stop_requested_handler()
+                return
+            else:
+                time.sleep(15)
+
+
 class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
     CRASH_NOSYNC_TIME = 30
 
-    def __init__(self, run, project=None, tags=[], cloud=True, output=True, port=None):
-        self._api = run.api
+    def __init__(self, run, project=None, tags=[], cloud=True, output=True, port=None, agent_run=False):
         self._run = run
-        self._cloud = cloud
-        self._port = port
-        self._output = output
-
-        self._project = self._resolve_project_name(project)
-
         self._tags = tags
+        self._cloud = cloud
+        self._output = output
+        self._port = port
+        self._agent_run = agent_run
+
+        self._api = run.api
+        self._project = self._resolve_project_name(project)
 
         self._config = run.config
 
@@ -472,6 +502,9 @@ class RunManager(object):
         self._tensorboard_consumer = None
         self._tensorboard_lock = threading.Lock()
         self._watcher_queue = queue.PriorityQueue()
+
+        # We'll conditionally create one of these when running in headless mode.
+        self._run_status_checker = None
 
         # This allows users to specify files they want uploaded during the run
         self._user_file_policies = {
@@ -1120,6 +1153,7 @@ class RunManager(object):
         except ImportError as e:
             wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
+
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
         # exit when the child process does.
@@ -1130,6 +1164,16 @@ class RunManager(object):
             signal.signal(signal.SIGQUIT, signal.SIG_IGN)
         except (AttributeError, ValueError):  # SIGQUIT doesn't exist on windows, we can't use signal.signal in threads for tests
             pass
+
+        # When not running in agent mode, start a status checker.
+        # TODO(adrnswanberg): Remove 'stop' command checking in agent code,
+        # and unconditionally start the status checker.
+        if not self._agent_run:
+            def stop_handler():
+                self.proc.interrupt()
+
+            self._run_status_checker = RunStatusChecker(
+                self._run, self._api, stop_requested_handler=stop_handler)
 
         # Add a space before user output
         wandb.termlog()
