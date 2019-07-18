@@ -96,9 +96,10 @@ class Api(object):
             'base_url': get_base_url("https://api.wandb.ai")
         }
         self._runs = {}
+        self._sweeps = {}
         self._base_client = Client(
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': self.user_agent},
+                headers={'User-Agent': self.user_agent, 'Use-Admin-Privileges': "true"},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
@@ -190,6 +191,13 @@ class Api(object):
         if not self._runs.get(path):
             self._runs[path] = Run(self.client, username, project, run)
         return self._runs[path]
+
+    @normalize_exceptions
+    def sweep(self, path=""):
+        username, project, sweep_id = self._parse_path(path)
+        if not self._sweeps.get(sweep_id):
+            self._sweeps[path] = Sweep(self.client, username, project, sweep_id)
+        return self._sweeps[path]
 
 
 class Attrs(object):
@@ -573,6 +581,65 @@ class Run(Attrs):
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
+
+class Sweep(Attrs):
+    """A set of runs associated with a sweep"""
+
+    def __init__(self, client, username, project, sweep_id, attrs={}):
+        super(Sweep, self).__init__(dict(attrs))
+        self.client = client
+        self.username = username
+        self.project = project
+        self.id = sweep_id
+        self.runs = []
+
+        self.load(force=not attrs)
+    
+    def load(self, force=False):
+        query = gql('''
+        query Sweep($project: String!, $entity: String, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                sweep(sweepName: $name) {
+                    id
+                    name
+                    bestLoss
+                    config
+                    runs {
+                        edges {
+                            node {
+                                ...RunFragment
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        %s
+        ''' % RUN_FRAGMENT)
+        if force or not self._attrs:
+            response = self._exec(query)
+            if response['project'] is None or response['project']['sweep'] is None:
+                raise ValueError("Could not find sweep %s" % self)
+            # TODO: make this paginate
+            self.runs = [Run(self.client, self.username, self.project, r["node"]["name"], r["node"]) for 
+                r in response['project']['sweep']['runs']['edges']]
+            del response['project']['sweep']['runs']
+            self._attrs = response['project']['sweep']
+        return self._attrs
+
+    @property
+    def path(self):
+        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
+
+    def _exec(self, query, **kwargs):
+        """Execute a query against the cloud backend"""
+        variables = {'entity': self.username,
+                     'project': self.project, 'name': self.id}
+        variables.update(kwargs)
+        return self.client.execute(query, variable_values=variables)
+
+    def __repr__(self):
+        return "<Sweep {}>".format("/".join(self.path))
 
 
 class Files(Paginator):
