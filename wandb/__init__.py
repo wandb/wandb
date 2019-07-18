@@ -674,7 +674,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     # TODO: deprecate tensorboard
     if tensorboard or sync_tensorboard:
-        util.get_module("wandb.tensorboard").patch()
+        util.get_module("wandb.tb").patch()
 
     sagemaker_config = util.parse_sm_config()
     tf_config = util.parse_tfjob_config()
@@ -863,12 +863,12 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     return run
 
 
-tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
-tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
+tf = util.LazyLoader('tf', globals(), 'wandb.tf')
+tb = util.LazyLoader('tb', globals(), 'wandb.tb')
 jupyter = util.LazyLoader('jupyter', globals(), 'wandb.jupyter')
 keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 
-__all__ = ['init', 'config', 'termlog', 'termwarn', 'termerror', 'tensorflow',
+__all__ = ['init', 'config', 'termlog', 'termwarn', 'termerror', 'tf',
            'run', 'types', 'callbacks', 'join']

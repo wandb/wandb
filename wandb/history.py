@@ -185,7 +185,7 @@ class History(object):
         return self._torch
 
     def log_tf_summary(self, summary_pb_bin):
-        from wandb.tensorflow import tf_summary_to_dict
+        from wandb.tf import tf_summary_to_dict
         self.add(tf_summary_to_dict(summary_pb_bin))
 
     def ensure_jupyter_started(self):

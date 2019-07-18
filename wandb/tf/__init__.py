@@ -1,7 +1,7 @@
 import tensorflow as tf
 from wandb import util
 from wandb.data_types import history_dict_to_json
-from wandb.tensorboard import *
+from wandb.tb import *
 import wandb
 from copy import deepcopy
 from wandb.apis.file_stream import Chunk

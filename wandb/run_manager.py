@@ -1139,7 +1139,7 @@ class RunManager(object):
 
     def start_tensorboard_watcher(self, logdir, save=True):
         try:
-            from wandb.tensorboard.watcher import Watcher, Consumer
+            from wandb.tb.watcher import Watcher, Consumer
             dirs = [logdir] + [w.logdir for w in self._tensorboard_watchers]
             rootdir = os.path.dirname(os.path.commonprefix(dirs))
             if os.path.isfile(logdir):

@@ -8,7 +8,7 @@ for path in sys.path:
 from tensorboard.backend.event_processing import directory_watcher
 from tensorboard.backend.event_processing import event_file_loader
 from tensorboard.compat import tf
-from wandb.tensorboard import log
+from wandb.tb import log
 from wandb import util
 import six
 import os

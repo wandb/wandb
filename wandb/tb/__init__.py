@@ -46,7 +46,7 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
 
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
-            "Tensorboard already patched, remove tensorboard=True from wandb.init or only call wandb.tensorboard.patch once.")
+            "Tensorboard already patched, remove tensorboard=True from wandb.init or only call wandb.tb.patch once.")
     elif Summary is None:
         raise ValueError(
             "Couldn't import tensorboard or tensorflow, ensure you have have tensorboard installed.")

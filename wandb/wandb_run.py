@@ -298,7 +298,7 @@ class Run(object):
             file_api.stream_file(history)
             snap.paths.remove(history)
         elif len(tfevents) > 0:
-            from wandb import tensorflow as wbtf
+            from wandb import tf as wbtf
             wandb.termlog("Found tfevents file, converting...")
             summary = {}
             for path in tfevents:
