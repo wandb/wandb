@@ -141,11 +141,15 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
             [TENSORBOARD_C_MODULE, "create_summary_file_writer"])
 
 
-def log(tf_summary_str, **kwargs):
+def log(tf_summary_str, history=None, **kwargs):
     namespace = kwargs.get("namespace")
     if "namespace" in kwargs:
         del kwargs["namespace"]
-    wandb.log(tf_summary_to_dict(tf_summary_str, namespace), **kwargs)
+    log_dict = tf_summary_to_dict(tf_summary_str, namespace)
+    if history is None:
+        wandb.log(log_dict, **kwargs)
+    else:
+        history.add(log_dict, **kwargs)
 
 
 def history_image_key(key, namespace=""):
@@ -211,20 +215,24 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
         #    audio = wandb.Audio(six.BytesIO(value.audio.encoded_audio_string),
         #                        sample_rate=value.audio.sample_rate, content_type=value.audio.content_type)
         elif kind == "histo":
-            first = value.histo.bucket_limit[0] + \
-                value.histo.bucket_limit[0] - value.histo.bucket_limit[1]
-            last = value.histo.bucket_limit[-2] + \
-                value.histo.bucket_limit[-2] - value.histo.bucket_limit[-3]
-            np_histogram = (list(value.histo.bucket), [
-                first] + value.histo.bucket_limit[:-1] + [last])
             tag = namespaced_tag(value.tag, namespace)
-            try:
-                #TODO: we should just re-bin if there are too many buckets
-                values[tag] = wandb.Histogram(
-                    np_histogram=np_histogram)
-            except ValueError:
-                wandb.termwarn("Not logging key \"{}\".  Histograms must have fewer than {} bins".format(
-                     tag, wandb.Histogram.MAX_LENGTH), repeat=False)
+            if len(value.histo.bucket_limit) >= 3:
+                first = value.histo.bucket_limit[0] + \
+                    value.histo.bucket_limit[0] - value.histo.bucket_limit[1]
+                last = value.histo.bucket_limit[-2] + \
+                    value.histo.bucket_limit[-2] - value.histo.bucket_limit[-3]
+                np_histogram = (list(value.histo.bucket), [
+                    first] + value.histo.bucket_limit[:-1] + [last])
+                try:
+                    #TODO: we should just re-bin if there are too many buckets
+                    values[tag] = wandb.Histogram(
+                        np_histogram=np_histogram)
+                except ValueError:
+                    wandb.termwarn("Not logging key \"{}\".  Histograms must have fewer than {} bins".format(
+                        tag, wandb.Histogram.MAX_LENGTH), repeat=False)
+            else:
+                #TODO: is there a case where we can render this?
+                wandb.termwarn("Not logging key \"{}\".  Found a histogram with only 2 bins.".format(tag), repeat=False)
         elif value.tag == "_hparams_/session_start_info":
             if wandb.util.get_module("tensorboard.plugins.hparams"):
                 from tensorboard.plugins.hparams import plugin_data_pb2

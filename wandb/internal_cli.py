@@ -72,7 +72,7 @@ def agent_run(args):
     run.set_environment(env)
 
     try:
-        rm = wandb.run_manager.RunManager(run)
+        rm = wandb.run_manager.RunManager(run, agent_run=True)
     except wandb.run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %

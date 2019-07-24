@@ -1,3 +1,36 @@
+## 0.8.5 (July 12, 2019)
+
+#### :bug: Bug Fix
+
+-   Fixed plotly charts with large numpy arrays not rendering
+-   `wandb docker` works when nvidia is present
+-   Better error when non string keys are sent to log
+-   Relaxed pyyaml dependency to fix AMI installs
+-   Magic works in jupyter notebooks.
+
+#### :nail_care: Enhancement
+
+-   New preview release of auto-dataframes for Keras
+-   Added input_type and output_type to the Keras callback for simpler config
+-   public api supports retrieving specific keys and custom xaxis
+
+## 0.8.4 (July 8, 2019)
+
+#### :bug: Bug Fix
+
+-   WANDB_IGNORE_GLOBS is respected on the final scan of files
+-   Unified run.id, run.name, and run.notes across all apis
+-   Handle funky terminal sizes when setting up our psuedo tty
+-   Fixed Jupyter notebook introspection logic
+-   run.summary.update() persists changes to the server
+-   tensorboard syncing is robust to invalid histograms and truncated files
+
+#### :nail_care: Enhancement
+
+-   preview release of magic, calling wandb.init(magic=True) should automatically track config and metrics when possible
+-   cli now supports local installs of the backend
+-   fastai callback supports logging example images
+
 ## 0.8.3 (June 26, 2019)
 
 #### :bug: Bug Fix

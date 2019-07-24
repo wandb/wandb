@@ -54,7 +54,8 @@ class Api(object):
 
     HTTP_TIMEOUT = 10
 
-    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1)):
+    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1), environ=os.environ):
+        self._environ = environ
         self.default_settings = {
             'section': "default",
             'run': "latest",
@@ -86,7 +87,7 @@ class Api(object):
         }
         self.client = Client(
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': self.user_agent, 'X-WANDB-USERNAME': env.get_username()},
+                headers={'User-Agent': self.user_agent, 'X-WANDB-USERNAME': env.get_username(env=self._environ)},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
@@ -217,8 +218,8 @@ class Api(object):
         if auth:
             key = auth[-1]
         # Environment should take precedence
-        if os.getenv("WANDB_API_KEY"):
-            key = os.environ["WANDB_API_KEY"]
+        if self._environ.get(env.API_KEY):
+            key = self._environ.get(env.API_KEY)
         return key
 
     @property
@@ -228,12 +229,17 @@ class Api(object):
     @property
     def app_url(self):
         api_url = self.api_url
+        # Development
         if api_url.endswith('.test') or self.settings().get("dev_prod"):
             return 'http://app.test'
-        elif api_url.startswith('https://api.'):
+        # On-prem VM
+        if api_url.endswith(':11001'):
+            return api_url.replace(':11001', ':11000')
+        # Normal
+        if api_url.startswith('https://api.'):
             return api_url.replace('api.', 'app.')
-        else:
-            return api_url
+        # Unexpected
+        return api_url
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
@@ -263,14 +269,13 @@ class Api(object):
             except configparser.InterpolationSyntaxError:
                 wandb.termwarn("Unable to parse settings file")
             self._settings["project"] = env.get_project(
-                self._settings.get("project"))
+                self._settings.get("project"), env=self._environ)
             self._settings["entity"] = env.get_entity(
-                self._settings.get("entity"))
+                self._settings.get("entity"), env=self._environ)
             self._settings["base_url"] = env.get_base_url(
-                self._settings.get("base_url"))
+                self._settings.get("base_url"), env=self._environ)
             self._settings["ignore_globs"] = env.get_ignore(
-                self._settings.get("ignore_globs")
-            )
+                self._settings.get("ignore_globs"), env=self._environ)
 
         return self._settings if key is None else self._settings[key]
 
@@ -278,9 +283,9 @@ class Api(object):
         self.settings()  # make sure we do initial load
         self._settings[key] = value
         if key == 'entity':
-            env.set_entity(value)
+            env.set_entity(value, env=self._environ)
         elif key == 'project':
-            env.set_project(value)
+            env.set_project(value, env=self._environ)
 
     def parse_slug(self, slug, project=None, run=None):
         if slug and "/" in slug:
@@ -291,7 +296,7 @@ class Api(object):
             project = project or self.settings().get("project")
             if project is None:
                 raise CommError("No default project configured.")
-            run = run or slug or env.get_run()
+            run = run or slug or env.get_run(env=self._environ)
             if run is None:
                 run = "latest"
         return (project, run)
@@ -541,6 +546,32 @@ class Api(object):
 
         return project['bucket']
 
+    @normalize_exceptions
+    def check_stop_requested(self, project_name, entity_name, run_id):
+        query = gql('''
+        query Model($projectName: String, $entityName: String, $runId: String!) {
+            project(name:$projectName, entityName:$entityName) {
+                run(name:$runId) {
+                    stopped
+                }
+            }
+        }
+        ''')
+
+        response = self.gql(query, variable_values={
+            'projectName': project_name, 'entityName': entity_name, 'runId': run_id,
+        })
+
+        project = response.get('project', None)
+        if not project:
+            return False
+        run = project.get('run', None)
+        if not run:
+            return False
+        
+        return run['stopped']
+
+
     def format_project(self, project):
         return re.sub(r'\W+', '-', project.lower()).strip("-_")
 
@@ -666,7 +697,7 @@ class Api(object):
             'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
             'displayName': display_name, 'notes': notes,
-            'host': host, 'debug': env.is_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
+            'host': host, 'debug': env.is_debug(env=self._environ), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
         }
 

@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.3'
+__version__ = '0.8.6'
 
 import atexit
 import click
@@ -53,6 +53,10 @@ from wandb.data_types import Object3D
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 from wandb import trigger
+from wandb.dataframes import image_categorizer_dataframe
+from wandb.dataframes import image_segmentation_dataframe
+from wandb.dataframes import image_segmentation_binary_dataframe
+from wandb.dataframes import image_segmentation_multiclass_dataframe
 
 from wandb import wandb_torch
 
@@ -177,7 +181,6 @@ class ExitHooks(object):
 def _init_headless(run, cloud=True):
     global join
     global _user_process_finished_called
-    run.description = env.get_description(run.description)
 
     environ = dict(os.environ)
     run.set_environment(environ)
@@ -428,7 +431,7 @@ def restore(name, run_path=None, replace=False, root="."):
     name: the name of the file
     run_path: optional path to a different run to pull files from
     replace: whether to download the file even if it already exists locally
-    root: the directory to download the file to.  Defaults to the current 
+    root: the directory to download the file to.  Defaults to the current
         directory or the run directory if wandb.init was called.
 
     returns None if it can't find the file, otherwise a file object open for reading
@@ -502,7 +505,7 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
 
     Args:
-        row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types 
+        row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types
         commit (boolean, optional): Persist a set of metrics, if false just update the existing dict
         step (integer, optional): The global step in processing. This sets commit=True any time step increases
     """
@@ -519,6 +522,10 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
 
     if row is None:
         row = {}
+
+    if any(not isinstance(key, six.string_types) for key in row.keys()):
+        raise ValueError("Key values passed to `wandb.log` must be strings.")
+
     if commit or step is not None:
         run.history.add(row, *args, step=step, **kwargs)
     else:
@@ -659,10 +666,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     global run
     global __stage_dir__
 
-    # We allow re-initialization when we're in Jupyter
+    # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
     if reinit or (in_jupyter and reinit != False):
-        reset_env(exclude=[env.DIR, env.ENTITY, env.PROJECT, env.API_KEY])
+        reset_env(exclude=env.immutable_keys())
         run = None
 
     # TODO: deprecate tensorboard
@@ -717,6 +724,16 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.TAGS] = ",".join(tags)
     if id:
         os.environ[env.RUN_ID] = id
+        if name is None:
+            # We do this because of https://github.com/wandb/core/issues/2170
+            # to ensure that the run's name is explicitly set to match its
+            # id. If we don't do this and the id is eight characters long, the
+            # backend will set the name to a generated human-friendly value.
+            #
+            # In any case, if the user is explicitly setting `id` but not
+            # `name`, their id is probably a meaningful string that we can
+            # use to label the run.
+            name = os.environ.get(env.NAME, id)  # environment variable takes precedence over this.
     if name:
         os.environ[env.NAME] = name
     if notes:

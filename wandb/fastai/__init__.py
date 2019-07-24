@@ -29,11 +29,15 @@ Examples:
         learn.fit(..., callbacks=WandBCallback(learn, ...))
 '''
 import wandb
-import matplotlib
-matplotlib.use('Agg')  # non-interactive back-end (avoid issues with tkinter)
-import matplotlib.pyplot as plt
 from fastai.callbacks import TrackerCallback
 from pathlib import Path
+import random
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # non-interactive backend (avoid tkinter issues)
+    import matplotlib.pyplot as plt
+except:
+    print('Warning: matplotlib required if logging sample image predictions')
 
 
 class WandbCallback(TrackerCallback):
@@ -43,11 +47,13 @@ class WandbCallback(TrackerCallback):
 
     def __init__(self,
                  learn,
-                 log=None,
-                 show_results=False,
-                 save_model=False,
+                 log="gradients",
+                 save_model=True,
                  monitor='valid_loss',
-                 mode='auto'):
+                 mode='auto',
+                 input_type=None,
+                 validation_data=None,
+                 predictions=36):
         """WandB fast.ai Callback
 
         Automatically saves model topology, losses & metrics.
@@ -55,11 +61,13 @@ class WandbCallback(TrackerCallback):
 
         Args:
             learn (fastai.basic_train.Learner): the fast.ai learner to hook.
-            log (str): One of "gradients", "parameters", "all", or None. Losses & metrics are always logged.
-            show_results (bool): whether we want to display sample predictions, works only with images at the moment
+            log (str): "gradients", "parameters", "all", or None. Losses & metrics are always logged.
             save_model (bool): save model at the end of each epoch.
             monitor (str): metric to monitor for saving best model.
             mode (str): "auto", "min" or "max" to compare "monitor" values and define best model.
+            input_type (str): "images" or None. Used to display sample predictions.
+            validation_data (list): data used for sample predictions if input_type is set.
+            predictions (int): number of predictions to make if input_type is set and validation_data is None.
         """
 
         # Check if wandb.init has been called
@@ -73,8 +81,16 @@ class WandbCallback(TrackerCallback):
         self.model_path = Path(wandb.run.dir) / 'bestmodel.pth'
 
         self.log = log
-        self.show_results = show_results
+        self.input_type = input_type
         self.best = None
+
+        # Select items for sample predictions to see evolution along training
+        self.validation_data = validation_data
+        if input_type and not self.validation_data:
+            predictions = min(predictions, len(learn.data.valid_ds))
+            indices = random.sample(range(len(learn.data.valid_ds)),
+                                    predictions)
+            self.validation_data = [learn.data.valid_ds[i] for i in indices]
 
     def on_train_begin(self, **kwargs):
         "Call watch method to log model topology, gradients & weights"
@@ -101,14 +117,65 @@ class WandbCallback(TrackerCallback):
                         epoch, self.monitor, current))
                 self.best = current
 
-                # Section modified to save within wandb folder
+                # Save within wandb folder
                 with self.model_path.open('wb') as model_file:
                     self.learn.save(model_file)
 
         # Log sample predictions
-        if self.show_results:
-            self.learn.show_results()  # pyplot display of sample predictions
-            wandb.log({"Prediction Samples": plt}, commit=False)
+        if self.validation_data:
+            pred_log = []
+
+            for x, y in self.validation_data:
+                pred = self.learn.predict(x)
+
+                # scalar -> likely to be a category
+                if not pred[1].shape:
+                    pred_log.append(
+                        wandb.Image(
+                            x.data,
+                            caption='Ground Truth: {}\nPrediction: {}'.format(
+                                y, pred[0])))
+
+                # most vision datasets have a "show" function we can use
+                elif hasattr(x, "show"):
+                    # log input data
+                    pred_log.append(
+                        wandb.Image(x.data, caption='Input data', grouping=3))
+
+                    # log label and prediction
+                    for im, capt in (y, "Ground Truth"), (pred[0],
+                                                          "Prediction"):
+                        # Resize plot to image resolution
+                        # from https://stackoverflow.com/a/13714915
+                        my_dpi = 100
+                        fig = plt.figure(frameon=False, dpi=my_dpi)
+                        h, w = x.size
+                        fig.set_size_inches(w / my_dpi, h / my_dpi)
+                        ax = plt.Axes(fig, [0., 0., 1., 1.])
+                        ax.set_axis_off()
+                        fig.add_axes(ax)
+
+                        # Superpose label or prediction to input image
+                        x.show(ax=ax, y=im)
+                        pred_log.append(wandb.Image(fig, caption=capt))
+                        plt.close(fig)
+
+                # likely to be an image
+                elif hasattr(y, "shape") and (
+                    (len(y.shape) == 2) or
+                    (len(y.shape) == 3 and y.shape[0] in [1, 3, 4])):
+
+                    pred_log.extend([
+                        wandb.Image(x.data, caption='Input data', grouping=3),
+                        wandb.Image(y.data, caption='Ground Truth'),
+                        wandb.Image(pred[0].data, caption='Prediction')
+                    ])
+
+                # we just log input data
+                else:
+                    pred_log.append(wandb.Image(x.data, caption='Input data'))
+
+            wandb.log({"Prediction Samples": pred_log}, commit=False)
 
         # Log losses & metrics
         # Adapted from fast.ai "CSVLogger"
@@ -119,10 +186,6 @@ class WandbCallback(TrackerCallback):
                     last_metrics))[1:]
         }
         wandb.log(logs)
-
-        # We can now close results figure
-        if self.show_results:
-            plt.close('all')
 
     def on_train_end(self, **kwargs):
         "Load the best model."

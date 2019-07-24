@@ -210,7 +210,7 @@ class Attrs(object):
             return self._attrs[name]
         else:
             raise AttributeError(
-                "'{}' object has no attribute '{}'".format(self.__repr__, name))
+                "'{}' object has no attribute '{}'".format(repr(self), name))
 
 
 class Paginator(object):
@@ -349,30 +349,49 @@ class Runs(Paginator):
 class Run(Attrs):
     """A single run associated with a user and project"""
 
-    def __init__(self, client, username, project, name, attrs={}):
+    def __init__(self, client, username, project, run_id, attrs={}):
+        super(Run, self).__init__(dict(attrs))
         self.client = client
         self.username = username
         self.project = project
-        self.name = name
         self._files = {}
         self._base_dir = get_dir(tempfile.gettempdir())
+        self.id = run_id
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
         except OSError:
             pass
         self._summary = None
-        super(Run, self).__init__(attrs)
         self.state = attrs.get("state", "not found")
-        self.load()
+
+        self.load(force=not attrs)
 
     @property
     def storage_id(self):
         """For compatibility with wandb.Run, which has storage IDs
-        in self.storage_id and names in self.id, whereas this has storage IDs in
-        self.id and names in self.id
+        in self.storage_id and names in self.id.
         """
-        return self.id
+        return self._attrs.get('id')
+
+    @property
+    def id(self):
+        return self._attrs.get('name')
+
+    @id.setter
+    def id(self, new_id):
+        attrs = self._attrs
+        attrs['name'] = new_id
+        return new_id
+
+    @property
+    def name(self):
+        return self._attrs.get('displayName')
+
+    @name.setter
+    def name(self, new_name):
+        self._attrs['displayName'] = new_name
+        return new_name
 
     @classmethod
     def create(cls, api, run_id=None, project=None, username=None):
@@ -453,7 +472,7 @@ class Run(Attrs):
         }
         %s
         ''' % RUN_FRAGMENT)
-        res = self._exec(mutation, id=self.id, tags=self.tags,
+        res = self._exec(mutation, id=self.storage_id, tags=self.tags,
                          description=self.description, notes=self.notes, display_name=self.display_name, config=self.json_config)
         self.summary.update()
 
@@ -467,9 +486,36 @@ class Run(Attrs):
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
         variables = {'entity': self.username,
-                     'project': self.project, 'name': self.name}
+                     'project': self.project, 'name': self.id}
         variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
+
+    def _sampled_history(self, keys, x_axis="_step", samples=500):
+        spec = {"keys": [x_axis] + keys, "samples": samples}
+        query = gql('''
+        query Run($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { sampledHistory(specs: $specs) }
+            }
+        }
+        ''')
+
+        response = self._exec(query, specs=[json.dumps(spec)])
+        return [line for line in response['project']['run']['sampledHistory']]
+
+
+    def _full_history(self, samples=500, stream="default"):
+        node = "history" if stream == "default" else "events"
+        query = gql('''
+        query Run($project: String!, $entity: String!, $name: String!, $samples: Int) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { %s(samples: $samples) }
+            }
+        }
+        ''' % node)
+
+        response = self._exec(query, samples=samples)
+        return [json.loads(line) for line in response['project']['run'][node]]
 
     @normalize_exceptions
     def files(self, names=[], per_page=50):
@@ -480,26 +526,23 @@ class Run(Attrs):
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
-    def history(self, samples=500, pandas=True, stream="default"):
+    def history(self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"):
         """Return history metrics for a run
 
         Args:
             samples (int, optional): The number of samples to return
             pandas (bool, optional): Return a pandas dataframe
+            keys (list, optional): Only return metrics for specific keys
+            x_axis (str, optional): Use this metric as the xAxis defaults to _step
             stream (str, optional): "default" for metrics, "system" for machine metrics
         """
-        node = "history" if stream == "default" else "events"
-        query = gql('''
-        query Run($project: String!, $entity: String!, $name: String!, $samples: Int!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) { %s(samples: $samples) }
-            }
-        }
-        ''' % node)
-
-        response = self._exec(query, samples=samples)
-        lines = [json.loads(line)
-                 for line in response['project']['run'][node]]
+        if keys and stream != "default":
+            wandb.termerror("stream must be default when specifying keys")
+            return []
+        elif keys:
+            lines = self._sampled_history(keys=keys, x_axis=x_axis, samples=samples)
+        else:
+            lines = self._full_history(samples=samples, stream=stream)
         if pandas:
             pandas = util.get_module("pandas")
             if pandas:
@@ -511,7 +554,7 @@ class Run(Attrs):
     @property
     def summary(self):
         if self._summary is None:
-            download_h5(self.name, entity=self.username,
+            download_h5(self.id, entity=self.username,
                         project=self.project, out_dir=self.dir)
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(
@@ -520,7 +563,7 @@ class Run(Attrs):
 
     @property
     def path(self):
-        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.name))]
+        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
     @property
     def url(self):
@@ -549,7 +592,7 @@ class Files(Paginator):
     def __init__(self, client, run, names=[], per_page=50, upload=False):
         self.run = run
         variables = {
-            'project': run.project, 'entity': run.username, 'name': run.name,
+            'project': run.project, 'entity': run.username, 'name': run.id,
             'fileNames': names, 'upload': upload
         }
         super(Files, self).__init__(client, variables, per_page)

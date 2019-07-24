@@ -75,7 +75,7 @@ class Meta(object):
 
         self.data["startedAt"] = datetime.utcfromtimestamp(
             wandb.START_TIME).isoformat()
-        self.data["host"] = socket.gethostname()
+        self.data["host"] = os.environ.get(env.HOST, socket.gethostname())
         try:
             username = getpass.getuser()
         except KeyError:

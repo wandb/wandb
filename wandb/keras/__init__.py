@@ -113,7 +113,6 @@ if "tensorflow" in wandb.util.get_full_typename(keras):
         wandb.termwarn(
             "Unable to patch tensorflow.keras for use with W&B.  You will not be able to log images unless you set the generator argument of the callback.")
 
-
 class WandbCallback(keras.callbacks.Callback):
     """WandB Keras Callback.
 
@@ -129,7 +128,9 @@ class WandbCallback(keras.callbacks.Callback):
     def __init__(self, monitor='val_loss', verbose=0, mode='auto',
                  save_weights_only=False, log_weights=False, log_gradients=False,
                  save_model=True, training_data=None, validation_data=None,
-                 labels=[], data_type=None, predictions=36, generator=None
+                 labels=[], data_type=None, predictions=36, generator=None,
+                 input_type=None, output_type=None, log_evaluation=False,
+                 validation_steps=None, class_colors=None,
                  ):
         """Constructor.
 
@@ -148,12 +149,21 @@ class WandbCallback(keras.callbacks.Callback):
             log_weights: if True save the weights in wandb.history
             log_gradients: if True log the training gradients in wandb.history
             training_data: tuple (X,y) needed for calculating gradients
-            data_type: the type of data we're saving, set to "image" for saving images
             labels: list of labels to convert numeric output to if you are building a
                 multiclass classifier.  If you are making a binary classifier you can pass in
                 a list of two labels ["label for false", "label for true"]
             predictions: the number of predictions to make each epic if data_type is set, max is 100.
             generator: a generator to use for making predictions
+            input_type: the type of the model input. can be one of:
+                (label, image, segmentation_mask).
+            output_type: the type of the model output. can be one of:
+                (label, image, segmentation_mask).
+            log_evaluation: if True save a dataframe containing the full
+                validation results at the end of training.
+            validation_steps: if `validation_data` is a generator, how many
+                steps to run the generator for the full validation set.
+            class_colors: if the input or output is a segmentation mask, an array
+                containing an rgb tuple (range 0.-1.) for each class.
         """
         if wandb.run is None:
             raise wandb.Error(
@@ -163,13 +173,9 @@ class WandbCallback(keras.callbacks.Callback):
         # This is kept around for legacy reasons
         if validation_data is not None:
             if is_generator_like(validation_data):
-                self.generator = validation_data
+                generator = validation_data
             else:
                 self.validation_data = validation_data
-            # For backwards compatability
-            self.data_type = data_type or "image"
-        else:
-            self.data_type = data_type
 
         self.labels = labels
         self.predictions = min(predictions, 100)
@@ -186,6 +192,12 @@ class WandbCallback(keras.callbacks.Callback):
         self.training_data = training_data
         self.generator = generator
         self._graph_rendered = False
+
+        self.input_type = input_type or data_type
+        self.output_type = output_type
+        self.log_evaluation = log_evaluation
+        self.validation_steps = validation_steps
+        self.class_colors = np.array(class_colors) if class_colors is not None else None
 
         if self.training_data:
             if len(self.training_data) != 2:
@@ -216,6 +228,10 @@ class WandbCallback(keras.callbacks.Callback):
 
     def set_model(self, model):
         self.model = model
+        if self.input_type is None and len(model.inputs) == 1:
+            self.input_type = wandb.util.guess_data_type(model.inputs[0].shape)
+        if self.output_type is None and len(model.outputs) == 1:
+            self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
@@ -224,7 +240,7 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.data_type in ["image", "images"]:
+        if self.input_type in ("image", "images", "segmentation_mask") or self.output_type in ("image", "images", "segmentation_mask"):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
@@ -275,6 +291,8 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_end(self, logs=None):
+        if self.log_evaluation:
+            wandb.run.summary['results'] = self._log_dataframe()
         pass
 
     def on_test_begin(self, logs=None):
@@ -301,6 +319,44 @@ class WandbCallback(keras.callbacks.Callback):
     def on_predict_batch_end(self, batch, logs=None):
         pass
 
+    def _logits_to_captions(self, logits):
+        if logits[0].shape[-1] == 1:
+            # Scalar output from the model
+            # TODO: handle validation_y
+            if len(self.labels) == 2:
+                # User has named true and false
+                captions = [self.labels[1] if logits[0] >
+                            0.5 else self.labels[0] for logit in logits]
+            else:
+                if len(self.labels) != 0:
+                    wandb.termwarn(
+                        "keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
+                captions = [logit[0] for logit in logits]
+        else:
+            # Vector output from the model
+            # TODO: handle validation_y
+            labels = np.argmax(np.stack(logits), axis=1)
+
+            if len(self.labels) > 0:
+                # User has named the categories in self.labels
+                captions = []
+                for label in labels:
+                    try:
+                        captions.append(self.labels[label])
+                    except IndexError:
+                        captions.append(label)
+            else:
+                captions = labels
+        return captions
+
+    def _masks_to_pixels(self, masks):
+        # if its a binary mask, just return it as grayscale instead of picking the argmax
+        if len(masks[0].shape) == 2 or masks[0].shape[-1] == 1:
+            return masks
+        class_colors = self.class_colors or np.array(wandb.util.class_colors(masks[0].shape[2]))
+        imgs = class_colors[np.argmax(masks, axis=-1)]
+        return imgs
+
     def _log_images(self, num_images=36):
         validation_X = self.validation_data[0]
         validation_y = self.validation_data[1]
@@ -316,7 +372,6 @@ class WandbCallback(keras.callbacks.Callback):
 
         test_data = []
         test_output = []
-        labels = []
         for i in indices:
             test_example = validation_X[i]
             test_data.append(test_example)
@@ -324,50 +379,43 @@ class WandbCallback(keras.callbacks.Callback):
 
         predictions = self.model.predict(np.stack(test_data))
 
-        if (len(predictions[0].shape) == 1):
-            if (predictions[0].shape[0] == 1):
-                # Scalar output from the model
-                # TODO: handle validation_y
-                if len(self.labels) == 2:
-                    # User has named true and false
-                    captions = [self.labels[1] if prediction[0] >
-                                0.5 else self.labels[0] for prediction in predictions]
-                else:
-                    if len(self.labels) != 0:
-                        wandb.termwarn(
-                            "keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
-                    captions = [prediction[0] for prediction in predictions]
-
-                return [wandb.Image(data, caption=str(captions[i])) for i, data in enumerate(test_data)]
-            else:
-                # Vector output from the model
-                # TODO: handle validation_y
-                labels = np.argmax(np.stack(predictions), axis=1)
-
-                if len(self.labels) > 0:
-                    # User has named the categories in self.labels
-                    captions = []
-                    for label in labels:
-                        try:
-                            captions.append(self.labels[label])
-                        except IndexError:
-                            captions.append(label)
-                else:
-                    captions = labels
+        if self.input_type == 'label':
+            if self.output_type in ('image', 'images', 'segmentation_mask'):
+                captions = self._logits_to_captions(test_data)
+                output_image_data = self._masks_to_pixels(predictions) if self.output_type == 'segmentation_mask' else predictions
+                reference_image_data = self._masks_to_pixels(test_output) if self.output_type == 'segmentation_mask' else test_output
+                output_images = [
+                    wandb.Image(data, caption=captions[i], grouping=2)
+                    for i, data in enumerate(output_image_data)
+                ]
+                reference_images = [
+                    wandb.Image(data, caption=captions[i])
+                    for i, data in enumerate(reference_image_data)
+                ]
+                return list(chain.from_iterable(zip(output_images, reference_images)))
+        elif self.input_type in ('image', 'images', 'segmentation_mask'):
+            input_image_data = self._masks_to_pixels(test_data) if self.input_type == 'segmentation_mask' else test_data
+            if self.output_type == 'label':
+                # we just use the predicted label as the caption for now
+                captions = self._logits_to_captions(predictions)
                 return [wandb.Image(data, caption=captions[i]) for i, data in enumerate(test_data)]
-        elif (len(predictions[0].shape) == 2 or
-              (len(predictions[0].shape) == 3 and predictions[0].shape[2] in [1, 3, 4])):
-            # Looks like the model is outputting an image
-            input_images = [wandb.Image(data, grouping=3)
-                            for data in test_data]
-            output_images = [wandb.Image(prediction)
-                             for prediction in predictions]
-            reference_images = [wandb.Image(data)
-                                for data in test_output]
-            return list(chain.from_iterable(zip(input_images, output_images, reference_images)))
-        else:
-            # More complicated output from the model, we'll just show the input
-            return [wandb.Image(data) for data in test_data]
+            elif self.output_type in ('image', 'images', 'segmentation_mask'):
+                output_image_data = self._masks_to_pixels(predictions) if self.output_type == 'segmentation_mask' else predictions
+                reference_image_data = self._masks_to_pixels(test_output) if self.output_type == 'segmentation_mask' else test_output
+                input_images = [wandb.Image(data, grouping=3) for i, data in enumerate(input_image_data)]
+                output_images = [wandb.Image(data) for i, data in enumerate(output_image_data)]
+                reference_images = [wandb.Image(data) for i, data in enumerate(reference_image_data)]
+                return list(chain.from_iterable(zip(input_images, output_images, reference_images)))
+            else:
+                # unknown output, just log the input images
+                return [wandb.Image(img) for img in test_data]
+        elif self.output_type in ('image', 'images', 'segmentation_mask'):
+            # unknown input, just log the predicted and reference outputs without captions
+            output_image_data = self._masks_to_pixels(predictions) if self.output_type == 'segmentation_mask' else predictions
+            reference_image_data = self._masks_to_pixels(test_output) if self.output_type == 'segmentation_mask' else test_output
+            output_images = [wandb.Image(data, grouping=2) for i, data in enumerate(output_image_data)]
+            reference_images = [wandb.Image(data) for i, data in enumerate(reference_image_data)]
+            return list(chain.from_iterable(zip(output_images, reference_images)))
 
     def _log_weights(self):
         metrics = {}
@@ -414,6 +462,33 @@ class WandbCallback(keras.callbacks.Callback):
                 ':')[0] + ".gradient"] = wandb.Histogram(grad)
 
         return metrics
+
+    def _log_dataframe(self):
+        x, y_true, y_pred = None, None, None
+
+        if self.validation_data:
+            x, y_true = self.validation_data[0], self.validation_data[1]
+            y_pred = self.model.predict(x)
+        elif self.generator:
+            if not self.validation_steps:
+                wandb.termwarn('when using a generator for validation data with dataframes, you must pass validation_steps. skipping')
+                return None
+
+            for i in range(self.validation_steps):
+                bx, by_true = next(self.generator)
+                by_pred = self.model.predict(bx)
+                if x is None:
+                    x, y_true, y_pred = bx, by_true, by_pred
+                else:
+                    x, y_true, y_pred = np.append(x, bx, axis=0), np.append(y_true, by_true, axis=0), np.append(y_pred, by_pred, axis=0)
+
+        if self.input_type in ('image', 'images') and self.output_type == 'label':
+            return wandb.image_categorizer_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels)
+        elif self.input_type in ('image', 'images') and self.output_type == 'segmentation_mask':
+            return wandb.image_segmentation_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels, class_colors=self.class_colors)
+        else:
+            wandb.termwarn('unknown dataframe type for input_type=%s and output_type=%s' % (self.input_type, self.output_type))
+            return None
 
     def _save_model(self, epoch):
         if self.verbose > 0:
