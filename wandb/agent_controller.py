@@ -12,25 +12,21 @@
 # TODO(jhr): alert for older python version (or migrate code to older print strings)
 
 from __future__ import print_function
-import wandb
-from wandb.util import get_module
-from wandb.apis import InternalApi
 import logging
 import yaml
 import time
 import json
 import random
 import string
-#from wandb.sweeps.sweeps import Search, EarlyTerminate
 import sys
 import six
 
+import wandb
+from wandb import util
+from wandb.apis import InternalApi
 
-#wandb_sweeps = None
-#if sys.version_info >= (3, 6, 0):
-wandb_sweeps = get_module("wandb.sweeps.sweeps")
 
-
+wandb_sweeps = util.get_module("wandb.sweeps.sweeps")
 logger = logging.getLogger(__name__)
 
 
