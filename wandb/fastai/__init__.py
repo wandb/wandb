@@ -46,7 +46,7 @@ class WandbCallback(TrackerCallback):
                  log=None,
                  show_results=False,
                  save_model=False,
-                 monitor='val_loss',
+                 monitor='valid_loss',
                  mode='auto'):
         """WandB fast.ai Callback
 
