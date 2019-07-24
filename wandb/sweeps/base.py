@@ -21,14 +21,16 @@ class Search():
         if maximize:
             metric = -metric
 
-        # Use history to find metric
+        # Use history to find metric (if available)
         metric_history = []
-        for line in run.history:
-            if metric_name in line:
-                m = line[metric_name]
-                if math.isnan(m):
-                    continue
-                metric_history.append(m)
+        run_history = getattr(run, 'history', [])
+        for line in run_history:
+            m = line.get(metric_name)
+            if m is None:
+                continue
+            if math.isnan(m):
+                continue
+            metric_history.append(m)
         if maximize:
             metric_history = [-m for m in metric_history]
 
