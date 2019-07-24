@@ -59,6 +59,7 @@ from wandb.dataframes import image_segmentation_binary_dataframe
 from wandb.dataframes import image_segmentation_multiclass_dataframe
 
 from wandb import wandb_torch
+from wandb.wandb_controller import controller
 
 
 logger = logging.getLogger(__name__)

@@ -45,7 +45,7 @@ import wandb
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 from wandb import agent as wandb_agent
-from wandb import controller as wandb_controller
+from wandb import agent_controller
 from wandb import env
 from wandb import wandb_run
 from wandb import wandb_dir
@@ -931,7 +931,7 @@ def sweep(ctx, controller, verbose, config_yaml):
 
     is_local = config.get('controller', {}).get('type') == 'local'
     if is_local:
-        err = wandb_controller.validate(config)
+        err = agent_controller.validate(config)
         if err:
             wandb.termerror('Error in sweep file: %s' % err)
             return
@@ -943,7 +943,7 @@ def sweep(ctx, controller, verbose, config_yaml):
     print('Create sweep with ID:', sweep_id)
     if controller:
         click.echo('Starting wandb controller...')
-        wandb_controller.run_controller(sweep_id, verbose=verbose)
+        agent_controller.run_controller(sweep_id, verbose=verbose)
 
 
 
@@ -965,7 +965,7 @@ def agent(sweep_id):
 @display_error
 def controller(verbose, sweep_id):
     click.echo('Starting wandb controller...')
-    wandb_controller.run_controller(sweep_id, verbose=verbose)
+    agent_controller.run_controller(sweep_id, verbose=verbose)
 
 
 if __name__ == "__main__":
