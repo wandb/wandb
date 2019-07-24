@@ -29,6 +29,7 @@ Examples:
         learn.fit(..., callbacks=WandBCallback(learn, ...))
 '''
 import wandb
+import fastai
 from fastai.callbacks import TrackerCallback
 from pathlib import Path
 import random
@@ -49,7 +50,7 @@ class WandbCallback(TrackerCallback):
                  learn,
                  log="gradients",
                  save_model=True,
-                 monitor='valid_loss',
+                 monitor=None,
                  mode='auto',
                  input_type=None,
                  validation_data=None,
@@ -63,7 +64,7 @@ class WandbCallback(TrackerCallback):
             learn (fastai.basic_train.Learner): the fast.ai learner to hook.
             log (str): "gradients", "parameters", "all", or None. Losses & metrics are always logged.
             save_model (bool): save model at the end of each epoch.
-            monitor (str): metric to monitor for saving best model.
+            monitor (str): metric to monitor for saving best model. None uses default TrackerCallback monitor value.
             mode (str): "auto", "min" or "max" to compare "monitor" values and define best model.
             input_type (str): "images" or None. Used to display sample predictions.
             validation_data (list): data used for sample predictions if input_type is set.
@@ -76,7 +77,11 @@ class WandbCallback(TrackerCallback):
                 'You must call wandb.init() before WandbCallback()')
 
         # Adapted from fast.ai "SaveModelCallback"
-        super().__init__(learn, monitor=monitor, mode=mode)
+        if monitor is None:
+            # use default TrackerCallback monitor value
+            super().__init__(learn, mode=mode)
+        else:
+            super().__init__(learn, monitor=monitor, mode=mode)
         self.save_model = save_model
         self.model_path = Path(wandb.run.dir) / 'bestmodel.pth'
 
