@@ -58,8 +58,7 @@ class GridSearch(Search):
             if not key in run.config:
                 return False
             if not run.config[key]['value'] == value:
-                #print(f"not same {run.config[key]} {value}")
-
+                #print("not same {} {}".format(run.config[key], value))
                 return False
         return True
 

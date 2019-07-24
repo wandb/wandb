@@ -76,16 +76,16 @@ def predict(X, y, test_X, nu=1.5):
 
 def train_runtime_model(sample_X, runtimes, X_bounds):
     if sample_X.shape[0] != runtimes.shape[0]:
-        raise ValueError(f"Sample X and runtimes must be the same length")
+        raise ValueError("Sample X and runtimes must be the same length")
 
     return train_gaussian_process(sample_X, runtimes, X_bounds)
 
 
-def train_failure_model(sample_X, failures, X_bounds):
-    if sample_X.shape[0] != failures.shape[0]:
-        raise ValueError(f"Sample X and runtimes must be the same length")
-
-    return train_gaussian_process(sample_X, runtimes, X_bounds)
+#def train_failure_model(sample_X, failures, X_bounds):
+#    if sample_X.shape[0] != failures.shape[0]:
+#        raise ValueError("Sample X and runtimes must be the same length")
+#
+#    return train_gaussian_process(sample_X, runtimes, X_bounds)
 
 
 def train_gaussian_process(

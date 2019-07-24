@@ -22,7 +22,7 @@ class Run(object):
         self.stopped = stopped
 
     def __repr__(self):
-        return 'Run(%s,%s,%s,%s,%s,%s)' % (self.name, self.state, self.config, self.history, self.summaryMetrics, stopped)
+        return 'Run(%s,%s,%s,%s,%s,%s)' % (self.name, self.state, self.config, self.history, self.summaryMetrics, self.stopped)
 
 
 def _parse_runs(run_dicts):
@@ -105,9 +105,9 @@ class WandbController():
             return
         self._sweep_obj = sweep_obj
         self._sweep_config = yaml.safe_load(sweep_obj['config'])
-        self._sweep_metric = self._sweep_config.get("metric", {}).get("name")
+        self._sweep_metric = self._sweep_config.get('metric', {}).get('name')
         self._sweep_runs = _parse_runs(sweep_obj['runs'])
-        self._sweep_runs_map = {r[name]: r for r in self._sweep_runs}
+        self._sweep_runs_map = {r['name']: r for r in self._sweep_runs}
 
         self._controller = json.loads(sweep_obj.get('controller') or '{}')
         self._scheduler = json.loads(sweep_obj.get('scheduler') or '{}')

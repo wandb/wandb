@@ -28,8 +28,8 @@ class HyperParameter():
         if param_name in param_config:
             setattr(self, param_name, param_config[param_name])
         else:
-            raise ValueError(f"Need to specify {param_name} \
-                with distribution: {param_config['distribution']}.")
+            raise ValueError("Need to specify {} \
+                with distribution: {}.".format(param_name, param_config['distribution']))
 
     def _load_optional_parameter(self, param_config, param_name, default_value):
         if param_name in param_config:
@@ -47,7 +47,7 @@ class HyperParameter():
         for key in self.config.keys():
             if key not in allowed_config_keys:
                 raise ValueError(
-                    f"Unexpected hyperparameter configuration {key}")
+                    "Unexpected hyperparameter configuration {}".format(key))
 
         self.type = None
         if 'distribution' in self.config:
@@ -103,7 +103,7 @@ class HyperParameter():
                 # need or set mean and stdev
             else:
                 raise ValueError(
-                    f"Unsupported distribution: {self.distribution}")
+                    "Unsupported distribution: {}".format(self.distribution))
 
             if 'q' in dir(self):
                 if self.q < 0.0:
@@ -261,7 +261,7 @@ class HyperParameter():
         elif 'min' in config:
             if not 'max' in config:
                 raise ValueError(
-                    f"Need to have a max with a min or specify the distribution for parameter {param_name}")
+                    "Need to have a max with a min or specify the distribution for parameter {}".format(param_name))
             self.min = config['min']
             self.max = config['max']
 
@@ -271,13 +271,13 @@ class HyperParameter():
                 self.type = HyperParameter.UNIFORM
             else:
                 raise ValueError(
-                    f"Min and max must be type int or float for parameter {param_name}")
+                    "Min and max must be type int or float for parameter {}".format(param_name))
 
         elif 'value' in config:
             self.type = HyperParameter.CONSTANT
             self.value = config['value']
         else:
-            raise ValueError(f"Bad configuration for parameter: {param_name}")
+            raise ValueError("Bad configuration for parameter: {}".format(param_name))
 
 
 class HyperParameterSet(list):

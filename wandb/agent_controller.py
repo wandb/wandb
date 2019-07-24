@@ -26,9 +26,9 @@ import sys
 import six
 
 
-wandb_sweeps = None
-if sys.version_info >= (3, 6, 0):
-    wandb_sweeps = get_module("wandb.sweeps.sweeps")
+#wandb_sweeps = None
+#if sys.version_info >= (3, 6, 0):
+wandb_sweeps = get_module("wandb.sweeps.sweeps")
 
 
 logger = logging.getLogger(__name__)

@@ -67,7 +67,7 @@ def run_iterations(f, bounds, num_iterations=20):
         sample, prob, pred, samples, vals, stds, sample_probs, prob_of_fail, pred_runtimes = bayes.next_sample(
             X, y, bounds, improvement=0.1
         )
-        print(f"X: {sample} prob(I): {prob} pred: {pred} value: {f(sample)}")
+        print("X: {} prob(I): {} pred: {} value: {}".format(sample, prob, pred, f(sample)))
         X = np.append(X, np.array([sample]), axis=0)
         y = np.array([f(x) for x in X]).flatten()
 
