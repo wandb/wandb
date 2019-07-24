@@ -280,11 +280,11 @@ class HyperParameter():
             raise ValueError(f"Bad configuration for parameter: {param_name}")
 
 
-class HyperParameterSet(set):
+class HyperParameterSet(list):
     @staticmethod
     def from_config(config):
         hpd = HyperParameterSet([HyperParameter(param_name, param_config)
-                                 for param_name, param_config in config.items()])
+                                 for param_name, param_config in sorted(config.items())])
         return hpd
 
     def to_config(self):

@@ -2,9 +2,12 @@
 Base classes to be inherited from for Search and EarlyTerminate algorithms
 """
 
+import math
+
 
 class Search():
-    def _metric_from_run(self, sweep_config, run):
+    def _metric_from_run(self, sweep_config, run, default=None):
+        metric = None
         metric_name = sweep_config['metric']['name']
 
         maximize = False
@@ -12,16 +15,35 @@ class Search():
             if sweep_config['metric']['goal'] == 'maximize':
                 maximize = True
 
+        # Use summary to find metric
         if metric_name in run.summaryMetrics:
             metric = run.summaryMetrics[metric_name]
-        else:
-            # maybe should do something other than erroring
-            raise ValueError(
-                "Couldn't find summary metric {}".format(metric_name))
-
         if maximize:
             metric = -metric
 
+        # Use history to find metric
+        metric_history = []
+        for line in run.history:
+            if metric_name in line:
+                m = line[metric_name]
+                if math.isnan(m):
+                    continue
+                metric_history.append(m)
+        if maximize:
+            metric_history = [-m for m in metric_history]
+
+        # find minimum from summary or history
+        if metric_history:
+            if metric:
+                metric_history.append(metric)
+            metric = min(metric_history)
+
+        # use default if specified
+        if metric is None:
+            if default is None:
+                raise ValueError(
+                    "Couldn't find summary metric {}".format(metric_name))
+            metric = default
         return metric
 
     def next_run(self, sweep):

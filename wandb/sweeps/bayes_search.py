@@ -380,7 +380,7 @@ class BayesianSearch(Search):
         if any(run.state == "finished" for run in runs):
             # for run in runs:
             #    print("DEBUG0", run)
-            max_metric = max([self._metric_from_run(sweep['config'], run) for run in runs
+            max_metric = max([self._metric_from_run(sweep['config'], run, default=0.) for run in runs
                               if run.state == "finished"])
 
         for run in runs:
@@ -388,7 +388,7 @@ class BayesianSearch(Search):
             if run.state == "finished":
                 # run is complete
                 #print("DEBUG0.1", run)
-                metric = self._metric_from_run(sweep['config'], run)
+                metric = self._metric_from_run(sweep['config'], run, default=max_metric)
                 if math.isnan(metric):
                     metric = max_metric
                 y.append(metric)
@@ -398,7 +398,7 @@ class BayesianSearch(Search):
                 # we wont use the metric, but we should pass it into our optimizer to
                 # account for the fact that it is running
                 current_X.append(X_norm)
-            elif run.state == "failed" or run.state == "crashed":
+            elif run.state == "failed" or run.state == "crashed" or run.state == "killed":
                 # run failed, but we're still going to use it
                 # maybe we should be smarter about this
                 y.append(max_metric)
