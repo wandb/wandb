@@ -6,6 +6,7 @@ import os
 import json
 import re
 import six
+import yaml
 import tempfile
 import datetime
 from gql import Client, gql
@@ -586,6 +587,7 @@ class Sweep(Attrs):
     """A set of runs associated with a sweep"""
 
     def __init__(self, client, username, project, sweep_id, attrs={}):
+        # TODO: Add agents / flesh this out.
         super(Sweep, self).__init__(dict(attrs))
         self.client = client
         self.username = username
@@ -594,7 +596,11 @@ class Sweep(Attrs):
         self.runs = []
 
         self.load(force=not attrs)
-    
+
+    @property
+    def config(self):
+        return yaml.load(self._attrs["config"])
+
     def load(self, force=False):
         query = gql('''
         query Sweep($project: String!, $entity: String, $name: String!) {
