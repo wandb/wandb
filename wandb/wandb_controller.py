@@ -1,13 +1,54 @@
 # -*- coding: utf-8 -*-
-"""Sweep controller API.
+"""Sweep controller.
 
-This module implements the sweep API
+This module implements the sweep controller.
 
 Example:
     import wandb
-    api = wandb.Api()
-    tuner = api.controller()
+
+    #
+    # create sweep controller
+    #
+
+    # (1) create with sweep config
+    sweep_config = {}
+    tuner = wandb.controller(sweep_config)
+    # (2) create with sweep id from `wandb sweep` command
+    sweep_id = ''
+    tuner = wandb.controller(sweep_id)
+    # (3) create by constructing progamatic sweep configuration
+    tuner = wandb.controller()
+    tuner.configure_search('random')
+    tuner.configure_parameters_add('param1', values=[1,2,3])
+    tuner.configure_parameters_add('param2', values=[1,2,3])
+
+    #
+    # execute sweep controller
+    #
+
+    # (1) run to completion
+    tuner.run()
+    # (2) run in a simple loop
+    while not tuner.done():
+        tuner.step()
+        tuner.print_status()
+    # (3) run in a more complex loop
+    while not tuner.done():
+        params = tuner.search()
+        if params:
+            tuner.schedule(params)
+        tuner.stopping()
+        tuner.print_status()
+        tuner.print_space()
+
+    #
+    # display summary
+    #
+
+    tuner.print_summary()
+
 """
+
 from __future__ import print_function
 
 import yaml
@@ -145,6 +186,7 @@ class _WandbController():
         params = self.search()
         if params:
             self.schedule(params)
+        # TODO(): call stopping
 
     def done(self):
         if self._sweep_obj.get('state') == 'RUNNING':
@@ -171,6 +213,13 @@ class _WandbController():
     def search(self):
         params = self._search()
         return params
+
+    def validate(self):
+        """Is this needed?"
+        pass
+
+    def stopping(self):
+        pass
 
     def schedule(self, params):
         print("SCHEDULE", params)
