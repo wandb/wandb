@@ -1,13 +1,15 @@
-from collections import OrderedDict
+from collections import OrderedDict, Sequence
 import inspect
 import logging
 import os
 import sys
+import six
 import types
 import yaml
 
 import wandb
 from wandb import env
+from wandb import util
 
 FNAME = 'config.yaml'
 
@@ -225,10 +227,27 @@ class Config(object):
             self._items[key] = val
         self.persist()
 
+    def nested_convert(self, val):
+        if isinstance(val, dict):
+            converted = {}
+            for key, value in six.iteritems(val):
+                converted[key] = self.nested_convert(value)
+            return converted
+        val, _ = util.json_friendly(val)
+        if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+            converted = []
+            for value in val:
+                converted.append(self.nested_convert(value))
+            return converted
+        else:
+            if val.__class__.__module__ not in ('builtins', '__builtin__'):
+                val = str(val)
+            return val
+
     def as_dict(self):
         defaults = {}
         for key, val in self._items.items():
-            defaults[key] = {'value': val,
+            defaults[key] = {'value': self.nested_convert(val),
                              'desc': self._descriptions.get(key)}
         return defaults
 
@@ -239,8 +258,8 @@ class Config(object):
                 yield (key, val)
 
     def __str__(self):
-        s = "wandb_version: 1"
+        s = b"wandb_version: 1"
         as_dict = self.as_dict()
         if as_dict:  # adding an empty dictionary here causes a parse error
-            s += '\n\n' + yaml.dump(as_dict, default_flow_style=False)
-        return s
+            s += b'\n\n' + yaml.dump(as_dict, Dumper=yaml.SafeDumper, default_flow_style=False, allow_unicode=True, encoding='utf-8')
+        return s.decode("utf-8")

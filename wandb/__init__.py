@@ -277,6 +277,28 @@ def _init_headless(run, cloud=True):
 def load_ipython_extension(ipython):
     pass
 
+def jupyter_login(force=True):
+    """Attempt to login from a jupyter environment
+
+    If force=False, we'll only attempt to auto-login, otherwise we'll prompt the user
+    """
+    key = None
+    if 'google.colab' in sys.modules:
+        key = jupyter.attempt_colab_login(run.api.app_url)
+        if key:
+            os.environ[env.API_KEY] = key
+            util.write_netrc(run.api.api_url, "user", key)
+    if not key and force:
+        termerror(
+            "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
+        key = getpass.getpass("API Key: ").strip()
+        if len(key) == 40:
+            os.environ[env.API_KEY] = key
+            util.write_netrc(run.api.api_url, "user", key)
+        else:
+            raise ValueError("API Key must be 40 characters long")
+    return key
+
 
 def _init_jupyter(run):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
@@ -291,21 +313,7 @@ def _init_jupyter(run):
     # run.enable_logging()
 
     if not run.api.api_key:
-        key = None
-        if 'google.colab' in sys.modules:
-            key = jupyter.attempt_colab_login(run.api.app_url)
-            if key:
-                os.environ[env.API_KEY] = key
-                util.write_netrc(run.api.api_url, "user", key)
-        if not key:
-            termerror(
-                "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
-            key = getpass.getpass("API Key: ").strip()
-            if len(key) == 40:
-                os.environ[env.API_KEY] = key
-                util.write_netrc(run.api.api_url, "user", key)
-            else:
-                raise ValueError("API Key must be 40 characters long")
+        jupyter_login()
         # Ensure our api client picks up the new key
         run.api.reauth()
     os.environ["WANDB_JUPYTER"] = "true"
