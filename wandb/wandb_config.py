@@ -9,7 +9,6 @@ import yaml
 
 import wandb
 from wandb import env
-from wandb import util
 
 FNAME = 'config.yaml'
 
@@ -233,7 +232,7 @@ class Config(object):
             for key, value in six.iteritems(val):
                 converted[key] = self.nested_convert(value)
             return converted
-        val, _ = util.json_friendly(val)
+        val, _ = wandb.util.json_friendly(val)
         if isinstance(val, Sequence) and not isinstance(val, six.string_types):
             converted = []
             for value in val:
