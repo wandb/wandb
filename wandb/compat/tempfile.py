@@ -33,7 +33,7 @@ else:
 
 # XXX backport: ResourceWarning was added in Python 3.2.
 # For earlier versions, fall back to RuntimeWarning instead.
-_ResourceWarning = RuntimeWarning if sys.version_info < (3, 2) else ResourceWarning
+_ResourceWarning = RuntimeWarning if sys.version_info < (3, 2) else ResourceWarning # noqa: F821
 
 
 class TemporaryDirectory(object):
