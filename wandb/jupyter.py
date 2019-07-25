@@ -4,14 +4,19 @@ from wandb.run_manager import RunManager
 import time
 import os
 import threading
+import logging
 import uuid
 from IPython.core.getipython import get_ipython
 from IPython.core.magic import cell_magic, line_cell_magic, line_magic, Magics, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.display import display, Javascript
+import requests
+from requests.compat import urljoin
+import re
 from pkg_resources import resource_filename
 from importlib import import_module
 
+logger = logging.getLogger(__name__)
 
 @magics_class
 class WandBMagics(Magics):
@@ -36,6 +41,67 @@ class WandBMagics(Magics):
         if cell is not None:
             get_ipython().run_cell(cell)
 
+def attempt_colab_login(app_url):
+    """This renders an iframe to wandb in the hopes it posts back an api key"""
+    from google.colab import output
+    from google.colab._message import MessageError
+    from IPython import display
+
+    display.display(display.Javascript('''
+        window._wandbApiKey = new Promise((resolve, reject) => {
+            function loadScript(url) {
+            return new Promise(function(resolve, reject) {
+                let newScript = document.createElement("script");
+                newScript.onerror = reject;
+                newScript.onload = resolve;
+                document.body.appendChild(newScript);
+                newScript.src = url;
+            });
+            }
+            loadScript("https://cdn.jsdelivr.net/npm/postmate/build/postmate.min.js").then(() => {
+            const iframe = document.createElement('iframe')
+            iframe.style.cssText = "width:0;height:0;border:none"
+            document.body.appendChild(iframe)
+            const handshake = new Postmate({
+                container: iframe,
+                url: '%s/authorize'
+            });
+            const timeout = setTimeout(() => reject("Couldn't auto authenticate"), 5000)
+            handshake.then(function(child) {
+                child.on('authorize', data => {
+                    clearTimeout(timeout)
+                    resolve(data)
+                });
+            });
+            })
+        });
+    ''' % app_url.replace("http:", "https:")))
+    try:
+        return output.eval_js('_wandbApiKey')
+    except MessageError:
+        return None
+
+def notebook_metadata():
+    """Attempts to query jupyter for the path and name of the notebook file"""
+    try:
+        import ipykernel
+        from notebook.notebookapp import list_running_servers
+        kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
+    except Exception:
+        logger.error("Failed to query for notebook kernels")
+        return {}
+    for s in list_running_servers():
+        try:
+            res = requests.get(urljoin(s['url'], 'api/sessions'), params={'token': s.get('token', '')}).json()
+        except (requests.RequestException, ValueError):
+            logger.exception("Failed to query for notebook sessions")
+            return {}
+        for nn in res:
+            # TODO: wandb/client#400 found a case where res returned an array of strings...
+            if isinstance(nn, dict) and nn.get("kernel"):
+                if nn['kernel']['id'] == kernel_id:
+                    return {"root": s['notebook_dir'], "path": nn['notebook']['path'], "name": nn['notebook']['name']}
+    return {}
 
 class JupyterAgent(object):
     """A class that only logs metrics after `wandb.log` has been called and stops logging at cell completion"""
@@ -45,10 +111,8 @@ class JupyterAgent(object):
 
     def start(self):
         if self.paused:
-            self.api = InternalApi()
-            self.rm = RunManager(self.api, wandb.run, output=False)
-            self.api._file_stream_api = None
-            self.api.set_current_run_id(wandb.run.id)
+            self.rm = RunManager(wandb.run, output=False)
+            wandb.run.api._file_stream_api = None
             self.rm.mirror_stdout_stderr()
             self.paused = False
             # Init will return the last step of a resumed run

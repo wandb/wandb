@@ -1,0 +1,28 @@
+environment:
+  global:
+    CMD_IN_ENV: foo
+
+  matrix:
+
+   - PYTHON: "C:\\Python36-x64"
+
+install:
+  - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
+  - python --version
+  - python -m pip install -U pip
+  - "pip install -r requirements_windows.txt"
+  - "pip install -e ."
+
+build: off
+
+test_script:
+  # Run the project tests and store results in .xml log
+  - mkdir results
+  - "pytest --cov=wandb --vcr-record=none --junitxml=results\\pytest.xml tests\\test_cli.py tests\\test_docker.py tests\\test_internal_api.py"
+
+on_finish:
+  # Upload test results to AppVeyor
+  - ps: |
+      # this uploads nosetests.xml produced in test_script step
+      $wc = New-Object 'System.Net.WebClient'
+      $wc.UploadFile("https://ci.appveyor.com/api/testresults/junit/$($env:APPVEYOR_JOB_ID)", (Resolve-Path .\results\pytest.xml))

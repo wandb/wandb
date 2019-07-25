@@ -44,7 +44,7 @@ def test_config_empty_by_default():
         conf = config.Config()
         conf['a'] = 15
         conf.b = 16
-        assert list(conf.keys()) == ['a', 'b']
+        assert list(conf.keys()) == ['_wandb', 'a', 'b']
         assert conf.a == 15
         assert conf['b'] == 16
 

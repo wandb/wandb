@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.1'
+__version__ = '0.8.6'
 
 import atexit
 import click
@@ -52,6 +52,11 @@ from wandb.data_types import Html
 from wandb.data_types import Object3D
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
+from wandb import trigger
+from wandb.dataframes import image_categorizer_dataframe
+from wandb.dataframes import image_segmentation_dataframe
+from wandb.dataframes import image_segmentation_binary_dataframe
+from wandb.dataframes import image_segmentation_multiclass_dataframe
 
 from wandb import wandb_torch
 
@@ -176,7 +181,6 @@ class ExitHooks(object):
 def _init_headless(run, cloud=True):
     global join
     global _user_process_finished_called
-    run.description = env.get_description(run.description)
 
     environ = dict(os.environ)
     run.set_environment(environ)
@@ -223,7 +227,6 @@ def _init_headless(run, cloud=True):
         __version__, wandb_process.pid))
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
-
     # Listen on the socket waiting for the wandb process to be ready
     try:
         success, message = server.listen(30)
@@ -264,6 +267,7 @@ def _init_headless(run, cloud=True):
                                wandb_process, stdout_redirector, stderr_redirector)
     join = _wandb_join
     _user_process_finished_called = False
+
     # redirect output last of all so we don't miss out on error messages
     stdout_redirector.redirect()
     if not env.is_debug():
@@ -276,34 +280,42 @@ def load_ipython_extension(ipython):
 
 def _init_jupyter(run):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
-    Log pushing and system stats don't start until `wandb.monitor()` is called.
+    Log pushing and system stats don't start until `wandb.log()` is first called.
     """
     from wandb import jupyter
+    from IPython.core.display import display, HTML
     # TODO: Should we log to jupyter?
     # global logging had to be disabled because it set the level to debug
     # I also disabled run logging because we're rairly using it.
     # try_to_set_up_global_logging()
     # run.enable_logging()
 
-    api = InternalApi()
-    if not api.api_key:
-        termerror(
-            "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
-        key = getpass.getpass("API Key: ").strip()
-        if len(key) == 40:
-            os.environ[env.API_KEY] = key
-            util.write_netrc(api.api_url, "user", key)
-        else:
-            raise ValueError("API Key must be 40 characters long")
+    if not run.api.api_key:
+        key = None
+        if 'google.colab' in sys.modules:
+            key = jupyter.attempt_colab_login(run.api.app_url)
+            if key:
+                os.environ[env.API_KEY] = key
+                util.write_netrc(run.api.api_url, "user", key)
+        if not key:
+            termerror(
+                "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
+            key = getpass.getpass("API Key: ").strip()
+            if len(key) == 40:
+                os.environ[env.API_KEY] = key
+                util.write_netrc(run.api.api_url, "user", key)
+            else:
+                raise ValueError("API Key must be 40 characters long")
         # Ensure our api client picks up the new key
-        api = InternalApi()
+        run.api.reauth()
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
-    api.set_current_run_id(run.id)
-    print("W&B Run: %s" % run.get_url(api))
-    print("Call `%%wandb` in the cell containing your training loop to display live results.")
+    display(HTML('''
+        Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
+        in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
+    '''.format(run.get_url())))
     try:
-        run.save(api=api)
+        run.save()
     except (CommError, ValueError) as e:
         termerror(str(e))
     run.set_environment()
@@ -328,6 +340,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     if _user_process_finished_called:
         return
     _user_process_finished_called = True
+    trigger.call('on_finished')
 
     stdout_redirector.restore()
     if not env.is_debug():
@@ -360,7 +373,6 @@ patched = {
     "tensorboard": [],
     "keras": []
 }
-
 _saved_files = set()
 
 
@@ -419,7 +431,7 @@ def restore(name, run_path=None, replace=False, root="."):
     name: the name of the file
     run_path: optional path to a different run to pull files from
     replace: whether to download the file even if it already exists locally
-    root: the directory to download the file to.  Defaults to the current 
+    root: the directory to download the file to.  Defaults to the current
         directory or the run directory if wandb.init was called.
 
     returns None if it can't find the file, otherwise a file object open for reading
@@ -439,6 +451,24 @@ def restore(name, run_path=None, replace=False, root="."):
         return None
     return files[0].download(root=root, replace=True)
 
+_tunnel_process = None
+def tunnel(host, port):
+    """Simple helper to open a tunnel.  Returns a public HTTPS url or None"""
+    global _tunnel_process
+    if _tunnel_process:
+        _tunnel_process.kill()
+        _tunnel_process = None
+    process = subprocess.Popen("ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:{}:{} serveo.net".format(host, port), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    while process.returncode is None:
+        for line in process.stdout:
+            match = re.match(r".+(https.+)$", line.decode("utf-8").strip())
+            if match:
+                _tunnel_process = process
+                return match.group(1)
+        # set returncode if the process has exited
+        process.poll()
+        time.sleep(1)
+    return None
 
 def monitor(options={}):
     """Starts syncing with W&B if you're in Jupyter.  Displays your W&B charts live in a Jupyter notebook.
@@ -475,7 +505,7 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
 
     Args:
-        row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types 
+        row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types
         commit (boolean, optional): Persist a set of metrics, if false just update the existing dict
         step (integer, optional): The global step in processing. This sets commit=True any time step increases
     """
@@ -488,10 +518,14 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
 
     if tensorboard_patched and step is None:
         termwarn(
-            "wandb.log called without a step keyword argument and tensorboard is patched.  Pass the same step that tensorboard is using to avoid data loss.", repeat=False)
+            "wandb.log called without a step keyword argument.  Pass the same step that tensorboard is using to avoid data loss see:\nhttps://docs.wandb.com/docs/integrations/tensorboard.html#custom-metrics", repeat=False)
 
     if row is None:
         row = {}
+
+    if any(not isinstance(key, six.string_types) for key in row.keys()):
+        raise ValueError("Key values passed to `wandb.log` must be strings.")
+
     if commit or step is not None:
         run.history.add(row, *args, step=step, **kwargs)
     else:
@@ -599,7 +633,7 @@ def join():
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
-         sync_tensorboard=False, name=None, id=None):
+         sync_tensorboard=False, name=None, notes=None, id=None, magic=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -616,22 +650,26 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         tags (list, optional): A list of tags to apply to the run
         id (str, optional): A globally unique (per project) identifier for the run
         name (str, optional): A display name which does not have to be unique
+        notes (str, optional): A multiline string associated with the run
         reinit (bool, optional): Allow multiple calls to init in the same process
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id
         sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or tensorboardX
         force (bool, optional): Force authentication with wandb, defaults to False
+        magic (bool, dict, or str, optional): magic configuration as bool, dict, json string,
+            yaml filename
 
     Returns:
         A wandb.run object for metric and config logging.
     """
+    trigger.call('on_init', **locals())
     global run
     global __stage_dir__
 
-    # We allow re-initialization when we're in Jupyter
+    # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
     if reinit or (in_jupyter and reinit != False):
-        reset_env(exclude=[env.DIR, env.ENTITY, env.PROJECT, env.API_KEY])
+        reset_env(exclude=env.immutable_keys())
         run = None
 
     # TODO: deprecate tensorboard
@@ -686,9 +724,31 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.TAGS] = ",".join(tags)
     if id:
         os.environ[env.RUN_ID] = id
+        if name is None:
+            # We do this because of https://github.com/wandb/core/issues/2170
+            # to ensure that the run's name is explicitly set to match its
+            # id. If we don't do this and the id is eight characters long, the
+            # backend will set the name to a generated human-friendly value.
+            #
+            # In any case, if the user is explicitly setting `id` but not
+            # `name`, their id is probably a meaningful string that we can
+            # use to label the run.
+            name = os.environ.get(env.NAME, id)  # environment variable takes precedence over this.
     if name:
-        os.environ[env.DESCRIPTION] = name + \
-            "\n" + os.getenv(env.DESCRIPTION, "")
+        os.environ[env.NAME] = name
+    if notes:
+        os.environ[env.NOTES] = notes
+    if magic is not None and magic is not False:
+        if isinstance(magic, dict):
+            os.environ[env.MAGIC] = json.dumps(magic)
+        elif isinstance(magic, str):
+            os.environ[env.MAGIC] = magic
+        elif isinstance(magic, bool):
+            pass
+        else:
+            termwarn("wandb.init called with invalid magic parameter type", repeat=False)
+        from wandb import magic_impl
+        magic_impl.magic_install()
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
@@ -752,7 +812,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # may depend on those things
     if sys.platform == 'win32' and run.mode != 'clirun':
         termerror(
-            'Headless mode isn\'t supported on Windows. If you want to use W&B, please use "wandb run ..."; running normally.')
+            'To use wandb on Windows, you need to run the command "wandb run python <your_train_script>.py"')
         return run
 
     if in_jupyter:
@@ -760,7 +820,6 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     elif run.mode == 'clirun':
         pass
     elif run.mode == 'run':
-
         api = InternalApi()
         # let init_jupyter handle this itself
         if not in_jupyter and not api.api_key:
@@ -806,6 +865,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
+jupyter = util.LazyLoader('jupyter', globals(), 'wandb.jupyter')
 keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')

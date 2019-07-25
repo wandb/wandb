@@ -6,6 +6,7 @@ import os
 import json
 import re
 import six
+import yaml
 import tempfile
 import datetime
 from gql import Client, gql
@@ -35,6 +36,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     createdAt
     heartbeatAt
     description
+    notes
     systemMetrics
     summaryMetrics
     user {
@@ -95,9 +97,10 @@ class Api(object):
             'base_url': get_base_url("https://api.wandb.ai")
         }
         self._runs = {}
+        self._sweeps = {}
         self._base_client = Client(
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': self.user_agent},
+                headers={'User-Agent': self.user_agent, 'Use-Admin-Privileges': "true"},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
@@ -190,6 +193,13 @@ class Api(object):
             self._runs[path] = Run(self.client, username, project, run)
         return self._runs[path]
 
+    @normalize_exceptions
+    def sweep(self, path=""):
+        username, project, sweep_id = self._parse_path(path)
+        if not self._sweeps.get(sweep_id):
+            self._sweeps[path] = Sweep(self.client, username, project, sweep_id)
+        return self._sweeps[path]
+
 
 class Attrs(object):
     def __init__(self, attrs):
@@ -209,7 +219,7 @@ class Attrs(object):
             return self._attrs[name]
         else:
             raise AttributeError(
-                "'{}' object has no attribute '{}'".format(self.__repr__, name))
+                "'{}' object has no attribute '{}'".format(repr(self), name))
 
 
 class Paginator(object):
@@ -348,30 +358,49 @@ class Runs(Paginator):
 class Run(Attrs):
     """A single run associated with a user and project"""
 
-    def __init__(self, client, username, project, name, attrs={}):
+    def __init__(self, client, username, project, run_id, attrs={}):
+        super(Run, self).__init__(dict(attrs))
         self.client = client
         self.username = username
         self.project = project
-        self.name = name
         self._files = {}
         self._base_dir = get_dir(tempfile.gettempdir())
+        self.id = run_id
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
         except OSError:
             pass
         self._summary = None
-        super(Run, self).__init__(attrs)
         self.state = attrs.get("state", "not found")
-        self.load()
+
+        self.load(force=not attrs)
 
     @property
     def storage_id(self):
         """For compatibility with wandb.Run, which has storage IDs
-        in self.storage_id and names in self.id, whereas this has storage IDs in
-        self.id and names in self.id
+        in self.storage_id and names in self.id.
         """
-        return self.id
+        return self._attrs.get('id')
+
+    @property
+    def id(self):
+        return self._attrs.get('name')
+
+    @id.setter
+    def id(self, new_id):
+        attrs = self._attrs
+        attrs['name'] = new_id
+        return new_id
+
+    @property
+    def name(self):
+        return self._attrs.get('displayName')
+
+    @name.setter
+    def name(self, new_name):
+        self._attrs['displayName'] = new_name
+        return new_name
 
     @classmethod
     def create(cls, api, run_id=None, project=None, username=None):
@@ -404,6 +433,7 @@ class Run(Attrs):
             "summaryMetrics": "{}",
             "tags": [],
             "description": None,
+            "notes": None,
             "state": "running"
         })
 
@@ -442,8 +472,8 @@ class Run(Attrs):
     @normalize_exceptions
     def update(self):
         mutation = gql('''
-        mutation upsertRun($id: String!, $description: String, $tags: [String!], $config: JSONString!) {
-            upsertBucket(input: {id: $id, description: $description, tags: $tags, config: $config}) {
+        mutation upsertRun($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
+            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config}) {
                 bucket {
                     ...RunFragment
                 }
@@ -451,8 +481,8 @@ class Run(Attrs):
         }
         %s
         ''' % RUN_FRAGMENT)
-        res = self._exec(mutation, id=self.id, tags=self.tags,
-                         description=self.description, config=self.json_config)
+        res = self._exec(mutation, id=self.storage_id, tags=self.tags,
+                         description=self.description, notes=self.notes, display_name=self.display_name, config=self.json_config)
         self.summary.update()
 
     @property
@@ -465,9 +495,36 @@ class Run(Attrs):
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
         variables = {'entity': self.username,
-                     'project': self.project, 'name': self.name}
+                     'project': self.project, 'name': self.id}
         variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
+
+    def _sampled_history(self, keys, x_axis="_step", samples=500):
+        spec = {"keys": [x_axis] + keys, "samples": samples}
+        query = gql('''
+        query Run($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { sampledHistory(specs: $specs) }
+            }
+        }
+        ''')
+
+        response = self._exec(query, specs=[json.dumps(spec)])
+        return [line for line in response['project']['run']['sampledHistory']]
+
+
+    def _full_history(self, samples=500, stream="default"):
+        node = "history" if stream == "default" else "events"
+        query = gql('''
+        query Run($project: String!, $entity: String!, $name: String!, $samples: Int) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { %s(samples: $samples) }
+            }
+        }
+        ''' % node)
+
+        response = self._exec(query, samples=samples)
+        return [json.loads(line) for line in response['project']['run'][node]]
 
     @normalize_exceptions
     def files(self, names=[], per_page=50):
@@ -478,26 +535,23 @@ class Run(Attrs):
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
-    def history(self, samples=500, pandas=True, stream="default"):
+    def history(self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"):
         """Return history metrics for a run
 
         Args:
             samples (int, optional): The number of samples to return
             pandas (bool, optional): Return a pandas dataframe
+            keys (list, optional): Only return metrics for specific keys
+            x_axis (str, optional): Use this metric as the xAxis defaults to _step
             stream (str, optional): "default" for metrics, "system" for machine metrics
         """
-        node = "history" if stream == "default" else "events"
-        query = gql('''
-        query Run($project: String!, $entity: String!, $name: String!, $samples: Int!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) { %s(samples: $samples) }
-            }
-        }
-        ''' % node)
-
-        response = self._exec(query, samples=samples)
-        lines = [json.loads(line)
-                 for line in response['project']['run'][node]]
+        if keys and stream != "default":
+            wandb.termerror("stream must be default when specifying keys")
+            return []
+        elif keys:
+            lines = self._sampled_history(keys=keys, x_axis=x_axis, samples=samples)
+        else:
+            lines = self._full_history(samples=samples, stream=stream)
         if pandas:
             pandas = util.get_module("pandas")
             if pandas:
@@ -509,7 +563,7 @@ class Run(Attrs):
     @property
     def summary(self):
         if self._summary is None:
-            download_h5(self.name, entity=self.username,
+            download_h5(self.id, entity=self.username,
                         project=self.project, out_dir=self.dir)
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(
@@ -518,7 +572,7 @@ class Run(Attrs):
 
     @property
     def path(self):
-        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.name))]
+        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
     @property
     def url(self):
@@ -528,6 +582,70 @@ class Run(Attrs):
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
+
+class Sweep(Attrs):
+    """A set of runs associated with a sweep"""
+
+    def __init__(self, client, username, project, sweep_id, attrs={}):
+        # TODO: Add agents / flesh this out.
+        super(Sweep, self).__init__(dict(attrs))
+        self.client = client
+        self.username = username
+        self.project = project
+        self.id = sweep_id
+        self.runs = []
+
+        self.load(force=not attrs)
+
+    @property
+    def config(self):
+        return yaml.load(self._attrs["config"])
+
+    def load(self, force=False):
+        query = gql('''
+        query Sweep($project: String!, $entity: String, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                sweep(sweepName: $name) {
+                    id
+                    name
+                    bestLoss
+                    config
+                    runs {
+                        edges {
+                            node {
+                                ...RunFragment
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        %s
+        ''' % RUN_FRAGMENT)
+        if force or not self._attrs:
+            response = self._exec(query)
+            if response['project'] is None or response['project']['sweep'] is None:
+                raise ValueError("Could not find sweep %s" % self)
+            # TODO: make this paginate
+            self.runs = [Run(self.client, self.username, self.project, r["node"]["name"], r["node"]) for 
+                r in response['project']['sweep']['runs']['edges']]
+            del response['project']['sweep']['runs']
+            self._attrs = response['project']['sweep']
+        return self._attrs
+
+    @property
+    def path(self):
+        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
+
+    def _exec(self, query, **kwargs):
+        """Execute a query against the cloud backend"""
+        variables = {'entity': self.username,
+                     'project': self.project, 'name': self.id}
+        variables.update(kwargs)
+        return self.client.execute(query, variable_values=variables)
+
+    def __repr__(self):
+        return "<Sweep {}>".format("/".join(self.path))
 
 
 class Files(Paginator):
@@ -547,7 +665,7 @@ class Files(Paginator):
     def __init__(self, client, run, names=[], per_page=50, upload=False):
         self.run = run
         variables = {
-            'project': run.project, 'entity': run.username, 'name': run.name,
+            'project': run.project, 'entity': run.username, 'name': run.id,
             'fileNames': names, 'upload': upload
         }
         super(Files, self).__init__(client, variables, per_page)

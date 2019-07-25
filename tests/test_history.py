@@ -10,6 +10,8 @@ import plotly.graph_objs as go
 
 import wandb
 from wandb.history import History
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+History.keep_rows = True
 from wandb import data_types
 import torch
 import tensorflow as tf
@@ -185,6 +187,11 @@ def test_plotly(history):
     plot = disk_history(history)[0]["plot"]
     assert plot["_type"] == "plotly"
     assert plot["plot"]['type'] == 'scatter'
+
+def test_plotly_big_numpy(history):
+    history.add({"plot": go.Scatter(x=np.random.normal(size=(100,)))})
+    plot = disk_history(history)[0]["plot"]
+    assert len(plot["plot"]["x"]) == 100
 
 
 def test_stream(history):

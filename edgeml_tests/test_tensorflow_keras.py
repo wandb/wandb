@@ -13,6 +13,10 @@ from wandb.keras import WandbCallback
 import sys
 import glob
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 
 @pytest.fixture
 def dummy_model(request):

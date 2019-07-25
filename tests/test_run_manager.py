@@ -11,7 +11,7 @@ from wandb.apis import internal
 import wandb
 from wandb import wandb_socket
 from wandb.wandb_run import Run, RESUME_FNAME
-from wandb.run_manager import FileEventHandlerThrottledOverwriteMinWait, FileEventHandlerOverwriteDeferred
+from wandb.run_manager import FileEventHandlerThrottledOverwriteMinWait, FileEventHandlerOverwriteDeferred, FileEventHandlerOverwrite, FileEventHandlerOverwriteOnce
 from click.testing import CliRunner
 
 
@@ -46,7 +46,7 @@ def _is_update_avail(request_mocker, capsys, current, latest):
         retry_timedelta=datetime.timedelta(0, 0, 50))
     api.set_current_run_id(123)
     run = Run()
-    run_manager = wandb.run_manager.RunManager(api, run)
+    run_manager = wandb.run_manager.RunManager(run)
 
     # Without this mocking, during other tests, the _check_update_available
     # function will throw a "mock not found" error, then silently fail without
@@ -84,16 +84,24 @@ def test_pip_freeze(mocker, run_manager):
 
 
 def test_custom_file_policy(mocker, run_manager):
+    run_manager._block_file_observer()
+    run_manager.init_run()
     for i in range(5):
         with open(os.path.join(wandb.run.dir, "ckpt_%i.txt" % i), "w") as f:
             f.write(str(i))
     wandb.save("ckpt*")
+    with open(os.path.join(wandb.run.dir, "foo.bar"), "w") as f:
+        f.write("bar")
 
     run_manager.test_shutdown()
     assert isinstance(
         run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwriteMinWait)
     assert isinstance(
-        run_manager._file_event_handlers["wandb-metadata.json"], FileEventHandlerOverwriteDeferred)
+        run_manager._file_event_handlers["foo.bar"], FileEventHandlerOverwriteDeferred)
+    assert isinstance(
+        run_manager._file_event_handlers["wandb-metadata.json"], FileEventHandlerOverwriteOnce)
+    assert isinstance(
+        run_manager._file_event_handlers["requirements.txt"], FileEventHandlerOverwrite)
 
 
 def test_custom_file_policy_symlink(mocker, run_manager):
@@ -142,7 +150,7 @@ def test_init_run_network_down(mocker, caplog):
         run = Run()
         mocker.patch("wandb.run_manager.RunManager._upsert_run",
                      lambda *args: time.sleep(0.6))
-        rm = wandb.run_manager.RunManager(api, run)
+        rm = wandb.run_manager.RunManager(run)
         step = rm.init_run()
         assert step == 0
         assert "Failed to connect" in caplog.text

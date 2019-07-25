@@ -43,6 +43,8 @@ class Config(object):
         self._load_wandb()
         for conf_path in config_paths:
             self._load_file(conf_path)
+        self._set_wandb('cli_version', wandb.__version__)
+        self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
 
         # Do this after defaults because it triggers loading of pre-existing
         # config.yaml (if it exists)
@@ -230,6 +232,12 @@ class Config(object):
             defaults[key] = {'value': val,
                              'desc': self._descriptions.get(key)}
         return defaults
+
+    def user_items(self):
+        """Retrieve user configured config parameters as a key value tuple generator"""
+        for key, val in self._items.items():
+            if key != '_wandb':
+                yield (key, val)
 
     def __str__(self):
         s = "wandb_version: 1"

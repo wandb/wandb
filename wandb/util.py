@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 import base64
+import colorsys
 import errno
 import hashlib
 import json
@@ -216,10 +217,11 @@ def is_pandas_data_frame_typename(typename):
 def is_matplotlib_typename(typename):
     return typename.startswith("matplotlib.")
 
-
 def is_plotly_typename(typename):
     return typename.startswith("plotly.")
 
+def is_numpy_array(obj):
+    return np and isinstance(obj, np.ndarray)
 
 def is_pandas_data_frame(obj):
     return is_pandas_data_frame_typename(get_full_typename(obj))
@@ -274,7 +276,7 @@ def json_friendly(obj):
         else:
             return obj.item(), True
 
-    if np and isinstance(obj, np.ndarray):
+    if is_numpy_array(obj):
         if obj.size == 1:
             obj = obj.flatten()[0]
         elif obj.size <= 32:
@@ -406,7 +408,7 @@ class WandBJSONEncoder(json.JSONEncoder):
 
 
 class WandBHistoryJSONEncoder(json.JSONEncoder):
-    """A JSON Encoder that handles some extra types.  
+    """A JSON Encoder that handles some extra types.
     This encoder turns numpy like objects with a size > 32 into histograms"""
 
     def default(self, obj):
@@ -474,9 +476,10 @@ def write_settings(entity, project, url):
 
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
-    if len(key) != 40:
+    key_prefix, key_suffix = key.split('-', 1) if '-' in key else ('', key)
+    if len(key_suffix) != 40:
         click.secho(
-            'API-key must be exactly 40 characters long: {} ({} chars)'.format(key, len(key)))
+            'API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
         return None
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
@@ -612,7 +615,7 @@ def get_log_file_path():
     return wandb.GLOBAL_LOG_FNAME
 
 def is_wandb_file(name):
-    return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt" or name == OUTPUT_FNAME or name == 'DIFF_FNAME'
+    return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt" or name == OUTPUT_FNAME or name == DIFF_FNAME
 
 def docker_image_regex(image):
     "regex for valid docker image names"
@@ -735,3 +738,23 @@ def stopwatch_now():
     else:
         now = time.monotonic()
     return now
+
+def class_colors(class_count):
+    # make class 0 black, and the rest equally spaced fully saturated hues
+    return [[0, 0, 0]] + [colorsys.hsv_to_rgb(i / (class_count - 1.), 1.0, 1.0) for i in range(class_count-1)]
+
+def guess_data_type(shape):
+    # (samples,) or (samples,logits)
+    if len(shape) in (1, 2):
+        return 'label'
+    # (samples, height, width) = grayscale image
+    if len(shape) == 3:
+        return 'image'
+    if len(shape) == 4:
+        if shape[-1] in (1, 3, 4):
+            # (samples, height, width, Y \ RGB \ RGBA)
+            return 'image'
+        else:
+            # (samples, height, width, logits)
+            return 'segmentation_mask'
+    return None

@@ -32,7 +32,6 @@ https://eli.thegreenplace.net/2015/redirecting-all-kinds-of-stdout-in-python/
 https://stackoverflow.com/questions/34186035/can-you-fool-isatty-and-log-stdout-and-stderr-separately?rq=1
 """
 
-import array
 import atexit
 import functools
 import io
@@ -130,7 +129,7 @@ class WindowSizeChangeHandler(object):
         except OSError:  # eg. in MPI we can't do this
             rows, cols, xpix, ypix = 25, 80, 0, 0
         else:
-            rows, cols, xpix, ypix = array.array('h', win_size)
+            rows, cols, xpix, ypix = struct.unpack('HHHH', win_size)
 
         if cols == 0:
             cols = 80

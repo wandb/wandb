@@ -15,6 +15,8 @@ import yaml
 import numbers
 import inspect
 import glob
+import platform
+import fnmatch
 
 import click
 from pkg_resources import parse_version
@@ -28,7 +30,7 @@ import webbrowser
 import wandb
 from wandb.apis.file_stream import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy, OverwriteFilePolicy
 from wandb import __version__
-from wandb import env
+from wandb import env as wandb_env
 from wandb import Error
 from wandb import io_wrap
 from wandb import jsonlfile
@@ -88,6 +90,9 @@ class FileTailer(object):
 class FileEventHandler(object):
     def __init__(self, file_path, save_name, api, *args, **kwargs):
         self.file_path = file_path
+        # Convert windows paths to unix paths 
+        if platform.system() == "Windows":
+            save_name = save_name.replace("\\", "/")
         self.save_name = save_name
         self._api = api
 
@@ -115,14 +120,24 @@ class FileEventHandlerOverwrite(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
-        # Tell file_pusher to copy the file, we want to allow the user to modify the
-        # original while this one is uploading (modifying while uploading seems to
-        # cause a hang somewhere in the google upload code, until the server times out)
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
+
+
+class FileEventHandlerOverwriteOnce(FileEventHandler):
+    """This file handler is meant for files like metadata which may update during the run but should be uploaded upon creation"""
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        super(FileEventHandlerOverwriteOnce, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._file_pusher = file_pusher
+
+    def on_created(self):
+        self._file_pusher.file_changed(self.save_name, self.file_path)
+
+    def finish(self):
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 class FileEventHandlerThrottledOverwrite(FileEventHandler):
-
+    """This file handler uploads the file atmost every 15 seconds and only if it's size has increased by 20%"""
     # Don't upload
     RATE_LIMIT_SECONDS = 15
 
@@ -167,11 +182,11 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
     def save_file(self):
         self._last_uploaded_time = time.time()
         self._last_uploaded_size = self.current_size
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
 class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwrite):
+    """This event handler will upload files every N seconds as it changes throttling as the size increases"""
     TEN_MB =     10000000
     HUNDRED_MB = 100000000
     ONE_GB =     1000000000
@@ -193,13 +208,16 @@ class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwri
             self.save_file()
 
 class FileEventHandlerOverwriteDeferred(FileEventHandler):
+    """This file handler only updates at the end of the run"""
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
         super(FileEventHandlerOverwriteDeferred, self).__init__(
             file_path, save_name, api, *args, **kwargs)
         self._file_pusher = file_pusher
 
     def finish(self):
-        self._file_pusher.file_changed(self.save_name, self.file_path)
+        # We use copy=False to avoid possibly expensive copies, and because
+        # user files shouldn't still be changing at the end of the run.
+        self._file_pusher.file_changed(self.save_name, self.file_path, copy=False)
 
 
 class FileEventHandlerConfig(FileEventHandler):
@@ -250,8 +268,7 @@ class FileEventHandlerConfig(FileEventHandler):
         # TODO(adrian): ensure the file content will exactly match Bucket.config
         # ie. push the file content as a string
         self._api.upsert_run(id=self._run.storage_id, config=config_dict)
-        self._file_pusher.file_changed(
-            self.save_name, self.file_path, copy=True)
+        self._file_pusher.file_changed(self.save_name, self.file_path)
         self._last_sent = time.time()
 
     def finish(self):
@@ -409,25 +426,64 @@ class Process(object):
     def kill(self):
         os.kill(self.pid, signal.SIGKILL)
 
-def format_display_name(run):
+def format_run_name(run):
     "Simple helper to not show display name if its the same as id"
-    return " "+run.display_name+":" if run.display_name != run.id else ":"
+    return " "+run.name+":" if run.name != run.id else ":"
+
+
+class RunStatusChecker(object):
+    """Polls the backend periodically to check on this run's status.
+
+    For now, we just use this to figure out if the user has requested a stop.
+    TODO(adrnswanberg): Use this as more of a general heartbeat check.
+    """
+
+    def __init__(self, run, api, stop_requested_handler, polling_interval=15):
+        self._run = run
+        self._api = api
+        self._polling_interval = polling_interval
+        self._stop_requested_handler = stop_requested_handler
+
+        self._shutdown = False
+        self._thread = threading.Thread(target=self.check_status)
+        self._thread.start()
+
+    def check_status(self):
+        while not self._shutdown:
+            try:
+                should_exit = self._api.check_stop_requested(
+                    project_name=self._run.project_name(),
+                    entity_name=self._run.entity,
+                    run_id=self._run.id)
+            except wandb.apis.CommError as e:
+                logger.exception("Failed to check stop requested status: %s" % e.exc)
+                should_exit = False
+
+            if should_exit:
+                self._stop_requested_handler()
+                return
+            else:
+                time.sleep(self._polling_interval)
+
+    def shutdown(self):
+         self._shutdown = True
+         self._thread.join()
+
 
 class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
     CRASH_NOSYNC_TIME = 30
 
-    def __init__(self, api, run, project=None, tags=[], cloud=True, output=True, port=None):
-        self._api = api
+    def __init__(self, run, project=None, tags=[], cloud=True, output=True, port=None):
         self._run = run
-        self._cloud = cloud
-        self._port = port
-        self._output = output
-
-        self._project = self._resolve_project_name(project)
-
         self._tags = tags
+        self._cloud = cloud
+        self._output = output
+        self._port = port
+
+        self._api = run.api
+        self._project = self._resolve_project_name(project)
 
         self._config = run.config
 
@@ -436,17 +492,28 @@ class RunManager(object):
 
         self._socket = wandb_socket.Client(self._port)
         # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
-        self._system_stats = stats.SystemStats(run, api)
-        self._meta = meta.Meta(api, self._run.dir)
+        self._system_stats = stats.SystemStats(run, self._api)
+        self._meta = meta.Meta(self._api, self._run.dir)
         self._meta.data["jobType"] = self._run.job_type
         self._meta.data["mode"] = self._run.mode
+        if self._run.name:
+            self._meta.data["name"] = self._run.name
+        if self._run.notes:
+            self._meta.data["notes"] = self._run.notes
+        if self._project:
+            self._meta.data["project"] = self._project
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
+        # Write our initial metadata after overriding the defaults
+        self._meta.write()
         self._tensorboard_watchers = []
         self._tensorboard_consumer = None
         self._tensorboard_lock = threading.Lock()
         self._watcher_queue = queue.PriorityQueue()
+
+        # We'll conditionally create one of these when running in headless mode.
+        self._run_status_checker = None
 
         # This allows users to specify files they want uploaded during the run
         self._user_file_policies = {
@@ -564,10 +631,13 @@ class RunManager(object):
 
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
+        ignore_globs = self._api.settings("ignore_globs")
         for dirpath, dirnames, filenames in os.walk(self._run.dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._run.dir)
+                if any([fnmatch.fnmatch(save_name, glob) for glob in ignore_globs]):
+                    continue
                 if save_name not in self._file_event_handlers:
                     self._get_file_event_handler(file_path, save_name).on_created()
 
@@ -665,9 +735,12 @@ class RunManager(object):
                 self._api.get_file_stream_api().set_file_policy(save_name, OverwriteFilePolicy())
                 self._file_event_handlers[save_name] = FileEventHandlerSummary(
                     file_path, save_name, self._api, self._file_pusher, self._run)
-            elif save_name.startswith('media/'):
-                # Save media files immediately
+            elif save_name.startswith('media/') or save_name.startswith('code/') or save_name in ["requirements.txt", "diff.patch"]:
+                # Save media files and special wandb files immediately
                 self._file_event_handlers[save_name] = FileEventHandlerOverwrite(
+                    file_path, save_name, self._api, self._file_pusher)
+            elif save_name == meta.METADATA_FNAME:
+                self._file_event_handlers[save_name] = FileEventHandlerOverwriteOnce(
                     file_path, save_name, self._api, self._file_pusher)
             else:
                 Handler = FileEventHandlerOverwriteDeferred
@@ -910,24 +983,24 @@ class RunManager(object):
                     wandb.termerror(
                         'Failed to connect to W&B. Retrying in the background.')
                     return False
-
                 launch_error_s = 'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path())
 
                 raise LaunchError(launch_error_s)
 
         if self._output:
             url = self._run.get_url(self._api)
-            wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_display_name(self._run), url))
+            wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_run_name(self._run), url))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         self._run.set_environment(environment=env)
 
-        logger.info("saving patches")
-        self._api.save_patches(self._run.dir)
+        if not os.getenv(wandb_env.DISABLE_CODE):
+            logger.info("saving patches")
+            self._api.save_patches(self._run.dir)
         logger.info("saving pip packages")
         self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")
-        self._api.get_file_stream_api().set_file_policy(
+        self._api.get_file_stream_api().set_default_file_policy(
             util.OUTPUT_FNAME, CRDedupeFilePolicy())
         self._api.get_file_stream_api().start()
         self._project = self._api.settings("project")
@@ -947,6 +1020,9 @@ class RunManager(object):
             watcher.shutdown()
         if self._tensorboard_consumer:
             self._tensorboard_consumer.shutdown()
+
+        if self._run_status_checker:
+            self._run_status_checker.shutdown()
 
         if self._cloud:
             logger.info("stopping streaming files and file change observer")
@@ -1089,6 +1165,7 @@ class RunManager(object):
         except ImportError as e:
             wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
+
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
         # exit when the child process does.
@@ -1100,10 +1177,23 @@ class RunManager(object):
         except (AttributeError, ValueError):  # SIGQUIT doesn't exist on windows, we can't use signal.signal in threads for tests
             pass
 
+        # When not running in agent mode, start a status checker.
+        # TODO(adrnswanberg): Remove 'stop' command checking in agent code,
+        # and unconditionally start the status checker.
+        if self._run.sweep_id is None:
+            def stop_handler():
+                if isinstance(self.proc, Process):
+                    self.proc.interrupt()
+                else:
+                    self.proc.send_signal(signal.SIGINT)
+
+            self._run_status_checker = RunStatusChecker(
+                self._run, self._api, stop_requested_handler=stop_handler)
+
         # Add a space before user output
         wandb.termlog()
 
-        if env.get_show_run():
+        if wandb_env.get_show_run():
             webbrowser.open_new_tab(self._run.get_url(self._api))
 
         exitcode = None
@@ -1223,7 +1313,7 @@ class RunManager(object):
         self._close_stdout_stderr_streams()
         self.shutdown(exitcode)
 
-        crash_nosync_time = env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
+        crash_nosync_time = wandb_env.get_crash_nosync_time(self.CRASH_NOSYNC_TIME)
         # If we're not syncing to the cloud, we're done
         if not self._cloud:
             wandb.termlog("You can sync this run to the cloud by running: ")
@@ -1281,55 +1371,8 @@ class RunManager(object):
         self._file_pusher.update_all_files()
         self._file_pusher.print_status()
 
-        # TODO(adrian): this code has been broken since september 2017
-        # commit ID: abee525b because of these lines:
-        # if fname == 'wandb-history.h5' or 'training.log':
-        #     continue
         url = self._run.get_url(self._api)
-        if False:
-            # Check md5s of uploaded files against what's on the file system.
-            # TODO: We're currently using the list of uploaded files as our source
-            #     of truth, but really we should use the files on the filesystem
-            #     (ie if we missed a file this wouldn't catch it).
-            # This polls the server, because there a delay between when the file
-            # is done uploading, and when the datastore gets updated with new
-            # metadata via pubsub.
-            wandb.termlog('Verifying uploaded files... ', newline=False)
-            error = False
-            mismatched = None
-            for delay_base in range(4):
-                mismatched = []
-                download_urls = self._api.download_urls(
-                    self._project, run=self._run.id)
-                for fname, info in download_urls.items():
-                    if fname == 'wandb-history.h5' or fname == util.OUTPUT_FNAME:
-                        continue
-                    local_path = os.path.join(self._run.dir, fname)
-                    local_md5 = util.md5_file(local_path)
-                    if local_md5 != info['md5']:
-                        mismatched.append((local_path, local_md5, info['md5']))
-                if not mismatched:
-                    break
-                wandb.termlog('  Retrying after %ss' % (delay_base**2))
-                time.sleep(delay_base ** 2)
 
-            if mismatched:
-                print('')
-                error = True
-                for local_path, local_md5, remote_md5 in mismatched:
-                    wandb.termerror(
-                        '{} ({}) did not match uploaded file ({}) md5'.format(
-                            local_path, local_md5, remote_md5))
-            else:
-                print('verified!')
-
-            if error:
-                message = 'Sync failed %s' % url
-                wandb.termerror(message)
-                util.sentry_exc(message)
-            else:
-                wandb.termlog('Synced %s' % url)
-
-        wandb.termlog('Synced{} {}'.format(format_display_name(self._run), url))
+        wandb.termlog('Synced{} {}'.format(format_run_name(self._run), url))
         logger.info("syncing complete: %s" % url)
         sys.exit(exitcode)

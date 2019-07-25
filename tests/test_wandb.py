@@ -19,6 +19,10 @@ from .utils import runner
 import wandb
 from wandb import wandb_run
 
+# Tests which rely on row history in memory should set `History.keep_rows = True`
+from wandb.history import History
+History.keep_rows = True
+
 
 def test_log(wandb_init_run):
     history_row = {'stuff': 5}
@@ -27,12 +31,30 @@ def test_log(wandb_init_run):
     assert set(history_row.items()) <= set(wandb.run.history.rows[0].items())
 
 
-def test_log_step(wandb_init_run):
+@pytest.mark.mocked_run_manager()
+def test_log_step(wandb_init_run, capsys):
     history_row = {'stuff': 5}
     wandb.log(history_row, step=5)
     wandb.log()
+    _, err = capsys.readouterr()
+    assert "wandb: " in err
     assert len(wandb.run.history.rows) == 1
     assert wandb.run.history.rows[0]['_step'] == 5
+
+
+@pytest.mark.silent()
+@pytest.mark.mocked_run_manager()
+def test_log_silent(wandb_init_run, capsys):
+    wandb.log({"cool": 1})
+    _, err = capsys.readouterr()
+    assert "wandb: " not in err
+
+
+def test_log_only_strings_as_keys(wandb_init_run):
+    with pytest.raises(ValueError):
+        wandb.log({1: 1000})
+    with pytest.raises(ValueError):
+        wandb.log({('tup', 'idx'): 1000})
 
 
 def test_nice_log_error():
@@ -252,4 +274,4 @@ def test_not_logged_in(wandb_init_run, capsys):
 def test_jupyter_manual_configure(wandb_init_run, capsys):
     out, err = capsys.readouterr()
     assert "Not authenticated" in err
-    assert "to display live results" in out
+    assert "Python.core.display.HTML" in out

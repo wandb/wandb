@@ -1,10 +1,79 @@
-## 0.8.2 (TBD)
+## 0.8.5 (July 12, 2019)
 
 #### :bug: Bug Fix
 
+-   Fixed plotly charts with large numpy arrays not rendering
+-   `wandb docker` works when nvidia is present
+-   Better error when non string keys are sent to log
+-   Relaxed pyyaml dependency to fix AMI installs
+-   Magic works in jupyter notebooks.
+
 #### :nail_care: Enhancement
 
--   summary now supports new dataframe fromat
+-   New preview release of auto-dataframes for Keras
+-   Added input_type and output_type to the Keras callback for simpler config
+-   public api supports retrieving specific keys and custom xaxis
+
+## 0.8.4 (July 8, 2019)
+
+#### :bug: Bug Fix
+
+-   WANDB_IGNORE_GLOBS is respected on the final scan of files
+-   Unified run.id, run.name, and run.notes across all apis
+-   Handle funky terminal sizes when setting up our psuedo tty
+-   Fixed Jupyter notebook introspection logic
+-   run.summary.update() persists changes to the server
+-   tensorboard syncing is robust to invalid histograms and truncated files
+
+#### :nail_care: Enhancement
+
+-   preview release of magic, calling wandb.init(magic=True) should automatically track config and metrics when possible
+-   cli now supports local installs of the backend
+-   fastai callback supports logging example images
+
+## 0.8.3 (June 26, 2019)
+
+#### :bug: Bug Fix
+
+-   image logging works in Windows
+-   wandb sync handles tfevents with a single timestep
+-   fix incorrect command in overview page for running runs
+-   handle histograms with > 512 bins when streaming tensorboard
+-   better error message when calling wandb sync on a file instead of a directory
+
+#### :nail_care: Enhancement
+
+-   new helper function for handling hyperparameters in sweeps `wandb.config.user_items()`
+-   better mocking for improved testing
+
+## 0.8.2 (June 20, 2019)
+
+#### :bug: Bug Fix
+
+-   entity is persisted on wandb.run when queried from the server
+-   tmp files always use the temporary directory to avoid syncing
+-   raise error if file shrinks while uploading
+-   images log properly in windows
+-   upgraded pyyaml requirement to address CVE
+-   no longer store a history of rows to prevent memory leak
+
+#### :nail_care: Enhancement
+
+-   summary now supports new dataframe format
+-   WANDB_SILENT environment variable writes all wandb messages to debug.log
+-   Improved error messages for windows and tensorboard logging
+-   output.log is uploaded at the end of each run
+-   metadata, requirements, and patches are uploaded at the beginning of a run
+-   when not running from a git repository, store the main python file
+-   added WANDB_DISABLE_CODE to prevent diffing and code saving
+-   when running in jupyter store the name of the notebook
+-   auto-login support for colab
+-   store url to colab notebook
+-   store the version of this library in config
+-   store sys.executable in metadata
+-   fastai callback no longer requires path
+-   wandb.init now accepts a notes argument
+-   The cli replaced the message argument with notes and name
 
 ## 0.8.1 (May 23, 2019)
 

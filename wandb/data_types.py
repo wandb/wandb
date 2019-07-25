@@ -25,6 +25,7 @@ import json
 import pprint
 import shutil
 from six.moves import queue
+import warnings
 
 import backports.tempfile
 import collections
@@ -38,6 +39,10 @@ import json
 import codecs
 import tempfile
 from wandb import util
+
+
+# Get rid of cleanup warnings in Python 2.7.
+warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'backports.tempfile')
 
 
 # Staging directory so we can encode raw data into files, then hash them before
@@ -69,6 +74,17 @@ def history_dict_to_json(run, payload, step=None):
             payload[key] = history_dict_to_json(run, val, step=step)
         else:
             payload[key] = val_to_json(run, key, val, step=step)
+
+    return payload
+
+def numpy_arrays_to_lists(payload):
+    """Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
+    """
+    for key,val in six.iteritems(payload):
+        if isinstance(val, dict):
+            payload[key] = numpy_arrays_to_lists(val)
+        elif util.is_numpy_array(val):
+            payload[key] = val.tolist()
 
     return payload
 
@@ -152,7 +168,7 @@ def plot_to_json(obj):
         obj = tools.mpl_to_plotly(obj)
 
     if util.is_plotly_typename(util.get_full_typename(obj)):
-        return {"_type": "plotly", "plot": obj.to_plotly_json()}
+        return {"_type": "plotly", "plot": numpy_arrays_to_lists(obj.to_plotly_json())}
     else:
         return obj
 

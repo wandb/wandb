@@ -23,8 +23,10 @@ from wandb import data_types
 class History(object):
     """Time series data for Runs.
 
-    See the documentation online: https://docs.wandb.com/docs/logs.html
+    See the documentation online: https://docs.wandb.com/docs/log.html
     """
+    # Only tests are allowed to keep all row history in memory
+    keep_rows = False
 
     def __init__(self, run, add_callback=None, jupyter_callback=None, stream_name="default"):
         self._run = run
@@ -123,21 +125,29 @@ class History(object):
             if not self.batched:
                 self._write()
         else:
-            if not isinstance(step, numbers.Integral):
+            if not isinstance(step, numbers.Number):
                 raise wandb.Error(
-                    "Step must be an integer, not {}".format(step))
-            elif step < self._steps:
-                wandb.termwarn(
-                    "Adding to old History rows isn't currently supported.  Step {} < {} dropping: {}".format(step, self._steps, row))
-                return
-            elif step == self._steps:
-                pass
-            elif self.batched:
-                raise wandb.Error(
-                    "Can't log to a particular History step ({}) while in batched mode.".format(step))
-            else:  # step > self._steps
-                self._write()
-                self._steps = step
+                    "Step must be a number, not {}".format(step))
+            else:
+                if step != round(step):
+                    # tensorflow just applies `int()`. seems a little crazy.
+                    wandb.termwarn('Non-integer history step: {}; rounding.'.format(step))
+
+                # the backend actually handles floats right now. seems a bit weird to let those through though.
+                step = int(round(step))
+
+                if step < self._steps:
+                    wandb.termwarn(
+                        "Adding to old History rows isn't currently supported.  Step {} < {}; dropping {}.".format(step, self._steps, row))
+                    return
+                elif step == self._steps:
+                    pass
+                elif self.batched:
+                    raise wandb.Error(
+                        "Can't log to a particular History step ({}) while in batched mode.".format(step))
+                else:  # step > self._steps
+                    self._write()
+                    self._steps = step
 
             self.update(row)
 
@@ -182,13 +192,14 @@ class History(object):
         if self._jupyter_callback:
             self._jupyter_callback()
 
-    def _index(self, row):
+    def _index(self, row, keep_rows=False):
         """Add a row to the internal list of rows without writing it to disk.
 
         This function should keep the data structure consistent so it's usable
         for both adding new rows, and loading pre-existing histories.
         """
-        self.rows.append(row)
+        if self.keep_rows or keep_rows:
+            self.rows.append(row)
         self._keys.update(row.keys())
         self._steps += 1
 
@@ -214,6 +225,7 @@ class History(object):
                 self._file.write(util.json_dumps_safer_history(self.row))
                 self._file.write('\n')
                 self._file.flush()
+                os.fsync(self._file.fileno())
                 if self._add_callback:
                     self._add_callback(self.row)
                 self._index(self.row)

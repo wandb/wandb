@@ -15,8 +15,10 @@ import logging
 from vcr.request import Request
 from wandb import wandb_socket
 from wandb import env
+from wandb import util
 from wandb.wandb_run import Run
-
+from tests import utils
+from tests.mock_server import create_app
 
 def pytest_runtest_setup(item):
     # This is used to find tests that are leaking outside of tmp directories
@@ -26,8 +28,8 @@ def request_repr(self):
     try:
         body = json.loads(self.body)
         query = body.get("query") or "no_query"
-        render = query.split("(")[0].split("\n")[0] + " - vars: " + str(body.get("variables", {}).keys())
-    except ValueError:
+        render = query.split("(")[0].split("\n")[0] + " - vars: " + str(body.get("variables", {}).get("files", {}))
+    except (ValueError, TypeError):
         render = "BINARY"
     return "({}) {} - {}".format(self.method, self.uri, render)
 
@@ -35,33 +37,44 @@ Request.__repr__ = request_repr
 # To enable VCR logging uncomment below
 #logging.basicConfig() # you need to initialize logging, otherwise you will not see anything from vcrpy
 #vcr_log = logging.getLogger("vcr")
-#vcr_log.setLevel(logging.DEBUG)
+#vcr_log.setLevel(logging.INFO)
 @pytest.fixture(scope='module')
 def vcr_config():
     def replace_body(request):
         if "storage.googleapis.com" in request.uri:
             request.body = "BINARY DATA"
         elif "/file_stream" in request.uri:
-            request.body = 'FILES'
+            request.body = json.dumps({"files": list(json.loads(request.body).get("files", {}.keys()))})
         return request
+
+    def replace_response_body(response, *args):
+        """Remove gzip response from pypi"""
+        if response["headers"].get("Access-Control-Expose-Headers") == ['X-PyPI-Last-Serial']:
+            if response["headers"].get("Content-Encoding"):
+                del response["headers"]["Content-Encoding"]
+            response["body"]["string"] = '{"info":{"version": "%s"}' % wandb.__version__
+        return response
 
     return {
         # Replace the Authorization request header with "DUMMY" in cassettes
         "filter_headers": [('authorization', 'DUMMY')],
         "match_on": ['method', 'uri', 'query', 'graphql'],
         "before_record": replace_body,
+        "before_record_response": replace_response_body,
     }
 
 @pytest.fixture(scope='module')
 def vcr(vcr):
-    def graphql_matcher(r1, r2):
+    def vcr_graphql_matcher(r1, r2):
         if "/graphql" in r1.uri and "/graphql" in r2.uri:
             body1 = json.loads(r1.body.decode("utf-8"))
             body2 = json.loads(r2.body.decode("utf-8"))
             return body1["query"].strip() == body2["query"].strip()
-        return True
-
-    vcr.register_matcher('graphql', graphql_matcher)
+        elif "/file_stream" in r1.uri and "/file_stream" in r2.uri:
+            body1 = json.loads(r1.body.decode("utf-8"))
+            body2 = json.loads(r2.body.decode("utf-8"))
+            return body1["files"] == body2["files"]
+    vcr.register_matcher('graphql', vcr_graphql_matcher)
     return vcr
 
 @pytest.fixture
@@ -93,7 +106,6 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
     orig_environ = dict(os.environ)
     orig_namespace = None
     run = None
-    api = InternalApi(load_settings=False)
     try:
         with CliRunner().isolated_filesystem():
             upsert_run(request_mocker)
@@ -136,6 +148,8 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                     'getpass.getpass', lambda x: "0123456789012345678901234567890123456789")
                 assert InternalApi().api_key == None
             os.environ['WANDB_RUN_DIR'] = str(tmpdir)
+            if request.node.get_closest_marker('silent'):
+                os.environ['WANDB_SILENT'] = "true"
 
             assert wandb.run is None
             assert wandb.config is None
@@ -144,9 +158,9 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             orig_rm = wandb.run_manager.RunManager
             mock = mocker.patch('wandb.run_manager.RunManager')
 
-            def fake_init(api, run, port=None, output=None):
+            def fake_init(run, port=None, output=None):
                 print("Initialized fake run manager")
-                rm = fake_run_manager(mocker, api, run, rm_class=orig_rm)
+                rm = fake_run_manager(mocker, run, rm_class=orig_rm)
                 rm._block_file_observer()
                 run.run_manager = rm
                 return rm
@@ -249,11 +263,10 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             try:
                 print("Initializing with", kwargs)
                 run = wandb.init(**kwargs)
-                api.set_current_run_id(run.id)
                 if request.node.get_closest_marker('resume') or request.node.get_closest_marker('mocked_run_manager'):
                     # Reset history
                     run._history = None
-                    rm = wandb.run_manager.RunManager(api, run)
+                    rm = wandb.run_manager.RunManager(run)
                     rm.init_run(os.environ)
                 if request.node.get_closest_marker('mock_socket'):
                     run.socket = mocker.MagicMock()
@@ -275,19 +288,19 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
         assert vars(wandb) == orig_namespace
 
 
-def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunManager):
+def fake_run_manager(mocker, run=None, rm_class=wandb.run_manager.RunManager):
     # NOTE: This will create a run directory so make sure it's called in an isolated file system
     # We have an optional rm_class object because we mock it above so we need it before it's mocked
-    api = api or InternalApi(load_settings=False)
+    api = InternalApi(load_settings=False)
     if wandb.run is None:
         wandb.run = run or Run()
+    wandb.run._api = api
     wandb.run._mkdir()
     wandb.run.socket = wandb_socket.Server()
     api.set_current_run_id(wandb.run.id)
     mocker.patch('wandb.apis.internal.FileStreamApi')
     api._file_stream_api = mocker.MagicMock()
-    run_manager = rm_class(
-        api, wandb.run, port=wandb.run.socket.port)
+    run_manager = rm_class(wandb.run, port=wandb.run.socket.port)
 
     class FakeProc(object):
         def poll(self):
@@ -301,7 +314,6 @@ def fake_run_manager(mocker, api=None, run=None, rm_class=wandb.run_manager.RunM
     run_manager._stderr_tee = mocker.MagicMock()
     run_manager._output_log = mocker.MagicMock()
     run_manager._stdout_stream = mocker.MagicMock()
-    run_manager._stderr_stream = mocker.MagicMock()
     run_manager._stderr_stream = mocker.MagicMock()
     run_manager.mirror_stdout_stderr = mocker.MagicMock()
     run_manager.unmirror_stdout_stderr = mocker.MagicMock()
@@ -354,3 +366,12 @@ def request_mocker(request):
     m.start()
     request.addfinalizer(m.stop)
     return m
+
+@pytest.fixture
+def mock_server(mocker, request_mocker):
+    app = create_app()
+    mock = utils.RequestsMock(app.test_client(), {})
+    mocker.patch("gql.transport.requests.requests", mock)
+    mocker.patch("wandb.apis.file_stream.requests", mock)
+    mocker.patch("wandb.apis.internal.requests", mock)
+    return mock

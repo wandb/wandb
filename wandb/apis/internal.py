@@ -54,7 +54,8 @@ class Api(object):
 
     HTTP_TIMEOUT = 10
 
-    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1)):
+    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1), environ=os.environ):
+        self._environ = environ
         self.default_settings = {
             'section': "default",
             'run': "latest",
@@ -86,7 +87,7 @@ class Api(object):
         }
         self.client = Client(
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': self.user_agent, 'X-WANDB-USERNAME': env.get_username()},
+                headers={'User-Agent': self.user_agent, 'X-WANDB-USERNAME': env.get_username(env=self._environ)},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
@@ -101,6 +102,10 @@ class Api(object):
             retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None
+
+    def reauth(self):
+        """Ensures the current api key is set in the transport"""
+        self.client.transport.auth = ("api", self.api_key or "")
 
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
@@ -213,8 +218,8 @@ class Api(object):
         if auth:
             key = auth[-1]
         # Environment should take precedence
-        if os.getenv("WANDB_API_KEY"):
-            key = os.environ["WANDB_API_KEY"]
+        if self._environ.get(env.API_KEY):
+            key = self._environ.get(env.API_KEY)
         return key
 
     @property
@@ -224,12 +229,17 @@ class Api(object):
     @property
     def app_url(self):
         api_url = self.api_url
+        # Development
         if api_url.endswith('.test') or self.settings().get("dev_prod"):
             return 'http://app.test'
-        elif api_url.startswith('https://api.'):
+        # On-prem VM
+        if api_url.endswith(':11001'):
+            return api_url.replace(':11001', ':11000')
+        # Normal
+        if api_url.startswith('https://api.'):
             return api_url.replace('api.', 'app.')
-        else:
-            return api_url
+        # Unexpected
+        return api_url
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
@@ -259,14 +269,13 @@ class Api(object):
             except configparser.InterpolationSyntaxError:
                 wandb.termwarn("Unable to parse settings file")
             self._settings["project"] = env.get_project(
-                self._settings.get("project"))
+                self._settings.get("project"), env=self._environ)
             self._settings["entity"] = env.get_entity(
-                self._settings.get("entity"))
+                self._settings.get("entity"), env=self._environ)
             self._settings["base_url"] = env.get_base_url(
-                self._settings.get("base_url"))
+                self._settings.get("base_url"), env=self._environ)
             self._settings["ignore_globs"] = env.get_ignore(
-                self._settings.get("ignore_globs")
-            )
+                self._settings.get("ignore_globs"), env=self._environ)
 
         return self._settings if key is None else self._settings[key]
 
@@ -274,9 +283,9 @@ class Api(object):
         self.settings()  # make sure we do initial load
         self._settings[key] = value
         if key == 'entity':
-            env.set_entity(value)
+            env.set_entity(value, env=self._environ)
         elif key == 'project':
-            env.set_project(value)
+            env.set_project(value, env=self._environ)
 
     def parse_slug(self, slug, project=None, run=None):
         if slug and "/" in slug:
@@ -287,7 +296,7 @@ class Api(object):
             project = project or self.settings().get("project")
             if project is None:
                 raise CommError("No default project configured.")
-            run = run or slug or env.get_run()
+            run = run or slug or env.get_run(env=self._environ)
             if run is None:
                 run = "latest"
         return (project, run)
@@ -537,6 +546,32 @@ class Api(object):
 
         return project['bucket']
 
+    @normalize_exceptions
+    def check_stop_requested(self, project_name, entity_name, run_id):
+        query = gql('''
+        query Model($projectName: String, $entityName: String, $runId: String!) {
+            project(name:$projectName, entityName:$entityName) {
+                run(name:$runId) {
+                    stopped
+                }
+            }
+        }
+        ''')
+
+        response = self.gql(query, variable_values={
+            'projectName': project_name, 'entityName': entity_name, 'runId': run_id,
+        })
+
+        project = response.get('project', None)
+        if not project:
+            return False
+        run = project.get('run', None)
+        if not run:
+            return False
+        
+        return run['stopped']
+
+
     def format_project(self, project):
         return re.sub(r'\W+', '-', project.lower()).strip("-_")
 
@@ -568,6 +603,7 @@ class Api(object):
     def upsert_run(self, id=None, name=None, project=None, host=None,
                    group=None, tags=None,
                    config=None, description=None, entity=None, state=None,
+                   display_name=None, notes=None,
                    repo=None, job_type=None, program_path=None, commit=None,
                    sweep_name=None, summary_metrics=None, num_retries=None):
         """Update a run
@@ -594,6 +630,8 @@ class Api(object):
             $entity: String!,
             $groupName: String,
             $description: String,
+            $displayName: String,
+            $notes: String,
             $commit: String,
             $config: JSONString,
             $host: String,
@@ -613,6 +651,8 @@ class Api(object):
                 modelName: $project,
                 entityName: $entity,
                 description: $description,
+                displayName: $displayName,
+                notes: $notes,
                 config: $config,
                 commit: $commit,
                 host: $host,
@@ -656,7 +696,8 @@ class Api(object):
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
-            'host': host, 'debug': env.is_debug(), 'repo': repo, 'program': program_path, 'jobType': job_type,
+            'displayName': display_name, 'notes': notes,
+            'host': host, 'debug': env.is_debug(env=self._environ), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
         }
 
@@ -858,26 +899,24 @@ class Api(object):
         """
         extra_headers = extra_headers.copy()
         response = None
-        if os.stat(file.name).st_size == 0:
+        progress = Progress(file, callback=callback)
+        if progress.len == 0:
             raise CommError("%s is an empty file" % file.name)
         try:
-            progress = Progress(file, callback=callback)
             response = requests.put(
                 url, data=progress, headers=extra_headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            total = progress.len
-            status = self._status_request(url, total)
-            # TODO(adrian): there's probably even more stuff we should add here
-            # like if we're offline, we should retry then too
-            if status.status_code in (308, 408, 500, 502, 503, 504):
+            status_code = e.response.status_code if e.response != None else 0
+            # Retry errors from cloud storage or local network issues
+            if status_code in (308, 409, 429, 500, 502, 503, 504) or isinstance(e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
                 util.sentry_reraise(retry.TransientException(exc=e))
             else:
                 util.sentry_reraise(e)
 
         return response
 
-    upload_file_retry = normalize_exceptions(retry.retriable()(upload_file))
+    upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
 
     @normalize_exceptions
     def register_agent(self, host, sweep_id=None, project_name=None):
@@ -1078,7 +1117,7 @@ class Api(object):
                 # To handle Windows paths
                 # TODO: this doesn't handle absolute paths...
                 normal_name = os.path.join(*file_name.split("/"))
-                open_file = files[normal_name] if isinstance(
+                open_file = files[file_name] if isinstance(
                     files, dict) else open(normal_name, "rb")
             except IOError:
                 print("%s does not exist" % file_name)

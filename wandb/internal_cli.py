@@ -41,11 +41,8 @@ def headless(args):
         # Access history to avoid sync issues
         run.history
 
-        api = wandb.apis.InternalApi()
-        api.set_current_run_id(run.id)
-
         rm = wandb.run_manager.RunManager(
-            api, run, cloud=args['cloud'],
+            run, cloud=args['cloud'],
             port=args['port'])
         # We add a reference to _run_manager to enable wandb.save to work for tfevents files
         # TODO: REFACTOR
@@ -62,23 +59,20 @@ def agent_run(args):
     run = wandb.wandb_run.Run.from_environment_or_defaults()
     run.enable_logging()
 
-    api = wandb.apis.InternalApi()
-    api.set_current_run_id(run.id)
-
     # TODO: better failure handling
-    root = api.git.root
+    root = run.api.git.root
     # handle non-git directories
     if not root:
         root = os.path.abspath(os.getcwd())
         host = socket.gethostname()
         remote_url = 'file://{}{}'.format(host, root)
 
-    run.save(program=args['program'], api=api)
+    run.save(program=args['program'])
     env = dict(os.environ)
     run.set_environment(env)
 
     try:
-        rm = wandb.run_manager.RunManager(api, run)
+        rm = wandb.run_manager.RunManager(run, agent_run=True)
     except wandb.run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         wandb.termerror('An Exception was raised during setup, see %s for full traceback.' %

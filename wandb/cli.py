@@ -50,6 +50,7 @@ from wandb import wandb_run
 from wandb import wandb_dir
 from wandb import run_manager
 from wandb import Error
+from wandb.magic_impl import magic_install
 
 DOCS_URL = 'http://docs.wandb.com/'
 logger = logging.getLogger(__name__)
@@ -427,6 +428,8 @@ def sync(ctx, path, id, project, entity, ignore):
         globs = None
 
     path = path[0] if len(path) > 0 else os.getcwd()
+    if os.path.isfile(path):
+        raise ClickException("path must be a directory")
     wandb_dir = os.path.join(path, "wandb")
     run_paths = glob.glob(os.path.join(wandb_dir, "*run-*"))
     if len(run_paths) == 0:
@@ -675,8 +678,12 @@ RUN_CONTEXT['ignore_unknown_options'] = True
               help='Files in this directory will be saved to wandb, defaults to wandb')
 @click.option('--configs', default=None,
               help='Config file paths to load')
-@click.option('--message', '-m', default=None,
+@click.option('--message', '-m', default=None, hidden=True,
               help='Message to associate with the run.')
+@click.option('--name', default=None,
+              help='Name of the run, default is auto generated.')
+@click.option('--notes', default=None,
+              help='Notes to associate with the run.')
 @click.option("--show/--no-show", default=False,
               help="Open the run page in your default browser.")
 @click.option('--tags', default=None,
@@ -686,7 +693,7 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @click.option('--job_type', default=None,
               help='Job type to associate with the run.')
 @display_error
-def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_group, job_type):
+def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show, tags, run_group, job_type):
     wandb.ensure_configured()
     if configs:
         config_paths = configs.split(',')
@@ -699,10 +706,9 @@ def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_g
                         config=config, description=message,
                         program=program, tags=tags,
                         group=run_group, job_type=job_type,
+                        name=name, notes=notes,
                         resume=resume)
     run.enable_logging()
-
-    api.set_current_run_id(run.id)
 
     environ = dict(os.environ)
     if configs:
@@ -711,7 +717,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_g
         environ[env.SHOW_RUN] = 'True'
 
     try:
-        rm = run_manager.RunManager(api, run)
+        rm = run_manager.RunManager(run)
         rm.init_run(environ)
     except run_manager.Error:
         exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -725,7 +731,6 @@ def run(ctx, program, args, id, resume, dir, configs, message, show, tags, run_g
             exc_type, exc_value, exc_traceback)
         logger.error('\n'.join(lines))
         sys.exit(1)
-
     rm.run_user_process(program, args, environ)
 
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
@@ -768,7 +773,7 @@ def docker_run(ctx, docker_run_args, help):
 @click.pass_context
 @click.argument('docker_run_args', nargs=-1)
 @click.argument('docker_image', required=False)
-@click.option('--nvidia/--no-nvidia', default=find_executable('nvidia-docker'),
+@click.option('--nvidia/--no-nvidia', default=find_executable('nvidia-docker') != None,
               help='Use the nvidia runtime, defaults to nvidia if nvidia-docker is present')
 @click.option('--digest', is_flag=True, default=False, help="Output the image digest and exit")
 @click.option('--jupyter/--no-jupyter', default=False, help="Run jupyter lab in the container")
@@ -857,6 +862,48 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
         command.extend(['-it', image, shell])
         wandb.termlog("Launching docker container \U0001F6A2")
     subprocess.call(command)
+
+
+
+MONKEY_CONTEXT = copy.copy(CONTEXT)
+MONKEY_CONTEXT['allow_extra_args'] = True
+MONKEY_CONTEXT['ignore_unknown_options'] = True
+
+@cli.command(context_settings=MONKEY_CONTEXT, help="Run any script with wandb", hidden=True)
+@click.pass_context
+@click.argument('program')
+@click.argument('args', nargs=-1)
+@display_error
+def magic(ctx, program, args):
+
+    def magic_run(cmd, globals, locals):
+        try:
+            exec(cmd, globals, locals)
+        finally:
+            pass
+
+    sys.argv[:] = args
+    sys.argv.insert(0, program)
+    sys.path.insert(0, os.path.dirname(program))
+    try:
+        with open(program, 'rb') as fp:
+            code = compile(fp.read(), program, 'exec')
+    except IOError:
+        click.echo(click.style("Could not launch program: %s" % program, fg="red"))
+        sys.exit(1)
+    globs = {
+            '__file__': program,
+            '__name__': '__main__',
+            '__package__': None,
+            'wandb_magic_install': magic_install,
+        }
+    prep = '''
+import __main__
+__main__.__file__ = "%s"
+wandb_magic_install()
+''' % program
+    magic_run(prep, globs, None)
+    magic_run(code, globs, None)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
