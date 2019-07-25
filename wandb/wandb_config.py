@@ -30,7 +30,6 @@ def boolify(s):
 
 class Config(object):
     """Creates a W&B config object."""
-
     def __init__(self, config_paths=[], wandb_dir=None, run_dir=None):
         object.__setattr__(self, '_wandb_dir', wandb_dir)
 
@@ -44,6 +43,7 @@ class Config(object):
         for conf_path in config_paths:
             self._load_file(conf_path)
         self._set_wandb('cli_version', wandb.__version__)
+        self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
 
         # Do this after defaults because it triggers loading of pre-existing
         # config.yaml (if it exists)
@@ -101,15 +101,17 @@ class Config(object):
             try:
                 loaded = loaded[subkey]
             except KeyError:
-                raise ConfigError('Asked for {} but {} not present in {}'.format(
-                    path, subkey, conf_path))
+                raise ConfigError(
+                    'Asked for {} but {} not present in {}'.format(
+                        path, subkey, conf_path))
         for key, val in loaded.items():
             if key == 'wandb_version':
                 continue
             if isinstance(val, dict):
                 if 'value' not in val:
-                    raise ConfigError('In config {} value of {} is dict, but does not contain "value" key'.format(
-                        path, key))
+                    raise ConfigError(
+                        'In config {} value of {} is dict, but does not contain "value" key'
+                        .format(path, key))
                 self._items[key] = val['value']
                 if 'desc' in val:
                     self._descriptions[key] = val['desc']
@@ -186,8 +188,9 @@ class Config(object):
         key = key.strip('-')
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
-                raise ConfigError('Attempted to change value of key "{}" from {} to {}\nIf you really want to do this, pass allow_val_change=True to config.update()'.format(
-                    key, self._items[key], val))
+                raise ConfigError(
+                    'Attempted to change value of key "{}" from {} to {}\nIf you really want to do this, pass allow_val_change=True to config.update()'
+                    .format(key, self._items[key], val))
         return key
 
     def update(self, params, allow_val_change=False):
@@ -197,7 +200,8 @@ class Config(object):
             meta = inspect.getmodule(params)
             if meta:
                 is_tf_flags_module = isinstance(
-                    params, types.ModuleType) and meta.__name__ == 'tensorflow.python.platform.flags'
+                    params, types.ModuleType
+                ) and meta.__name__ == 'tensorflow.python.platform.flags'
                 if is_tf_flags_module or meta.__name__ == 'absl.flags':
                     params = params.FLAGS
                     meta = inspect.getmodule(params)
@@ -228,8 +232,7 @@ class Config(object):
     def as_dict(self):
         defaults = {}
         for key, val in self._items.items():
-            defaults[key] = {'value': val,
-                             'desc': self._descriptions.get(key)}
+            defaults[key] = {'value': val, 'desc': self._descriptions.get(key)}
         return defaults
 
     def user_items(self):
