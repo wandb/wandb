@@ -1,11 +1,22 @@
 // Place your settings in this file to overwrite default and user settings.
 {
-  "python.pythonPath": "~/.pyenv/shims/python",
+  "python.pythonPath": "/Users/jeff/.pyenv/shims/python",
   "editor.formatOnSave": true,
   "files.exclude": {
     "**/*.pyc": true,
     "docs/_build": true,
     "build": true
   },
-  "git.ignoreLimitWarning": true
+  "git.ignoreLimitWarning": true,
+  "python.linting.pylintEnabled": true,
+  "python.linting.enabled": true,
+  "python.testing.pytestEnabled": true,
+  "python.formatting.provider": "autopep8",
+  "python.formatting.autopep8Args": [
+      "--ignore-local-config",
+      "--ignore",
+      "E265,E402,E202,E225,E226",
+      "--max-line-length",
+      "120"
+  ]
 }
