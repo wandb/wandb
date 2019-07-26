@@ -1183,9 +1183,15 @@ class RunManager(object):
         if self._run.sweep_id is None:
             def stop_handler():
                 if isinstance(self.proc, Process):
+                    # self.proc is a `Process` whenever we're the child process.
                     self.proc.interrupt()
                 else:
-                    self.proc.send_signal(signal.SIGINT)
+                    sig = signal.SIGINT
+                    # We only check for windows in this block because on windows we
+                    # always use `wandb run` (meaning we're the parent process).
+                    if platform.system() == "Windows":
+                        sig = signal.CTRL_C_EVENT # pylint: disable=no-member
+                    self.proc.send_signal(sig)
 
             self._run_status_checker = RunStatusChecker(
                 self._run, self._api, stop_requested_handler=stop_handler)
