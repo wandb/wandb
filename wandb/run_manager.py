@@ -1185,7 +1185,10 @@ class RunManager(object):
                 if isinstance(self.proc, Process):
                     self.proc.interrupt()
                 else:
-                    self.proc.send_signal(signal.SIGINT)
+                    sig = signal.SIGINT
+                    if platform.system() == "Windows":
+                        sig = signal.CTRL_C_EVENT # pylint: disable=no-member
+                    self.proc.send_signal(sig)
 
             self._run_status_checker = RunStatusChecker(
                 self._run, self._api, stop_requested_handler=stop_handler)
