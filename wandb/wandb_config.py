@@ -197,13 +197,13 @@ class Config(object):
         if isinstance(val, dict):
             converted = {}
             for key, value in six.iteritems(val):
-                converted[key] = self.nested_convert(value)
+                converted[key] = self._sanitize_val(value)
             return converted
         val, _ = wandb.util.json_friendly(val)
         if isinstance(val, Sequence) and not isinstance(val, six.string_types):
             converted = []
             for value in val:
-                converted.append(self.nested_convert(value))
+                converted.append(self._sanitize_val(value))
             return converted
         else:
             if val.__class__.__module__ not in ('builtins', '__builtin__'):
