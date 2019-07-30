@@ -1,8 +1,9 @@
-from collections import OrderedDict
+from collections import OrderedDict, Sequence
 import inspect
 import logging
 import os
 import sys
+import six
 import types
 import yaml
 
@@ -173,7 +174,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
-        key = self._sanitize(key, val)
+        key, val = self._sanitize(key, val)
         self._items[key] = val
         self.persist()
 
@@ -185,11 +186,30 @@ class Config(object):
     def _sanitize(self, key, val, allow_val_change=False):
         # We always normalize keys by stripping '-'
         key = key.strip('-')
+        val = self._sanitize_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise ConfigError('Attempted to change value of key "{}" from {} to {}\nIf you really want to do this, pass allow_val_change=True to config.update()'.format(
                     key, self._items[key], val))
-        return key
+        return key, val
+
+    def _sanitize_val(self, val):
+        """Turn all non-builtin values into something safe for YAML"""
+        if isinstance(val, dict):
+            converted = {}
+            for key, value in six.iteritems(val):
+                converted[key] = self._sanitize_val(value)
+            return converted
+        val, _ = wandb.util.json_friendly(val)
+        if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+            converted = []
+            for value in val:
+                converted.append(self._sanitize_val(value))
+            return converted
+        else:
+            if val.__class__.__module__ not in ('builtins', '__builtin__'):
+                val = str(val)
+            return val
 
     def update(self, params, allow_val_change=False):
         if not isinstance(params, dict):
@@ -222,7 +242,7 @@ class Config(object):
         if not isinstance(params, dict):
             raise ConfigError('Expected dict but received %s' % params)
         for key, val in params.items():
-            key = self._sanitize(key, val, allow_val_change=allow_val_change)
+            key, val = self._sanitize(key, val, allow_val_change=allow_val_change)
             self._items[key] = val
         self.persist()
 
@@ -240,8 +260,8 @@ class Config(object):
                 yield (key, val)
 
     def __str__(self):
-        s = "wandb_version: 1"
+        s = b"wandb_version: 1"
         as_dict = self.as_dict()
         if as_dict:  # adding an empty dictionary here causes a parse error
-            s += '\n\n' + yaml.dump(as_dict, default_flow_style=False)
-        return s
+            s += b'\n\n' + yaml.dump(as_dict, Dumper=yaml.SafeDumper, default_flow_style=False, allow_unicode=True, encoding='utf-8')
+        return s.decode("utf-8")

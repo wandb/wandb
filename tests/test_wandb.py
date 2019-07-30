@@ -200,6 +200,7 @@ def test_restore(runner, wandb_init_run, request_mocker, download_url, query_run
 
 
 @pytest.mark.jupyter
+@pytest.mark.mocked_run_manager
 def test_jupyter_init(wandb_init_run):
     assert os.getenv("WANDB_JUPYTER")
     wandb.log({"stat": 1})

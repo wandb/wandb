@@ -7,7 +7,6 @@ with open('README.md') as readme_file:
     readme = readme_file.read()
 
 requirements = [
-    'backports.tempfile>=1.0',
     'Click>=7.0',
     'GitPython>=1.0.0',
     'gql>=0.1.0',
