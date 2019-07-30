@@ -173,7 +173,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
-        key = self._sanitize(key, val)
+        key, val = self._sanitize(key, val)
         self._items[key] = val
         self.persist()
 
@@ -185,11 +185,30 @@ class Config(object):
     def _sanitize(self, key, val, allow_val_change=False):
         # We always normalize keys by stripping '-'
         key = key.strip('-')
+        val = self._sanitize_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise ConfigError('Attempted to change value of key "{}" from {} to {}\nIf you really want to do this, pass allow_val_change=True to config.update()'.format(
                     key, self._items[key], val))
-        return key
+        return key, val
+
+    def _sanitize_val(self, val):
+        """Turn all non-builtin values into something safe for YAML"""
+        if isinstance(val, dict):
+            converted = {}
+            for key, value in six.iteritems(val):
+                converted[key] = self.nested_convert(value)
+            return converted
+        val, _ = wandb.util.json_friendly(val)
+        if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+            converted = []
+            for value in val:
+                converted.append(self.nested_convert(value))
+            return converted
+        else:
+            if val.__class__.__module__ not in ('builtins', '__builtin__'):
+                val = str(val)
+            return val
 
     def update(self, params, allow_val_change=False):
         if not isinstance(params, dict):
@@ -222,31 +241,14 @@ class Config(object):
         if not isinstance(params, dict):
             raise ConfigError('Expected dict but received %s' % params)
         for key, val in params.items():
-            key = self._sanitize(key, val, allow_val_change=allow_val_change)
+            key, val = self._sanitize(key, val, allow_val_change=allow_val_change)
             self._items[key] = val
         self.persist()
-
-    def nested_convert(self, val):
-        if isinstance(val, dict):
-            converted = {}
-            for key, value in six.iteritems(val):
-                converted[key] = self.nested_convert(value)
-            return converted
-        val, _ = wandb.util.json_friendly(val)
-        if isinstance(val, Sequence) and not isinstance(val, six.string_types):
-            converted = []
-            for value in val:
-                converted.append(self.nested_convert(value))
-            return converted
-        else:
-            if val.__class__.__module__ not in ('builtins', '__builtin__'):
-                val = str(val)
-            return val
 
     def as_dict(self):
         defaults = {}
         for key, val in self._items.items():
-            defaults[key] = {'value': self.nested_convert(val),
+            defaults[key] = {'value': val,
                              'desc': self._descriptions.get(key)}
         return defaults
 
