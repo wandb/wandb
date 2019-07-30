@@ -10,7 +10,6 @@ bst = xgb.train(param_list, d_train, callbacks=[wandb_callback()])
 '''
 
 import wandb
-import xgboost
 
 def wandb_callback():
     def callback(env):
