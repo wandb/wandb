@@ -444,12 +444,13 @@ class RunStatusChecker(object):
         self._polling_interval = polling_interval
         self._stop_requested_handler = stop_requested_handler
 
-        self._shutdown = False
+        self._shutdown_event = threading.Event()
         self._thread = threading.Thread(target=self.check_status)
         self._thread.start()
 
     def check_status(self):
-        while not self._shutdown:
+        shutdown_requested = False
+        while not shutdown_requested:
             try:
                 should_exit = self._api.check_stop_requested(
                     project_name=self._run.project_name(),
@@ -463,11 +464,11 @@ class RunStatusChecker(object):
                 self._stop_requested_handler()
                 return
             else:
-                time.sleep(self._polling_interval)
+                shutdown_requested = self._shutdown_event.wait(self._polling_interval)
 
     def shutdown(self):
-         self._shutdown = True
-         self._thread.join()
+        self._shutdown_event.set()
+        self._thread.join()
 
 
 class RunManager(object):
