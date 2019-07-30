@@ -20,6 +20,7 @@
 -   Handle floats passed as step to `wandb.log`
 -   wandb.config has full unicode support
 -   sync the main file to wandb if code saving is enabled and it's untracked by git
+-   XGBoost callback: wandb.xgboost.wandb_callback()
 
 ## 0.8.5 (July 12, 2019)
 
