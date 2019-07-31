@@ -92,6 +92,7 @@ class WandbCallback(TrackerCallback):
         # Select items for sample predictions to see evolution along training
         self.validation_data = validation_data
         if input_type and not self.validation_data:
+            random.seed(12345)  # Ensures repeatability of selected samples
             predictions = min(predictions, len(learn.data.valid_ds))
             indices = random.sample(range(len(learn.data.valid_ds)),
                                     predictions)
@@ -148,8 +149,7 @@ class WandbCallback(TrackerCallback):
                         wandb.Image(x.data, caption='Input data', grouping=3))
 
                     # log label and prediction
-                    for im, capt in (y, "Ground Truth"), (pred[0],
-                                                          "Prediction"):
+                    for im, capt in (pred[0], "Prediction"), (y, "Ground Truth"):
                         # Resize plot to image resolution
                         # from https://stackoverflow.com/a/13714915
                         my_dpi = 100
@@ -172,8 +172,9 @@ class WandbCallback(TrackerCallback):
 
                     pred_log.extend([
                         wandb.Image(x.data, caption='Input data', grouping=3),
-                        wandb.Image(y.data, caption='Ground Truth'),
-                        wandb.Image(pred[0].data, caption='Prediction')
+                        wandb.Image(pred[0].data, caption='Prediction'),
+                        wandb.Image(y.data, caption='Ground Truth')
+
                     ])
 
                 # we just log input data
