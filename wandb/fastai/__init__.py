@@ -54,7 +54,8 @@ class WandbCallback(TrackerCallback):
                  mode='auto',
                  input_type=None,
                  validation_data=None,
-                 predictions=36):
+                 predictions=36,
+                 seed=12345):
         """WandB fast.ai Callback
 
         Automatically saves model topology, losses & metrics.
@@ -69,6 +70,7 @@ class WandbCallback(TrackerCallback):
             input_type (str): "images" or None. Used to display sample predictions.
             validation_data (list): data used for sample predictions if input_type is set.
             predictions (int): number of predictions to make if input_type is set and validation_data is None.
+            seed (int): initialize random generator for sample predictions if input_type is set and validation_data is None.
         """
 
         # Check if wandb.init has been called
@@ -92,7 +94,7 @@ class WandbCallback(TrackerCallback):
         # Select items for sample predictions to see evolution along training
         self.validation_data = validation_data
         if input_type and not self.validation_data:
-            wandbRandom = random.Random(12345)  # For repeatability
+            wandbRandom = random.Random(seed)  # For repeatability
             predictions = min(predictions, len(learn.data.valid_ds))
             indices = wandbRandom.sample(range(len(learn.data.valid_ds)),
                                          predictions)
