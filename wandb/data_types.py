@@ -214,9 +214,12 @@ def data_frame_to_json(df, run, key, step):
         }
     """
     pandas = util.get_module("pandas")
+    if not pandas:
+        raise wandb.Error("Failed to save data frame: unable to import pandas")
+
     fastparquet = util.get_module("fastparquet")
-    if not pandas or not fastparquet:
-        raise wandb.Error("Failed to save data frame: unable to import either pandas or fastparquet.")
+    if not fastparquet:
+        raise wandb.Error("Failed to save data frame: unable to import pandas")
 
     data_frame_id = util.generate_id()
 

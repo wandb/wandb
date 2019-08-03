@@ -192,7 +192,7 @@ def is_tf_tensor(obj):
 
 
 def is_jax_tensor_typename(typename):
-    return typename.endswith('_FilledConstant') or typename.endswith('DeviceArray')
+    return typename.startswith('jax') and (typename.endswith('_FilledConstant') or typename.endswith('DeviceArray'))
 
 def is_tf_tensor_typename(typename):
     return typename.startswith('tensorflow.') and ('Tensor' in typename or 'Variable' in typename)
