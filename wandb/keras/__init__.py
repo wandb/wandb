@@ -113,6 +113,7 @@ if "tensorflow" in wandb.util.get_full_typename(keras):
         wandb.termwarn(
             "Unable to patch tensorflow.keras for use with W&B.  You will not be able to log images unless you set the generator argument of the callback.")
 
+
 class WandbCallback(keras.callbacks.Callback):
     """WandB Keras Callback.
 
@@ -382,8 +383,10 @@ class WandbCallback(keras.callbacks.Callback):
         if self.input_type == 'label':
             if self.output_type in ('image', 'images', 'segmentation_mask'):
                 captions = self._logits_to_captions(test_data)
-                output_image_data = self._masks_to_pixels(predictions) if self.output_type == 'segmentation_mask' else predictions
-                reference_image_data = self._masks_to_pixels(test_output) if self.output_type == 'segmentation_mask' else test_output
+                output_image_data = self._masks_to_pixels(
+                    predictions) if self.output_type == 'segmentation_mask' else predictions
+                reference_image_data = self._masks_to_pixels(
+                    test_output) if self.output_type == 'segmentation_mask' else test_output
                 output_images = [
                     wandb.Image(data, caption=captions[i], grouping=2)
                     for i, data in enumerate(output_image_data)
@@ -400,8 +403,10 @@ class WandbCallback(keras.callbacks.Callback):
                 captions = self._logits_to_captions(predictions)
                 return [wandb.Image(data, caption=captions[i]) for i, data in enumerate(test_data)]
             elif self.output_type in ('image', 'images', 'segmentation_mask'):
-                output_image_data = self._masks_to_pixels(predictions) if self.output_type == 'segmentation_mask' else predictions
-                reference_image_data = self._masks_to_pixels(test_output) if self.output_type == 'segmentation_mask' else test_output
+                output_image_data = self._masks_to_pixels(
+                    predictions) if self.output_type == 'segmentation_mask' else predictions
+                reference_image_data = self._masks_to_pixels(
+                    test_output) if self.output_type == 'segmentation_mask' else test_output
                 input_images = [wandb.Image(data, grouping=3) for i, data in enumerate(input_image_data)]
                 output_images = [wandb.Image(data) for i, data in enumerate(output_image_data)]
                 reference_images = [wandb.Image(data) for i, data in enumerate(reference_image_data)]
@@ -411,8 +416,10 @@ class WandbCallback(keras.callbacks.Callback):
                 return [wandb.Image(img) for img in test_data]
         elif self.output_type in ('image', 'images', 'segmentation_mask'):
             # unknown input, just log the predicted and reference outputs without captions
-            output_image_data = self._masks_to_pixels(predictions) if self.output_type == 'segmentation_mask' else predictions
-            reference_image_data = self._masks_to_pixels(test_output) if self.output_type == 'segmentation_mask' else test_output
+            output_image_data = self._masks_to_pixels(
+                predictions) if self.output_type == 'segmentation_mask' else predictions
+            reference_image_data = self._masks_to_pixels(
+                test_output) if self.output_type == 'segmentation_mask' else test_output
             output_images = [wandb.Image(data, grouping=2) for i, data in enumerate(output_image_data)]
             reference_images = [wandb.Image(data) for i, data in enumerate(reference_image_data)]
             return list(chain.from_iterable(zip(output_images, reference_images)))
@@ -471,7 +478,8 @@ class WandbCallback(keras.callbacks.Callback):
             y_pred = self.model.predict(x)
         elif self.generator:
             if not self.validation_steps:
-                wandb.termwarn('when using a generator for validation data with dataframes, you must pass validation_steps. skipping')
+                wandb.termwarn(
+                    'when using a generator for validation data with dataframes, you must pass validation_steps. skipping')
                 return None
 
             for i in range(self.validation_steps):
@@ -480,14 +488,16 @@ class WandbCallback(keras.callbacks.Callback):
                 if x is None:
                     x, y_true, y_pred = bx, by_true, by_pred
                 else:
-                    x, y_true, y_pred = np.append(x, bx, axis=0), np.append(y_true, by_true, axis=0), np.append(y_pred, by_pred, axis=0)
+                    x, y_true, y_pred = np.append(x, bx, axis=0), np.append(
+                        y_true, by_true, axis=0), np.append(y_pred, by_pred, axis=0)
 
         if self.input_type in ('image', 'images') and self.output_type == 'label':
             return wandb.image_categorizer_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels)
         elif self.input_type in ('image', 'images') and self.output_type == 'segmentation_mask':
             return wandb.image_segmentation_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels, class_colors=self.class_colors)
         else:
-            wandb.termwarn('unknown dataframe type for input_type=%s and output_type=%s' % (self.input_type, self.output_type))
+            wandb.termwarn('unknown dataframe type for input_type=%s and output_type=%s' %
+                           (self.input_type, self.output_type))
             return None
 
     def _save_model(self, epoch):

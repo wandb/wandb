@@ -740,9 +740,6 @@ def guess_data_type(shape):
     # (samples,) or (samples,logits)
     if len(shape) in (1, 2):
         return 'label'
-    # (samples, height, width) = grayscale image
-    if len(shape) == 3:
-        return 'image'
     if len(shape) == 4:
         if shape[-1] in (1, 3, 4):
             # (samples, height, width, Y \ RGB \ RGBA)
