@@ -325,7 +325,11 @@ class _WandbController():
         self._sweep_id = sweep_id
         return sweep_id
 
-    def run(self, print_status=True, print_actions=False, print_debug=False):
+    def run(self, verbose=None, print_status=True, print_actions=False, print_debug=False):
+        if verbose:
+            print_status=True
+            print_actions=True
+            print_debug=True
         self._start_if_not_started()
         while not self.done():
             if print_status:

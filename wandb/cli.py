@@ -910,7 +910,7 @@ wandb_magic_install()
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
 @click.option('--controller', is_flag=True, default=False, help="Run local controller")
-@click.option('--verbose', is_flag=True, default=False, help="Run local controller")
+@click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
 @click.argument('config_yaml')
 @display_error
 def sweep(ctx, controller, verbose, config_yaml):
@@ -945,7 +945,7 @@ def sweep(ctx, controller, verbose, config_yaml):
     if controller:
         click.echo('Starting wandb controller...')
         tuner = wandb_controller.controller(sweep_id)
-        tuner.run()
+        tuner.run(verbose=verbose)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -961,13 +961,13 @@ def agent(sweep_id):
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
-@click.option('--verbose', is_flag=True, default=False, help="Run local controller")
+@click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
 @click.argument('sweep_id')
 @display_error
 def controller(verbose, sweep_id):
     click.echo('Starting wandb controller...')
     tuner = wandb_controller.controller(sweep_id)
-    tuner.run()
+    tuner.run(verbose=verbose)
 
 
 if __name__ == "__main__":
