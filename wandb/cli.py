@@ -955,6 +955,9 @@ def sweep(ctx, controller, verbose, config_yaml):
 @click.argument('sweep_id')
 @display_error
 def agent(sweep_id):
+    if sys.platform == 'win32':
+        wandb.termerror('Agent is not supported on Windows')
+        sys.exit(1)
     click.echo('Starting wandb agent 🕵️')
     wandb_agent.run_agent(sweep_id)
 
