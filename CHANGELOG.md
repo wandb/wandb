@@ -1,3 +1,27 @@
+## 0.8.6 (July 31, 2019)
+
+#### :bug: Bug Fix
+
+-   fastai callback uses the default monitor instead of assuming val_loss
+-   notebook introspections handles error cases and doesn't print stacktrace on failure
+-   Don't print description warning when setting name
+-   Fixed dataframe logging error with the keras callback
+-   Fixed line offsets in logs when resuming runs
+-   wandb.config casts non-builtins before writing to yaml
+-   vendored backports.tempfile to address missing package on install
+
+#### :nail_care: Enhancement
+
+-   Added `api.sweep` to the python export api for querying sweeps
+-   Added `WANDB_NOTEBOOK_NAME` for specifying the notebook name in cases we can't infer it
+-   Added `WANDB_HOST` to override hostnames
+-   Store if a run was run within jupyter
+-   Client now supports stopping runs from the web ui
+-   Handle floats passed as step to `wandb.log`
+-   wandb.config has full unicode support
+-   sync the main file to wandb if code saving is enabled and it's untracked by git
+-   XGBoost callback: wandb.xgboost.wandb_callback()
+
 ## 0.8.5 (July 12, 2019)
 
 #### :bug: Bug Fix

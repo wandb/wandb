@@ -7,7 +7,6 @@ with open('README.md') as readme_file:
     readme = readme_file.read()
 
 requirements = [
-    'backports.tempfile>=1.0',
     'Click>=7.0',
     'GitPython>=1.0.0',
     'gql>=0.1.0',
@@ -36,7 +35,7 @@ kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
     name='wandb',
-    version='0.8.5.dev1',
+    version='0.8.6.dev1',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

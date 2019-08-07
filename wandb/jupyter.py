@@ -83,18 +83,22 @@ def attempt_colab_login(app_url):
 
 def notebook_metadata():
     """Attempts to query jupyter for the path and name of the notebook file"""
+    error_message = "Failed to query for notebook name, you can set it manually with the WANDB_NOTEBOOK_NAME environment variable"
     try:
         import ipykernel
         from notebook.notebookapp import list_running_servers
         kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
+        servers = list_running_servers()
     except Exception:
-        logger.error("Failed to query for notebook kernels")
+        logger.error(error_message)
         return {}
-    for s in list_running_servers():
+    for s in servers:
         try:
+            if s['password']:
+                raise ValueError("Can't query password protected kernel")
             res = requests.get(urljoin(s['url'], 'api/sessions'), params={'token': s.get('token', '')}).json()
         except (requests.RequestException, ValueError):
-            logger.exception("Failed to query for notebook sessions")
+            logger.error(error_message)
             return {}
         for nn in res:
             # TODO: wandb/client#400 found a case where res returned an array of strings...

@@ -603,6 +603,32 @@ class Api(object):
 
         return project['bucket']
 
+    @normalize_exceptions
+    def check_stop_requested(self, project_name, entity_name, run_id):
+        query = gql('''
+        query Model($projectName: String, $entityName: String, $runId: String!) {
+            project(name:$projectName, entityName:$entityName) {
+                run(name:$runId) {
+                    stopped
+                }
+            }
+        }
+        ''')
+
+        response = self.gql(query, variable_values={
+            'projectName': project_name, 'entityName': entity_name, 'runId': run_id,
+        })
+
+        project = response.get('project', None)
+        if not project:
+            return False
+        run = project.get('run', None)
+        if not run:
+            return False
+        
+        return run['stopped']
+
+
     def format_project(self, project):
         return re.sub(r'\W+', '-', project.lower()).strip("-_")
 

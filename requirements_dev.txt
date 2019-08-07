@@ -35,6 +35,7 @@ ipython
 matplotlib
 plotly
 Keras
+xgboost
 torch
 torchvision
 tensorflow==1.13.1

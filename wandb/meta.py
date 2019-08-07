@@ -56,6 +56,8 @@ class Meta(object):
                     else:
                         self.data["program"] = meta["path"]
                         self.data["root"] = meta["root"]
+                elif os.getenv(env.NOTEBOOK_NAME):
+                    self.data["program"] = os.getenv(env.NOTEBOOK_NAME)
 
         program = os.path.join(self.data["root"], self.data["program"])
         if not os.getenv(env.DISABLE_CODE):
@@ -66,7 +68,8 @@ class Meta(object):
                 }
                 self.data["email"] = self._api.git.email
                 self.data["root"] = self._api.git.root or self.data["root"]
-            elif os.path.exists(program):
+
+            if os.path.exists(program) and self._api.git.is_untracked(self.data["program"]):
                 util.mkdir_exists_ok(os.path.join(self.out_dir, "code"))
                 saved_program = os.path.join(self.out_dir, "code", self.data["program"])
                 if not os.path.exists(saved_program):

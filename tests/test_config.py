@@ -63,6 +63,21 @@ def test_config_update_accepts_dict_vals():
         assert conf.b == 14
         assert conf.c == 15
 
+@pytest.mark.skipif(os.getenv("NO_ML") == "true", reason="No numpy in NO_ML")
+def test_config_wild_values():
+    import numpy as np
+    with CliRunner().isolated_filesystem():
+        conf = config.Config(run_dir=".")
+        conf['numpy'] = np.random.normal(size=(10,))
+        conf['class'] = CliRunner()
+        conf['list'] = [np.random.normal(1), 32.5]
+        conf['dir'] = {"numpy": np.random.normal(size=(10,))}
+
+        conf2 = config.Config(config_paths=['config.yaml'])
+        assert len(conf2['numpy']) == 10
+        assert len(conf2['dir']['numpy']) == 10
+        assert "CliRunner" in conf2['class']
+        assert conf2['list'][-1] == 32.5
 
 def test_config_persists():
     with CliRunner().isolated_filesystem():

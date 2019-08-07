@@ -6,19 +6,19 @@ import time
 from six.moves import queue
 import warnings
 
-import backports.tempfile
 import wandb
 import wandb.util
+from wandb.compat import tempfile
 
 
 # Get rid of cleanup warnings in Python 2.7.
-warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'backports.tempfile')
+warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'wandb.compat.tempfile')
 
 
 # Temporary directory for copies we make of some file types to
 # reduce the probability that the file gets changed while we're
 # uploading it.
-TMP_DIR = backports.tempfile.TemporaryDirectory('wandb')
+TMP_DIR = tempfile.TemporaryDirectory('wandb')
 
 
 EventFileChanged = collections.namedtuple(

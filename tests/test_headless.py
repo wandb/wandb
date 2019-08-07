@@ -37,22 +37,20 @@ def test_dry_run(runner):
 def test_dry_run_custom_dir(runner):
     with runner.isolated_filesystem():
         environ = {
-            "WANDB_DIR": tempfile.gettempdir(),
+            "WANDB_DIR": tempfile.mkdtemp(),
             "WANDB_MODE": "dryrun",
             "WANDB_TEST": "true",
         }
         try:
             with open("train.py", "w") as f:
                 f.write(train_py)
-            res = sh.python("train.py", _env=environ)
+            res = sh.python("train.py", _env=environ, _err=1)
             print(res)
             run_dir = glob.glob(os.path.join(
                 environ["WANDB_DIR"], "wandb", "dry*"))[0]
             assert os.path.exists(run_dir + "/output.log")
         finally:  # avoid stepping on other tests, even if this one fails
-            pass
-            # TODO: bizarrely, uncommenting this was breaking other tests.
-            #sh.rm("-rf", environ["WANDB_DIR"])
+            sh.rm("-rf", environ["WANDB_DIR"])
 
 
 def test_dry_run_exc(runner):

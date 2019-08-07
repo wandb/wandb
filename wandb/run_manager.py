@@ -430,21 +430,61 @@ def format_run_name(run):
     "Simple helper to not show display name if its the same as id"
     return " "+run.name+":" if run.name != run.id else ":"
 
+
+class RunStatusChecker(object):
+    """Polls the backend periodically to check on this run's status.
+
+    For now, we just use this to figure out if the user has requested a stop.
+    TODO(adrnswanberg): Use this as more of a general heartbeat check.
+    """
+
+    def __init__(self, run, api, stop_requested_handler, polling_interval=15):
+        self._run = run
+        self._api = api
+        self._polling_interval = polling_interval
+        self._stop_requested_handler = stop_requested_handler
+
+        self._shutdown_event = threading.Event()
+        self._thread = threading.Thread(target=self.check_status)
+        self._thread.start()
+
+    def check_status(self):
+        shutdown_requested = False
+        while not shutdown_requested:
+            try:
+                should_exit = self._api.check_stop_requested(
+                    project_name=self._run.project_name(),
+                    entity_name=self._run.entity,
+                    run_id=self._run.id)
+            except wandb.apis.CommError as e:
+                logger.exception("Failed to check stop requested status: %s" % e.exc)
+                should_exit = False
+
+            if should_exit:
+                self._stop_requested_handler()
+                return
+            else:
+                shutdown_requested = self._shutdown_event.wait(self._polling_interval)
+
+    def shutdown(self):
+        self._shutdown_event.set()
+        self._thread.join()
+
+
 class RunManager(object):
     """Manages a run's process, wraps its I/O, and synchronizes its files.
     """
     CRASH_NOSYNC_TIME = 30
 
     def __init__(self, run, project=None, tags=[], cloud=True, output=True, port=None):
-        self._api = run.api
         self._run = run
-        self._cloud = cloud
-        self._port = port
-        self._output = output
-
-        self._project = self._resolve_project_name(project)
-
         self._tags = tags
+        self._cloud = cloud
+        self._output = output
+        self._port = port
+
+        self._api = run.api
+        self._project = self._resolve_project_name(project)
 
         self._config = run.config
 
@@ -472,6 +512,9 @@ class RunManager(object):
         self._tensorboard_consumer = None
         self._tensorboard_lock = threading.Lock()
         self._watcher_queue = queue.PriorityQueue()
+
+        # We'll conditionally create one of these when running in headless mode.
+        self._run_status_checker = None
 
         # This allows users to specify files they want uploaded during the run
         self._user_file_policies = {
@@ -979,6 +1022,9 @@ class RunManager(object):
         if self._tensorboard_consumer:
             self._tensorboard_consumer.shutdown()
 
+        if self._run_status_checker:
+            self._run_status_checker.shutdown()
+
         if self._cloud:
             logger.info("stopping streaming files and file change observer")
             self._end_file_syncing(exitcode)
@@ -1120,6 +1166,7 @@ class RunManager(object):
         except ImportError as e:
             wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
+
     def _sync_etc(self, headless=False):
         # Ignore SIGQUIT (ctrl-\). The child process will handle it, and we'll
         # exit when the child process does.
@@ -1130,6 +1177,25 @@ class RunManager(object):
             signal.signal(signal.SIGQUIT, signal.SIG_IGN)
         except (AttributeError, ValueError):  # SIGQUIT doesn't exist on windows, we can't use signal.signal in threads for tests
             pass
+
+        # When not running in agent mode, start a status checker.
+        # TODO(adrnswanberg): Remove 'stop' command checking in agent code,
+        # and unconditionally start the status checker.
+        if self._run.sweep_id is None:
+            def stop_handler():
+                if isinstance(self.proc, Process):
+                    # self.proc is a `Process` whenever we're the child process.
+                    self.proc.interrupt()
+                else:
+                    sig = signal.SIGINT
+                    # We only check for windows in this block because on windows we
+                    # always use `wandb run` (meaning we're the parent process).
+                    if platform.system() == "Windows":
+                        sig = signal.CTRL_C_EVENT # pylint: disable=no-member
+                    self.proc.send_signal(sig)
+
+            self._run_status_checker = RunStatusChecker(
+                self._run, self._api, stop_requested_handler=stop_handler)
 
         # Add a space before user output
         wandb.termlog()
