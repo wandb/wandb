@@ -551,7 +551,9 @@ def uninit():
     """Undo the effects of init(). Useful for testing.
     """
     global run, config, summary, watch_called, patched, _saved_files
-    run = config = summary = None
+    run = None
+    config = util.PreInitObject("wandb.config")
+    summary = util.PreInitObject("wandb.summary")
     watch_called = False
     # UNDO patches
     for mod in patched["tensorboard"]:
