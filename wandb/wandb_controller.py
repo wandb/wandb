@@ -418,6 +418,9 @@ class _WandbController():
         obj = self._sweep_object_read_from_backend()
         if not obj:
             return
+        is_local = self._sweep_config.get('controller', {}).get('type') == 'local'
+        if not is_local:
+            raise ControllerError("Only sweeps with a local controller are currently supported.")
         self._started = True
         # reset controller state, we might want to parse this and decide
         # what we can continue and add a version key, but for now we can
