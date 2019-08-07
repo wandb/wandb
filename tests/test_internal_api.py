@@ -142,25 +142,31 @@ def test_push_no_project(request_mocker, upload_url, query_project):
 
 def test_upload_retry(request_mocker, upload_url):
     request_mocker.register_uri('PUT', 'https://weights.url', [{"status_code": 500}, {"status_code": 200}])
+
     def cb(_, total):
         print("Total: %s" % total)
     res = api.upload_file_retry(
         "https://weights.url", open(os.path.join(os.path.dirname(__file__), "fixtures/test.h5")), callback=cb)
     assert res.status_code == 200
 
+
 def test_upload_retry_timeout(request_mocker, upload_url):
-    request_mocker.register_uri('PUT', 'https://weights.url', [{"exc": requests.exceptions.ConnectTimeout}, {"status_code": 200}])
+    request_mocker.register_uri('PUT', 'https://weights.url',
+                                [{"exc": requests.exceptions.ConnectTimeout}, {"status_code": 200}])
+
     def cb(_, total):
         print("Total: %s" % total)
     res = api.upload_file_retry(
         "https://weights.url", open(os.path.join(os.path.dirname(__file__), "fixtures/test.h5")), callback=cb)
     assert res.status_code == 200
+
 
 def test_upload_success(request_mocker, upload_url):
     upload_url(request_mocker)
     res = api.upload_file("https://weights.url",
-                        open(os.path.join(os.path.dirname(__file__), "fixtures/test.h5")))
+                          open(os.path.join(os.path.dirname(__file__), "fixtures/test.h5")))
     assert res.status_code == 200
+
 
 def test_upload_failure(request_mocker, upload_url):
     upload_url(request_mocker, status_code=400)
@@ -184,8 +190,8 @@ def test_upsert_run_bad_request(request_mocker, mocker, upsert_run):
     update_mock = upsert_run(request_mocker, status_code=400)
     with pytest.raises(wandb.apis.CommError) as excinfo:
         api.upsert_run(project="new-test")
-        assert excinfo.type == requests.exceptions.HTTPError
-        assert excinfo.value.exc.response.status_code == 400
+    assert excinfo.type == requests.exceptions.HTTPError
+    assert excinfo.value.exc.response.status_code == 400
 
 
 def test_settings(mocker):

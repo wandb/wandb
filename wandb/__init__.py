@@ -371,10 +371,11 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # Will be set to the run object for the current run, as returned by
 # wandb.init(). We may want to get rid of this, but WandbCallback
 # relies on it, and it improves the API a bit (user doesn't have to
-# pass the run into WandbCallback)
+# pass the run into WandbCallback).  run is None instead of a PreInitObject
+# as many places in the code check this.
 run = None
-config = None  # config object shared with the global run
-summary = None  # summary object shared with the global run
+config = util.PreInitObject("wandb.config") # config object shared with the global run
+summary = util.PreInitObject("wandb.summary") # summary object shared with the global run
 Api = PublicApi
 # Stores what modules have been patched
 patched = {

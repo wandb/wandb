@@ -62,6 +62,23 @@ def test_nice_log_error():
         wandb.log({"no": "init"})
 
 
+def test_nice_log_error_config():
+    with pytest.raises(wandb.Error) as e:
+        wandb.config.update({"foo": 1})
+    assert e.value.message == "You must call wandb.init() before wandb.config.update"
+    with pytest.raises(wandb.Error) as e:
+        wandb.config.foo = 1
+    assert e.value.message == "You must call wandb.init() before wandb.config.foo"
+
+def test_nice_log_error_summary():
+    with pytest.raises(wandb.Error) as e:
+        wandb.summary["great"] = 1
+    assert e.value.message == 'You must call wandb.init() before wandb.summary["great"]'
+    with pytest.raises(wandb.Error) as e:
+        wandb.summary.bam = 1
+    assert e.value.message == 'You must call wandb.init() before wandb.summary.bam'
+
+
 @pytest.mark.args(k8s=True)
 def test_k8s_success(wandb_init_run):
     assert os.getenv("WANDB_DOCKER") == "test@sha256:1234"
@@ -106,6 +123,7 @@ def test_bad_json_tfjob(wandb_init_run):
 def test_io_error(wandb_init_run, capsys):
     out, err = capsys.readouterr()
     assert isinstance(wandb_init_run, wandb.LaunchError)
+
 
 @pytest.mark.headless()
 @pytest.mark.args(error="socket")
