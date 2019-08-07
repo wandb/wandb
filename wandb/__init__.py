@@ -547,25 +547,25 @@ def ensure_configured():
     api = InternalApi()
     GLOBAL_LOG_FNAME = os.path.abspath(os.path.join(wandb_dir(), 'debug.log'))
 
-def uninit():
+def uninit(only_patches=False):
     """Undo the effects of init(). Useful for testing.
     """
     global run, config, summary, watch_called, patched, _saved_files
-    run = None
-    config = util.PreInitObject("wandb.config")
-    summary = util.PreInitObject("wandb.summary")
-    watch_called = False
-    _saved_files = set()
+    if not only_patches:
+        run = None
+        config = util.PreInitObject("wandb.config")
+        summary = util.PreInitObject("wandb.summary")
+        watch_called = False
+        _saved_files = set()
     # UNDO patches
-    for mod, patches in six.iteritems(patched):
-        for patch in patches:
-            module = import_module(mod[0])
-            parts = patch[1].split(".")
-            if len(parts) > 1:
-                module = getattr(module, parts[0])
-                patch[1] = parts[1]
-            setattr(module, patch[1], getattr(module, "orig_"+patch[1]))
-        patched[mod] = []
+    for mod in patched["tensorboard"]:
+        module = import_module(mod[0])
+        parts = mod[1].split(".")
+        if len(parts) > 1:
+            module = getattr(module, parts[0])
+            mod[1] = parts[1]
+        setattr(module, mod[1], getattr(module, "orig_"+mod[1]))
+    patched["tensorboard"] = []
 
 
 def reset_env(exclude=[]):
