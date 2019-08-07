@@ -1024,7 +1024,8 @@ class Image(BatchableMedia):
             else:
                 if hasattr(data, "numpy"): # TF data eager tensors
                     data = data.numpy()
-                data = data.squeeze()  # get rid of trivial dimensions as a convenience
+                if data.ndim > 2:
+                    data = data.squeeze()  # get rid of trivial dimensions as a convenience
                 self._image = PILImage.fromarray(
                     self.to_uint8(data), mode=mode or self.guess_mode(data))
 

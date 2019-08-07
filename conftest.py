@@ -152,7 +152,6 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 os.environ['WANDB_SILENT'] = "true"
 
             assert wandb.run is None
-            assert wandb.config is None
             orig_namespace = vars(wandb)
             # Mock out run_manager, we add it to run to access state in tests
             orig_rm = wandb.run_manager.RunManager

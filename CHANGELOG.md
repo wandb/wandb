@@ -1,3 +1,12 @@
+## 0.8.7 (Aug 7, 2019)
+
+#### :bug: Bug Fix
+
+-   keras callback no longer guesses input_type for 2D data
+-   wandb.Image handles images with 1px height
+-   wandb.config prints helpful errors if used before calling init
+-   wandb.summary prints helpful errors if used before calling init
+
 ## 0.8.6 (July 31, 2019)
 
 #### :bug: Bug Fix

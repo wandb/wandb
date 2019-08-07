@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.6'
+__version__ = '0.8.7'
 
 import atexit
 import click
@@ -371,10 +371,11 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # Will be set to the run object for the current run, as returned by
 # wandb.init(). We may want to get rid of this, but WandbCallback
 # relies on it, and it improves the API a bit (user doesn't have to
-# pass the run into WandbCallback)
+# pass the run into WandbCallback).  run is None instead of a PreInitObject
+# as many places in the code check this.
 run = None
-config = None  # config object shared with the global run
-summary = None  # summary object shared with the global run
+config = util.PreInitObject("wandb.config") # config object shared with the global run
+summary = util.PreInitObject("wandb.summary") # summary object shared with the global run
 Api = PublicApi
 # Stores what modules have been patched
 patched = {
@@ -546,12 +547,16 @@ def ensure_configured():
     api = InternalApi()
     GLOBAL_LOG_FNAME = os.path.abspath(os.path.join(wandb_dir(), 'debug.log'))
 
-def uninit():
+def uninit(only_patches=False):
     """Undo the effects of init(). Useful for testing.
     """
     global run, config, summary, watch_called, patched, _saved_files
-    run = config = summary = None
-    watch_called = False
+    if not only_patches:
+        run = None
+        config = util.PreInitObject("wandb.config")
+        summary = util.PreInitObject("wandb.summary")
+        watch_called = False
+        _saved_files = set()
     # UNDO patches
     for mod in patched["tensorboard"]:
         module = import_module(mod[0])
@@ -561,7 +566,6 @@ def uninit():
             mod[1] = parts[1]
         setattr(module, mod[1], getattr(module, "orig_"+mod[1]))
     patched["tensorboard"] = []
-    _saved_files = set()
 
 
 def reset_env(exclude=[]):
