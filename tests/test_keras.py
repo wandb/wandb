@@ -83,7 +83,7 @@ def test_keras_timeseries(rnn_model, wandb_init_run):
     labels = np.random.random(size=(100, 1))
     rnn_model.fit(data, labels, epochs=2, batch_size=36, validation_data=(data, labels),
                   callbacks=[WandbCallback()])
-    assert wandb.run.history.rows[-1] == {}
+    assert wandb.run.history.rows[-1].get("examples") == None
 
 
 def test_basic_keras_multi_fit(dummy_model, dummy_data, wandb_init_run):
