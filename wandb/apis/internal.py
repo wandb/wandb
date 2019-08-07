@@ -1113,6 +1113,13 @@ class Api(object):
             project, files, run, entity, description)
         responses = []
         for file_name, file_info in result.items():
+            file_url = file_info['url']
+
+            # If the upload URL is relative, fill it in with the base URL,
+            # since its a proxied file store like the on-prem VM.
+            if file_url.startswith('/'):
+                file_url = '{}{}'.format(self.api_url, file_url)
+
             try:
                 # To handle Windows paths
                 # TODO: this doesn't handle absolute paths...
@@ -1125,13 +1132,13 @@ class Api(object):
             if progress:
                 if hasattr(progress, '__call__'):
                     responses.append(self.upload_file_retry(
-                        file_info['url'], open_file, progress))
+                        file_url, open_file, progress))
                 else:
                     length = os.fstat(open_file.fileno()).st_size
                     with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
                                            fill_char=click.style('&', fg='green')) as bar:
                         responses.append(self.upload_file_retry(
-                            file_info['url'], open_file, lambda bites, _: bar.update(bites)))
+                            file_url, open_file, lambda bites, _: bar.update(bites)))
             else:
                 responses.append(self.upload_file_retry(file_info['url'], open_file))
             open_file.close()

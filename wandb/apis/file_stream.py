@@ -106,7 +106,7 @@ class FileStreamApi(object):
 
     def _init_endpoint(self):
         settings = self._api.settings()
-        self._endpoint = "{base}/{entity}/{project}/{run}/file_stream".format(
+        self._endpoint = "{base}/files/{entity}/{project}/{run}/file_stream".format(
             base=settings['base_url'],
             entity=settings['entity'],
             project=settings['project'],
