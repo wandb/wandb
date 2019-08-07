@@ -238,9 +238,12 @@ class _WandbController():
         print("DEBUG:", s)
         self._log()
 
-    def configure_search(self, search, **kwargs):
+    def _configure_check(self):
         if self._started:
             raise ControllerError("Can not configure after sweep has been started.")
+
+    def configure_search(self, search, **kwargs):
+        self._configure_check()
         if isinstance(search, str):
             self._create["method"] = search
         elif issubclass(search, wandb_sweeps.base.Search):
@@ -250,8 +253,7 @@ class _WandbController():
             raise ControllerError("Unhandled search type.")
     
     def configure_stopping(self, stopping, **kwargs):
-        if self._started:
-            raise ControllerError("Can not configure after sweep has been started.")
+        self._configure_check()
         if isinstance(stopping, str):
             self._create.setdefault('early_terminate', {})
             self._create['early_terminate']['type'] = stopping
@@ -265,21 +267,26 @@ class _WandbController():
             raise ControllerError("Unhandled stopping type.")
 
     def configure_metric(self, metric, goal=None):
-        if self._started:
-            raise ControllerError("Can not configure after sweep has been started.")
+        self._configure_check()
         self._create.setdefault('metric', {})
         self._create['metric']['name'] = metric
         if goal:
             self._create['metric']['goal'] = goal
 
     def configure_program(self, program):
-        if self._started:
-            raise ControllerError("Can not configure after sweep has been started.")
+        self._configure_check()
         self._create['program'] = program
 
+    def configure_name(self, name):
+        self._configure_check()
+        self._create['name'] = name
+
+    def configure_description(self, description):
+        self._configure_check()
+        self._create['description'] = description
+
     def configure_parameter(self, name, values=None, value=None, distribution=None, min=None, max=None, mu=None, sigma=None, q=None):
-        if self._started:
-            raise ControllerError("Can not configure after sweep has been started.")
+        self._configure_check()
         self._create.setdefault('parameters', {}).setdefault(name, {})
         if value is not None or (values is None and min is None and max is None and distribution is None):
             self._create['parameters'][name]['value'] = value
@@ -298,14 +305,12 @@ class _WandbController():
 
     def configure_controller(self, type):
         """configure controller to local if type == 'local'."""
-        if self._started:
-            raise ControllerError("Can not configure after sweep has been started.")
+        self._configure_check()
         self._create.setdefault('controller', {})
         self._create['controller'].setdefault('type', type)
 
     def configure(self, sweep_dict_or_config):
-        if self._started:
-            raise ControllerError("Can not configure after sweep has been started.")
+        self._configure_check()
         if self._create:
             raise ControllerError("Already configured.")
         if isinstance(sweep_dict_or_config, dict):
@@ -332,6 +337,7 @@ class _WandbController():
         sweep_id = self._api.upsert_sweep(self._create)
         print('Create sweep with ID:', sweep_id)
         self._sweep_id = sweep_id
+        self._defer_sweep_creation = False
         return sweep_id
 
     def run(self, verbose=None, print_status=True, print_actions=False, print_debug=False):
@@ -384,6 +390,8 @@ class _WandbController():
     def _start_if_not_started(self):
         if self._started:
             return
+        if self._defer_sweep_creation:
+            raise ControllerError("Must specify or create a sweep before running controller.")
         obj = self._sweep_object_read_from_backend()
         if not obj:
             return
