@@ -277,15 +277,24 @@ class _WandbController():
             raise ControllerError("Can not configure after sweep has been started.")
         self._create['program'] = program
 
-    def configure_parameter(self, name, values=None, value=None):
+    def configure_parameter(self, name, values=None, value=None, distribution=None, min=None, max=None, mu=None, sigma=None, q=None):
         if self._started:
             raise ControllerError("Can not configure after sweep has been started.")
-        self._create.setdefault('parameters', {})
-        if value:
-            self._create['parameters'][name] = {'value': value}
-        if values:
-            self._create['parameters'][name] = {'values': values}
-        # TODO(jhr): support other parameter args
+        self._create.setdefault('parameters', {}).setdefault(name, {})
+        if value is not None or (values is None and min is None and max is None and distribution is None):
+            self._create['parameters'][name]['value'] = value
+        if values is not None:
+            self._create['parameters'][name]['values'] = values
+        if min is not None:
+            self._create['parameters'][name]['min'] = min
+        if max is not None:
+            self._create['parameters'][name]['max'] = max
+        if mu is not None:
+            self._create['parameters'][name]['mu'] = mu
+        if sigma is not None:
+            self._create['parameters'][name]['sigma'] = sigma
+        if q is not None:
+            self._create['parameters'][name]['q'] = q
 
     def configure_controller(self, type):
         """configure controller to local if type == 'local'."""
