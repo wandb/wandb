@@ -56,6 +56,7 @@ import time
 import string
 import random
 import six
+import urllib
 
 import wandb
 from wandb.apis import InternalApi
@@ -72,6 +73,25 @@ SWEEP_INITIAL_RUN_STATE = 'running'
 
 def _id_generator(size=10, chars=string.ascii_lowercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
+
+
+def _get_sweep_url(api, sweep_id):
+    """Return sweep url if we can figure it out."""
+    if api.api_key:
+        if api.settings('entity') is None:
+            viewer = api.viewer()
+            if viewer.get('entity'):
+                api.set_setting('entity', viewer['entity'])
+        project = api.settings('project')
+        if not project:
+            return
+        if api.settings('entity'):
+            return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
+                base=api.app_url,
+                entity=urllib.parse.quote_plus(api.settings('entity')),
+                project=urllib.parse.quote_plus(project),
+                sweepid=urllib.parse.quote_plus(sweep_id)
+            )
 
 
 class _Run(object):
@@ -336,6 +356,9 @@ class _WandbController():
         # Create sweep
         sweep_id = self._api.upsert_sweep(self._create)
         print('Create sweep with ID:', sweep_id)
+        sweep_url = _get_sweep_url(self._api, sweep_id)
+        if sweep_url:
+            print('Sweep URL:', sweep_url)
         self._sweep_id = sweep_id
         self._defer_sweep_creation = False
         return sweep_id

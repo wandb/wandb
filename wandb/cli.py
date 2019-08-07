@@ -942,6 +942,9 @@ def sweep(ctx, controller, verbose, config_yaml):
             return
     sweep_id = api.upsert_sweep(config)
     print('Create sweep with ID:', sweep_id)
+    sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
+    if sweep_url:
+        print('Sweep URL:', sweep_url)
     if controller:
         click.echo('Starting wandb controller...')
         tuner = wandb_controller.controller(sweep_id)
