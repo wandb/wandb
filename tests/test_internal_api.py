@@ -190,7 +190,7 @@ def test_upsert_run_bad_request(request_mocker, mocker, upsert_run):
     update_mock = upsert_run(request_mocker, status_code=400)
     with pytest.raises(wandb.apis.CommError) as excinfo:
         api.upsert_run(project="new-test")
-    assert excinfo.type == requests.exceptions.HTTPError
+    assert isinstance(excinfo.value.exc, requests.exceptions.HTTPError)
     assert excinfo.value.exc.response.status_code == 400
 
 

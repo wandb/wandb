@@ -555,16 +555,17 @@ def uninit():
     config = util.PreInitObject("wandb.config")
     summary = util.PreInitObject("wandb.summary")
     watch_called = False
-    # UNDO patches
-    for mod in patched["tensorboard"]:
-        module = import_module(mod[0])
-        parts = mod[1].split(".")
-        if len(parts) > 1:
-            module = getattr(module, parts[0])
-            mod[1] = parts[1]
-        setattr(module, mod[1], getattr(module, "orig_"+mod[1]))
-    patched["tensorboard"] = []
     _saved_files = set()
+    # UNDO patches
+    for mod, patches in six.iteritems(patched):
+        for patch in patches:
+            module = import_module(mod[0])
+            parts = patch[1].split(".")
+            if len(parts) > 1:
+                module = getattr(module, parts[0])
+                patch[1] = parts[1]
+            setattr(module, patch[1], getattr(module, "orig_"+patch[1]))
+        patched[mod] = []
 
 
 def reset_env(exclude=[]):
