@@ -3,6 +3,9 @@
 
 This module implements the sweep controller.
 
+On error an exception is raised:
+    ControllerError
+
 Example:
     import wandb
 
@@ -182,6 +185,8 @@ class _WandbController():
         self._custom_search = None
         # Custom stopping
         self._custom_stopping = None
+        # Program function (used for future jupyter support)
+        self._program_function = None
 
         # The following are updated every sweep step
         # raw sweep object (dict of strings)
@@ -295,7 +300,14 @@ class _WandbController():
 
     def configure_program(self, program):
         self._configure_check()
-        self._create['program'] = program
+        if isinstance(program, str):
+            self._create['program'] = program
+        elif hasattr(program, '__call__'):
+            self._create['program'] = '__callable__'
+            self._program_function = program
+            raise ControllerError("Program functions are not supported yet")
+        else:
+            raise ControllerError("Unhandled sweep program type")
 
     def configure_name(self, name):
         self._configure_check()
