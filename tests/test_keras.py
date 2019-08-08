@@ -46,6 +46,16 @@ def dummy_model(request):
 
 
 @pytest.fixture
+def rnn_model(request):
+    K.clear_session()
+    model = Sequential()
+    model.add(LSTM(10, input_shape=(4, 1)))
+    model.add(Dense(1))
+    model.compile(optimizer='adam', loss='mae', metrics=['accuracy'])
+    return model
+
+
+@pytest.fixture
 def dummy_data(request):
     multi = request.node.get_closest_marker('multiclass')
     image_output = request.node.get_closest_marker('image_output')
@@ -65,6 +75,15 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     assert wandb.run.history.rows[0]["epoch"] == 0
     assert wandb.run.summary["acc"] > 0
     assert len(wandb.run.summary["graph"].nodes) == 3
+
+
+def test_keras_timeseries(rnn_model, wandb_init_run):
+    import numpy as np
+    data = np.random.random(size=(100, 4, 1))
+    labels = np.random.random(size=(100, 1))
+    rnn_model.fit(data, labels, epochs=2, batch_size=36, validation_data=(data, labels),
+                  callbacks=[WandbCallback()])
+    assert wandb.run.history.rows[-1].get("examples") == None
 
 
 def test_basic_keras_multi_fit(dummy_model, dummy_data, wandb_init_run):

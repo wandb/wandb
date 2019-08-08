@@ -54,7 +54,7 @@ def create_app():
     def storage():
         return "", 200
 
-    @app.route("/<entity>/<project>/<run>/file_stream", methods=["POST"])
+    @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     def file_stream(entity, project, run):
         return json.dumps({"exitcode":None,"limits":{}})
 
