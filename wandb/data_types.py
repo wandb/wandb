@@ -981,7 +981,7 @@ class Html(BatchableMedia):
 
 
 class Image(BatchableMedia):
-    MAX_THUMBNAILS = 100
+    MAX_THUMBNAILS = 108
 
     # PIL limit
     MAX_DIMENSION = 65500
