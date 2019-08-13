@@ -1118,6 +1118,22 @@ class Api(object):
             check_retry_fn=no_retry_400_or_404)
         return response['upsertSweep']['sweep']['name']
 
+    @normalize_exceptions
+    def create_anonymous_api_key(self):
+        """Creates a new API key belonging to a new anonymous user."""
+        mutation = gql('''
+        mutation CreateAnonymousApiKey {
+            createAnonymousEntity(input: {}) {
+                apiKey {
+                    name
+                }
+            }
+        }
+        ''')
+
+        response = self.gql(mutation, variable_values={})
+        return response['createAnonymousEntity']['apiKey']['name']
+
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
         """

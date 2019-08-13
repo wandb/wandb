@@ -316,6 +316,12 @@ def docker(request_mocker, query_run, mocker, monkeypatch):
                         lambda *args, **kwargs: b"wandb/deepo@sha256:abc123")
     return docker
 
+@pytest.fixture
+def no_tty(mocker):
+    with mocker.patch("wandb.sys.stdin") as stdin_mock:
+        stdin_mock.isatty.return_value = False
+        yield
+
 def test_docker_run_digest(runner, docker, monkeypatch):
     runner.invoke(cli.docker_run, ["wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"])
     docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177', '--runtime', 'nvidia', 'wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177'])
@@ -568,9 +574,10 @@ def test_init_existing_login(runner, local_netrc, request_mocker, query_projects
         assert "This directory is configured" in result.output
 
 
-def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_viewer):
+def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_viewer, no_tty):
     upsert_run(request_mocker)
     query_viewer(request_mocker)
+
     runner.invoke(cli.off)
     result = runner.invoke(cli.run, ["python", "missing.py"])
 

@@ -842,10 +842,13 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
                 termerror(
                     "No credentials found.  Run \"wandb login\" or \"wandb off\" to disable wandb")
             else:
-                termlog(
-                    "No credentials found.  Run \"wandb login\" to visualize your metrics")
-                run.mode = "dryrun"
-                _init_headless(run, False)
+                if run.check_anonymous():
+                    _init_headless(run)
+                else:
+                    termlog(
+                        "No credentials found.  Run \"wandb login\" to visualize your metrics")
+                    run.mode = "dryrun"
+                    _init_headless(run, False)
         else:
             _init_headless(run)
     elif run.mode == 'dryrun':

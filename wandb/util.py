@@ -482,27 +482,33 @@ def no_retry_auth(e):
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
-def write_settings(entity, project, url):
+
+def write_settings(entity=None, project=None, settings=None):
     if not os.path.isdir(wandb_dir()):
         os.mkdir(wandb_dir())
     with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
         print('[default]', file=file)
-        print('entity: {}'.format(entity), file=file)
-        print('project: {}'.format(project), file=file)
-        print('base_url: {}'.format(url), file=file)
+        if entity is not None:
+            print('entity: {}'.format(entity))
+            print('entity: {}'.format(entity), file=file)
+        if project is not None:
+            print('project: {}'.format(project), file=file)
+            print('project: {}'.format(project))
+        if settings is not None:
+            for key, value in settings.items():
+                if key == 'base_url' or key == 'anonymous':
+                    print('{}: {}'.format(key, value), file=file)
 
 
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
     key_prefix, key_suffix = key.split('-', 1) if '-' in key else ('', key)
     if len(key_suffix) != 40:
-        click.secho(
-            'API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
+        wandb.termlog('API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
         return None
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
-        print("Appending key for %s to your netrc file: %s" %
-              (normalized_host, os.path.expanduser('~/.netrc')))
+        wandb.termlog("Appending key for {} to your netrc file: {}".format(normalized_host, os.path.expanduser('~/.netrc')))
         machine_line = 'machine %s' % normalized_host
         path = os.path.expanduser('~/.netrc')
         orig_lines = None
@@ -531,7 +537,7 @@ def write_netrc(host, entity, key):
                  stat.S_IRUSR | stat.S_IWUSR)
         return True
     except IOError as e:
-        click.secho("Unable to read ~/.netrc", fg="red")
+        wandb.termerror("Unable to read ~/.netrc")
         return None
 
 
