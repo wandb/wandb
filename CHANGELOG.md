@@ -8,6 +8,7 @@
 -   Handle patching tensorboard multiple times in jupyter
 -   Sweep picks up config.yaml from the run directory
 -   Dataframes handle integer labels
+-   Handle invalid JSON when querying jupyter servers
 
 #### :nail_care: Enhancement
 
@@ -15,7 +16,7 @@
 -   increased the max number of images for fastai callback
 -   new wandb.Video tag for logging video
 -   sync=False argument to wandb.log moves logging to a thread
--   New local sweep controller for custom search logic
+-   New local sweep controller for custom search lo\gic
 -   Anonymous login support for easier onboarding
 -   Calling wandb.init multiple times in jupyter doesn't error out
 
