@@ -6,6 +6,8 @@
 -   Keras callback only logs examples if data_type or input_type is set
 -   Fix edge case PyTorch model logging bug
 -   Handle patching tensorboard multiple times in jupyter
+-   Sweep picks up config.yaml from the run directory
+-   Dataframes handle integer labels
 
 #### :nail_care: Enhancement
 
@@ -15,6 +17,7 @@
 -   sync=False argument to wandb.log moves logging to a thread
 -   New local sweep controller for custom search logic
 -   Anonymous login support for easier onboarding
+-   Calling wandb.init multiple times in jupyter doesn't error out
 
 ## 0.8.7 (Aug 7, 2019)
 
