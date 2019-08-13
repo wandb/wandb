@@ -1,3 +1,19 @@
+## 0.8.8 (Aug 13, 2019)
+
+#### :bug: Bug Fix
+
+-   wandb.init properly handles network failures on startup
+-   Keras callback only logs images if data_type or input_type is set
+-   Fix edge case PyTorch model logging bug
+
+#### :nail_care: Enhancement
+
+-   fastai uses a fixed seed for example logging
+-   increased the max number of images for fasti callback
+-   new wandb.Video tag for logging video
+-   sync=False argument to wandb.log moves logging to a thread
+-   New local sweep controller for custom search logic
+
 ## 0.8.7 (Aug 7, 2019)
 
 #### :bug: Bug Fix
