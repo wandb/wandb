@@ -52,7 +52,7 @@ class Api(object):
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = 10
+    HTTP_TIMEOUT = env.get_http_timeout(10)
 
     def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1), environ=os.environ):
         self._environ = environ
