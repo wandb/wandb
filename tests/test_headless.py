@@ -114,7 +114,7 @@ def test_mock_server_no_internet(runner):
             time.sleep(5)  # TODO: this might not always be enough...
             res.kill()
             res.stdout
-        except (sh.ErrorReturnCode, ProcessLookupError):
+        except (sh.ErrorReturnCode):
             pass
         stdout = res.stdout.decode("utf8")
         stderr = res.stderr.decode("utf8")
@@ -143,7 +143,7 @@ def test_mock_server_with_internet(runner, live_mock_server):
         stdout, stderr = "", ""
         try:
             res.wait()
-        except (sh.ErrorReturnCode, ProcessLookupError):
+        except (sh.ErrorReturnCode):
             pass
         print(res)
         stdout = res.stdout.decode("utf8")
