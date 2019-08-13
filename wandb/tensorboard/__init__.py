@@ -146,7 +146,6 @@ def log(tf_summary_str, history=None, **kwargs):
     if "namespace" in kwargs:
         del kwargs["namespace"]
     log_dict = tf_summary_to_dict(tf_summary_str, namespace)
-    print("TF LOG", log_dict, kwargs)
     if history is None:
         wandb.log(log_dict, **kwargs)
     else:

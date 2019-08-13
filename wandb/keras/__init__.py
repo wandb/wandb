@@ -229,6 +229,8 @@ class WandbCallback(keras.callbacks.Callback):
 
     def set_model(self, model):
         self.model = model
+        if self.input_type and self.output_type is None and len(model.outputs) == 1:
+            self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
