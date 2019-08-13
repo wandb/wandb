@@ -29,6 +29,8 @@ h5py==2.8.0
 pandas==0.23.4
 soundfile==0.10.2
 psutil>=5.2.2
+moviepy==1.0.0
+imageio==2.5.0
 tensorboardX
 ipython
 matplotlib

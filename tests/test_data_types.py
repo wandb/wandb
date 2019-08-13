@@ -5,6 +5,7 @@ import PIL
 import os
 import matplotlib
 import six
+import sys
 
 matplotlib.use("Agg")
 from click.testing import CliRunner
