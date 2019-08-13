@@ -140,15 +140,30 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
         wandb.patched["tensorboard"].append(
             [TENSORBOARD_C_MODULE, "create_summary_file_writer"])
 
-
+steps = {"default": 0}
 def log(tf_summary_str, history=None, **kwargs):
-    namespace = kwargs.get("namespace")
+    """Logs a tfsummary to wandb"""
+    global steps
+    namespace = kwargs.get("namespace") or "default"
     if "namespace" in kwargs:
         del kwargs["namespace"]
+    last_step = steps.get(namespace, 0)
+    cur_step = kwargs.get("step", 0)
+    if last_step < cur_step:
+        kwargs["commit"] = True
+    else:
+        kwargs["commit"] = False
+    steps[namespace] = cur_step
+    if namespace != "default":
+        log_dict["/".join([namespace, "step"])] = cur_step
+    if "step" in kwargs:
+        del kwargs["step"]
     log_dict = tf_summary_to_dict(tf_summary_str, namespace)
     if history is None:
         wandb.log(log_dict, **kwargs)
     else:
+        # TODO: Where is this used?
+        del kwargs["commit"]
         history.add(log_dict, **kwargs)
 
 
