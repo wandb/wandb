@@ -91,7 +91,7 @@ def notebook_metadata():
         import ipykernel
         from notebook.notebookapp import list_running_servers
         kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
-        servers = list(list_running_servers())
+        servers = list(list_running_servers())  # TODO: sometimes there are invalid JSON files and this blows up
     except Exception:
         logger.error(error_message)
         return {}
