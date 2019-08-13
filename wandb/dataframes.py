@@ -51,7 +51,7 @@ def image_categorizer_dataframe(x, y_true, y_pred, labels, example_ids=None):
     }
 
     for i in range(len(labels)):
-        dfMap['prob_' + labels[i]] = class_preds[i]
+        dfMap['prob_{}'.format(labels[i])] = class_preds[i]
 
     all_columns = [
         'wandb_example_id',
@@ -61,7 +61,7 @@ def image_categorizer_dataframe(x, y_true, y_pred, labels, example_ids=None):
         'pred_class',
         'pred_prob',
         'correct',
-    ] + ['prob_' + l for l in labels]
+    ] + ['prob_{}'.format(l) for l in labels]
 
     return pd.DataFrame(dfMap, columns=all_columns)
 
@@ -195,7 +195,7 @@ def image_segmentation_multiclass_dataframe(x, y_true, y_pred, labels, example_i
     }
 
     for i in range(len(iou_class)):
-        dfMap['iou_' + labels[i]] = iou_class[i]
+        dfMap['iou_{}'.format(labels[i])] = iou_class[i]
 
     all_columns = [
         'wandb_example_id',
@@ -205,6 +205,6 @@ def image_segmentation_multiclass_dataframe(x, y_true, y_pred, labels, example_i
         'incorrect_prediction',
         'iou',
         'accuracy',
-    ] + ['iou_' + l for l in labels]
+    ] + ['iou_'.format(l) for l in labels]
 
     return pd.DataFrame(dfMap, columns=all_columns)
