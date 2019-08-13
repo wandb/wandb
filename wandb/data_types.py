@@ -982,16 +982,17 @@ class Html(BatchableMedia):
 class Video(BatchableMedia):
     EXTS = ("gif", "mp4", "webm", "ogg")
 
-    def __init__(self, data_or_path, caption=None, fps=4, format="gif"):
+    def __init__(self, data_or_path, caption=None, fps=4, format=None):
         self._fps = fps
-        self._format = format
+        self._format = format or "gif"
         self._width = None
         self._height = None
         self._channels = None
         self._caption = caption
 
         if isinstance(data_or_path, six.string_types):
-            ext = data_or_path.split(".")[-1]
+            _, ext = os.path.splitext(data_or_path)
+            ext = ext[1:].lower()
             if ext not in Video.EXTS:
                 raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
             super(Video, self).__init__(data_or_path, is_tmp=False)

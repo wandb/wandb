@@ -544,8 +544,11 @@ def _ensure_async_log_thread_started():
 
 def shutdown_async_log_thread():
     """Shuts down our async logging thread"""
-    _async_log_thread_shutdown_event.set()
-    _async_log_thread_complete_event.wait(1)
+    if _async_log_thread:
+        _async_log_thread_shutdown_event.set()
+        res = _async_log_thread_complete_event.wait(2) # TODO: possible race here
+        if res is None:
+            termwarn('async log queue not empty after 2 seconds, some log statements will be dropped')
 
 def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
     """Log a dict to the global run's history.
