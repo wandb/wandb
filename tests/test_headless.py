@@ -98,6 +98,7 @@ def test_dry_run_kill(runner):
         assert meta["args"] == ["--epochs=10"]
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Funky things in python 2 land and multiprocessing")
 def test_mock_server_no_internet(runner):
     with runner.isolated_filesystem():
         with open("train.py", "w") as f:
@@ -114,7 +115,7 @@ def test_mock_server_no_internet(runner):
             time.sleep(5)  # TODO: this might not always be enough...
             res.kill()
             res.stdout
-        except (sh.ErrorReturnCode):
+        except (sh.ErrorReturnCode, ProcessLookupError):
             pass
         stdout = res.stdout.decode("utf8")
         stderr = res.stderr.decode("utf8")
@@ -129,6 +130,7 @@ def test_mock_server_no_internet(runner):
         assert meta["state"] == "finished"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Funky things in python 2 land and multiprocessing")
 def test_mock_server_with_internet(runner, live_mock_server):
     with runner.isolated_filesystem():
         with open("train.py", "w") as f:
@@ -143,7 +145,7 @@ def test_mock_server_with_internet(runner, live_mock_server):
         stdout, stderr = "", ""
         try:
             res.wait()
-        except (sh.ErrorReturnCode):
+        except (sh.ErrorReturnCode, ProcessLookupError):
             pass
         print(res)
         stdout = res.stdout.decode("utf8")
