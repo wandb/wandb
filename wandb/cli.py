@@ -45,6 +45,7 @@ import wandb
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 from wandb import agent as wandb_agent
+from wandb import wandb_controller
 from wandb import env
 from wandb import wandb_run
 from wandb import wandb_dir
@@ -908,9 +909,11 @@ wandb_magic_install()
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
+@click.option('--controller', is_flag=True, default=False, help="Run local controller")
+@click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
 @click.argument('config_yaml')
 @display_error
-def sweep(ctx, config_yaml):
+def sweep(ctx, controller, verbose, config_yaml):
     click.echo('Creating sweep from: %s' % config_yaml)
     try:
         yaml_file = open(config_yaml)
@@ -925,20 +928,52 @@ def sweep(ctx, config_yaml):
     if config is None:
         wandb.termerror('Configuration file is empty')
         return
+
+    is_local = config.get('controller', {}).get('type') == 'local'
+    if is_local:
+        tuner = wandb_controller.controller()
+        err = tuner._validate(config)
+        if err:
+            wandb.termerror('Error in sweep file: %s' % err)
+            return
+    else:
+        if controller:
+            wandb.termerror('Option "controller" only permitted for controller type "local"')
+            return
     sweep_id = api.upsert_sweep(config)
     print('Create sweep with ID:', sweep_id)
+    sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
+    if sweep_url:
+        print('Sweep URL:', sweep_url)
+    if controller:
+        click.echo('Starting wandb controller...')
+        tuner = wandb_controller.controller(sweep_id)
+        tuner.run(verbose=verbose)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
 @click.argument('sweep_id')
 @display_error
 def agent(sweep_id):
+    if sys.platform == 'win32':
+        wandb.termerror('Agent is not supported on Windows')
+        sys.exit(1)
     click.echo('Starting wandb agent 🕵️')
     wandb_agent.run_agent(sweep_id)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
     #                'args': ['--max_epochs=10']})
+
+
+@cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
+@click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
+@click.argument('sweep_id')
+@display_error
+def controller(verbose, sweep_id):
+    click.echo('Starting wandb controller...')
+    tuner = wandb_controller.controller(sweep_id)
+    tuner.run(verbose=verbose)
 
 
 if __name__ == "__main__":
