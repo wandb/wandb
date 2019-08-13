@@ -154,11 +154,11 @@ def log(tf_summary_str, history=None, **kwargs):
     else:
         kwargs["commit"] = False
     steps[namespace] = cur_step
-    if namespace != "default":
-        log_dict["/".join([namespace, "step"])] = cur_step
     if "step" in kwargs:
         del kwargs["step"]
     log_dict = tf_summary_to_dict(tf_summary_str, namespace)
+    if namespace != "default":
+        log_dict["/".join([namespace, "step"])] = cur_step
     if history is None:
         wandb.log(log_dict, **kwargs)
     else:
