@@ -729,7 +729,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         run = None
 
     # TODO: deprecate tensorboard
-    if tensorboard or sync_tensorboard:
+    if tensorboard or sync_tensorboard and len(patched["tensorboard"]) == 0:
         util.get_module("wandb.tensorboard").patch()
 
     sagemaker_config = util.parse_sm_config()

@@ -5,6 +5,7 @@
 -   wandb.init properly handles network failures on startup
 -   Keras callback only logs examples if data_type or input_type is set
 -   Fix edge case PyTorch model logging bug
+-   Handle patching tensorboard multiple times in jupyter
 
 #### :nail_care: Enhancement
 
