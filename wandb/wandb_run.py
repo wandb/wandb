@@ -117,7 +117,7 @@ class Run(object):
             self.project = self.api.settings("project")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
-            scope.set_tag("url", self.get_url(self.api))
+            scope.set_tag("url", self.get_url(self.api, network=False)) # TODO: Move this somewhere outside of init
 
         if self.resume == "auto":
             util.mkdir_exists_ok(wandb.wandb_dir())
@@ -453,10 +453,11 @@ class Run(object):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
 
-    def get_url(self, api=None):
+    def get_url(self, api=None, network=True):
+        """If network is False we don't query for entity, required for wandb.init"""
         api = api or self.api
         if api.api_key:
-            if api.settings('entity') is None:
+            if api.settings('entity') is None and network:
                 viewer = api.viewer()
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])

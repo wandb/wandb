@@ -57,6 +57,16 @@ def test_log_only_strings_as_keys(wandb_init_run):
         wandb.log({('tup', 'idx'): 1000})
 
 
+def test_async_log(wandb_init_run):
+    for i in range(100):
+        wandb.log({"cool": 1000}, sync=False)
+    wandb.shutdown_async_log_thread()
+    wandb.log({"cool": 100}, sync=False)
+    wandb.shutdown_async_log_thread()
+    assert wandb.run.history.rows[-1]['cool'] == 100
+    assert len(wandb.run.history.rows) == 101
+
+
 def test_nice_log_error():
     with pytest.raises(ValueError):
         wandb.log({"no": "init"})
@@ -69,6 +79,7 @@ def test_nice_log_error_config():
     with pytest.raises(wandb.Error) as e:
         wandb.config.foo = 1
     assert e.value.message == "You must call wandb.init() before wandb.config.foo"
+
 
 def test_nice_log_error_summary():
     with pytest.raises(wandb.Error) as e:

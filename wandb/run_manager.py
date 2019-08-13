@@ -428,7 +428,7 @@ class Process(object):
 
 def format_run_name(run):
     "Simple helper to not show display name if its the same as id"
-    return " "+run.name+":" if run.name != run.id else ":"
+    return " "+run.name+":" if run.name and run.name != run.id else ":"
 
 
 class RunStatusChecker(object):
@@ -892,7 +892,6 @@ class RunManager(object):
         Returns the initial step of the run, or None if we didn't create a run
         """
         io_wrap.init_sigwinch_handler()
-
         self._check_update_available(__version__)
 
         if self._output:

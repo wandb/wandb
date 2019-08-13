@@ -12,6 +12,7 @@ import json
 import sys
 import threading
 import logging
+from multiprocessing import Process
 from vcr.request import Request
 from wandb import wandb_socket
 from wandb import env
@@ -20,9 +21,11 @@ from wandb.wandb_run import Run
 from tests import utils
 from tests.mock_server import create_app
 
+
 def pytest_runtest_setup(item):
     # This is used to find tests that are leaking outside of tmp directories
     os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
+
 
 def request_repr(self):
     try:
@@ -33,11 +36,14 @@ def request_repr(self):
         render = "BINARY"
     return "({}) {} - {}".format(self.method, self.uri, render)
 
+
 Request.__repr__ = request_repr
 # To enable VCR logging uncomment below
 #logging.basicConfig() # you need to initialize logging, otherwise you will not see anything from vcrpy
 #vcr_log = logging.getLogger("vcr")
 #vcr_log.setLevel(logging.INFO)
+
+
 @pytest.fixture(scope='module')
 def vcr_config():
     def replace_body(request):
@@ -63,6 +69,7 @@ def vcr_config():
         "before_record_response": replace_response_body,
     }
 
+
 @pytest.fixture(scope='module')
 def vcr(vcr):
     def vcr_graphql_matcher(r1, r2):
@@ -76,6 +83,7 @@ def vcr(vcr):
             return body1["files"] == body2["files"]
     vcr.register_matcher('graphql', vcr_graphql_matcher)
     return vcr
+
 
 @pytest.fixture
 def local_netrc(monkeypatch):
@@ -189,6 +197,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                             @property
                             def port(self):
                                 return 123
+
                             def listen(self, secs):
                                 return False, None
                         monkeypatch.setattr("wandb.wandb_socket.Server", Error)
@@ -366,6 +375,7 @@ def request_mocker(request):
     request.addfinalizer(m.stop)
     return m
 
+
 @pytest.fixture
 def mock_server(mocker, request_mocker):
     app = create_app()
@@ -374,3 +384,17 @@ def mock_server(mocker, request_mocker):
     mocker.patch("wandb.apis.file_stream.requests", mock)
     mocker.patch("wandb.apis.internal.requests", mock)
     return mock
+
+
+@pytest.fixture
+def live_mock_server(request):
+    if request.node.get_closest_marker('port'):
+        port = request.node.get_closest_marker('port').args[0]
+    else:
+        port = 8765
+    app = create_app()
+    server = Process(target=app.run, kwargs={"port": port, "debug": True, "use_reloader": False})
+    server.start()
+    yield server
+    server.terminate()
+    server.join()

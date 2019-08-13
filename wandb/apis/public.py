@@ -19,8 +19,7 @@ from wandb import Error, __version__
 from wandb import util
 from wandb.retry import retriable
 from wandb.summary import HTTPSummary, download_h5
-from wandb.env import get_dir
-from wandb.env import get_base_url
+from wandb import env
 from wandb.apis import normalize_exceptions
 
 logger = logging.getLogger(__name__)
@@ -88,14 +87,14 @@ class Api(object):
         username, project, and run here as well as which api server to use.
     """
 
-    HTTP_TIMEOUT = 9
+    HTTP_TIMEOUT = env.get_http_timeout(9)
 
     def __init__(self, overrides={}):
         self.settings = {
             'username': None,
             'project': None,
             'run': "latest",
-            'base_url': get_base_url("https://api.wandb.ai")
+            'base_url': env.get_base_url("https://api.wandb.ai")
         }
         self.settings.update(overrides)
         self._runs = {}
@@ -365,7 +364,7 @@ class Run(Attrs):
         self.username = username
         self.project = project
         self._files = {}
-        self._base_dir = get_dir(tempfile.gettempdir())
+        self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
