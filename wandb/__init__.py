@@ -933,6 +933,7 @@ keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
+gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 
 
 __all__ = ['init', 'config', 'termlog', 'termwarn', 'termerror', 'tensorflow',

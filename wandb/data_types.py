@@ -996,6 +996,7 @@ class Video(BatchableMedia):
             if ext not in Video.EXTS:
                 raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
             super(Video, self).__init__(data_or_path, is_tmp=False)
+            #ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
             if hasattr(data_or_path, "numpy"): # TF data eager tensors
                 self.data = data_or_path.numpy()
