@@ -147,13 +147,11 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
             [TENSORBOARD_C_MODULE, "create_summary_file_writer"])
 
 
-rates = {"default": {"step": 0, "last_time": RATE_LIMIT(time.time())}}
-
-
+rates = {"": {"step": 0, "last_time": RATE_LIMIT(time.time())}}
 def log(tf_summary_str, history=None, **kwargs):
     """Logs a tfsummary to wandb"""
     global steps
-    namespace = kwargs.get("namespace") or "default"
+    namespace = kwargs.get("namespace") or ""
     if "namespace" in kwargs:
         del kwargs["namespace"]
     last_step = rates.get(namespace, {"step": 0, "time": RATE_LIMIT(time.time())})
@@ -167,7 +165,7 @@ def log(tf_summary_str, history=None, **kwargs):
     if "step" in kwargs:
         del kwargs["step"]
     log_dict = tf_summary_to_dict(tf_summary_str, namespace)
-    if namespace != "default":
+    if namespace != "":
         log_dict["/".join([namespace, "step"])] = cur_step
     if history is None:
         wandb.log(log_dict, **kwargs)

@@ -1,4 +1,5 @@
 import wandb
+import re
 
 
 def patch():
@@ -8,5 +9,10 @@ def patch():
 
     def close(self):
         vcr.ImageEncoder.orig_close(self)
-        wandb.log({"videos": wandb.Video(self.output_path)})
+        m = re.match(r'.+(video\.\d+).+', self.output_path)
+        if m:
+            key = m[1]
+        else:
+            key = "videos"
+        wandb.log({key: wandb.Video(self.output_path)})
     vcr.ImageEncoder.close = close
