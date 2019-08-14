@@ -395,6 +395,9 @@ class Run(object):
         # If there's no API key set, ask if the run should be logged anonymously. Only launch this prompt in
         # environments with a tty.
         if not self.api.api_key and sys.stdin.isatty():
+            # Require anonymous mode to be explicitly enabled for now
+            if os.environ.get(env.ANONYMOUS) != "enable":
+                return False
             termlog('No API key found. Would you like to log runs anonymously to {}? (y/n)'.format(self.api.app_url))
             resp = str(input().lower().strip())
             while not(resp == 'y' or resp == 'n'):
