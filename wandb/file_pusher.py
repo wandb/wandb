@@ -31,13 +31,18 @@ EventFinish = collections.namedtuple('EventFinish', ())
 
 # After 15 seconds of gathering batched uploads, kick off a batch without
 # waiting any longer.
-BATCH_THRESHOLD = 60
+BATCH_THRESHOLD_SECS = 15
 
-# Incrementing archive number
-ARCHIVE_NUM = 0
+# Maximum number of files in any given batch. If there are too many files
+# it can take too long to unpack -- 500 very small files takes GCP about a
+# minute to unpack.
+BATCH_MAX_FILES = 500
+
+# Globally incrementing batch ID
+BATCH_NUM = 1
 
 class UploadJob(threading.Thread):
-    def __init__(self, done_queue, files, api, save_name, path, copy=True):
+    def __init__(self, done_queue, progress, api, save_name, path, copy=True):
         """A file upload thread.
 
         Arguments:
@@ -55,7 +60,7 @@ class UploadJob(threading.Thread):
                 so that that won't happen during normal operation.
         """
         self._done_queue = done_queue
-        self._files = files
+        self._progress = progress
         self._api = api
         self.save_name = save_name
         self.save_path = self.path = path
@@ -85,22 +90,23 @@ class UploadJob(threading.Thread):
             self._done_queue.put(EventJobDone(self))
 
     def push(self):
+        self._progress[self.label] = { 'uploaded': 0, 'failed': False }
         try:
             with open(self.save_path, 'rb') as f:
                 self._api.push(
                     {self.save_name: f},
                     progress=lambda _, t: self.progress(t))
         except Exception as e:
-            self._files[self.label].uploaded = 0
-            self._files[self.label].failed = True
+            self._progress[self.label]['uploaded'] = 0
+            self._progress[self.label]['failed'] = True
             wandb.util.sentry_exc(e)
             wandb.termerror('Error uploading "{}": {}, {}'.format(
                 self.save_name, type(e).__name__, e))
 
     def progress(self, total_bytes):
-        if self.save_name not in self._files:
+        if self.label not in self._progress:
             return
-        self._files[self.label].uploaded = total_bytes
+        self._progress[self.label]['uploaded'] = total_bytes
 
     def restart(self):
         # In the future, this could cancel the current upload and restart it. The logic
@@ -124,7 +130,7 @@ class BatchUploadJob(UploadJob):
         super(BatchUploadJob, self).__init__(done_queue, files, api, save_name,
             tgz_path)
 
-        self.label = batch_id
+        self.label = 'batch_{}'.format(batch_id)
         self.tgz_path = tgz_path
 
     def cleanup_file(self):
@@ -163,7 +169,8 @@ class FilePusher(object):
     """
 
     def __init__(self, api, max_jobs=6):
-        self._files = {}  # stats
+        self._file_stats = {}  # stats
+        self._progress = {}   # amount uploaded
 
         self._api = api
         self._max_jobs = max_jobs
@@ -186,21 +193,21 @@ class FilePusher(object):
         self._pending_events = []
 
     def update_file(self, save_name, file_path):
-        if save_name not in self._files:
-            self._files[save_name] = FileStats(save_name, file_path)
-        self._files[save_name].update_size()
+        if save_name not in self._file_stats:
+            self._file_stats[save_name] = FileStats(save_name, file_path)
+        self._file_stats[save_name].update_size()
 
     def rename_file(self, old_save_name, new_save_name, new_path):
         """This only updates the name and path we use to track the file's size
         and upload progress. Doesn't rename it on the back end or make us
         upload from anywhere else.
         """
-        if old_save_name in self._files:
-            del self._files[old_save_name]
+        if old_save_name in self._file_stats:
+            del self._file_stats[old_save_name]
         self.update_file(new_save_name, new_path)
 
     def update_all_files(self):
-        for file_stats in self._files.values():
+        for file_stats in self._file_stats.values():
             file_stats.update_size()
 
     def print_status(self):
@@ -211,10 +218,12 @@ class FilePusher(object):
             if not self.is_alive():
                 stop = True
             summary = self.summary()
-            line = (' %(completed_files)s of %(total_files)s files,'
-                    ' %(failed_files)s failed,'
-                    ' %(uploaded_bytes).03f of %(total_bytes).03f bytes uploaded\r' % summary)
+            line = (
+                ' %(uploaded_bytes).03f of %(total_bytes).03f bytes uploaded\r'
+                % summary)
             line = spinner_states[step % 4] + line
+            if summary['failed_batches']:
+                line += ' (%(failed_batches)d failed uploads)'
             step += 1
             wandb.termlog(line, newline=False)
             if stop:
@@ -224,19 +233,18 @@ class FilePusher(object):
         wandb.termlog(' ' * 79)
 
     def files(self):
-        return self._files.keys()
+        return self._file_stats.keys()
 
     def stats(self):
-        return self._files
+        return self._file_stats
 
     def summary(self):
+        progress_values = self._progress.values()
+        file_stat_values = self._file_stats.values()
         return {
-            'completed_files': len([f for f in self._files.values()
-                if f.size == f.uploaded]),
-            'total_files': len(self._files),
-            'failed_files': len([f for f in self._files.values() if f.failed]),
-            'uploaded_bytes': sum(f.uploaded for f in self._files.values()),
-            'total_bytes': sum(f.size for f in self._files.values())
+            'failed_batches': len([f for f in progress_values if f['failed']]),
+            'uploaded_bytes': sum(f['uploaded'] for f in progress_values),
+            'total_bytes': sum(f.size for f in file_stat_values)
         }
 
     def _process_body(self):
@@ -267,13 +275,12 @@ class FilePusher(object):
         # we've received a finish event, we can terminate the batch thread
         # immediately since it's guaranteed no further file change events
         # will come in.
-        global ARCHIVE_NUM
         finished = False
         while True:
             batch = []
             batch_started_at = time.time()
-            batch_end_at = batch_started_at + BATCH_THRESHOLD
-            while time.time() < batch_end_at:
+            batch_end_at = batch_started_at + BATCH_THRESHOLD_SECS
+            while time.time() < batch_end_at and len(batch) < BATCH_MAX_FILES:
                 # Get the latest event
                 try:
                     wait_secs = batch_end_at - time.time()
@@ -292,9 +299,10 @@ class FilePusher(object):
 
             # Send the batch to the event queue if it has any events in it.
             if batch:
-                new_batch_id = ARCHIVE_NUM
+                global BATCH_NUM
+                new_batch_id = str(BATCH_NUM)
                 self._event_queue.put(EventFileBatch(new_batch_id, batch))
-                ARCHIVE_NUM += 1
+                BATCH_NUM += 1
             
             # And stop the infinite loop if we've finished
             if finished:
@@ -307,10 +315,10 @@ class FilePusher(object):
             self._running_jobs.pop(job.label)
             if job.needs_restart:
                 #wandb.termlog('File changed while uploading, restarting: %s' % event.job.save_name)
-                self._start_event_now(event)
+                self._start_or_restart_event_job(event)
             elif self._pending_events:
                 event = self._pending_events.pop()
-                self._start_event_now(event)
+                self._start_or_restart_event_job(event)
             return
 
         # If it gets here, must be a FileChanged or FileBatch event
@@ -319,39 +327,50 @@ class FilePusher(object):
             return
             
         # Start now if we have capacity
-        self._start_event_now(event)
+        self._start_or_restart_event_job(event)
 
-    def _start_event_now(self, event):
+    def _label_for_event(self, event):
         if isinstance(event, EventFileChanged):
-            self._start_job(event.save_name, event.path, event.copy)
+            return event.save_name
+        if isinstance(event, EventFileBatch):
+            return 'batch_{}'.format(event.batch_id)
+        return None
+
+    def _start_or_restart_event_job(self, event):
+        label = self._label_for_event(event)
+        if not label:
             return
 
-        if isinstance(event, EventFileBatch):
-            self._start_batch_job(event.batch_id, event.file_changed_events)
-            return            
-
-    def _start_job(self, save_name, path, copy):
-        # wandb.termlog("Starting individual upload: %s" % save_name)
-        label = save_name
+        # Restart if in running jobs
         if label in self._running_jobs:
             self._running_jobs[label].restart()
             return
 
-        job = UploadJob(self._event_queue, self._files, self._api, save_name, path, copy)
+        # Or start
+        self._running_jobs[label] = self._start_event_job(label, event)
+
+    def _start_event_job(self, label, event):
+        if isinstance(event, EventFileChanged):
+            return self._start_single_job(event.save_name, event.path,
+                event.copy)
+
+        if isinstance(event, EventFileBatch):
+            return self._start_batch_job(event.batch_id,
+                event.file_changed_events)
+
+    def _start_single_job(self, save_name, path, copy):
+        # wandb.termlog("Starting individual upload: %s" % save_name)
+        job = UploadJob(self._event_queue, self._progress, self._api, save_name, path, copy)
         job.start()
-        self._running_jobs[label] = job
+        return job
 
     def _start_batch_job(self, batch_id, file_changed_events):
-        # wandb.termlog("Starting batch %s" % batch_id)
-        label = batch_id
-        if batch_id in self._running_jobs:
-            self._running_jobs[label].restart()
-            return
-
-        job = BatchUploadJob(self._event_queue, self._files, self._api,
+        # wandb.termlog("Starting batch %s (%d files)" % (batch_id,
+        #     len(file_changed_events)))
+        job = BatchUploadJob(self._event_queue, self._progress, self._api,
             batch_id, file_changed_events)
         job.start()
-        self._running_jobs[label] = job
+        return job
 
     def should_batch(self, file_change_event):
         """
