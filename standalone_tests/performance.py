@@ -3,7 +3,7 @@ import time
 from random import random
 import cProfile
 
-wandb.init()
+wandb.init(entity="vanpelt")
 
 #Repeatedly logs random values
 
@@ -12,7 +12,7 @@ def log_stuff(n_to_write, log_wait, do_log=True):
     for i in range(n_to_write):
         rand_f = random()
         if do_log:
-            wandb.async_log({'test': rand_f})
+            wandb.log({'test': rand_f}, sync=False)
         time.sleep(log_wait)
 
 
