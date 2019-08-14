@@ -147,7 +147,9 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
             [TENSORBOARD_C_MODULE, "create_summary_file_writer"])
 
 
-rates = {"": {"step": 0, "last_time": RATE_LIMIT(time.time())}}
+rates = {"": {"step": 0, "time": RATE_LIMIT(time.time())}}
+
+
 def log(tf_summary_str, history=None, **kwargs):
     """Logs a tfsummary to wandb"""
     global steps
