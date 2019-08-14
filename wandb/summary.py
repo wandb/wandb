@@ -342,6 +342,8 @@ class FileSummary(Summary):
         if self._h5:
             self._h5.close()
             self._h5 = None
+        if wandb.run._jupyter_agent:
+            wandb.run._jupyter_agent.start()
 
 
 class HTTPSummary(Summary):
