@@ -137,7 +137,6 @@ class BatchUploadJob(UploadJob):
 
         self.label = 'batch_{}'.format(batch_id)
         self.tgz_path = tgz_path
-        shutil.copy2(self.tgz_path, '/Users/gabesmed/Desktop/%s.tgz' % self.label)
 
     def cleanup_file(self):
         super(BatchUploadJob, self).cleanup_file()
