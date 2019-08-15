@@ -14,6 +14,8 @@ from wandb import util
 from wandb import data_types
 from wandb.meta import Meta
 from wandb.apis.internal import Api
+from six import string_types
+
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
 SUMMARY_FNAME = 'wandb-summary.json'
@@ -89,7 +91,8 @@ class SummarySubDict(object):
         return self._dict.keys()
 
     def get(self, k, default=None):
-        k = k.strip()
+        if instanceof(k, six.basestring):
+            k = k.strip()
         if k not in self._dict:
             self._root._root_get(self._path + (k,), self._dict)
         return self._dict.get(k, default)
@@ -98,16 +101,22 @@ class SummarySubDict(object):
         return six.iteritems(self._dict)
 
     def __getitem__(self, k):
-        k = k.strip()
+        if isinstance(k, string_types):
+            k = k.strip()
+
         self.get(k)  # load the value into _dict if it should be there
         return self._dict[k]
 
     def __contains__(self, k):
-        k = k.strip()
+        if isinstance(k, string_types):
+            k = k.strip()
+
         return k in self._dict
 
     def __setitem__(self, k, v):
-        k = k.strip()
+        if isinstance(k, string_types):
+            k = k.strip()
+
         path = self._path
 
         if isinstance(v, dict):
