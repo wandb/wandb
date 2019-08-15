@@ -6,12 +6,18 @@ import time
 from six.moves import queue
 import warnings
 import tarfile
-from pathlib import Path
 
 import wandb
 import wandb.util
 from wandb.compat import tempfile
 
+def resolve_path(path):
+    try:
+        from pathlib import Path
+        return Path(path).resolve()
+    except:
+        # Pathlib isn't present for python versions earlier than 3.3
+        return os.path.realpath(path)
 
 # Get rid of cleanup warnings in Python 2.7.
 warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'wandb.compat.tempfile')
@@ -127,8 +133,7 @@ class BatchUploadJob(UploadJob):
 
         with tarfile.open(tgz_path, 'w:gz') as tar:
             for event in file_changed_events:
-                resolved_path = Path(event.path).resolve()
-                tar.add(resolved_path, arcname=event.save_name)
+                tar.add(resolve_path(event.path), arcname=event.save_name)
 
         save_name = '___batch_archive_{}.tgz'.format(batch_id)
 
