@@ -41,6 +41,9 @@ BATCH_MAX_FILES = 500
 # Globally incrementing batch ID
 BATCH_NUM = 1
 
+# Space out uploads just a little bit.
+RATE_LIMIT_SECS = 1
+
 class UploadJob(threading.Thread):
     def __init__(self, done_queue, progress, api, save_name, path, copy=True):
         """A file upload thread.
@@ -176,6 +179,7 @@ class FilePusher(object):
         self._max_jobs = max_jobs
         self._batch_queue = queue.Queue()
         self._event_queue = queue.Queue()
+        self._last_job_started_at = 0
         self._finished = False
 
         # Thread for processing events and starting upload jobs
@@ -346,7 +350,15 @@ class FilePusher(object):
             self._running_jobs[label].restart()
             return
 
+        # Rate limit if it's too fast to prevent overloading the server
+        elapsed_since_last = time.time() - self._last_job_started_at
+        if elapsed_since_last < RATE_LIMIT_SECS:
+            time.sleep(RATE_LIMIT_SECS - elapsed_since_last)
+            self._start_or_restart_event_job(event)
+            return
+
         # Or start
+        self._last_job_started_at = time.time()
         self._running_jobs[label] = self._start_event_job(label, event)
 
     def _start_event_job(self, label, event):
