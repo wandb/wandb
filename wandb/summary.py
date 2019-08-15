@@ -111,7 +111,7 @@ class SummarySubDict(object):
         path = self._path
 
         if isinstance(v, dict):
-            self._dict[k] = SummarySubDict(self._root, path)
+            self._dict[k] = SummarySubDict(self._root, path + (key,))
             self._root._root_set(path, [(k, {})])
             self._dict[k].update(v)
         else:
