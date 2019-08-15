@@ -91,7 +91,7 @@ class SummarySubDict(object):
         return self._dict.keys()
 
     def get(self, k, default=None):
-        if instanceof(k, six.basestring):
+        if isinstance(k, string_types):
             k = k.strip()
         if k not in self._dict:
             self._root._root_get(self._path + (k,), self._dict)
@@ -351,7 +351,7 @@ class FileSummary(Summary):
         if self._h5:
             self._h5.close()
             self._h5 = None
-        if wandb.run._jupyter_agent:
+        if wandb.run and wandb.run._jupyter_agent:
             wandb.run._jupyter_agent.start()
 
 
