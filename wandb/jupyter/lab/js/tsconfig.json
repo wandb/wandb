@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "declaration": true,
+        "noImplicitAny": true,
+        "noEmitOnError": true,
+        "esModuleInterop": true,
+        "noUnusedLocals": true,
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "target": "ES5",
+        "outDir": "./lib",
+        "lib": ["es5", "es2015.promise", "es2015.core", "dom"],
+        "types": [],
+        "strictNullChecks": true,
+        "jsx": "react",
+        "skipLibCheck": true,
+        "sourceMap": true
+    },
+    "include": ["src/*"]
+}

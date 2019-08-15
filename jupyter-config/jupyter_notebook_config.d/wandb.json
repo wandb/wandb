@@ -1,0 +1,12 @@
+{
+    "NotebookApp": {
+        "nbserver_extensions": {
+            "wandb.jupyter.lab": true
+        },
+        "tornado_settings": {
+            "headers": {
+                "Content-Security-Policy": "frame-ancestors 'self' http://app.test https://app.wandb.ai"
+            }
+        }
+    }
+}

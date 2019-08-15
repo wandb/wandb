@@ -1,0 +1,31 @@
+div.iframe-widget {
+    height: 100%;
+    width: 100%;
+}
+
+div.iframe-widget iframe {
+    height: 100%;
+    width: 100%;
+}
+
+/*
+from: https://github.com/ian-r-rose/jupyterlab/blob/d7ec6ec271fcbeed2a0f5b1ed652a4802a430496/packages/htmlviewer/style/index.css;
+When drag events occur, `p-mod-override-cursor` is added to the body.
+Because iframes steal all cursor events, the following two rules are necessary
+to suppress pointer events while resize drags are occuring. There may be a
+better solution to this problem.
+*/
+body.p-mod-override-cursor div.iframe-widget {
+    position: relative;
+    pointer-events: none;
+}
+
+body.p-mod-override-cursor div.iframe-widget:before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: transparent;
+}

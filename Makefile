@@ -93,7 +93,7 @@ release-test: dist ## package and upload test release
 	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 
 dist: clean ## builds source and wheel package
-	python setup.py sdist bdist_wheel
+	python setup.py sdist bdist_wheel --build-js
 	ls -l dist
 
 arena: dist

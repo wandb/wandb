@@ -24,7 +24,8 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-
+node_modules/
+.ipynb_checkpoints/
 # Board
 wandb/board/ui/node_modules
 !wandb/board/ui/build/

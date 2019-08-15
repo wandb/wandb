@@ -667,6 +667,10 @@ def _get_python_type():
     except (NameError, AttributeError):
         return "python"
 
+def _jupyter_server_extension_paths():
+    return [{
+        "module": "wandb.jupyter.lab"
+    }]    
 
 def sagemaker_auth(overrides={}, path="."):
     """ Write a secrets.env file with the W&B ApiKey and any additional secrets passed.

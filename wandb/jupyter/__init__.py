@@ -1,4 +1,5 @@
 import wandb
+from wandb import util
 from wandb.apis import InternalApi
 from wandb.run_manager import RunManager
 import time
@@ -151,3 +152,6 @@ class Run(object):
         url = self.run.get_url() + "?jupyter=true&state=" + state
         return '''<iframe src="%s" style="border:none;width:100%%;height:420px">
         </iframe>''' % url
+
+
+lab = util.LazyLoader('lab', globals(), 'wandb.jupyter.lab')

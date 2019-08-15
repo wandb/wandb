@@ -1,0 +1,49 @@
+{
+    "name": "@jupyterlab/wandb",
+    "version": "0.8.8",
+    "description": "A JupyterLab extension.",
+    "author": "Chris Van Pelt",
+    "main": "lib/index.js",
+    "keywords": [
+        "jupyter",
+        "jupyterlab",
+        "jupyterlab-extension"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "build:labextension": "rimraf lab-dist && mkdirp lab-dist && cd lab-dist && npm pack ..",
+        "clean": "rimraf lib",
+        "watch": "tsc -w",
+        "prepack": "npm run build"
+    },
+    "files": [
+        "lib/**/*.{d.ts,eot,gif,html,jpg,js,js.map,json,png,svg,woff2,ttf}",
+        "styles/**/*.css"
+    ],
+    "jupyterlab": {
+        "extension": true
+    },
+    "license": "MIT",
+    "repository": "https://github.com/wandb/client",
+    "dependencies": {
+        "@jupyterlab/application": "^1.0.0",
+        "@jupyterlab/apputils": "^1.0.0",
+        "@jupyterlab/coreutils": "^3.0.0",
+        "@jupyterlab/docmanager": "^1.0.0",
+        "@phosphor/disposable": "^1.1.2",
+        "@types/postmate": "^1.5.0",
+        "postmate": "^1.5.0"
+    },
+    "devDependencies": {
+        "@types/jest": "^23.3.9",
+        "@types/rewire": "^2.5.28",
+        "isomorphic-fetch": "^2.2.1",
+        "jest": "^23.6.0",
+        "jest-transform-css": "^2.0.0",
+        "rewire": "^4.0.1",
+        "rimraf": "^2.6.1",
+        "ts-jest": "^23.10.4",
+        "tslint": "^5.16.0",
+        "typescript": "^3.1.6"
+    }
+}
