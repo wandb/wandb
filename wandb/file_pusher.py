@@ -6,6 +6,7 @@ import time
 from six.moves import queue
 import warnings
 import tarfile
+from pathlib import Path
 
 import wandb
 import wandb.util
@@ -126,7 +127,8 @@ class BatchUploadJob(UploadJob):
 
         with tarfile.open(tgz_path, 'w:gz') as tar:
             for event in file_changed_events:
-                tar.add(event.path, arcname=event.save_name)
+                resolved_path = Path(event.path).resolve()
+                tar.add(resolved_path, arcname=event.save_name)
 
         save_name = '___batch_archive_{}.tgz'.format(batch_id)
 
@@ -135,6 +137,7 @@ class BatchUploadJob(UploadJob):
 
         self.label = 'batch_{}'.format(batch_id)
         self.tgz_path = tgz_path
+        shutil.copy2(self.tgz_path, '/Users/gabesmed/Desktop/%s.tgz' % self.label)
 
     def cleanup_file(self):
         super(BatchUploadJob, self).cleanup_file()
