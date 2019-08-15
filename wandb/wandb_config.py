@@ -167,7 +167,7 @@ class Config(object):
             return
         with open(path, "w") as conf_file:
             conf_file.write(str(self))
-        if wandb.run._jupyter_agent:
+        if wandb.run and wandb.run._jupyter_agent:
             wandb.run._jupyter_agent.start()
 
     def get(self, *args):
