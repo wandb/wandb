@@ -246,7 +246,7 @@ class FilePusher(object):
             if not self.is_alive():
                 stop = True
             summary = self.summary()
-            line = ' %.2fmb of %.2fmb uploaded\r' % (
+            line = ' %.2fMB of %.2fMB uploaded\r' % (
                 summary['uploaded_bytes'] / 1048576.0,
                 summary['total_bytes'] / 1048576.0)
             line = spinner_states[step % 4] + line
@@ -268,7 +268,6 @@ class FilePusher(object):
 
     def summary(self):
         progress_values = self._progress.values()
-        file_stat_values = self._file_stats.values()
         return {
             'failed_batches': len([f for f in progress_values if f['failed']]),
             'uploaded_bytes': sum(f['uploaded'] for f in progress_values),
