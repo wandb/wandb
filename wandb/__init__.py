@@ -79,6 +79,7 @@ def _debugger(*args):
     pdb.set_trace()
 
 def check_context():
+    """Check for jupyter context"""
     global run
     ctxp = os.path.join(os.path.expanduser("~"), "wandb-context.json")
     if os.path.exists(ctxp):
@@ -86,7 +87,7 @@ def check_context():
         ctx = full["context"]
         from wandb.apis.public import Api, Run
         run = Run(Api().client, ctx["entityName"], ctx["name"], ctx["run"]["name"], ctx["run"])
-
+check_context()
 
 class Callbacks():
     @property
