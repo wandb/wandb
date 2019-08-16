@@ -14,7 +14,7 @@ from wandb.compat import tempfile
 def resolve_path(path):
     try:
         from pathlib import Path
-        return Path(path).resolve()
+        return str(Path(path).resolve())
     except:
         # Pathlib isn't present for python versions earlier than 3.3
         return os.path.realpath(path)
