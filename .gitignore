@@ -73,5 +73,6 @@ target/
 # venv
 venv/
 
+# Output from running pytest in the repo folder
 wandb-metadata.json
 wandb/run-*
