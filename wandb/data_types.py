@@ -230,7 +230,7 @@ def data_frame_to_json(df, run, key, step):
     # We have to call this wandb_run_id because that name is treated specially by
     # our filtering code
     df['wandb_run_id'] = pandas.Series(
-        [six.text_type(run.name)] * len(df.index), index=df.index)
+        [six.text_type(run.id)] * len(df.index), index=df.index)
 
     df['wandb_data_frame_id'] = pandas.Series(
         [six.text_type(data_frame_id)] * len(df.index), index=df.index)
