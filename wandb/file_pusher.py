@@ -45,9 +45,6 @@ BATCH_THRESHOLD_SECS = 3
 # minute.
 BATCH_MAX_FILES = 100
 
-# Globally incrementing batch ID
-BATCH_NUM = 1
-
 # Space out uploads just a little bit.
 RATE_LIMIT_SECS = 0.25
 
@@ -100,7 +97,16 @@ class UploadJob(threading.Thread):
             self._done_queue.put(EventJobDone(self))
 
     def push(self):
-        self._progress[self.label] = { 'uploaded': 0, 'failed': False }
+        try:
+            size = os.path.getsize(self.save_path)
+        except OSError:
+            size = 0
+
+        self._progress[self.label] = {
+            'total': size,
+            'uploaded': 0,
+            'failed': False
+        }
         try:
             with open(self.save_path, 'rb') as f:
                 self._api.push(
@@ -191,6 +197,7 @@ class FilePusher(object):
     def __init__(self, api, max_jobs=6):
         self._file_stats = {}  # stats for all files
         self._progress = {}   # amount uploaded
+        self._batch_num = 1  # incrementing counter for archive filenamess
 
         self._api = api
         self._max_jobs = max_jobs
@@ -239,7 +246,7 @@ class FilePusher(object):
             if not self.is_alive():
                 stop = True
             summary = self.summary()
-            line = ' %.1fMB (compressed) uploaded of %.1fMB\r' % (
+            line = ' %.2fmb of %.2fmb uploaded\r' % (
                 summary['uploaded_bytes'] / 1048576.0,
                 summary['total_bytes'] / 1048576.0)
             line = spinner_states[step % 4] + line
@@ -265,7 +272,7 @@ class FilePusher(object):
         return {
             'failed_batches': len([f for f in progress_values if f['failed']]),
             'uploaded_bytes': sum(f['uploaded'] for f in progress_values),
-            'total_bytes': sum(f.size for f in file_stat_values)
+            'total_bytes': sum(f['total'] for f in progress_values)
         }
 
     def _process_body(self):
@@ -320,10 +327,9 @@ class FilePusher(object):
 
             # Send the batch to the event queue if it has any events in it.
             if batch:
-                global BATCH_NUM
-                new_batch_id = str(BATCH_NUM)
+                new_batch_id = str(self._batch_num)
                 self._event_queue.put(EventFileBatch(new_batch_id, batch))
-                BATCH_NUM += 1
+                self._batch_num += 1
             
             # And stop the infinite loop if we've finished
             if finished:
