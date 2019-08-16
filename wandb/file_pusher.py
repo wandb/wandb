@@ -38,7 +38,7 @@ EventFinish = collections.namedtuple('EventFinish', ())
 
 # After 5 seconds of gathering batched uploads, kick off a batch without
 # waiting any longer.
-BATCH_THRESHOLD_SECS = 5
+BATCH_THRESHOLD_SECS = 15
 
 # Maximum number of files in any given batch. If there are too many files
 # it can take too long to unpack -- 500 very small files takes GCP about a
@@ -49,7 +49,7 @@ BATCH_MAX_FILES = 100
 BATCH_NUM = 1
 
 # Space out uploads just a little bit.
-RATE_LIMIT_SECS = 0.25
+RATE_LIMIT_SECS = 1
 
 class UploadJob(threading.Thread):
     def __init__(self, done_queue, progress, api, save_name, path, copy=True):
@@ -133,7 +133,17 @@ class BatchUploadJob(UploadJob):
 
         with tarfile.open(tgz_path, 'w:gz') as tar:
             for event in file_changed_events:
-                tar.add(resolve_path(event.path), arcname=event.save_name)
+                try:
+                    tar.add(resolve_path(event.path), arcname=event.save_name)
+                except OSError:
+                    # Retry once, then show an error and continue
+                    time.sleep(0.1)
+                    try:
+                        tar.add(resolve_path(event.path),
+                            arcname=event.save_name)
+                    except OSError:
+                        wandb.termwarn("Failed to add %s to batch archive." %
+                            event.save_name)
 
         save_name = '___batch_archive_{}.tgz'.format(batch_id)
 
@@ -179,7 +189,7 @@ class FilePusher(object):
     """
 
     def __init__(self, api, max_jobs=6):
-        self._file_stats = {}  # stats
+        self._file_stats = {}  # stats for all files
         self._progress = {}   # amount uploaded
 
         self._api = api
@@ -230,7 +240,7 @@ class FilePusher(object):
                 stop = True
             summary = self.summary()
             line = (
-                ' %(uploaded_bytes).03f of %(total_bytes).03f bytes uploaded\r'
+                ' %(uploaded_bytes).03f (compressed) of %(total_bytes).03f bytes uploaded\r'
                 % summary)
             line = spinner_states[step % 4] + line
             if summary['failed_batches']:
