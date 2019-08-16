@@ -129,7 +129,6 @@ def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
             wandb.save(fname)
     run_manager.test_shutdown()
     req = mock_server.requests['graphql'][0]
-    print(mock_server.requests['graphql'])
     assert 'query Model' in req['query']
     assert req['variables']['name'] == 'testing'
     assert req['variables']['files'] == ['___batch_archive_1.tgz']
