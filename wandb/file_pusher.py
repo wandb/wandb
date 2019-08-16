@@ -45,8 +45,8 @@ BATCH_THRESHOLD_SECS = 3
 # minute.
 BATCH_MAX_FILES = 100
 
-# Space out uploads just a little bit.
-RATE_LIMIT_SECS = 0.25
+# If needed you can space out uploads a bit.
+RATE_LIMIT_SECS = 0
 
 class UploadJob(threading.Thread):
     def __init__(self, done_queue, progress, api, save_name, path, copy=True):
