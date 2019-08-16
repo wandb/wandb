@@ -488,6 +488,11 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
     import webbrowser
     browser = util.launch_browser(browser)
 
+    # For now *new* anonymous logins need to be enabled with an environment variable
+    allow_anonymous = False
+    if os.environ.get(env.ANONYMOUS) == "enable":
+        allow_anonymous = True
+
     # Go through the regular user login flow first, unless --anonymous is specified.
     if not key and not anonymous:
         # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
@@ -505,6 +510,8 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
                 "You can find your API keys in your browser here: {}".format(url))
 
         def cancel_prompt(*args):
+            # Keyboard SIGINT leaves terminal without a linefeed
+            click.echo("")
             raise KeyboardInterrupt()
 
         # Hijacking this signal broke tests in py2...
@@ -518,7 +525,7 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
                 key = server.result["key"][0]
 
         # If we still don't have a key, go through the anonymous user flow if we're running interactively.
-        if not key:
+        if not key and allow_anonymous:
             try:
                 click.confirm('No API key found. Would you like to log runs anonymously?', abort=True)
                 anonymous = True
