@@ -128,7 +128,6 @@ def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
             f.write("w&b" * 100)
             wandb.save(fname)
     run_manager.test_shutdown()
-    assert len(mock_server.requests['graphql']) == 2
     req = mock_server.requests['graphql'][0]
     assert 'query Model' in req['query']
     assert req['variables']['name'] == 'testing'
