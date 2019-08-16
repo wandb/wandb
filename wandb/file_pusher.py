@@ -36,20 +36,20 @@ EventFileChanged = collections.namedtuple(
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
-# After 15 seconds of gathering batched uploads, kick off a batch without
+# After 5 seconds of gathering batched uploads, kick off a batch without
 # waiting any longer.
-BATCH_THRESHOLD_SECS = 15
+BATCH_THRESHOLD_SECS = 5
 
 # Maximum number of files in any given batch. If there are too many files
 # it can take too long to unpack -- 500 very small files takes GCP about a
 # minute to unpack.
-BATCH_MAX_FILES = 500
+BATCH_MAX_FILES = 100
 
 # Globally incrementing batch ID
 BATCH_NUM = 1
 
 # Space out uploads just a little bit.
-RATE_LIMIT_SECS = 1
+RATE_LIMIT_SECS = 0.25
 
 class UploadJob(threading.Thread):
     def __init__(self, done_queue, progress, api, save_name, path, copy=True):
