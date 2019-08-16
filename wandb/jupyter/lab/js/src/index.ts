@@ -118,32 +118,25 @@ function activate(
     let widget: IFrameWidget;
     const rootEl = document.querySelector("#root");
     const dataEl = document.querySelector("#jupyter-config-data");
+    const config = readConfig(rootEl, dataEl);
+    config.root = PageConfig.getBaseUrl();
     const handshake = new Postmate.Model({
         height: () => document.body.offsetHeight,
         setContext: (ctx: any) => {
             request(
                 "post",
-                PageConfig.getBaseUrl() + "wandb/set_context",
-                {},
+                PageConfig.getBaseUrl() + "wandb/context",
+                { token: config.token }, // TODO: maybe using other auth
                 ctx
             ).then((res: IRequestResult) => {
                 if (res.ok) {
-                    const jsn = res.json() as { [key: string]: string };
-                    const sites = jsn.sites;
-
-                    for (const site of sites) {
-                        // tslint:disable-next-line: no-console
-                        console.log("adding quicklink for " + site);
-                    }
+                    console.log("Config set", ctx);
                 } else {
                     console.warn(res);
                 }
             });
         }
     });
-    const config = readConfig(rootEl, dataEl);
-    config.root = PageConfig.getBaseUrl();
-    console.log("Jup config", config);
 
     handshake.then((parent: any) => {
         // Only emit the config to wandb

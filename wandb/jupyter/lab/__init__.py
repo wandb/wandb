@@ -1,5 +1,6 @@
 import json
 import os
+import wandb
 from notebook.base.handlers import IPythonHandler
 from notebook.utils import url_path_join
 from .proxy import ProxyHandler, ProxyWSHandler
@@ -21,7 +22,9 @@ class ContextHandler(IPythonHandler):
 
     def post(self):
         context = self.get_json_body()
-        print("CTX", context)
+        api = wandb.InternalApi()
+        if context.get("apiKey"):
+            wandb.util.write_netrc(api.api_url, "user", context["apiKey"])
         home = os.path.expanduser("~")
         with open(os.path.join(home, "wandb-context.json"), "w") as f:
             f.write(json.dumps(context))

@@ -78,6 +78,15 @@ def _debugger(*args):
     import pdb
     pdb.set_trace()
 
+def check_context():
+    global run
+    ctxp = os.path.join(os.path.expanduser("~"), "wandb-context.json")
+    if os.path.exists(ctxp):
+        full = json.loads(open(ctxp).read())
+        ctx = full["context"]
+        from wandb.apis.public import Api, Run
+        run = Run(Api().client, ctx["entityName"], ctx["name"], ctx["run"]["name"], ctx["run"])
+
 
 class Callbacks():
     @property
@@ -281,24 +290,24 @@ def _init_headless(run, cloud=True):
 def load_ipython_extension(ipython):
     pass
 
-def jupyter_login(force=True):
+def jupyter_login(key=None, force=True):
     """Attempt to login from a jupyter environment
 
     If force=False, we'll only attempt to auto-login, otherwise we'll prompt the user
     """
-    key = None
+    api = InternalApi()
     if 'google.colab' in sys.modules:
-        key = jupyter.attempt_colab_login(run.api.app_url)
+        key = jupyter.attempt_colab_login(api.app_url)
         if key:
             os.environ[env.API_KEY] = key
-            util.write_netrc(run.api.api_url, "user", key)
+            util.write_netrc(api.api_url, "user", key)
     if not key and force:
         termerror(
             "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
         key = getpass.getpass("API Key: ").strip()
         if len(key) == 40:
             os.environ[env.API_KEY] = key
-            util.write_netrc(run.api.api_url, "user", key)
+            util.write_netrc(api.api_url, "user", key)
         else:
             raise ValueError("API Key must be 40 characters long")
     return key
