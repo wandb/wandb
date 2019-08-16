@@ -7,6 +7,7 @@ recursive-include wandb *.sh
 recursive-include wandb/kubeflow *.html *.yaml
 recursive-exclude wandb/kubeflow/dist *
 recursive-exclude wandb/kubeflow/arena *
+recursive-include wandb/jupyter/lab/js *
 recursive-exclude wandb/jupyter/lab/js/node_modules *
 recursive-exclude tests *
 recursive-exclude * __pycache__
