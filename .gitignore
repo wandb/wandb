@@ -72,3 +72,6 @@ target/
 
 # venv
 venv/
+
+wandb-metadata.json
+wandb/run-*
