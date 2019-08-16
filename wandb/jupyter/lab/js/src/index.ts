@@ -41,6 +41,7 @@ class IFrameWidget extends Widget {
         div.classList.add("iframe-widget");
         const iframe = document.createElement("iframe");
         iframe.src = path;
+        iframe.allow = "camera; microphone";
         div.appendChild(iframe);
         this.node.appendChild(div);
     }
