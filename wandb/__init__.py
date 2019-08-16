@@ -666,7 +666,6 @@ def _get_python_type():
             return 'jupyter'
     except (NameError, AttributeError):
         return "python"
-in_jupyter = _get_python_type() != "python"
 
 def sagemaker_auth(overrides={}, path="."):
     """ Write a secrets.env file with the W&B ApiKey and any additional secrets passed.
@@ -726,6 +725,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     global __stage_dir__
 
     # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
+    in_jupyter = _get_python_type() != "python"
     if reinit or (in_jupyter and reinit != False):
         reset_env(exclude=env.immutable_keys())
         run = None
