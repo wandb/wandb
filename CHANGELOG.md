@@ -5,6 +5,8 @@
 -   run.summary updates work in jupyter before log is called
 -   don't require numpy to be installed
 -   Setting nested keys in summary works
+-   notebooks in nested directories are properly saved
+-   Don't retry 404's / better error messaging from the server
 
 #### :nail_care: Enhancement
 
