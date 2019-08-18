@@ -473,12 +473,14 @@ def no_retry_auth(e):
     # Don't retry bad request errors; raise immediately
     if e.response.status_code == 400:
         return False
-    # Retry all non-forbidden/unauthorized errors.
-    if e.response.status_code not in (401, 403):
+    # Retry all non-forbidden/unauthorized/not-found errors.
+    if e.response.status_code not in (401, 403, 404):
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
         raise CommError("Invalid or missing api_key.  Run wandb login")
+    elif wandb.run:
+        raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
 

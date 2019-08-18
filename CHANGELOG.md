@@ -28,7 +28,7 @@
 -   increased the max number of images for fastai callback
 -   new wandb.Video tag for logging video
 -   sync=False argument to wandb.log moves logging to a thread
--   New local sweep controller for custom search lo\gic
+-   New local sweep controller for custom search logic
 -   Anonymous login support for easier onboarding
 -   Calling wandb.init multiple times in jupyter doesn't error out
 

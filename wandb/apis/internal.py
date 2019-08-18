@@ -126,7 +126,7 @@ class Api(object):
 
         if 'errors' in data and isinstance(data['errors'], list):
             for err in data['errors']:
-                if 'message' not in err:
+                if not err.get('message'):
                     continue
                 wandb.termerror('Error while calling W&B API: %s' % err['message'])
 
