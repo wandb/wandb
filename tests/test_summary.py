@@ -171,6 +171,11 @@ def test_read_nested_numpy(summary):
     s = FileSummary(summary._run)
     assert len(s["rad"]["deep"]) == 1000
 
+def test_read_nested_array(summary):
+    summary["rad"] = {"deep": "dish"}
+    s = FileSummary(summary._run)
+    assert summary["rad"]["deep"] == "dish"
+
 
 def test_read_very_nested_numpy(summary):
     # Test that even deeply nested writes are written to disk.

@@ -667,7 +667,6 @@ def _get_python_type():
     except (NameError, AttributeError):
         return "python"
 
-
 def sagemaker_auth(overrides={}, path="."):
     """ Write a secrets.env file with the W&B ApiKey and any additional secrets passed.
 
@@ -689,7 +688,6 @@ def sagemaker_auth(overrides={}, path="."):
 def join():
     # no-op until it's overridden in _init_headless
     pass
-
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,

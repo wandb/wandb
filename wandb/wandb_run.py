@@ -582,9 +582,7 @@ class Run(object):
         return self._summary or os.path.exists(os.path.join(self._dir, summary.SUMMARY_FNAME))
 
     def _history_added(self, row):
-        if self._summary is None:
-            self._summary = summary.FileSummary(self)
-        self._summary.update(row, overwrite=False)
+        self.summary.update(row, overwrite=False)
 
     @property
     def history(self):
