@@ -327,7 +327,7 @@ class Embedding(nn.Module):
                    Variable(torch.zeros(*dims)))
         return hiddens
 
-
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_embedding(wandb_init_run):
     net = Embedding(d_embedding=300, d_word=300,
                     d_hidden=300, word_dim=100, dropout=0)
