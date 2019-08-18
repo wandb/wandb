@@ -1,3 +1,15 @@
+## 0.8.9 (Aug 19, 2019)
+
+#### :bug: Bug Fix
+
+-   run.summary updates work in jupyter before log is called
+-   don't require numpy to be installed
+-   Setting nested keys in summary works
+
+#### :nail_care: Enhancement
+
+-   Small files are batch uploaded as gzipped tarballs
+
 ## 0.8.8 (Aug 13, 2019)
 
 #### :bug: Bug Fix
