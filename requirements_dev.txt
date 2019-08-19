@@ -38,8 +38,6 @@ matplotlib
 plotly
 Keras
 xgboost
-torch==1.2.0+cpu
-torchvision==1.2.0+cpu
 tensorflow==1.14.0
 protobuf>=3.6.0
 vcrpy>=2.0.0
