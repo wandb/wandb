@@ -989,8 +989,15 @@ class Video(BatchableMedia):
         self._height = None
         self._channels = None
         self._caption = caption
+        if self._format not in Video.EXTS:
+            raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
 
-        if isinstance(data_or_path, six.string_types):
+        if isinstance(data_or_path, six.BytesIO):
+            filename = os.path.join(MEDIA_TMP.name, util.generate_id() + '.'+ self._format)
+            with open(filename, "wb") as f:
+                f.write(data_or_path.read())
+            super(Video, self).__init__(filename, is_tmp=True)
+        elif isinstance(data_or_path, six.string_types):
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:

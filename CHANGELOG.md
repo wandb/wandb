@@ -12,6 +12,7 @@
 #### :nail_care: Enhancement
 
 -   Small files are batch uploaded as gzipped tarballs
+-   TensorBoardX gifs are logged to wandb
 
 ## 0.8.8 (Aug 13, 2019)
 
