@@ -7,6 +7,7 @@ import pytest
 import glob
 import wandb
 import numpy as np
+import pytest
 import tensorflow as tf
 from tensorboardX import SummaryWriter
 
@@ -75,6 +76,7 @@ def test_tensorboard_s3(run_manager, capsys, mocker):
     assert len(glob.glob(wandb.run.dir + "/*tfevents*")) == 0
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_tensorboardX(run_manager):
     wandb.tensorboard.patch(tensorboardX=True)
 
