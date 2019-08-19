@@ -7,6 +7,7 @@
 -   Setting nested keys in summary works
 -   notebooks in nested directories are properly saved
 -   Don't retry 404's / better error messaging from the server
+-   Strip leading slashes when loading paths in the public api
 
 #### :nail_care: Enhancement
 
