@@ -150,7 +150,7 @@ class Api(object):
         run = self.settings['run']
         project = self.settings['project']
         username = self.settings['username']
-        parts = path.replace("/runs/", "/").split("/")
+        parts = path.replace("/runs/", "/").strip("/ ").split("/")
         if ":" in parts[-1]:
             run = parts[-1].split(":")[-1]
             parts[-1] = parts[-1].split(":")[0]

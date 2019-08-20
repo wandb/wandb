@@ -768,8 +768,10 @@ class RunManager(object):
             fs_api, util.OUTPUT_FNAME, prepend_timestamp=True, line_prepend='ERROR'))
 
     def unmirror_stdout_stderr(self):
-        sys.stdout.write = sys.stdout.orig_write
-        sys.stderr.write = sys.stderr.orig_write
+        # Python 2 tests were failing...
+        if hasattr(sys.stdout, "orig_write"):
+            sys.stdout.write = sys.stdout.orig_write
+            sys.stderr.write = sys.stderr.orig_write
 
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""
@@ -983,7 +985,7 @@ class RunManager(object):
                     wandb.termerror(
                         'Failed to connect to W&B. Retrying in the background.')
                     return False
-                launch_error_s = 'Launch exception: {}, see {} for details.  To disable wandb set WANDB_MODE=dryrun'.format(e, util.get_log_file_path())
+                launch_error_s = 'Launch exception: {}\nTo disable wandb syncing set WANDB_MODE=dryrun'.format(e)
 
                 raise LaunchError(launch_error_s)
 
@@ -1193,8 +1195,9 @@ class RunManager(object):
                         sig = signal.CTRL_C_EVENT # pylint: disable=no-member
                     self.proc.send_signal(sig)
 
-            self._run_status_checker = RunStatusChecker(
-                self._run, self._api, stop_requested_handler=stop_handler)
+            if self._cloud:
+                self._run_status_checker = RunStatusChecker(
+                    self._run, self._api, stop_requested_handler=stop_handler)
 
         # Add a space before user output
         wandb.termlog()

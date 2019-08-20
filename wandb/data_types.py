@@ -230,7 +230,7 @@ def data_frame_to_json(df, run, key, step):
     # We have to call this wandb_run_id because that name is treated specially by
     # our filtering code
     df['wandb_run_id'] = pandas.Series(
-        [six.text_type(run.name)] * len(df.index), index=df.index)
+        [six.text_type(run.id)] * len(df.index), index=df.index)
 
     df['wandb_data_frame_id'] = pandas.Series(
         [six.text_type(data_frame_id)] * len(df.index), index=df.index)
@@ -989,8 +989,15 @@ class Video(BatchableMedia):
         self._height = None
         self._channels = None
         self._caption = caption
+        if self._format not in Video.EXTS:
+            raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
 
-        if isinstance(data_or_path, six.string_types):
+        if isinstance(data_or_path, six.BytesIO):
+            filename = os.path.join(MEDIA_TMP.name, util.generate_id() + '.'+ self._format)
+            with open(filename, "wb") as f:
+                f.write(data_or_path.read())
+            super(Video, self).__init__(filename, is_tmp=True)
+        elif isinstance(data_or_path, six.string_types):
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:

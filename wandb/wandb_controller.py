@@ -63,8 +63,9 @@ import urllib
 
 import wandb
 from wandb.apis import InternalApi
-from wandb.util import get_module
-from wandb.sweeps import sweeps as wandb_sweeps
+
+# wandb.sweeps.sweeps will be loaded later to prevent dependency requirements for non sweep users.
+wandb_sweeps = None
 
 # TODO(jhr): Add metric status
 # TODO(jhr): Add print_space
@@ -175,6 +176,12 @@ class _WandbController():
 
     """
     def __init__(self, sweep_id=None):
+        global wandb_sweeps
+        try:
+            from wandb.sweeps import sweeps as wandb_sweeps
+        except ImportError as e:
+            raise wandb.Error("Module load error: " + str(e))
+
         # sweep id configured in constuctor
         self._sweep_id = None
 

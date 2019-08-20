@@ -1,3 +1,19 @@
+## 0.8.9 (Aug 19, 2019)
+
+#### :bug: Bug Fix
+
+-   run.summary updates work in jupyter before log is called
+-   don't require numpy to be installed
+-   Setting nested keys in summary works
+-   notebooks in nested directories are properly saved
+-   Don't retry 404's / better error messaging from the server
+-   Strip leading slashes when loading paths in the public api
+
+#### :nail_care: Enhancement
+
+-   Small files are batch uploaded as gzipped tarballs
+-   TensorBoardX gifs are logged to wandb
+
 ## 0.8.8 (Aug 13, 2019)
 
 #### :bug: Bug Fix
@@ -8,6 +24,7 @@
 -   Handle patching tensorboard multiple times in jupyter
 -   Sweep picks up config.yaml from the run directory
 -   Dataframes handle integer labels
+-   Handle invalid JSON when querying jupyter servers
 
 #### :nail_care: Enhancement
 
