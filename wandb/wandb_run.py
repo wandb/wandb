@@ -19,12 +19,13 @@ from wandb import summary
 from wandb import meta
 from wandb import typedtable
 from wandb import util
+from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 import six
-from six.moves import configparser
+from six.moves import input
 from six.moves import urllib
 import atexit
 import sys
@@ -116,7 +117,7 @@ class Run(object):
             self.project = self.api.settings("project")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
-            scope.set_tag("url", self.get_url(self.api))
+            scope.set_tag("url", self.get_url(self.api, network=False)) # TODO: Move this somewhere outside of init
 
         if self.resume == "auto":
             util.mkdir_exists_ok(wandb.wandb_dir())
@@ -390,6 +391,30 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
+    def check_anonymous(self):
+        # If there's no API key set, ask if the run should be logged anonymously. Only launch this prompt in
+        # environments with a tty.
+        if not self.api.api_key and sys.stdin.isatty():
+            # Require anonymous mode to be explicitly enabled for now
+            if os.environ.get(env.ANONYMOUS) != "enable":
+                return False
+            termlog('No API key found. Would you like to log runs anonymously to {}? (y/n)'.format(self.api.app_url))
+            resp = str(input().lower().strip())
+            while not(resp == 'y' or resp == 'n'):
+                termlog('Invalid response. Please enter y/n.')
+                resp = str(input()).lower().strip()
+            if resp == 'y':
+                key = self.api.create_anonymous_api_key()
+                url = self.api.app_url + '/login?apiKey={}'.format(key)
+                termlog('Your anonymous login link: {}. Do not share or lose this link!'.format(url))
+                os.environ[env.API_KEY] = key
+                self.api.set_setting('anonymous', True)
+                util.write_netrc(self.api.api_url, "user", key)
+                util.write_settings(settings=self.api.settings())
+                self.api.reauth()
+                return True
+        return False
+
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside
         a user scripts (eg. in `wandb.init()`).
@@ -431,19 +456,25 @@ class Run(object):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
 
-    def get_url(self, api=None):
+    def get_url(self, api=None, network=True):
+        """If network is False we don't query for entity, required for wandb.init"""
         api = api or self.api
         if api.api_key:
-            if api.settings('entity') is None:
+            if api.settings('entity') is None and network:
                 viewer = api.viewer()
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])
             if api.settings('entity'):
-                return "{base}/{entity}/{project}/runs/{run}".format(
+                query_params = ""
+                if 'anonymous' in api.settings() and api.settings('anonymous'):
+                    query_params = "?apiKey={}".format(api.api_key)
+
+                return "{base}/{entity}/{project}/runs/{run}{query_params}".format(
                     base=api.app_url,
                     entity=urllib.parse.quote_plus(api.settings('entity')),
                     project=urllib.parse.quote_plus(self.project_name(api)),
-                    run=urllib.parse.quote_plus(self.id)
+                    run=urllib.parse.quote_plus(self.id),
+                    query_params=query_params
                 )
             else:
                 # TODO: I think this could only happen if the api key is invalid
@@ -551,9 +582,7 @@ class Run(object):
         return self._summary or os.path.exists(os.path.join(self._dir, summary.SUMMARY_FNAME))
 
     def _history_added(self, row):
-        if self._summary is None:
-            self._summary = summary.FileSummary(self)
-        self._summary.update(row, overwrite=False)
+        self.summary.update(row, overwrite=False)
 
     @property
     def history(self):

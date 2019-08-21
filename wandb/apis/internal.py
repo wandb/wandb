@@ -52,7 +52,7 @@ class Api(object):
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = 10
+    HTTP_TIMEOUT = env.get_http_timeout(10)
 
     def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1), environ=os.environ):
         self._environ = environ
@@ -126,7 +126,7 @@ class Api(object):
 
         if 'errors' in data and isinstance(data['errors'], list):
             for err in data['errors']:
-                if 'message' not in err:
+                if not err.get('message'):
                     continue
                 wandb.termerror('Error while calling W&B API: %s' % err['message'])
 
@@ -1117,6 +1117,22 @@ class Api(object):
             'scheduler': scheduler},
             check_retry_fn=no_retry_400_or_404)
         return response['upsertSweep']['sweep']['name']
+
+    @normalize_exceptions
+    def create_anonymous_api_key(self):
+        """Creates a new API key belonging to a new anonymous user."""
+        mutation = gql('''
+        mutation CreateAnonymousApiKey {
+            createAnonymousEntity(input: {}) {
+                apiKey {
+                    name
+                }
+            }
+        }
+        ''')
+
+        response = self.gql(mutation, variable_values={})
+        return response['createAnonymousEntity']['apiKey']['name']
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5

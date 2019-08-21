@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.7'
+__version__ = '0.8.9'
 
 import atexit
 import click
@@ -29,6 +29,8 @@ import traceback
 import tempfile
 import re
 import glob
+import threading
+from six.moves import queue
 from importlib import import_module
 
 from . import env
@@ -46,6 +48,7 @@ from wandb import streaming_log
 from wandb import util
 from wandb.run_manager import LaunchError
 from wandb.data_types import Image
+from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Html
@@ -337,7 +340,11 @@ def _init_jupyter(run):
         global START_TIME
         START_TIME = time.time()
     ipython.events.register("pre_run_cell", reset_start)
-    ipython.events.register('post_run_cell', run._stop_jupyter_agent)
+    def cleanup():
+        # shutdown async logger because _user_process_finished isn't called in jupyter
+        shutdown_async_log_thread()
+        run._stop_jupyter_agent()
+    ipython.events.register('post_run_cell', cleanup)
 
 
 join = None
@@ -350,6 +357,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         return
     _user_process_finished_called = True
     trigger.call('on_finished')
+    shutdown_async_log_thread()
 
     stdout_redirector.restore()
     if not env.is_debug():
@@ -509,7 +517,41 @@ def monitor(options={}):
     return Monitor(options)
 
 
-def log(row=None, commit=True, step=None, *args, **kwargs):
+_async_log_queue = queue.Queue()
+_async_log_thread_shutdown_event = threading.Event()
+_async_log_thread_complete_event = threading.Event()
+_async_log_thread = None
+def _async_log_thread_target():
+    """Consumes async logs from our _async_log_queue and actually logs them"""
+    global _async_log_thread
+    shutdown_requested = False
+    while not shutdown_requested:
+        try:
+            kwargs = _async_log_queue.get(True)
+            log(**kwargs)
+        except queue.Empty:
+            shutdown_requested = _async_log_thread_shutdown_event.wait(1) and _async_log_queue.empty()
+    _async_log_thread_complete_event.set()
+    _async_log_thread = None
+
+def _ensure_async_log_thread_started():
+    """Ensures our log consuming thread is started"""
+    global _async_log_thread
+
+    if _async_log_thread is None:
+        _async_log_thread = threading.Thread(target=_async_log_thread_target)
+        _async_log_thread.daemon = True
+        _async_log_thread.start()
+
+def shutdown_async_log_thread():
+    """Shuts down our async logging thread"""
+    if _async_log_thread:
+        _async_log_thread_shutdown_event.set()
+        res = _async_log_thread_complete_event.wait(2) # TODO: possible race here
+        if res is None:
+            termwarn('async log queue not empty after 2 seconds, some log statements will be dropped')
+
+def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
     """Log a dict to the global run's history.
 
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
@@ -518,11 +560,16 @@ def log(row=None, commit=True, step=None, *args, **kwargs):
         row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types
         commit (boolean, optional): Persist a set of metrics, if false just update the existing dict
         step (integer, optional): The global step in processing. This sets commit=True any time step increases
+        sync (boolean, True): If set to False, process calls to log in a seperate thread
     """
 
     if run is None:
         raise ValueError(
             "You must call `wandb.init` in the same process before calling log")
+
+    if sync == False:
+        _ensure_async_log_thread_started()
+        return _async_log_queue.put({"row": row, "commit": commit, "step": step})
 
     tensorboard_patched = len(patched["tensorboard"]) > 0
 
@@ -620,7 +667,6 @@ def _get_python_type():
     except (NameError, AttributeError):
         return "python"
 
-
 def sagemaker_auth(overrides={}, path="."):
     """ Write a secrets.env file with the W&B ApiKey and any additional secrets passed.
 
@@ -642,7 +688,6 @@ def sagemaker_auth(overrides={}, path="."):
 def join():
     # no-op until it's overridden in _init_headless
     pass
-
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
@@ -686,7 +731,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         run = None
 
     # TODO: deprecate tensorboard
-    if tensorboard or sync_tensorboard:
+    if tensorboard or sync_tensorboard and len(patched["tensorboard"]) == 0:
         util.get_module("wandb.tensorboard").patch()
 
     sagemaker_config = util.parse_sm_config()
@@ -842,10 +887,13 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
                 termerror(
                     "No credentials found.  Run \"wandb login\" or \"wandb off\" to disable wandb")
             else:
-                termlog(
-                    "No credentials found.  Run \"wandb login\" to visualize your metrics")
-                run.mode = "dryrun"
-                _init_headless(run, False)
+                if run.check_anonymous():
+                    _init_headless(run)
+                else:
+                    termlog(
+                        "No credentials found.  Run \"wandb login\" to visualize your metrics")
+                    run.mode = "dryrun"
+                    _init_headless(run, False)
         else:
             _init_headless(run)
     elif run.mode == 'dryrun':
