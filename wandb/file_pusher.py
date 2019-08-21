@@ -340,10 +340,9 @@ class FilePusher(object):
                 continue
 
             # Otherwise, send all the files as a batch.
-            if batch:
-                new_batch_id = str(self._batch_num)
-                self._event_queue.put(EventFileBatch(new_batch_id, batch))
-                self._batch_num += 1
+            new_batch_id = str(self._batch_num)
+            self._event_queue.put(EventFileBatch(new_batch_id, batch))
+            self._batch_num += 1
             
             # And stop the infinite loop if we've finished
             if finished:
