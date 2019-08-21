@@ -45,6 +45,10 @@ BATCH_THRESHOLD_SECS = 3
 # minute.
 BATCH_MAX_FILES = 100
 
+# If there are fewer than this many files gathered over a batch threshold, 
+# then just upload them individually.
+BATCH_MIN_FILES = 3
+
 # If needed you can space out uploads a bit.
 RATE_LIMIT_SECS = 0.1
 
@@ -324,7 +328,18 @@ class FilePusher(object):
                 # Otherwise, it's file changed, so add it to the pending batch.
                 batch.append(event)
 
-            # Send the batch to the event queue if it has any events in it.
+            # Loop around if no files found.
+            if not batch:
+                continue
+
+            # If less than the minimum files are found, just upload them
+            # individually.
+            if len(batch) < BATCH_MIN_FILES:
+                for event in batch:
+                    self._event_queue.put(event)
+                continue
+
+            # Otherwise, send all the files as a batch.
             if batch:
                 new_batch_id = str(self._batch_num)
                 self._event_queue.put(EventFileBatch(new_batch_id, batch))

@@ -121,6 +121,25 @@ def test_custom_file_policy_symlink(mocker, run_manager):
         run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwriteMinWait)
     assert mod.called
 
+def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
+    for i in range(2):
+        fname = "ckpt_{}.txt".format(i)
+        with open(fname, "w") as f:
+            f.write("w&b" * 100)
+            wandb.save(fname)
+    run_manager.test_shutdown()
+    
+    reqs = [r for r in mock_server.requests['graphql']
+        if 'files' in r['variables']]
+
+    assert 'query Model' in reqs[0]['query']
+    assert reqs[0]['variables']['name'] == 'testing'
+    assert reqs[0]['variables']['files'] == ['ckpt_0.txt']
+
+    assert 'query Model' in reqs[1]['query']
+    assert reqs[1]['variables']['name'] == 'testing'
+    assert reqs[1]['variables']['files'] == ['ckpt_1.txt']
+
 def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
     for i in range(10):
         fname = "ckpt_{}.txt".format(i)
