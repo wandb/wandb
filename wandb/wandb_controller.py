@@ -59,7 +59,7 @@ import time
 import string
 import random
 import six
-import urllib
+from six.moves import urllib
 
 import wandb
 from wandb.apis import InternalApi
