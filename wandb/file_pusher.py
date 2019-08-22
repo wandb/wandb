@@ -36,21 +36,6 @@ EventFileChanged = collections.namedtuple(
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
-# After 5 seconds of gathering batched uploads, kick off a batch without
-# waiting any longer.
-BATCH_THRESHOLD_SECS = 3
-
-# Maximum number of files in any given batch. If there are too many files
-# it can take too long to unpack -- 500 very small files takes GCP about a
-# minute.
-BATCH_MAX_FILES = 100
-
-# If there are fewer than this many files gathered over a batch threshold, 
-# then just upload them individually.
-BATCH_MIN_FILES = 3
-
-# If needed you can space out uploads a bit.
-RATE_LIMIT_SECS = 0.1
 
 class UploadJob(threading.Thread):
     def __init__(self, done_queue, progress, api, save_name, path, copy=True):
@@ -198,6 +183,22 @@ class FilePusher(object):
     uploads are complete.
     """
 
+    # After 5 seconds of gathering batched uploads, kick off a batch without
+    # waiting any longer.
+    BATCH_THRESHOLD_SECS = 3
+
+    # Maximum number of files in any given batch. If there are too many files
+    # it can take too long to unpack -- 500 very small files takes GCP about a
+    # minute.
+    BATCH_MAX_FILES = 100
+
+    # If there are fewer than this many files gathered over a batch threshold, 
+    # then just upload them individually.
+    BATCH_MIN_FILES = 3
+
+    # If needed you can space out uploads a bit.
+    RATE_LIMIT_SECS = 0.1
+
     def __init__(self, api, max_jobs=6):
         self._file_stats = {}  # stats for all files
         self._progress = {}   # amount uploaded
@@ -310,8 +311,8 @@ class FilePusher(object):
         while True:
             batch = []
             batch_started_at = time.time()
-            batch_end_at = batch_started_at + BATCH_THRESHOLD_SECS
-            while time.time() < batch_end_at and len(batch) < BATCH_MAX_FILES:
+            batch_end_at = batch_started_at + self.BATCH_THRESHOLD_SECS
+            while time.time() < batch_end_at and len(batch) < self.BATCH_MAX_FILES:
                 # Get the latest event
                 try:
                     wait_secs = batch_end_at - time.time()
@@ -334,7 +335,7 @@ class FilePusher(object):
 
             # If less than the minimum files are found, just upload them
             # individually.
-            if len(batch) < BATCH_MIN_FILES:
+            if len(batch) < self.BATCH_MIN_FILES:
                 for event in batch:
                     self._event_queue.put(event)
                 continue
@@ -388,8 +389,8 @@ class FilePusher(object):
 
         # Rate limit if it's too fast to prevent overloading the server
         elapsed_since_last = time.time() - self._last_job_started_at
-        if elapsed_since_last < RATE_LIMIT_SECS:
-            time.sleep(RATE_LIMIT_SECS - elapsed_since_last)
+        if elapsed_since_last < self.RATE_LIMIT_SECS:
+            time.sleep(self.RATE_LIMIT_SECS - elapsed_since_last)
             self._start_or_restart_event_job(event)
             return
 

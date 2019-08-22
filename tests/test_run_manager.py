@@ -122,6 +122,9 @@ def test_custom_file_policy_symlink(mocker, run_manager):
     assert mod.called
 
 def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
+    "Test that only 3 files are uploaded individually."
+    mocker.patch.object('wandb.file_pusher.FilePusher', 'BATCH_THRESHOLD_SECS', 0.1)
+
     for i in range(2):
         fname = "ckpt_{}.txt".format(i)
         with open(fname, "w") as f:
@@ -141,6 +144,9 @@ def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
     assert reqs[1]['variables']['files'] == ['ckpt_1.txt']
 
 def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
+    "Test that 100 files are batched."
+    mocker.patch.object('wandb.file_pusher.FilePusher', 'BATCH_THRESHOLD_SECS', 0.1)
+
     for i in range(10):
         fname = "ckpt_{}.txt".format(i)
         with open(fname, "w") as f:
