@@ -775,7 +775,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
 @click.pass_context
 @click.argument('docker_run_args', nargs=-1)
-@click.option('--help')
+@click.option('--help', is_flag=True, defualt=False, help='Show docker run helper.')
 def docker_run(ctx, docker_run_args, help):
     """Simple docker wrapper that adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
     This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
@@ -835,7 +835,7 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
 
     By default we override the entrypoint to check for the existance of wandb and install it if not present.  If you pass the --jupyter
     flag we will ensure jupyter is installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your system we will use
-    the nvidia runtime.  If you just want wandb to set environment variable to an existing docker run command, see the wandb docker-run 
+    the nvidia runtime.  If you just want wandb to set environment variable to an existing docker run command, see the wandb docker-run
     command.
     """
     if not find_executable('docker'):
