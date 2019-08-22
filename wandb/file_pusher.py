@@ -329,21 +329,17 @@ class FilePusher(object):
                 # Otherwise, it's file changed, so add it to the pending batch.
                 batch.append(event)
 
-            # Loop around if no files found.
-            if not batch:
-                continue
-
-            # If less than the minimum files are found, just upload them
-            # individually.
-            if len(batch) < self.BATCH_MIN_FILES:
-                for event in batch:
-                    self._event_queue.put(event)
-                continue
-
-            # Otherwise, send all the files as a batch.
-            new_batch_id = str(self._batch_num)
-            self._event_queue.put(EventFileBatch(new_batch_id, batch))
-            self._batch_num += 1
+            if batch:
+                if len(batch) <= self.BATCH_MIN_FILES:
+                    # If less than the minimum files are found, just upload
+                    # them individually.
+                    for event in batch:
+                        self._event_queue.put(event)
+                else:
+                    # Otherwise, send all the files as a batch.
+                    new_batch_id = str(self._batch_num)
+                    self._event_queue.put(EventFileBatch(new_batch_id, batch))
+                    self._batch_num += 1
             
             # And stop the infinite loop if we've finished
             if finished:
