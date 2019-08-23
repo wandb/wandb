@@ -31,6 +31,11 @@ class GitRepo(object):
                     self._repo = False
         return self._repo
 
+    def is_untracked(self, file_name):
+        if not self.repo:
+            return True
+        return file_name in self.repo.untracked_files
+
     @property
     def enabled(self):
         return bool(self.repo)

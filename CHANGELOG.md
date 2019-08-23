@@ -1,3 +1,79 @@
+## 0.8.9 (Aug 19, 2019)
+
+#### :bug: Bug Fix
+
+-   run.summary updates work in jupyter before log is called
+-   don't require numpy to be installed
+-   Setting nested keys in summary works
+-   notebooks in nested directories are properly saved
+-   Don't retry 404's / better error messaging from the server
+-   Strip leading slashes when loading paths in the public api
+
+#### :nail_care: Enhancement
+
+-   Small files are batch uploaded as gzipped tarballs
+-   TensorBoardX gifs are logged to wandb
+
+## 0.8.8 (Aug 13, 2019)
+
+#### :bug: Bug Fix
+
+-   wandb.init properly handles network failures on startup
+-   Keras callback only logs examples if data_type or input_type is set
+-   Fix edge case PyTorch model logging bug
+-   Handle patching tensorboard multiple times in jupyter
+-   Sweep picks up config.yaml from the run directory
+-   Dataframes handle integer labels
+-   Handle invalid JSON when querying jupyter servers
+
+#### :nail_care: Enhancement
+
+-   fastai uses a fixed seed for example logging
+-   increased the max number of images for fastai callback
+-   new wandb.Video tag for logging video
+-   sync=False argument to wandb.log moves logging to a thread
+-   New local sweep controller for custom search logic
+-   Anonymous login support for easier onboarding
+-   Calling wandb.init multiple times in jupyter doesn't error out
+
+## 0.8.7 (Aug 7, 2019)
+
+#### :bug: Bug Fix
+
+-   keras callback no longer guesses input_type for 2D data
+-   wandb.Image handles images with 1px height
+
+#### :nail_care: Enhancement
+
+-   wandb Public API now has `run.scan_history` to return all history rows
+-   wandb.config prints helpful errors if used before calling init
+-   wandb.summary prints helpful errors if used before calling init
+-   filestream api points to new url on the backend
+
+## 0.8.6 (July 31, 2019)
+
+#### :bug: Bug Fix
+
+-   fastai callback uses the default monitor instead of assuming val_loss
+-   notebook introspections handles error cases and doesn't print stacktrace on failure
+-   Don't print description warning when setting name
+-   Fixed dataframe logging error with the keras callback
+-   Fixed line offsets in logs when resuming runs
+-   wandb.config casts non-builtins before writing to yaml
+-   vendored backports.tempfile to address missing package on install
+
+#### :nail_care: Enhancement
+
+-   Added `api.sweep` to the python export api for querying sweeps
+-   Added `WANDB_NOTEBOOK_NAME` for specifying the notebook name in cases we can't infer it
+-   Added `WANDB_HOST` to override hostnames
+-   Store if a run was run within jupyter
+-   Client now supports stopping runs from the web ui
+-   Handle floats passed as step to `wandb.log`
+-   wandb.config has full unicode support
+-   sync the main file to wandb if code saving is enabled and it's untracked by git
+-   XGBoost callback: wandb.xgboost.wandb_callback()
+
 ## 0.8.5 (July 12, 2019)
 
 #### :bug: Bug Fix

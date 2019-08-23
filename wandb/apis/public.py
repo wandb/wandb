@@ -19,8 +19,7 @@ from wandb import Error, __version__
 from wandb import util
 from wandb.retry import retriable
 from wandb.summary import HTTPSummary, download_h5
-from wandb.env import get_dir
-from wandb.env import get_base_url
+from wandb import env
 from wandb.apis import normalize_exceptions
 
 logger = logging.getLogger(__name__)
@@ -39,6 +38,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     notes
     systemMetrics
     summaryMetrics
+    historyLineCount
     user {
         name
         username
@@ -87,15 +87,16 @@ class Api(object):
         username, project, and run here as well as which api server to use.
     """
 
-    HTTP_TIMEOUT = 9
+    HTTP_TIMEOUT = env.get_http_timeout(9)
 
     def __init__(self, overrides={}):
         self.settings = {
             'username': None,
             'project': None,
             'run': "latest",
-            'base_url': get_base_url("https://api.wandb.ai")
+            'base_url': env.get_base_url("https://api.wandb.ai")
         }
+        self.settings.update(overrides)
         self._runs = {}
         self._sweeps = {}
         self._base_client = Client(
@@ -110,7 +111,6 @@ class Api(object):
             )
         )
         self._client = RetryingClient(self._base_client)
-        self.settings.update(overrides)
 
     def create_run(self, **kwargs):
         return Run.create(self, **kwargs)
@@ -150,7 +150,7 @@ class Api(object):
         run = self.settings['run']
         project = self.settings['project']
         username = self.settings['username']
-        parts = path.replace("/runs/", "/").split("/")
+        parts = path.replace("/runs/", "/").strip("/ ").split("/")
         if ":" in parts[-1]:
             run = parts[-1].split(":")[-1]
             parts[-1] = parts[-1].split(":")[0]
@@ -364,7 +364,7 @@ class Run(Attrs):
         self.username = username
         self.project = project
         self._files = {}
-        self._base_dir = get_dir(tempfile.gettempdir())
+        self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
@@ -560,6 +560,19 @@ class Run(Attrs):
                 print("Unable to load pandas, call history with pandas=False")
         return lines
 
+    @normalize_exceptions
+    def scan_history(self, keys=None, page_size=1000):
+        """Returns an iterable that returns all history for a run unsampled
+
+        Args:
+            keys ([str], optional): only fetch these keys, and rows that have all of them
+            page_size (int, optional): size of pages to fetch from the api
+        """
+        if keys is None:
+            return HistoryScan(run=self, client=self.client, page_size=page_size)
+        else:
+            return SampledHistoryScan(run=self, client=self.client, keys=keys, page_size=page_size)
+
     @property
     def summary(self):
         if self._summary is None:
@@ -627,7 +640,7 @@ class Sweep(Attrs):
             if response['project'] is None or response['project']['sweep'] is None:
                 raise ValueError("Could not find sweep %s" % self)
             # TODO: make this paginate
-            self.runs = [Run(self.client, self.username, self.project, r["node"]["name"], r["node"]) for 
+            self.runs = [Run(self.client, self.username, self.project, r["node"]["name"], r["node"]) for
                 r in response['project']['sweep']['runs']['edges']]
             del response['project']['sweep']['runs']
             self._attrs = response['project']['sweep']
@@ -757,3 +770,117 @@ class File(object):
 
     def __repr__(self):
         return "<File {} ({})>".format(self.name, self.mimetype)
+
+class HistoryScan(object):
+    QUERY = gql('''
+        query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $run) {
+                    history(minStep: $minStep, maxStep: $maxStep, samples: $pageSize)
+                }
+            }
+        }
+        ''')
+
+    def __init__(self, client, run, page_size=1000):
+        self.client = client
+        self.run = run
+        self.page_size = page_size
+        self.page_offset = 0 # minStep for next page
+        self.scan_offset = 0 # index within current page of rows
+        self.rows = [] # current page of rows
+
+    def __iter__(self):
+        self.page_offset = 0
+        self.scan_offset = 0
+        self.rows = []
+        return self
+
+    def __next__(self):
+        while True:
+            if self.scan_offset < len(self.rows):
+                row = self.rows[self.scan_offset]
+                self.scan_offset += 1
+                return row
+            if self.page_offset >= self.run.historyLineCount:
+                raise StopIteration()
+            self._load_next()
+
+    @normalize_exceptions
+    @retriable(
+        check_retry_fn=util.no_retry_auth,
+        retryable_exceptions=(RetryError, requests.RequestException))
+    def _load_next(self):
+        variables = {
+            "entity": self.run.username,
+            "project": self.run.project,
+            "run": self.run.id,
+            "minStep": int(self.page_offset),
+            "maxStep": int(self.page_offset + self.page_size),
+            "pageSize": int(self.page_size)
+        }
+
+        res = self.client.execute(self.QUERY, variable_values=variables)
+        res = res['project']['run']['history']
+        self.rows = [json.loads(row) for row in res]
+        self.page_offset += self.page_size
+        self.scan_offset = 0
+
+class SampledHistoryScan(object):
+    QUERY = gql('''
+        query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $run) {
+                    sampledHistory(specs: [$spec])
+                }
+            }
+        }
+        ''')
+
+    def __init__(self, client, run, keys, page_size=1000):
+        self.client = client
+        self.run = run
+        self.keys = keys
+        self.page_size = page_size
+        self.page_offset = 0 # minStep for next page
+        self.scan_offset = 0 # index within current page of rows
+        self.rows = [] # current page of rows
+
+    def __iter__(self):
+        self.page_offset = 0
+        self.scan_offset = 0
+        self.rows = []
+        return self
+
+    def __next__(self):
+        while True:
+            if self.scan_offset < len(self.rows):
+                row = self.rows[self.scan_offset]
+                self.scan_offset += 1
+                return row
+            if self.page_offset >= self.run.historyLineCount:
+                raise StopIteration()
+            self._load_next()
+
+    @normalize_exceptions
+    @retriable(
+        check_retry_fn=util.no_retry_auth,
+        retryable_exceptions=(RetryError, requests.RequestException))
+    def _load_next(self):
+        variables = {
+            "entity": self.run.username,
+            "project": self.run.project,
+            "run": self.run.id,
+            "spec": json.dumps({
+                "keys": self.keys,
+                "minStep": int(self.page_offset),
+                "maxStep": int(self.page_offset + self.page_size),
+                "samples": int(self.page_size)
+            })
+        }
+
+        res = self.client.execute(self.QUERY, variable_values=variables)
+        res = res['project']['run']['sampledHistory']
+        self.rows = res[0]
+        self.page_offset += self.page_size
+        self.scan_offset = 0

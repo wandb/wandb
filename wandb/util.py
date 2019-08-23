@@ -157,6 +157,31 @@ class LazyLoader(types.ModuleType):
         module = self._load()
         return dir(module)
 
+class PreInitObject(object):
+    def __init__(self, name):
+        self._name = name
+
+    def __getitem__(self, key):
+        raise wandb.Error(
+            'You must call wandb.init() before {}["{}"]'.format(self._name, key))
+
+    def __setitem__(self, key, value):
+        raise wandb.Error(
+            'You must call wandb.init() before {}["{}"]'.format(self._name, key))
+
+    def __setattr__(self, key, value):
+        if not key.startswith("_"):
+            raise wandb.Error(
+                'You must call wandb.init() before {}.{}'.format(self._name, key))
+        else:
+            return object.__setattr__(self, key, value)
+
+    def __getattr__(self, key):
+        if not key.startswith("_"):
+            raise wandb.Error(
+                'You must call wandb.init() before {}.{}'.format(self._name, key))
+        else:
+            return object.__getattr__(self, key)
 
 np = get_module('numpy')
 
@@ -455,36 +480,44 @@ def no_retry_auth(e):
     # Don't retry bad request errors; raise immediately
     if e.response.status_code == 400:
         return False
-    # Retry all non-forbidden/unauthorized errors.
-    if e.response.status_code not in (401, 403):
+    # Retry all non-forbidden/unauthorized/not-found errors.
+    if e.response.status_code not in (401, 403, 404):
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
         raise CommError("Invalid or missing api_key.  Run wandb login")
+    elif wandb.run:
+        raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
-def write_settings(entity, project, url):
+
+def write_settings(entity=None, project=None, settings=None):
     if not os.path.isdir(wandb_dir()):
         os.mkdir(wandb_dir())
     with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
         print('[default]', file=file)
-        print('entity: {}'.format(entity), file=file)
-        print('project: {}'.format(project), file=file)
-        print('base_url: {}'.format(url), file=file)
+        if entity is not None:
+            print('entity: {}'.format(entity))
+            print('entity: {}'.format(entity), file=file)
+        if project is not None:
+            print('project: {}'.format(project), file=file)
+            print('project: {}'.format(project))
+        if settings is not None:
+            for key, value in settings.items():
+                if key == 'base_url' or key == 'anonymous':
+                    print('{}: {}'.format(key, value), file=file)
 
 
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
     key_prefix, key_suffix = key.split('-', 1) if '-' in key else ('', key)
     if len(key_suffix) != 40:
-        click.secho(
-            'API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
+        wandb.termlog('API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
         return None
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
-        print("Appending key for %s to your netrc file: %s" %
-              (normalized_host, os.path.expanduser('~/.netrc')))
+        wandb.termlog("Appending key for {} to your netrc file: {}".format(normalized_host, os.path.expanduser('~/.netrc')))
         machine_line = 'machine %s' % normalized_host
         path = os.path.expanduser('~/.netrc')
         orig_lines = None
@@ -513,7 +546,7 @@ def write_netrc(host, entity, key):
                  stat.S_IRUSR | stat.S_IWUSR)
         return True
     except IOError as e:
-        click.secho("Unable to read ~/.netrc", fg="red")
+        wandb.termerror("Unable to read ~/.netrc")
         return None
 
 
@@ -747,9 +780,6 @@ def guess_data_type(shape):
     # (samples,) or (samples,logits)
     if len(shape) in (1, 2):
         return 'label'
-    # (samples, height, width) = grayscale image
-    if len(shape) == 3:
-        return 'image'
     if len(shape) == 4:
         if shape[-1] in (1, 3, 4):
             # (samples, height, width, Y \ RGB \ RGBA)

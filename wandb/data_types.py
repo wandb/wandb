@@ -27,7 +27,6 @@ import shutil
 from six.moves import queue
 import warnings
 
-import backports.tempfile
 import collections
 import os
 import io
@@ -39,15 +38,16 @@ import json
 import codecs
 import tempfile
 from wandb import util
+from wandb.compat import tempfile
 
 
 # Get rid of cleanup warnings in Python 2.7.
-warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'backports.tempfile')
+warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'wandb.compat.tempfile')
 
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
-MEDIA_TMP = backports.tempfile.TemporaryDirectory('wandb-media')
+MEDIA_TMP = tempfile.TemporaryDirectory('wandb-media')
 
 
 DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
@@ -233,7 +233,7 @@ def data_frame_to_json(df, run, key, step):
     # We have to call this wandb_run_id because that name is treated specially by
     # our filtering code
     df['wandb_run_id'] = pandas.Series(
-        [six.text_type(run.name)] * len(df.index), index=df.index)
+        [six.text_type(run.id)] * len(df.index), index=df.index)
 
     df['wandb_data_frame_id'] = pandas.Series(
         [six.text_type(data_frame_id)] * len(df.index), index=df.index)
@@ -982,9 +982,132 @@ class Html(BatchableMedia):
         }
         return meta
 
+class Video(BatchableMedia):
+    EXTS = ("gif", "mp4", "webm", "ogg")
+
+    def __init__(self, data_or_path, caption=None, fps=4, format=None):
+        self._fps = fps
+        self._format = format or "gif"
+        self._width = None
+        self._height = None
+        self._channels = None
+        self._caption = caption
+        if self._format not in Video.EXTS:
+            raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
+
+        if isinstance(data_or_path, six.BytesIO):
+            filename = os.path.join(MEDIA_TMP.name, util.generate_id() + '.'+ self._format)
+            with open(filename, "wb") as f:
+                f.write(data_or_path.read())
+            super(Video, self).__init__(filename, is_tmp=True)
+        elif isinstance(data_or_path, six.string_types):
+            _, ext = os.path.splitext(data_or_path)
+            ext = ext[1:].lower()
+            if ext not in Video.EXTS:
+                raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
+            super(Video, self).__init__(data_or_path, is_tmp=False)
+        else:
+            if hasattr(data_or_path, "numpy"): # TF data eager tensors
+                self.data = data_or_path.numpy()
+            elif is_numpy_array(data_or_path):
+                self.data = data_or_path
+            else:
+                raise ValueError("wandb.Video accepts a file path or numpy like data as input")
+            self.encode()
+
+    def encode(self):
+        mpy = util.get_module("moviepy.editor", required='wandb.Video requires moviepy and imageio when passing raw data.  Install with "pip install moviepy imageio"')
+        tensor = self._prepare_video(self.data)
+        _, self._height, self._width, self._channels = tensor.shape
+
+        # encode sequence of images into gif string
+        clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
+
+        filename = os.path.join(MEDIA_TMP.name, util.generate_id() + '.'+ self._format)
+        try:  # older version of moviepy does not support progress_bar argument.
+            if self._format == "gif":
+                clip.write_gif(filename, verbose=False, progress_bar=False)
+            else:
+                clip.write_videofile(filename, verbose=False, progress_bar=False)
+        except TypeError:
+            if self._format == "gif":
+                clip.write_gif(filename, verbose=False)
+            else:
+                clip.write_videofile(filename, verbose=False)
+        super(Video, self).__init__(filename, is_tmp=True)
+
+    @classmethod
+    def get_media_subdir(cls):
+        return os.path.join('media', 'videos')
+
+    def to_json(self, run):
+        json_dict = super(Video, self).to_json(run)
+        json_dict['_type'] = 'video-file'
+
+        if self._width is not None:
+            json_dict['width'] = self._width
+        if self._height is not None:
+            json_dict['height'] = self._height
+        if self._caption:
+            json_dict['caption'] = self._caption
+
+        return json_dict
+
+    def _prepare_video(self, V):
+        """This logic was mostly taken from tensorboardX"""
+        np = util.get_module(
+                "numpy", required='wandb.Video requires numpy when passing raw data. To get it, run "pip install numpy".')
+        if V.ndim < 4:
+            raise ValueError("Video must be atleast 4 dimensions: time, channels, height, width")
+        if V.ndim == 4:
+            V = V.reshape(1, *V.shape)
+        b, t, c, h, w = V.shape
+
+        if V.dtype == np.uint8:
+            V = np.float32(V) / 255.
+
+        def is_power2(num):
+            return num != 0 and ((num & (num - 1)) == 0)
+
+        # pad to nearest power of 2, all at once
+        if not is_power2(V.shape[0]):
+            len_addition = int(2**V.shape[0].bit_length() - V.shape[0])
+            V = np.concatenate(
+                (V, np.zeros(shape=(len_addition, t, c, h, w))), axis=0)
+
+        n_rows = 2**((b.bit_length() - 1) // 2)
+        n_cols = V.shape[0] // n_rows
+
+        V = np.reshape(V, newshape=(n_rows, n_cols, t, c, h, w))
+        V = np.transpose(V, axes=(2, 0, 4, 1, 5, 3))
+        V = np.reshape(V, newshape=(t, n_rows * h, n_cols * w, c))
+        return V
+
+    @classmethod
+    def seq_to_json(cls, videos, run, key, step):
+        base_path = os.path.join(run.dir, cls.get_media_subdir())
+        util.mkdir_exists_ok(base_path)
+        for i, v in enumerate(videos):
+            if not v.is_bound():
+                v.bind_to_run(run, key, step, id_=i)
+        meta = {
+            "_type": "videos",
+            "count": len(videos),
+            'videos': [v.to_json(run) for v in videos],
+            "captions": Video.captions(videos)
+        }
+        return meta
+
+    @classmethod
+    def captions(cls, videos):
+        if videos[0]._caption != None:
+            return [v._caption for v in videos]
+        else:
+            return False
+
 
 class Image(BatchableMedia):
-    MAX_THUMBNAILS = 100
+    MAX_THUMBNAILS = 108
 
     # PIL limit
     MAX_DIMENSION = 65500
@@ -1027,7 +1150,8 @@ class Image(BatchableMedia):
             else:
                 if hasattr(data, "numpy"): # TF data eager tensors
                     data = data.numpy()
-                data = data.squeeze()  # get rid of trivial dimensions as a convenience
+                if data.ndim > 2:
+                    data = data.squeeze()  # get rid of trivial dimensions as a convenience
                 self._image = PILImage.fromarray(
                     self.to_uint8(data), mode=mode or self.guess_mode(data))
 

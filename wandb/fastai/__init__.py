@@ -54,7 +54,8 @@ class WandbCallback(TrackerCallback):
                  mode='auto',
                  input_type=None,
                  validation_data=None,
-                 predictions=36):
+                 predictions=36,
+                 seed=12345):
         """WandB fast.ai Callback
 
         Automatically saves model topology, losses & metrics.
@@ -69,6 +70,7 @@ class WandbCallback(TrackerCallback):
             input_type (str): "images" or None. Used to display sample predictions.
             validation_data (list): data used for sample predictions if input_type is set.
             predictions (int): number of predictions to make if input_type is set and validation_data is None.
+            seed (int): initialize random generator for sample predictions if input_type is set and validation_data is None.
         """
 
         # Check if wandb.init has been called
@@ -92,9 +94,10 @@ class WandbCallback(TrackerCallback):
         # Select items for sample predictions to see evolution along training
         self.validation_data = validation_data
         if input_type and not self.validation_data:
+            wandbRandom = random.Random(seed)  # For repeatability
             predictions = min(predictions, len(learn.data.valid_ds))
-            indices = random.sample(range(len(learn.data.valid_ds)),
-                                    predictions)
+            indices = wandbRandom.sample(range(len(learn.data.valid_ds)),
+                                         predictions)
             self.validation_data = [learn.data.valid_ds[i] for i in indices]
 
     def on_train_begin(self, **kwargs):
@@ -148,8 +151,8 @@ class WandbCallback(TrackerCallback):
                         wandb.Image(x.data, caption='Input data', grouping=3))
 
                     # log label and prediction
-                    for im, capt in (y, "Ground Truth"), (pred[0],
-                                                          "Prediction"):
+                    for im, capt in ((pred[0], "Prediction"),
+                                     (y, "Ground Truth")):
                         # Resize plot to image resolution
                         # from https://stackoverflow.com/a/13714915
                         my_dpi = 100
@@ -172,8 +175,8 @@ class WandbCallback(TrackerCallback):
 
                     pred_log.extend([
                         wandb.Image(x.data, caption='Input data', grouping=3),
-                        wandb.Image(y.data, caption='Ground Truth'),
-                        wandb.Image(pred[0].data, caption='Prediction')
+                        wandb.Image(pred[0].data, caption='Prediction'),
+                        wandb.Image(y.data, caption='Ground Truth')
                     ])
 
                 # we just log input data

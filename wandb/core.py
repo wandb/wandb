@@ -40,8 +40,12 @@ def _set_stage_dir(stage_dir):
 
 class Error(Exception):
     """Base W&B Error"""
-    # For python 2 support
 
+    def __init__(self, message):
+        super(Error, self).__init__(message)
+        self.message = message
+
+    # For python 2 support
     def encode(self, encoding):
         return self.message
 

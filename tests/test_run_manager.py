@@ -121,6 +121,48 @@ def test_custom_file_policy_symlink(mocker, run_manager):
         run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwriteMinWait)
     assert mod.called
 
+def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
+    "Test that only 3 files are uploaded individually."
+    # somehow other tests get piled up with this one without a sleep
+    time.sleep(1)
+    # Speed up tests
+    mocker.patch('wandb.file_pusher.FilePusher', 'BATCH_THRESHOLD_SECS', 0.3)
+    # Set min to 10, since 2 custom files + 4 files always generated = 6
+    mocker.patch('wandb.file_pusher.FilePusher', 'BATCH_MIN_FILES', 10)
+
+    for i in range(2):
+        fname = "ckpt_{}.txt".format(i)
+        with open(fname, "w") as f:
+            f.write("w&b" * 100)
+            wandb.save(fname)
+    run_manager.test_shutdown()
+    
+    filenames = [
+        r['variables']['files'][0]
+        for r in mock_server.requests['graphql']
+        if 'files' in r['variables']]
+
+    # assert there is no batching
+    assert all('.tgz' not in filename for filename in filenames)
+
+def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
+    "Test that 100 files are batched."
+    mocker.patch('wandb.file_pusher.FilePusher', 'BATCH_THRESHOLD_SECS', 0.3)
+
+    for i in range(10):
+        fname = "ckpt_{}.txt".format(i)
+        with open(fname, "w") as f:
+            f.write("w&b" * 100)
+            wandb.save(fname)
+    run_manager.test_shutdown()
+    
+    req = [r for r in mock_server.requests['graphql']
+        if 'files' in r['variables']][0]
+
+    assert 'query Model' in req['query']
+    assert req['variables']['name'] == 'testing'
+    assert req['variables']['files'] == ['___batch_archive_1.tgz']
+
 
 def test_remove_auto_resume(mocker, run_manager):
     resume_path = os.path.join(wandb.wandb_dir(), RESUME_FNAME)

@@ -48,14 +48,17 @@ class Meta(object):
         except (ImportError, AttributeError):
             self.data["program"] = '<python with no main file>'
             if wandb._get_python_type() != "python":
-                meta = wandb.jupyter.notebook_metadata()
-                if meta.get("path"):
-                    if "fileId=" in meta["path"]:
-                        self.data["colab"] = "https://colab.research.google.com/drive/"+meta["path"].split("fileId=")[1]
-                        self.data["program"] = meta["name"]
-                    else:
-                        self.data["program"] = meta["path"]
-                        self.data["root"] = meta["root"]
+                if os.getenv(env.NOTEBOOK_NAME):
+                    self.data["program"] = os.getenv(env.NOTEBOOK_NAME)
+                else:
+                    meta = wandb.jupyter.notebook_metadata()
+                    if meta.get("path"):
+                        if "fileId=" in meta["path"]:
+                            self.data["colab"] = "https://colab.research.google.com/drive/"+meta["path"].split("fileId=")[1]
+                            self.data["program"] = meta["name"]
+                        else:
+                            self.data["program"] = meta["path"]
+                            self.data["root"] = meta["root"]
 
         program = os.path.join(self.data["root"], self.data["program"])
         if not os.getenv(env.DISABLE_CODE):
@@ -66,8 +69,9 @@ class Meta(object):
                 }
                 self.data["email"] = self._api.git.email
                 self.data["root"] = self._api.git.root or self.data["root"]
-            elif os.path.exists(program):
-                util.mkdir_exists_ok(os.path.join(self.out_dir, "code"))
+
+            if os.path.exists(program) and self._api.git.is_untracked(self.data["program"]):
+                util.mkdir_exists_ok(os.path.join(self.out_dir, "code", os.path.dirname(self.data["program"])))
                 saved_program = os.path.join(self.out_dir, "code", self.data["program"])
                 if not os.path.exists(saved_program):
                     self.data["codeSaved"] = True

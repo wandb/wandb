@@ -45,6 +45,7 @@ import wandb
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 from wandb import agent as wandb_agent
+from wandb import wandb_controller
 from wandb import env
 from wandb import wandb_run
 from wandb import wandb_dir
@@ -476,44 +477,81 @@ def pull(run, project, entity):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
+@click.option("--anonymous", default=False, is_flag=True, help="Log in as an anonymous user")
 @display_error
-def login(key, server=LocalServer(), browser=True):
+def login(key, server=LocalServer(), browser=True, anonymous=False):
     global api
 
     key = key[0] if len(key) > 0 else None
+
     # Import in here for performance reasons
     import webbrowser
-    # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
-    url = api.app_url + '/authorize'
     browser = util.launch_browser(browser)
-    if key or not browser:
-        launched = False
-    else:
-        launched = webbrowser.open_new_tab(url + "?{}".format(server.qs()))
-    if launched:
-        click.echo(
-            'Opening [{}] in your default browser'.format(url))
-        server.start(blocking=False)
-    elif not key:
-        click.echo(
-            "You can find your API keys in your browser here: {}".format(url))
 
-    def cancel_prompt(*args):
-        raise KeyboardInterrupt()
-    # Hijacking this signal broke tests in py2...
-    # if not os.getenv("WANDB_TEST"):
-    signal.signal(signal.SIGINT, cancel_prompt)
-    try:
-        key = key or click.prompt("Paste an API key from your profile",
-                                  value_proc=lambda x: x.strip())
-    except Abort:
-        if server.result.get("key"):
-            key = server.result["key"][0]
+    # For now *new* anonymous logins need to be enabled with an environment variable
+    allow_anonymous = False
+    if os.environ.get(env.ANONYMOUS) == "enable":
+        allow_anonymous = True
+
+    # Go through the regular user login flow first, unless --anonymous is specified.
+    if not key and not anonymous:
+        # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
+        url = api.app_url + '/authorize'
+        if key or not browser:
+            launched = False
+        else:
+            launched = webbrowser.open_new_tab(url + "?{}".format(server.qs()))
+        if launched:
+            click.echo(
+                'Opening [{}] in your default browser'.format(url))
+            server.start(blocking=False)
+        elif not key:
+            click.echo(
+                "You can find your API keys in your browser here: {}".format(url))
+
+        def cancel_prompt(*args):
+            # Keyboard SIGINT leaves terminal without a linefeed
+            click.echo("")
+            raise KeyboardInterrupt()
+
+        # Hijacking this signal broke tests in py2...
+        # if not os.getenv("WANDB_TEST"):
+        signal.signal(signal.SIGINT, cancel_prompt)
+        try:
+            key = key or click.prompt("Paste an API key from your profile",
+                                      value_proc=lambda x: x.strip())
+        except Abort:
+            if server.result.get("key"):
+                key = server.result["key"][0]
+
+        # If we still don't have a key, go through the anonymous user flow if we're running interactively.
+        if not key and allow_anonymous:
+            try:
+                click.confirm('No API key found. Would you like to log runs anonymously?', abort=True)
+                anonymous = True
+            except Abort:
+                anonymous = False
+
+    # Go through the anonymous login flow.
+    if not key and anonymous:
+        if api.api_key:
+            click.confirm('You are already logged in. Are you sure you want to create a new anonymous login?', abort=True)
+
+        # Generate a new anonymous user and use its API key.
+        key = api.create_anonymous_api_key()
+
+        url = api.app_url + '/login?apiKey={}'.format(key)
+        if browser:
+            webbrowser.open_new_tab(url)
+
+        click.echo("Your anonymous login link: {}. Do not share or lose this link!".format(url))
 
     if key:
         # TODO: get the username here...
         # username = api.viewer().get('entity', 'models')
         if util.write_netrc(api.api_url, "user", key):
+            api.set_setting('anonymous', anonymous)
+            util.write_settings(settings=api.settings())
             click.secho(
                 "Successfully logged in to Weights & Biases!", fg="green")
     else:
@@ -585,7 +623,7 @@ def init(ctx):
     except wandb.cli.ClickWandbException:
         raise ClickException('Could not find team: %s' % entity)
 
-    util.write_settings(entity, project, api.settings()['base_url'])
+    util.write_settings(entity, project, api.settings())
 
     with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
@@ -715,6 +753,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         environ[env.CONFIG_PATHS] = configs
     if show:
         environ[env.SHOW_RUN] = 'True'
+    run.check_anonymous()
 
     try:
         rm = run_manager.RunManager(run)
@@ -908,9 +947,11 @@ wandb_magic_install()
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
+@click.option('--controller', is_flag=True, default=False, help="Run local controller")
+@click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
 @click.argument('config_yaml')
 @display_error
-def sweep(ctx, config_yaml):
+def sweep(ctx, controller, verbose, config_yaml):
     click.echo('Creating sweep from: %s' % config_yaml)
     try:
         yaml_file = open(config_yaml)
@@ -925,20 +966,52 @@ def sweep(ctx, config_yaml):
     if config is None:
         wandb.termerror('Configuration file is empty')
         return
+
+    is_local = config.get('controller', {}).get('type') == 'local'
+    if is_local:
+        tuner = wandb_controller.controller()
+        err = tuner._validate(config)
+        if err:
+            wandb.termerror('Error in sweep file: %s' % err)
+            return
+    else:
+        if controller:
+            wandb.termerror('Option "controller" only permitted for controller type "local"')
+            return
     sweep_id = api.upsert_sweep(config)
     print('Create sweep with ID:', sweep_id)
+    sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
+    if sweep_url:
+        print('Sweep URL:', sweep_url)
+    if controller:
+        click.echo('Starting wandb controller...')
+        tuner = wandb_controller.controller(sweep_id)
+        tuner.run(verbose=verbose)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
 @click.argument('sweep_id')
 @display_error
 def agent(sweep_id):
+    if sys.platform == 'win32':
+        wandb.termerror('Agent is not supported on Windows')
+        sys.exit(1)
     click.echo('Starting wandb agent 🕵️')
     wandb_agent.run_agent(sweep_id)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
     #                'args': ['--max_epochs=10']})
+
+
+@cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
+@click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
+@click.argument('sweep_id')
+@display_error
+def controller(verbose, sweep_id):
+    click.echo('Starting wandb controller...')
+    tuner = wandb_controller.controller(sweep_id)
+    tuner.run(verbose=verbose)
 
 
 if __name__ == "__main__":

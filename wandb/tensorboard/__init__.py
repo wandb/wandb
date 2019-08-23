@@ -46,7 +46,7 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
 
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
-            "Tensorboard already patched, remove tensorboard=True from wandb.init or only call wandb.tensorboard.patch once.")
+            "Tensorboard already patched, remove sync_tensorboard=True from wandb.init or only call wandb.tensorboard.patch once.")
     elif Summary is None:
         raise ValueError(
             "Couldn't import tensorboard or tensorflow, ensure you have have tensorboard installed.")
@@ -201,8 +201,13 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
             values[namespaced_tag(value.tag, namespace)] = value.simple_value
         elif kind == "image":
             from PIL import Image
-            image = wandb.Image(Image.open(
-                six.BytesIO(value.image.encoded_image_string)))
+            img_str = value.image.encoded_image_string
+            # Supports gifs from TboardX
+            if img_str.startswith(b"GIF"):
+                image = wandb.Video(six.BytesIO(img_str), format="gif")
+            else:
+                image = wandb.Image(Image.open(
+                    six.BytesIO(img_str)))
             tag_idx = value.tag.rsplit('/', 1)
             if len(tag_idx) > 1 and tag_idx[1].isdigit():
                 tag, idx = tag_idx

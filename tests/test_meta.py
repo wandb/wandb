@@ -7,7 +7,9 @@ import six
 from click.testing import CliRunner
 import wandb
 import types
+import subprocess
 from wandb import env
+from wandb import util
 from wandb.meta import Meta
 from wandb.apis import InternalApi
 
@@ -31,6 +33,7 @@ def test_meta(git_repo, mocker):
     assert meta.data["username"]
     assert meta.data["os"]
 
+
 def test_disable_code(git_repo):
     os.environ[env.DISABLE_CODE] = "true"
     meta = Meta(InternalApi())
@@ -51,6 +54,45 @@ def test_colab(mocker, monkeypatch):
         assert meta.data["program"] == "test.ipynb"
         assert meta.data["codeSaved"]
         assert os.path.exists("code/test.ipynb")
+
+
+def test_git_untracked_notebook_env(monkeypatch, git_repo, mocker):
+    mocker.patch('wandb._get_python_type', lambda: "jupyter")
+    with open("test.ipynb", "w") as f:
+        f.write("{}")
+    os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
+    meta = Meta(InternalApi())
+    assert meta.data["program"] == "test.ipynb"
+    assert meta.data["codeSaved"]
+    assert os.path.exists("code/test.ipynb")
+    os.environ[env.NOTEBOOK_NAME]
+
+
+def test_git_untracked_notebook_env_subdir(monkeypatch, git_repo, mocker):
+    mocker.patch('wandb._get_python_type', lambda: "jupyter")
+    util.mkdir_exists_ok("sub")
+    with open("sub/test.ipynb", "w") as f:
+        f.write("{}")
+    os.environ[env.NOTEBOOK_NAME] = "sub/test.ipynb"
+    meta = Meta(InternalApi())
+    assert meta.data["program"] == "sub/test.ipynb"
+    assert meta.data["codeSaved"]
+    assert os.path.exists("code/sub/test.ipynb")
+    os.environ[env.NOTEBOOK_NAME]
+
+
+def test_git_tracked_notebook_env(monkeypatch, git_repo, mocker):
+    mocker.patch('wandb._get_python_type', lambda: "jupyter")
+    with open("test.ipynb", "w") as f:
+        f.write("{}")
+    subprocess.check_call(['git', 'add', 'test.ipynb'])
+    os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
+    meta = Meta(InternalApi())
+    assert meta.data["program"] == "test.ipynb"
+    assert not meta.data.get("codeSaved")
+    assert not os.path.exists("code/test.ipynb")
+    os.environ[env.NOTEBOOK_NAME]
+
 
 def test_meta_cuda(mocker):
     mocker.patch('wandb.meta.os.path.exists', lambda path: True)

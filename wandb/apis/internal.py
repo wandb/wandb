@@ -52,7 +52,7 @@ class Api(object):
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = 10
+    HTTP_TIMEOUT = env.get_http_timeout(10)
 
     def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1), environ=os.environ):
         self._environ = environ
@@ -126,7 +126,7 @@ class Api(object):
 
         if 'errors' in data and isinstance(data['errors'], list):
             for err in data['errors']:
-                if 'message' not in err:
+                if not err.get('message'):
                     continue
                 wandb.termerror('Error while calling W&B API: %s' % err['message'])
 
@@ -371,6 +371,63 @@ class Api(object):
         ''')
         return self.gql(query, variable_values={
             'entity': entity, 'project': project})['model']
+
+    @normalize_exceptions
+    def sweep(self, sweep, specs, project=None, entity=None):
+        """Retrieve sweep.
+
+        Args:
+            sweep (str): The sweep to get details for
+            specs (str): history specs
+            project (str, optional): The project to scope this sweep to.
+            entity (str, optional): The entity to scope this sweep to.
+
+        Returns:
+                [{"id","name","repo","dockerImage","description"}]
+        """
+        query = gql('''
+        query Models($entity: String, $project: String!, $sweep: String!, $specs: [JSONString!]!) {
+            model(name: $project, entityName: $entity) {
+                sweep(sweepName: $sweep) {
+                    id
+                    name
+                    method
+                    state
+                    description
+                    config
+                    createdAt
+                    heartbeatAt
+                    updatedAt
+                    earlyStopJobRunning
+                    bestLoss
+                    controller
+                    scheduler
+                    runs {
+                        edges {
+                            node {
+                                name
+                                state
+                                config
+                                exitcode
+                                heartbeatAt
+                                shouldStop
+                                failed
+                                stopped
+                                running
+                                summaryMetrics
+                                sampledHistory(specs: $specs)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ''')
+        data =  self.gql(query, variable_values={
+            'entity': entity or self.settings('entity'), 'project': project or self.settings('project'), 'sweep': sweep, 'specs': specs})['model']['sweep']
+        if data:
+            data['runs'] = self._flatten_edges(data['runs'])
+        return data
 
     @normalize_exceptions
     def list_runs(self, project, entity=None):
@@ -1008,7 +1065,7 @@ class Api(object):
             return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
-    def upsert_sweep(self, config):
+    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None):
         """Upsert a sweep object.
 
         Args:
@@ -1016,16 +1073,22 @@ class Api(object):
         """
         mutation = gql('''
         mutation UpsertSweep(
+            $id: ID,
             $config: String,
             $description: String,
             $entityName: String!,
-            $projectName: String!
+            $projectName: String!,
+            $controller: JSONString,
+            $scheduler: JSONString
         ) {
             upsertSweep(input: {
+                id: $id,
                 config: $config,
                 description: $description,
                 entityName: $entityName,
-                projectName: $projectName
+                projectName: $projectName,
+                controller: $controller,
+                scheduler: $scheduler
             }) {
                 sweep {
                     name
@@ -1045,12 +1108,31 @@ class Api(object):
             raise UsageError(body['errors'][0]['message'])
 
         response = self.gql(mutation, variable_values={
+            'id': obj_id,
             'config': yaml.dump(config),
             'description': config.get("description"),
             'entityName': self.settings("entity"),
-            'projectName': self.settings("project")},
+            'projectName': self.settings("project"),
+            'controller': controller,
+            'scheduler': scheduler},
             check_retry_fn=no_retry_400_or_404)
         return response['upsertSweep']['sweep']['name']
+
+    @normalize_exceptions
+    def create_anonymous_api_key(self):
+        """Creates a new API key belonging to a new anonymous user."""
+        mutation = gql('''
+        mutation CreateAnonymousApiKey {
+            createAnonymousEntity(input: {}) {
+                apiKey {
+                    name
+                }
+            }
+        }
+        ''')
+
+        response = self.gql(mutation, variable_values={})
+        return response['createAnonymousEntity']['apiKey']['name']
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
@@ -1113,6 +1195,13 @@ class Api(object):
             project, files, run, entity, description)
         responses = []
         for file_name, file_info in result.items():
+            file_url = file_info['url']
+
+            # If the upload URL is relative, fill it in with the base URL,
+            # since its a proxied file store like the on-prem VM.
+            if file_url.startswith('/'):
+                file_url = '{}{}'.format(self.api_url, file_url)
+
             try:
                 # To handle Windows paths
                 # TODO: this doesn't handle absolute paths...
@@ -1125,13 +1214,13 @@ class Api(object):
             if progress:
                 if hasattr(progress, '__call__'):
                     responses.append(self.upload_file_retry(
-                        file_info['url'], open_file, progress))
+                        file_url, open_file, progress))
                 else:
                     length = os.fstat(open_file.fileno()).st_size
                     with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
                                            fill_char=click.style('&', fg='green')) as bar:
                         responses.append(self.upload_file_retry(
-                            file_info['url'], open_file, lambda bites, _: bar.update(bites)))
+                            file_url, open_file, lambda bites, _: bar.update(bites)))
             else:
                 responses.append(self.upload_file_retry(file_info['url'], open_file))
             open_file.close()

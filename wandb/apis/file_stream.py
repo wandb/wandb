@@ -83,7 +83,7 @@ class FileStreamApi(object):
     """
     Finish = collections.namedtuple('Finish', ('exitcode'))
 
-    HTTP_TIMEOUT = 10
+    HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
 
     def __init__(self, api, run_id):
@@ -106,7 +106,7 @@ class FileStreamApi(object):
 
     def _init_endpoint(self):
         settings = self._api.settings()
-        self._endpoint = "{base}/{entity}/{project}/{run}/file_stream".format(
+        self._endpoint = "{base}/files/{entity}/{project}/{run}/file_stream".format(
             base=settings['base_url'],
             entity=settings['entity'],
             project=settings['project'],
