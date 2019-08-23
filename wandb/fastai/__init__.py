@@ -22,7 +22,7 @@ Examples:
     Finally, it is possible to use WandbCallback only when starting
     training. In this case it must be instantiated::
 
-        learn.fit(..., callbacks=WandbCallback())
+        learn.fit(..., callbacks=WandbCallback(learn))
 
     or, with custom parameters::
 
