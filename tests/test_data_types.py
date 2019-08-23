@@ -14,6 +14,9 @@ from click.testing import CliRunner
 
 from . import utils
 
+import jax.numpy as jnp
+from jax import grad, jit, vmap
+
 data = np.random.randint(255, size=(1000))
 
 
@@ -183,6 +186,31 @@ def test_matplotlib_image():
     plt.plot([1, 2, 2, 4])
     img = wandb.Image(plt)
     assert img._image.width == 640
+
+def test_jax():
+    def relu(x):
+        return jnp.min(1,jnp.max(x,0))
+
+    def loss(y,x)
+        return relu(jnp.dot(y,x))
+
+    jit_grad_loss = jit(grad(loss))  # compiled gradient evaluation function
+    jit_loss = jit(grad(loss))  # compiled gradient evaluation function
+    grad_loss = jit(grad(loss))  # compiled gradient evaluation function
+
+    paramaters = jnp.array([1,1,0])
+    inputs = jnp.array([0,0,1])
+
+    # Tests plain jax
+    # Should not throw
+    assert paramaters.to_json()
+
+    # Tests jax tranforms
+    # Should not throw
+    assert jit_grad_loss(paramaters, inputs).to_json()
+    assert grad_loss(paramaters, inputs).to_json()
+    assert jit_loss(paramaters, inputs).to_json()
+    assert loss(parameters, inputs).to_json()
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy():

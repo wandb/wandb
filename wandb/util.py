@@ -280,8 +280,8 @@ def json_friendly(obj):
     if is_tf_tensor_typename(typename):
         obj = obj.eval()
     elif is_jax_tensor_typename(typename):
-        import numpy
-        obj = numpy.asarray(obj)
+        import jax.numpy
+        obj = jax.numpy.asarray(obj)
     elif is_tf_eager_tensor_typename(typename):
         obj = obj.numpy()
     elif is_pytorch_tensor_typename(typename):
