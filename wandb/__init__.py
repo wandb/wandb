@@ -294,7 +294,7 @@ def jupyter_login(force=True):
             util.write_netrc(run.api.api_url, "user", key)
     if not key and force:
         termerror(
-            "Not authenticated.  Copy a key from %s/authorize" %
+            "Not authenticated. Please copy a key from %s/authorize" %
             run.api.app_url)
         key = getpass.getpass("API Key: ").strip()
         prefix, suffix = key.split('-') if '-' in key else ('', key)
