@@ -142,7 +142,6 @@ def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
         for r in mock_server.requests['graphql']
         if 'files' in r['variables']]
 
-    print(filenames)
     # assert there is no batching
     assert all('.tgz' not in filename for filename in filenames)
 

@@ -309,15 +309,10 @@ class FilePusher(object):
         # will come in.
         finished = False
         while True:
-            print('*** loop ***')
             batch = []
             batch_started_at = time.time()
             batch_end_at = batch_started_at + self.BATCH_THRESHOLD_SECS
             while time.time() < batch_end_at and len(batch) < self.BATCH_MAX_FILES:
-                print(
-                    '-> iterating, gathered %d/%d, time since batch start %.2f' %
-                    (len(batch), self.BATCH_MAX_FILES,
-                    time.time() - batch_started_at))
                 # Get the latest event
                 try:
                     wait_secs = batch_end_at - time.time()
@@ -326,7 +321,6 @@ class FilePusher(object):
                     # If nothing is available in the batch by the timeout
                     # wrap up and send the current batch immediately.
                     break
-                print('---> have event:', event)
                 # If it's a finish, stop waiting and send the current batch
                 # immediately.
                 if isinstance(event, EventFinish):
@@ -336,15 +330,12 @@ class FilePusher(object):
                 batch.append(event)
 
             if batch:
-                print('---> have batch:', len(batch), batch)
                 if len(batch) <= self.BATCH_MIN_FILES:
-                    print('---> %d < %d' % (len(batch), self.BATCH_MIN_FILES))
                     # If less than the minimum files are found, just upload
                     # them individually.
                     for event in batch:
                         self._event_queue.put(event)
                 else:
-                    print('---> %d >= %d' % (len(batch), self.BATCH_MIN_FILES))
                     # Otherwise, send all the files as a batch.
                     new_batch_id = str(self._batch_num)
                     self._event_queue.put(EventFileBatch(new_batch_id, batch))
