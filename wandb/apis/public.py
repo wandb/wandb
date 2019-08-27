@@ -43,6 +43,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
         name
         username
     }
+    historyKeys
 }'''
 
 FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
@@ -593,6 +594,11 @@ class Run(Attrs):
         path.insert(2, "runs")
         return "https://app.wandb.ai/" + "/".join(path)
 
+    @property
+    def lastHistoryStep(self):
+        history_keys = self._attrs['historyKeys']
+        return history_keys['lastStep'] if 'lastStep' in history_keys else -1
+
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
@@ -802,7 +808,7 @@ class HistoryScan(object):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.run.historyLineCount:
+            if self.page_offset > self.run.lastHistoryStep:
                 raise StopIteration()
             self._load_next()
 
@@ -858,7 +864,7 @@ class SampledHistoryScan(object):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.run.historyLineCount:
+            if self.page_offset >= self.run.lastHistoryStep:
                 raise StopIteration()
             self._load_next()
 
