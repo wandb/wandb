@@ -63,6 +63,8 @@ from wandb.dataframes import image_segmentation_multiclass_dataframe
 
 from wandb import wandb_torch
 from wandb.wandb_controller import controller
+from wandb.wandb_agent import agent
+from wandb.wandb_controller import sweep
 
 
 logger = logging.getLogger(__name__)
@@ -287,18 +289,23 @@ def jupyter_login(force=True):
     If force=False, we'll only attempt to auto-login, otherwise we'll prompt the user
     """
     key = None
+    app_url = 'https://app.wandb.ai'
+    if run:
+        app_url = run.api.app_url
     if 'google.colab' in sys.modules:
-        key = jupyter.attempt_colab_login(run.api.app_url)
+        key = jupyter.attempt_colab_login(app_url)
         if key:
             os.environ[env.API_KEY] = key
-            util.write_netrc(run.api.api_url, "user", key)
+            if run:
+                util.write_netrc(run.api.api_url, "user", key)
     if not key and force:
         termerror(
-            "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
+            "Not authenticated.  Copy a key from {}/authorize".format(app_url))
         key = getpass.getpass("API Key: ").strip()
         if len(key) == 40:
             os.environ[env.API_KEY] = key
-            util.write_netrc(run.api.api_url, "user", key)
+            if run:
+                util.write_netrc(run.api.api_url, "user", key)
         else:
             raise ValueError("API Key must be 40 characters long")
     return key

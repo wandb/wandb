@@ -60,9 +60,11 @@ import string
 import random
 import six
 from six.moves import urllib
+import os
 
 import wandb
 from wandb.apis import InternalApi
+from wandb import env
 
 # wandb.sweeps.sweeps will be loaded later to prevent dependency requirements for non sweep users.
 wandb_sweeps = None
@@ -175,7 +177,7 @@ class _WandbController():
         - Runs are only schedule if there are no other runs scheduled.
 
     """
-    def __init__(self, sweep_id=None):
+    def __init__(self, sweep_id=None, entity=None, project=None):
         global wandb_sweeps
         try:
             from wandb.sweeps import sweeps as wandb_sweeps
@@ -220,8 +222,6 @@ class _WandbController():
         self._done_scheduling = False
         # indicate whether the sweep needs to be created
         self._defer_sweep_creation = False
-        # all backend commands use internal api
-        self._api = InternalApi()
         # count of logged lines since last status
         self._logged = 0
         # last status line printed
@@ -231,8 +231,19 @@ class _WandbController():
         # keep track of logged debug for print_debug()
         self._log_debug = []
 
+        # all backend commands use internal api
+        environ = os.environ
+        if entity:
+            env.set_entity(entity, env=environ)
+        if project:
+            env.set_project(entity, env=environ)
+        self._api = InternalApi(environ=environ)
+
         if isinstance(sweep_id, str):
             self._sweep_id = sweep_id
+        elif isinstance(sweep_id, dict):
+            self.configure(sweep_id)
+            self._sweep_id = self.create()
         elif sweep_id is None:
             self._defer_sweep_creation = True
             return
@@ -609,7 +620,7 @@ class _WandbController():
         self._warn("Method not implemented yet.")
 
 
-def controller(sweep_id=None):
+def controller(sweep_id=None, entity=None, project=None):
     """Public sweep controller constructor.
 
     Usage:
@@ -621,7 +632,7 @@ def controller(sweep_id=None):
         tuner.configure_stopping(...)
 
     """
-    c = _WandbController(sweep_id)
+    c = _WandbController(sweep_id=sweep_id, entity=entity, project=project)
     return c
 
 
@@ -681,3 +692,23 @@ def _sweep_status(sweep_obj, sweep_conf, sweep_runs):
         sections.append(stopstr)
     sections = ' | '.join(sections)
     return sections
+
+
+def sweep(sweep, entity=None, project=None):
+    """Generic sweep creation, used in cli?, controller api, jupyter."""
+    in_jupyter = wandb._get_python_type() != "python"
+    if in_jupyter:
+        _api0 = InternalApi()
+        if not _api0.api_key:
+            wandb.jupyter_login()
+    if entity:
+        env.set_entity(entity)
+    if project:
+        env.set_project(project)
+    api = InternalApi()
+    sweep_id = api.upsert_sweep(sweep)
+    print('Create sweep with ID:', sweep_id)
+    sweep_url = _get_sweep_url(api, sweep_id)
+    if sweep_url:
+        print('Sweep URL:', sweep_url)
+    return sweep_id
