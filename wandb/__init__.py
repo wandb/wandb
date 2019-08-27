@@ -294,9 +294,11 @@ def jupyter_login(force=True):
             util.write_netrc(run.api.api_url, "user", key)
     if not key and force:
         termerror(
-            "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
+            "Not authenticated.  Copy a key from %s/authorize" %
+            run.api.app_url)
         key = getpass.getpass("API Key: ").strip()
-        if len(key) == 40:
+        prefix, suffix = key.split('-') if '-' in key else ('', key)
+        if len(suffix) == 40:
             os.environ[env.API_KEY] = key
             util.write_netrc(run.api.api_url, "user", key)
         else:
