@@ -577,8 +577,6 @@ class Run(Attrs):
     @property
     def summary(self):
         if self._summary is None:
-            download_h5(self.id, entity=self.username,
-                        project=self.project, out_dir=self.dir)
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(
                 self, self.client, summary=self.summary_metrics)

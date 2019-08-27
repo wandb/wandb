@@ -902,8 +902,11 @@ class Api(object):
         query_result = self.gql(query, variable_values={
             'name': project, 'run': run or self.settings('run'), 'fileName': file_name,
             'entity': entity or self.settings('entity')})
-        files = self._flatten_edges(query_result['model']['bucket']['files'])
-        return files[0] if len(files) > 0 and files[0].get('updatedAt') else None
+        if query_result['model']:
+            files = self._flatten_edges(query_result['model']['bucket']['files'])
+            return files[0] if len(files) > 0 and files[0].get('updatedAt') else None
+        else:
+            return None
 
     @normalize_exceptions
     def download_file(self, url):

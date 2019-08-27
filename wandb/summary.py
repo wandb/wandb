@@ -365,6 +365,12 @@ class HTTPSummary(Summary):
     def load(self):
         pass
 
+    def open_h5(self):
+        """Only works with public.Run because of _run.username and _run.project."""
+        if not self._h5 and h5py:
+            download_h5(self._run.id, entity=self._run.username, project=self._run.project, out_dir=self._run.dir)
+        super(HTTPSummary, self).open_h5()
+
     def _write(self, commit=False):
         mutation = gql('''
         mutation UpsertBucket( $id: String, $summaryMetrics: JSONString) {
