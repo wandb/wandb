@@ -161,6 +161,7 @@ def test_tensorboard_hyper_params(wandb_init_run, model):
     assert wandb_init_run.config["optimizer"] == "adam"
 
 
+@pytest.mark.skipif(tf.__version__[0] == '2', reason='Users of validation_split must manually pass in a validation data generator.')
 def test_tfkeras_validation_data_array(wandb_init_run, image_model):
     image_model.fit(np.ones((10, 28, 28, 1)), np.ones((10,)), epochs=1,
                     validation_split=0.2, callbacks=[WandbCallback(data_type="image")])
