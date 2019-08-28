@@ -201,8 +201,12 @@ def test_settings(mocker):
     parser = mocker.patch.object(api, "settings_parser")
     parser.sections.return_value = ["default"]
     parser.options.return_value = ["project", "entity", "ignore_globs"]
-    parser.get.side_effect = ["test_model",
-                              "test_entity", "diff.patch,*.secure"]
+    mock_settings = {
+        'project': 'test_model',
+        'entity': 'test_entity',
+        'ignore_globs': 'diff.patch,*.secure'
+    }
+    parser.get = lambda section, option: mock_settings[option]
     assert api.settings() == {
         'base_url': 'https://api.wandb.ai',
         'entity': 'test_entity',
