@@ -994,7 +994,7 @@ class RunManager(object):
             wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_run_name(self._run), url))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
-        self._run.set_environment(environment=env)
+        env = self._run.set_environment(environment=env)
 
         if not env.get(wandb_env.DISABLE_CODE):
             logger.info("saving patches")
