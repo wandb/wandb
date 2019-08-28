@@ -311,8 +311,6 @@ def jupyter_login(force=True):
     return key
 
 
-displayHTML = None
-
 def _init_jupyter(run):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
     Log pushing and system stats don't start until `wandb.log()` is first called.
@@ -331,12 +329,10 @@ def _init_jupyter(run):
         run.api.reauth()
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
-    # databricks jupyter uses displayHTML
-    displayFunc = displayHTML or (lambda s: display(HTML(s)))
-    displayFunc('''
+    display(HTML('''
         Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
         in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-    '''.format(run.get_url()))
+    '''.format(run.get_url())))
     try:
         run.save()
     except (CommError, ValueError) as e:

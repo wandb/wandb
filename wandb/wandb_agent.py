@@ -50,7 +50,9 @@ class AgentProcess(object):
     def _start(self, finished_q, env, function, in_jupyter):
         import wandb
         if env:
-            os.environ = env
+            for k, v in env.items():
+                print("setenv", k, v)
+                os.environ[k] = v
 
         # call user function
         if function:
