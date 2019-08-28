@@ -216,6 +216,7 @@ class Agent(object):
         logger.info('Agent starting run with config:\n' +
                     '\n'.join(['\t{}: {}'.format(k, v['value']) for k, v in command['args'].items()]))
 
+        print("DEBUG RUN", command)
         run = wandb_run.Run(mode='run',
                             sweep_id=self._sweep_id,
                             storage_id=command.get('run_storage_id'),
@@ -230,6 +231,7 @@ class Agent(object):
         sweep_env = command.get('env', {})
         env.update(sweep_env)
         run.set_environment(env)
+        print("DEBUG RUN ENV", env)
 
         flags = ["--{}={}".format(name, config['value'])
                  for name, config in command['args'].items()]
@@ -328,6 +330,7 @@ def agent(sweep_id, function=None, entity=None, project=None):
         project (str, optional): W&B Project
         function (dict, optional): Configure sweep function
     """
+    print("DEBUG1")
     in_jupyter = wandb._get_python_type() != "python"
     if in_jupyter:
         _api0 = InternalApi()
