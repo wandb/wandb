@@ -19,7 +19,7 @@ from six import string_types
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
 SUMMARY_FNAME = 'wandb-summary.json'
-H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "pytorch.Tensor")
+H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
 
 h5py = util.get_module("h5py")
 np = util.get_module("numpy")
