@@ -329,10 +329,12 @@ def _init_jupyter(run):
         run.api.reauth()
     os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
-    display(HTML('''
+    # databricks jupyter uses displayHTML
+    displayHTML = globals().get('displayHTML') or (lambda s: display(HTML(s)))
+    displayHTML('''
         Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
         in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-    '''.format(run.get_url())))
+    '''.format(run.get_url()))
     try:
         run.save()
     except (CommError, ValueError) as e:
