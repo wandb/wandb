@@ -123,12 +123,12 @@ def test_custom_file_policy_symlink(mocker, run_manager):
 
 def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
     "Test that only 3 files are uploaded individually."
-    # somehow other tests get piled up with this one without a sleep
-    time.sleep(1)
-    # Speed up tests
-    mocker.patch('wandb.file_pusher.FilePusher', 'BATCH_THRESHOLD_SECS', 0.3)
-    # Set min to 10, since 2 custom files + 4 files always generated = 6
-    mocker.patch('wandb.file_pusher.FilePusher', 'BATCH_MIN_FILES', 10)
+
+    # Mock to increase minimum since some extra files are included with all
+    # uploads, increasing the number past the default minimum of 6
+    from wandb.file_pusher import FilePusher
+    mocker.patch.object(FilePusher, 'BATCH_THRESHOLD_SECS', 0.3)
+    mocker.patch.object(FilePusher, 'BATCH_MIN_FILES', 10)
 
     for i in range(2):
         fname = "ckpt_{}.txt".format(i)
@@ -147,8 +147,6 @@ def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
 
 def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
     "Test that 100 files are batched."
-    mocker.patch('wandb.file_pusher.FilePusher', 'BATCH_THRESHOLD_SECS', 0.3)
-
     for i in range(10):
         fname = "ckpt_{}.txt".format(i)
         with open(fname, "w") as f:
