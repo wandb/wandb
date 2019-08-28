@@ -91,6 +91,7 @@ class ResponseMock(object):
     def json(self):
         return json.loads(self.response.data.decode('utf-8'))
 
+
 class RequestsMock(object):
     def __init__(self, client, requests):
         self.client = client

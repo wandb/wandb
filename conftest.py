@@ -301,9 +301,10 @@ def fake_run_manager(mocker, run=None, rm_class=wandb.run_manager.RunManager):
     # We have an optional rm_class object because we mock it above so we need it before it's mocked
     api = InternalApi(load_settings=False)
     api.set_setting('project', 'testing')
-    
+
     if wandb.run is None:
         wandb.run = run or Run()
+        wandb.config = wandb.run.config
     wandb.run._api = api
     wandb.run._mkdir()
     wandb.run.socket = wandb_socket.Server()

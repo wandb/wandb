@@ -137,6 +137,18 @@ class Api(object):
         except configparser.Error:
             return False
 
+    def sync_spell(self, url, env=None):
+        """Syncs this run with spell"""
+        try:
+            env = env or os.environ
+            wandb.config.update({"spell_url": env.get("SPELL_RUN_URL")})
+            return requests.put(env.get("SPELL_API_URL", "https://api.spell.run/wandb_url"), json={
+                "access_token": env.get("WANDB_ACCESS_TOKEN"),
+                "url": url
+            }, timeout=2)
+        except requests.RequestException:
+            return False
+
     def save_pip(self, out_dir):
         """Saves the current working set of pip packages to requirements.txt"""
         try:
