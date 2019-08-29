@@ -90,8 +90,8 @@ def get_databricks_key():
         import dbutils
         api_key = dbutils.secrets.get("wandb", "api_key")
         return api_key
-    except:
-        print("PROBLEM:", sys.exc_info()[0])
+    except Exception as e:
+        print("PROBLEM:", e, sys.exc_info)
         return None
 
 
