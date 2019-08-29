@@ -15,6 +15,7 @@ from requests.compat import urljoin
 import re
 from pkg_resources import resource_filename
 from importlib import import_module
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,7 @@ def get_databricks_key():
         api_key = dbutils.secrets.get("wandb", "api_key")
         return api_key
     except:
+        print("PROBLEM:", sys.exc_info()[0])
         return None
 
 
