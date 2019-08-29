@@ -18,11 +18,11 @@ from .utils import git_repo
 
 import requests
 import wandb
+from wandb import env
 from wandb.apis import internal
 from six import StringIO
-api = internal.Api(load_settings=False,
-                   retry_timedelta=datetime.timedelta(0, 0, 50))
 
+api = None
 
 def test_projects_success(request_mocker, query_projects):
     query_projects(request_mocker)
@@ -195,18 +195,26 @@ def test_upsert_run_bad_request(request_mocker, mocker, upsert_run):
 
 
 def test_settings(mocker):
-    os.environ.pop('WANDB_ENTITY', None)
-    os.environ.pop('WANDB_PROJECT', None)
-    api._settings = None
-    parser = mocker.patch.object(api, "settings_parser")
-    parser.sections.return_value = ["default"]
-    parser.options.return_value = ["project", "entity", "ignore_globs"]
+    os.environ.pop(env.ENTITY, None)
+    os.environ.pop(env.PROJECT, None)
+    os.environ.pop(env.IGNORE, None)
+    os.environ.pop(env.BASE_URL, None)
+
     mock_settings = {
+        'base_url': 'https://api.wandb.ai',
         'project': 'test_model',
         'entity': 'test_entity',
-        'ignore_globs': 'diff.patch,*.secure'
+        'ignore_globs': 'diff.patch,*.secure',
     }
-    parser.get = lambda section, option: mock_settings[option]
+
+    global_settings = mocker.patch.object(api._settings, "_global_settings")
+    global_settings.sections.return_value = []
+
+    local_settings = mocker.patch.object(api._settings, "_local_settings")
+    local_settings.sections.return_value = ["default"]
+    local_settings.options.return_value = ["project", "entity", "ignore_globs"]
+    local_settings.get = lambda section, option: mock_settings[option]
+
     assert api.settings() == {
         'base_url': 'https://api.wandb.ai',
         'entity': 'test_entity',
@@ -219,8 +227,11 @@ def test_settings(mocker):
 
 
 def test_default_settings():
-    os.environ.pop('WANDB_ENTITY', None)
-    os.environ.pop('WANDB_PROJECT', None)
+    os.environ.pop(env.ENTITY, None)
+    os.environ.pop(env.PROJECT, None)
+    os.environ.pop(env.IGNORE, None)
+    os.environ.pop(env.BASE_URL, None)
+
     assert internal.Api({'base_url': 'http://localhost'}, load_settings=False).settings() == {
         'base_url': 'http://localhost',
         'entity': None,
@@ -246,3 +257,9 @@ def test_init(git_repo, upsert_run, request_mocker):
     run = wandb.init()
     assert run.mode == "run"
     wandb.reset_env()
+
+
+@pytest.fixture(autouse=True)
+def internal_api():
+    global api
+    api = internal.Api(load_settings=False, retry_timedelta=datetime.timedelta(0, 0, 50))

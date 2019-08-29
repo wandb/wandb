@@ -25,11 +25,11 @@ else:
 import six
 from six import b
 from six import BytesIO
-from six.moves import configparser
 import wandb
 from wandb import __version__, wandb_dir, Error
 from wandb import env
 from wandb.git_repo import GitRepo
+from wandb.settings import Settings
 from wandb import retry
 from wandb import util
 from wandb.apis import FileStreamApi, normalize_exceptions, CommError, Progress, UsageError
@@ -65,19 +65,8 @@ class Api(object):
         }
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
-        self._settings = None
         self.retry_uploads = 10
-        self.settings_parser = configparser.ConfigParser()
-        if load_settings:
-            potential_settings_paths = [
-                os.path.expanduser('~/.wandb/settings')
-            ]
-            potential_settings_paths.append(
-                os.path.join(wandb_dir(), 'settings'))
-            files = self.settings_parser.read(potential_settings_paths)
-            self.settings_file = files[0] if len(files) > 0 else "Not found"
-        else:
-            self.settings_file = "Not found"
+        self._settings = Settings(load_settings=load_settings)
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
@@ -132,10 +121,7 @@ class Api(object):
 
 
     def disabled(self):
-        try:
-            return self.settings_parser.get('default', 'disabled')
-        except configparser.Error:
-            return False
+        return self._settings.get(Settings.DEFAULT_SECTION, 'disabled', fallback=False)
 
     def save_pip(self, out_dir):
         """Saves the current working set of pip packages to requirements.txt"""
@@ -258,30 +244,30 @@ class Api(object):
                     "project": None
                 }
         """
-        if not self._settings:
-            self._settings = self.default_settings.copy()
-            section = section or self._settings['section']
-            try:
-                if section in self.settings_parser.sections():
-                    for option in self.settings_parser.options(section):
-                        self._settings[option] = self.settings_parser.get(
-                            section, option)
-            except configparser.InterpolationSyntaxError:
-                wandb.termwarn("Unable to parse settings file")
-            self._settings["project"] = env.get_project(
-                self._settings.get("project"), env=self._environ)
-            self._settings["entity"] = env.get_entity(
-                self._settings.get("entity"), env=self._environ)
-            self._settings["base_url"] = env.get_base_url(
-                self._settings.get("base_url"), env=self._environ)
-            self._settings["ignore_globs"] = env.get_ignore(
-                self._settings.get("ignore_globs"), env=self._environ)
+        result = self.default_settings.copy()
+        result.update(self._settings.items(section=section))
+        result.update({
+            'entity': env.get_entity(
+                self._settings.get(Settings.DEFAULT_SECTION, "entity", fallback=result.get('entity')),
+                env=self._environ),
+            'project': env.get_project(
+                self._settings.get(Settings.DEFAULT_SECTION, "project", fallback=result.get('project')),
+                env=self._environ),
+            'base_url': env.get_base_url(
+                self._settings.get(Settings.DEFAULT_SECTION, "base_url", fallback=result.get('base_url')),
+                env=self._environ),
+            'ignore_globs': env.get_ignore(
+                self._settings.get(Settings.DEFAULT_SECTION, "ignore_globs", fallback=result.get('ignore_globs')),
+                env=self._environ),
+        })
 
-        return self._settings if key is None else self._settings[key]
+        return result if key is None else result[key]
+
+    def clear_setting(self, key):
+        self._settings.clear(Settings.DEFAULT_SECTION, key)
 
     def set_setting(self, key, value):
-        self.settings()  # make sure we do initial load
-        self._settings[key] = value
+        self._settings.set(Settings.DEFAULT_SECTION, key, value)
         if key == 'entity':
             env.set_entity(value, env=self._environ)
         elif key == 'project':
