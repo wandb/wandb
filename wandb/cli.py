@@ -466,6 +466,9 @@ def pull(run, project, entity):
             length, response = api.download_file(urls[name]['url'])
             # TODO: I had to add this because some versions in CI broke click.progressbar
             sys.stdout.write("File %s\r" % name)
+            dirname = os.path.dirname(name)
+            if dirname != '':
+                os.makedirs(dirname, exist_ok=True)
             with click.progressbar(length=length, label='File %s' % name,
                                    fill_char=click.style('&', fg='green')) as bar:
                 with open(name, "wb") as f:
