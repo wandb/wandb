@@ -292,12 +292,22 @@ def jupyter_login(force=True):
     app_url = 'https://app.wandb.ai'
     if run:
         app_url = run.api.app_url
+    print("Notebooks require api_key")
     if 'google.colab' in sys.modules:
         key = jupyter.attempt_colab_login(app_url)
         if key:
             os.environ[env.API_KEY] = key
             if run:
                 util.write_netrc(run.api.api_url, "user", key)
+    elif 'databricks_cli' in sys.modules and 'dbutils' in sys.modules:
+        print("Attempting to get databricks api key")
+        key = jupyter.get_databricks_key()
+        if key:
+            os.environ[env.API_KEY] = key
+            if run:
+                util.write_netrc(run.api.api_url, "user", key)
+        else:
+            print("WARNING: please set your api key")
     if not key and force:
         termerror(
             "Not authenticated.  Copy a key from {}/authorize".format(app_url))

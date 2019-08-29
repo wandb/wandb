@@ -84,6 +84,15 @@ def attempt_colab_login(app_url):
         return None
 
 
+def get_databricks_key():
+    try:
+        import dbutils
+        api_key = dbutils.secrets.get("wandb", "api_key")
+        return api_key
+    except:
+        return None
+
+
 def notebook_metadata():
     """Attempts to query jupyter for the path and name of the notebook file"""
     error_message = "Failed to query for notebook name, you can set it manually with the WANDB_NOTEBOOK_NAME environment variable"
