@@ -292,7 +292,6 @@ def jupyter_login(force=True):
     app_url = 'https://app.wandb.ai'
     if run:
         app_url = run.api.app_url
-    print("Notebooks require api_key")
     if 'google.colab' in sys.modules:
         key = jupyter.attempt_colab_login(app_url)
         if key:
@@ -300,14 +299,10 @@ def jupyter_login(force=True):
             if run:
                 util.write_netrc(run.api.api_url, "user", key)
     elif 'databricks_cli' in sys.modules and 'dbutils' in sys.modules:
-        print("Attempting to get databricks api key")
-        key = jupyter.get_databricks_key()
-        if key:
-            os.environ[env.API_KEY] = key
-            if run:
-                util.write_netrc(run.api.api_url, "user", key)
-        else:
-            print("WARNING: please set your api key")
+        # Databricks does not seem to support getpass() so we need to fail
+        # early and prompt the user to configure the key manually for now.
+        termerror("Databricks requires api_key to be configured manually, instructions at: http://docs.wandb.com/integrations/databricks")
+        raise LaunchError("Databricks integration requires api_key to be configured.")
     if not key and force:
         termerror(
             "Not authenticated.  Copy a key from {}/authorize".format(app_url))

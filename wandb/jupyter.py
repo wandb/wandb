@@ -15,7 +15,6 @@ from requests.compat import urljoin
 import re
 from pkg_resources import resource_filename
 from importlib import import_module
-import sys
 
 logger = logging.getLogger(__name__)
 
@@ -82,17 +81,6 @@ def attempt_colab_login(app_url):
     try:
         return output.eval_js('_wandbApiKey')
     except MessageError:
-        return None
-
-
-def get_databricks_key():
-    try:
-        import dbutils
-        api_key = dbutils.secrets.get("wandb", "api_key")
-        return api_key
-    except Exception as e:
-        print("PROBLEM:", e, sys.exc_info)
-        print("DBUTILS:", vars(dbutils))
         return None
 
 
