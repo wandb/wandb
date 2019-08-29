@@ -288,8 +288,7 @@ def status(run, settings, project):
         termlog(msg)
     elif settings:
         click.echo(click.style("Logged in?", bold=True) + " %s" % logged_in)
-        click.echo(click.style("Current Settings", bold=True) +
-                   " (%s)" % api.settings_file)
+        click.echo(click.style("Current Settings", bold=True))
         settings = api.settings()
         click.echo(json.dumps(
             settings,
@@ -671,11 +670,8 @@ def docs(ctx):
 def on():
     wandb.ensure_configured()
     api = InternalApi()
-    parser = api.settings_parser
     try:
-        parser.remove_option('default', 'disabled')
-        with open(api.settings_file, "w") as f:
-            parser.write(f)
+        api.clear_setting('disabled')
     except configparser.Error:
         pass
     click.echo(
@@ -687,11 +683,8 @@ def on():
 def off():
     wandb.ensure_configured()
     api = InternalApi()
-    parser = api.settings_parser
     try:
-        parser.set('default', 'disabled', 'true')
-        with open(api.settings_file, "w") as f:
-            parser.write(f)
+        api.set_setting('disabled', 'true')
         click.echo(
             "W&B disabled, running your script from this directory will only write metadata locally.")
     except configparser.Error as e:

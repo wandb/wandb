@@ -55,9 +55,12 @@ def patch_tf_keras():
     from tensorflow.python.eager import context
     from tensorflow.python.keras.engine import training_arrays
     from tensorflow.python.keras.engine import training_generator
-    from tensorflow.python.keras.engine import training_utils
+
+    training_v2 = wandb.util.import_module('tensorflow.python.keras.engine.training_v2')
     old_arrays = training_arrays.fit_loop
     old_generator = training_generator.fit_generator
+    if training_v2:
+        old_v2 = training_v2.Loop.fit
 
     def set_wandb_attrs(cbk, val_data):
         if isinstance(cbk, WandbCallback):
@@ -96,10 +99,23 @@ def patch_tf_keras():
                 set_wandb_attrs(cbk, val_data)
         return old_generator(*args, **kwargs)
 
+    def new_v2(*args, **kwargs):
+        cbks = kwargs.get("callbacks")
+        val_data = kwargs.get("validation_data")
+        if val_data:
+            for cbk in cbks:
+                set_wandb_attrs(cbk, val_data)
+        return old_v2(*args, **kwargs)
+
     training_arrays.orig_fit_loop = old_arrays
     training_arrays.fit_loop = new_arrays
     training_generator.orig_fit_generator = old_generator
     training_generator.fit_generator = new_generator
+    if training_v2:
+        training_v2.Loop.fit = new_v2
+        wandb.patched["keras"].append(
+            ["tensorflow.python.keras.engine.training_v2.Loop", "fit"])
+
     wandb.patched["keras"].append(
         ["tensorflow.python.keras.engine.training_arrays", "fit_loop"])
     wandb.patched["keras"].append(

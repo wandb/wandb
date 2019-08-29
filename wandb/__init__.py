@@ -305,9 +305,11 @@ def jupyter_login(force=True):
         raise LaunchError("Databricks integration requires api_key to be configured.")
     if not key and force:
         termerror(
-            "Not authenticated.  Copy a key from {}/authorize".format(app_url))
+            "Not authenticated. Please copy a key from %s/authorize" %
+            app_url)
         key = getpass.getpass("API Key: ").strip()
-        if len(key) == 40:
+        prefix, suffix = key.split('-') if '-' in key else ('', key)
+        if len(suffix) == 40:
             os.environ[env.API_KEY] = key
             if run:
                 util.write_netrc(run.api.api_url, "user", key)

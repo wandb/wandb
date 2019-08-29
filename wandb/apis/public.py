@@ -18,7 +18,7 @@ import wandb
 from wandb import Error, __version__
 from wandb import util
 from wandb.retry import retriable
-from wandb.summary import HTTPSummary, download_h5
+from wandb.summary import HTTPSummary
 from wandb import env
 from wandb.apis import normalize_exceptions
 
@@ -43,6 +43,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
         name
         username
     }
+    historyKeys
 }'''
 
 FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
@@ -84,19 +85,22 @@ class Api(object):
 
     Args:
         setting_overrides(:obj:`dict`, optional): You can set defaults such as
-        username, project, and run here as well as which api server to use.
+        entity, project, and run here as well as which api server to use.
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(9)
 
     def __init__(self, overrides={}):
         self.settings = {
-            'username': None,
+            'entity': None,
             'project': None,
             'run': "latest",
             'base_url': env.get_base_url("https://api.wandb.ai")
         }
         self.settings.update(overrides)
+        if 'username' in overrides and 'entity' not in overrides:
+            wandb.termwarn('Passing "username" to Api is deprecated. please use "entity" instead.')
+            self.settings['entity'] = overrides['username']
         self._runs = {}
         self._sweeps = {}
         self._base_client = Client(
@@ -141,15 +145,15 @@ class Api(object):
     def _parse_path(self, path):
         """Parses paths in the following formats:
 
-        url: username/project/runs/run_id
-        path: username/project/run_id
-        docker: username/project:run_id
+        url: entity/project/runs/run_id
+        path: entity/project/run_id
+        docker: entity/project:run_id
 
-        username is optional and will fallback to the current logged in user.
+        entity is optional and will fallback to the current logged in user.
         """
         run = self.settings['run']
         project = self.settings['project']
-        username = self.settings['username']
+        entity = self.settings['entity']
         parts = path.replace("/runs/", "/").strip("/ ").split("/")
         if ":" in parts[-1]:
             run = parts[-1].split(":")[-1]
@@ -158,17 +162,17 @@ class Api(object):
             run = parts[-1]
         if len(parts) > 1:
             project = parts[1]
-            if username and run == project:
+            if entity and run == project:
                 project = parts[0]
             else:
-                username = parts[0]
+                entity = parts[0]
         else:
             project = parts[0]
-        return (username, project, run)
+        return (entity, project, run)
 
     def runs(self, path="", filters={}, order="-created_at", per_page=None):
         """Return a set of runs from a project that match the filters provided.
-        You can filter by config.*, summary.*, state, username, createdAt, etc.
+        You can filter by config.*, summary.*, state, entity, createdAt, etc.
 
         The filters use the same query language as MongoDB:
 
@@ -177,27 +181,27 @@ class Api(object):
         Order can be created_at, heartbeat_at, config.*.value, or summary.*.  By default
         the order is descending, if you prepend order with a + order becomes ascending.
         """
-        username, project, run = self._parse_path(path)
+        entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
-            self._runs[path + str(filters) + str(order)] = Runs(self.client, username, project,
+            self._runs[path + str(filters) + str(order)] = Runs(self.client, entity, project,
                                                                 filters=filters, order=order, per_page=per_page)
         return self._runs[path + str(filters) + str(order)]
 
     @normalize_exceptions
     def run(self, path=""):
-        """Returns a run by parsing path in the form username/project/run, if
+        """Returns a run by parsing path in the form entity/project/run, if
         defaults were set on the Api, only overrides what's passed.  I.E. you can just pass
-        run_id if you set username and project on the Api"""
-        username, project, run = self._parse_path(path)
+        run_id if you set entity and project on the Api"""
+        entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
-            self._runs[path] = Run(self.client, username, project, run)
+            self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
     @normalize_exceptions
     def sweep(self, path=""):
-        username, project, sweep_id = self._parse_path(path)
+        entity, project, sweep_id = self._parse_path(path)
         if not self._sweeps.get(sweep_id):
-            self._sweeps[path] = Sweep(self.client, username, project, sweep_id)
+            self._sweeps[path] = Sweep(self.client, entity, project, sweep_id)
         return self._sweeps[path]
 
 
@@ -315,13 +319,13 @@ class Runs(Paginator):
         %s
         ''' % RUN_FRAGMENT)
 
-    def __init__(self, client, username, project, filters={}, order=None, per_page=50):
-        self.username = username
+    def __init__(self, client, entity, project, filters={}, order=None, per_page=50):
+        self.entity = entity
         self.project = project
         self.filters = filters
         self.order = order
         variables = {
-            'project': self.project, 'entity': self.username, 'order': self.order,
+            'project': self.project, 'entity': self.entity, 'order': self.order,
             'filters': json.dumps(self.filters)
         }
         super(Runs, self).__init__(client, variables, per_page)
@@ -348,20 +352,20 @@ class Runs(Paginator):
             return None
 
     def convert_objects(self):
-        return [Run(self.client, self.username, self.project, r["node"]["name"], r["node"])
+        return [Run(self.client, self.entity, self.project, r["node"]["name"], r["node"])
                 for r in self.last_response['project']['runs']['edges']]
 
     def __repr__(self):
-        return "<Runs {}/{} ({})>".format(self.username, self.project, len(self))
+        return "<Runs {}/{} ({})>".format(self.entity, self.project, len(self))
 
 
 class Run(Attrs):
     """A single run associated with a user and project"""
 
-    def __init__(self, client, username, project, run_id, attrs={}):
+    def __init__(self, client, entity, project, run_id, attrs={}):
         super(Run, self).__init__(dict(attrs))
         self.client = client
-        self.username = username
+        self._entity = entity
         self.project = project
         self._files = {}
         self._base_dir = env.get_dir(tempfile.gettempdir())
@@ -375,6 +379,15 @@ class Run(Attrs):
         self.state = attrs.get("state", "not found")
 
         self.load(force=not attrs)
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def username(self):
+        wandb.termwarn('Run.username is deprecated. Please use Run.entity instead.')
+        return self._entity
 
     @property
     def storage_id(self):
@@ -403,7 +416,7 @@ class Run(Attrs):
         return new_name
 
     @classmethod
-    def create(cls, api, run_id=None, project=None, username=None):
+    def create(cls, api, run_id=None, project=None, entity=None):
         """Create a run for the given project"""
         run_id = run_id or util.generate_id()
         project = project or api.settings.get("project")
@@ -422,7 +435,7 @@ class Run(Attrs):
             }
         }
         ''')
-        variables = {'entity': username,
+        variables = {'entity': entity,
                      'project': project, 'name': run_id}
         res = api.client.execute(mutation, variable_values=variables)
         res = res['upsertBucket']['bucket']
@@ -494,7 +507,7 @@ class Run(Attrs):
 
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
-        variables = {'entity': self.username,
+        variables = {'entity': self.entity,
                      'project': self.project, 'name': self.id}
         variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
@@ -576,8 +589,6 @@ class Run(Attrs):
     @property
     def summary(self):
         if self._summary is None:
-            download_h5(self.id, entity=self.username,
-                        project=self.project, out_dir=self.dir)
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(
                 self, self.client, summary=self.summary_metrics)
@@ -585,7 +596,7 @@ class Run(Attrs):
 
     @property
     def path(self):
-        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
+        return [urllib.parse.quote_plus(str(self.entity)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
     @property
     def url(self):
@@ -593,22 +604,36 @@ class Run(Attrs):
         path.insert(2, "runs")
         return "https://app.wandb.ai/" + "/".join(path)
 
+    @property
+    def lastHistoryStep(self):
+        history_keys = self._attrs['historyKeys']
+        return history_keys['lastStep'] if 'lastStep' in history_keys else -1
+
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
 class Sweep(Attrs):
     """A set of runs associated with a sweep"""
 
-    def __init__(self, client, username, project, sweep_id, attrs={}):
+    def __init__(self, client, entity, project, sweep_id, attrs={}):
         # TODO: Add agents / flesh this out.
         super(Sweep, self).__init__(dict(attrs))
         self.client = client
-        self.username = username
+        self._entity = entity
         self.project = project
         self.id = sweep_id
         self.runs = []
 
         self.load(force=not attrs)
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def username(self):
+        wandb.termwarn('Sweep.username is deprecated. please use Sweep.entity instead.')
+        return self._entity
 
     @property
     def config(self):
@@ -640,7 +665,7 @@ class Sweep(Attrs):
             if response['project'] is None or response['project']['sweep'] is None:
                 raise ValueError("Could not find sweep %s" % self)
             # TODO: make this paginate
-            self.runs = [Run(self.client, self.username, self.project, r["node"]["name"], r["node"]) for
+            self.runs = [Run(self.client, self.entity, self.project, r["node"]["name"], r["node"]) for
                 r in response['project']['sweep']['runs']['edges']]
             del response['project']['sweep']['runs']
             self._attrs = response['project']['sweep']
@@ -648,11 +673,11 @@ class Sweep(Attrs):
 
     @property
     def path(self):
-        return [urllib.parse.quote_plus(str(self.username)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
+        return [urllib.parse.quote_plus(str(self.entity)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
-        variables = {'entity': self.username,
+        variables = {'entity': self.entity,
                      'project': self.project, 'name': self.id}
         variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
@@ -678,7 +703,7 @@ class Files(Paginator):
     def __init__(self, client, run, names=[], per_page=50, upload=False):
         self.run = run
         variables = {
-            'project': run.project, 'entity': run.username, 'name': run.id,
+            'project': run.project, 'entity': run.entity, 'name': run.id,
             'fileNames': names, 'upload': upload
         }
         super(Files, self).__init__(client, variables, per_page)
@@ -802,7 +827,7 @@ class HistoryScan(object):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.run.historyLineCount:
+            if self.page_offset > self.run.lastHistoryStep:
                 raise StopIteration()
             self._load_next()
 
@@ -812,7 +837,7 @@ class HistoryScan(object):
         retryable_exceptions=(RetryError, requests.RequestException))
     def _load_next(self):
         variables = {
-            "entity": self.run.username,
+            "entity": self.run.entity,
             "project": self.run.project,
             "run": self.run.id,
             "minStep": int(self.page_offset),
@@ -858,7 +883,7 @@ class SampledHistoryScan(object):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.run.historyLineCount:
+            if self.page_offset >= self.run.lastHistoryStep:
                 raise StopIteration()
             self._load_next()
 
@@ -868,7 +893,7 @@ class SampledHistoryScan(object):
         retryable_exceptions=(RetryError, requests.RequestException))
     def _load_next(self):
         variables = {
-            "entity": self.run.username,
+            "entity": self.run.entity,
             "project": self.run.project,
             "run": self.run.id,
             "spec": json.dumps({
