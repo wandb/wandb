@@ -16,6 +16,7 @@ import socket
 import time
 import sys
 import random
+import traceback
 
 if os.name == 'posix' and sys.version_info[0] < 3:
     import subprocess32 as subprocess
@@ -266,8 +267,8 @@ class Api(object):
     def clear_setting(self, key):
         self._settings.clear(Settings.DEFAULT_SECTION, key)
 
-    def set_setting(self, key, value):
-        self._settings.set(Settings.DEFAULT_SECTION, key, value)
+    def set_setting(self, key, value, globally=False):
+        self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally)
         if key == 'entity':
             env.set_entity(value, env=self._environ)
         elif key == 'project':
