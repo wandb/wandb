@@ -292,14 +292,14 @@ def jupyter_login(force=True, api=None):
     def get_api_key_from_browser():
         key, anonymous = None, False
         if 'google.colab' in sys.modules:
-            key = jupyter.attempt_colab_login(run.api.app_url)
+            key = jupyter.attempt_colab_login(api.app_url)
         elif 'databricks_cli' in sys.modules and 'dbutils' in sys.modules:
             # Databricks does not seem to support getpass() so we need to fail
             # early and prompt the user to configure the key manually for now.
             termerror("Databricks requires api_key to be configured manually, instructions at: http://docs.wandb.com/integrations/databricks")
             raise LaunchError("Databricks integration requires api_key to be configured.")
         if not key and os.environ.get(env.ALLOW_ANONYMOUS) == "true":
-            key = run.api.create_anonymous_api_key()
+            key = api.create_anonymous_api_key()
             anonymous = True
         if not key and force:
             termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
