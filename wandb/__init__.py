@@ -306,7 +306,7 @@ def jupyter_login(force=True, api=None):
             key = getpass.getpass("API Key: ").strip()
         return key, anonymous
 
-    api = api or run.api if run else None
+    api = api or (run.api if run else None)
     if not api:
         raise LaunchError("Internal error: api required for jupyter login")
     return util.prompt_api_key(api, browser_callback=get_api_key_from_browser)
