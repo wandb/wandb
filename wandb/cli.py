@@ -468,7 +468,7 @@ def pull(run, project, entity):
             sys.stdout.write("File %s\r" % name)
             dirname = os.path.dirname(name)
             if dirname != '':
-                os.makedirs(dirname, exist_ok=True)
+                wandb.util.mkdir_exists_ok(dirname)
             with click.progressbar(length=length, label='File %s' % name,
                                    fill_char=click.style('&', fg='green')) as bar:
                 with open(name, "wb") as f:
