@@ -341,7 +341,7 @@ def agent(sweep_id, function=None, entity=None, project=None):
     if in_jupyter:
         _api0 = InternalApi()
         if not _api0.api_key:
-            wandb.jupyter_login()
+            wandb.jupyter_login(api=_api0)
     if entity:
         env.set_entity(entity)
     if project:
