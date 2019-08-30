@@ -391,30 +391,6 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    def check_anonymous(self):
-        # If there's no API key set, ask if the run should be logged anonymously. Only launch this prompt in
-        # environments with a tty.
-        if not self.api.api_key and sys.stdin.isatty():
-            # Require anonymous mode to be explicitly enabled for now
-            if os.environ.get(env.ANONYMOUS) != "enable":
-                return False
-            termlog('No API key found. Would you like to log runs anonymously to {}? (y/n)'.format(self.api.app_url))
-            resp = str(input().lower().strip())
-            while not(resp == 'y' or resp == 'n'):
-                termlog('Invalid response. Please enter y/n.')
-                resp = str(input()).lower().strip()
-            if resp == 'y':
-                key = self.api.create_anonymous_api_key()
-                url = self.api.app_url + '/login?apiKey={}'.format(key)
-                termlog('Your anonymous login link: {}. Do not share or lose this link!'.format(url))
-                os.environ[env.API_KEY] = key
-                self.api.set_setting('anonymous', True)
-                util.write_netrc(self.api.api_url, "user", key)
-                util.write_settings(settings=self.api.settings())
-                self.api.reauth()
-                return True
-        return False
-
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside
         a user scripts (eg. in `wandb.init()`).
@@ -466,7 +442,7 @@ class Run(object):
                     api.set_setting('entity', viewer['entity'])
             if api.settings('entity'):
                 query_params = ""
-                if 'anonymous' in api.settings() and api.settings('anonymous'):
+                if 'anonymous' in api.settings() and api.settings('anonymous') == 'true':
                     query_params = "?apiKey={}".format(api.api_key)
 
                 return "{base}/{entity}/{project}/runs/{run}{query_params}".format(

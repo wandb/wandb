@@ -56,7 +56,7 @@ def patch_tf_keras():
     from tensorflow.python.keras.engine import training_arrays
     from tensorflow.python.keras.engine import training_generator
 
-    training_v2 = wandb.util.import_module('tensorflow.python.keras.engine.training_v2')
+    training_v2 = wandb.util.get_module('tensorflow.python.keras.engine.training_v2')
     old_arrays = training_arrays.fit_loop
     old_generator = training_generator.fit_generator
     if training_v2:
@@ -245,6 +245,8 @@ class WandbCallback(keras.callbacks.Callback):
 
     def set_model(self, model):
         self.model = model
+        if self.input_type == 'auto' and len(model.inputs) == 1:
+            self.input_type = wandb.util.guess_data_type(model.inputs[0].shape, risky=True)
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
 

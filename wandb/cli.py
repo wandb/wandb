@@ -476,7 +476,6 @@ def pull(run, project, entity):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
-@click.option("--anonymous", default=False, is_flag=True, help="Log in as an anonymous user")
 @display_error
 def login(key, server=LocalServer(), browser=True, anonymous=False):
     global api
@@ -487,74 +486,29 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
     import webbrowser
     browser = util.launch_browser(browser)
 
-    # For now *new* anonymous logins need to be enabled with an environment variable
-    allow_anonymous = False
-    if os.environ.get(env.ANONYMOUS) == "enable":
-        allow_anonymous = True
+    def get_api_key_from_browser():
+        if not browser:
+            return None
+        launched = webbrowser.open_new_tab('{}/authorize?{}'.format(api.app_url, server.qs()))
+        if not launched:
+            return None
 
-    # Go through the regular user login flow first, unless --anonymous is specified.
-    if not key and not anonymous:
-        # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
-        url = api.app_url + '/authorize'
-        if key or not browser:
-            launched = False
-        else:
-            launched = webbrowser.open_new_tab(url + "?{}".format(server.qs()))
-        if launched:
-            click.echo(
-                'Opening [{}] in your default browser'.format(url))
-            server.start(blocking=False)
-        elif not key:
-            click.echo(
-                "You can find your API keys in your browser here: {}".format(url))
-
-        def cancel_prompt(*args):
-            # Keyboard SIGINT leaves terminal without a linefeed
-            click.echo("")
-            raise KeyboardInterrupt()
-
-        # Hijacking this signal broke tests in py2...
-        # if not os.getenv("WANDB_TEST"):
-        signal.signal(signal.SIGINT, cancel_prompt)
-        try:
-            key = key or click.prompt("Paste an API key from your profile",
-                                      value_proc=lambda x: x.strip())
-        except Abort:
-            if server.result.get("key"):
-                key = server.result["key"][0]
-
-        # If we still don't have a key, go through the anonymous user flow if we're running interactively.
-        if not key and allow_anonymous:
-            try:
-                click.confirm('No API key found. Would you like to log runs anonymously?', abort=True)
-                anonymous = True
-            except Abort:
-                anonymous = False
-
-    # Go through the anonymous login flow.
-    if not key and anonymous:
-        if api.api_key:
-            click.confirm('You are already logged in. Are you sure you want to create a new anonymous login?', abort=True)
-
-        # Generate a new anonymous user and use its API key.
-        key = api.create_anonymous_api_key()
-
-        url = api.app_url + '/login?apiKey={}'.format(key)
-        if browser:
-            webbrowser.open_new_tab(url)
-
-        click.echo("Your anonymous login link: {}. Do not share or lose this link!".format(url))
+        server.start(blocking=True)
+        if server.result.get("key"):
+            return server.result["key"][0]
+        return None
 
     if key:
-        # TODO: get the username here...
-        # username = api.viewer().get('entity', 'models')
-        if util.write_netrc(api.api_url, "user", key):
-            api.set_setting('anonymous', anonymous)
-            util.write_settings(settings=api.settings())
-            click.secho(
-                "Successfully logged in to Weights & Biases!", fg="green")
+        util.set_api_key(api, key)
     else:
-        click.echo("No key provided, please try again")
+        key = util.prompt_api_key(api, browser_callback=get_api_key_from_browser, anonymous=anonymous)
+
+    if key:
+        api.clear_setting('disabled')
+        click.secho("Successfully logged in to Weights & Biases!", fg="green")
+    else:
+        api.set_setting('disabled', 'true')
+        click.echo("Disabling Weights & Biases. Run 'wandb login' again to re-enable.")
 
     # reinitialize API to create the new client
     api = InternalApi()
@@ -746,7 +700,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         environ[env.CONFIG_PATHS] = configs
     if show:
         environ[env.SHOW_RUN] = 'True'
-    run.check_anonymous()
+    util.prompt_api_key(run.api)
 
     try:
         rm = run_manager.RunManager(run)
