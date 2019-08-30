@@ -8,6 +8,7 @@ import json
 import os
 import yaml
 import importlib
+import re
 
 import wandb
 from wandb import trigger
@@ -97,7 +98,7 @@ def _dict_from_keyval(k, v):
     for k in keys[:-1]:
         d = d.setdefault(k, {})
     try:
-        v = json.loads(v)
+        v = json.loads(v.strip('"'))
     except ValueError:
         pass
     d[keys[-1]] = v
@@ -113,51 +114,53 @@ def _magic_get_config(k, default):
 
 
 _magic_defaults = {
-    'magic': {
-        'keras': {
-            'fit': {
-                'callbacks': {
-                    'tensorboard': {
-                        'enable': True,
-                        'duplicate': False,
-                        'overwrite': False,
-                        'write_graph': None,
-                        'histogram_freq': None,
-                        'update_freq': None,
-                        'write_grads': None,
-                        'write_images': None,
-                        'batch_size': None,
-                        },
-                    'wandb': {
-                        'enable': True,
-                        'duplicate': False,
-                        'overwrite': False,
-                        'log_gradients': None,
-                        'log_weights': None,
-                        'data_type': None,
-                        'predictions': None,
-                        'save_model': None,
-                        'save_weights_only': None,
-                        'monitor': None,
-                        'mode': None,
-                        'verbose': None,
-                        },
-                    'epochs': None,
+    'keras': {
+        'fit': {
+            'callbacks': {
+                'tensorboard': {
+                    'enable': True,
+                    'duplicate': False,
+                    'overwrite': False,
+                    'write_graph': None,
+                    'histogram_freq': None,
+                    'update_freq': None,
+                    'write_grads': None,
+                    'write_images': None,
                     'batch_size': None,
-                    }
-                },
-            #'compile': {
-            #       'optimizer': {
-            #           'name': False,
-            #           },
-            #       'loss': None,
-            #    },
+                    },
+                'wandb': {
+                    'enable': True,
+                    'duplicate': False,
+                    'overwrite': False,
+                    'log_gradients': None,
+                    'log_weights': None,
+                    'data_type': "auto",
+                    'input_type': None,
+                    'output_type': None,
+                    'log_evaluation': None,
+                    'labels': None,
+                    'predictions': None,
+                    'save_model': None,
+                    'save_weights_only': None,
+                    'monitor': None,
+                    'mode': None,
+                    'verbose': None,
+                    },
+                'epochs': None,
+                'batch_size': None,
+                }
             },
-        'args': {
-            'absl': None,
-            'argparse': None,
-            'sys': None,
-            },
+        #'compile': {
+        #       'optimizer': {
+        #           'name': False,
+        #           },
+        #       'loss': None,
+        #    },
+        },
+    'args': {
+        'absl': None,
+        'argparse': None,
+        'sys': None,
         },
     }
             
@@ -172,7 +175,9 @@ def _parse_magic(val):
         except ValueError:
             wandb.termwarn("Unable to parse magic json", repeat=False)
             return _magic_defaults
-        return _merge_dicts(_magic_defaults, val)
+        conf = {}
+        _merge_dicts(_magic_defaults, conf)
+        return _merge_dicts(val, conf)
     if os.path.isfile(val):
         try:
             with open(val, 'r') as stream:
@@ -183,12 +188,18 @@ def _parse_magic(val):
         except yaml.YAMLError as e:
             wandb.termwarn("Unable to parse magic yaml file", repeat=False)
             return _magic_defaults
-        return _merge_dicts(_magic_defaults, val)
+        conf = {}
+        _merge_dicts(_magic_defaults, conf)
+        return _merge_dicts(val, conf)
     # parse as a list of key value pairs
     if val.find('=') > 0:
         conf = {}
         _merge_dicts(_magic_defaults, conf)
-        for kv in val.split(','):
+        # split on commas but ignore commas inside quotes
+        # Using this re allows env variable parsing like:
+        # WANDB_MAGIC=key1='"["cat","dog","pizza"]"',key2=true
+        items = re.findall(r'(?:[^\s,"]|"(?:\\.|[^"])*")+', val)
+        for kv in items:
             kv = kv.split('=')
             if len(kv) != 2:
                 wandb.termwarn("Unable to parse magic key value pair", repeat=False)
@@ -212,20 +223,20 @@ def _fit_wrapper(self, fn, generator=None, *args, **kwargs):
     epochs = kwargs.pop("epochs", None)
     batch_size = kwargs.pop("batch_size", None)
 
-    magic_epochs = _magic_get_config("magic.keras.fit.epochs", None)
+    magic_epochs = _magic_get_config("keras.fit.epochs", None)
     if magic_epochs is not None:
         epochs = magic_epochs
-    magic_batch_size = _magic_get_config("magic.keras.fit.batch_size", None)
+    magic_batch_size = _magic_get_config("keras.fit.batch_size", None)
     if magic_batch_size is not None:
         batch_size = magic_batch_size
     callbacks = kwargs.pop("callbacks", [])
 
-    tb_enabled = _magic_get_config("magic.keras.fit.callbacks.tensorboard.enable", None)
+    tb_enabled = _magic_get_config("keras.fit.callbacks.tensorboard.enable", None)
     if tb_enabled:
         k = getattr(self, '_keras_or_tfkeras', None)
         if k:
-            tb_duplicate = _magic_get_config("magic.keras.fit.callbacks.tensorboard.duplicate", None)
-            tb_overwrite = _magic_get_config("magic.keras.fit.callbacks.tensorboard.overwrite", None)
+            tb_duplicate = _magic_get_config("keras.fit.callbacks.tensorboard.duplicate", None)
+            tb_overwrite = _magic_get_config("keras.fit.callbacks.tensorboard.overwrite", None)
             tb_present = any([isinstance(cb, k.callbacks.TensorBoard) for cb in callbacks])
             if tb_present and tb_overwrite:
                 callbacks = [cb for cb in callbacks if not isinstance(cb, k.callbacks.TensorBoard)]
@@ -234,28 +245,29 @@ def _fit_wrapper(self, fn, generator=None, *args, **kwargs):
                 cb_args = ('write_graph','histogram_freq', 'update_freq', 'write_grads',
                            'write_images','batch_size')
                 for cb_arg in cb_args:
-                    v = _magic_get_config("magic.keras.fit.callbacks.tensorboard." + cb_arg, None)
+                    v = _magic_get_config("keras.fit.callbacks.tensorboard." + cb_arg, None)
                     if v is not None:
                         tb_callback_kwargs[cb_arg] = v
                 tb_callback = k.callbacks.TensorBoard(**tb_callback_kwargs)
                 callbacks.append(tb_callback)
     
-    wandb_enabled = _magic_get_config("magic.keras.fit.callbacks.wandb.enable", None)
+    wandb_enabled = _magic_get_config("keras.fit.callbacks.wandb.enable", None)
     if wandb_enabled:
-        wandb_duplicate = _magic_get_config("magic.keras.fit.callbacks.wandb.duplicate", None)
-        wandb_overwrite = _magic_get_config("magic.keras.fit.callbacks.wandb.overwrite", None)
+        wandb_duplicate = _magic_get_config("keras.fit.callbacks.wandb.duplicate", None)
+        wandb_overwrite = _magic_get_config("keras.fit.callbacks.wandb.overwrite", None)
         wandb_present = any([isinstance(cb, wandb.keras.WandbCallback) for cb in callbacks])
         if wandb_present and wandb_overwrite:
             callbacks = [cb for cb in callbacks if not isinstance(cb, wandb.keras.WandbCallback)]
         if wandb_overwrite or wandb_duplicate or not wandb_present:
             wandb_callback_kwargs = {}
-            log_gradients = _magic_get_config("magic.keras.fit.callbacks.wandb.log_gradients", None)
+            log_gradients = _magic_get_config("keras.fit.callbacks.wandb.log_gradients", None)
             if log_gradients and kwargs.get('x') and kwargs.get('y'):
                 wandb_callback_kwargs['log_gradients'] = log_gradients
             cb_args = ("predictions", "log_weights", "data_type", "save_model", "save_weights_only",
-                       "monitor", "mode", "verbose")
+                       "monitor", "mode", "verbose", "input_type", "output_type", "log_evaluation",
+                       "labels")
             for cb_arg in cb_args:
-                v = _magic_get_config("magic.keras.fit.callbacks.wandb." + cb_arg, None)
+                v = _magic_get_config("keras.fit.callbacks.wandb." + cb_arg, None)
                 if v is not None:
                     wandb_callback_kwargs[cb_arg] = v
             wandb_callback = wandb.keras.WandbCallback(**wandb_callback_kwargs)
@@ -444,13 +456,13 @@ def _magic_update_config():
         user_config = dict(c.user_items())
         if user_config:
             return
-    if _magic_get_config("magic.args.absl", None) is False:
+    if _magic_get_config("args.absl", None) is False:
         global _args_absl
         _args_absl = None
-    if _magic_get_config("magic.args.argparse", None) is False:
+    if _magic_get_config("args.argparse", None) is False:
         global _args_argparse
         _args_argparse = None
-    if _magic_get_config("magic.args.sys", None) is False:
+    if _magic_get_config("args.sys", None) is False:
         global _args_system
         _args_system = None
     # prefer absl, then argparse values, fallback to parsed system args

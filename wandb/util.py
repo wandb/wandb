@@ -773,6 +773,8 @@ def guess_data_type(shape):
     # (samples,) or (samples,logits)
     if len(shape) in (1, 2):
         return 'label'
+    if len(shape) == 3:  # Assume image mask like fashion mnist: (no color channel)
+        return 'image'
     if len(shape) == 4:
         if shape[-1] in (1, 3, 4):
             # (samples, height, width, Y \ RGB \ RGBA)
