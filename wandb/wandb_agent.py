@@ -339,6 +339,7 @@ def agent(sweep_id, function=None, entity=None, project=None):
     """
     in_jupyter = wandb._get_python_type() != "python"
     if in_jupyter:
+        os.environ[env.JUPYTER] = "true"
         _api0 = InternalApi()
         if not _api0.api_key:
             wandb.jupyter_login(api=_api0)
