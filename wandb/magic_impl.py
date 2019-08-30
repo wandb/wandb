@@ -92,15 +92,16 @@ def _merge_dicts(source, destination):
     return destination
 
 
-def _dict_from_keyval(k, v):
+def _dict_from_keyval(k, v, json_parse=True):
     d = ret = {}
     keys = k.split('.')
     for k in keys[:-1]:
         d = d.setdefault(k, {})
-    try:
-        v = json.loads(v.strip('"'))
-    except ValueError:
-        pass
+    if json_parse:
+        try:
+            v = json.loads(v.strip('"'))
+        except ValueError:
+            pass
     d[keys[-1]] = v
     return ret
 
@@ -114,6 +115,10 @@ def _magic_get_config(k, default):
 
 
 _magic_defaults = {
+    'enable': None,
+    #'wandb': {
+    #    'disable': None,
+    #},
     'keras': {
         'fit': {
             'callbacks': {
@@ -167,48 +172,47 @@ _magic_defaults = {
 
 def _parse_magic(val):
     # attempt to treat string as a json
+    not_set = {}
     if val is None:
-        return _magic_defaults
+        return _magic_defaults, not_set
     if val.startswith("{"):
         try:
             val = json.loads(val)
         except ValueError:
             wandb.termwarn("Unable to parse magic json", repeat=False)
-            return _magic_defaults
-        conf = {}
-        _merge_dicts(_magic_defaults, conf)
-        return _merge_dicts(val, conf)
+            return _magic_defaults, not_set
+        conf = _merge_dicts(_magic_defaults, {})
+        return _merge_dicts(val, conf), val
     if os.path.isfile(val):
         try:
             with open(val, 'r') as stream:
                 val = yaml.safe_load(stream)
         except IOError as e:
             wandb.termwarn("Unable to read magic config file", repeat=False)
-            return _magic_defaults
+            return _magic_defaults, not_set
         except yaml.YAMLError as e:
             wandb.termwarn("Unable to parse magic yaml file", repeat=False)
-            return _magic_defaults
-        conf = {}
-        _merge_dicts(_magic_defaults, conf)
-        return _merge_dicts(val, conf)
+            return _magic_defaults, not_set
+        conf = _merge_dicts(_magic_defaults, {})
+        return _merge_dicts(val, conf), val
     # parse as a list of key value pairs
     if val.find('=') > 0:
-        conf = {}
-        _merge_dicts(_magic_defaults, conf)
         # split on commas but ignore commas inside quotes
         # Using this re allows env variable parsing like:
         # WANDB_MAGIC=key1='"["cat","dog","pizza"]"',key2=true
         items = re.findall(r'(?:[^\s,"]|"(?:\\.|[^"])*")+', val)
+        conf_set = {}
         for kv in items:
             kv = kv.split('=')
             if len(kv) != 2:
                 wandb.termwarn("Unable to parse magic key value pair", repeat=False)
                 continue
             d = _dict_from_keyval(*kv)
-            _merge_dicts(d, conf)
-        return conf
+            _merge_dicts(d, conf_set)
+        conf = _merge_dicts(_magic_defaults, {})
+        return _merge_dicts(conf_set, conf), conf_set
     wandb.termwarn("Unable to parse magic parameter", repeat=False)
-    return _magic_defaults
+    return _magic_defaults, not_set
         
 
 def set_entity(value, env=None):
@@ -488,6 +492,21 @@ def magic_install():
         return
     _run_once = True
 
+    global _magic_config
+    global _import_hook
+
+    # parse config early, before we have wandb.config overrides
+    _magic_config, magic_set = _parse_magic(wandb.env.get_magic())
+
+    # we are implicitly enabling magic
+    if _magic_config.get('enable') is None:
+        _magic_config['enable'] = True
+        magic_set['enable'] = True
+
+    # allow early config to disable magic
+    if not _magic_config.get('enable'):
+        return
+
     # process system args
     _process_system_args()
     # install argparse wrapper
@@ -498,10 +517,27 @@ def magic_install():
     # track init calls
     trigger.register('on_init', _magic_init)
 
+    # if wandb.init has already been called, this call is ignored
     wandb.init(magic=True)
-    global _magic_config
-    global _import_hook
-    _magic_config = _parse_magic(wandb.env.get_magic())
+
+    # parse magic from wandb.config (from flattened to dict)
+    magic_from_config = {}
+    MAGIC_KEY = "wandb_magic"
+    for k, v in wandb.config.user_items():
+        if not k.startswith(MAGIC_KEY + "."):
+            continue
+        d = _dict_from_keyval(k, v, json_parse=False)
+        _merge_dicts(d, magic_from_config)
+    magic_from_config = magic_from_config.get(MAGIC_KEY, {})
+    _merge_dicts(magic_from_config, _magic_config)
+
+    # allow late config to disable magic
+    if not _magic_config.get('enable'):
+        return
+
+    # store magic_set into config
+    if magic_set:
+        wandb.config._set_wandb('magic', magic_set)
 
     if 'tensorflow.python.keras' in sys.modules:
         _monkey_tfkeras(sys.modules.get('tensorflow.python.keras'))
