@@ -246,7 +246,7 @@ class WandbCallback(keras.callbacks.Callback):
     def set_model(self, model):
         self.model = model
         if self.input_type == 'auto' and len(model.inputs) == 1:
-            self.input_type = wandb.util.guess_data_type(model.inputs[0].shape)
+            self.input_type = wandb.util.guess_data_type(model.inputs[0].shape, risky=True)
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
 
