@@ -780,10 +780,19 @@ def class_colors(class_count):
     return [[0, 0, 0]] + [colorsys.hsv_to_rgb(i / (class_count - 1.), 1.0, 1.0) for i in range(class_count-1)]
 
 
-def guess_data_type(shape):
+def guess_data_type(shape, risky=False):
+    """Infer the type of data based on the shape of the tensors
+
+    Args:
+        risky(bool): some guesses are more likely to be wrong.
+    """
     # (samples,) or (samples,logits)
     if len(shape) in (1, 2):
         return 'label'
+    # Assume image mask like fashion mnist: (no color channel)
+    # This is risky because RNNs often have 3 dim tensors: batch, time, channels
+    if risky and len(shape) == 3:
+        return 'image'
     if len(shape) == 4:
         if shape[-1] in (1, 3, 4):
             # (samples, height, width, Y \ RGB \ RGBA)
