@@ -1,5 +1,5 @@
 import os
-import configparser
+from six.moves import configparser
 
 import wandb.util as util
 from wandb import core, env, wandb_dir
