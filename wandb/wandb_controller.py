@@ -177,7 +177,7 @@ class _WandbController():
         - Runs are only schedule if there are no other runs scheduled.
 
     """
-    def __init__(self, sweep_id=None, entity=None, project=None):
+    def __init__(self, sweep_id_or_config=None, entity=None, project=None):
         global wandb_sweeps
         try:
             from wandb.sweeps import sweeps as wandb_sweeps
@@ -239,12 +239,12 @@ class _WandbController():
             env.set_project(entity, env=environ)
         self._api = InternalApi(environ=environ)
 
-        if isinstance(sweep_id, str):
-            self._sweep_id = sweep_id
-        elif isinstance(sweep_id, dict):
-            self.configure(sweep_id)
+        if isinstance(sweep_id_or_config, str):
+            self._sweep_id = sweep_id_or_config
+        elif isinstance(sweep_id_or_config, dict):
+            self.configure(sweep_id_or_config)
             self._sweep_id = self.create()
-        elif sweep_id is None:
+        elif sweep_id_or_config is None:
             self._defer_sweep_creation = True
             return
         else:
@@ -620,7 +620,7 @@ class _WandbController():
         self._warn("Method not implemented yet.")
 
 
-def controller(sweep_id=None, entity=None, project=None):
+def controller(sweep_id_or_config=None, entity=None, project=None):
     """Public sweep controller constructor.
 
     Usage:
@@ -632,7 +632,7 @@ def controller(sweep_id=None, entity=None, project=None):
         tuner.configure_stopping(...)
 
     """
-    c = _WandbController(sweep_id=sweep_id, entity=entity, project=project)
+    c = _WandbController(sweep_id_or_config=sweep_id_or_config, entity=entity, project=project)
     return c
 
 
