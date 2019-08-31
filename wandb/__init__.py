@@ -63,6 +63,8 @@ from wandb.dataframes import image_segmentation_multiclass_dataframe
 
 from wandb import wandb_torch
 from wandb.wandb_controller import controller
+from wandb.wandb_agent import agent
+from wandb.wandb_controller import sweep
 
 
 logger = logging.getLogger(__name__)
@@ -282,7 +284,7 @@ def load_ipython_extension(ipython):
     pass
 
 
-def jupyter_login(force=True):
+def jupyter_login(force=True, api=None):
     """Attempt to login from a jupyter environment
 
     If force=False, we'll only attempt to auto-login, otherwise we'll prompt the user
@@ -290,16 +292,24 @@ def jupyter_login(force=True):
     def get_api_key_from_browser():
         key, anonymous = None, False
         if 'google.colab' in sys.modules:
-            key = jupyter.attempt_colab_login(run.api.app_url)
+            key = jupyter.attempt_colab_login(api.app_url)
+        elif 'databricks_cli' in sys.modules and 'dbutils' in sys.modules:
+            # Databricks does not seem to support getpass() so we need to fail
+            # early and prompt the user to configure the key manually for now.
+            termerror("Databricks requires api_key to be configured manually, instructions at: http://docs.wandb.com/integrations/databricks")
+            raise LaunchError("Databricks integration requires api_key to be configured.")
         if not key and os.environ.get(env.ALLOW_ANONYMOUS) == "true":
-            key = run.api.create_anonymous_api_key()
+            key = api.create_anonymous_api_key()
             anonymous = True
         if not key and force:
             termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
             key = getpass.getpass("API Key: ").strip()
         return key, anonymous
 
-    return util.prompt_api_key(run.api, browser_callback=get_api_key_from_browser)
+    api = api or (run.api if run else None)
+    if not api:
+        raise LaunchError("Internal error: api required for jupyter login")
+    return util.prompt_api_key(api, browser_callback=get_api_key_from_browser)
 
 
 def _init_jupyter(run):

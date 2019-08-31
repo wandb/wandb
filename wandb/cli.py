@@ -44,7 +44,7 @@ from .core import termlog
 import wandb
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
-from wandb import agent as wandb_agent
+from wandb import wandb_agent
 from wandb import wandb_controller
 from wandb import env
 from wandb import wandb_run
