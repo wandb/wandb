@@ -695,7 +695,7 @@ def _sweep_status(sweep_obj, sweep_conf, sweep_runs):
 
 
 def sweep(sweep, entity=None, project=None):
-    """Generic sweep creation, used in cli?, controller api, jupyter."""
+    """Sweep create for controller api and jupyter (eventually for cli)."""
     in_jupyter = wandb._get_python_type() != "python"
     if in_jupyter:
         os.environ[env.JUPYTER] = "true"
