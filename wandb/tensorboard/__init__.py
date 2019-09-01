@@ -6,11 +6,6 @@ import sys
 import glob
 import wandb
 
-# Default rate limit of 1 per second
-
-
-def RATE_LIMIT(t): return int(t)
-
 
 # Constants for patching tensorboard
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
@@ -147,7 +142,7 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
             [TENSORBOARD_C_MODULE, "create_summary_file_writer"])
 
 
-rates = {"": {"step": 0, "time": RATE_LIMIT(time.time())}}
+STEPS = {"": {"step": 0}}
 
 
 def log(tf_summary_str, history=None, **kwargs):
@@ -156,14 +151,14 @@ def log(tf_summary_str, history=None, **kwargs):
     namespace = kwargs.get("namespace") or ""
     if "namespace" in kwargs:
         del kwargs["namespace"]
-    last_step = rates.get(namespace, {"step": 0, "time": RATE_LIMIT(time.time())})
+    # To handle multiple global_steps, we keep track of them here instead of the global log
+    last_step = STEPS.get(namespace, {"step": 0})
     cur_step = kwargs.get("step", 0)
-    if last_step["step"] < cur_step and RATE_LIMIT(time.time()) > last_step["time"]:
+    if last_step["step"] < cur_step:
         kwargs["commit"] = True
     else:
         kwargs["commit"] = False
-    rates[namespace]["step"] = cur_step
-    rates[namespace]["time"] = RATE_LIMIT(time.time())
+    STEPS[namespace] = {"step": cur_step}
     if "step" in kwargs:
         del kwargs["step"]
     log_dict = tf_summary_to_dict(tf_summary_str, namespace)
