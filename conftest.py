@@ -301,7 +301,7 @@ def fake_run_manager(mocker, run=None, rm_class=wandb.run_manager.RunManager):
     # We have an optional rm_class object because we mock it above so we need it before it's mocked
     api = InternalApi(load_settings=False)
     api.set_setting('project', 'testing')
-    
+
     if wandb.run is None:
         wandb.run = run or Run()
     wandb.run._api = api
@@ -360,6 +360,18 @@ def run_manager(mocker, request_mocker, upsert_run, query_viewer):
         yield run_manager
         wandb.uninit()
 
+
+@pytest.fixture
+def dryrun():
+    orig_environ = dict(os.environ)
+    try:
+        with CliRunner().isolated_filesystem():
+            os.environ["WANDB_MODE"] = "dryrun"
+            yield os.environ
+    finally:
+        os.environ.clear()
+        os.environ.update(orig_environ)
+        wandb.uninit()
 
 # "Error: 'Session' object has no attribute 'request'""
 # @pytest.fixture(autouse=True)
