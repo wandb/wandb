@@ -46,12 +46,13 @@ def test_tensorboard_pytorch(wandb_init_run, caplog):
         writer.add_scalar("loss", loss / 64, i+1)
         writer.add_image("example", torch.ones((1, 28, 28)), i+1)
         # TODO: There's a race here and it's gross
-        assert(len(wandb_init_run.history.row) in (4, 8, 12))
+        assert(len(wandb_init_run.history.row) in (3, 4, 8, 12))
     wandb_init_run.run_manager.test_shutdown()
     print("DIR: ", glob.glob(wandb_init_run.dir + "/*"),
           glob.glob(wandb_init_run.dir + "/**/*"))
     assert len(glob.glob(wandb_init_run.dir + "/*.tfevents.*")) == 1
     assert(len(wandb_init_run.history.rows) == 4)
+    print(wandb_init_run.history.rows)
     assert list(wandb_init_run.history.rows[0].keys()) == ['gradients/fc2.bias',
                                                            'gradients/fc2.weight',
                                                            'gradients/fc1.bias',
@@ -60,8 +61,10 @@ def test_tensorboard_pytorch(wandb_init_run, caplog):
                                                            'gradients/conv2.bias',
                                                            'gradients/conv1.weight',
                                                            'gradients/conv1.bias',
-                                                           '_runtime',
+                                                           'global_step',
                                                            '_timestamp',
+                                                           'loss',
+                                                           '_runtime',
                                                            '_step']
     assert list(wandb_init_run.history.rows[-1].keys()) == ['global_step',
-                                                            '_timestamp', 'loss', 'example', '_runtime', '_step']
+                                                            '_timestamp', 'example', '_runtime', '_step']
