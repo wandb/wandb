@@ -1,5 +1,6 @@
 import os
-import configparser
+
+from six.moves import configparser
 
 import wandb.util as util
 from wandb import core, env, wandb_dir
@@ -9,7 +10,9 @@ class Settings(object):
     """Global W&B settings stored under $WANDB_CONFIG_DIR/settings.
     """
 
-    DEFAULT_SECTION = "default"
+    DEFAULT_SECTION = "client"
+
+    _UNSET = object()
 
     def __init__(self, load_settings=True):
         config_dir = os.environ.get(env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb"))
@@ -19,23 +22,29 @@ class Settings(object):
         util.mkdir_exists_ok(wandb_dir())
 
         self._global_settings_path = os.path.join(config_dir, 'settings')
-        self._global_settings = Settings._settings_wth_defaults({})
+        self._global_settings = Settings._settings()
 
         self._local_settings_path = os.path.join(wandb_dir(), 'settings')
-        self._local_settings = Settings._settings_wth_defaults({})
+        self._local_settings = Settings._settings()
 
         if load_settings:
             self._global_settings.read([self._global_settings_path])
             self._local_settings.read([self._local_settings_path])
 
-    def get(self, section, key, fallback=configparser._UNSET):
+    def get(self, section, key, fallback=_UNSET):
         # Try the local settings first. If we can't find the key, then try the global settings.
         # If a fallback is provided, return it if we can't find the key in either the local or global
         # settings.
         try:
             return self._local_settings.get(section, key)
         except configparser.NoOptionError:
-            return self._global_settings.get(section, key, fallback=fallback)
+            try:
+                return self._global_settings.get(section, key)
+            except configparser.NoOptionError:
+                if fallback is not Settings._UNSET:
+                    return fallback
+                else:
+                    raise
 
     def set(self, section, key, value, globally=False):
         def write_setting(settings, settings_path):
@@ -79,7 +88,7 @@ class Settings(object):
         return result
 
     @staticmethod
-    def _settings_wth_defaults(default_settings):
+    def _settings(default_settings={}):
         config = configparser.ConfigParser()
         config.add_section(Settings.DEFAULT_SECTION)
         for key, value in default_settings.items():

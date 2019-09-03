@@ -3,65 +3,65 @@ import pytest
 
 from click.testing import CliRunner
 import wandb.util as util
-from wandb import settings as gs
+from wandb.settings import Settings
 from wandb import env
 
 
 def test_read_empty_settings():
-    settings = gs.Settings()
-    assert settings.get('default', 'foo', fallback=None) is None
+    settings = Settings()
+    assert settings.get(Settings.DEFAULT_SECTION, 'foo', fallback=None) is None
 
 
 def test_read_global_setting(global_wandb_settings):
-    global_wandb_settings.write("[default]\nfoo = bar\n")
+    global_wandb_settings.write("[client]\nfoo = bar\n")
     global_wandb_settings.flush()
 
-    settings = gs.Settings()
-    assert settings.get('default', 'foo') == 'bar'
+    settings = Settings()
+    assert settings.get(Settings.DEFAULT_SECTION, 'foo') == 'bar'
 
 
 def test_read_local_setting(global_wandb_settings, local_wandb_settings):
-    global_wandb_settings.write("[default]\nfoo = baz\n")
+    global_wandb_settings.write("[client]\nfoo = baz\n")
     global_wandb_settings.flush()
 
-    local_wandb_settings.write("[default]\nfoo = bar\n")
+    local_wandb_settings.write("[client]\nfoo = bar\n")
     local_wandb_settings.flush()
 
-    settings = gs.Settings()
-    assert settings.get('default', 'foo') == 'bar'
+    settings = Settings()
+    assert settings.get(Settings.DEFAULT_SECTION, 'foo') == 'bar'
 
 
 def test_write_setting_globally(global_wandb_settings):
-    settings = gs.Settings()
-    settings.set('default', 'foo', 'bar', globally=True)
+    settings = Settings()
+    settings.set(Settings.DEFAULT_SECTION, 'foo', 'bar', globally=True)
 
     with open(global_wandb_settings.name, "r") as f:
         data = f.read()
-        assert "[default]" in data
+        assert "[client]" in data
         assert "foo = bar" in data
 
 
 def test_write_setting_locally(local_wandb_settings):
-    settings = gs.Settings()
-    settings.set('default', 'foo', 'bar')
+    settings = Settings()
+    settings.set(Settings.DEFAULT_SECTION, 'foo', 'bar')
 
     with open(local_wandb_settings.name, "r") as f:
         data = f.read()
-        assert "[default]" in data
+        assert "[client]" in data
         assert "foo = bar" in data
 
 
 def test_items(global_wandb_settings, local_wandb_settings):
-    global_wandb_settings.write("[default]\nfoo = baz\n")
+    global_wandb_settings.write("[client]\nfoo = baz\n")
     global_wandb_settings.flush()
 
-    local_wandb_settings.write("[default]\nfoo = bar\n")
+    local_wandb_settings.write("[client]\nfoo = bar\n")
     local_wandb_settings.flush()
 
-    settings = gs.Settings()
+    settings = Settings()
 
     assert settings.items() == {
-        'section': 'default',
+        'section': Settings.DEFAULT_SECTION,
         'foo': 'bar',
     }
 
