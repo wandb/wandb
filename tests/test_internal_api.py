@@ -219,7 +219,7 @@ def test_settings(mocker):
         'base_url': 'https://api.wandb.ai',
         'entity': 'test_entity',
         'project': 'test_model',
-        'section': 'default',
+        'section': 'client',
         'run': 'latest',
         'ignore_globs': ["diff.patch", "*.secure"],
         'git_remote': 'origin',
@@ -235,7 +235,7 @@ def test_default_settings():
     assert internal.Api({'base_url': 'http://localhost'}, load_settings=False).settings() == {
         'base_url': 'http://localhost',
         'entity': None,
-        'section': 'default',
+        'section': 'client',
         'run': 'latest',
         # TODO(adrian): it looks like this test interacts with test_settings. sometimes we get 'ignore_globs': ['*.patch']
         'ignore_globs': [],
