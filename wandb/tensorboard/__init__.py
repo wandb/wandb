@@ -147,7 +147,7 @@ STEPS = {"": {"step": 0}}
 
 def log(tf_summary_str, history=None, **kwargs):
     """Logs a tfsummary to wandb"""
-    global steps
+    global STEPS
     namespace = kwargs.get("namespace") or ""
     if "namespace" in kwargs:
         del kwargs["namespace"]
@@ -159,7 +159,6 @@ def log(tf_summary_str, history=None, **kwargs):
     else:
         kwargs["commit"] = False
     STEPS[namespace] = {"step": cur_step}
-    print(namespace, last_step, cur_step, kwargs["commit"])
     if "step" in kwargs:
         del kwargs["step"]
     log_dict = tf_summary_to_dict(tf_summary_str, namespace)

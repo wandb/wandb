@@ -52,7 +52,7 @@ def test_tensorboard_pytorch(wandb_init_run, caplog):
           glob.glob(wandb_init_run.dir + "/**/*"))
     assert len(glob.glob(wandb_init_run.dir + "/*.tfevents.*")) == 1
     assert(len(wandb_init_run.history.rows) == 4)
-    print(wandb_init_run.history.rows)
+    print("Rows: ", wandb_init_run.history.rows)
     assert list(wandb_init_run.history.rows[0].keys()) == ['gradients/fc2.bias',
                                                            'gradients/fc2.weight',
                                                            'gradients/fc1.bias',

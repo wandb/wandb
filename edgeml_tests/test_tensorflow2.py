@@ -101,7 +101,7 @@ def test_tensorboard_basic(wandb_init_run, model):
     assert wandb_init_run.history.rows[0]["_step"] == 0
     assert wandb_init_run.history.rows[-1]["_step"] == 8
     # TODO: No histos in eager mode with TF callback 1.0
-    print("WHAT", wandb_init_run.history.rows[-1])
+    print("Last Row:", wandb_init_run.history.rows[-1])
     assert wandb_init_run.history.rows[-1]['train/sequential/dense_1/kernel_0']
     assert wandb_init_run.history.rows[-2]['validation/epoch_loss']
     # TODO: will change to 2 event files in V2 callback
