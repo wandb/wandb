@@ -83,6 +83,12 @@ def test_pip_freeze(mocker, run_manager):
     assert wbv in reqs
 
 
+def test_spell_sync(mocker, run_manager, mock_server):
+    run_manager._block_file_observer()
+    run_manager.init_run(env={"SPELL_RUN_URL": "https://spell.run/test"})
+    assert mock_server.requests['wandb_url'][0]["url"]
+
+
 def test_custom_file_policy(mocker, run_manager):
     run_manager._block_file_observer()
     run_manager.init_run()
@@ -121,6 +127,7 @@ def test_custom_file_policy_symlink(mocker, run_manager):
         run_manager._file_event_handlers["ckpt_0.txt"], FileEventHandlerThrottledOverwriteMinWait)
     assert mod.called
 
+
 def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
     "Test that only 3 files are uploaded individually."
 
@@ -136,7 +143,7 @@ def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
             f.write("w&b" * 100)
             wandb.save(fname)
     run_manager.test_shutdown()
-    
+
     filenames = [
         r['variables']['files'][0]
         for r in mock_server.requests['graphql']
@@ -144,6 +151,7 @@ def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
 
     # assert there is no batching
     assert all('.tgz' not in filename for filename in filenames)
+
 
 def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
     "Test that 100 files are batched."
@@ -153,9 +161,9 @@ def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
             f.write("w&b" * 100)
             wandb.save(fname)
     run_manager.test_shutdown()
-    
+
     req = [r for r in mock_server.requests['graphql']
-        if 'files' in r['variables']][0]
+           if 'files' in r['variables']][0]
 
     assert 'query Model' in req['query']
     assert req['variables']['name'] == 'testing'
