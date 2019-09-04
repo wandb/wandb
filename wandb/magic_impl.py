@@ -538,16 +538,18 @@ def magic_install():
     # store magic_set into config
     if magic_set:
         wandb.config._set_wandb('magic', magic_set)
+        wandb.config.persist()
 
+    # Monkey patch both tf.keras and keras
     if 'tensorflow.python.keras' in sys.modules:
         _monkey_tfkeras(sys.modules.get('tensorflow.python.keras'))
-    elif 'keras' in sys.modules:
+    if 'keras' in sys.modules:
         _monkey_keras(sys.modules.get('keras'))
-    else:
-        if not _import_hook:
-            _import_hook = ImportMetaHook()
-            _import_hook.install()
-        _import_hook.add(lastname='keras', on_import=_on_import_keras)
+    # Always setup import hooks looking for keras or tf.keras
+    if not _import_hook:
+        _import_hook = ImportMetaHook()
+        _import_hook.install()
+    _import_hook.add(lastname='keras', on_import=_on_import_keras)
 
     if 'absl.app' in sys.modules:
         _monkey_absl(sys.modules.get('absl.app'))
