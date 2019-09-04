@@ -38,6 +38,8 @@ matplotlib
 plotly
 Keras
 xgboost
+ray
+gym
 tensorflow==1.13.2
 protobuf>=3.6.0
 vcrpy>=2.0.0

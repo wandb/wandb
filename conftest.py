@@ -362,6 +362,18 @@ def run_manager(mocker, request_mocker, upsert_run, query_viewer):
         wandb.uninit()
 
 
+@pytest.fixture
+def dryrun():
+    orig_environ = dict(os.environ)
+    try:
+        with CliRunner().isolated_filesystem():
+            os.environ["WANDB_MODE"] = "dryrun"
+            yield os.environ
+    finally:
+        os.environ.clear()
+        os.environ.update(orig_environ)
+        wandb.uninit()
+
 # "Error: 'Session' object has no attribute 'request'""
 # @pytest.fixture(autouse=True)
 # def no_requests(monkeypatch):

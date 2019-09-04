@@ -397,7 +397,8 @@ Api = PublicApi
 # Stores what modules have been patched
 patched = {
     "tensorboard": [],
-    "keras": []
+    "keras": [],
+    "gym": []
 }
 _saved_files = set()
 
@@ -699,7 +700,8 @@ def join():
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
-         sync_tensorboard=False, name=None, notes=None, id=None, magic=None, allow_anonymous=False):
+         sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
+         allow_anonymous=False):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -741,6 +743,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # TODO: deprecate tensorboard
     if tensorboard or sync_tensorboard and len(patched["tensorboard"]) == 0:
         util.get_module("wandb.tensorboard").patch()
+    if monitor_gym and len(patched["gym"]) == 0:
+        util.get_module("wandb.gym").monitor()
 
     sagemaker_config = util.parse_sm_config()
     tf_config = util.parse_tfjob_config()
@@ -942,6 +946,8 @@ keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
+gym = util.LazyLoader('gym', globals(), 'wandb.gym')
+ray = util.LazyLoader('ray', globals(), 'wandb.ray')
 
 
 __all__ = ['init', 'config', 'termlog', 'termwarn', 'termerror', 'tensorflow',
