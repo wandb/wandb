@@ -51,7 +51,9 @@ AGENT_KILL_DELAY = 'WANDB_AGENT_KILL_DELAY'
 CRASH_NOSYNC_TIME = 'WANDB_CRASH_NOSYNC_TIME'
 MAGIC = 'WANDB_MAGIC'
 HOST = 'WANDB_HOST'
-ANONYMOUS = 'WANDB_ANONYMOUS'
+ALLOW_ANONYMOUS = 'WANDB_ALLOW_ANONYMOUS'
+JUPYTER = 'WANDB_JUPYTER'
+CONFIG_DIR = 'WANDB_CONFIG_DIR'
 
 
 def immutable_keys():
@@ -59,7 +61,7 @@ def immutable_keys():
     certain values between multiple calls to wandb.init within a single process."""
     return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
             ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, DIR, SILENT, CONFIG_PATHS,
-            ANONYMOUS]
+            ALLOW_ANONYMOUS]
 
 
 def is_debug(default=None, env=None):

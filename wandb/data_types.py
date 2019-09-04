@@ -215,8 +215,13 @@ def data_frame_to_json(df, run, key, step):
     """
     pandas = util.get_module("pandas")
     fastparquet = util.get_module("fastparquet")
-    if not pandas or not fastparquet:
-        raise wandb.Error("Failed to save data frame: unable to import either pandas or fastparquet.")
+    missing_reqs = []
+    if not pandas:
+        missing_reqs.append('pandas')
+    if not fastparquet:
+        missing_reqs.append('fastparquet')
+    if len(missing_reqs) > 0:
+        raise wandb.Error("Failed to save data frame. Please run 'pip install %s'" % ' '.join(missing_reqs))
 
     data_frame_id = util.generate_id()
 
@@ -1155,7 +1160,7 @@ class Image(BatchableMedia):
             self._width, self._height = self._image.size
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.png')
-            self._image.save(tmp_path)
+            self._image.save(tmp_path, transparency=None)
             super(Image, self).__init__(tmp_path, is_tmp=True)
 
     @classmethod
@@ -1242,10 +1247,10 @@ class Image(BatchableMedia):
         for i, image in enumerate(images[:num_images_to_log]):
             location = width * i
             sprite.paste(image._image, (location, 0))
-        fname = '{}_{}.jpg'.format(key, step)
+        fname = '{}_{}.png'.format(key, step)
         # fname may contain a slash so we create the directory
         util.mkdir_exists_ok(os.path.dirname(os.path.join(base, fname)))
-        sprite.save(os.path.join(base, fname), transparency=0)
+        sprite.save(os.path.join(base, fname), transparency=None)
         meta = {"width": width, "height": height,
                 "count": num_images_to_log, "_type": "images"}
         # TODO: hacky way to enable image grouping for now

@@ -128,6 +128,7 @@ def main():
 
         for i in range(10):
             wandb.run.history.add({
+                'string': 'string',
                 'histogram-small-literal': histogram_small_literal,
                 'histogram-large-random': histogram_large_random,
                 'numpy-array': numpy_array,

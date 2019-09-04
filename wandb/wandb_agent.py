@@ -8,6 +8,8 @@ import subprocess
 import sys
 import traceback
 import time
+import signal
+import queue
 
 import six
 
@@ -16,6 +18,7 @@ from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 from wandb import util
 from wandb import wandb_run
+from wandb import env
 
 
 logger = logging.getLogger(__name__)
@@ -25,20 +28,93 @@ class AgentError(Exception):
     pass
 
 
+class AgentProcess(object):
+    """Launch and manage a process."""
+
+    def __init__(self, env=None, command=None, function=None, run_id=None, in_jupyter=None):
+        self._popen = None
+        self._proc = None
+        self._finished_q = multiprocessing.Queue()
+
+        if command:
+            self._popen = subprocess.Popen(command,
+                env=env, preexec_fn=os.setpgrp)
+        elif function:
+            self._proc = multiprocessing.Process(target=self._start,
+                    args=(self._finished_q, env, function, run_id, in_jupyter))
+            self._proc.start()
+        else:
+            raise AgentError("Agent Process requires command or function")
+
+    def _start(self, finished_q, env, function, run_id, in_jupyter):
+        if env:
+            for k, v in env.items():
+                os.environ[k] = v
+
+        # call user function
+        print("wandb: Agent Started Run:", run_id)
+        if function:
+            function()
+        print("wandb: Agent Finished Run:", run_id, "\n")
+
+        # complete the run
+        run = wandb.run
+        if run:
+            if in_jupyter:
+                run._stop_jupyter_agent()
+            else:
+                wandb.join()
+
+        # signal that the process is finished
+        finished_q.put(True)
+
+
+    def poll(self):
+        if self._popen:
+            return self._popen.poll()
+        try:
+            finished = self._finished_q.get(False, 0)
+            if finished:
+                return True
+        except queue.Empty:
+            pass
+        return
+
+    def wait(self):
+        if self._popen:
+            return self._popen.wait()
+        return self._proc.join()
+
+    def kill(self):
+        if self._popen:
+            return self._popen.kill()
+        pid = self._proc.pid
+        if pid:
+            return os.kill(pid, signal.SIGKILL)
+        return
+
+    def terminate(self):
+        if self._popen:
+            return self._popen.terminate()
+        return self._proc.terminate()
+
+
 class Agent(object):
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 5
     KILL_DELAY = 30
 
-    def __init__(self, api, queue, sweep_id=None):
+    def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None):
         self._api = api
         self._queue = queue
         self._run_processes = {}  # keyed by run.id (GQL run name)
         self._server_responses = []
         self._sweep_id = sweep_id
+        self._in_jupyter = in_jupyter
         self._log = []
         self._running = True
         self._last_report_time = None
+        self._function = function
         self._report_interval = wandb.env.get_agent_report_interval(self.REPORT_INTERVAL)
         self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
         if self._report_interval is None:
@@ -91,8 +167,9 @@ class Agent(object):
                 pass
         finally:
             try:
-                wandb.termlog(
-                    'Terminating and syncing runs. Press ctrl-c to kill.')
+                if not self._in_jupyter:
+                    wandb.termlog(
+                        'Terminating and syncing runs. Press ctrl-c to kill.')
                 for run_id, run_process in six.iteritems(self._run_processes):
                     try:
                         run_process.terminate()
@@ -140,6 +217,9 @@ class Agent(object):
     def _command_run(self, command):
         logger.info('Agent starting run with config:\n' +
                     '\n'.join(['\t{}: {}'.format(k, v['value']) for k, v in command['args'].items()]))
+        if self._in_jupyter:
+            print('wandb: Agent Starting Run: {} with config:\n'.format(command.get('run_id'))  +
+                    '\n'.join(['\t{}: {}'.format(k, v['value']) for k, v in command['args'].items()]))
 
         run = wandb_run.Run(mode='run',
                             sweep_id=self._sweep_id,
@@ -159,9 +239,13 @@ class Agent(object):
         flags = ["--{}={}".format(name, config['value'])
                  for name, config in command['args'].items()]
 
-        self._run_processes[run.id] = subprocess.Popen(
-            ['/usr/bin/env', 'python', command['program']] + flags,
-            env=env, preexec_fn=os.setpgrp)
+        if self._function:
+            proc = AgentProcess(function=self._function, env=env,
+                    run_id=command.get('run_id'), in_jupyter=self._in_jupyter)
+        else:
+            command_list = ['/usr/bin/env', 'python', command['program']] + flags
+            proc = AgentProcess(command=command_list, env=env)
+        self._run_processes[run.id] = proc
 
         # we keep track of when we sent the sigterm to give processes a chance
         # to handle the signal before sending sigkill every heartbeat
@@ -222,16 +306,45 @@ class AgentApi(object):
         return result
 
 
-def run_agent(sweep_id=None):
+def run_agent(sweep_id, function=None, in_jupyter=None):
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    log_level = logging.DEBUG
+    if in_jupyter:
+        log_level = logging.ERROR
+    ch.setLevel(log_level)
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    try:
+        logger.addHandler(ch)
 
-    api = InternalApi()
-    queue = multiprocessing.Queue()
-    agent = Agent(api, queue, sweep_id=sweep_id)
-    agent.run()
+        api = InternalApi()
+        queue = multiprocessing.Queue()
+        agent = Agent(api, queue, sweep_id=sweep_id, function=function, in_jupyter=in_jupyter)
+        agent.run()
+    finally:
+        # make sure we remove the logging handler (important for jupyter notebooks)
+        logger.removeHandler(ch)
+
+
+def agent(sweep_id, function=None, entity=None, project=None):
+    """Generic agent entrypoint, used for CLI or jupyter.
+
+    Args:
+        sweep_id (dict): Sweep ID generated by CLI or sweep API
+        entity (str, optional): W&B Entity
+        project (str, optional): W&B Project
+        function (dict, optional): Configure sweep function
+    """
+    in_jupyter = wandb._get_python_type() != "python"
+    if in_jupyter:
+        os.environ[env.JUPYTER] = "true"
+        _api0 = InternalApi()
+        if not _api0.api_key:
+            wandb.jupyter_login(api=_api0)
+    if entity:
+        env.set_entity(entity)
+    if project:
+        env.set_project(project)
+    return run_agent(sweep_id, function=function, in_jupyter=in_jupyter)

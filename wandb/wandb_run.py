@@ -68,7 +68,8 @@ class Run(object):
         self.resumed = False  # we set resume when history is first accessed
         if api:
             if api.current_run_id and api.current_run_id != self.id:
-                raise RuntimeError('Api object passed to run {} is already being used by run {}'.format(self.id, api.current_run_id))
+                raise RuntimeError('Api object passed to run {} is already being used by run {}'.format(
+                    self.id, api.current_run_id))
             else:
                 api.set_current_run_id(self.id)
         self._api = api
@@ -81,7 +82,7 @@ class Run(object):
 
         # self.name and self.notes used to be combined into a single field.
         # Now if name and notes don't have their own values, we get them from
-        # self._name_and_description, but we don't update description.md 
+        # self._name_and_description, but we don't update description.md
         # if they're changed. This is to discourage relying on self.description
         # and self._name_and_description so that we can drop them later.
         #
@@ -117,7 +118,7 @@ class Run(object):
             self.project = self.api.settings("project")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
-            scope.set_tag("url", self.get_url(self.api, network=False)) # TODO: Move this somewhere outside of init
+            scope.set_tag("url", self.get_url(self.api, network=False))  # TODO: Move this somewhere outside of init
 
         if self.resume == "auto":
             util.mkdir_exists_ok(wandb.wandb_dir())
@@ -391,30 +392,6 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    def check_anonymous(self):
-        # If there's no API key set, ask if the run should be logged anonymously. Only launch this prompt in
-        # environments with a tty.
-        if not self.api.api_key and sys.stdin.isatty():
-            # Require anonymous mode to be explicitly enabled for now
-            if os.environ.get(env.ANONYMOUS) != "enable":
-                return False
-            termlog('No API key found. Would you like to log runs anonymously to {}? (y/n)'.format(self.api.app_url))
-            resp = str(input().lower().strip())
-            while not(resp == 'y' or resp == 'n'):
-                termlog('Invalid response. Please enter y/n.')
-                resp = str(input()).lower().strip()
-            if resp == 'y':
-                key = self.api.create_anonymous_api_key()
-                url = self.api.app_url + '/login?apiKey={}'.format(key)
-                termlog('Your anonymous login link: {}. Do not share or lose this link!'.format(url))
-                os.environ[env.API_KEY] = key
-                self.api.set_setting('anonymous', True)
-                util.write_netrc(self.api.api_url, "user", key)
-                util.write_settings(settings=self.api.settings())
-                self.api.reauth()
-                return True
-        return False
-
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside
         a user scripts (eg. in `wandb.init()`).
@@ -448,6 +425,7 @@ class Run(object):
             environment[env.NOTES] = self.notes
         if len(self.tags) > 0:
             environment[env.TAGS] = ",".join(self.tags)
+        return environment
 
     def _mkdir(self):
         util.mkdir_exists_ok(self._dir)
@@ -466,7 +444,7 @@ class Run(object):
                     api.set_setting('entity', viewer['entity'])
             if api.settings('entity'):
                 query_params = ""
-                if 'anonymous' in api.settings() and api.settings('anonymous'):
+                if 'anonymous' in api.settings() and api.settings('anonymous') == 'true':
                     query_params = "?apiKey={}".format(api.api_key)
 
                 return "{base}/{entity}/{project}/runs/{run}{query_params}".format(
