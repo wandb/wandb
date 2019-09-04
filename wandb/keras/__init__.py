@@ -474,12 +474,13 @@ class WandbCallback(keras.callbacks.Callback):
             target = self.model.targets[0]
             sample_weight = self.model.sample_weights[0]
         elif hasattr(self.model, "_training_endpoints") and len(self.model._training_endpoints) > 0:
-            # TF > 1.14
+            # TF > 1.14 TODO: not sure if we're handling sample_weight properly here...
             target = self.model._training_endpoints[0].training_target.target
             sample_weight = self.model._training_endpoints[0].sample_weight or K.variable(1)
         else:
-            target = K.variable(1)
-            sample_weight = K.variable(1)
+            wandb.termwarn(
+                "Couldn't extract gradients from your model, this could be an unsupported version of keras.  File an issue here: https://github.com/wandb/client", repeat=False)
+            return metrics
         input_tensors = [self.model.inputs[0],  # input data
                          # how much to weight each sample by
                          sample_weight,
