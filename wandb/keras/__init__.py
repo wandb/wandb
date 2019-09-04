@@ -257,7 +257,7 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.input_type in ("image", "images", "segmentation_mask") and self.output_type in ("image", "images", "segmentation_mask"):
+        if self.input_type in ("image", "images", "segmentation_mask") or self.output_type in ("image", "images", "segmentation_mask"):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
@@ -473,7 +473,7 @@ class WandbCallback(keras.callbacks.Callback):
             # TF < 1.14
             target = self.model.targets[0]
             sample_weight = self.model.sample_weights[0]
-        elif hasattr(self.model, "_training_endpoints"):
+        elif hasattr(self.model, "_training_endpoints") and len(self.model._training_endpoints) > 0:
             # TF > 1.14
             target = self.model._training_endpoints[0].training_target.target
             sample_weight = self.model._training_endpoints[0].sample_weight or K.variable(1)
