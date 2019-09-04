@@ -576,8 +576,11 @@ def init(ctx):
     except wandb.cli.ClickWandbException:
         raise ClickException('Could not find team: %s' % entity)
 
-    util.write_settings(entity, project, api.settings())
+    api.set_setting('entity', entity)
+    api.set_setting('project', project)
+    api.set_setting('base_url', api.settings().get('base_url'))
 
+    util.mkdir_exists_ok(wandb_dir())
     with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
 
