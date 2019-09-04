@@ -38,6 +38,7 @@ RUN_STORAGE_ID = 'WANDB_RUN_STORAGE_ID'
 RUN_GROUP = 'WANDB_RUN_GROUP'
 RUN_DIR = 'WANDB_RUN_DIR'
 SWEEP_ID = 'WANDB_SWEEP_ID'
+HTTP_TIMEOUT = 'WANDB_HTTP_TIMEOUT'
 API_KEY = 'WANDB_API_KEY'
 JOB_TYPE = 'WANDB_JOB_TYPE'
 DISABLE_CODE = 'WANDB_DISABLE_CODE'
@@ -50,13 +51,18 @@ AGENT_KILL_DELAY = 'WANDB_AGENT_KILL_DELAY'
 CRASH_NOSYNC_TIME = 'WANDB_CRASH_NOSYNC_TIME'
 MAGIC = 'WANDB_MAGIC'
 HOST = 'WANDB_HOST'
+ALLOW_ANONYMOUS = 'WANDB_ALLOW_ANONYMOUS'
+JUPYTER = 'WANDB_JUPYTER'
+CONFIG_DIR = 'WANDB_CONFIG_DIR'
 
 
 def immutable_keys():
     """These are env keys that shouldn't change within a single process.  We use this to maintain
     certain values between multiple calls to wandb.init within a single process."""
     return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
-        ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, DIR, SILENT, CONFIG_PATHS]
+            ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, DIR, SILENT, CONFIG_PATHS,
+            ALLOW_ANONYMOUS]
+
 
 def is_debug(default=None, env=None):
     if env is None:
@@ -100,6 +106,13 @@ def get_docker(default=None, env=None):
         env = os.environ
 
     return env.get(DOCKER, default)
+
+
+def get_http_timeout(default=10, env=None):
+    if env is None:
+        env = os.environ
+
+    return int(env.get(HTTP_TIMEOUT, default))
 
 
 def get_ignore(default=None, env=None):

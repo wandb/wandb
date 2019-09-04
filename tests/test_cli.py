@@ -316,6 +316,12 @@ def docker(request_mocker, query_run, mocker, monkeypatch):
                         lambda *args, **kwargs: b"wandb/deepo@sha256:abc123")
     return docker
 
+@pytest.fixture
+def no_tty(mocker):
+    with mocker.patch("wandb.sys.stdin") as stdin_mock:
+        stdin_mock.isatty.return_value = False
+        yield
+
 def test_docker_run_digest(runner, docker, monkeypatch):
     runner.invoke(cli.docker_run, ["wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"])
     docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177', '--runtime', 'nvidia', 'wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177'])
@@ -437,6 +443,7 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
             generatedNetrc = f.read()
         assert DUMMY_API_KEY in generatedNetrc
 
+
 def test_login_abort(runner, empty_netrc, local_netrc, mocker, monkeypatch):
     with runner.isolated_filesystem():
         reload(wandb)
@@ -448,7 +455,8 @@ def test_login_abort(runner, empty_netrc, local_netrc, mocker, monkeypatch):
         print('Exception: ', result.exception)
         print('Traceback: ', traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "No key provided, please try again" in result.output
+        assert "Disabling Weights & Biases. Run 'wandb login' again to re-enable" in result.output
+
 
 def test_signup(runner, empty_netrc, local_netrc, mocker, monkeypatch):
     with runner.isolated_filesystem():
@@ -458,14 +466,14 @@ def test_signup(runner, empty_netrc, local_netrc, mocker, monkeypatch):
         def prompt(*args, **kwargs):
             #raise click.exceptions.Abort()
             return DUMMY_API_KEY
-        mocker.patch("click.prompt", prompt)
+        mocker.patch("wandb.util.prompt_api_key", prompt)
         result = runner.invoke(cli.login)
         print('Output: ', result.output)
         print('Exception: ', result.exception)
         print('Traceback: ', traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "https://app.wandb.ai/authorize" in result.output
         assert "Successfully logged in to Weights & Biases!" in result.output
+
 
 def test_init_new_login_no_browser(runner, empty_netrc, local_netrc, request_mocker, query_projects, query_viewer, monkeypatch):
     mock = query_projects(request_mocker)
@@ -475,19 +483,22 @@ def test_init_new_login_no_browser(runner, empty_netrc, local_netrc, request_moc
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
-        result = runner.invoke(cli.init, input="%s\nvanpelt" % DUMMY_API_KEY)
-        print('Output: ', result.output)
-        print('Exception: ', result.exception)
-        print('Traceback: ', traceback.print_tb(result.exc_info[2]))
+        login_result = runner.invoke(cli.login, [DUMMY_API_KEY])
+        init_result = runner.invoke(cli.init, input="\n\n")
+        print('Output: ', init_result.output)
+        print('Exception: ', init_result.exception)
+        print('Traceback: ', traceback.print_tb(init_result.exc_info[2]))
         assert mock.called
-        assert result.exit_code == 0
+        assert login_result.exit_code == 0
+        assert init_result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
         with open("wandb/settings", "r") as f:
             generatedWandb = f.read()
         assert DUMMY_API_KEY in generatedNetrc
         assert "test_model" in generatedWandb
-        assert "Successfully logged in" in result.output
+        assert "Successfully logged in" in login_result.output
+        assert "This directory is configured!" in init_result.output
 
 
 @pytest.mark.teams("foo", "bar")
@@ -498,13 +509,14 @@ def test_init_multi_team(runner, empty_netrc, local_netrc, request_mocker, query
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
-        result = runner.invoke(
-            cli.init, input="%s\nvanpelt" % DUMMY_API_KEY)
-        print('Output: ', result.output)
-        print('Exception: ', result.exception)
-        print('Traceback: ', traceback.print_tb(result.exc_info[2]))
+        login_result = runner.invoke(cli.login, [DUMMY_API_KEY])
+        init_result = runner.invoke(cli.init, input="vanpelt\n")
+        print('Output: ', init_result.output)
+        print('Exception: ', init_result.exception)
+        print('Traceback: ', traceback.print_tb(init_result.exc_info[2]))
         assert mock.called
-        assert result.exit_code == 0
+        assert login_result.exit_code == 0
+        assert init_result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
         with open("wandb/settings", "r") as f:
@@ -518,8 +530,8 @@ def test_init_reinit(runner, empty_netrc, local_netrc, request_mocker, query_pro
     query_projects(request_mocker)
     with runner.isolated_filesystem():
         os.mkdir('wandb')
-        result = runner.invoke(
-            cli.init, input="%s\nvanpelt\n" % DUMMY_API_KEY)
+        runner.invoke(cli.login, [DUMMY_API_KEY])
+        result = runner.invoke(cli.init, input="vanpelt\n")
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
@@ -538,6 +550,7 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
             f.write("previous config")
+        runner.invoke(cli.login, [DUMMY_API_KEY])
         result = runner.invoke(cli.init, input="%s\nvanpelt\n" % DUMMY_API_KEY)
         print(result.output)
         print(result.exception)
@@ -568,9 +581,10 @@ def test_init_existing_login(runner, local_netrc, request_mocker, query_projects
         assert "This directory is configured" in result.output
 
 
-def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_viewer):
+def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_viewer, no_tty):
     upsert_run(request_mocker)
     query_viewer(request_mocker)
+
     runner.invoke(cli.off)
     result = runner.invoke(cli.run, ["python", "missing.py"])
 

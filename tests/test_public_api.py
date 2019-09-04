@@ -33,6 +33,12 @@ def test_parse_path_simple():
     assert p == "proj"
     assert r == "run"
 
+def test_parse_path_leading():
+    u, p, r = api._parse_path("/user/proj/run")
+    assert u == "user"
+    assert p == "proj"
+    assert r == "run"
+
 
 def test_parse_path_docker():
     u, p, r = api._parse_path("user/proj:run")

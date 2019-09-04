@@ -18,6 +18,7 @@ from .api_mocks import *
 from .utils import runner
 import wandb
 from wandb import wandb_run
+from wandb import env
 
 # Tests which rely on row history in memory should set `History.keep_rows = True`
 from wandb.history import History
@@ -57,6 +58,16 @@ def test_log_only_strings_as_keys(wandb_init_run):
         wandb.log({('tup', 'idx'): 1000})
 
 
+def test_async_log(wandb_init_run):
+    for i in range(100):
+        wandb.log({"cool": 1000}, sync=False)
+    wandb.shutdown_async_log_thread()
+    wandb.log({"cool": 100}, sync=False)
+    wandb.shutdown_async_log_thread()
+    assert wandb.run.history.rows[-1]['cool'] == 100
+    assert len(wandb.run.history.rows) == 101
+
+
 def test_nice_log_error():
     with pytest.raises(ValueError):
         wandb.log({"no": "init"})
@@ -69,6 +80,7 @@ def test_nice_log_error_config():
     with pytest.raises(wandb.Error) as e:
         wandb.config.foo = 1
     assert e.value.message == "You must call wandb.init() before wandb.config.foo"
+
 
 def test_nice_log_error_summary():
     with pytest.raises(wandb.Error) as e:
@@ -220,7 +232,7 @@ def test_restore(runner, wandb_init_run, request_mocker, download_url, query_run
 @pytest.mark.jupyter
 @pytest.mark.mocked_run_manager
 def test_jupyter_init(wandb_init_run):
-    assert os.getenv("WANDB_JUPYTER")
+    assert os.getenv(env.JUPYTER)
     wandb.log({"stat": 1})
     fsapi = wandb_init_run.run_manager._api._file_stream_api
     wandb_init_run._stop_jupyter_agent()

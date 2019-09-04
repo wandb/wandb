@@ -83,7 +83,7 @@ class FileStreamApi(object):
     """
     Finish = collections.namedtuple('Finish', ('exitcode'))
 
-    HTTP_TIMEOUT = 10
+    HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
 
     def __init__(self, api, run_id):

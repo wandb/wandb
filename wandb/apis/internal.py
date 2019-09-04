@@ -16,6 +16,7 @@ import socket
 import time
 import sys
 import random
+import traceback
 
 if os.name == 'posix' and sys.version_info[0] < 3:
     import subprocess32 as subprocess
@@ -25,11 +26,11 @@ else:
 import six
 from six import b
 from six import BytesIO
-from six.moves import configparser
 import wandb
 from wandb import __version__, wandb_dir, Error
 from wandb import env
 from wandb.git_repo import GitRepo
+from wandb.settings import Settings
 from wandb import retry
 from wandb import util
 from wandb.apis import FileStreamApi, normalize_exceptions, CommError, Progress, UsageError
@@ -52,7 +53,7 @@ class Api(object):
         Override the settings here.
     """
 
-    HTTP_TIMEOUT = 10
+    HTTP_TIMEOUT = env.get_http_timeout(10)
 
     def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1), environ=os.environ):
         self._environ = environ
@@ -65,19 +66,8 @@ class Api(object):
         }
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
-        self._settings = None
         self.retry_uploads = 10
-        self.settings_parser = configparser.ConfigParser()
-        if load_settings:
-            potential_settings_paths = [
-                os.path.expanduser('~/.wandb/settings')
-            ]
-            potential_settings_paths.append(
-                os.path.join(wandb_dir(), 'settings'))
-            files = self.settings_parser.read(potential_settings_paths)
-            self.settings_file = files[0] if len(files) > 0 else "Not found"
-        else:
-            self.settings_file = "Not found"
+        self._settings = Settings(load_settings=load_settings)
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
@@ -126,16 +116,13 @@ class Api(object):
 
         if 'errors' in data and isinstance(data['errors'], list):
             for err in data['errors']:
-                if 'message' not in err:
+                if not err.get('message'):
                     continue
                 wandb.termerror('Error while calling W&B API: %s' % err['message'])
 
 
     def disabled(self):
-        try:
-            return self.settings_parser.get('default', 'disabled')
-        except configparser.Error:
-            return False
+        return self._settings.get(Settings.DEFAULT_SECTION, 'disabled', fallback=False)
 
     def save_pip(self, out_dir):
         """Saves the current working set of pip packages to requirements.txt"""
@@ -258,30 +245,30 @@ class Api(object):
                     "project": None
                 }
         """
-        if not self._settings:
-            self._settings = self.default_settings.copy()
-            section = section or self._settings['section']
-            try:
-                if section in self.settings_parser.sections():
-                    for option in self.settings_parser.options(section):
-                        self._settings[option] = self.settings_parser.get(
-                            section, option)
-            except configparser.InterpolationSyntaxError:
-                wandb.termwarn("Unable to parse settings file")
-            self._settings["project"] = env.get_project(
-                self._settings.get("project"), env=self._environ)
-            self._settings["entity"] = env.get_entity(
-                self._settings.get("entity"), env=self._environ)
-            self._settings["base_url"] = env.get_base_url(
-                self._settings.get("base_url"), env=self._environ)
-            self._settings["ignore_globs"] = env.get_ignore(
-                self._settings.get("ignore_globs"), env=self._environ)
+        result = self.default_settings.copy()
+        result.update(self._settings.items(section=section))
+        result.update({
+            'entity': env.get_entity(
+                self._settings.get(Settings.DEFAULT_SECTION, "entity", fallback=result.get('entity')),
+                env=self._environ),
+            'project': env.get_project(
+                self._settings.get(Settings.DEFAULT_SECTION, "project", fallback=result.get('project')),
+                env=self._environ),
+            'base_url': env.get_base_url(
+                self._settings.get(Settings.DEFAULT_SECTION, "base_url", fallback=result.get('base_url')),
+                env=self._environ),
+            'ignore_globs': env.get_ignore(
+                self._settings.get(Settings.DEFAULT_SECTION, "ignore_globs", fallback=result.get('ignore_globs')),
+                env=self._environ),
+        })
 
-        return self._settings if key is None else self._settings[key]
+        return result if key is None else result[key]
 
-    def set_setting(self, key, value):
-        self.settings()  # make sure we do initial load
-        self._settings[key] = value
+    def clear_setting(self, key):
+        self._settings.clear(Settings.DEFAULT_SECTION, key)
+
+    def set_setting(self, key, value, globally=False):
+        self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally)
         if key == 'entity':
             env.set_entity(value, env=self._environ)
         elif key == 'project':
@@ -902,8 +889,11 @@ class Api(object):
         query_result = self.gql(query, variable_values={
             'name': project, 'run': run or self.settings('run'), 'fileName': file_name,
             'entity': entity or self.settings('entity')})
-        files = self._flatten_edges(query_result['model']['bucket']['files'])
-        return files[0] if len(files) > 0 and files[0].get('updatedAt') else None
+        if query_result['model']:
+            files = self._flatten_edges(query_result['model']['bucket']['files'])
+            return files[0] if len(files) > 0 and files[0].get('updatedAt') else None
+        else:
+            return None
 
     @normalize_exceptions
     def download_file(self, url):
@@ -1117,6 +1107,22 @@ class Api(object):
             'scheduler': scheduler},
             check_retry_fn=no_retry_400_or_404)
         return response['upsertSweep']['sweep']['name']
+
+    @normalize_exceptions
+    def create_anonymous_api_key(self):
+        """Creates a new API key belonging to a new anonymous user."""
+        mutation = gql('''
+        mutation CreateAnonymousApiKey {
+            createAnonymousEntity(input: {}) {
+                apiKey {
+                    name
+                }
+            }
+        }
+        ''')
+
+        response = self.gql(mutation, variable_values={})
+        return response['createAnonymousEntity']['apiKey']['name']
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5

@@ -245,7 +245,7 @@ class TorchGraph(wandb.data_types.Graph):
                 class_name=str(module),
                 output_shape=nested_shape(output),
                 parameters=parameters,
-                num_parameters=[reduce(mul, size)
+                num_parameters=[reduce(mul, size, 1)
                                 for (pname, size) in parameters]
             )
             graph.nodes_by_id[id(module)] = node

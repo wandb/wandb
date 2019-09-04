@@ -44,7 +44,7 @@ from .core import termlog
 import wandb
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
-from wandb import agent as wandb_agent
+from wandb import wandb_agent
 from wandb import wandb_controller
 from wandb import env
 from wandb import wandb_run
@@ -288,8 +288,7 @@ def status(run, settings, project):
         termlog(msg)
     elif settings:
         click.echo(click.style("Logged in?", bold=True) + " %s" % logged_in)
-        click.echo(click.style("Current Settings", bold=True) +
-                   " (%s)" % api.settings_file)
+        click.echo(click.style("Current Settings", bold=True))
         settings = api.settings()
         click.echo(json.dumps(
             settings,
@@ -478,47 +477,38 @@ def pull(run, project, entity):
 @click.argument("key", nargs=-1)
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
 @display_error
-def login(key, server=LocalServer(), browser=True):
+def login(key, server=LocalServer(), browser=True, anonymous=False):
     global api
 
     key = key[0] if len(key) > 0 else None
+
     # Import in here for performance reasons
     import webbrowser
-    # TODO: use Oauth?: https://community.auth0.com/questions/6501/authenticating-an-installed-cli-with-oidc-and-a-th
-    url = api.app_url + '/authorize'
     browser = util.launch_browser(browser)
-    if key or not browser:
-        launched = False
-    else:
-        launched = webbrowser.open_new_tab(url + "?{}".format(server.qs()))
-    if launched:
-        click.echo(
-            'Opening [{}] in your default browser'.format(url))
-        server.start(blocking=False)
-    elif not key:
-        click.echo(
-            "You can find your API keys in your browser here: {}".format(url))
 
-    def cancel_prompt(*args):
-        raise KeyboardInterrupt()
-    # Hijacking this signal broke tests in py2...
-    # if not os.getenv("WANDB_TEST"):
-    signal.signal(signal.SIGINT, cancel_prompt)
-    try:
-        key = key or click.prompt("Paste an API key from your profile",
-                                  value_proc=lambda x: x.strip())
-    except Abort:
+    def get_api_key_from_browser():
+        if not browser:
+            return None
+        launched = webbrowser.open_new_tab('{}/authorize?{}'.format(api.app_url, server.qs()))
+        if not launched:
+            return None
+
+        server.start(blocking=True)
         if server.result.get("key"):
-            key = server.result["key"][0]
+            return server.result["key"][0]
+        return None
 
     if key:
-        # TODO: get the username here...
-        # username = api.viewer().get('entity', 'models')
-        if util.write_netrc(api.api_url, "user", key):
-            click.secho(
-                "Successfully logged in to Weights & Biases!", fg="green")
+        util.set_api_key(api, key)
     else:
-        click.echo("No key provided, please try again")
+        key = util.prompt_api_key(api, browser_callback=get_api_key_from_browser, anonymous=anonymous)
+
+    if key:
+        api.clear_setting('disabled')
+        click.secho("Successfully logged in to Weights & Biases!", fg="green")
+    else:
+        api.set_setting('disabled', 'true')
+        click.echo("Disabling Weights & Biases. Run 'wandb login' again to re-enable.")
 
     # reinitialize API to create the new client
     api = InternalApi()
@@ -586,7 +576,7 @@ def init(ctx):
     except wandb.cli.ClickWandbException:
         raise ClickException('Could not find team: %s' % entity)
 
-    util.write_settings(entity, project, api.settings()['base_url'])
+    util.write_settings(entity, project, api.settings())
 
     with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
@@ -634,11 +624,8 @@ def docs(ctx):
 def on():
     wandb.ensure_configured()
     api = InternalApi()
-    parser = api.settings_parser
     try:
-        parser.remove_option('default', 'disabled')
-        with open(api.settings_file, "w") as f:
-            parser.write(f)
+        api.clear_setting('disabled')
     except configparser.Error:
         pass
     click.echo(
@@ -650,11 +637,8 @@ def on():
 def off():
     wandb.ensure_configured()
     api = InternalApi()
-    parser = api.settings_parser
     try:
-        parser.set('default', 'disabled', 'true')
-        with open(api.settings_file, "w") as f:
-            parser.write(f)
+        api.set_setting('disabled', 'true')
         click.echo(
             "W&B disabled, running your script from this directory will only write metadata locally.")
     except configparser.Error as e:
@@ -716,6 +700,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         environ[env.CONFIG_PATHS] = configs
     if show:
         environ[env.SHOW_RUN] = 'True'
+    util.prompt_api_key(run.api)
 
     try:
         rm = run_manager.RunManager(run)

@@ -3,6 +3,7 @@
 from flask import Flask, request
 import json
 
+
 def create_app():
     app = Flask(__name__)
 
@@ -12,12 +13,12 @@ def create_app():
         if body["variables"].get("files"):
             file = body["variables"]["files"][0]
             return json.dumps({
-                "data":{
-                    "model":{
-                        "bucket":{
+                "data": {
+                    "model": {
+                        "bucket": {
                             "id": "storageid",
-                            "files":{
-                                "edges":[{"node":{"name": file,"url": request.url_root + "/storage?file=%s" % file}}]
+                            "files": {
+                                "edges": [{"node": {"name": file, "url": request.url_root + "/storage?file=%s" % file}}]
                             }
                         }
                     }
@@ -25,7 +26,7 @@ def create_app():
             })
         if "query Viewer" in body["query"]:
             return json.dumps({
-                "data":{
+                "data": {
                     "viewer": {
                         "entity": "vanpelt"
                     }
@@ -48,6 +49,18 @@ def create_app():
                     }
                 }
             })
+        if "stopped" in body["query"]:
+            return json.dumps({
+                "data": {
+                    "Model": {
+                        "project": {
+                            "run": {
+                                "stopped": False
+                            }
+                        }
+                    }
+                }
+            })
         return json.dumps({"error": "Not implemented"})
 
     @app.route("/storage", methods=["PUT"])
@@ -56,6 +69,10 @@ def create_app():
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     def file_stream(entity, project, run):
-        return json.dumps({"exitcode":None,"limits":{}})
+        return json.dumps({"exitcode": None, "limits": {}})
 
     return app
+
+
+if __name__== '__main__':
+    app = create_app()

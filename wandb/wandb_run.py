@@ -19,12 +19,13 @@ from wandb import summary
 from wandb import meta
 from wandb import typedtable
 from wandb import util
+from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi
 from wandb.wandb_config import Config
 import six
-from six.moves import configparser
+from six.moves import input
 from six.moves import urllib
 import atexit
 import sys
@@ -116,7 +117,7 @@ class Run(object):
             self.project = self.api.settings("project")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
-            scope.set_tag("url", self.get_url(self.api))
+            scope.set_tag("url", self.get_url(self.api, network=False)) # TODO: Move this somewhere outside of init
 
         if self.resume == "auto":
             util.mkdir_exists_ok(wandb.wandb_dir())
@@ -431,19 +432,25 @@ class Run(object):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
 
-    def get_url(self, api=None):
+    def get_url(self, api=None, network=True):
+        """If network is False we don't query for entity, required for wandb.init"""
         api = api or self.api
         if api.api_key:
-            if api.settings('entity') is None:
+            if api.settings('entity') is None and network:
                 viewer = api.viewer()
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])
             if api.settings('entity'):
-                return "{base}/{entity}/{project}/runs/{run}".format(
+                query_params = ""
+                if 'anonymous' in api.settings() and api.settings('anonymous') == 'true':
+                    query_params = "?apiKey={}".format(api.api_key)
+
+                return "{base}/{entity}/{project}/runs/{run}{query_params}".format(
                     base=api.app_url,
                     entity=urllib.parse.quote_plus(api.settings('entity')),
                     project=urllib.parse.quote_plus(self.project_name(api)),
-                    run=urllib.parse.quote_plus(self.id)
+                    run=urllib.parse.quote_plus(self.id),
+                    query_params=query_params
                 )
             else:
                 # TODO: I think this could only happen if the api key is invalid
@@ -551,9 +558,7 @@ class Run(object):
         return self._summary or os.path.exists(os.path.join(self._dir, summary.SUMMARY_FNAME))
 
     def _history_added(self, row):
-        if self._summary is None:
-            self._summary = summary.FileSummary(self)
-        self._summary.update(row, overwrite=False)
+        self.summary.update(row, overwrite=False)
 
     @property
     def history(self):

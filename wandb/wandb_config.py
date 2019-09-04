@@ -55,10 +55,11 @@ class Config(object):
 
     @classmethod
     def from_environment_or_defaults(cls):
-        conf_paths = os.environ.get('WANDB_CONFIG_PATHS', [])
+        conf_paths = os.environ.get(env.CONFIG_PATHS, [])
+        run_dir = os.environ.get(env.RUN_DIR)
         if conf_paths:
             conf_paths = conf_paths.split(',')
-        return Config(config_paths=conf_paths, wandb_dir=wandb.wandb_dir())
+        return Config(config_paths=conf_paths, wandb_dir=wandb.wandb_dir(), run_dir=run_dir)
 
     def _load_wandb(self):
         # We load docker into the config from the env
@@ -166,6 +167,8 @@ class Config(object):
             return
         with open(path, "w") as conf_file:
             conf_file.write(str(self))
+        if wandb.run and wandb.run._jupyter_agent:
+            wandb.run._jupyter_agent.start()
 
     def get(self, *args):
         return self._items.get(*args)

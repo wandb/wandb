@@ -327,7 +327,7 @@ class Embedding(nn.Module):
                    Variable(torch.zeros(*dims)))
         return hiddens
 
-
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_embedding(wandb_init_run):
     net = Embedding(d_embedding=300, d_word=300,
                     d_hidden=300, word_dim=100, dropout=0)
@@ -442,12 +442,12 @@ def test_parameter_logging(wandb_init_run):
     assert file_summary["graph_0"]
     assert(len(wandb_init_run.history.rows) == 3)
 
-
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_parameter_logging_freq(wandb_init_run):
     net = ConvNet()
-    log_freq = 50
+    log_freq = 20
     wandb.hook_torch(net, log="parameters", log_freq=log_freq)
-    for i in range(110):
+    for i in range(50):
         #TO debug timeouts
         print("i: %i, time: %s" % (i, time.time()))
         output = net(dummy_torch_tensor((64, 1, 28, 28)))
@@ -460,7 +460,7 @@ def test_parameter_logging_freq(wandb_init_run):
         else:
             assert(len(wandb_init_run.history.row) == 0)
         wandb.log({"a": 2})
-    assert(len(wandb_init_run.history.rows) == 110)
+    assert(len(wandb_init_run.history.rows) == 50)
 
 @pytest.mark.skipif(sys.version_info == (3, 6), reason="Timeouts in 3.6 for some reason...")
 def test_simple_net():

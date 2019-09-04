@@ -7,6 +7,7 @@ import colorsys
 import errno
 import hashlib
 import json
+import getpass
 import logging
 import os
 import re
@@ -42,6 +43,7 @@ from wandb import io_wrap
 from wandb import wandb_dir
 from wandb.apis import CommError
 from wandb import wandb_config
+from wandb import env
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -473,36 +475,44 @@ def no_retry_auth(e):
     # Don't retry bad request errors; raise immediately
     if e.response.status_code == 400:
         return False
-    # Retry all non-forbidden/unauthorized errors.
-    if e.response.status_code not in (401, 403):
+    # Retry all non-forbidden/unauthorized/not-found errors.
+    if e.response.status_code not in (401, 403, 404):
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
         raise CommError("Invalid or missing api_key.  Run wandb login")
+    elif wandb.run:
+        raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
-def write_settings(entity, project, url):
+
+def write_settings(entity=None, project=None, settings=None):
     if not os.path.isdir(wandb_dir()):
         os.mkdir(wandb_dir())
     with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
         print('[default]', file=file)
-        print('entity: {}'.format(entity), file=file)
-        print('project: {}'.format(project), file=file)
-        print('base_url: {}'.format(url), file=file)
+        if entity is not None:
+            print('entity: {}'.format(entity))
+            print('entity: {}'.format(entity), file=file)
+        if project is not None:
+            print('project: {}'.format(project), file=file)
+            print('project: {}'.format(project))
+        if settings is not None:
+            for key, value in settings.items():
+                if key == 'base_url' or key == 'anonymous':
+                    print('{}: {}'.format(key, value), file=file)
 
 
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
     key_prefix, key_suffix = key.split('-', 1) if '-' in key else ('', key)
     if len(key_suffix) != 40:
-        click.secho(
-            'API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
+        wandb.termlog('API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
         return None
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
-        print("Appending key for %s to your netrc file: %s" %
-              (normalized_host, os.path.expanduser('~/.netrc')))
+        wandb.termlog("Appending key for {} to your netrc file: {}".format(normalized_host, os.path.expanduser('~/.netrc')))
         machine_line = 'machine %s' % normalized_host
         path = os.path.expanduser('~/.netrc')
         orig_lines = None
@@ -531,7 +541,7 @@ def write_netrc(host, entity, key):
                  stat.S_IRUSR | stat.S_IWUSR)
         return True
     except IOError as e:
-        click.secho("Unable to read ~/.netrc", fg="red")
+        wandb.termerror("Unable to read ~/.netrc")
         return None
 
 
@@ -632,13 +642,16 @@ def get_log_file_path():
     """
     return wandb.GLOBAL_LOG_FNAME
 
+
 def is_wandb_file(name):
     return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt" or name == OUTPUT_FNAME or name == DIFF_FNAME
+
 
 def docker_image_regex(image):
     "regex for valid docker image names"
     if image:
         return re.match(r"^(?:(?=[^:\/]{1,253})(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-zA-Z0-9-]{1,63}(?<!-))*(?::[0-9]{1,5})?/)?((?![._-])(?:[a-z0-9._-]*)(?<![._-])(?:/(?![._-])[a-z0-9._-]*(?<![._-]))*)(?::(?![.-])[a-zA-Z0-9_.-]{1,128})?$", image)
+
 
 def image_from_docker_args(args):
     """This scans docker run args and attempts to find the most likely docker image argument.
@@ -683,6 +696,7 @@ def load_yaml(file):
     else:
         return yaml.load(file)
 
+
 def image_id_from_k8s():
     """Pings the k8s metadata service for the image id"""
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -713,6 +727,7 @@ def async_call(target, timeout=None):
        If an exception is thrown in the thread, we reraise it.
     """
     q = queue.Queue()
+
     def wrapped_target(q, *args, **kwargs):
         try:
             q.put(target(*args, **kwargs))
@@ -732,6 +747,7 @@ def async_call(target, timeout=None):
             return None, thread
     return wrapper
 
+
 def read_many_from_queue(q, max_items, queue_timeout):
     try:
         item = q.get(True, queue_timeout)
@@ -746,6 +762,7 @@ def read_many_from_queue(q, max_items, queue_timeout):
         items.append(item)
     return items
 
+
 def stopwatch_now():
     """Get a timevalue for interval comparisons
 
@@ -757,14 +774,25 @@ def stopwatch_now():
         now = time.monotonic()
     return now
 
+
 def class_colors(class_count):
     # make class 0 black, and the rest equally spaced fully saturated hues
     return [[0, 0, 0]] + [colorsys.hsv_to_rgb(i / (class_count - 1.), 1.0, 1.0) for i in range(class_count-1)]
 
-def guess_data_type(shape):
+
+def guess_data_type(shape, risky=False):
+    """Infer the type of data based on the shape of the tensors
+
+    Args:
+        risky(bool): some guesses are more likely to be wrong.
+    """
     # (samples,) or (samples,logits)
     if len(shape) in (1, 2):
         return 'label'
+    # Assume image mask like fashion mnist: (no color channel)
+    # This is risky because RNNs often have 3 dim tensors: batch, time, channels
+    if risky and len(shape) == 3:
+        return 'image'
     if len(shape) == 4:
         if shape[-1] in (1, 3, 4):
             # (samples, height, width, Y \ RGB \ RGBA)
@@ -773,3 +801,82 @@ def guess_data_type(shape):
             # (samples, height, width, logits)
             return 'segmentation_mask'
     return None
+
+
+def set_api_key(api, key, anonymous=False):
+    if not key:
+        return
+
+    prefix, key = key.split('-') if '-' in key else ('', key)
+
+    if len(key) == 40:
+        os.environ[env.API_KEY] = key
+        api.set_setting('anonymous', str(anonymous).lower(), globally=True)
+        write_netrc(api.api_url, "user", key)
+        api.reauth()
+        return
+    raise ValueError("API key must be 40 characters long")
+
+
+def prompt_api_key(api, browser_callback=None, anonymous=False):
+    whaaaaat = vendor_import('whaaaaat')
+
+    anonymode = 'Private wandb.ai dashboard, no account required'
+    create_account = 'Create a wandb.ai account'
+    existing_account = 'Use an existing wandb.ai account'
+    dryrun = "Don't visualize my results"
+
+    choices = [anonymode, create_account, existing_account, dryrun]
+    if os.environ.get(env.ALLOW_ANONYMOUS, "false") == "false":
+        # Omit anonymode as a choice if the env var is not enabled.
+        choices = choices[1:]
+
+    # If we're not in an interactive environment, default to dry-run.
+    if not sys.stdout.isatty() or not sys.stdin.isatty():
+        result = dryrun
+    elif anonymous:
+        result = anonymode
+    else:
+        result = whaaaaat.prompt([{
+            'type': 'list',
+            'name': 'mode',
+            'message': 'How would you like to visualize your results?',
+            'choices': choices,
+        }])
+
+        if 'mode' not in result:
+            result = dryrun
+        else:
+            result = result['mode']
+
+    if result == anonymode:
+        key = api.create_anonymous_api_key()
+
+        set_api_key(api, key, anonymous=True)
+        return key
+    elif result == create_account:
+        key = browser_callback() if browser_callback else None
+
+        if not key:
+            wandb.termlog('Create an account here: {}/login?signup=true'.format(api.app_url))
+            wandb.termlog('You can find you API key in your browser here: {}/authorize'.format(api.app_url))
+            key = getpass.getpass('Paste an API key from your profile:').strip()
+
+        set_api_key(api, key)
+        return key
+    elif result == existing_account:
+        key = browser_callback() if browser_callback else None
+
+        if not key:
+            wandb.termlog('You can find your API key in your browser here: {}/authorize'.format(api.app_url))
+            key = getpass.getpass('Paste an API key from your profile:').strip()
+
+        set_api_key(api, key)
+        return key
+    else:
+        # Jupyter environments don't have a tty, but we can still try logging in using the browser callback if one
+        # is supplied.
+        key, anonymous = browser_callback() if os.environ.get(env.JUPYTER) and browser_callback else (None, False)
+
+        set_api_key(api, key, anonymous=anonymous)
+        return key

@@ -5,6 +5,7 @@ import PIL
 import os
 import matplotlib
 import six
+import sys
 
 matplotlib.use("Agg")
 from click.testing import CliRunner
@@ -82,7 +83,7 @@ def test_image_seq_to_json():
         run = wandb.wandb_run.Run()
         wb_image = wandb.Image(image)
         meta = wandb.Image.seq_to_json([wb_image], run, "test", 'summary')
-        assert os.path.exists(os.path.join(run.dir, 'media', 'images', 'test_summary.jpg'))
+        assert os.path.exists(os.path.join(run.dir, 'media', 'images', 'test_summary.png'))
 
         meta_expected = {
             '_type': 'images',
@@ -100,7 +101,7 @@ def test_transform_caps_at_65500(caplog):
         meta = wandb.Image.seq_to_json(large_list, run, "test2", 0)
         expected = {'_type': 'images', 'count': 65, 'height': 10, 'width': 1000}
         assert utils.subdict(meta, expected) == expected
-        assert os.path.exists(os.path.join(run.dir, "media/images/test2_0.jpg"))
+        assert os.path.exists(os.path.join(run.dir, "media/images/test2_0.png"))
         assert 'Only 65 images will be uploaded. The maximum total width for a set of thumbnails is 65,500px, or 65 images, each with a width of 1000 pixels.' in caplog.text
 
 def test_audio_sample_rates():
@@ -183,6 +184,45 @@ def test_matplotlib_image():
     img = wandb.Image(plt)
     assert img._image.width == 640
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
+def test_video_numpy():
+    run = wandb.wandb_run.Run()
+    video = np.random.randint(255, size=(10,3,28,28))
+    vid = wandb.Video(video)
+    vid.bind_to_run(run, "videos", 0)
+    assert vid.to_json(run)["path"].endswith(".gif")
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
+def test_video_numpy_multi():
+    run = wandb.wandb_run.Run()
+    video = np.random.random(size=(2,10,3,28,28))
+    vid = wandb.Video(video)
+    vid.bind_to_run(run, "videos", 0)
+    assert vid.to_json(run)["path"].endswith(".gif")
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
+def test_video_numpy_invalid():
+    run = wandb.wandb_run.Run()
+    video = np.random.random(size=(3,28,28))
+    with pytest.raises(ValueError):
+        vid = wandb.Video(video)
+
+def test_video_path():
+    run = wandb.wandb_run.Run()
+    with CliRunner().isolated_filesystem():
+        with open("video.mp4", "w") as f:
+            f.write("00000")
+        vid = wandb.Video("video.mp4")
+        vid.bind_to_run(run, "videos", 0)
+        assert vid.to_json(run)["path"].endswith(".mp4")
+
+def test_video_path_invalid():
+    run = wandb.wandb_run.Run()
+    with CliRunner().isolated_filesystem():
+        with open("video.avi", "w") as f:
+            f.write("00000")
+        with pytest.raises(ValueError):
+            vid = wandb.Video("video.avi")
 
 def test_html_str():
     with CliRunner().isolated_filesystem():
