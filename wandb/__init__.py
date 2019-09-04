@@ -63,6 +63,8 @@ from wandb.dataframes import image_segmentation_multiclass_dataframe
 
 from wandb import wandb_torch
 from wandb.wandb_controller import controller
+from wandb.wandb_agent import agent
+from wandb.wandb_controller import sweep
 
 
 logger = logging.getLogger(__name__)
@@ -281,27 +283,33 @@ def _init_headless(run, cloud=True):
 def load_ipython_extension(ipython):
     pass
 
-def jupyter_login(force=True):
+
+def jupyter_login(force=True, api=None):
     """Attempt to login from a jupyter environment
 
     If force=False, we'll only attempt to auto-login, otherwise we'll prompt the user
     """
-    key = None
-    if 'google.colab' in sys.modules:
-        key = jupyter.attempt_colab_login(run.api.app_url)
-        if key:
-            os.environ[env.API_KEY] = key
-            util.write_netrc(run.api.api_url, "user", key)
-    if not key and force:
-        termerror(
-            "Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
-        key = getpass.getpass("API Key: ").strip()
-        if len(key) == 40:
-            os.environ[env.API_KEY] = key
-            util.write_netrc(run.api.api_url, "user", key)
-        else:
-            raise ValueError("API Key must be 40 characters long")
-    return key
+    def get_api_key_from_browser():
+        key, anonymous = None, False
+        if 'google.colab' in sys.modules:
+            key = jupyter.attempt_colab_login(api.app_url)
+        elif 'databricks_cli' in sys.modules and 'dbutils' in sys.modules:
+            # Databricks does not seem to support getpass() so we need to fail
+            # early and prompt the user to configure the key manually for now.
+            termerror("Databricks requires api_key to be configured manually, instructions at: http://docs.wandb.com/integrations/databricks")
+            raise LaunchError("Databricks integration requires api_key to be configured.")
+        if not key and os.environ.get(env.ALLOW_ANONYMOUS) == "true":
+            key = api.create_anonymous_api_key()
+            anonymous = True
+        if not key and force:
+            termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
+            key = getpass.getpass("API Key: ").strip()
+        return key, anonymous
+
+    api = api or (run.api if run else None)
+    if not api:
+        raise LaunchError("Internal error: api required for jupyter login")
+    return util.prompt_api_key(api, browser_callback=get_api_key_from_browser)
 
 
 def _init_jupyter(run):
@@ -315,12 +323,12 @@ def _init_jupyter(run):
     # I also disabled run logging because we're rairly using it.
     # try_to_set_up_global_logging()
     # run.enable_logging()
+    os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
         jupyter_login()
         # Ensure our api client picks up the new key
         run.api.reauth()
-    os.environ["WANDB_JUPYTER"] = "true"
     run.resume = "allow"
     display(HTML('''
         Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
@@ -499,7 +507,7 @@ def monitor(options={}):
 
     class Monitor():
         def __init__(self, options={}):
-            if os.getenv("WANDB_JUPYTER"):
+            if os.getenv(env.JUPYTER):
                 display(jupyter.Run())
             else:
                 self.rm = False
@@ -691,7 +699,7 @@ def join():
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
-         sync_tensorboard=False, name=None, notes=None, id=None, magic=None):
+         sync_tensorboard=False, name=None, notes=None, id=None, magic=None, allow_anonymous=False):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -810,6 +818,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
+    if allow_anonymous:
+        os.environ[env.ALLOW_ANONYMOUS] = str(allow_anonymous).lower()
+
     resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
     if resume == True:
         os.environ[env.RESUME] = "auto"
@@ -887,7 +898,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
                 termerror(
                     "No credentials found.  Run \"wandb login\" or \"wandb off\" to disable wandb")
             else:
-                if run.check_anonymous():
+                if util.prompt_api_key(api):
                     _init_headless(run)
                 else:
                     termlog(

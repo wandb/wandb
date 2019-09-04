@@ -18,6 +18,7 @@ from .api_mocks import *
 from .utils import runner
 import wandb
 from wandb import wandb_run
+from wandb import env
 
 # Tests which rely on row history in memory should set `History.keep_rows = True`
 from wandb.history import History
@@ -231,7 +232,7 @@ def test_restore(runner, wandb_init_run, request_mocker, download_url, query_run
 @pytest.mark.jupyter
 @pytest.mark.mocked_run_manager
 def test_jupyter_init(wandb_init_run):
-    assert os.getenv("WANDB_JUPYTER")
+    assert os.getenv(env.JUPYTER)
     wandb.log({"stat": 1})
     fsapi = wandb_init_run.run_manager._api._file_stream_api
     wandb_init_run._stop_jupyter_agent()

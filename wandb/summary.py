@@ -19,7 +19,7 @@ from six import string_types
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
 SUMMARY_FNAME = 'wandb-summary.json'
-H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "pytorch.Tensor")
+H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
 
 h5py = util.get_module("h5py")
 np = util.get_module("numpy")
@@ -364,6 +364,11 @@ class HTTPSummary(Summary):
 
     def load(self):
         pass
+
+    def open_h5(self):
+        if not self._h5 and h5py:
+            download_h5(self._run.id, entity=self._run.entity, project=self._run.project, out_dir=self._run.dir)
+        super(HTTPSummary, self).open_h5()
 
     def _write(self, commit=False):
         mutation = gql('''
