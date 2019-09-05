@@ -398,7 +398,7 @@ def request_mocker(request):
 def clean_environ():
     """Remove any env variables set in tests"""
     wandb_keys = [key for key in os.environ.keys() if key.startswith(
-        'WANDB_')]
+        'WANDB_') and key not in ['WANDB_TEST']]
     for key in wandb_keys:
         del os.environ[key]
 
