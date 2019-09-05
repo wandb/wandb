@@ -7,6 +7,7 @@ from functools import wraps
 import glob
 import io
 import json
+import hashlib
 import logging
 import netrc
 import os
@@ -1002,6 +1003,30 @@ def controller(verbose, sweep_id):
     click.echo('Starting wandb controller...')
     tuner = wandb_controller.controller(sweep_id)
     tuner.run(verbose=verbose)
+
+
+@cli.command(context_settings=CONTEXT, help="Publish an artifact to W&B")
+@click.argument('file_name')
+@click.option('--name', default=None, help="The name under which the artifact is published")
+@click.option('--description', default=None, help="A description of the artifact")
+@display_error
+def publish(file_name, name, description):
+    fail = False
+    try:
+        entity = api.settings('entity')
+        project = api.settings('project')
+
+        if entity is None or project is None:
+            fail = True
+    except KeyError:
+        fail = True
+
+    if fail:
+        wandb.termerror("Please run 'wandb init' before publishing artifacts")
+        return
+
+    url = api.publish_artifact(file_name, entity, project, description=description, progress=sys.stdout, name=name)
+    wandb.termlog("Download link for artifact '{}': {}".format(file_name, url))
 
 
 if __name__ == "__main__":

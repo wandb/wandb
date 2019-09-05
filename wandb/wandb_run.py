@@ -400,6 +400,14 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
+    def publish_artifact(self, fname, name=None, description=None, api=None):
+        api = api or self.api
+        api.publish_artifact(fname, self.entity, self.project, run=self.id, name=name, description=description, progress=sys.stdout)
+
+    def publish_external_artifact(self, url, name=None, description=None, api=None):
+        api = api or self.api
+        api.publish_external_artifact(url, self.entity, self.project, run=self.id, name=name, description=description)
+
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside
         a user scripts (eg. in `wandb.init()`).

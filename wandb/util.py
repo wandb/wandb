@@ -798,6 +798,18 @@ def guess_data_type(shape, risky=False):
     return None
 
 
+def download_file_from_url(dest_path, source_url, api_key=None):
+    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)
+    response.raise_for_status()
+
+    if "/" in dest_path:
+        dir = "/".join(dest_path.split("/")[0:-1])
+        mkdir_exists_ok(dir)
+    with open(dest_path, "wb") as file:
+        for data in response.iter_content(chunk_size=1024):
+            file.write(data)
+
+
 def set_api_key(api, key, anonymous=False):
     if not key:
         return

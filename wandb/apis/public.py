@@ -77,6 +77,25 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
     }
 }'''
 
+ARTIFACTS_FRAGMENT = '''
+fragment ArtifactsFragment on ArtifactConnection {
+    edges {
+         node {
+             id
+             name
+             url
+             fingerprint
+             createdAt
+         }
+         cursor
+    }
+    pageInfo {
+        endCursor
+        hasNextPage
+    }
+}
+'''
+
 
 class RetryingClient(object):
     def __init__(self, client):
@@ -320,6 +339,11 @@ class Api(object):
         if not self._sweeps.get(path):
             self._sweeps[path] = Sweep(self.client, entity, project, sweep_id)
         return self._sweeps[path]
+
+    @normalize_exceptions
+    def published_artifacts(self, path=None, name=None):
+        entity, project, _ = self._parse_path(path)
+        return ProjectArtifacts(self.client, entity, project, name)
 
 
 class Attrs(object):
@@ -569,7 +593,6 @@ class Runs(Paginator):
 
     def __repr__(self):
         return "<Runs {}/{} ({})>".format(self.entity, self.project, len(self))
-
 
 class Run(Attrs):
     """
@@ -885,6 +908,10 @@ class Run(Attrs):
         else:
             return SampledHistoryScan(run=self, client=self.client, keys=keys, page_size=page_size, min_step=min_step, max_step=max_step)
 
+    @normalize_exceptions
+    def published_artifacts(self, per_page=100):
+        return RunArtifacts(self.client, self, per_page)
+
     @property
     def summary(self):
         if self._summary is None:
@@ -1176,12 +1203,7 @@ class File(object):
         if os.path.exists(path) and not replace:
             raise ValueError(
                 "File already exists, pass replace=True to overwrite")
-        if "/" in path:
-            dir = "/".join(path.split("/")[0:-1])
-            util.mkdir_exists_ok(dir)
-        with open(path, "wb") as file:
-            for data in response.iter_content(chunk_size=1024):
-                file.write(data)
+        util.download_file_from_url(path, self.url, Api().api_key)
         return open(path, "r")
 
     def __repr__(self):
@@ -1517,3 +1539,185 @@ class SampledHistoryScan(object):
         self.rows = res[0]
         self.page_offset += self.page_size
         self.scan_offset = 0
+
+
+class ProjectArtifacts(Paginator):
+    QUERY = gql('''
+        query ProjectArtifacts(
+            $entity: String!,
+            $project: String!,
+            $name: String,
+            $cursor: String,
+        ) {
+            project(name: $project, entityName: $entity) {
+                artifactsPublished(name: $name, after: $cursor) {
+                    ...ArtifactsFragment
+                }
+            }
+        }
+        %s
+    ''' % ARTIFACTS_FRAGMENT)
+
+    def __init__(self, client, entity, project, name=None, per_page=50):
+        self.entity = entity
+        self.project = project
+
+        variable_values = {
+            'entity': entity,
+            'project': project,
+            'name': name,
+        }
+
+        super(ProjectArtifacts, self).__init__(client, variable_values, per_page)
+
+    @property
+    def length(self):
+        # TODO
+        return None
+
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response['project']['artifactsPublished']['pageInfo']['hasNextPage']
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response['project']['artifactsPublished']['edges'][-1]['cursor']
+        else:
+            return None
+
+    def update_variables(self):
+        self.variables.update({'cursor': self.cursor})
+
+    def convert_objects(self):
+        return [Artifact(self.client, r["node"])
+                for r in self.last_response['project']['artifactsPublished']['edges']]
+
+
+class RunArtifacts(Paginator):
+    QUERY = gql('''
+        query RunArtifacts(
+            $entity: String!,
+            $project: String!,
+            $runName: String!,
+            $cursor: String,
+        ) {
+            project(name: $project, entityName: $entity) {
+                run(name: $runName) {
+                    artifactsPublished(after: $cursor) {
+                        ...ArtifactsFragment
+                    }
+                }
+            }
+        }
+        %s
+    ''' % ARTIFACTS_FRAGMENT)
+
+    def __init__(self, client, run, per_page=50):
+        self.run = run
+
+        variable_values = {
+            'entity': run.username,
+            'project': run.project,
+            'runName': run.id,
+        }
+
+        super(RunArtifacts, self).__init__(client, variable_values, per_page)
+
+    @property
+    def length(self):
+        # TODO
+        return None
+
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response['project']['run']['artifactsPublished']['pageInfo']['hasNextPage']
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response['project']['run']['artifactsPublished']['edges'][-1]['cursor']
+        else:
+            return None
+
+    def update_variables(self):
+        self.variables.update({'cursor': self.cursor})
+
+    def convert_objects(self):
+        return [Artifact(self.client, r["node"])
+                for r in self.last_response['project']['run']['artifactsPublished']['edges']]
+
+
+class Artifact(object):
+    CONSUME_ARTIFACT_MUTATION = gql('''
+    mutation ConsumeArtifact(
+        $entityName: String!,
+        $projectName: String!,
+        $runName: String!,
+        $name: String!,
+        $fingerprint: String!,
+    ) {
+        consumeArtifact(input: {
+            entityName: $entityName,
+            projectName: $projectName,
+            runName: $runName,
+            name: $name,
+            fingerprint: $fingerprint
+        }) {
+            artifact {
+                id
+            }
+        }
+    }
+    ''')
+
+    def __init__(self, client, attrs):
+        self.client = client
+        self._attrs = attrs
+
+    @property
+    def name(self):
+        return self._attrs["name"]
+
+    @property
+    def description(self):
+        return self._attrs["description"]
+
+    @property
+    def fingerprint(self):
+        return self._attrs["fingerprint"]
+
+    @property
+    def url(self):
+        return self._attrs["url"]
+
+    @normalize_exceptions
+    @retriable(
+        retry_timedelta=datetime.timedelta(seconds=10),
+        check_retry_fn=util.no_retry_auth,
+        retryable_exceptions=(RetryError, requests.RequestException))
+    def pull(self, cache_dir="wandb/artifacts"):
+        run = wandb.run
+        path = os.path.join(cache_dir, run.project, self.fingerprint, self.name)
+
+        self.client.execute(self.CONSUME_ARTIFACT_MUTATION, variable_values={
+            'entityName': run.entity,
+            'projectName': run.project,
+            'runName': run.id,
+            'name': self.name,
+            'fingerprint': self.fingerprint,
+        })
+
+        # Download the artifact if it isn't cached.
+        if not os.path.exists(path):
+            util.download_file_from_url(path, self.url, Api().api_key)
+        return path
+
+    def __repr__(self):
+        return "<Artifact {} ({})>".format(self.name, self.fingerprint)

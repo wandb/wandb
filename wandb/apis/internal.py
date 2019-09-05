@@ -1144,6 +1144,98 @@ class Api(object):
         response = self.gql(mutation, variable_values={})
         return response['createAnonymousEntity']['apiKey']['name']
 
+    @normalize_exceptions
+    def publish_artifact(self, fname, entity, project, run=None, description=None, progress=None, name=None):
+        """Publishes an artifact."""
+        mutation = gql('''
+        mutation PublishArtifact(
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String,
+            $name: String!,
+            $description: String,
+            $checksum: String!
+        ) {
+            publishArtifact(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                name: $name,
+                description: $description,
+                checksum: $checksum
+            }) {
+                artifact {
+                    id
+                    url
+                }
+                artifactUploadUrl
+            }
+        }
+        ''')
+
+        md5 = util.md5_file(fname)
+        name = name if name is not None else fname
+
+        response = self.gql(mutation, variable_values={
+            'entityName': entity,
+            'projectName': project,
+            'runName': run,
+            'name': name,
+            'description': description,
+            'checksum': md5
+        })
+
+        upload_url = response['publishArtifact']['artifactUploadUrl']
+
+        if upload_url is not None:
+            with open(fname, "rb") as file:
+                self._upload_file_with_progress(upload_url, file, progress)
+        else:
+            wandb.termlog("Artifact '{}' with md5 {} already uploaded. Skipping upload.".format(name, md5))
+
+        return response['publishArtifact']['artifact']['url']
+
+    @normalize_exceptions
+    def publish_external_artifact(self, url, entity, project, run=None, description=None, name=None):
+        """Publishes an artifact that is stored external to W&B"""
+        mutation = gql('''
+        mutation PublishExternalArtifact(
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!,
+            $name: String!,
+            $description: String,
+            $url: String!
+        ) {
+            publishExternalArtifact(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                name: $name,
+                description: $description,
+                url: $url
+            }) {
+                artifact {
+                    id
+                    url
+                }
+            }
+        }
+        ''')
+
+        name = name if name is not None else url
+
+        response = self.gql(mutation, variable_values={
+            'entityName': entity,
+            'projectName': project,
+            'runName': run,
+            'name': name,
+            'description': description,
+            'url': url
+        })
+
+        return response['publishExternalArtifact']['artifact']['url']
+
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
         """
@@ -1221,18 +1313,8 @@ class Api(object):
             except IOError:
                 print("%s does not exist" % file_name)
                 continue
-            if progress:
-                if hasattr(progress, '__call__'):
-                    responses.append(self.upload_file_retry(
-                        file_url, open_file, progress))
-                else:
-                    length = os.fstat(open_file.fileno()).st_size
-                    with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
-                                           fill_char=click.style('&', fg='green')) as bar:
-                        responses.append(self.upload_file_retry(
-                            file_url, open_file, lambda bites, _: bar.update(bites)))
-            else:
-                responses.append(self.upload_file_retry(file_info['url'], open_file))
+
+            responses.append(self._upload_file_with_progress(file_url, open_file, progress))
             open_file.close()
         return responses
 
@@ -1256,3 +1338,15 @@ class Api(object):
     def _flatten_edges(self, response):
         """Return an array from the nested graphql relay structure"""
         return [node['node'] for node in response['edges']]
+
+    def _upload_file_with_progress(self, url, file, progress=None):
+        if progress:
+            if hasattr(progress, '__call__'):
+                return self.upload_file_retry(url, file, progress)
+            else:
+                length = os.fstat(file.fileno()).st_size
+                with click.progressbar(file=progress, length=length, label='Uploading file: %s' % file.name,
+                                       fill_char=click.style('&', fg='green')) as bar:
+                    return self.upload_file_retry(url, file, lambda bites, _: bar.update(bites))
+        else:
+            return self.upload_file_retry(url, file)
