@@ -93,8 +93,8 @@ class Meta(object):
             self.data["username"] = os.getenv(env.USERNAME, username)
             self.data["executable"] = sys.executable
         else:
-            del self.data["email"]
-            del self.data["root"]
+            self.data.pop("email", None)
+            self.data.pop("root", None)
 
         self.data["os"] = platform.platform(aliased=True)
         self.data["python"] = platform.python_version()

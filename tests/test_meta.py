@@ -34,6 +34,22 @@ def test_meta(git_repo, mocker):
     assert meta.data["os"]
 
 
+def test_anonymous_redaction(mocker):
+    mocker.patch.object(sys, 'argv', ["foo", "bar"])
+    api = InternalApi()
+    api.set_setting('anonymous', 'true')
+
+    meta = Meta(api, "wandb")
+    meta.write()
+
+    print(meta.data)
+    assert "host" not in meta.data
+    assert "username" not in meta.data
+    assert "executable" not in meta.data
+    assert "email" not in meta.data
+    assert "root" not in meta.data
+
+
 def test_disable_code(git_repo):
     os.environ[env.DISABLE_CODE] = "true"
     meta = Meta(InternalApi())
@@ -104,7 +120,7 @@ def test_meta_cuda(mocker):
             return open(path, mode=mode)
     mocker.patch('wandb.meta.open', magic)
     meta = Meta(InternalApi())
-    meta.data["cuda"] == "9.0.176"
+    assert meta.data["cuda"] == "9.0.176"
 
 
 def test_meta_thread(git_repo):
