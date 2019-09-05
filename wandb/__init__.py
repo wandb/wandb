@@ -75,6 +75,7 @@ if __stage_dir__ is not None:
 else:
     GLOBAL_LOG_FNAME = os.path.join(tempfile.gettempdir(), 'wandb-debug.log')
 
+
 def _debugger(*args):
     import pdb
     pdb.set_trace()
@@ -283,7 +284,36 @@ def load_ipython_extension(ipython):
     pass
 
 
-def jupyter_login(force=True, api=None):
+def login(anonymous=None, key=None):
+    """Ensure this machine is logged in
+
+       You can manually specify a key, but this method is intended to prompt for user input.
+
+       anonymous can be "never", "must", or "allow".  If set to "must" we'll always login anonymously,
+       if set to "allow" we'll only create an anonymous user if the user isn't already logged in.
+    """
+    # This ensures we have a global api object
+    ensure_configured()
+    if anonymous:
+        os.environ[env.ANONYMOUS] = anonymous
+    anonymous = anonymous or "never"
+    in_jupyter = _get_python_type() != "python"
+    if key:
+        termwarn("If you're specifying your api key in code, ensure this code is not shared publically.\nConsider setting the WANDB_API_KEY environment variable, or running `wandb login` from the command line.")
+        if in_jupyter:
+            termwarn("Calling wandb.login() without arguments from jupyter should prompt you for an api key.")
+        util.set_api_key(api, key)
+        return key
+    elif api.api_key and anonymous != "must":
+        return api.api_key
+    elif in_jupyter:
+        os.environ[env.JUPYTER] = "true"
+        return _jupyter_login(api=api)
+    else:
+        return util.prompt_api_key(api)
+
+
+def _jupyter_login(force=True, api=None):
     """Attempt to login from a jupyter environment
 
     If force=False, we'll only attempt to auto-login, otherwise we'll prompt the user
@@ -295,9 +325,11 @@ def jupyter_login(force=True, api=None):
         elif 'databricks_cli' in sys.modules and 'dbutils' in sys.modules:
             # Databricks does not seem to support getpass() so we need to fail
             # early and prompt the user to configure the key manually for now.
-            termerror("Databricks requires api_key to be configured manually, instructions at: http://docs.wandb.com/integrations/databricks")
+            termerror(
+                "Databricks requires api_key to be configured manually, instructions at: http://docs.wandb.com/integrations/databricks")
             raise LaunchError("Databricks integration requires api_key to be configured.")
-        if not key and os.environ.get(env.ALLOW_ANONYMOUS) == "true":
+        # For jupyter we default to not allowing anonymous
+        if not key and os.environ.get(env.ANONYMOUS, "never") != "never":
             key = api.create_anonymous_api_key()
             anonymous = True
         if not key and force:
@@ -325,7 +357,7 @@ def _init_jupyter(run):
     os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
-        jupyter_login()
+        _jupyter_login()
         # Ensure our api client picks up the new key
         run.api.reauth()
     run.resume = "allow"
@@ -347,6 +379,7 @@ def _init_jupyter(run):
         global START_TIME
         START_TIME = time.time()
     ipython.events.register("pre_run_cell", reset_start)
+
     def cleanup():
         # shutdown async logger because _user_process_finished isn't called in jupyter
         shutdown_async_log_thread()
@@ -390,8 +423,8 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
 # pass the run into WandbCallback).  run is None instead of a PreInitObject
 # as many places in the code check this.
 run = None
-config = util.PreInitObject("wandb.config") # config object shared with the global run
-summary = util.PreInitObject("wandb.summary") # summary object shared with the global run
+config = util.PreInitObject("wandb.config")  # config object shared with the global run
+summary = util.PreInitObject("wandb.summary")  # summary object shared with the global run
 Api = PublicApi
 # Stores what modules have been patched
 patched = {
@@ -477,14 +510,18 @@ def restore(name, run_path=None, replace=False, root="."):
         return None
     return files[0].download(root=root, replace=True)
 
+
 _tunnel_process = None
+
+
 def tunnel(host, port):
     """Simple helper to open a tunnel.  Returns a public HTTPS url or None"""
     global _tunnel_process
     if _tunnel_process:
         _tunnel_process.kill()
         _tunnel_process = None
-    process = subprocess.Popen("ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:{}:{} serveo.net".format(host, port), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen("ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:{}:{} serveo.net".format(
+        host, port), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     while process.returncode is None:
         for line in process.stdout:
             match = re.match(r".+(https.+)$", line.decode("utf-8").strip())
@@ -495,6 +532,7 @@ def tunnel(host, port):
         process.poll()
         time.sleep(1)
     return None
+
 
 def monitor(options={}):
     """Starts syncing with W&B if you're in Jupyter.  Displays your W&B charts live in a Jupyter notebook.
@@ -529,6 +567,8 @@ _async_log_queue = queue.Queue()
 _async_log_thread_shutdown_event = threading.Event()
 _async_log_thread_complete_event = threading.Event()
 _async_log_thread = None
+
+
 def _async_log_thread_target():
     """Consumes async logs from our _async_log_queue and actually logs them"""
     global _async_log_thread
@@ -542,6 +582,7 @@ def _async_log_thread_target():
     _async_log_thread_complete_event.set()
     _async_log_thread = None
 
+
 def _ensure_async_log_thread_started():
     """Ensures our log consuming thread is started"""
     global _async_log_thread
@@ -551,13 +592,15 @@ def _ensure_async_log_thread_started():
         _async_log_thread.daemon = True
         _async_log_thread.start()
 
+
 def shutdown_async_log_thread():
     """Shuts down our async logging thread"""
     if _async_log_thread:
         _async_log_thread_shutdown_event.set()
-        res = _async_log_thread_complete_event.wait(2) # TODO: possible race here
+        res = _async_log_thread_complete_event.wait(2)  # TODO: possible race here
         if res is None:
             termwarn('async log queue not empty after 2 seconds, some log statements will be dropped')
+
 
 def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
     """Log a dict to the global run's history.
@@ -602,6 +645,7 @@ def ensure_configured():
     # We re-initialize here for tests
     api = InternalApi()
     GLOBAL_LOG_FNAME = os.path.abspath(os.path.join(wandb_dir(), 'debug.log'))
+
 
 def uninit(only_patches=False):
     """Undo the effects of init(). Useful for testing.
@@ -675,6 +719,7 @@ def _get_python_type():
     except (NameError, AttributeError):
         return "python"
 
+
 def sagemaker_auth(overrides={}, path="."):
     """ Write a secrets.env file with the W&B ApiKey and any additional secrets passed.
 
@@ -697,10 +742,11 @@ def join():
     # no-op until it's overridden in _init_headless
     pass
 
+
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
-         allow_anonymous=False):
+         anonymous=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -821,8 +867,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
-    if allow_anonymous:
-        os.environ[env.ALLOW_ANONYMOUS] = str(allow_anonymous).lower()
+    if anonymous:
+        os.environ[env.ANONYMOUS] = anonymous
 
     resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
     if resume == True:

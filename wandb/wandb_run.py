@@ -503,7 +503,7 @@ class Run(object):
     def description(self, desc):
         wandb.termwarn('Run.description is deprecated. Please use wandb.init(notes="long notes") instead.')
         if self._name_and_description is None:
-            self._name_and_description = ''
+            self._name_and_description = self._name or ""
         parts = self._name_and_description.split("\n", 1)
         if len(parts) == 1:
             parts.append("")
