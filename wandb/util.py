@@ -183,7 +183,7 @@ class PreInitObject(object):
             raise wandb.Error(
                 'You must call wandb.init() before {}.{}'.format(self._name, key))
         else:
-            return object.__getattr__(self, key)
+            raise AttributeError()
 
 np = get_module('numpy')
 
