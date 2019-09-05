@@ -801,7 +801,7 @@ def set_api_key(api, key, anonymous=False):
     raise ValueError("API key must be 40 characters long")
 
 
-def prompt_api_key(api, browser_callback=None, anonymous=False):
+def prompt_api_key(api, browser_callback=None):
     whaaaaat = vendor_import('whaaaaat')
 
     anonymode = 'Private wandb.ai dashboard, no account required'
@@ -810,15 +810,15 @@ def prompt_api_key(api, browser_callback=None, anonymous=False):
     dryrun = "Don't visualize my results"
 
     choices = [anonymode, create_account, existing_account, dryrun]
-    if os.environ.get(env.ALLOW_ANONYMOUS, "false") == "false":
-        # Omit anonymode as a choice if the env var is not enabled.
+    if os.environ.get(env.ANONYMOUS, "never") == "never":
+        # Omit anonymode as a choice if the env var is set to never
         choices = choices[1:]
 
-    # If we're not in an interactive environment, default to dry-run.
-    if not sys.stdout.isatty() or not sys.stdin.isatty():
-        result = dryrun
-    elif anonymous:
+    if os.environ.get(env.ANONYMOUS) == "must":
         result = anonymode
+    # If we're not in an interactive environment, default to dry-run.
+    elif not sys.stdout.isatty() or not sys.stdin.isatty():
+        result = dryrun
     else:
         result = whaaaaat.prompt([{
             'type': 'list',

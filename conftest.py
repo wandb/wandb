@@ -87,12 +87,14 @@ def vcr(vcr):
 
 @pytest.fixture
 def local_netrc(monkeypatch):
-    # TODO: this seems overkill...
-    origexpand = os.path.expanduser
+    with CliRunner().isolated_filesystem():
+        # TODO: this seems overkill...
+        origexpand = os.path.expanduser
 
-    def expand(path):
-        return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
-    monkeypatch.setattr(os.path, "expanduser", expand)
+        def expand(path):
+            return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
+        monkeypatch.setattr(os.path, "expanduser", expand)
+        yield
 
 
 @pytest.fixture
@@ -390,6 +392,15 @@ def request_mocker(request):
     m.start()
     request.addfinalizer(m.stop)
     return m
+
+
+@pytest.fixture(autouse=True)
+def clean_environ():
+    """Remove any env variables set in tests"""
+    wandb_keys = [key for key in os.environ.keys() if key.startswith(
+        'WANDB_') and key not in ['WANDB_TEST']]
+    for key in wandb_keys:
+        del os.environ[key]
 
 
 @pytest.fixture

@@ -49,6 +49,16 @@ def create_app():
                     }
                 }
             })
+        if "mutation CreateAnonymousApiKey" in body["query"]:
+            return json.dumps({
+                "data": {
+                    "createAnonymousEntity": {
+                        "apiKey": {
+                            "name": "ANONYMOOSE" * 4
+                        }
+                    }
+                }
+            })
         if "stopped" in body["query"]:
             return json.dumps({
                 "data": {
