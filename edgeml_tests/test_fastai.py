@@ -13,17 +13,12 @@ History.keep_rows = True
 import sys
 import glob
 
+mnist_path = untar_data(URLs.MNIST_TINY)
+
 
 @pytest.fixture
-def mnist_data(request_mocker, scope='module'):
-    # TODO: not sure why request_mocker was getting pulled in by default
-    request_mocker.stop()
-    path = os.path.join(os.path.expanduser("~"), ".fastai", "data", "mnist_tiny")
-    # A bug in fastai was causing this to blow up after the data was first downloaded
-    if not os.path.exists(path):
-        path = untar_data(URLs.MNIST_TINY)
-    data = ImageDataBunch.from_folder(path)
-    return data
+def mnist_data(scope='module'):
+    return ImageDataBunch.from_folder(mnist_path)
 
 
 @pytest.fixture
