@@ -87,12 +87,14 @@ def vcr(vcr):
 
 @pytest.fixture
 def local_netrc(monkeypatch):
-    # TODO: this seems overkill...
-    origexpand = os.path.expanduser
+    with CliRunner().isolated_filesystem():
+        # TODO: this seems overkill...
+        origexpand = os.path.expanduser
 
-    def expand(path):
-        return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
-    monkeypatch.setattr(os.path, "expanduser", expand)
+        def expand(path):
+            return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
+        monkeypatch.setattr(os.path, "expanduser", expand)
+        yield
 
 
 @pytest.fixture
