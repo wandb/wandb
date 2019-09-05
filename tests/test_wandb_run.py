@@ -38,6 +38,7 @@ def test_url_escape(git_repo):
     run = wandb_run.Run.from_environment_or_defaults(environ)
     assert run.get_url() == 'https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run'
 
+
 def test_wandb_run_args_sys(git_repo, mocker):
     environ = dict(os.environ)
     if env.ARGS in environ:
