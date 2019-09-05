@@ -22,7 +22,7 @@ Examples:
     Finally, it is possible to use WandbCallback only when starting
     training. In this case it must be instantiated::
 
-        learn.fit(..., callbacks=WandbCallback())
+        learn.fit(..., callbacks=WandbCallback(learn))
 
     or, with custom parameters::
 
@@ -64,7 +64,7 @@ class WandbCallback(TrackerCallback):
         Args:
             learn (fastai.basic_train.Learner): the fast.ai learner to hook.
             log (str): "gradients", "parameters", "all", or None. Losses & metrics are always logged.
-            save_model (bool): save model at the end of each epoch.
+            save_model (bool): save model at the end of each epoch. It will also load best model at the end of training.
             monitor (str): metric to monitor for saving best model. None uses default TrackerCallback monitor value.
             mode (str): "auto", "min" or "max" to compare "monitor" values and define best model.
             input_type (str): "images" or None. Used to display sample predictions.
@@ -191,7 +191,7 @@ class WandbCallback(TrackerCallback):
             name: stat
             for name, stat in list(
                 zip(self.learn.recorder.names, [epoch, smooth_loss] +
-                    last_metrics))[1:]
+                    last_metrics))
         }
         wandb.log(logs)
 
