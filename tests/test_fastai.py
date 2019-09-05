@@ -14,7 +14,9 @@ import glob
 
 
 @pytest.fixture
-def mnist_data(scope='module'):
+def mnist_data(request_mocker, scope='module'):
+    # TODO: not sure why request_mocker was getting pulled in by default
+    request_mocker.stop()
     path = untar_data(URLs.MNIST_TINY)
     data = ImageDataBunch.from_folder(path)
     return data
