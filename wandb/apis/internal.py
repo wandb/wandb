@@ -753,7 +753,8 @@ class Api(object):
             'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
             'displayName': display_name, 'notes': notes,
-            'host': host, 'debug': env.is_debug(env=self._environ), 'repo': repo, 'program': program_path, 'jobType': job_type,
+            'host': None if self.settings().get('anonymous') == 'true' else host,
+            'debug': env.is_debug(env=self._environ), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
         }
 

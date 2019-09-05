@@ -487,23 +487,6 @@ def no_retry_auth(e):
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
-def write_settings(entity=None, project=None, settings=None):
-    if not os.path.isdir(wandb_dir()):
-        os.mkdir(wandb_dir())
-    with open(os.path.join(wandb_dir(), 'settings'), "w") as file:
-        print('[default]', file=file)
-        if entity is not None:
-            print('entity: {}'.format(entity))
-            print('entity: {}'.format(entity), file=file)
-        if project is not None:
-            print('project: {}'.format(project), file=file)
-            print('project: {}'.format(project))
-        if settings is not None:
-            for key, value in settings.items():
-                if key == 'base_url' or key == 'anonymous':
-                    print('{}: {}'.format(key, value), file=file)
-
-
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
     key_prefix, key_suffix = key.split('-', 1) if '-' in key else ('', key)
