@@ -6,6 +6,7 @@ import sys
 import glob
 import wandb
 
+
 # Constants for patching tensorboard
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
 TENSORBOARD_PYTORCH_MODULE = "tensorboard.summary.writer.event_file_writer"
@@ -141,14 +142,33 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
             [TENSORBOARD_C_MODULE, "create_summary_file_writer"])
 
 
+STEPS = {"": {"step": 0}}
+
+
 def log(tf_summary_str, history=None, **kwargs):
-    namespace = kwargs.get("namespace")
+    """Logs a tfsummary to wandb"""
+    global STEPS
+    namespace = kwargs.get("namespace") or ""
     if "namespace" in kwargs:
         del kwargs["namespace"]
+    # To handle multiple global_steps, we keep track of them here instead of the global log
+    last_step = STEPS.get(namespace, {"step": 0})
+    cur_step = kwargs.get("step", 0)
+    if last_step["step"] < cur_step:
+        kwargs["commit"] = True
+    else:
+        kwargs["commit"] = False
+    STEPS[namespace] = {"step": cur_step}
+    if "step" in kwargs:
+        del kwargs["step"]
     log_dict = tf_summary_to_dict(tf_summary_str, namespace)
+    if namespace != "":
+        log_dict["/".join([namespace, "step"])] = cur_step
     if history is None:
         wandb.log(log_dict, **kwargs)
     else:
+        # TODO: Where is this used?
+        del kwargs["commit"]
         history.add(log_dict, **kwargs)
 
 

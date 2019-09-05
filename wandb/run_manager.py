@@ -994,11 +994,13 @@ class RunManager(object):
             wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_run_name(self._run), url))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
-        self._run.set_environment(environment=env)
+        env = self._run.set_environment(environment=env)
 
-        if not os.getenv(wandb_env.DISABLE_CODE):
+        if not env.get(wandb_env.DISABLE_CODE):
             logger.info("saving patches")
             self._api.save_patches(self._run.dir)
+        if env.get("SPELL_RUN_URL"):
+            self._api.sync_spell(self._run.get_url(), env)
         logger.info("saving pip packages")
         self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")

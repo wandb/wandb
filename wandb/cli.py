@@ -465,6 +465,9 @@ def pull(run, project, entity):
             length, response = api.download_file(urls[name]['url'])
             # TODO: I had to add this because some versions in CI broke click.progressbar
             sys.stdout.write("File %s\r" % name)
+            dirname = os.path.dirname(name)
+            if dirname != '':
+                wandb.util.mkdir_exists_ok(dirname)
             with click.progressbar(length=length, label='File %s' % name,
                                    fill_char=click.style('&', fg='green')) as bar:
                 with open(name, "wb") as f:
@@ -576,8 +579,11 @@ def init(ctx):
     except wandb.cli.ClickWandbException:
         raise ClickException('Could not find team: %s' % entity)
 
-    util.write_settings(entity, project, api.settings())
+    api.set_setting('entity', entity)
+    api.set_setting('project', project)
+    api.set_setting('base_url', api.settings().get('base_url'))
 
+    util.mkdir_exists_ok(wandb_dir())
     with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
         file.write("*\n!settings")
 

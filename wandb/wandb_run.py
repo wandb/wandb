@@ -68,7 +68,8 @@ class Run(object):
         self.resumed = False  # we set resume when history is first accessed
         if api:
             if api.current_run_id and api.current_run_id != self.id:
-                raise RuntimeError('Api object passed to run {} is already being used by run {}'.format(self.id, api.current_run_id))
+                raise RuntimeError('Api object passed to run {} is already being used by run {}'.format(
+                    self.id, api.current_run_id))
             else:
                 api.set_current_run_id(self.id)
         self._api = api
@@ -81,7 +82,7 @@ class Run(object):
 
         # self.name and self.notes used to be combined into a single field.
         # Now if name and notes don't have their own values, we get them from
-        # self._name_and_description, but we don't update description.md 
+        # self._name_and_description, but we don't update description.md
         # if they're changed. This is to discourage relying on self.description
         # and self._name_and_description so that we can drop them later.
         #
@@ -117,7 +118,7 @@ class Run(object):
             self.project = self.api.settings("project")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
-            scope.set_tag("url", self.get_url(self.api, network=False)) # TODO: Move this somewhere outside of init
+            scope.set_tag("url", self.get_url(self.api, network=False))  # TODO: Move this somewhere outside of init
 
         if self.resume == "auto":
             util.mkdir_exists_ok(wandb.wandb_dir())
@@ -424,6 +425,7 @@ class Run(object):
             environment[env.NOTES] = self.notes
         if len(self.tags) > 0:
             environment[env.TAGS] = ",".join(self.tags)
+        return environment
 
     def _mkdir(self):
         util.mkdir_exists_ok(self._dir)

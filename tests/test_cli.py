@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import pytest
 import os
@@ -43,6 +44,14 @@ def empty_netrc(monkeypatch):
             return {'api.wandb.ai': None}
     monkeypatch.setattr(netrc, "netrc", lambda *args: FakeNet())
 
+
+@contextlib.contextmanager
+def config_dir():
+    try:
+        os.environ["WANDB_CONFIG"] = os.getcwd()
+        yield
+    finally:
+        del os.environ["WANDB_CONFIG"]
 
 def setup_module(module):
     os.environ["WANDB_TEST"] = "true"
@@ -484,7 +493,7 @@ def test_init_new_login_no_browser(runner, empty_netrc, local_netrc, request_moc
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
         login_result = runner.invoke(cli.login, [DUMMY_API_KEY])
-        init_result = runner.invoke(cli.init, input="\n\n")
+        init_result = runner.invoke(cli.init, input="y\n\n\n")
         print('Output: ', init_result.output)
         print('Exception: ', init_result.exception)
         print('Traceback: ', traceback.print_tb(init_result.exc_info[2]))
@@ -510,7 +519,7 @@ def test_init_multi_team(runner, empty_netrc, local_netrc, request_mocker, query
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
         login_result = runner.invoke(cli.login, [DUMMY_API_KEY])
-        init_result = runner.invoke(cli.init, input="vanpelt\n")
+        init_result = runner.invoke(cli.init, input="y\nvanpelt\n")
         print('Output: ', init_result.output)
         print('Exception: ', init_result.exception)
         print('Traceback: ', traceback.print_tb(init_result.exc_info[2]))
@@ -529,9 +538,8 @@ def test_init_reinit(runner, empty_netrc, local_netrc, request_mocker, query_pro
     query_viewer(request_mocker)
     query_projects(request_mocker)
     with runner.isolated_filesystem():
-        os.mkdir('wandb')
         runner.invoke(cli.login, [DUMMY_API_KEY])
-        result = runner.invoke(cli.init, input="vanpelt\n")
+        result = runner.invoke(cli.init, input="y\nvanpelt\n")
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
@@ -548,20 +556,21 @@ def test_init_add_login(runner, empty_netrc, local_netrc, request_mocker, query_
     query_viewer(request_mocker)
     query_projects(request_mocker)
     with runner.isolated_filesystem():
-        with open("netrc", "w") as f:
-            f.write("previous config")
-        runner.invoke(cli.login, [DUMMY_API_KEY])
-        result = runner.invoke(cli.init, input="%s\nvanpelt\n" % DUMMY_API_KEY)
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
-        assert result.exit_code == 0
-        with open("netrc", "r") as f:
-            generatedNetrc = f.read()
-        with open("wandb/settings", "r") as f:
-            generatedWandb = f.read()
-        assert DUMMY_API_KEY in generatedNetrc
-        assert "previous config" in generatedNetrc
+        with config_dir():
+            with open("netrc", "w") as f:
+                f.write("previous config")
+            runner.invoke(cli.login, [DUMMY_API_KEY])
+            result = runner.invoke(cli.init, input="y\n%s\nvanpelt\n" % DUMMY_API_KEY)
+            print(result.output)
+            print(result.exception)
+            print(traceback.print_tb(result.exc_info[2]))
+            assert result.exit_code == 0
+            with open("netrc", "r") as f:
+                generatedNetrc = f.read()
+            with open("wandb/settings", "r") as f:
+                generatedWandb = f.read()
+            assert DUMMY_API_KEY in generatedNetrc
+            assert "previous config" in generatedNetrc
 
 
 def test_init_existing_login(runner, local_netrc, request_mocker, query_projects, query_viewer):

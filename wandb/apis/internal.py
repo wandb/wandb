@@ -124,6 +124,18 @@ class Api(object):
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, 'disabled', fallback=False)
 
+    def sync_spell(self, url, env=None):
+        """Syncs this run with spell"""
+        try:
+            env = env or os.environ
+            wandb.config._set_wandb("spell_url", env.get("SPELL_RUN_URL"))
+            return requests.put(env.get("SPELL_API_URL", "https://api.spell.run/wandb_url"), json={
+                "access_token": env.get("WANDB_ACCESS_TOKEN"),
+                "url": url
+            }, timeout=2)
+        except requests.RequestException:
+            return False
+
     def save_pip(self, out_dir):
         """Saves the current working set of pip packages to requirements.txt"""
         try:
@@ -741,7 +753,8 @@ class Api(object):
             'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
             'displayName': display_name, 'notes': notes,
-            'host': host, 'debug': env.is_debug(env=self._environ), 'repo': repo, 'program': program_path, 'jobType': job_type,
+            'host': None if self.settings().get('anonymous') == 'true' else host,
+            'debug': env.is_debug(env=self._environ), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
         }
 
