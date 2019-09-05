@@ -394,6 +394,15 @@ def request_mocker(request):
     return m
 
 
+@pytest.fixture(autouse=True)
+def clean_environ():
+    """Remove any env variables set in tests"""
+    wandb_keys = [key for key in os.environ.keys() if key.startswith(
+        'WANDB_')]
+    for key in wandb_keys:
+        del os.environ[key]
+
+
 @pytest.fixture
 def mock_server(mocker, request_mocker):
     app = create_app()

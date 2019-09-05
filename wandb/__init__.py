@@ -285,7 +285,7 @@ def load_ipython_extension(ipython):
     pass
 
 
-def login(anonymous="never", key=None):
+def login(anonymous=None, key=None):
     """Ensure this machine is logged in
 
        You can manually specify a key, but this method is intended to prompt for user input.
@@ -295,7 +295,9 @@ def login(anonymous="never", key=None):
     """
     # This ensures we have a global api object
     ensure_configured()
-    os.environ[env.ALLOW_ANONYMOUS] = anonymous
+    if anonymous:
+        os.environ[env.ANONYMOUS] = anonymous
+    anonymous = anonymous or "never"
     in_jupyter = _get_python_type() != "python"
     if key:
         termwarn("If you're specifying your api key in code, ensure this code is not shared publically.\nConsider setting the WANDB_API_KEY environment variable, or running `wandb login` from the command line.")
@@ -309,7 +311,7 @@ def login(anonymous="never", key=None):
         os.environ[env.JUPYTER] = "true"
         return _jupyter_login(api=api)
     else:
-        return util.prompt_api_key(api, force_anonymous=anonymous == "must")
+        return util.prompt_api_key(api)
 
 
 def _jupyter_login(force=True, api=None):
@@ -328,7 +330,7 @@ def _jupyter_login(force=True, api=None):
                 "Databricks requires api_key to be configured manually, instructions at: http://docs.wandb.com/integrations/databricks")
             raise LaunchError("Databricks integration requires api_key to be configured.")
         # For jupyter we default to not allowing anonymous
-        if not key and os.environ.get(env.ALLOW_ANONYMOUS, "never") != "never":
+        if not key and os.environ.get(env.ANONYMOUS, "never") != "never":
             key = api.create_anonymous_api_key()
             anonymous = True
         if not key and force:
@@ -744,7 +746,8 @@ def join():
 
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
-         sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None):
+         sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
+         anonymous=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -865,6 +868,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
+    if anonymous:
+        os.environ[env.ANONYMOUS] = anonymous
 
     resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
     if resume == True:

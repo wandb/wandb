@@ -505,7 +505,9 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
     if key:
         util.set_api_key(api, key)
     else:
-        key = util.prompt_api_key(api, browser_callback=get_api_key_from_browser, force_anonymous=anonymous)
+        if anonymous:
+            os.environ[env.ANONYMOUS] = "must"
+        key = util.prompt_api_key(api, browser_callback=get_api_key_from_browser)
 
     if key:
         api.clear_setting('disabled')

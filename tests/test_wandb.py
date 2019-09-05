@@ -165,8 +165,6 @@ def test_login_existing_key(local_netrc):
 
 
 def test_login_no_key(local_netrc, mocker):
-    if os.environ.get("WANDB_API_KEY"):
-        del os.environ["WANDB_API_KEY"]
     stdin_mock = mocker.patch("wandb.util.sys.stdin.isatty")
     stdin_mock.return_value = True
     stdout_mock = mocker.patch("wandb.util.sys.stdout.isatty")
@@ -185,8 +183,6 @@ def test_login_no_key(local_netrc, mocker):
 
 
 def test_login_jupyter_anonymous(mock_server, local_netrc, mocker):
-    if os.environ.get("WANDB_API_KEY"):
-        del os.environ["WANDB_API_KEY"]
     python = mocker.patch("wandb._get_python_type")
     python.return_value = "ipython"
     wandb.login(anonymous="allow")
