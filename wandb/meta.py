@@ -67,6 +67,7 @@ class Meta(object):
                     "remote": self._api.git.remote_url,
                     "commit": self._api.git.last_commit
                 }
+
                 self.data["email"] = self._api.git.email
                 self.data["root"] = self._api.git.root or self.data["root"]
 
@@ -79,17 +80,25 @@ class Meta(object):
 
         self.data["startedAt"] = datetime.utcfromtimestamp(
             wandb.START_TIME).isoformat()
-        self.data["host"] = os.environ.get(env.HOST, socket.gethostname())
         try:
             username = getpass.getuser()
         except KeyError:
             # getuser() could raise KeyError in restricted environments like
             # chroot jails or docker containers.  Return user id in these cases.
             username = str(os.getuid())
-        self.data["username"] = os.getenv(env.USERNAME, username)
+
+        # Host names, usernames, emails, the root directory, and executable paths are sensitive for anonymous users.
+        if self._api.settings().get('anonymous') != 'true':
+            self.data["host"] = os.environ.get(env.HOST, socket.gethostname())
+            self.data["username"] = os.getenv(env.USERNAME, username)
+            self.data["executable"] = sys.executable
+        else:
+            del self.data["email"]
+            del self.data["root"]
+
         self.data["os"] = platform.platform(aliased=True)
         self.data["python"] = platform.python_version()
-        self.data["executable"] = sys.executable
+
         if env.get_docker():
             self.data["docker"] = env.get_docker()
         try:

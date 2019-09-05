@@ -15,21 +15,12 @@ class Settings(object):
     _UNSET = object()
 
     def __init__(self, load_settings=True):
-        config_dir = os.environ.get(env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb"))
-
-        # Ensure the config directory and settings file both exist.
-        util.mkdir_exists_ok(config_dir)
-        util.mkdir_exists_ok(wandb_dir())
-
-        self._global_settings_path = os.path.join(config_dir, 'settings')
         self._global_settings = Settings._settings()
-
-        self._local_settings_path = os.path.join(wandb_dir(), 'settings')
         self._local_settings = Settings._settings()
 
         if load_settings:
-            self._global_settings.read([self._global_settings_path])
-            self._local_settings.read([self._local_settings_path])
+            self._global_settings.read([Settings._global_path()])
+            self._local_settings.read([Settings._local_path()])
 
     def get(self, section, key, fallback=_UNSET):
         # Try the local settings first. If we can't find the key, then try the global settings.
@@ -55,9 +46,9 @@ class Settings(object):
                 settings.write(f)
 
         if globally:
-            write_setting(self._global_settings, self._global_settings_path)
+            write_setting(self._global_settings, Settings._global_path())
         else:
-            write_setting(self._local_settings, self._local_settings_path)
+            write_setting(self._local_settings, Settings._local_path())
 
     def clear(self, section, key, globally=False):
         def clear_setting(settings, settings_path):
@@ -66,9 +57,9 @@ class Settings(object):
                 settings.write(f)
 
         if globally:
-            clear_setting(self._global_settings, self._global_settings_path)
+            clear_setting(self._global_settings, Settings._global_path())
         else:
-            clear_setting(self._local_settings, self._local_settings_path)
+            clear_setting(self._local_settings, Settings._local_path())
 
     def items(self, section=None):
         section = section if section is not None else Settings.DEFAULT_SECTION
@@ -94,3 +85,14 @@ class Settings(object):
         for key, value in default_settings.items():
             config.set(Settings.DEFAULT_SECTION, key, str(value))
         return config
+
+    @staticmethod
+    def _global_path():
+        config_dir = os.environ.get(env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb"))
+        util.mkdir_exists_ok(config_dir)
+        return os.path.join(config_dir, 'settings')
+
+    @staticmethod
+    def _local_path():
+        util.mkdir_exists_ok(wandb_dir())
+        return os.path.join(wandb_dir(), 'settings')
