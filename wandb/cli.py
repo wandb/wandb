@@ -497,7 +497,7 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
         if not launched:
             return None
 
-        server.start(blocking=True)
+        server.start(blocking=False)
         if server.result.get("key"):
             return server.result["key"][0]
         return None

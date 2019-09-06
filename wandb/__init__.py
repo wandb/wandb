@@ -334,8 +334,11 @@ def _jupyter_login(force=True, api=None):
             key = api.create_anonymous_api_key()
             anonymous = True
         if not key and force:
-            termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
-            key = getpass.getpass("API Key: ").strip()
+            try:
+                termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
+                key = getpass.getpass("API Key: ").strip()
+            except NotImplementedError:
+                termerror("Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
         return key, anonymous
 
     api = api or (run.api if run else None)
@@ -358,9 +361,12 @@ def _init_jupyter(run):
     os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
-        _jupyter_login()
+        key, _ = _jupyter_login()
         # Ensure our api client picks up the new key
-        run.api.reauth()
+        if key:
+            run.api.reauth()
+        else:
+            run.mode = "dryrun"
     run.resume = "allow"
     display(HTML('''
         Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
