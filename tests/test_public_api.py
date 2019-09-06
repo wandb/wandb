@@ -190,6 +190,16 @@ def test_runs_from_path_index(mocker, request_mocker, query_runs_v2, query_downl
     assert runs[3]
     assert len(runs.objects) == 4
 
+def test_projects(mocker, request_mocker, query_projects):
+    runs_mock = query_projects(request_mocker)
+    projects = api.projects("test")
+    # projects doesn't provide a length for now, so we iterate
+    # them all to count
+    count = 0
+    for proj in projects:
+        count += 1
+    assert count == 2
+
 
 # @pytest.mark.skip(readon='fails when I run the whole suite, but not when I run just this file')
 def test_read_advanced_summary(runner, request_mocker, upsert_run, query_download_h5, query_upload_h5):

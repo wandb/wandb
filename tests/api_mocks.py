@@ -77,6 +77,12 @@ def _bucket(name='test', entity_name='bagsy', project_name='new-project'):
         }
     }
 
+def _project(name='test-projo'):
+    return {
+        'id': name,
+        'name': name,
+    }
+
 
 def _run(name='test'):
     return {
@@ -267,6 +273,19 @@ def query_runs_v2():
                        'cursor': 'cursor'}, {'node': _run(),
                                              'cursor': 'cursor'}]
         }
+    })
+
+@pytest.fixture
+def query_projects():
+    return _query('models', {
+        'pageInfo': {
+            'hasNextPage': False,
+            'endCursor': 'end'
+        },
+        'edges': [{'node': _project('p1'),
+                    'cursor': 'cursor'},
+                  {'node': _project('p2'),
+                    'cursor': 'cursor'}]
     })
 
 

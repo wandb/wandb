@@ -28,6 +28,7 @@ PROJECT_FRAGMENT = '''fragment ProjectFragment on Project {
     id
     name
     createdAt
+    isBenchmark
 }'''
 
 RUN_FRAGMENT = '''fragment RunFragment on Run {
@@ -177,11 +178,13 @@ class Api(object):
             project = parts[0]
         return (entity, project, run)
 
-    def projects(self, entity, per_page=None):
-        """
-        TODO
-        """
-        if not self._projects.get(entity):
+    def projects(self, entity=None, per_page=None):
+        """Return a list of projects for a given entity."""
+        if entity is None:
+            entity = self.settings['entity']
+            if entity is None:
+                raise ValueError('entity must be passed as a parameter, or set in settings')
+        if entity not in self._projects:
             self._projects[entity] = Projects(self.client, entity, per_page=per_page)
         return self._projects[entity]
 
@@ -259,6 +262,8 @@ class Paginator(object):
     def __len__(self):
         if self.length is None:
             self._load_page()
+        if self.length is None:
+            raise ValueError('Object doesn\'t provide length')
         return self.length
 
     @property
@@ -338,8 +343,6 @@ class Projects(Paginator):
 
     @property
     def length(self):
-        # TODO: We don't have a project count in graphql right now
-        return 100000
         return None
 
     @property
@@ -370,8 +373,6 @@ class Project(Attrs):
 
     def __repr__(self):
         return "<Project {}/{}>".format(self.entity, self.name)
-
-    # TODO: Add more fields (runs(), and more)
 
 
 class Runs(Paginator):
