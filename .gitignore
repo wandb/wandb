@@ -76,3 +76,4 @@ venv/
 # Output from running pytest in the repo folder
 wandb-metadata.json
 wandb/run-*
+edgeml_tests/mnist_tiny
