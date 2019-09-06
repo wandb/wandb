@@ -183,7 +183,7 @@ class PreInitObject(object):
             raise wandb.Error(
                 'You must call wandb.init() before {}.{}'.format(self._name, key))
         else:
-            return object.__getattr__(self, key)
+            raise AttributeError()
 
 np = get_module('numpy')
 
@@ -810,7 +810,7 @@ def prompt_api_key(api, browser_callback=None):
     dryrun = "Don't visualize my results"
 
     choices = [anonymode, create_account, existing_account, dryrun]
-    if os.environ.get(env.ANONYMOUS, "allow") == "never":
+    if os.environ.get(env.ANONYMOUS, "never") == "never":
         # Omit anonymode as a choice if the env var is set to never
         choices = choices[1:]
 

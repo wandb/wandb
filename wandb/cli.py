@@ -598,7 +598,7 @@ def init(ctx):
         * then `{run}`.
         """).format(
         code1=click.style("import wandb", bold=True),
-        code2=click.style("wandb.init()", bold=True),
+        code2=click.style("wandb.init(project=\"%s\")" % project, bold=True),
         run=click.style("python <train.py>", bold=True),
         # saving this here so I can easily put it back when we re-enable
         # push/pull

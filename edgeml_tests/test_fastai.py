@@ -13,7 +13,11 @@ History.keep_rows = True
 import sys
 import glob
 
-mnist_path = untar_data(URLs.MNIST_TINY)
+try:
+    mnist_path = untar_data(URLs.MNIST_TINY)
+except AttributeError:
+    # FastAI was blowing up calling .get on None
+    mnist_path = os.path.join(os.path.expanduser("~"), ".fastai", "data", "mnist_tiny")
 
 
 @pytest.fixture
