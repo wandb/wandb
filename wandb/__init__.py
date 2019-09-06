@@ -361,7 +361,7 @@ def _init_jupyter(run):
     os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
-        key, _ = _jupyter_login()
+        key = _jupyter_login()
         # Ensure our api client picks up the new key
         if key:
             run.api.reauth()
