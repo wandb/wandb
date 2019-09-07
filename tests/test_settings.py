@@ -13,7 +13,7 @@ def test_read_empty_settings():
 
 
 def test_read_global_setting(global_wandb_settings):
-    global_wandb_settings.write("[client]\nfoo = bar\n")
+    global_wandb_settings.write("[default]\nfoo = bar\n")
     global_wandb_settings.flush()
 
     settings = Settings()
@@ -21,10 +21,10 @@ def test_read_global_setting(global_wandb_settings):
 
 
 def test_read_local_setting(global_wandb_settings, local_wandb_settings):
-    global_wandb_settings.write("[client]\nfoo = baz\n")
+    global_wandb_settings.write("[default]\nfoo = baz\n")
     global_wandb_settings.flush()
 
-    local_wandb_settings.write("[client]\nfoo = bar\n")
+    local_wandb_settings.write("[default]\nfoo = bar\n")
     local_wandb_settings.flush()
 
     settings = Settings()
@@ -37,7 +37,7 @@ def test_write_setting_globally(global_wandb_settings):
 
     with open(global_wandb_settings.name, "r") as f:
         data = f.read()
-        assert "[client]" in data
+        assert "[default]" in data
         assert "foo = bar" in data
 
 
@@ -47,15 +47,15 @@ def test_write_setting_locally(local_wandb_settings):
 
     with open(local_wandb_settings.name, "r") as f:
         data = f.read()
-        assert "[client]" in data
+        assert "[default]" in data
         assert "foo = bar" in data
 
 
 def test_items(global_wandb_settings, local_wandb_settings):
-    global_wandb_settings.write("[client]\nfoo = baz\n")
+    global_wandb_settings.write("[default]\nfoo = baz\n")
     global_wandb_settings.flush()
 
-    local_wandb_settings.write("[client]\nfoo = bar\n")
+    local_wandb_settings.write("[default]\nfoo = bar\n")
     local_wandb_settings.flush()
 
     settings = Settings()
