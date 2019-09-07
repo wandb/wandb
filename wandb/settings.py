@@ -1,6 +1,6 @@
 import os
 
-from six.moves import configparser
+import configparser
 
 import wandb.util as util
 from wandb import core, env, wandb_dir
@@ -10,7 +10,7 @@ class Settings(object):
     """Global W&B settings stored under $WANDB_CONFIG_DIR/settings.
     """
 
-    DEFAULT_SECTION = "client"
+    DEFAULT_SECTION = 'default'
 
     _UNSET = object()
 
@@ -40,7 +40,7 @@ class Settings(object):
     def set(self, section, key, value, globally=False):
         def write_setting(settings, settings_path):
             if not settings.has_section(section):
-                settings.add_section(section)
+                Settings._safe_add_section(settings, Settings.DEFAULT_SECTION)
             settings.set(section, key, str(value))
             with open(settings_path, "w+") as f:
                 settings.write(f)
@@ -79,12 +79,17 @@ class Settings(object):
         return result
 
     @staticmethod
+    def _safe_add_section(settings, section):
+        if not settings.has_section(section):
+            settings.add_section(section)
+
+    @staticmethod
     def _settings(default_settings={}):
-        config = configparser.ConfigParser()
-        config.add_section(Settings.DEFAULT_SECTION)
+        settings = configparser.ConfigParser()
+        Settings._safe_add_section(settings, Settings.DEFAULT_SECTION)
         for key, value in default_settings.items():
-            config.set(Settings.DEFAULT_SECTION, key, str(value))
-        return config
+            settings.set(Settings.DEFAULT_SECTION, key, str(value))
+        return settings
 
     @staticmethod
     def _global_path():
