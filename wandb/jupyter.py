@@ -119,7 +119,7 @@ class JupyterAgent(object):
 
     def start(self):
         if self.paused:
-            self.rm = RunManager(wandb.run, output=False)
+            self.rm = RunManager(wandb.run, output=False, cloud=wandb.run.mode != "dryrun")
             wandb.run.api._file_stream_api = None
             self.rm.mirror_stdout_stderr()
             self.paused = False

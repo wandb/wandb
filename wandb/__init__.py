@@ -334,8 +334,11 @@ def _jupyter_login(force=True, api=None):
             key = api.create_anonymous_api_key()
             anonymous = True
         if not key and force:
-            termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
-            key = getpass.getpass("API Key: ").strip()
+            try:
+                termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
+                key = getpass.getpass("API Key: ").strip()
+            except NotImplementedError:
+                termerror("Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
         return key, anonymous
 
     api = api or (run.api if run else None)
@@ -358,18 +361,27 @@ def _init_jupyter(run):
     os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
-        _jupyter_login()
+        key = _jupyter_login()
         # Ensure our api client picks up the new key
-        run.api.reauth()
+        if key:
+            run.api.reauth()
+        else:
+            run.mode = "dryrun"
     run.resume = "allow"
-    display(HTML('''
-        Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
-        in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-    '''.format(run.get_url())))
-    try:
-        run.save()
-    except (CommError, ValueError) as e:
-        termerror(str(e))
+    if run.mode == "dryrun":
+        display(HTML('''
+            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>.  Results will not be sent to the cloud.  
+            Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
+        '''.format(run.api.app_url)))
+    else:
+        display(HTML('''
+            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
+            in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
+        '''.format(run.get_url())))
+        try:
+            run.save()
+        except (CommError, ValueError) as e:
+            termerror(str(e))
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()

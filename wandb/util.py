@@ -798,12 +798,12 @@ def set_api_key(api, key, anonymous=False):
         write_netrc(api.api_url, "user", key)
         api.reauth()
         return
-    raise ValueError("API key must be 40 characters long")
+    raise ValueError("API key must be 40 characters long, yours was %s" % len(key))
 
+def isatty(ob):
+    return hasattr(ob, "isatty") and ob.isatty()
 
 def prompt_api_key(api, browser_callback=None):
-    whaaaaat = vendor_import('whaaaaat')
-
     anonymode = 'Private wandb.ai dashboard, no account required'
     create_account = 'Create a wandb.ai account'
     existing_account = 'Use an existing wandb.ai account'
@@ -817,20 +817,23 @@ def prompt_api_key(api, browser_callback=None):
     if os.environ.get(env.ANONYMOUS) == "must":
         result = anonymode
     # If we're not in an interactive environment, default to dry-run.
-    elif not sys.stdout.isatty() or not sys.stdin.isatty():
+    elif not isatty(sys.stdout) or not isatty(sys.stdin):
         result = dryrun
     else:
-        result = whaaaaat.prompt([{
-            'type': 'list',
-            'name': 'mode',
-            'message': 'How would you like to visualize your results?',
-            'choices': choices,
-        }])
-
-        if 'mode' not in result:
-            result = dryrun
-        else:
-            result = result['mode']
+        for i, choice in enumerate(choices):
+            wandb.termlog("(%i) %s" % (i + 1, choice))
+        def prompt_choice():
+            try:
+                return int(six.moves.input("%s: Enter your choice: " % wandb.core.LOG_STRING)) - 1
+            except ValueError:
+                return -1
+        idx = -1
+        while idx < 0 or idx > len(choices) - 1:
+            idx = prompt_choice()
+            if idx < 0 or idx > len(choices) - 1:
+                wandb.termwarn("Invalid choice")
+        result = choices[idx]
+        wandb.termlog("You chose %s" % result)
 
     if result == anonymode:
         key = api.create_anonymous_api_key()
@@ -843,8 +846,8 @@ def prompt_api_key(api, browser_callback=None):
         if not key:
             wandb.termlog('Create an account here: {}/login?signup=true'.format(api.app_url))
             wandb.termlog('You can find you API key in your browser here: {}/authorize'.format(api.app_url))
-            key = getpass.getpass('Paste an API key from your profile:').strip()
-
+            key = getpass.getpass('%s: Paste an API key from your profile and hit enter: ' % wandb.core.LOG_STRING).strip()
+            
         set_api_key(api, key)
         return key
     elif result == existing_account:
@@ -852,8 +855,7 @@ def prompt_api_key(api, browser_callback=None):
 
         if not key:
             wandb.termlog('You can find your API key in your browser here: {}/authorize'.format(api.app_url))
-            key = getpass.getpass('Paste an API key from your profile:').strip()
-
+            key = getpass.getpass('%s: Paste an API key from your profile and hit enter: ' % wandb.core.LOG_STRING).strip()
         set_api_key(api, key)
         return key
     else:
