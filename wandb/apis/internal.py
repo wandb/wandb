@@ -124,14 +124,14 @@ class Api(object):
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, 'disabled', fallback=False)
 
-    def sync_spell(self, url, env=None):
+    def sync_spell(self, run, env=None):
         """Syncs this run with spell"""
         try:
             env = env or os.environ
-            wandb.config._set_wandb("spell_url", env.get("SPELL_RUN_URL"))
+            run.config._set_wandb("spell_url", env.get("SPELL_RUN_URL"))
             return requests.put(env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url", json={
                 "access_token": env.get("WANDB_ACCESS_TOKEN"),
-                "url": url
+                "url": run.get_url()
             }, timeout=2)
         except requests.RequestException:
             return False
