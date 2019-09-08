@@ -368,14 +368,20 @@ def _init_jupyter(run):
         else:
             run.mode = "dryrun"
     run.resume = "allow"
-    display(HTML('''
-        Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
-        in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-    '''.format(run.get_url())))
-    try:
-        run.save()
-    except (CommError, ValueError) as e:
-        termerror(str(e))
+    if run.mode == "dryrun":
+        display(HTML('''
+            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>.  Results will not be sent to the cloud.  
+            Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
+        '''.format(run.api.app_url)))
+    else:
+        display(HTML('''
+            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
+            in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
+        '''.format(run.get_url())))
+        try:
+            run.save()
+        except (CommError, ValueError) as e:
+            termerror(str(e))
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
