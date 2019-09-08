@@ -33,6 +33,7 @@ def test_parse_path_simple():
     assert p == "proj"
     assert r == "run"
 
+
 def test_parse_path_leading():
     u, p, r = api._parse_path("/user/proj/run")
     assert u == "user"
@@ -190,8 +191,9 @@ def test_runs_from_path_index(mocker, request_mocker, query_runs_v2, query_downl
     assert runs[3]
     assert len(runs.objects) == 4
 
-def test_projects(mocker, request_mocker, query_projects):
-    runs_mock = query_projects(request_mocker)
+
+def test_projects(mocker, request_mocker, query_projects_v2):
+    runs_mock = query_projects_v2(request_mocker)
     projects = api.projects("test")
     # projects doesn't provide a length for now, so we iterate
     # them all to count
