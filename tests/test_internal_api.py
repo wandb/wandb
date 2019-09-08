@@ -20,6 +20,7 @@ import requests
 import wandb
 from wandb import env
 from wandb.apis import internal
+from wandb.settings import Settings
 from six import StringIO
 
 api = None
@@ -219,7 +220,7 @@ def test_settings(mocker):
         'base_url': 'https://api.wandb.ai',
         'entity': 'test_entity',
         'project': 'test_model',
-        'section': 'client',
+        'section': Settings.DEFAULT_SECTION,
         'run': 'latest',
         'ignore_globs': ["diff.patch", "*.secure"],
         'git_remote': 'origin',
@@ -235,7 +236,7 @@ def test_default_settings():
     assert internal.Api({'base_url': 'http://localhost'}, load_settings=False).settings() == {
         'base_url': 'http://localhost',
         'entity': None,
-        'section': 'client',
+        'section': Settings.DEFAULT_SECTION,
         'run': 'latest',
         # TODO(adrian): it looks like this test interacts with test_settings. sometimes we get 'ignore_globs': ['*.patch']
         'ignore_globs': [],

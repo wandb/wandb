@@ -5,6 +5,7 @@ from fastai.vision import *
 from functools import partial
 import wandb
 from wandb.fastai import WandbCallback
+import tarfile
 
 # Tests which rely on row history in memory should set `History.keep_rows = True`
 from wandb.history import History
@@ -13,11 +14,10 @@ History.keep_rows = True
 import sys
 import glob
 
-try:
-    mnist_path = untar_data(URLs.MNIST_TINY)
-except AttributeError:
-    # FastAI was blowing up calling .get on None
-    mnist_path = os.path.join(os.path.expanduser("~"), ".fastai", "data", "mnist_tiny")
+mnist_path = os.path.join(os.path.dirname(__file__), "mnist_tiny")
+if not os.path.exists(mnist_path):
+    tf = tarfile.open(mnist_path + ".tgz")
+    tf.extractall(os.path.dirname(__file__))
 
 
 @pytest.fixture
@@ -27,26 +27,26 @@ def mnist_data(scope='module'):
 
 @pytest.fixture
 def dummy_model_no_callback(mnist_data):
-    learn = cnn_learner(mnist_data, models.squeezenet1_1, metrics=[accuracy])
+    learn=cnn_learner(mnist_data, models.squeezenet1_1, metrics=[accuracy])
     return learn
 
 
 @pytest.fixture
 def dummy_model_with_callback(mnist_data):
-    learn = cnn_learner(mnist_data,
-                        models.squeezenet1_1,
-                        metrics=[accuracy],
-                        callback_fns=WandbCallback)
+    learn=cnn_learner(mnist_data,
+                      models.squeezenet1_1,
+                      metrics=[accuracy],
+                      callback_fns=WandbCallback)
     return learn
 
 
 @pytest.fixture
 def dummy_model_with_callback_images(mnist_data):
-    learn = cnn_learner(mnist_data,
-                        models.squeezenet1_1,
-                        metrics=[accuracy],
-                        callback_fns=partial(WandbCallback,
-                                             input_type='images'))
+    learn=cnn_learner(mnist_data,
+                      models.squeezenet1_1,
+                      metrics=[accuracy],
+                      callback_fns=partial(WandbCallback,
+                                           input_type='images'))
     return learn
 
 

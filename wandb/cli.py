@@ -494,12 +494,10 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
         if not browser:
             return None
         launched = webbrowser.open_new_tab('{}/authorize?{}'.format(api.app_url, server.qs()))
-        if not launched:
-            return None
-
-        server.start(blocking=True)
-        if server.result.get("key"):
-            return server.result["key"][0]
+        #Getting rid of the server for now.  We would need to catch Abort from server.stop and deal accordingly
+        #server.start(blocking=False)
+        #if server.result.get("key"):
+        #    return server.result["key"][0]
         return None
 
     if key:
