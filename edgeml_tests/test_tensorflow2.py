@@ -106,7 +106,7 @@ def test_tensorboard_basic(wandb_init_run, model):
     assert wandb_init_run.history.rows[-2]['validation/epoch_loss']
     # TODO: will change to 2 event files in V2 callback
     assert len(wandb_init_run.run_manager._user_file_policies['live']) == 2
-    assert len(glob.glob(wandb_init_run.dir + "/train/*.tfevents.*")) == 2
+    assert len(glob.glob(wandb_init_run.dir + "/train/*.tfevents.*")) == 1
     assert len(glob.glob(wandb_init_run.dir + "/validation/*.tfevents.*")) == 1
 
 
@@ -200,4 +200,4 @@ def test_tfkeras_tf_dataset(wandb_init_run, image_model):
                     validation_data=dataset.batch(5).repeat(), validation_steps=2, callbacks=[WandbCallback(data_type="image")])
     print("WHOA", wandb_init_run.history.rows[0])
     assert wandb_init_run.history.rows[0]["examples"] == {
-        'width': 28, 'height': 28, 'count': 5, '_type': 'images', 'captions': [1, 1, 1, 1, 1]}
+        'width': 28, 'height': 28, 'count': 5, '_type': 'images', 'format': 'png', 'captions': [1, 1, 1, 1, 1]}
