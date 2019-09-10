@@ -13,6 +13,7 @@ these values in many cases.
 import os
 import sys
 import json
+from distutils.util import strtobool
 
 CONFIG_PATHS = 'WANDB_CONFIG_PATHS'
 SHOW_RUN = 'WANDB_SHOW_RUN'
@@ -64,15 +65,23 @@ def immutable_keys():
             ANONYMOUS]
 
 
-def is_debug(default=None, env=None):
+def _env_as_bool(var, default=None, env=None):
     if env is None:
         env = os.environ
+    val = env.get(var, default)
+    try:
+        val = bool(strtobool(val))
+    except (AttributeError, ValueError):
+        pass
+    return val if isinstance(val, bool) else False
 
-    return bool(env.get(DEBUG, default))
+
+def is_debug(default=None, env=None):
+    return _env_as_bool(DEBUG, default=default, env=env)
 
 
 def error_reporting_enabled():
-    return bool(get_error_reporting())
+    return _env_as_bool(ERROR_REPORTING, default=True)
 
 
 def get_error_reporting(default=True, env=None):
