@@ -148,6 +148,6 @@ class Run(object):
             state = "no_agent"
         elif self.run._jupyter_agent.paused:
             state = "paused"
-        url = self.run.get_url() + "?jupyter=true&state=" + state
+        url = self.run.get_url(params={'jupyter': 'true', 'state': state})
         return '''<iframe src="%s" style="border:none;width:100%%;height:420px">
         </iframe>''' % url

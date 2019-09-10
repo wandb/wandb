@@ -2,6 +2,7 @@
 import pytest
 import datetime
 import os
+import collections
 import sys
 import json
 from .utils import git_repo
@@ -37,6 +38,19 @@ def test_url_escape(git_repo):
     environ[env.RUN_ID] = "my wild run"
     run = wandb_run.Run.from_environment_or_defaults(environ)
     assert run.get_url() == 'https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run'
+
+
+def test_url_escape_query_string(git_repo):
+    environ = dict(os.environ)
+    environ[env.ENTITY] = "†est"
+    environ[env.PROJECT] = "wild projo"
+    environ[env.API_KEY] = "abcdefghijabcdefghijabcdefghijabcdefghij"
+    environ[env.RUN_ID] = "my wild run"
+    run = wandb_run.Run.from_environment_or_defaults(environ)
+    assert run.get_url(params=collections.OrderedDict([
+        ('first', 'abc123'),
+        ('second', ' '),
+    ])) == 'https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run?first=abc123&second=+'
 
 
 def test_wandb_run_args_sys(git_repo, mocker):
