@@ -707,7 +707,9 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         environ[env.CONFIG_PATHS] = configs
     if show:
         environ[env.SHOW_RUN] = 'True'
-    util.prompt_api_key(run.api)
+
+    if not run.api.api_key:
+        util.prompt_api_key(run.api)
 
     try:
         rm = run_manager.RunManager(run)
