@@ -784,6 +784,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         force (bool, optional): Force authentication with wandb, defaults to False
         magic (bool, dict, or str, optional): magic configuration as bool, dict, json string,
             yaml filename
+        anonymous (str, optional): Can be "allow", "must", or "never". Controls whether anonymous logging is allowed.
+            Defaults to never.
 
     Returns:
         A wandb.run object for metric and config logging.
@@ -880,8 +882,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
-    if anonymous:
+    if anonymous is not None:
         os.environ[env.ANONYMOUS] = anonymous
+    if os.environ.get(env.ANONYMOUS, "never") not in ["allow", "must", "never"]:
+        raise LaunchError("anonymous must be set to 'allow', 'must', or 'never'")
 
     resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
     if resume == True:
