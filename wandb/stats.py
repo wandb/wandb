@@ -14,12 +14,12 @@ class SystemStats(object):
         try:
             nvmlInit()
             if "CUDA_VISIBLE_DEVICES" in os.environ:
-                cuda_visible_devices = os.environ['CUDA_VISIBLE_DEVICES']
-                self.visible_devices = [int(i) for i in cuda_visible_devices.split(',')]
-                self.gpu_count = len(self.visible_devices)
+                gpus = os.environ['CUDA_VISIBLE_DEVICES']
+                self.gpus = [int(i) for i in gpus.split(',') if i != '-1']
+                self.gpu_count = len(self.gpus)
             else:
                 self.gpu_count = nvmlDeviceGetCount()
-                self.visible_devices = list(range(self.gpu_count))
+                self.gpus = list(range(self.gpu_count))
         except NVMLError as err:
             self.gpu_count = 0
         self.run = run
@@ -97,7 +97,7 @@ class SystemStats(object):
 
     def stats(self):
         stats = {}
-        for i in self.visible_devices:
+        for i in self.gpus:
             handle = nvmlDeviceGetHandleByIndex(i)
             try:
                 util = nvmlDeviceGetUtilizationRates(handle)
