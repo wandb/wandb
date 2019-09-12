@@ -694,6 +694,17 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
     config = Config(config_paths=config_paths,
                     wandb_dir=dir or wandb.wandb_dir())
     tags = [tag for tag in tags.split(",") if tag] if tags else None
+
+    # populate run parameters from env if not specified
+    id = id or os.environ.get(env.RUN_ID)
+    message = message or os.environ.get(env.DESCRIPTION)
+    tags = tags or env.get_tags()
+    run_group = run_group or os.environ.get(env.RUN_GROUP)
+    job_type = job_type or os.environ.get(env.JOB_TYPE)
+    name = name or os.environ.get(env.NAME)
+    notes = notes or os.environ.get(env.NOTES)
+    resume = resume or os.environ.get(env.RESUME)
+
     run = wandb_run.Run(run_id=id, mode='clirun',
                         config=config, description=message,
                         program=program, tags=tags,

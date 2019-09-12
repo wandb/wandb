@@ -6,6 +6,7 @@ import sys
 import six
 import types
 import yaml
+import platform
 
 import wandb
 from wandb import env
@@ -45,6 +46,7 @@ class Config(object):
         for conf_path in config_paths:
             self._load_file(conf_path)
         self._set_wandb('cli_version', wandb.__version__)
+        self._set_wandb('python_version', platform.python_version())
         self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
 
         # Do this after defaults because it triggers loading of pre-existing
