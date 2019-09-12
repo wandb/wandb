@@ -1,6 +1,9 @@
 import collections
 import os
-from pynvml import *
+try:
+    from pynvml import *
+except Exception:
+    pass
 import time
 from numbers import Number
 import threading
@@ -14,7 +17,7 @@ class SystemStats(object):
         try:
             nvmlInit()
             self.gpu_count = nvmlDeviceGetCount()
-        except NVMLError as err:
+        except Exception:
             self.gpu_count = 0
         self.run = run
         self._api = api
@@ -91,6 +94,7 @@ class SystemStats(object):
 
     def stats(self):
         stats = {}
+        # if pynvml import failed, self.gpu_count is 0
         for i in range(0, self.gpu_count):
             handle = nvmlDeviceGetHandleByIndex(i)
             try:

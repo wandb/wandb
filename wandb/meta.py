@@ -3,7 +3,10 @@ import os
 import sys
 import platform
 import multiprocessing
-import pynvml
+try:
+    import pynvml
+except Exception:
+    pass
 import threading
 import time
 import socket
@@ -106,7 +109,7 @@ class Meta(object):
             self.data["gpu"] = pynvml.nvmlDeviceGetName(
                 pynvml.nvmlDeviceGetHandleByIndex(0)).decode("utf8")
             self.data["gpu_count"] = pynvml.nvmlDeviceGetCount()
-        except pynvml.NVMLError:
+        except Exception:
             pass
         try:
             self.data["cpu_count"] = multiprocessing.cpu_count()
