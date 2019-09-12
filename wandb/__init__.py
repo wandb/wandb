@@ -986,10 +986,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     run.config.set_run_dir(run.dir)
 
     if sagemaker_config:
-        run.config._update(sagemaker_config)
+        run.config.update(sagemaker_config)
         allow_val_change = True
     if config:
-        run.config._update(config, allow_val_change=allow_val_change, as_defaults=not allow_val_change)
+        run.config.update(config, allow_val_change=allow_val_change)
 
     # Access history to ensure resumed is set when resuming
     run.history
