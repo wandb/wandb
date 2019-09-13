@@ -260,10 +260,10 @@ class Config(object):
         self._update(params, as_defaults=True)
         return dict(self)
 
-    def setdefault(key, default=None):
-        key, val = self._sanitize(key, val, allow_val_change=True)
+    def setdefault(self, key, default=None):
+        key, val = self._sanitize(key, default, allow_val_change=True)
         if key in self._items:
-            return self._item[key]
+            return self._items[key]
         self._items[key] = val
         self.persist()
         return val
