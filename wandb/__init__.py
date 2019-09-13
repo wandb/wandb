@@ -790,7 +790,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     Returns:
         A wandb.run object for metric and config logging.
     """
-    trigger.call('on_init', **locals())
+    init_args = locals()
+    trigger.call('on_init', **init_args)
     global run
     global __stage_dir__
 
@@ -878,7 +879,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         else:
             termwarn("wandb.init called with invalid magic parameter type", repeat=False)
         from wandb import magic_impl
-        magic_impl.magic_install()
+        magic_impl.magic_install(init_args=init_args)
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())

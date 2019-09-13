@@ -106,8 +106,8 @@ def test_tensorboard_basic(wandb_init_run, model):
     assert wandb_init_run.history.rows[-2]['validation/epoch_loss']
     # TODO: will change to 2 event files in V2 callback
     assert len(wandb_init_run.run_manager._user_file_policies['live']) == 2
-    assert len(glob.glob(wandb_init_run.dir + "/train/*.tfevents.*")) == 1
-    assert len(glob.glob(wandb_init_run.dir + "/validation/*.tfevents.*")) == 1
+    assert len(glob.glob(wandb_init_run.dir + "/train/*.tfevents.*")) == 2
+    assert len(glob.glob(wandb_init_run.dir + "/validation/*.tfevents.*")) == 1  # TODO: what's going on here...
 
 
 @pytest.mark.mocked_run_manager()
