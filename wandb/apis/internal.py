@@ -129,6 +129,7 @@ class Api(object):
         try:
             env = env or os.environ
             run.config._set_wandb("spell_url", env.get("SPELL_RUN_URL"))
+            run.config.persist()
             return requests.put(env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url", json={
                 "access_token": env.get("WANDB_ACCESS_TOKEN"),
                 "url": run.get_url()
