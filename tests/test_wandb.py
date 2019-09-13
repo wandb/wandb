@@ -169,10 +169,8 @@ def test_login_no_key(local_netrc, mocker):
     stdin_mock.return_value = True
     stdout_mock = mocker.patch("wandb.util.sys.stdout.isatty")
     stdout_mock.return_value = True
-    whaaaaat = mocker.MagicMock()
-    whaaaaat.prompt.return_value = {"mode": 'Use an existing wandb.ai account'}
-    imp = mocker.patch("wandb.util.vendor_import")
-    imp.return_value = whaaaaat
+    inp = mocker.patch("wandb.util.six.moves.input")
+    inp.return_value = "2"
     getpass = mocker.patch("wandb.util.getpass.getpass")
     getpass.return_value = "C" * 40
 

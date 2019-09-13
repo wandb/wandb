@@ -6,6 +6,7 @@ import sys
 import six
 import types
 import yaml
+import platform
 
 import wandb
 from wandb import env
@@ -45,6 +46,7 @@ class Config(object):
         for conf_path in config_paths:
             self._load_file(conf_path)
         self._set_wandb('cli_version', wandb.__version__)
+        self._set_wandb('python_version', platform.python_version())
         self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
 
         # Do this after defaults because it triggers loading of pre-existing
@@ -266,5 +268,6 @@ class Config(object):
         s = b"wandb_version: 1"
         as_dict = self.as_dict()
         if as_dict:  # adding an empty dictionary here causes a parse error
-            s += b'\n\n' + yaml.dump(as_dict, Dumper=yaml.SafeDumper, default_flow_style=False, allow_unicode=True, encoding='utf-8')
+            s += b'\n\n' + yaml.dump(as_dict, Dumper=yaml.SafeDumper, default_flow_style=False,
+                                     allow_unicode=True, encoding='utf-8')
         return s.decode("utf-8")

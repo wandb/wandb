@@ -167,9 +167,9 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
             orig_rm = wandb.run_manager.RunManager
             mock = mocker.patch('wandb.run_manager.RunManager')
 
-            def fake_init(run, port=None, output=None):
+            def fake_init(run, port=None, output=None, cloud=True):
                 print("Initialized fake run manager")
-                rm = fake_run_manager(mocker, run, rm_class=orig_rm)
+                rm = fake_run_manager(mocker, run, cloud=cloud, rm_class=orig_rm)
                 rm._block_file_observer()
                 run.run_manager = rm
                 return rm
@@ -298,7 +298,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
         assert vars(wandb) == orig_namespace
 
 
-def fake_run_manager(mocker, run=None, rm_class=wandb.run_manager.RunManager):
+def fake_run_manager(mocker, run=None, cloud=True, rm_class=wandb.run_manager.RunManager):
     # NOTE: This will create a run directory so make sure it's called in an isolated file system
     # We have an optional rm_class object because we mock it above so we need it before it's mocked
     api = InternalApi(load_settings=False)
@@ -313,7 +313,7 @@ def fake_run_manager(mocker, run=None, rm_class=wandb.run_manager.RunManager):
     api.set_current_run_id(wandb.run.id)
     mocker.patch('wandb.apis.internal.FileStreamApi')
     api._file_stream_api = mocker.MagicMock()
-    run_manager = rm_class(wandb.run, port=wandb.run.socket.port)
+    run_manager = rm_class(wandb.run, cloud=cloud, port=wandb.run.socket.port)
 
     class FakeProc(object):
         def poll(self):

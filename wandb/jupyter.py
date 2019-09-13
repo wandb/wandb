@@ -119,7 +119,7 @@ class JupyterAgent(object):
 
     def start(self):
         if self.paused:
-            self.rm = RunManager(wandb.run, output=False)
+            self.rm = RunManager(wandb.run, output=False, cloud=wandb.run.mode != "dryrun")
             wandb.run.api._file_stream_api = None
             self.rm.mirror_stdout_stderr()
             self.paused = False
@@ -148,6 +148,6 @@ class Run(object):
             state = "no_agent"
         elif self.run._jupyter_agent.paused:
             state = "paused"
-        url = self.run.get_url() + "?jupyter=true&state=" + state
+        url = self.run.get_url(params={'jupyter': 'true', 'state': state})
         return '''<iframe src="%s" style="border:none;width:100%%;height:420px">
         </iframe>''' % url

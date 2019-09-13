@@ -486,7 +486,7 @@ def _magic_init(**kwargs):
         wandb.termwarn("wandb.init() arguments ignored because wandb magic has already been initialized", repeat=False)
 
 
-def magic_install():
+def magic_install(init_args=None):
     global _run_once
     if _run_once:
         return
@@ -518,7 +518,9 @@ def magic_install():
     trigger.register('on_init', _magic_init)
 
     # if wandb.init has already been called, this call is ignored
-    wandb.init(magic=True)
+    init_args = init_args or {}
+    init_args['magic'] = True
+    wandb.init(**init_args)
 
     # parse magic from wandb.config (from flattened to dict)
     magic_from_config = {}

@@ -333,8 +333,11 @@ def _jupyter_login(force=True, api=None):
             key = api.create_anonymous_api_key()
             anonymous = True
         if not key and force:
-            termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
-            key = getpass.getpass("API Key: ").strip()
+            try:
+                termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
+                key = getpass.getpass("API Key: ").strip()
+            except NotImplementedError:
+                termerror("Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
         return key, anonymous
 
     api = api or (run.api if run else None)
@@ -357,18 +360,27 @@ def _init_jupyter(run):
     os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
-        _jupyter_login()
+        key = _jupyter_login()
         # Ensure our api client picks up the new key
-        run.api.reauth()
+        if key:
+            run.api.reauth()
+        else:
+            run.mode = "dryrun"
     run.resume = "allow"
-    display(HTML('''
-        Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
-        in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-    '''.format(run.get_url())))
-    try:
-        run.save()
-    except (CommError, ValueError) as e:
-        termerror(str(e))
+    if run.mode == "dryrun":
+        display(HTML('''
+            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>.  Results will not be sent to the cloud.  
+            Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
+        '''.format(run.api.app_url)))
+    else:
+        display(HTML('''
+            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
+            in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
+        '''.format(run.get_url())))
+        try:
+            run.save()
+        except (CommError, ValueError) as e:
+            termerror(str(e))
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
@@ -771,11 +783,14 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         force (bool, optional): Force authentication with wandb, defaults to False
         magic (bool, dict, or str, optional): magic configuration as bool, dict, json string,
             yaml filename
+        anonymous (str, optional): Can be "allow", "must", or "never". Controls whether anonymous logging is allowed.
+            Defaults to never.
 
     Returns:
         A wandb.run object for metric and config logging.
     """
-    trigger.call('on_init', **locals())
+    init_args = locals()
+    trigger.call('on_init', **init_args)
     global run
     global __stage_dir__
 
@@ -863,12 +878,14 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         else:
             termwarn("wandb.init called with invalid magic parameter type", repeat=False)
         from wandb import magic_impl
-        magic_impl.magic_install()
+        magic_impl.magic_install(init_args=init_args)
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
-    if anonymous:
+    if anonymous is not None:
         os.environ[env.ANONYMOUS] = anonymous
+    if os.environ.get(env.ANONYMOUS, "never") not in ["allow", "must", "never"]:
+        raise LaunchError("anonymous must be set to 'allow', 'must', or 'never'")
 
     resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
     if resume == True:

@@ -24,6 +24,13 @@ from wandb.apis import normalize_exceptions
 
 logger = logging.getLogger(__name__)
 
+PROJECT_FRAGMENT = '''fragment ProjectFragment on Project {
+    id
+    name
+    createdAt
+    isBenchmark
+}'''
+
 RUN_FRAGMENT = '''fragment RunFragment on Run {
     id
     tags
@@ -101,6 +108,7 @@ class Api(object):
         if 'username' in overrides and 'entity' not in overrides:
             wandb.termwarn('Passing "username" to Api is deprecated. please use "entity" instead.')
             self.settings['entity'] = overrides['username']
+        self._projects = {}
         self._runs = {}
         self._sweeps = {}
         self._base_client = Client(
@@ -169,6 +177,16 @@ class Api(object):
         else:
             project = parts[0]
         return (entity, project, run)
+
+    def projects(self, entity=None, per_page=None):
+        """Return a list of projects for a given entity."""
+        if entity is None:
+            entity = self.settings['entity']
+            if entity is None:
+                raise ValueError('entity must be passed as a parameter, or set in settings')
+        if entity not in self._projects:
+            self._projects[entity] = Projects(self.client, entity, per_page=per_page)
+        return self._projects[entity]
 
     def runs(self, path="", filters={}, order="-created_at", per_page=None):
         """Return a set of runs from a project that match the filters provided.
@@ -244,6 +262,8 @@ class Paginator(object):
     def __len__(self):
         if self.length is None:
             self._load_page()
+        if self.length is None:
+            raise ValueError('Object doesn\'t provide length')
         return self.length
 
     @property
@@ -294,6 +314,65 @@ class Paginator(object):
 class User(Attrs):
     def init(self, attrs):
         super(User, self).__init__(attrs)
+
+class Projects(Paginator):
+    QUERY = gql('''
+        query Projects($entity: String, $cursor: String, $perPage: Int = 50) {
+            models(entityName: $entity, after: $cursor, first: $perPage) {
+                edges {
+                    node {
+                        ...ProjectFragment
+                    }
+                    cursor
+                }
+                pageInfo {
+                    endCursor
+                    hasNextPage
+                }
+            }
+        }
+        %s
+        ''' % PROJECT_FRAGMENT)
+
+    def __init__(self, client, entity, per_page=50):
+        self.entity = entity
+        variables = {
+            'entity': self.entity,
+        }
+        super(Projects, self).__init__(client, variables, per_page)
+
+    @property
+    def length(self):
+        return None
+
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response['models']['pageInfo']['hasNextPage']
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response['models']['edges'][-1]['cursor']
+        else:
+            return None
+
+    def convert_objects(self):
+        return [Project(self.entity, p["node"]["name"], p["node"])
+                for p in self.last_response['models']['edges']]
+
+    def __repr__(self):
+        return "<Projects {}>".format(self.entity)
+
+class Project(Attrs):
+    def __init__(self, entity, project, attrs):
+        super(Project, self).__init__(dict(attrs))
+        self.entity = entity
+
+    def __repr__(self):
+        return "<Project {}/{}>".format(self.entity, self.name)
 
 
 class Runs(Paginator):

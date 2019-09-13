@@ -494,12 +494,10 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
         if not browser:
             return None
         launched = webbrowser.open_new_tab('{}/authorize?{}'.format(api.app_url, server.qs()))
-        if not launched:
-            return None
-
-        server.start(blocking=True)
-        if server.result.get("key"):
-            return server.result["key"][0]
+        #Getting rid of the server for now.  We would need to catch Abort from server.stop and deal accordingly
+        #server.start(blocking=False)
+        #if server.result.get("key"):
+        #    return server.result["key"][0]
         return None
 
     if key:
@@ -696,6 +694,17 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
     config = Config(config_paths=config_paths,
                     wandb_dir=dir or wandb.wandb_dir())
     tags = [tag for tag in tags.split(",") if tag] if tags else None
+
+    # populate run parameters from env if not specified
+    id = id or os.environ.get(env.RUN_ID)
+    message = message or os.environ.get(env.DESCRIPTION)
+    tags = tags or env.get_tags()
+    run_group = run_group or os.environ.get(env.RUN_GROUP)
+    job_type = job_type or os.environ.get(env.JOB_TYPE)
+    name = name or os.environ.get(env.NAME)
+    notes = notes or os.environ.get(env.NOTES)
+    resume = resume or os.environ.get(env.RESUME)
+
     run = wandb_run.Run(run_id=id, mode='clirun',
                         config=config, description=message,
                         program=program, tags=tags,
@@ -709,7 +718,9 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         environ[env.CONFIG_PATHS] = configs
     if show:
         environ[env.SHOW_RUN] = 'True'
-    util.prompt_api_key(run.api)
+
+    if not run.api.api_key:
+        util.prompt_api_key(run.api)
 
     try:
         rm = run_manager.RunManager(run)

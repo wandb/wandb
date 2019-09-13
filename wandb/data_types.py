@@ -1171,6 +1171,7 @@ class Image(BatchableMedia):
     def to_json(self, run):
         json_dict = super(Image, self).to_json(run)
         json_dict['_type'] = 'image-file'
+        json_dict['format'] = "png"
 
         if self._width is not None:
             json_dict['width'] = self._width
@@ -1252,7 +1253,7 @@ class Image(BatchableMedia):
         # fname may contain a slash so we create the directory
         util.mkdir_exists_ok(os.path.dirname(os.path.join(base, fname)))
         sprite.save(os.path.join(base, fname), transparency=None)
-        meta = {"width": width, "height": height,
+        meta = {"width": width, "height": height, "format": "png",
                 "count": num_images_to_log, "_type": "images"}
         # TODO: hacky way to enable image grouping for now
         grouping = images[0]._grouping

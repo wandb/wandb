@@ -20,6 +20,7 @@ requirements = [
     'sentry-sdk>=0.4.0',
     'subprocess32>=3.5.3',
     'docker-pycreds>=0.4.0',
+    'configparser>=3.8.1',
     # Removed until we bring back the board
     # 'flask-cors>=3.0.3',
     # 'flask-graphql>=1.4.0',

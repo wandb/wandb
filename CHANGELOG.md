@@ -1,4 +1,4 @@
-## 0.8.10 (Sep 5, 2019)
+## 0.8.10 (Sep 13, 2019)
 
 #### :bug: Bug Fix
 
@@ -10,6 +10,7 @@
 -   file upload batching now asserts a minimum size
 -   sweeps works in python2 again
 -   scan_history now iterates the full set of points
+-   jupyter will run local mode if credentials can't be obtained
 
 #### :nail_care: Enhancement
 
@@ -25,6 +26,7 @@
 -   Better dependency error messages for data frames
 -   Initial integration with spell.run
 -   All images are now rendered as PNG to avoid JPEG artifacts
+-   Public api now has a projects field
 
 ## 0.8.9 (Aug 19, 2019)
 
