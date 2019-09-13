@@ -772,10 +772,10 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         sys.exit(1)
     rm.run_user_process(program, args, environ)
 
-@cli.command(context_settings=RUN_CONTEXT, name="docker-run")
+@cli.command(context_settings=RUN_CONTEXT, name="docker-run",)
 @click.pass_context
 @click.argument('docker_run_args', nargs=-1)
-@click.option('--help', is_flag=True, defualt=False, help='Show docker run helper.')
+@click.option('--help', is_flag=True, default=False, help='Wrap docker run with W&B api key.')
 def docker_run(ctx, docker_run_args, help):
     """Simple docker wrapper that adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
     This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
