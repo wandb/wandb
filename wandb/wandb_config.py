@@ -50,12 +50,12 @@ class Config(object):
         self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
 
         # Detect frameworks
-        #fastai
+        _fastai = sys.modules.get('fastai')
         _torch = sys.modules.get('torch')
         _keras = sys.modules.get('keras')
         _tfkeras = sys.modules.get('tensorflow.python.keras')
         _tensorflow = sys.modules.get('tensorflow')
-        framework = 'torch' if _torch else 'keras' if _keras else 'tfkeras' if _tfkeras else 'tensorflow' if _tensorflow else None
+        framework = 'fastai' if _fastai else 'torch' if _torch else 'keras' if _keras else 'tfkeras' if _tfkeras else 'tensorflow' if _tensorflow else None
         if framework:
             self._set_wandb('framework', framework)
 
