@@ -201,7 +201,7 @@ class Run(object):
                 "wandb.init hasn't been called, can't configure run")
 
     @classmethod
-    def from_environment_or_defaults(cls, environment=None):
+    def from_environment_or_defaults(cls, environment=None, disable_persist=False):
         """Create a Run object taking values from the local environment where possible.
 
         The run ID comes from WANDB_RUN_ID or is randomly generated.
@@ -240,7 +240,8 @@ class Run(object):
         wandb_dir = env.get_dir(env=environment)
         tags = env.get_tags(env=environment)
         # TODO(adrian): should pass environment into here as well.
-        config = Config.from_environment_or_defaults()
+        # Do not persist config file when run by internal_cli to avoid racing with main thread
+        config = Config.from_environment_or_defaults(disable_persist=disable_persist)
         run = cls(run_id, mode, run_dir,
                   group, job_type, config,
                   sweep_id, storage_id, program=program, description=description,

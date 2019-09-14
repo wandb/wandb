@@ -33,13 +33,14 @@ def boolify(s):
 class Config(object):
     """Creates a W&B config object."""
 
-    def __init__(self, config_paths=[], wandb_dir=None, run_dir=None):
+    def __init__(self, config_paths=[], wandb_dir=None, run_dir=None, disable_persist=False):
         object.__setattr__(self, '_wandb_dir', wandb_dir)
 
         # OrderedDict to make writing unit tests easier. (predictable order for
         # .key())
         object.__setattr__(self, '_items', OrderedDict())
         object.__setattr__(self, '_descriptions', {})
+        object.__setattr__(self, '_disable_persist', disable_persist)
 
         self._load_defaults()
         self._load_wandb()
@@ -63,15 +64,16 @@ class Config(object):
         # config.yaml (if it exists)
         self.set_run_dir(run_dir)
 
-        self.persist()
+        if not disable_persist:
+            self.persist()
 
     @classmethod
-    def from_environment_or_defaults(cls):
+    def from_environment_or_defaults(cls, disable_persist=False):
         conf_paths = os.environ.get(env.CONFIG_PATHS, [])
         run_dir = os.environ.get(env.RUN_DIR)
         if conf_paths:
             conf_paths = conf_paths.split(',')
-        return Config(config_paths=conf_paths, wandb_dir=wandb.wandb_dir(), run_dir=run_dir)
+        return Config(config_paths=conf_paths, wandb_dir=wandb.wandb_dir(), run_dir=run_dir, disable_persist=disable_persist)
 
     def _load_wandb(self):
         # We load docker into the config from the env
@@ -169,6 +171,11 @@ class Config(object):
 
     def persist(self):
         """Stores the current configuration for pushing to W&B"""
+        if self._disable_persist:
+            logger.error('attempted to persist config file when not allowed')
+            #import traceback
+            #traceback.print_stack()
+            return
         # In dryrun mode, without wandb run, we don't
         # save config  on initial load, because the run directory
         # may not be created yet (because we don't know if we're

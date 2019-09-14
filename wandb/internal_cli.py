@@ -32,7 +32,7 @@ def headless(args):
     stderr_master_fd = args['stderr_master_fd']
 
     try:
-        run = wandb.wandb_run.Run.from_environment_or_defaults()
+        run = wandb.wandb_run.Run.from_environment_or_defaults(disable_persist=True)
         run.enable_logging()
         # Clear inited for the wandb process
         del os.environ[env.INITED]
