@@ -49,6 +49,16 @@ class Config(object):
         self._set_wandb('python_version', platform.python_version())
         self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
 
+        # Detect frameworks
+        #fastai
+        _torch = sys.modules.get('torch')
+        _keras = sys.modules.get('keras')
+        _tfkeras = sys.modules.get('tensorflow.python.keras')
+        _tensorflow = sys.modules.get('tensorflow')
+        framework = 'torch' if _torch else 'keras' if _keras else 'tfkeras' if _tfkeras else 'tensorflow' if _tensorflow else None
+        if framework:
+            self._set_wandb('framework', framework)
+
         # Do this after defaults because it triggers loading of pre-existing
         # config.yaml (if it exists)
         self.set_run_dir(run_dir)
