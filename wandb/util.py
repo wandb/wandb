@@ -790,6 +790,8 @@ def set_api_key(api, key, anonymous=False):
     if not key:
         return
 
+    # Normal API keys are 40-character hex strings. Onprem API keys have a
+    # variable-length prefix, a dash, then the 40-char string.
     prefix, suffix = key.split('-') if '-' in key else ('', key)
 
     if len(suffix) == 40:
