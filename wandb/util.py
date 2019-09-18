@@ -805,22 +805,30 @@ def set_api_key(api, key, anonymous=False):
 def isatty(ob):
     return hasattr(ob, "isatty") and ob.isatty()
 
-def prompt_api_key(api, browser_callback=None):
-    anonymode = 'Private wandb.ai dashboard, no account required'
-    create_account = 'Create a wandb.ai account'
-    existing_account = 'Use an existing wandb.ai account'
-    dryrun = "Don't visualize my results"
 
-    choices = [anonymode, create_account, existing_account, dryrun]
+LOGIN_CHOICE_ANON = 'Private W&B dashboard, no account required'
+LOGIN_CHOICE_NEW = 'Create a W&B account'
+LOGIN_CHOICE_EXISTS = 'Use an existing W&B account'
+LOGIN_CHOICE_DRYRUN = "Don't visualize my results"
+LOGIN_CHOICES = [
+    LOGIN_CHOICE_ANON,
+    LOGIN_CHOICE_NEW,
+    LOGIN_CHOICE_EXISTS,
+    LOGIN_CHOICE_DRYRUN
+]
+
+
+def prompt_api_key(api, browser_callback=None):
+    choices = LOGIN_CHOICES
     if os.environ.get(env.ANONYMOUS, "never") == "never":
-        # Omit anonymode as a choice if the env var is set to never
+        # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
         choices = choices[1:]
 
     if os.environ.get(env.ANONYMOUS) == "must":
-        result = anonymode
+        result = LOGIN_CHOICE_ANON
     # If we're not in an interactive environment, default to dry-run.
     elif not isatty(sys.stdout) or not isatty(sys.stdin):
-        result = dryrun
+        result = LOGIN_CHOICE_DRYRUN
     else:
         for i, choice in enumerate(choices):
             wandb.termlog("(%i) %s" % (i + 1, choice))
@@ -837,12 +845,12 @@ def prompt_api_key(api, browser_callback=None):
         result = choices[idx]
         wandb.termlog("You chose %s" % result)
 
-    if result == anonymode:
+    if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
 
         set_api_key(api, key, anonymous=True)
         return key
-    elif result == create_account:
+    elif result == LOGIN_CHOICE_NEW:
         key = browser_callback() if browser_callback else None
 
         if not key:
@@ -852,7 +860,7 @@ def prompt_api_key(api, browser_callback=None):
             
         set_api_key(api, key)
         return key
-    elif result == existing_account:
+    elif result == LOGIN_CHOICE_EXISTS:
         key = browser_callback() if browser_callback else None
 
         if not key:
