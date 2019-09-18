@@ -806,16 +806,14 @@ def isatty(ob):
     return hasattr(ob, "isatty") and ob.isatty()
 
 
-LOGIN_CHOICE_ANON = 'Private wandb.ai dashboard, no account required'
-LOGIN_CHOICE_NEW = 'Create a wandb.ai account'
-LOGIN_CHOICE_EXISTS = 'Use an existing wandb.ai account'
-LOGIN_CHOICE_ONPREM = 'Use an on-premises W&B environment'
+LOGIN_CHOICE_ANON = 'Private W&B dashboard, no account required'
+LOGIN_CHOICE_NEW = 'Create a W&B account'
+LOGIN_CHOICE_EXISTS = 'Use an existing W&B account'
 LOGIN_CHOICE_DRYRUN = "Don't visualize my results"
 LOGIN_CHOICES = [
     LOGIN_CHOICE_ANON,
     LOGIN_CHOICE_NEW,
     LOGIN_CHOICE_EXISTS,
-    LOGIN_CHOICE_ONPREM,
     LOGIN_CHOICE_DRYRUN
 ]
 
@@ -862,7 +860,7 @@ def prompt_api_key(api, browser_callback=None):
             
         set_api_key(api, key)
         return key
-    elif result == LOGIN_CHOICE_EXISTS or result == LOGIN_CHOICE_ONPREM:
+    elif result == LOGIN_CHOICE_EXISTS:
         key = browser_callback() if browser_callback else None
 
         if not key:
