@@ -790,9 +790,11 @@ def set_api_key(api, key, anonymous=False):
     if not key:
         return
 
-    prefix, key = key.split('-') if '-' in key else ('', key)
+    # Normal API keys are 40-character hex strings. Onprem API keys have a
+    # variable-length prefix, a dash, then the 40-char string.
+    prefix, suffix = key.split('-') if '-' in key else ('', key)
 
-    if len(key) == 40:
+    if len(suffix) == 40:
         os.environ[env.API_KEY] = key
         api.set_setting('anonymous', str(anonymous).lower(), globally=True)
         write_netrc(api.api_url, "user", key)
