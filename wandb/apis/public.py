@@ -554,7 +554,7 @@ class Run(Attrs):
             self.user = User(self._attrs["user"])
         config = {}
         for key, value in six.iteritems(json.loads(self._attrs.get('config') or "{}")):
-            if isinstance(value, dict) and value.get("value"):
+            if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
             else:
                 config[key] = value
