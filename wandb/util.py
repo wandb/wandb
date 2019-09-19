@@ -818,7 +818,9 @@ LOGIN_CHOICES = [
 ]
 
 
-def prompt_api_key(api, browser_callback=None):
+def prompt_api_key(api, input_callback=None, browser_callback=None):
+    input_callback = input_callback or getpass.getpass
+
     choices = LOGIN_CHOICES
     if os.environ.get(env.ANONYMOUS, "never") == "never":
         # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
@@ -843,7 +845,7 @@ def prompt_api_key(api, browser_callback=None):
             if idx < 0 or idx > len(choices) - 1:
                 wandb.termwarn("Invalid choice")
         result = choices[idx]
-        wandb.termlog("You chose %s" % result)
+        wandb.termlog("You chose '%s'" % result)
 
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
@@ -855,8 +857,7 @@ def prompt_api_key(api, browser_callback=None):
 
         if not key:
             wandb.termlog('Create an account here: {}/login?signup=true'.format(api.app_url))
-            wandb.termlog('You can find you API key in your browser here: {}/authorize'.format(api.app_url))
-            key = getpass.getpass('%s: Paste an API key from your profile and hit enter: ' % wandb.core.LOG_STRING).strip()
+            key = input_callback('%s: Paste an API key from your profile and hit enter' % wandb.core.LOG_STRING).strip()
             
         set_api_key(api, key)
         return key
@@ -865,7 +866,7 @@ def prompt_api_key(api, browser_callback=None):
 
         if not key:
             wandb.termlog('You can find your API key in your browser here: {}/authorize'.format(api.app_url))
-            key = getpass.getpass('%s: Paste an API key from your profile and hit enter: ' % wandb.core.LOG_STRING).strip()
+            key = input_callback('%s: Paste an API key from your profile and hit enter' % wandb.core.LOG_STRING).strip()
         set_api_key(api, key)
         return key
     else:
