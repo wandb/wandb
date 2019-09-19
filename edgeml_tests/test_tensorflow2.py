@@ -122,7 +122,7 @@ def test_tensorboard_no_save(wandb_init_run, model):
     assert wandb_init_run.history.rows[0]["_step"] == 0
     assert wandb_init_run.history.rows[-1]["_step"] == 8
     print("WHAT", wandb_init_run.history.rows[-1])
-    assert wandb_init_run.history.rows[-1]['train/sequential/dense_1/kernel_0']
+    assert wandb_init_run.history.rows[-1]['train/sequential/dense_1/bias_0']
     assert len(wandb_init_run.run_manager._user_file_policies['live']) == 0
 
 
