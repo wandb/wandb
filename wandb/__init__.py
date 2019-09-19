@@ -319,7 +319,7 @@ def _jupyter_login(force=True, api=None):
 
     If force=False, we'll only attempt to auto-login, otherwise we'll prompt the user
     """
-    def get_api_key_from_browser():
+    def get_api_key_from_browser(signup=False):
         key, anonymous = None, False
         if 'google.colab' in sys.modules:
             key = jupyter.attempt_colab_login(api.app_url)
