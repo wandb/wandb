@@ -1,3 +1,14 @@
+## 0.8.11 (Sep 19, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix public api returning incorrect data when config value is 0 or False
+-   Resumed runs no longer overwrite run names with run id
+
+#### :nail_care: Enhancement
+
+-   Added recording of spell.run id in config
+
 ## 0.8.10 (Sep 13, 2019)
 
 #### :bug: Bug Fix
