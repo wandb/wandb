@@ -505,7 +505,7 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
     else:
         if anonymous:
             os.environ[env.ANONYMOUS] = "must"
-        key = util.prompt_api_key(api, browser_callback=get_api_key_from_browser)
+        key = util.prompt_api_key(api, input_callback=click.prompt, browser_callback=get_api_key_from_browser)
 
     if key:
         api.clear_setting('disabled')
@@ -720,7 +720,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         environ[env.SHOW_RUN] = 'True'
 
     if not run.api.api_key:
-        util.prompt_api_key(run.api)
+        util.prompt_api_key(run.api, input_callback=click.prompt)
 
     try:
         rm = run_manager.RunManager(run)
