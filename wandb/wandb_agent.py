@@ -9,9 +9,9 @@ import sys
 import traceback
 import time
 import signal
+import queue
 
 import six
-from six.moves import queue
 
 import wandb
 from wandb.apis import InternalApi
