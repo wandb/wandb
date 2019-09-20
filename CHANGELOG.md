@@ -1,3 +1,13 @@
+## 0.8.12 (Sep 20, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix compatibility issue with python 2.7 and old pip dependencies
+
+#### :nail_care: Enhancement
+
+-   Improved onboarding flow when creating new accounts and entering api_key
+
 ## 0.8.11 (Sep 19, 2019)
 
 #### :bug: Bug Fix
