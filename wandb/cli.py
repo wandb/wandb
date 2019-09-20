@@ -490,10 +490,11 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
     import webbrowser
     browser = util.launch_browser(browser)
 
-    def get_api_key_from_browser():
+    def get_api_key_from_browser(signup=False):
         if not browser:
             return None
-        launched = webbrowser.open_new_tab('{}/authorize?{}'.format(api.app_url, server.qs()))
+        query = '?signup=true' if signup else ''
+        webbrowser.open_new_tab('{}/authorize{}'.format(api.app_url, query))
         #Getting rid of the server for now.  We would need to catch Abort from server.stop and deal accordingly
         #server.start(blocking=False)
         #if server.result.get("key"):

@@ -853,10 +853,10 @@ def prompt_api_key(api, input_callback=None, browser_callback=None):
         set_api_key(api, key, anonymous=True)
         return key
     elif result == LOGIN_CHOICE_NEW:
-        key = browser_callback() if browser_callback else None
+        key = browser_callback(signup=True) if browser_callback else None
 
         if not key:
-            wandb.termlog('Create an account here: {}/login?signup=true'.format(api.app_url))
+            wandb.termlog('Create an account here: {}/authorize?signup=true'.format(api.app_url))
             key = input_callback('%s: Paste an API key from your profile and hit enter' % wandb.core.LOG_STRING).strip()
             
         set_api_key(api, key)
