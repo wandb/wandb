@@ -599,9 +599,11 @@ def _async_log_thread_target():
 
 def _ensure_async_log_thread_started():
     """Ensures our log consuming thread is started"""
-    global _async_log_thread
+    global _async_log_thread, _async_log_thread_shutdown_event, _async_log_thread_complete_event
 
     if _async_log_thread is None:
+        _async_log_thread_shutdown_event = threading.Event()
+        _async_log_thread_complete_event = threading.Event()
         _async_log_thread = threading.Thread(target=_async_log_thread_target)
         _async_log_thread.daemon = True
         _async_log_thread.start()
