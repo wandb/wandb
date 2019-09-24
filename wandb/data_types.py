@@ -685,7 +685,6 @@ class Media(WBValue):
         # components.
         if not os.path.realpath(self._path).startswith(os.path.realpath(self._run.dir)):
             base_path = os.path.join(self._run.dir, self.get_media_subdir())
-            util.mkdir_exists_ok(base_path)
 
             if self._extension is None:
                 rootname, extension = os.path.splitext(os.path.basename(self._path))
@@ -698,6 +697,7 @@ class Media(WBValue):
                     id_ = self._sha256[:8]
 
                 new_path = os.path.join(base_path, '{}_{}_{}{}'.format(key, step, id_, extension))
+                util.mkdir_exists_ok(os.path.dirname(new_path))
 
                 shutil.move(self._path, new_path)
 
@@ -705,6 +705,7 @@ class Media(WBValue):
                 self._is_tmp = False
             else:
                 new_path = os.path.join(base_path, '{}_{}{}'.format(rootname, self._sha256[:8], extension))
+                util.mkdir_exists_ok(os.path.dirname(new_path))
                 shutil.copy(self._path, new_path)
                 self._path = new_path
 
