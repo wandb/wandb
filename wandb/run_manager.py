@@ -863,6 +863,10 @@ class RunManager(object):
         # load the previous runs summary to avoid losing it, the user process will need to load it
         self._run.summary.update(json.loads(resume_status['summaryMetrics'] or "{}"))
 
+        # load the previous runs config
+        self._run.config.load_json(json.loads(resume_status['config'] or "{}"))
+        self._run.config.persist()
+
         # Note: these calls need to happen after writing the files above. Because the access
         # to self._run.events below triggers events to initialize, but we need the previous
         # events to be written before that happens.
