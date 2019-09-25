@@ -864,6 +864,13 @@ class RunManager(object):
         self._run.summary.update(json.loads(resume_status['summaryMetrics'] or "{}"))
 
         # load the previous runs config
+        print("run", self._run)
+        import traceback
+        traceback.print_stack()
+        import sys
+        print("run2", self._run.summary)
+        print("run3", self._run.config)
+        sys.exit(1)
         print(json.loads(resume_status['config'] or "{}"))
         #self._run.config.load_json(json.loads(resume_status['config'] or "{}"))
         #self._run.config.persist()
