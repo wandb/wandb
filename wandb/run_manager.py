@@ -1209,9 +1209,9 @@ class RunManager(object):
                         sig = signal.CTRL_C_EVENT # pylint: disable=no-member
                     self.proc.send_signal(sig)
 
-            if self._cloud:
-                self._run_status_checker = RunStatusChecker(
-                    self._run, self._api, stop_requested_handler=stop_handler)
+            #if self._cloud:
+            #    self._run_status_checker = RunStatusChecker(
+            #        self._run, self._api, stop_requested_handler=stop_handler)
 
         # Add a space before user output
         wandb.termlog()
