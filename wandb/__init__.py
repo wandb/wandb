@@ -898,6 +898,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
     if resume == True:
         os.environ[env.RESUME] = "auto"
+    elif resume in ("allow", "must", "never"):
+        os.environ[env.RESUME] = resume
+        if id:
+            os.environ[env.RUN_ID] = id
     elif resume:
         os.environ[env.RESUME] = os.environ.get(env.RESUME, "allow")
         # TODO: remove allowing resume as a string in the future
