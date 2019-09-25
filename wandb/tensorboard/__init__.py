@@ -6,11 +6,13 @@ import sys
 import glob
 import wandb
 
+print("JHR BASE")
 
 # Constants for patching tensorboard
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
 TENSORBOARD_PYTORCH_MODULE = "tensorboard.summary.writer.event_file_writer"
 TENSORBOARD_LEGACY_MODULE = "tensorflow.python.summary.writer.writer"
+TENSORBOARD_PYTORCH_MODULE2 = "torch.utils.tensorboard.writer"
 
 TENSORBOARDX_LOADED = "tensorboardX" in sys.modules
 TENSORFLOW_LOADED = "tensorflow" in sys.modules
@@ -36,7 +38,7 @@ def tensorflow2_patched():
     return any((mod == TENSORBOARD_C_MODULE for mod, meth in wandb.patched["tensorboard"]))
 
 
-def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOARD):
+def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOARD, tbX=None):
     """Monkeypatches tensorboard or tensorboardX so that all events are logged to tfevents files and wandb.
     We save the tfevents files and graphs to wandb by default.
 
@@ -60,6 +62,7 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
     else:
         if wandb.util.get_module("tensorboard.summary.writer.event_file_writer") and pytorch:
             # If we haven't imported tensorflow, let's patch the python tensorboard writer
+            print("torch tb")
             tensorboard_py_module = TENSORBOARD_PYTORCH_MODULE
         else:
             # If we're using tensorflow >= 2.0 this patch won't be used, but we'll do it anyway
@@ -115,7 +118,28 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
                 wandb.termerror("Unable to log event %s" % e)
         return _add_event
 
-    if writer:
+    if writer and tbX:
+        from tensorboard.summary.writer.event_file_writer import EventFileWriter as OldEventFileWriter
+        class TBXEventFileWriter(OldEventFileWriter):
+            def __init__(self, logdir, *args, **kwargs):
+                print("JHR debug", logdir)
+                super(TBXEventFileWriter, self).__init__(logdir, *args, **kwargs)
+                wandb.run.send_message(
+                    {"tensorboard": {"logdir": logdir, "save": save}})
+
+
+        # monkey patch only summary writer init
+        print("jhr patch", tensorboard_py_module)
+        #writer.orig_EventFileWriter = writer.EventFileWriter
+        #writer.EventFileWriter = TBXEventFileWriter
+        #pass
+        #tensorboard.summary.writer.event_file_writer.EventFileWriter = TBXEventFileWriter
+        #tensorboard.summary.writer.event_file_writer.EventFileWriter = None
+        import torch
+        torch.utils.tensorboard.writer.EventFileWriter = TBXEventFileWriter
+        #print("JHR junk", dir(tensorboard.summary.writer.event_file_writer))
+
+    elif writer:
         # This is for TensorboardX and PyTorch 1.1 python tensorboard logging
         writer.EventFileWriter.orig_add_event = writer.EventFileWriter.add_event
         writer.EventFileWriter.add_event = add_event(
@@ -125,13 +149,16 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
 
     # This configures TensorFlow 2 style Tensorboard logging
     c_writer = wandb.util.get_module(TENSORBOARD_C_MODULE)
-    if c_writer:
+    if c_writer and False:
+        print("GOT C writer")
         old_csfw_func = c_writer.create_summary_file_writer
 
         def new_csfw_func(*args, **kwargs):
             """Tensorboard 2+ monkeypatch for streaming events from the filesystem"""
+            print("GOT C writer call", args, kwargs)
             logdir = kwargs['logdir'].numpy().decode("utf8") if hasattr(
                 kwargs['logdir'], 'numpy') else kwargs['logdir']
+            print("GOT C writer call send:", logdir, save)
             wandb.run.send_message(
                 {"tensorboard": {"logdir": logdir, "save": save}})
             return old_csfw_func(*args, **kwargs)
