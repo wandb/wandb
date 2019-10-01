@@ -30,6 +30,7 @@ import tempfile
 import re
 import glob
 import threading
+import collections
 from six.moves import queue
 from importlib import import_module
 
@@ -506,7 +507,7 @@ def restore(name, run_path=None, replace=False, root="."):
     root: the directory to download the file to.  Defaults to the current
         directory or the run directory if wandb.init was called.
 
-    returns None if it can't find the file, otherwise a file object open for reading
+    returns N keysone if it can't find the file, otherwise a file object open for reading
     raises wandb.CommError if it can't find the run
     """
     if run_path is None and run is None:
@@ -643,6 +644,9 @@ def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
 
     if row is None:
         row = {}
+
+    if not isinstance(row, collections.abc.Mapping):
+        raise ValueError("wandb.log must be passed a dictionary")
 
     if any(not isinstance(key, six.string_types) for key in row.keys()):
         raise ValueError("Key values passed to `wandb.log` must be strings.")
