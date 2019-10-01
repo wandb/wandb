@@ -507,7 +507,7 @@ def restore(name, run_path=None, replace=False, root="."):
     root: the directory to download the file to.  Defaults to the current
         directory or the run directory if wandb.init was called.
 
-    returns N keysone if it can't find the file, otherwise a file object open for reading
+    returns None if it can't find the file, otherwise a file object open for reading
     raises wandb.CommError if it can't find the run
     """
     if run_path is None and run is None:
