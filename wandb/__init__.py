@@ -645,7 +645,7 @@ def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
     if row is None:
         row = {}
 
-    if not isinstance(row, collections.abc.Mapping):
+    if not isinstance(row, collections.Mapping):
         raise ValueError("wandb.log must be passed a dictionary")
 
     if any(not isinstance(key, six.string_types) for key in row.keys()):
