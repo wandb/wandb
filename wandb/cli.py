@@ -479,9 +479,9 @@ def pull(run, project, entity):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
-@click.option("--anonymous/--no-anonymous", default=False, help="Login anonymously")
+@click.option("--anonymously", is_flag=True, help="Log in anonymously")
 @display_error
-def login(key, server=LocalServer(), browser=True, anonymous=False):
+def login(key, anonymously, server=LocalServer(), browser=True):
     global api
 
     key = key[0] if len(key) > 0 else None
@@ -504,7 +504,7 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
     if key:
         util.set_api_key(api, key)
     else:
-        if anonymous:
+        if anonymously:
             os.environ[env.ANONYMOUS] = "must"
         key = util.prompt_api_key(api, input_callback=click.prompt, browser_callback=get_api_key_from_browser)
 

@@ -6,7 +6,7 @@ import traceback
 import click
 from wandb import __version__
 from wandb.apis import InternalApi
-from wandb import cli
+from wandb import cli, env
 from wandb import util
 from .utils import runner, git_repo
 from .api_mocks import *
@@ -451,6 +451,21 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
         assert DUMMY_API_KEY in generatedNetrc
+
+
+def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        api = InternalApi()
+        monkeypatch.setattr(cli, 'api', api)
+        monkeypatch.setattr(api, 'create_anonymous_api_key', lambda *args, **kwargs: DUMMY_API_KEY)
+        result = runner.invoke(cli.login, ['--anonymously'])
+        print('Output: ', result.output)
+        print('Exception: ', result.exception)
+        print('Traceback: ', traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        with open("netrc", "r") as f:
+            generated_netrc = f.read()
+        assert DUMMY_API_KEY in generated_netrc
 
 
 def test_login_abort(runner, empty_netrc, local_netrc, mocker, monkeypatch):
