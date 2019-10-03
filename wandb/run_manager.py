@@ -459,6 +459,9 @@ class RunStatusChecker(object):
                     run_id=self._run.id)
             except wandb.apis.CommError as e:
                 logger.exception("Failed to check stop requested status: %s" % e.exc)
+            except:
+                logger.exception("An unknown error occurred while checking stop requested status. Continuing anyway..")
+            finally:
                 should_exit = False
 
             if should_exit:
