@@ -33,6 +33,7 @@ class History(object):
         out_dir = run.dir
         fname = wandb.wandb_run.HISTORY_FNAME
         self._start_time = wandb.START_TIME
+        self._current_timestamp = None
         self.out_dir = out_dir
         self.fname = os.path.join(out_dir, fname)
         self.rows = []
@@ -104,7 +105,7 @@ class History(object):
             if key in row:
                 yield row[key]
 
-    def add(self, row={}, step=None):
+    def add(self, row={}, step=None, timestamp=None):
         """Adds or updates a history step.
 
         If row isn't specified, will write the current state of row.
@@ -119,6 +120,13 @@ class History(object):
         """
         if not isinstance(row, collections.Mapping):
             raise wandb.Error('history.add expects dict-like object')
+        if timestamp and self._current_timestamp and timestamp < self._current_timestamp:
+            wandb.termwarn("When passing timestamp, it must be increasing.  Current timestamp is {} but was passed {}".format(
+                self._current_timestamp, timestamp))
+        self._current_timestamp = timestamp or time.time()
+        # Importing data, reset start time to the first timestamp passed in
+        if self._start_time > self._current_timestamp:
+            self._start_time = timestamp
 
         if step is None:
             self.update(row)
@@ -216,8 +224,8 @@ class History(object):
             # This will resume the run and potentially update self._steps
             self.ensure_jupyter_started()
             try:
-                self.row['_runtime'] = time.time() - self._start_time
-                self.row['_timestamp'] = time.time()
+                self.row['_runtime'] = self._current_timestamp - self._start_time
+                self.row['_timestamp'] = self._current_timestamp
                 self.row['_step'] = self._steps
                 if self.stream_name != "default":
                     self.row["_stream"] = self.stream_name
