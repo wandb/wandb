@@ -44,6 +44,7 @@ from wandb import util
 from wandb import wandb_config as config
 from wandb import wandb_run
 from wandb import wandb_socket
+from wandb.compat import windows
 from wandb.apis import InternalApi
 
 
@@ -458,6 +459,9 @@ class RunStatusChecker(object):
                     run_id=self._run.id)
             except wandb.apis.CommError as e:
                 logger.exception("Failed to check stop requested status: %s" % e.exc)
+            except:
+                logger.exception("An unknown error occurred while checking stop requested status. Continuing anyway..")
+            finally:
                 should_exit = False
 
             if should_exit:
@@ -1059,7 +1063,10 @@ class RunManager(object):
         runner = util.find_runner(program)
         if runner:
             command = runner + command
-        command = ' '.join(six.moves.shlex_quote(arg) for arg in command)
+        if sys.platform == "win32":
+            command = ' '.join(windows.quote_arg(arg) for arg in command)
+        else:
+            command = ' '.join(six.moves.shlex_quote(arg) for arg in command)
         self._stdout_stream.write_string(command + "\n\n")
 
         try:
