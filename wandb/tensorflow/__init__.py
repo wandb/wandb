@@ -1,13 +1,23 @@
+from copy import deepcopy
+
+from pkg_resources import parse_version
 import tensorflow as tf
+
 from wandb import util
+from wandb.apis.file_stream import Chunk
 from wandb.data_types import history_dict_to_json
 from wandb.tensorboard import *
 import wandb
-from copy import deepcopy
-from wandb.apis.file_stream import Chunk
+
+tf_version = parse_version(tf.__version__)
+if tf_version >= parse_version('1.14'):
+    # In tf 1.14 and beyond, SessionRunHook is in the estimator package.
+    SessionRunHook = tf.estimator.SessionRunHook
+else:
+    SessionRunHook = tf.train.SessionRunHook
 
 
-class WandbHook(tf.train.SessionRunHook):
+class WandbHook(SessionRunHook):
     def __init__(self, summary_op=None, steps_per_log=1000, history=None):
         self._summary_op = summary_op
         self._steps_per_log = steps_per_log
@@ -41,7 +51,7 @@ def stream_tfevents(path, file_api, run, step=0, namespace=""):
             parsed = tf_summary_to_dict(summary, namespace=namespace)
             if last_step != parsed[global_step_key]:
                 last_step = parsed[global_step_key]
-                if len(row) > 3: #Must have more than _timestamp, _step, and global_step
+                if len(row) > 3:  # Must have more than _timestamp, _step, and global_step
                     step += 1
                     row["_step"] = step
                     last_row = history_dict_to_json(run, deepcopy(row))
