@@ -1,6 +1,5 @@
 from copy import deepcopy
 
-from pkg_resources import parse_version
 import tensorflow as tf
 
 from wandb import util
@@ -9,11 +8,11 @@ from wandb.data_types import history_dict_to_json
 from wandb.tensorboard import *
 import wandb
 
-tf_version = parse_version(tf.__version__)
-if tf_version >= parse_version('1.14'):
+try:
     # In tf 1.14 and beyond, SessionRunHook is in the estimator package.
     SessionRunHook = tf.estimator.SessionRunHook
-else:
+except AttributeError:
+    # In older versions it's in train.
     SessionRunHook = tf.train.SessionRunHook
 
 
