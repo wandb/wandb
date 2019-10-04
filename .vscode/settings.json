@@ -1,6 +1,6 @@
 // Place your settings in this file to overwrite default and user settings.
 {
-  "python.pythonPath": "/Users/adrianswanberg/.pyenv/versions/wandb-3.6/bin/python",
+  "python.pythonPath": "~/.pyenv/shims/python",
   "editor.formatOnSave": true,
   "files.exclude": {
     "**/*.pyc": true,
