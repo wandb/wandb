@@ -8,10 +8,10 @@ from wandb.data_types import history_dict_to_json
 from wandb.tensorboard import *
 import wandb
 
-try:
+if hasattr(tf.estimator, 'SessionRunHook'):
     # In tf 1.14 and beyond, SessionRunHook is in the estimator package.
     SessionRunHook = tf.estimator.SessionRunHook
-except AttributeError:
+else:
     # In older versions it's in train.
     SessionRunHook = tf.train.SessionRunHook
 
