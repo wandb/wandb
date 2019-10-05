@@ -220,7 +220,9 @@ def _init_headless(run, cloud=True):
         # TODO(adrian): close_fds=False is bad for security. we set
         # it so we can pass the PTY FDs to the wandb process. We
         # should use subprocess32, which has pass_fds.
-        popen_kwargs = {'close_fds': False}
+        ctrl_break = lambda *a: print('^BREAK')
+        signal.signal(signal.SIGBREAK, ctrl_break)
+        popen_kwargs = {'close_fds': False, 'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP}
     else:
         popen_kwargs = {'pass_fds': [stdout_master_fd, stderr_master_fd]}
 

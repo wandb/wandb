@@ -1,3 +1,4 @@
+#set PATH=C:\\Python36-x64;C:\\Python36-x64\\Scripts;%PATH%
 environment:
   global:
     CMD_IN_ENV: foo

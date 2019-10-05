@@ -398,7 +398,11 @@ class Process(object):
     def poll(self):
         if self.returncode is None:
             try:
-                os.kill(self.pid, 0)
+                if sys.platform == "win32":
+                    if windows.pid_running(self.pid) == False:
+                        raise OSError(0, "Process isn't running")
+                else:
+                    os.kill(self.pid, 0)
             except OSError as err:
                 if err.errno == errno.ESRCH:
                     # ESRCH == No such process
