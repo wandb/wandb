@@ -53,7 +53,6 @@ import tempfile
 import threading
 import traceback
 import platform
-import time
 
 import six
 from six.moves import queue, shlex_quote
@@ -80,8 +79,6 @@ class SimpleTee(object):
             data = data.encode('utf-8')
         except AttributeError:
             pass
-        if platform.system() == "Windows":
-            data = data.replace(b"\n", b"\r\n")
         self.destination.write(data)
 
 
@@ -333,6 +330,9 @@ class FileRedirector(object):
         self.redir_file = redir_file
         self._from_fd = redir_file.fileno()
         self._to_fd = to_file.fileno()
+        # TODO: mirror stdout / err here
+        if platform.system() == "Windows":
+            pass
         # copy from_fd before it is overwritten
         # NOTE: `self._from_fd` is inheritable on Windows when duplicating a standard stream
         # we make this unbuffered because we want to rely on buffers earlier in the I/O chain

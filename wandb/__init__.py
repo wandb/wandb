@@ -199,7 +199,7 @@ def _init_headless(run, cloud=True):
     hooks.hook()
 
     if platform.system() == "Windows":
-        # PTYs don't work in windows so we use pipes.  #TODO: these aren't actually used for anythings
+        # PTYs don't work in windows so we use pipes.
         stdout_master_fd, stdout_slave_fd = os.pipe()
         stderr_master_fd, stderr_slave_fd = os.pipe()
     else:
@@ -225,7 +225,7 @@ def _init_headless(run, cloud=True):
         # for improving our signal handling in windows
         popen_kwargs = {'close_fds': False, 'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP}
     else:
-        popen_kwargs = {'pass_fds': [stdout_master_fd, stderr_master_fd]}
+        popen_kwargs = {'pass_fds': [stdout_master_fd, stderr_master_fd], 'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP}
 
     # TODO(adrian): ensure we use *exactly* the same python interpreter
     # TODO(adrian): make wandb the foreground process so we don't give
@@ -263,14 +263,8 @@ def _init_headless(run, cloud=True):
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
-    if platform.system() == "Windows":
-        # On windows we just write stdout and stderr to output.log
-        output_log = open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb")
-        stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output_log)
-        stderr_redirector = io_wrap.WindowsRedirector(sys.stdout, output_log)
-    else:
-        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+    stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+    stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code

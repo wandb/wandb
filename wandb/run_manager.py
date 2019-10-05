@@ -338,7 +338,6 @@ class FileEventHandlerTextStream(FileEventHandler):
             self._tailer.stop()
             self._tailer = None
 
-
 class FileEventHandlerBinaryStream(FileEventHandler):
     def __init__(self, *args, **kwargs):
         super(FileEventHandlerBinaryStream, self).__init__(*args, **kwargs)
@@ -717,10 +716,6 @@ class RunManager(object):
             elif save_name == 'wandb-events.jsonl':
                 self._file_event_handlers['wandb-events.jsonl'] = FileEventHandlerTextStream(
                     file_path, 'wandb-events.jsonl', self._api)
-            elif save_name == util.OUTPUT_FNAME and platform.system == "Windows":
-                # Stream output in windows because we don't have a pty
-                self._file_event_handlers[util.OUTPUT_FNAME] = FileEventHandlerTextStream(
-                    file_path, util.OUTPUT_FNAME, self._api)
             elif 'tfevents' in save_name or 'graph.pbtxt' in save_name:
                 # overwrite the tensorboard but not every reload -- just
                 # frequently enough to resemble realtime
