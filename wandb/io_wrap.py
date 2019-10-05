@@ -290,6 +290,19 @@ def spawn_reader_writer(get_data_fn, put_data_fn):
     return t
 
 
+class DummyRedirector(object):
+    """Stub for windows or cases where people turn off stdout streaming
+    """
+
+    def __init__(self, *args):
+        pass
+
+    def redirect(self):
+        pass
+
+    def restore(self):
+        pass
+
 class FileRedirector(object):
     """Redirects a file object to a different file descriptor.
 

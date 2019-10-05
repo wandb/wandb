@@ -216,7 +216,7 @@ def _init_headless(run, cloud=True):
     internal_cli_path = os.path.join(
         os.path.dirname(__file__), 'internal_cli.py')
 
-    if six.PY2:
+    if six.PY2 or sys.platform == "win32":
         # TODO(adrian): close_fds=False is bad for security. we set
         # it so we can pass the PTY FDs to the wandb process. We
         # should use subprocess32, which has pass_fds.
@@ -260,8 +260,13 @@ def _init_headless(run, cloud=True):
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
-    stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-    stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+    if sys.platform == "win32":
+        # Lets just use a dummy redirect on windows
+        stdout_redirector = io_wrap.DummyRedirector(sys.stdout, stdout_slave)
+        stderr_redirector = io_wrap.DummyRedirector(sys.stdout, stdout_slave)
+    else:
+        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code
