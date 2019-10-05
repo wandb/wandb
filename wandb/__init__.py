@@ -202,9 +202,6 @@ def _init_headless(run, cloud=True):
         # PTYs don't work in windows so we use pipes.  #TODO: these aren't actually used for anythings
         stdout_master_fd, stdout_slave_fd = os.pipe()
         stderr_master_fd, stderr_slave_fd = os.pipe()
-        # We simply mirror stdout/stderr to output.log
-        io_wrap.SimpleTee(sys.stdout, open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb"))
-        io_wrap.SimpleTee(sys.stderr, open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb"))
     else:
         stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
         stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
@@ -270,6 +267,9 @@ def _init_headless(run, cloud=True):
         # Lets just use a dummy redirect on windows
         stdout_redirector = io_wrap.DummyRedirector(sys.stdout, stdout_slave)
         stderr_redirector = io_wrap.DummyRedirector(sys.stdout, stdout_slave)
+        # Instead we simply mirror stdout/stderr to output.log
+        io_wrap.SimpleTee(sys.stdout, open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb"))
+        io_wrap.SimpleTee(sys.stderr, open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb"))
     else:
         stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
         stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
