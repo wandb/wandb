@@ -72,7 +72,6 @@ class SimpleTee(object):
         self.destination = destination_io
         source_io.orig_write = self.source_write
         source_io.write = self.write
-        self._last_write = time.time()
 
     def write(self, data):
         self.source_write(data)
@@ -81,11 +80,9 @@ class SimpleTee(object):
             data = data.encode('utf-8')
         except AttributeError:
             pass
+        if platform.system() == "Windows":
+            data = data.replace(b"\n", b"\r\n")
         self.destination.write(data)
-        # Windows doesn't flush very often, we do it manually here
-        if platform.system() == "Windows" and time.time() - self._last_write > 1:
-            self._last_write = time.time()
-            self.destination.flush()
 
 
 class WindowSizeChangeHandler(object):
@@ -297,18 +294,22 @@ def spawn_reader_writer(get_data_fn, put_data_fn):
     return t
 
 
-class DummyRedirector(object):
-    """Stub for windows or cases where people turn off stdout streaming
+class WindowsRedirector(object):
+    """Simple windows Tee
     """
 
-    def __init__(self, *args):
-        pass
+    def __init__(self, from_stream, to_file):
+        self.from_stream = from_stream
+        self.to_file = to_file
 
     def redirect(self):
-        pass
+        self.tee = SimpleTee(self.from_stream, self.to_file)
 
     def restore(self):
-        pass
+        if not self.to_file.closed:
+            self.to_file.close()
+        if hasattr(self.from_stream, "orig_write"):
+            self.from_stream.write = self.from_stream.orig_write
 
 
 class FileRedirector(object):

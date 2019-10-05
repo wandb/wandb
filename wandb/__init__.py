@@ -264,12 +264,10 @@ def _init_headless(run, cloud=True):
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
     if platform.system() == "Windows":
-        # Lets just use a dummy redirect on windows
-        stdout_redirector = io_wrap.DummyRedirector(sys.stdout, stdout_slave)
-        stderr_redirector = io_wrap.DummyRedirector(sys.stdout, stdout_slave)
-        # Instead we simply mirror stdout/stderr to output.log
-        io_wrap.SimpleTee(sys.stdout, open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb"))
-        io_wrap.SimpleTee(sys.stderr, open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb"))
+        # On windows we just write stdout and stderr to output.log
+        output_log = open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb")
+        stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output_log)
+        stderr_redirector = io_wrap.WindowsRedirector(sys.stdout, output_log)
     else:
         stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
         stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
