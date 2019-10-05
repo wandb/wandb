@@ -1,4 +1,7 @@
-#set PATH=C:\\Python36-x64;C:\\Python36-x64\\Scripts;%PATH%
+# To run an interactive windows session set APPVEYOR_RDP_ENABLED=TRUE in settings or in global env
+# below.  Then you'll see an RDP url in the appveyor output.  Once in open a console and paste the following
+# to use the correct python.
+# set PATH=C:\\Python36-x64;C:\\Python36-x64\\Scripts;%PATH%
 environment:
   global:
     CMD_IN_ENV: foo

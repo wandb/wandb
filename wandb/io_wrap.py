@@ -53,6 +53,7 @@ import tempfile
 import threading
 import traceback
 import platform
+import time
 
 import six
 from six.moves import queue, shlex_quote
@@ -71,6 +72,7 @@ class SimpleTee(object):
         self.destination = destination_io
         source_io.orig_write = self.source_write
         source_io.write = self.write
+        self._last_write = time.time()
 
     def write(self, data):
         self.source_write(data)
@@ -80,6 +82,10 @@ class SimpleTee(object):
         except AttributeError:
             pass
         self.destination.write(data)
+        # Windows doesn't flush very often, we do it manually here
+        if platform.system() == "Windows" and time.time() - self._last_write > 1:
+            self._last_write = time.time()
+            self.destination.flush()
 
 
 class WindowSizeChangeHandler(object):
