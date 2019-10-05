@@ -954,9 +954,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # we do these checks after setting the run and the config because users scripts
     # may depend on those things
     if sys.platform == 'win32' and run.mode != 'clirun':
-        termerror(
-            'To use wandb on Windows, you need to run the command "wandb run python <your_train_script>.py"')
-        return run
+        termwarn(
+            'W&B will not mirror stdout and stderr on Windows.  If you want to log output, add wandb.logger to your logging setup.')
 
     if in_jupyter:
         _init_jupyter(run)
