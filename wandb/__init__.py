@@ -30,6 +30,7 @@ import tempfile
 import re
 import glob
 import threading
+import platform
 from six.moves import queue
 from importlib import import_module
 
@@ -197,10 +198,13 @@ def _init_headless(run, cloud=True):
     hooks = ExitHooks()
     hooks.hook()
 
-    if sys.platform == "win32":
-        # PTYs don't work in windows so we use pipes.
+    if platform.system() == "Windows":
+        # PTYs don't work in windows so we use pipes.  #TODO: these aren't actually used for anythings
         stdout_master_fd, stdout_slave_fd = os.pipe()
         stderr_master_fd, stderr_slave_fd = os.pipe()
+        # We simply mirror stdout/stderr to output.log
+        io_wrap.SimpleTee(sys.stdout, open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb"))
+        io_wrap.SimpleTee(sys.stderr, open(os.path.join(run.dir, util.OUTPUT_FNAME), "wb"))
     else:
         stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
         stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
@@ -216,12 +220,12 @@ def _init_headless(run, cloud=True):
     internal_cli_path = os.path.join(
         os.path.dirname(__file__), 'internal_cli.py')
 
-    if six.PY2 or sys.platform == "win32":
+    if six.PY2 or platform.system() == "Windows":
         # TODO(adrian): close_fds=False is bad for security. we set
         # it so we can pass the PTY FDs to the wandb process. We
         # should use subprocess32, which has pass_fds.
-        ctrl_break = lambda *a: print('^BREAK')
-        signal.signal(signal.SIGBREAK, ctrl_break)
+        # TODO: see https://stackoverflow.com/questions/35772001/how-to-handle-the-signal-in-python-on-windows-machine
+        # for improving our signal handling in windows
         popen_kwargs = {'close_fds': False, 'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP}
     else:
         popen_kwargs = {'pass_fds': [stdout_master_fd, stderr_master_fd]}
@@ -262,7 +266,7 @@ def _init_headless(run, cloud=True):
     stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
     stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
 
-    if sys.platform == "win32":
+    if platform.system() == "Windows":
         # Lets just use a dummy redirect on windows
         stdout_redirector = io_wrap.DummyRedirector(sys.stdout, stdout_slave)
         stderr_redirector = io_wrap.DummyRedirector(sys.stdout, stdout_slave)
@@ -957,12 +961,6 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # set this immediately after setting the run and the config. if there is an
     # exception after this it'll probably break the user script anyway
     os.environ[env.INITED] = '1'
-
-    # we do these checks after setting the run and the config because users scripts
-    # may depend on those things
-    if sys.platform == 'win32' and run.mode != 'clirun':
-        termwarn(
-            'W&B will not mirror stdout and stderr on Windows.  If you want to log output, add wandb.logger to your logging setup.')
 
     if in_jupyter:
         _init_jupyter(run)

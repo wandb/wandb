@@ -52,6 +52,7 @@ import sys
 import tempfile
 import threading
 import traceback
+import platform
 
 import six
 from six.moves import queue, shlex_quote
@@ -145,7 +146,7 @@ class WindowSizeChangeHandler(object):
 
 def init_sigwinch_handler():
     global SIGWINCH_HANDLER
-    if SIGWINCH_HANDLER is None and sys.stdout.isatty() and sys.platform != "win32" and not wandb.env.is_debug():
+    if SIGWINCH_HANDLER is None and sys.stdout.isatty() and platform.system() != "Windows" and not wandb.env.is_debug():
         SIGWINCH_HANDLER = WindowSizeChangeHandler()
         SIGWINCH_HANDLER.register()
 
@@ -302,6 +303,7 @@ class DummyRedirector(object):
 
     def restore(self):
         pass
+
 
 class FileRedirector(object):
     """Redirects a file object to a different file descriptor.

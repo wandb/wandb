@@ -398,7 +398,7 @@ class Process(object):
     def poll(self):
         if self.returncode is None:
             try:
-                if sys.platform == "win32":
+                if platform.system() == "Windows":
                     if windows.pid_running(self.pid) == False:
                         raise OSError(0, "Process isn't running")
                 else:
@@ -1050,7 +1050,7 @@ class RunManager(object):
         """
         stdout_streams, stderr_streams = self._get_stdout_stderr_streams()
 
-        if sys.platform == "win32":
+        if platform.system() == "Windows":
             # PTYs don't work in windows so we use pipes.
             self._stdout_tee = io_wrap.Tee.pipe(*stdout_streams)
             self._stderr_tee = io_wrap.Tee.pipe(*stderr_streams)
@@ -1067,7 +1067,7 @@ class RunManager(object):
         runner = util.find_runner(program)
         if runner:
             command = runner + command
-        if sys.platform == "win32":
+        if platform.system() == "Windows":
             command = ' '.join(windows.quote_arg(arg) for arg in command)
         else:
             command = ' '.join(six.moves.shlex_quote(arg) for arg in command)
