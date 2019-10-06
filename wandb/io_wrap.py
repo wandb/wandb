@@ -330,9 +330,6 @@ class FileRedirector(object):
         self.redir_file = redir_file
         self._from_fd = redir_file.fileno()
         self._to_fd = to_file.fileno()
-        # TODO: mirror stdout / err here
-        if platform.system() == "Windows":
-            pass
         # copy from_fd before it is overwritten
         # NOTE: `self._from_fd` is inheritable on Windows when duplicating a standard stream
         # we make this unbuffered because we want to rely on buffers earlier in the I/O chain
@@ -340,7 +337,11 @@ class FileRedirector(object):
 
     def redirect(self):
         self.redir_file.flush()  # flush library buffers that dup2 knows nothing about
-        os.dup2(self._to_fd, self._from_fd)  # $ exec >&to
+        # TODO: mirror stdout / err here
+        if platform.system() == "Windows":
+            SimpleTee(self.orig_file, self.redir_file)
+        else:
+            os.dup2(self._to_fd, self._from_fd)  # $ exec >&to
 
     # This isn't tested properly:
     def restore(self):
@@ -348,7 +349,11 @@ class FileRedirector(object):
         """
         # NOTE: dup2 makes `self._from_fd` inheritable unconditionally
         self.redir_file.flush()
-        os.dup2(self.orig_file.fileno(), self._from_fd)  # $ exec >&copied
+        self.orig_file.flush()
+        if platform.system() == "Windows":
+            self.orig_file.write = self.orig_file.orig_write
+        else:
+            os.dup2(self.orig_file.fileno(), self._from_fd)  # $ exec >&copied
         # self.orig_file.close()
         #self.orig_file = None
         #self.redir_file = None

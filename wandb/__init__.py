@@ -47,7 +47,7 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
-from wandb.run_manager import LaunchError
+from wandb.run_manager import LaunchError, Process
 from wandb.data_types import Image
 from wandb.data_types import Video
 from wandb.data_types import Audio
@@ -221,18 +221,23 @@ def _init_headless(run, cloud=True):
         # TODO(adrian): close_fds=False is bad for security. we set
         # it so we can pass the PTY FDs to the wandb process. We
         # should use subprocess32, which has pass_fds.
-        # TODO: see https://stackoverflow.com/questions/35772001/how-to-handle-the-signal-in-python-on-windows-machine
-        # for improving our signal handling in windows
-        popen_kwargs = {'close_fds': False, 'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP}
+        popen_kwargs = {'close_fds': False}
     else:
-        popen_kwargs = {'pass_fds': [stdout_master_fd, stderr_master_fd], 'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP}
+        popen_kwargs = {'pass_fds': [stdout_master_fd, stderr_master_fd]}
 
     # TODO(adrian): ensure we use *exactly* the same python interpreter
     # TODO(adrian): make wandb the foreground process so we don't give
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
-    wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
-        headless_args)], env=environ, **popen_kwargs)
+    if platform.system() == "Windows":
+        # TODO: see https://stackoverflow.com/questions/35772001/how-to-handle-the-signal-in-python-on-windows-machine
+        # for improving our signal handling in windows
+        pid = os.spawnve(os.P_NOWAIT, internal_cli_path, json.dumps(
+            headless_args), env=environ)
+        wandb_process = Process(pid)
+    else:
+        wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
+            headless_args)], env=environ, **popen_kwargs)
     termlog('Started W&B process version {} with PID {}'.format(
         __version__, wandb_process.pid))
     os.close(stdout_master_fd)
