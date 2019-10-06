@@ -66,7 +66,7 @@ from wandb import wandb_torch
 from wandb.wandb_controller import controller
 from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep
-
+from wandb.compat import windows
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +202,15 @@ def _init_headless(run, cloud=True):
         # PTYs don't work in windows so we use pipes.
         stdout_master_fd, stdout_slave_fd = os.pipe()
         stderr_master_fd, stderr_slave_fd = os.pipe()
+        curproc = windows.GetCurrentProcess()
+        stdout_master_wfd = windows.msvcrt.get_osfhandle(stdout_master_fd)
+        stderr_master_wfd = windows.msvcrt.get_osfhandle(stderr_master_fd)
+        stdout_master_wfdh = windows.DuplicateHandle(curproc, stdout_master_wfd, curproc, 0, 1,
+            windows.DUPLICATE_SAME_ACCESS)
+        stderr_master_wfdh = windows.DuplicateHandle(curproc, stderr_master_wfd, curproc, 0, 1,
+            windows.DUPLICATE_SAME_ACCESS)
+        stdout_master_fd = int(stdout_master_wfdh)
+        stderr_master_fd = int(stderr_master_wfdh)
     else:
         stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
         stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
@@ -229,17 +238,16 @@ def _init_headless(run, cloud=True):
     # TODO(adrian): make wandb the foreground process so we don't give
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
-    if platform.system() == "Windows":
-        # TODO: see https://stackoverflow.com/questions/35772001/how-to-handle-the-signal-in-python-on-windows-machine
-        # for improving our signal handling in windows
-        popen_kwargs["stdout"] = stdout_slave_fd
-        popen_kwargs["stderr"] = stderr_slave_fd
     wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
             headless_args)], env=environ, **popen_kwargs)
     termlog('Started W&B process version {} with PID {}'.format(
         __version__, wandb_process.pid))
-    os.close(stdout_master_fd)
-    os.close(stderr_master_fd)
+    if platform.system() == "Windows":
+        stdout_master_wfdh.Close()
+        stderr_master_wfdh.Close()
+    else:
+        os.close(stdout_master_fd)
+        os.close(stderr_master_fd)
     # Listen on the socket waiting for the wandb process to be ready
     try:
         success, message = server.listen(30)

@@ -3,7 +3,10 @@ Windows-related compatibility helpers.
 """
 import re
 import ctypes
-
+import subprocess
+import platform
+if platform.system() == "Windows":
+    import msvcrt
 _find_unsafe = re.compile(r'[\s<>|&^]').search
 
 
@@ -30,3 +33,40 @@ def pid_running(pid):
         return True
     else:
         return False
+
+
+DUPLICATE_SAME_ACCESS = 0x2
+#https://gist.github.com/njsmith/211cce1d8583626dd945
+#https://www.digitalenginesoftware.com/blog/archives/47-Passing-pipes-to-subprocesses-in-Python-in-Windows.html
+
+
+def GetCurrentProcess():
+    func = ctypes.windll.kernel32.GetCurrentProcess
+    func.argtypes = []
+    func.restype = ctypes.wintypes.HANDLE
+    return func()
+
+
+def DuplicateHandle(*args):
+    # https://msdn.microsoft.com/en-us/library/windows/desktop/ms724251%28v=vs.85%29.aspx
+    func = ctypes.windll.kernel32.DuplicateHandle
+    func.argtypes = [
+        # hSourceProcessHandle
+        ctypes.wintypes.HANDLE,
+        # hSourceHandle
+        ctypes.wintypes.HANDLE,
+        # hTargetProcessHandle
+        ctypes.wintypes.HANDLE,
+        # lpTargetHandle
+        ctypes.wintypes.LPHANDLE,
+        # dwDesiredAccess
+        ctypes.wintypes.DWORD,
+        # bInheritHandle
+        ctypes.wintypes.BOOL,
+        # dwOptions
+        ctypes.wintypes.DWORD,
+    ]
+    func.restype = ctypes.wintypes.BOOL
+    return func(*args)
+
+# TODO: see https://stackoverflow.com/questions/35772001/how-to-handle-the-signal-in-python-on-windows-machine
