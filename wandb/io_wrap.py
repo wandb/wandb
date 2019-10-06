@@ -57,10 +57,12 @@ import platform
 import six
 from six.moves import queue, shlex_quote
 import wandb.env
+from wandb.compat import tempfile
 
 logger = logging.getLogger(__name__)
 
 SIGWINCH_HANDLER = None
+TMP_DIR = tempfile.TemporaryDirectory('wandb')
 
 
 class SimpleTee(object):
@@ -291,22 +293,8 @@ def spawn_reader_writer(get_data_fn, put_data_fn):
     return t
 
 
-class WindowsRedirector(object):
-    """Simple windows Tee
-    """
-
-    def __init__(self, from_stream, to_file):
-        self.from_stream = from_stream
-        self.to_file = to_file
-
-    def redirect(self):
-        self.tee = SimpleTee(self.from_stream, self.to_file)
-
-    def restore(self):
-        if not self.to_file.closed:
-            self.to_file.close()
-        if hasattr(self.from_stream, "orig_write"):
-            self.from_stream.write = self.from_stream.orig_write
+def windows_stream(name):
+    return open(os.path.join(TMP_DIR, name), "rb").fileno(), open(os.path.join(TMP_DIR, name), "wb").fileno()
 
 
 class FileRedirector(object):
@@ -338,10 +326,7 @@ class FileRedirector(object):
     def redirect(self):
         self.redir_file.flush()  # flush library buffers that dup2 knows nothing about
         # TODO: mirror stdout / err here
-        if platform.system() == "Windows":
-            SimpleTee(self.orig_file, self.redir_file)
-        else:
-            os.dup2(self._to_fd, self._from_fd)  # $ exec >&to
+        os.dup2(self._to_fd, self._from_fd)  # $ exec >&to
 
     # This isn't tested properly:
     def restore(self):
@@ -350,10 +335,7 @@ class FileRedirector(object):
         # NOTE: dup2 makes `self._from_fd` inheritable unconditionally
         self.redir_file.flush()
         self.orig_file.flush()
-        if platform.system() == "Windows":
-            self.orig_file.write = self.orig_file.orig_write
-        else:
-            os.dup2(self.orig_file.fileno(), self._from_fd)  # $ exec >&copied
+        os.dup2(self.orig_file.fileno(), self._from_fd)  # $ exec >&copied
         # self.orig_file.close()
         #self.orig_file = None
         #self.redir_file = None

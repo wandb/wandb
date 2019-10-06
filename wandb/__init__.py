@@ -199,18 +199,9 @@ def _init_headless(run, cloud=True):
     hooks.hook()
 
     if platform.system() == "Windows":
-        # PTYs don't work in windows so we use pipes.
-        stdout_master_fd, stdout_slave_fd = os.pipe()
-        stderr_master_fd, stderr_slave_fd = os.pipe()
-        curproc = windows.GetCurrentProcess()
-        stdout_master_wfd = windows.msvcrt.get_osfhandle(stdout_master_fd)
-        stderr_master_wfd = windows.msvcrt.get_osfhandle(stderr_master_fd)
-        stdout_master_wfdh = windows.DuplicateHandle(curproc, stdout_master_wfd, curproc, 0, 1,
-            windows.DUPLICATE_SAME_ACCESS)
-        stderr_master_wfdh = windows.DuplicateHandle(curproc, stderr_master_wfd, curproc, 0, 1,
-            windows.DUPLICATE_SAME_ACCESS)
-        stdout_master_fd = int(stdout_master_wfdh)
-        stderr_master_fd = int(stderr_master_wfdh)
+        # PTYs don't work in windows so we just stream to files
+        stdout_master_fd, stdout_slave_fd = io_wrap.windows_fds("stdout.log")
+        stderr_master_fd, stderr_slave_fd = io_wrap.windows_fds("stderr.log")
     else:
         stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
         stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
@@ -221,7 +212,8 @@ def _init_headless(run, cloud=True):
         'stdout_master_fd': stdout_master_fd,
         'stderr_master_fd': stderr_master_fd,
         'cloud': cloud,
-        'port': server.port
+        'port': server.port,
+        'tmp': io_wrap.TMP_DIR
     }
     internal_cli_path = os.path.join(
         os.path.dirname(__file__), 'internal_cli.py')
@@ -242,12 +234,8 @@ def _init_headless(run, cloud=True):
             headless_args)], env=environ, **popen_kwargs)
     termlog('Started W&B process version {} with PID {}'.format(
         __version__, wandb_process.pid))
-    if platform.system() == "Windows":
-        stdout_master_wfdh.Close()
-        stderr_master_wfdh.Close()
-    else:
-        os.close(stdout_master_fd)
-        os.close(stderr_master_fd)
+    os.close(stdout_master_fd)
+    os.close(stderr_master_fd)
     # Listen on the socket waiting for the wandb process to be ready
     try:
         success, message = server.listen(30)

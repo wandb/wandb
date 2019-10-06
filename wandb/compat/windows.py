@@ -47,8 +47,16 @@ def GetCurrentProcess():
     return func()
 
 
+def CloseHandle(handle):
+    func = ctypes.windll.kernel32.CloseHandle
+    func.argtypes = [ctypes.wintypes.HANDLE]
+    func.restype = ctypes.wintypes.BOOL
+    return func(handle)
+
+
 def DuplicateHandle(*args):
     # https://msdn.microsoft.com/en-us/library/windows/desktop/ms724251%28v=vs.85%29.aspx
+    handle = ctypes.wintypes.HANDLE(-1)
     func = ctypes.windll.kernel32.DuplicateHandle
     func.argtypes = [
         # hSourceProcessHandle
@@ -67,6 +75,8 @@ def DuplicateHandle(*args):
         ctypes.wintypes.DWORD,
     ]
     func.restype = ctypes.wintypes.BOOL
-    return func(*args)
+    args = args[:3] + (ctypes.byref(handle),) + args[3:]
+    res = func(*args)
+    return handle
 
 # TODO: see https://stackoverflow.com/questions/35772001/how-to-handle-the-signal-in-python-on-windows-machine
