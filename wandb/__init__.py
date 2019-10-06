@@ -232,11 +232,9 @@ def _init_headless(run, cloud=True):
     if platform.system() == "Windows":
         # TODO: see https://stackoverflow.com/questions/35772001/how-to-handle-the-signal-in-python-on-windows-machine
         # for improving our signal handling in windows
-        pid = os.spawnve(os.P_NOWAIT, internal_cli_path, json.dumps(
-            headless_args), env=environ)
-        wandb_process = Process(pid)
-    else:
-        wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
+        popen_kwargs["stdout"] = stdout_slave_fd
+        popen_kwargs["stderr"] = stderr_slave_fd
+    wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
             headless_args)], env=environ, **popen_kwargs)
     termlog('Started W&B process version {} with PID {}'.format(
         __version__, wandb_process.pid))
