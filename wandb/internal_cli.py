@@ -32,10 +32,6 @@ def headless(args):
     user_process_pid = args['pid']
     stdout_master_fd = args['stdout_master_fd']
     stderr_master_fd = args['stderr_master_fd']
-    if platform.system() == "Windows":
-        stdout_master_fd = open(os.path.join(args["tmp"], "stdout.log"), "rb").fileno()
-        stderr_master_fd = open(os.path.join(args["tmp"], "stderr.log"), "rb").fileno()
-        print("Opening files in: ", args["tmp"])
     try:
         run = wandb.wandb_run.Run.from_environment_or_defaults()
         run.enable_logging()

@@ -57,12 +57,10 @@ import platform
 import six
 from six.moves import queue, shlex_quote
 import wandb.env
-from wandb.compat import tempfile
 
 logger = logging.getLogger(__name__)
 
 SIGWINCH_HANDLER = None
-TMP_DIR = tempfile.TemporaryDirectory('wandb')
 
 
 class SimpleTee(object):
@@ -293,8 +291,22 @@ def spawn_reader_writer(get_data_fn, put_data_fn):
     return t
 
 
-def windows_stream(name):
-    return open(os.path.join(TMP_DIR, name), "rb").fileno(), open(os.path.join(TMP_DIR, name), "wb").fileno()
+class WindowsRedirector(object):
+    """Simple windows Tee
+    """
+
+    def __init__(self, from_stream, to_file):
+        self.from_stream = from_stream
+        self.to_file = to_file
+
+    def redirect(self):
+        self.tee = SimpleTee(self.from_stream, self.to_file)
+
+    def restore(self):
+        if not self.to_file.closed:
+            self.to_file.close()
+        if hasattr(self.from_stream, "orig_write"):
+            self.from_stream.write = self.from_stream.orig_write
 
 
 class FileRedirector(object):

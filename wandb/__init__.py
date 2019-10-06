@@ -199,9 +199,11 @@ def _init_headless(run, cloud=True):
     hooks.hook()
 
     if platform.system() == "Windows":
-        # PTYs don't work in windows so we just stream to files
-        stdout_master_fd, stdout_slave_fd = io_wrap.windows_fds("stdout.log")
-        stderr_master_fd, stderr_slave_fd = io_wrap.windows_fds("stderr.log")
+        # PTYs don't work in windows so we create these unused pipes and
+        # mirror stdout to run.dir/output.log.  There should be a way to make
+        # pipes work, but I haven't figured it out.  See links in compat/windows
+        stdout_master_fd, stdout_slave_fd = os.pipe()
+        stderr_master_fd, stderr_slave_fd = os.pipe()
     else:
         stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
         stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
@@ -212,8 +214,7 @@ def _init_headless(run, cloud=True):
         'stdout_master_fd': stdout_master_fd,
         'stderr_master_fd': stderr_master_fd,
         'cloud': cloud,
-        'port': server.port,
-        'tmp': io_wrap.TMP_DIR
+        'port': server.port
     }
     internal_cli_path = os.path.join(
         os.path.dirname(__file__), 'internal_cli.py')
@@ -259,11 +260,15 @@ def _init_headless(run, cloud=True):
         raise LaunchError(
             "W&B process failed to launch, see: {}".format(path))
 
-    stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
-    stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-
-    stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-    stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+    if platform.system() == "Windows":
+        output = open(os.path.join(run.dir, "output.log"), "wb")
+        stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output)
+        stderr_redirector = io_wrap.WindowsRedirector(sys.stderr, output)
+    else:
+        stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
+        stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
+        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code
