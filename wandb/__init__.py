@@ -100,10 +100,7 @@ def hook_torch(*args, **kwargs):
     return watch(*args, **kwargs)
 
 
-watch_called = False
-
-
-def watch(models, criterion=None, log="gradients", log_freq=100):
+def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
@@ -112,17 +109,13 @@ def watch(models, criterion=None, log="gradients", log_freq=100):
     :param (torch.F) criterion: An optional loss value being optimized
     :param (str) log: One of "gradients", "parameters", "all", or None
     :param (int) log_freq: log gradients and parameters every N batches
+    :param (int) idx: an index to be used when calling wandb.watch on multiple models
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
-    global watch_called
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling watch")
-    if watch_called:
-        raise ValueError(
-            "You can only call `wandb.watch` once per process. If you want to watch multiple models, pass them in as a tuple."
-        )
-    watch_called = True
+
     log_parameters = False
     log_gradients = True
     if log == "all":
@@ -137,15 +130,16 @@ def watch(models, criterion=None, log="gradients", log_freq=100):
         models = (models,)
     graphs = []
     prefix = ''
-    for idx, model in enumerate(models):
-        if idx > 0:
-            prefix = "graph_%i" % idx
+    for local_idx, model in enumerate(models):
+        global_idx = idx + local_idx
+        if global_idx > 0:
+            prefix = "graph_%i" % global_idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
             model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
 
         graph = wandb_torch.TorchGraph.hook_torch(
-            model, criterion, graph_idx=idx)
+            model, criterion, graph_idx=global_idx)
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
@@ -663,12 +657,11 @@ def ensure_configured():
 def uninit(only_patches=False):
     """Undo the effects of init(). Useful for testing.
     """
-    global run, config, summary, watch_called, patched, _saved_files
+    global run, config, summary, patched, _saved_files
     if not only_patches:
         run = None
         config = util.PreInitObject("wandb.config")
         summary = util.PreInitObject("wandb.summary")
-        watch_called = False
         _saved_files = set()
     # UNDO patches
     for mod in patched["tensorboard"]:
