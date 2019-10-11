@@ -88,7 +88,9 @@ class SummarySubDict(object):
         raise NotImplementedError
 
     def keys(self):
-        return self._dict.keys()
+        # _json_dict has the full set of keys, including those for h5 objects
+        # that may not have been loaded yet
+        return self._json_dict.keys()
 
     def get(self, k, default=None):
         if isinstance(k, string_types):
@@ -98,7 +100,10 @@ class SummarySubDict(object):
         return self._dict.get(k, default)
 
     def items(self):
-        return six.iteritems(self._dict)
+        # not all items may be loaded into self._dict, so we
+        # have to build the sequence of items from scratch
+        for k in self.keys():
+            yield k, self[k]
 
     def __getitem__(self, k):
         if isinstance(k, string_types):
@@ -111,7 +116,7 @@ class SummarySubDict(object):
         if isinstance(k, string_types):
             k = k.strip()
 
-        return k in self._dict
+        return k in self._json_dict
 
     def __setitem__(self, k, v):
         if isinstance(k, string_types):
@@ -141,7 +146,19 @@ class SummarySubDict(object):
         self._root._write()
 
     def __repr__(self):
-        return repr(self._dict)
+        # use a copy of _dict, except add placeholders for h5 objects, etc.
+        # that haven't been loaded yet
+        repr_dict = dict(self._dict)
+        for k in self._json_dict:
+            v = self._json_dict[k]
+            if k not in repr_dict and isinstance(v, dict) and v.get('_type') in H5_TYPES:
+                # unloaded h5 objects may be very large. use a placeholder for them
+                # if we haven't already loaded them
+                repr_dict[k] = '...'
+            else:
+                repr_dict[k] = self[k]
+
+        return repr(repr_dict)
 
     def update(self, key_vals=None, overwrite=True):
         """Locked keys will be overwritten unless overwrite=False.
