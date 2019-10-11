@@ -56,8 +56,8 @@ class TemporaryDirectory(object):
     def _cleanup(cls, name, warn_message):
         try:
             _rmtree(name)
-        # On windows only one process can open a file at a time
-        except PermissionError:
+        # On windows only one process can open a file at a time TODO: PermissionError when > 3.5
+        except OSError:
             _warnings.warn("Couldn't remove temp directory %s" % name)
         _warnings.warn(warn_message, _ResourceWarning)
 
@@ -74,6 +74,6 @@ class TemporaryDirectory(object):
         if self._finalizer.detach():
             try:
                 _rmtree(self.name)
-            # On windows only one process can open a file at a time
-            except PermissionError:
+            # On windows only one process can open a file at a time TODO: PermissionError when > 3.5
+            except OSError:
                 _warnings.warn("Couldn't remove temp directory %s" % self.name)
