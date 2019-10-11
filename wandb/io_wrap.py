@@ -346,7 +346,6 @@ class FileRedirector(object):
         """
         # NOTE: dup2 makes `self._from_fd` inheritable unconditionally
         self.redir_file.flush()
-        self.orig_file.flush()
         os.dup2(self.orig_file.fileno(), self._from_fd)  # $ exec >&copied
         # self.orig_file.close()
         #self.orig_file = None
