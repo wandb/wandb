@@ -30,6 +30,7 @@ import tempfile
 import re
 import glob
 import threading
+import collections
 from six.moves import queue
 from importlib import import_module
 
@@ -643,6 +644,9 @@ def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
 
     if row is None:
         row = {}
+
+    if not isinstance(row, collections.Mapping):
+        raise ValueError("wandb.log must be passed a dictionary")
 
     if any(not isinstance(key, six.string_types) for key in row.keys()):
         raise ValueError("Key values passed to `wandb.log` must be strings.")
