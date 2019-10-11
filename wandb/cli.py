@@ -490,10 +490,11 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
     import webbrowser
     browser = util.launch_browser(browser)
 
-    def get_api_key_from_browser():
+    def get_api_key_from_browser(signup=False):
         if not browser:
             return None
-        launched = webbrowser.open_new_tab('{}/authorize?{}'.format(api.app_url, server.qs()))
+        query = '?signup=true' if signup else ''
+        webbrowser.open_new_tab('{}/authorize{}'.format(api.app_url, query))
         #Getting rid of the server for now.  We would need to catch Abort from server.stop and deal accordingly
         #server.start(blocking=False)
         #if server.result.get("key"):
@@ -505,7 +506,7 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
     else:
         if anonymous:
             os.environ[env.ANONYMOUS] = "must"
-        key = util.prompt_api_key(api, browser_callback=get_api_key_from_browser)
+        key = util.prompt_api_key(api, input_callback=click.prompt, browser_callback=get_api_key_from_browser)
 
     if key:
         api.clear_setting('disabled')
@@ -720,7 +721,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         environ[env.SHOW_RUN] = 'True'
 
     if not run.api.api_key:
-        util.prompt_api_key(run.api)
+        util.prompt_api_key(run.api, input_callback=click.prompt)
 
     try:
         rm = run_manager.RunManager(run)

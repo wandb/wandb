@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.10'
+__version__ = '0.8.12'
 
 import atexit
 import click
@@ -318,7 +318,7 @@ def _jupyter_login(force=True, api=None):
 
     If force=False, we'll only attempt to auto-login, otherwise we'll prompt the user
     """
-    def get_api_key_from_browser():
+    def get_api_key_from_browser(signup=False):
         key, anonymous = None, False
         if 'google.colab' in sys.modules:
             key = jupyter.attempt_colab_login(api.app_url)
@@ -854,7 +854,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.TAGS] = ",".join(tags)
     if id:
         os.environ[env.RUN_ID] = id
-        if name is None:
+        if name is None and resume is not "must":
             # We do this because of https://github.com/wandb/core/issues/2170
             # to ensure that the run's name is explicitly set to match its
             # id. If we don't do this and the id is eight characters long, the
@@ -863,6 +863,13 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
             # In any case, if the user is explicitly setting `id` but not
             # `name`, their id is probably a meaningful string that we can
             # use to label the run.
+            #
+            # In the resume="must" case, we know we are resuming, so we should
+            # make sure to not set the name because it would have been set with
+            # the original run.
+            #
+            # TODO: handle "auto" resume by moving this logic later when we know
+            # if there is a resume.
             name = os.environ.get(env.NAME, id)  # environment variable takes precedence over this.
     if name:
         os.environ[env.NAME] = name
