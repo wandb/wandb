@@ -31,6 +31,7 @@ import re
 import glob
 import threading
 import platform
+import collections
 from six.moves import queue
 from importlib import import_module
 
@@ -70,6 +71,8 @@ from wandb.compat import windows
 
 logger = logging.getLogger(__name__)
 
+# Internal variables
+_shutdown_async_log_thread_wait_time = 20
 
 # this global W&B debug log gets re-written by every W&B process
 if __stage_dir__ is not None:
@@ -417,7 +420,6 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         return
     _user_process_finished_called = True
     trigger.call('on_finished')
-    shutdown_async_log_thread()
 
     stdout_redirector.restore()
     if not env.is_debug():
@@ -595,7 +597,7 @@ def _async_log_thread_target():
     shutdown_requested = False
     while not shutdown_requested:
         try:
-            kwargs = _async_log_queue.get(True)
+            kwargs = _async_log_queue.get(block=True, timeout=1)
             log(**kwargs)
         except queue.Empty:
             shutdown_requested = _async_log_thread_shutdown_event.wait(1) and _async_log_queue.empty()
@@ -605,9 +607,11 @@ def _async_log_thread_target():
 
 def _ensure_async_log_thread_started():
     """Ensures our log consuming thread is started"""
-    global _async_log_thread
+    global _async_log_thread, _async_log_thread_shutdown_event, _async_log_thread_complete_event
 
     if _async_log_thread is None:
+        _async_log_thread_shutdown_event = threading.Event()
+        _async_log_thread_complete_event = threading.Event()
         _async_log_thread = threading.Thread(target=_async_log_thread_target)
         _async_log_thread.daemon = True
         _async_log_thread.start()
@@ -617,9 +621,12 @@ def shutdown_async_log_thread():
     """Shuts down our async logging thread"""
     if _async_log_thread:
         _async_log_thread_shutdown_event.set()
-        res = _async_log_thread_complete_event.wait(2)  # TODO: possible race here
-        if res is None:
-            termwarn('async log queue not empty after 2 seconds, some log statements will be dropped')
+        res = _async_log_thread_complete_event.wait(_shutdown_async_log_thread_wait_time)  # TODO: possible race here
+        if res is False:
+            termwarn('async log queue not empty after %d seconds, some log statements will be dropped' % (
+                _shutdown_async_log_thread_wait_time))
+            # FIXME: it is worse than this, likely the program will crash because files will be closed
+        # FIXME: py 2.7 will return None here so we dont know if we dropped data
 
 
 def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
@@ -644,6 +651,9 @@ def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
 
     if row is None:
         row = {}
+
+    if not isinstance(row, collections.Mapping):
+        raise ValueError("wandb.log must be passed a dictionary")
 
     if any(not isinstance(key, six.string_types) for key in row.keys()):
         raise ValueError("Key values passed to `wandb.log` must be strings.")
@@ -998,9 +1008,15 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # Load the summary to support resuming
     run.summary.load()
 
-    atexit.register(run.close_files)
+    atexit.register(_wandb_finished, run)
 
     return run
+
+
+def _wandb_finished(run):
+    # must shutdown async logging thread before closing files
+    shutdown_async_log_thread()
+    run.close_files()
 
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
