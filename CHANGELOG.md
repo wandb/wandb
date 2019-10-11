@@ -1,3 +1,15 @@
+## 0.8.13 (TBD)
+
+#### :bug: Bug Fix
+
+-   Create nested directory when videos are logged from tensorboard namespaces
+
+#### :nail_care: Enhancement
+
+-   Allow wandb.watch to be called multiple times on different models
+-   Improved support for watching multple tfevent files
+-   Windows no longer requires `wandb run` simply run `python script_name.py`
+
 ## 0.8.12 (Sep 20, 2019)
 
 #### :bug: Bug Fix
