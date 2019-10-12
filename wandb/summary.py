@@ -38,6 +38,7 @@ class SummarySubDict(object):
             self._root = root
         self._path = tuple(path)
         self._dict = {}
+        self._json_dict = {}
 
         # We use this to track which keys the user has set explicitly
         # so that we don't automatically overwrite them when we update
