@@ -370,7 +370,7 @@ class WandbCallback(keras.callbacks.Callback):
         # if its a binary mask, just return it as grayscale instead of picking the argmax
         if len(masks[0].shape) == 2 or masks[0].shape[-1] == 1:
             return masks
-        class_colors = self.class_colors or np.array(wandb.util.class_colors(masks[0].shape[2]))
+        class_colors = self.class_colors if self.class_colors is not None else np.array(wandb.util.class_colors(masks[0].shape[2]))
         imgs = class_colors[np.argmax(masks, axis=-1)]
         return imgs
 
