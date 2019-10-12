@@ -286,7 +286,6 @@ class WandbCallback(keras.callbacks.Callback):
 
     # This is what keras used pre tensorflow.keras
     def on_batch_end(self, batch, logs=None):
-        print("Batch End!")
         if not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
@@ -299,7 +298,6 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_batch_end(self, batch, logs=None):
-        print("Train Batch End!", batch)
         if not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
