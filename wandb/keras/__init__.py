@@ -304,7 +304,7 @@ class WandbCallback(keras.callbacks.Callback):
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
-        
+
         if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
             wandb.log(logs, commit=True)
 
