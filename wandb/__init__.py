@@ -1018,7 +1018,6 @@ def _wandb_finished(run):
     shutdown_async_log_thread()
     run.close_files()
 
-
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
 jupyter = util.LazyLoader('jupyter', globals(), 'wandb.jupyter')
