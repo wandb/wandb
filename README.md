@@ -1,67 +1,75 @@
----
-description: 'Track machine learning experiments, visualize metrics, and share results'
----
+<div align="center">
+  <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
+</div>
 
-# Weights & Biases
+# Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb)
 
-Weights & Biases helps you keep track of your machine learning experiments. Use our tool to log hyperparameters and output metrics from your runs, then visualize and compare results and quickly share findings with your colleagues.
+Use W&B to organize and analyze machine learning experiments. It's framework-agnostic and lighter than TensorBoard. Each time you run a script instrumented with `wandb`, we save your hyperparameters and output metrics. Visualize models over the course of training, and compare versions of your models easily. We also automatically track the state of your code, system metrics, and configuration parameters.
 
-![](.gitbook/assets/image%20%281%29.png)
+[Sign up for a free account →](https://wandb.com)
 
-Here's a sample screenshot from a [Species Identification project](https://app.wandb.ai/stacey/curr_learn/reports?view=stacey%2FSpecies%20Identification) in W&B.
+## Features
 
-## Getting Started
+-   Store hyper-parameters used in a training run
+-   Search, compare, and visualize training runs
+-   Analyze system usage metrics alongside runs
+-   Collaborate with team members
+-   Replicate historic results
+-   Run parameter sweeps
+-   Keep records of experiments available forever
 
-Easily add our package, `wandb`, to your model script.
+[Documentation →](https://docs.wandb.com)
 
-* [Quickstart](quickstart.md)
-* [Keras integration](python/frameworks/keras.md)
-* [PyTorch integration](python/frameworks/pytorch.md)
-* [TensorFlow integration](python/frameworks/tensorflow.md)
+## Quickstart
 
-## Examples
+```shell
+pip install wandb
+```
 
-If you're interested in example projects, we have a few resources:
+In your training script:
 
-* [App Gallery](https://app.wandb.ai/gallery): A gallery of featured reports in our web app
-* [Example Projects](python/example-projects/): Python scripts and the results in our web app
+```python
+import wandb
+# Your custom arguments defined here
+args = ...
 
-## Common Questions
+wandb.init(config=args, project="my-project")
+wandb.config["more"] = "custom"
 
-### How do I pronounce "wandb"?
+def training_loop():
+    while True:
+        # Do some machine learning
+        epoch, loss, val_loss = ...
+        # Framework agnostic / custom metrics
+        wandb.log({"epoch": epoch, "loss": loss, "val_loss": val_loss})
+```
 
-You can pronounce it w-and-b \(as we originally intended\), wand-b \(because it's magic like a wand\), or wan-db \(because it saves things like a database\).
+If you're already using Tensorboard or [TensorboardX](https://github.com/lanpa/tensorboardX), you can integrate with one line:
 
-### How much does this thing cost?
+```python
+wandb.init(sync_tensorboard=True)
+```
 
-W&B is free for personal and academic projects. We are committed to staying free for academic and open source projects and making it easy to export data.
+## Running your script
 
-If you want to host private projects for a company, email us at [contact@wandb.com](mailto:contact@wandb.com).
+Run `wandb login` from your terminal to signup or authenticate your machine (we store your api key in ~/.netrc). You can also set the `WANDB_API_KEY` environment variable with a key from your [settings](https://app.wandb.ai/settings).
 
-### Do you offer an on-premises version of your software?
+Run your script with `python my_script.py` and all metadata will be synced to the cloud. You will see a url in your terminal logs when your script starts and finishes. Data is staged locally in a directory named _wandb_ relative to your script. If you want to test your script without syncing to the cloud you can set the environment variable `WANDB_MODE=dryrun`.
 
-Yes! If you're interested, reach out to us at [contact@wandb.com](mailto:contact@wandb.com).
+If you are using [docker](https://docker.com) to run your code, we provide a wrapper command `wandb docker` that mounts your current directory, sets environment variables, and ensures the wandb library is installed. Training your models in docker gives you the ability to restore the exact code and environment with the `wandb restore` command.
 
-### How is this different than TensorBoard?
+## Web Interface
 
-W&B is a distributed cloud hosted solution so your results are saved forever and it's still snappy after 1000's of runs have been monitored. We offer additional features such as system metrics, commit history, experiment notes, dashboards, and advanced searching / aggregation across runs and projects.
+[Sign up for a free account →](https://wandb.com)
+[![Watch the video](https://i.imgur.com/PW0Ejlc.png)](https://youtu.be/EeqhOSvNX-A)
+[Introduction video →](https://youtu.be/EeqhOSvNX-A)
 
-### Who has rights to the data?
+## Detailed Usage
 
-You can always export and delete your data at any time. We will never share data associated with private projects. We hope that when you can, you will make your work public so that other practitioners can learn from it.
+Framework specific and detailed usage can be found in our [documentation](http://docs.wandb.com/).
 
-We hope to discover and share high level patterns to move the field of machine learning forward. For example, we wrote [this article](https://www.wandb.com/articles/monitor-improve-gpu-usage-for-model-training) on how people are not fully utilizing their GPUs. We want to do this in a way that respects your privacy and feels honest. If you have any concerns about data privacy, we'd love to hear from you. Reach out at contact@wandb.com.
+## Testing
 
-### Can I just log metrics, no code or dataset examples?
+To run the tests we use `pytest tests`. If you want a simple mock of the wandb backend and cloud storage you can use the mock_server fixture, see tests/test_cli.py for examples.
 
-**Dataset Examples**
-
-By default, we don't log any of your dataset examples. You can explicitly turn this feature on to see example predictions in our web interface.
-
-**Code Logging**
-
-There's two ways to turn off code logging:
-
-1. Set **WANDB\_DISABLE\_CODE** to **true** to turn off all code tracking. We won't pick up the git SHA or the diff patch.
-2. Set **WANDB\_IGNORE\_GLOBS** to **\*.patch** to turn off syncing the diff patch to our servers. You'll still have it locally and be able to apply it with the [wandb restore](python/using-the-cli.md#restore-the-state-of-your-code) command.
-
+We use [circleci](https://circleci.com) and [appveyor](https://appveyor.com) for CI.
