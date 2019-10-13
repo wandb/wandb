@@ -378,9 +378,11 @@ def _init_jupyter(run):
         '''.format(run.api.app_url)))
     else:
         display(HTML('''
-            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
-            in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-        '''.format(run.get_url())))
+            Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+            Project page: <a href="{}" target="_blank">{}</a><br/>
+            Run page: <a href="{}" target="_blank">{}</a><br/>
+            Docs: <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">https://docs.wandb.com/docs/integrations/jupyter.html</a><br/>
+        '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
         try:
             run.save()
         except (CommError, ValueError) as e:

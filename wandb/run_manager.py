@@ -1003,8 +1003,8 @@ class RunManager(object):
                 run_state_str = "Syncing run"
 
             wandb.termlog("{} {}".format(run_state_str, click.style(self._run.name, fg="yellow")))
-            wandb.termlog("🚀 View run at {}".format(click.style(url, underline=True, fg='blue')))
             wandb.termlog("⭐️ View project at {}".format(click.style(project_url, underline=True, fg='blue')))
+            wandb.termlog("🚀 View run at {}".format(click.style(url, underline=True, fg='blue')))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         env = self._run.set_environment(environment=env)
