@@ -225,9 +225,11 @@ Returns an iterable object that iterated over all history for a run.
 
   Export all the loss values for an example run
   
-  run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
-  history = run.scan_history(keys=["Loss"])
-  losses = [row["Loss"] for row in history]
+    ```python
+    run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
+    history = run.scan_history(keys=["Loss"])
+    losses = [row["Loss"] for row in history]
+  ```
   
   
 
@@ -242,7 +244,7 @@ Returns an iterable object that iterated over all history for a run.
   An iterable object over dicts (history records).
   
 
-## [Sweep](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L791)
+## [Sweep](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L793)
 ```python
 Sweep(self, client, entity, project, sweep_id, attrs={})
 ```
@@ -258,13 +260,13 @@ api.sweep(sweep_path)
 - `config` _str_ - dictionary of sweep configuration
   
 
-## [Files](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L874)
+## [Files](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L876)
 ```python
 Files(self, client, run, names=[], per_page=50, upload=False)
 ```
 Files is a paginated list of files.
 
-## [File](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L930)
+## [File](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L932)
 ```python
 File(self, client, attrs)
 ```

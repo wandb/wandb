@@ -1,5 +1,6 @@
 """We had to copy this from: https://github.com/NiklasRosenstein/pydoc-markdown"""
 import re
+import os
 
 
 class Preprocessor:
@@ -58,16 +59,21 @@ class Preprocessor:
     in_codeblock = False
     keyword = None
     components = {}
+    debug = section.identifier == os.getenv("IDENTIFIER") #"wandb.apis.public.Run.scan_history"
 
     for line in section.content.split('\n'):
       line = line.strip()
 
       if line.startswith("```"):
-        print("Codeblock", lines, in_codeblock)
+        if debug:
+            print("Codeblock %s" % "starting" if not in_codeblock else "closed", line, lines)
         in_codeblock = not in_codeblock
 
       if in_codeblock:
-        lines.append(line)
+        if keyword:
+          components[keyword].append("    " +line)
+        else:
+          lines.append(line)
         continue
 
       if line in self._keywords_map:
@@ -92,12 +98,17 @@ class Preprocessor:
               '- `{param}` - {desc}'.format(**param_match.groupdict()))
           break
 
+      if debug:
+        print("Keyword", keyword, param_match, line)
+
       if not param_match:
         components[keyword].append('  {line}'.format(line=line))
 
     for key in components:
       self._append_section(lines, key, components)
 
+    if debug:
+        print(lines)
     section.content = '\n'.join(lines)
 
   @staticmethod
