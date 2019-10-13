@@ -63,6 +63,7 @@ class Preprocessor:
       line = line.strip()
 
       if line.startswith("```"):
+        print("Codeblock", lines, in_codeblock)
         in_codeblock = not in_codeblock
 
       if in_codeblock:

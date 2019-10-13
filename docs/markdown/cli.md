@@ -124,7 +124,7 @@ or repr(object).
 encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
-### [cli](https://github.com/wandb/client/blob/feature/docs//Users/vanpelt/.pyenv/versions/3.6.4/envs/wubhub-3.6/lib/python3.6/site-packages/click/decorators.py#L224)
+### [cli](https://github.com/wandb/client/blob/feature/docs//Users/lukas/.pyenv/versions/wandb-3.6/lib/python3.6/site-packages/click/decorators.py#L224)
 ```python
 cli(ctx)
 ```

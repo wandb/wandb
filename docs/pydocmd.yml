@@ -6,7 +6,7 @@ site_name: "W&B"
 # documented. Higher indentation leads to smaller header size.
 generate:
     - wandb_public.md:
-          - wandb.apis.public+
+          - wandb.apis.public++
     - cli.md:
           - wandb.cli++
 

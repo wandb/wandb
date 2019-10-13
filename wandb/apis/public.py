@@ -93,8 +93,8 @@ class Api(object):
     Initialize with wandb.Api()
 
     Args:
-        overrides (`dict`): You can set defaults such as
-            entity, project, and run here as well as which api server to use.
+        overrides (dict): You can set defaults such as
+                entity, project, and run here as well as which api server to use.
     """
 
     _HTTP_TIMEOUT = env.get_http_timeout(9)
@@ -195,12 +195,21 @@ class Api(object):
         """Return a set of runs from a project that match the filters provided.
         You can filter by config.*, summary.*, state, entity, createdAt, etc.
 
-        The filters use the same query language as MongoDB:
+        Args:
+            path (str): path to project, should be in the form: "entity/project"
+            filters (dict): queries for specific runs using the MongoDB query language.
+                You can filter by run properties such as config, summary, state, entity, createdAt, etc.
+                For example: {"config.experiment_name": "foo"} would find runs with a config entry
+                    of experiment name set to "foo"
+                You can compose operations to make more complicated queries,
+                    see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
+            order (str): Order can be created_at, heartbeat_at, config.*.value, or summary.*.  
+                If you prepend order with a + order is ascending.
+                If you prepend order with a - order is descending (default).
+                The default order is run.created_at from newest to oldest.
 
-        https://docs.mongodb.com/manual/reference/operator/query
-
-        Order can be created_at, heartbeat_at, config.*.value, or summary.*.  By default
-        the order is descending, if you prepend order with a + order becomes ascending.
+        Returns:
+            A Runs object, which is an iterable set of Run objects.
         """
         entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
@@ -210,9 +219,16 @@ class Api(object):
 
     @normalize_exceptions
     def run(self, path=""):
-        """Returns a run by parsing path in the form entity/project/run, if
-        defaults were set on the Api, only overrides what's passed.  I.E. you can just pass
-        run_id if you set entity and project on the Api"""
+        """Returns a single run by parsing path in the form entity/project/run_id.
+        
+        Args:
+            path (str): path to run in the form entity/project/run_id.  
+                If api.entity is set, this can be in the form project/run_id 
+                and if api.project is set this can just be the run_id.
+        
+        Returns:
+            A `Run` object.
+        """
         entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
             self._runs[path] = Run(self.client, entity, project, run)
@@ -220,6 +236,17 @@ class Api(object):
 
     @normalize_exceptions
     def sweep(self, path=""):
+        """
+        Returns a sweep by parsing path in the form entity/project/sweep_id.
+        
+        Args:
+            path (str, optional): path to sweep in the form entity/project/sweep_id.  If api.entity
+                is set, this can be in the form project/sweep_id and if api.project is set
+                this can just be the sweep_id.
+        
+        Returns:
+            A :obj:`Sweep` object.
+        """
         entity, project, sweep_id = self._parse_path(path)
         if not self._sweeps.get(sweep_id):
             self._sweeps[path] = Sweep(self.client, entity, project, sweep_id)
@@ -449,26 +476,27 @@ class Runs(Paginator):
 
 class Run(Attrs):
     """
-    A single run associated with a user and project
+    A single run associated with an entity and project.
     
     Attributes:
-    tags (list(str)): a list of tags associated with the run
-    url (str): the url of this run
-    id (str): unique identifier for the run
-    name (str): the name of the run
-    state (str): one of: running, finished, crashed, aborted
-    config (dict): a dict of hyperparameters associated with the run
-    created_at (str): ISO timestamp when the run was started
-    system_metrics (dict): the latest system metrics recorded for the run
-    summary (dict): A mutable dict-like property that holds the current summary. 
+        tags ([str]): a list of tags associated with the run
+        url (str): the url of this run
+        id (str): unique identifier for the run (defaults to eight characters)
+        name (str): the name of the run
+        state (str): one of: running, finished, crashed, aborted
+        config (dict): a dict of hyperparameters associated with the run
+        created_at (str): ISO timestamp when the run was started
+        system_metrics (dict): the latest system metrics recorded for the run
+        summary (dict): A mutable dict-like property that holds the current summary. 
                     Calling update will persist any changes.
-    project (str): the project associated with the run
-    entity (str): the entity associated with the run
-    user (str): the User who created the run
-    path (str): Unique identifier [entity]/[project]/[run_id]
-    notes (str): Notes about the run
-    read_only (boolean): Is the run editable
-    history_keys (str): Metrics that have been logged with wandb.log()
+        project (str): the project associated with the run
+        entity (str): the name of the entity associated with the run
+        user (str): the name of the user who created the run
+        path (str): Unique identifier [entity]/[project]/[run_id]
+        notes (str): Notes about the run
+        read_only (boolean): Whether the run is editable
+        history_keys (str): Keys of the history metrics that have been logged 
+            with wandb.log({key: value})
     """
 
     def __init__(self, client, entity, project, run_id, attrs={}):
@@ -659,10 +687,10 @@ class Run(Attrs):
         """
         Args:
             names (list): names of the requested files, if empty returns all files
-            per_page: (integer): number of results per page
+            per_page (integer): number of results per page
 
         Returns:
-            Files object 
+            A `Files` object, which is an iterator over `File` obejcts. 
         """    
         return Files(self.client, self, names, per_page)
 
@@ -670,16 +698,18 @@ class Run(Attrs):
     def file(self, name):
         """
         Args:
-            name (string): name of requested file.
+            name (str): name of requested file.
 
-        Returns
-            File
+        Returns:
+            A `File` matching the name argument.
         """
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
     def history(self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"):
-        """Return history metrics for a run
+        """
+        Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
+        the history records being sampled.
 
         Args:
             samples (int, optional): The number of samples to return
@@ -687,6 +717,10 @@ class Run(Attrs):
             keys (list, optional): Only return metrics for specific keys
             x_axis (str, optional): Use this metric as the xAxis defaults to _step
             stream (str, optional): "default" for metrics, "system" for machine metrics
+        
+        Returns:
+            If pandas=True returns a `pandas.DataFrame` of history metrics.
+            If pandas=False returns a list of dicts of history metrics.    
         """
         if keys and stream != "default":
             wandb.termerror("stream must be default when specifying keys")
@@ -705,11 +739,23 @@ class Run(Attrs):
 
     @normalize_exceptions
     def scan_history(self, keys=None, page_size=1000):
-        """Returns an iterable that returns all history for a run unsampled
+        """
+        Returns an iterable object that iterated over all history for a run.
+
+        Example:
+            Export all the loss values for an example run   
+            
+                run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
+                history = run.scan_history(keys=["Loss"])
+                losses = [row["Loss"] for row in history]
+            
 
         Args:
-            keys ([str], optional): only fetch these keys, and rows that have all of them
+            keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
             page_size (int, optional): size of pages to fetch from the api
+        
+        Returns:
+            An iterable object over dicts (history records).
         """
         if keys is None:
             return HistoryScan(run=self, client=self.client, page_size=page_size)
@@ -748,10 +794,10 @@ class Sweep(Attrs):
       api.sweep(sweep_path)
 
     Attributes:
-        runs (Runs): list of runs
-        id (string): sweep id 
-        project (string): name of project
-        config (string): dictionary of sweep configuration 
+        runs (`Runs`): list of runs
+        id (str): sweep id 
+        project (str): name of project
+        config (str): dictionary of sweep configuration 
     """
 
     def __init__(self, client, entity, project, sweep_id, attrs={}):
