@@ -152,7 +152,9 @@ class WandbCallback(keras.callbacks.Callback):
         """Constructor.
 
         # Arguments
-            monitor: quantity to monitor.
+            monitor: string
+                The name of a metric.  This metric will be used to determine
+                in which step the model is considered optimal during training.
             mode: one of {auto, min, max}.
                 'min' - save model when monitor is minimized
                 'max' - save model when monitor is maximized
