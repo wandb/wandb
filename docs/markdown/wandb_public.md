@@ -225,11 +225,11 @@ Returns an iterable object that iterated over all history for a run.
 
   Export all the loss values for an example run
   
-    ```python
-    run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
-    history = run.scan_history(keys=["Loss"])
-    losses = [row["Loss"] for row in history]
-  ```
+```python
+run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
+history = run.scan_history(keys=["Loss"])
+losses = [row["Loss"] for row in history]
+```
   
   
 

@@ -71,9 +71,14 @@ class Preprocessor:
 
       if in_codeblock:
         if keyword:
-          components[keyword].append("    " +line)
+          if keyword not in components:
+              components[keyword] = []
+          components[keyword].append(line)
         else:
           lines.append(line)
+        continue
+      elif line.startswith("```") and keyword:
+        components[keyword].append(line)
         continue
 
       if line in self._keywords_map:
