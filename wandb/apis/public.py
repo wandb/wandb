@@ -369,6 +369,7 @@ class Projects(Paginator):
 
 class Project(Attrs):
     """A project is a namespace for runs"""
+
     def __init__(self, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
         self.entity = entity
@@ -443,9 +444,33 @@ class Runs(Paginator):
 
 
 class Run(Attrs):
-    """A single run associated with a user and project"""
+    """
+    A single run associated with a user and project
+    
+    Attributes:
+    tags (list(str)): a list of tags associated with the run
+    url (str): the url of this run
+    id (str): unique identifier for the run
+    name (str): the name of the run
+    state (str): one of: running, finished, crashed, aborted
+    config (dict): a dict of hyperparameters associated with the run
+    created_at (str): ISO timestamp when the run was started
+    system_metrics (dict): the latest system metrics recorded for the run
+    summary (dict): A mutable dict-like property that holds the current summary. 
+                    Calling update will persist any changes.
+    project (str): the project associated with the run
+    entity (str): the entity associated with the run
+    user (str): the User who created the run
+    path (str): Unique identifier <entity>/<project>/<run_id>
+    notes (str): Notes about the run
+    read_only (boolean): Is the run editable
+    history_keys (str): Metrics that have been logged with wandb.log()
+    """
 
     def __init__(self, client, entity, project, run_id, attrs={}):
+        """
+        Run is always initialized by calling api.runs() where api is an instance of wandb.Api
+        """
         super(Run, self).__init__(dict(attrs))
         self.client = client
         self._entity = entity
@@ -567,6 +592,9 @@ class Run(Attrs):
 
     @normalize_exceptions
     def update(self):
+        """
+        Persists changes to the run object to the wandb backend.
+        """
         mutation = gql('''
         mutation upsertRun($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
             upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config}) {
@@ -624,10 +652,25 @@ class Run(Attrs):
 
     @normalize_exceptions
     def files(self, names=[], per_page=50):
+        """
+        Args:
+            names (list): names of the requested files, if empty returns all files
+            per_page: (integer): number of results per page
+
+        Returns:
+            Files object 
+        """    
         return Files(self.client, self, names, per_page)
 
     @normalize_exceptions
     def file(self, name):
+        """
+        Args:
+            name (string): name of requested file.
+
+        Returns
+            File
+        """
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
