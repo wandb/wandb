@@ -899,9 +899,8 @@ class RunManager(object):
         """
         io_wrap.init_sigwinch_handler()
         self._check_update_available(__version__)
-
         if self._output:
-            wandb.termlog("Local directory: %s" % os.path.relpath(self._run.dir))
+            wandb.termlog("Run data is saved locally in %s" % os.path.relpath(self._run.dir))
 
         self._system_stats.start()
         self._meta.start()
@@ -995,7 +994,15 @@ class RunManager(object):
 
         if self._output:
             url = self._run.get_url(self._api)
-            wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_run_name(self._run), url))
+            project_url = self._run.get_project_url(self._api)
+            if self._run.resumed:
+                run_state_str = "Resuming run"
+            else:
+                run_state_str = "Syncing run"
+
+            wandb.termlog("{} {}".format(run_state_str, click.style(self._run.name, fg="yellow")))
+            wandb.termlog("🚀 View run at {}".format(click.style(url, underline=True, fg='blue')))
+            wandb.termlog("⭐️ View project at {}".format(click.style(project_url, underline=True, fg='blue')))
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         env = self._run.set_environment(environment=env)

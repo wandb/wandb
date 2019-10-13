@@ -434,6 +434,34 @@ class Run(object):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
 
+    def get_project_url(self, api=None, params=None):
+        params = params or {}
+        api = api or self.api
+        if api.api_key:
+            if api.settings('entity') is None and network:
+                viewer = api.viewer()
+                if viewer.get('entity'):
+                    api.set_setting('entity', viewer['entity'])
+            if api.settings('entity'):
+                if str(api.settings().get('anonymous', 'false')) == 'true':
+                    params['apiKey'] = api.api_key
+
+                query_string = ""
+                if params != {}:
+                    query_string = '?' + urllib.parse.urlencode(params)
+
+                return "{base}/{entity}/{project}{query_string}".format(
+                    base=api.app_url,
+                    entity=urllib.parse.quote_plus(api.settings('entity')),
+                    project=urllib.parse.quote_plus(self.project_name(api)),
+                    query_string=query_string
+                )
+            else:
+                # TODO: I think this could only happen if the api key is invalid
+                return "run pending creation, url not known"
+        else:
+            return "not logged in, run wandb login or set WANDB_API_KEY"
+
     def get_url(self, api=None, network=True, params=None):
         """If network is False we don't query for entity, required for wandb.init"""
         params = params or {}
