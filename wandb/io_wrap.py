@@ -37,6 +37,7 @@ import functools
 import io
 import logging
 import os
+from wandb.core import termwarn
 try:
     import fcntl
     import pty
@@ -309,14 +310,21 @@ class FileRedirector(object):
             to_file: (file) The file object `redir_file` should be redirected to.
         """
         self.redir_file = redir_file
-        self._from_fd = redir_file.fileno()
-        self._to_fd = to_file.fileno()
-        # copy from_fd before it is overwritten
-        # NOTE: `self._from_fd` is inheritable on Windows when duplicating a standard stream
-        # we make this unbuffered because we want to rely on buffers earlier in the I/O chain
-        self.orig_file = os.fdopen(os.dup(self._from_fd), 'wb', 0)
+        self.disabled = False
+        if not hasattr(redir_file, "fileno"):
+            termwarn("Disabling log redirection because %s is not a regular IO object." % redir_file)
+            self.disabled = True
+        else:
+            self._from_fd = redir_file.fileno()
+            self._to_fd = to_file.fileno()
+            # copy from_fd before it is overwritten
+            # NOTE: `self._from_fd` is inheritable on Windows when duplicating a standard stream
+            # we make this unbuffered because we want to rely on buffers earlier in the I/O chain
+            self.orig_file = os.fdopen(os.dup(self._from_fd), 'wb', 0)
 
     def redirect(self):
+        if self.disabled:
+            return
         self.redir_file.flush()  # flush library buffers that dup2 knows nothing about
         os.dup2(self._to_fd, self._from_fd)  # $ exec >&to
 
@@ -324,6 +332,8 @@ class FileRedirector(object):
     def restore(self):
         """Restore `self.redir_file` to its original state.
         """
+        if self.disabled:
+            return
         # NOTE: dup2 makes `self._from_fd` inheritable unconditionally
         self.redir_file.flush()
         os.dup2(self.orig_file.fileno(), self._from_fd)  # $ exec >&copied

@@ -130,7 +130,7 @@ def patch():
     def _get_or_start_wandb_run(run, run_id=None, name=None):
         try:
             os.environ[env.SILENT] = "1"
-            os.environ[env.SYNC_MLFLOW] = "all"
+            os.environ[env.SYNC_MLFLOW] = os.getenv(env.SYNC_MLFLOW, "all")
             if run_id:
                 os.environ[env.RESUME] = "allow"  # TODO: must?
             if run.data.tags.get("mlflow.parentRunId"):
@@ -145,7 +145,7 @@ def patch():
 
             project = os.getenv(env.PROJECT, client.get_experiment(run.info.experiment_id).name)
             config = run.data.tags
-            config["mlflow.tracking_uri"] = os.getenv("MLFLOW_TRACKING_URI")
+            config["mlflow.tracking_uri"] = mlflow.get_tracking_uri()
             config["mlflow.experiment_id"] = run.info.experiment_id
             wandb_run = RUNS.get(run.info.run_id)
             if wandb_run is None:
@@ -158,10 +158,10 @@ def patch():
             RUNS[wandb_run.id] = {"step": 0, "last_log": time.time(), "run": wandb_run}
             return wandb_run
         except Exception as e:
-            wandb.termerror("Failed to intialize wandb, disable by setting WANDB_SYNC_MLFLOW=false")
+            wandb.termerror("Failed to intialize wandb, disable by setting WANDB_SYNC_MLFLOW=false", force=True)
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-            #print('\n'.join(lines))
+            print('\n'.join(lines))
 
     def start_run(**kwargs):
         run = fluent.orig_start_run(**kwargs)
@@ -180,7 +180,7 @@ def patch():
     def _get_run(run_id, only_run=True):
         run = RUNS.get(run_id, {}).get("run") if only_run else RUNS.get(run_id, {})
         if not run:
-            wandb.termwarn("No run found for %s - cur: %s" % (run_id, wandb.run))
+            wandb.termwarn("No run found for %s - cur: %s" % (run_id, wandb.run), force=True)
             run = MlflowClient().get_run(run_id)
             return _get_or_start_wandb_run(run)
         else:
@@ -235,6 +235,8 @@ def patch():
 
     def log_artifact(self, run_id, local_path, artifact_path=None):
         self.orig_log_artifact(run_id, local_path, artifact_path)
+        if os.getenv(env.SYNC_MLFLOW) != "all":
+            return
         if os.path.isdir(local_path):
             filename = ""
         else:
@@ -247,6 +249,8 @@ def patch():
 
     def log_artifacts(self, run_id, local_dir, artifact_path=None):
         self.orig_log_artifacts(run_id, local_dir, artifact_path)
+        if os.getenv(env.SYNC_MLFLOW) != "all":
+            return
         #TODO: abspath?
         run = _get_run(run_id)
         wandb_path = os.path.abspath(os.path.join(run.dir, artifact_path or ""))

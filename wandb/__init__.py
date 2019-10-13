@@ -1033,7 +1033,7 @@ ray = util.LazyLoader('ray', globals(), 'wandb.ray')
 # Auto patch mlflow, this fails gracefully and can be disabled with WANDB_SYNC_MLFLOW=disabled
 mlflow.patch()
 
-__all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore', 
+__all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
     'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai', 
     'docker', 'xgboost', 'gym', 'ray', 'mlflow', 'run', 'join', 'Image', 'Video', 
     'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']
