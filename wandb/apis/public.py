@@ -89,13 +89,15 @@ class RetryingClient(object):
 
 class Api(object):
     """W&B Public API
+    Used for querying the wandb server.
+    Initialize with wandb.Api()
 
     Args:
-        setting_overrides(:obj:`dict`, optional): You can set defaults such as
-        entity, project, and run here as well as which api server to use.
+        overrides (`dict`): You can set defaults such as
+            entity, project, and run here as well as which api server to use.
     """
 
-    HTTP_TIMEOUT = env.get_http_timeout(9)
+    _HTTP_TIMEOUT = env.get_http_timeout(9)
 
     def __init__(self, overrides={}):
         self.settings = {
@@ -117,7 +119,7 @@ class Api(object):
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
-                timeout=self.HTTP_TIMEOUT,
+                timeout=self._HTTP_TIMEOUT,
                 auth=("api", self.api_key),
                 url='%s/graphql' % self.settings['base_url']
             )
@@ -147,7 +149,8 @@ class Api(object):
         return key
 
     def flush(self):
-        """Clear the local cache"""
+        """Api keeps a local cache of runs, so if the state of the run may change while executing your script
+           you must clear the local cache with api.flush() to get the latest values associated with the run."""
         self._runs = {}
 
     def _parse_path(self, path):
@@ -379,7 +382,8 @@ class Project(Attrs):
 
 
 class Runs(Paginator):
-    """An iterable set of runs associated with a project and optional filters"""
+    """An iterable set of runs associated with a project and optional filter.    
+    """
 
     QUERY = gql('''
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
@@ -461,7 +465,7 @@ class Run(Attrs):
     project (str): the project associated with the run
     entity (str): the entity associated with the run
     user (str): the User who created the run
-    path (str): Unique identifier <entity>/<project>/<run_id>
+    path (str): Unique identifier [entity]/[project]/[run_id]
     notes (str): Notes about the run
     read_only (boolean): Is the run editable
     history_keys (str): Metrics that have been logged with wandb.log()
@@ -739,7 +743,16 @@ class Run(Attrs):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
 class Sweep(Attrs):
-    """A set of runs associated with a sweep"""
+    """A set of runs associated with a sweep
+    Instantiate with:
+      api.sweep(sweep_path)
+
+    Attributes:
+        runs (Runs): list of runs
+        id (string): sweep id 
+        project (string): name of project
+        config (string): dictionary of sweep configuration 
+    """
 
     def __init__(self, client, entity, project, sweep_id, attrs={}):
         # TODO: Add agents / flesh this out.
@@ -813,6 +826,8 @@ class Sweep(Attrs):
 
 
 class Files(Paginator):
+    """Files is a paginated list of files."""
+
     QUERY = gql('''
         query Run($project: String!, $entity: String!, $name: String!, $fileCursor: String,
             $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {
@@ -867,6 +882,8 @@ class Files(Paginator):
 
 
 class File(object):
+    """File is a file saved by wandb."""
+
     def __init__(self, client, attrs):
         self.client = client
         self._attrs = attrs
