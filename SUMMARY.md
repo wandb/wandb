@@ -56,6 +56,8 @@
   * [Numpy Example](python/example-projects/numpy-example.md)
   * [XGBoost Example](python/example-projects/xgboost-example.md)
   * [Jax Example](python/example-projects/jax-example.md)
+* [Enterprise](python/enterprise/README.md)
+  * [Enterprise Server](python/enterprise/enterprise-server.md)
 
 ## Web App <a id="app"></a>
 
@@ -76,4 +78,8 @@
 
 * [Rich Media](questions/rich-media.md)
 * [Compare Metrics](questions/compare-metrics.md)
+
+## Enterprise
+
+* [Untitled](enterprise/untitled.md)
 
