@@ -69,12 +69,6 @@ coverage: ## check code coverage quickly with the default Python
 		coverage html
 		$(BROWSER) htmlcov/index.html
 
-docs:
-	pydocmd simple wandb.apis.public+ > public_docs.md
-
-servedocs: docs ## compile the docs watching for changes
-	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
-
 gitdirty:
 ifeq ($(GIT_TREE_STATE),dirty)
 	$(error un-committed changes, commit before continuing)

@@ -1,0 +1,39 @@
+site_name: "W&B"
+
+# This tells pydocmd which pages to generate from which Python modules,
+# functions and classes. At the first level is the page name, below that
+# is a tree of Python member names (modules, classes, etc.) that should be
+# documented. Higher indentation leads to smaller header size.
+generate:
+    - wandb_public.md:
+          - wandb.apis.public+
+    - cli.md:
+          - wandb.cli++
+
+# These options all show off their default values. You don't have to add
+# them to your configuration if you're fine with the default.
+docs_dir: sources
+gens_dir: _build/pydocmd # This will end up as the MkDocs 'docs_dir'
+site_dir: _build/site
+theme: readthedocs
+loader: pydocmd.loader.PythonLoader
+preprocessor: wandb.compat.google.Preprocessor
+
+pages:
+    - rad:
+          - Cool Stuff: wandb_public.md
+
+# Whether to output headers as markdown or HTML.  Used to workaround
+# https://github.com/NiklasRosenstein/pydoc-markdown/issues/11.  The default is
+# to generate HTML with unique and meaningful id tags, which can't be done with
+# markdown.
+#
+# Note: if using the simple generator mode, this will default to 'markdown'
+# instead of 'html'.
+headers: markdown
+
+# Additional search path for your Python module. If you use Pydocmd from a
+# subdirectory of your project (eg. docs/), you may want to add the parent
+# directory here.
+additional_search_paths:
+    - ..
