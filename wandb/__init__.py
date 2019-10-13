@@ -381,7 +381,7 @@ def _init_jupyter(run):
             Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
             Project page: <a href="{}" target="_blank">{}</a><br/>
             Run page: <a href="{}" target="_blank">{}</a><br/>
-            Docs: <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">https://docs.wandb.com/docs/integrations/jupyter.html</a><br/>
+            Docs: <a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">https://docs.wandb.com/integrations/jupyter.html</a><br/>
         '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
         try:
             run.save()
