@@ -13,11 +13,10 @@ generate:
 # These options all show off their default values. You don't have to add
 # them to your configuration if you're fine with the default.
 docs_dir: sources
-gens_dir: _build/pydocmd # This will end up as the MkDocs 'docs_dir'
-site_dir: _build/site
-theme: readthedocs
+gens_dir: markdown # This will end up as the MkDocs 'docs_dir'
+site_dir:
 loader: pydocmd.loader.PythonLoader
-preprocessor: wandb.compat.google.Preprocessor
+preprocessor: google_parser.Preprocessor
 
 pages:
     - rad:
@@ -37,3 +36,4 @@ headers: markdown
 # directory here.
 additional_search_paths:
     - ..
+    - .

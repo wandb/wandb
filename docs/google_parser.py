@@ -1,3 +1,4 @@
+"""We had to copy this from: https://github.com/NiklasRosenstein/pydoc-markdown"""
 import re
 
 
