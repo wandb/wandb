@@ -47,6 +47,7 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
+from wandb import mlflow
 from wandb.run_manager import LaunchError
 from wandb.data_types import Image
 from wandb.data_types import Video
@@ -445,10 +446,10 @@ Api = PublicApi
 patched = {
     "tensorboard": [],
     "keras": [],
-    "gym": []
+    "gym": [],
+    "mlflow": []
 }
 _saved_files = set()
-
 
 def save(glob_str, base_path=None, policy="live"):
     """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
@@ -933,7 +934,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     try:
         signal.signal(signal.SIGQUIT, _debugger)
-    except AttributeError:
+    except (AttributeError, ValueError):
         pass
 
     try:
@@ -1029,6 +1030,10 @@ xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
 gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
 
+# Auto patch mlflow, this fails gracefully and can be disabled with WANDB_SYNC_MLFLOW=disabled
+mlflow.patch()
 
-__all__ = ['init', 'config', 'termlog', 'termwarn', 'termerror', 'tensorflow',
-           'run', 'types', 'callbacks', 'join']
+__all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore', 
+    'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai', 
+    'docker', 'xgboost', 'gym', 'ray', 'mlflow', 'run', 'join', 'Image', 'Video', 
+    'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']

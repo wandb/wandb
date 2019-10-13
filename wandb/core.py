@@ -63,13 +63,14 @@ PRINTED_MESSAGES = set()
 
 # TODO(adrian): if output has been redirected, make this write to the original STDERR
 # so it doesn't get logged to the backend
-def termlog(string='', newline=True, repeat=True):
+def termlog(string='', newline=True, repeat=True, force=False):
     """Log to standard error with formatting.
 
     Args:
             string (str, optional): The string to print
             newline (bool, optional): Print a newline at the end of the string
             repeat (bool, optional): If set to False only prints the string once per process
+            force (bool, optional): Print to stdout even if env.SILENT is set
     """
     if string:
         line = '\n'.join(['{}: {}'.format(LOG_STRING, s)
@@ -81,7 +82,7 @@ def termlog(string='', newline=True, repeat=True):
     # Repeated line tracking limited to 1k messages
     if len(PRINTED_MESSAGES) < 1000:
         PRINTED_MESSAGES.add(line)
-    if os.getenv(env.SILENT):
+    if os.getenv(env.SILENT) and not force:
         from wandb import util
         util.mkdir_exists_ok(os.path.dirname(util.get_log_file_path()))
         with open(util.get_log_file_path(), 'w') as log:
