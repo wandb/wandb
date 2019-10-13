@@ -316,6 +316,7 @@ class User(Attrs):
         super(User, self).__init__(attrs)
 
 class Projects(Paginator):
+    """An iterable set of projects"""
     QUERY = gql('''
         query Projects($entity: String, $cursor: String, $perPage: Int = 50) {
             models(entityName: $entity, after: $cursor, first: $perPage) {
@@ -367,6 +368,7 @@ class Projects(Paginator):
         return "<Projects {}>".format(self.entity)
 
 class Project(Attrs):
+    """A project is a namespace for runs"""
     def __init__(self, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
         self.entity = entity
@@ -376,6 +378,8 @@ class Project(Attrs):
 
 
 class Runs(Paginator):
+    """An iterable set of runs associated with a project and optional filters"""
+
     QUERY = gql('''
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
             project(name: $project, entityName: $entity) {
