@@ -72,7 +72,7 @@ class PythonLoader(object):
             default_title = section.identifier
 
         name = getattr(obj, '__name__', default_title)
-        if prefix and name[0].islower():
+        if prefix and name[0].islower() and prefix not in name:
             section.title = ".".join([str(prefix), name])
         else:
             section.title = name

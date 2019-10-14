@@ -99,6 +99,7 @@ class Preprocessor:
         continue
 
       if keyword is None:
+        line=self.resolve_objects(line)
         if indented and not lines[-1].startswith("```"):
             if debug:
                 print("Joining new lines", lines[-1], line)

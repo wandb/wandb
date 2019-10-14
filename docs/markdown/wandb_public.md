@@ -1,5 +1,5 @@
 
-# apis.wandb.apis.public
+# wandb.apis.public
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L0)
 
 
@@ -118,7 +118,7 @@ Returns a sweep by parsing path in the form entity/project/sweep_id.
 Projects(self, client, entity, per_page=50)
 ```
 
-An iterable collection of :obj:`Project` objects.
+An iterable collection of [`Project`](#project) objects.
 
 
 ## Project
@@ -279,7 +279,7 @@ A set of runs associated with a sweep Instantiate with: api.sweep(sweep_path)
 ```python
 Files(self, client, run, names=[], per_page=50, upload=False)
 ```
-Files is an iterable collection of :obj:`File` objects.
+Files is an iterable collection of [`File`](#file) objects.
 
 ## File
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L970)
