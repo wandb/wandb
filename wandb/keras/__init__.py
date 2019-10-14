@@ -135,10 +135,10 @@ class WandbCallback(keras.callbacks.Callback):
     """WandbCallback automatically integrates keras with wandb.
 
     Example:
-        '''
+        ```
         model.fit(X_train, y_train,  validation_data=(X_test, y_test),
             callbacks=[WandbCallback()])
-        '''
+        ```
         
     WandbCallback will automatically log history data from any
         metrics collected by keras: loss and anything passed into keras_model.compile() 
