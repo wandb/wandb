@@ -100,7 +100,8 @@ class Preprocessor:
 
       if keyword is None:
         line=self.resolve_objects(line)
-        if indented and not lines[-1].startswith("```"):
+
+        if indented and not lines[-1].startswith("```") and not lines[-1] == "":
             if debug:
                 print("Joining new lines", lines[-1], line)
             lines[-1] = lines[-1] + ' ' + line
