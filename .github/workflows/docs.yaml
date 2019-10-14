@@ -26,7 +26,7 @@ jobs:
               uses: actions/upload-artifact@master
               with:
                   name: "docs"
-                  path: docs/
+                  path: docs/markdown
             - name: Commit changes
               uses: EndBug/add-and-commit@master
               with:
@@ -50,4 +50,9 @@ jobs:
               with:
                   name: docs
             - name: "Print what's here"
-              run: ls -al docs
+              run: ls -al markdown
+            - name: "Push to gitbook"
+              uses: .actions/commit-docs
+              with:
+                  author_name: Chris Van Pelt
+                  author_email: vanpelt@wandb.com
