@@ -1,20 +1,8 @@
-"""W&B rich data types like Image, Audio, etc. and JSON conversion functions.
+"""Wandb has special data types for logging to allow for richer visualizations.  
 
-A lot of functions take a "key" parameter. These are the dot-separated
-Summary/History keys that we use on the front end.
-
-Many also take a "step" parameter. These should be integer step numbers for
-values saved in History and the string "summary" for values saved in Summary.
-
-Values saved in History may incidentally also appear in Summary. In this case,
-their "step" is still the History step number. Only if the value is put
-directly into the Summary without being stored in History is its step set
-to "summary".
-
-The "to_json" functions in W&B are named loosely: they actually return Python
-dict's or lists that are meant to be serialized to JSON. Some of them do even
-more than this. They write something big to a file, then return a "JSON" blob
-that refers to it across Runs.
+All of the special data types are subclasses of WBValue.  All of the data types 
+    serialize to json, since that is what andb uses to save the objects locally 
+    and upload them to the wandb server.
 """
 
 from __future__ import print_function
@@ -40,117 +28,25 @@ import tempfile
 from wandb import util
 from wandb.compat import tempfile
 
-
 # Get rid of cleanup warnings in Python 2.7.
 warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'wandb.compat.tempfile')
-
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
 MEDIA_TMP = tempfile.TemporaryDirectory('wandb-media')
 
-
 DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
 
-
-def nest(thing):
-    """Use tensorflows nest function if available, otherwise just wrap object in an array"""
-    tfutil = util.get_module('tensorflow.python.util')
-    if tfutil:
-        return tfutil.nest.flatten(thing)
-    else:
-        return [thing]
-
-
-def history_dict_to_json(run, payload, step=None):
-    """Converts a History row dict's elements so they're friendly for JSON serialization.
-    """
-    if step is None:
-        # We should be at the top level of the History row; assume this key is set.
-        step = payload['_step']
-
-    for key, val in six.iteritems(payload):
-        if isinstance(val, dict):
-            payload[key] = history_dict_to_json(run, val, step=step)
-        else:
-            payload[key] = val_to_json(run, key, val, step=step)
-
-    return payload
-
-def numpy_arrays_to_lists(payload):
-    """Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
-    """
-    for key,val in six.iteritems(payload):
-        if isinstance(val, dict):
-            payload[key] = numpy_arrays_to_lists(val)
-        elif util.is_numpy_array(val):
-            payload[key] = val.tolist()
-
-    return payload
-
-
-def val_to_json(run, key, val, step='summary'):
-    """Converts a wandb datatype to its JSON representation.
-    """
-    converted = val
-    typename = util.get_full_typename(val)
-
-    if util.is_pandas_data_frame(val):
-        assert step == 'summary', "We don't yet support DataFrames in History."
-        return data_frame_to_json(val, run, key, step)
-    elif util.is_matplotlib_typename(typename):
-        # This handles plots with images in it because plotly doesn't support it
-        # TODO: should we handle a list of plots?
-        val = util.ensure_matplotlib_figure(val)
-        if any(len(ax.images) > 0 for ax in val.axes):
-            PILImage = util.get_module(
-                "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
-            buf = six.BytesIO()
-            val.savefig(buf)
-            val = Image(PILImage.open(buf))
-        else:
-            converted = plot_to_json(val)
-    elif util.is_plotly_typename(typename):
-        converted = plot_to_json(val)
-    elif isinstance(val, collections.Sequence) and all(isinstance(v, WBValue) for v in val):
-        # This check will break down if Image/Audio/... have child classes.
-        if len(val) and isinstance(val[0], BatchableMedia) and all(isinstance(v, type(val[0])) for v in val):
-            return val[0].seq_to_json(val, run, key, step)
-        else:
-            # TODO(adrian): Good idea to pass on the same key here? Maybe include
-            # the array index?
-            # There is a bug here: if this array contains two arrays of the same type of
-            # anonymous media objects, their eventual names will collide.
-            # This used to happen. The frontend doesn't handle heterogenous arrays
-            #raise ValueError(
-            #    "Mixed media types in the same list aren't supported")
-            return [val_to_json(run, key, v, step=step) for v in val]
-
-    if isinstance(val, WBValue):
-        if isinstance(val, Media) and not val.is_bound():
-            val.bind_to_run(run, key, step)
-        return val.to_json(run)
-
-    return converted
-
-
 class WBValue(object):
-    """Parent class for things that can be logged by wandb.log() and 
+    """Abstract parent class for things that can be logged by wandb.log() and 
         visualized by wandb. 
 
     The objects will be serialized as JSON and always have a _type attribute 
-    that indicates how to interpret the other fields.
-
-    Arguments:
-        run (`wandb_run.Run`): The run in which this `WBValue` is going to
-            be stored. This is a required parameter here to support referring to
-            `Media` objects that are bound to other runs. In practice, many
-            `WBValue` children may not need a Run to be passed to them because
-            their JSON representations are self-contained.
+        that indicates how to interpret the other fields.
 
     Returns:
         JSON-friendly `dict` representation of this object that can later be
-    serialized to a string.
+            serialized to a string.
     """
     def __init__(self):
         pass
@@ -159,443 +55,6 @@ class WBValue(object):
         """
         """
         raise NotImplementedError
-
-
-def plot_to_json(obj):
-    if util.is_matplotlib_typename(util.get_full_typename(obj)):
-        tools = util.get_module(
-            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
-        obj = tools.mpl_to_plotly(obj)
-
-    if util.is_plotly_typename(util.get_full_typename(obj)):
-        return {"_type": "plotly", "plot": numpy_arrays_to_lists(obj.to_plotly_json())}
-    else:
-        return obj
-
-
-def data_frame_to_json(df, run, key, step):
-    """Encode a Pandas DataFrame into the JSON/backend format.
-
-    Writes the data to a file and returns a dictionary that we use to represent
-    it in `Summary`'s.
-
-    Arguments:
-        df (pandas.DataFrame): The DataFrame. Must not have columns named
-            "wandb_run_id" or "wandb_data_frame_id". They will be added to the
-            DataFrame here.
-        run (wandb_run.Run): The Run the DataFrame is associated with. We need
-            this because the information we store on the DataFrame is derived
-            from the Run it's in.
-        key (str): Name of the DataFrame, ie. the summary key path in which it's
-            stored. This is for convenience, so people exploring the
-            directory tree can have some idea of what is in the Parquet files.
-        step: History step or "summary".
-
-    Returns:
-        A dict representing the DataFrame that we can store in summaries or
-        histories. This is the format:
-        {
-            '_type': 'data-frame',
-                # Magic field that indicates that this object is a data frame as
-                # opposed to a normal dictionary or anything else.
-            'id': 'asdf',
-                # ID for the data frame that is unique to this Run.
-            'format': 'parquet',
-                # The file format in which the data frame is stored. Currently can
-                # only be Parquet.
-            'project': 'wfeas',
-                # (Current) name of the project that this Run is in. It'd be
-                # better to store the project's ID because we know it'll never
-                # change but we don't have that here. We store this just in
-                # case because we use the project name in identifiers on the
-                # back end.
-            'path': 'media/data_frames/sdlk.parquet',
-                # Path to the Parquet file in the Run directory.
-        }
-    """
-    pandas = util.get_module("pandas")
-    fastparquet = util.get_module("fastparquet")
-    missing_reqs = []
-    if not pandas:
-        missing_reqs.append('pandas')
-    if not fastparquet:
-        missing_reqs.append('fastparquet')
-    if len(missing_reqs) > 0:
-        raise wandb.Error("Failed to save data frame. Please run 'pip install %s'" % ' '.join(missing_reqs))
-
-    data_frame_id = util.generate_id()
-
-    df = df.copy()  # we don't want to modify the user's DataFrame instance.
-
-    for col_name, series in df.items():
-        for i, val in enumerate(series):
-            if isinstance(val, WBValue):
-                series.iat[i] = six.text_type(json.dumps(val_to_json(run, key, val, step)))
-
-    # We have to call this wandb_run_id because that name is treated specially by
-    # our filtering code
-    df['wandb_run_id'] = pandas.Series(
-        [six.text_type(run.id)] * len(df.index), index=df.index)
-
-    df['wandb_data_frame_id'] = pandas.Series(
-        [six.text_type(data_frame_id)] * len(df.index), index=df.index)
-    frames_dir = os.path.join(run.dir, DATA_FRAMES_SUBDIR)
-    util.mkdir_exists_ok(frames_dir)
-    path = os.path.join(frames_dir, '{}-{}.parquet'.format(key, data_frame_id))
-    fastparquet.write(path, df)
-
-    return {
-        'id': data_frame_id,
-        '_type': 'data-frame',
-        'format': 'parquet',
-        'project': run.project_name(),  # we don't have the project ID here
-        'entity': run.entity,
-        'run': run.id,
-        'path': path,
-    }
-
-
-class Graph(WBValue):
-    """Wandb class for graphs
-    
-    This class is typically used for saving and diplaying neural net models.  It
-    represents the graph as an array of nodes and edges.  The nodes can have
-    labels that can be visualized by wandb.
-
-    Examples:
-        Import a keras model:
-        ```
-            Graph.from_keras(keras_model)
-        ```
-
-    Attributes:
-        format (string): Format to help wandb display the graph nicely.
-        nodes ([wandb.Node]): List of wandb.Nodes
-        nodes_by_id (dict): dict of ids -> nodes
-        edges ([(wandb.Node, wandb.Node)]): List of pairs of nodes interpreted as edges
-        loaded (boolean): Flag to tell whether the graph is completely loaded
-        root (wandb.Node): root node of the graph
-    """
-    def __init__(self, format="keras"):
-        # LB: TODO: I think we should factor criterion and criterion_passed out
-        self.format = format
-        self.nodes = []
-        self.nodes_by_id = {}
-        self.edges = []
-        self.loaded = False
-        self.criterion = None 
-        self.criterion_passed = False
-        self.root = None  # optional root Node if applicable
-
-    def to_json(self, run=None):
-        return {"_type": "graph", "format": self.format,
-                "nodes": [node.to_json() for node in self.nodes],
-                "edges": [edge.to_json() for edge in self.edges]}
-
-    def __getitem__(self, nid):
-        return self.nodes_by_id[nid]
-
-    def pprint(self):
-        for edge in self.edges:
-            pprint.pprint(edge.attributes)
-        for node in self.nodes:
-            pprint.pprint(node.attributes)
-
-    def add_node(self, node=None, **node_kwargs):
-        if node is None:
-            node = Node(**node_kwargs)
-        elif node_kwargs:
-            raise ValueError('Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})'.format(
-                node=node, node_kwargs=node_kwargs))
-        self.nodes.append(node)
-        self.nodes_by_id[node.id] = node
-
-        return node
-
-    def add_edge(self, from_node, to_node):
-        edge = Edge(from_node, to_node)
-        self.edges.append(edge)
-
-        return edge
-
-    @classmethod
-    def from_keras(cls, model):
-        graph = cls()
-        # Shamelessly copied from keras/keras/utils/layer_utils.py
-
-        if model.__class__.__name__ == 'Sequential':
-            sequential_like = True
-        elif not hasattr(model, "_is_graph_network") or not model._is_graph_network:
-            # We treat subclassed models as a simple sequence of layers,
-            # for logging purposes.
-            sequential_like = True
-        else:
-            sequential_like = True
-            nodes_by_depth = model._nodes_by_depth.values()
-            nodes = []
-            for v in nodes_by_depth:
-                # TensorFlow2 doesn't insure inbound is always a list
-                inbound = v[0].inbound_layers
-                if not hasattr(inbound, '__len__'):
-                    inbound = [inbound]
-                if (len(v) > 1) or (len(v) == 1 and len(inbound) > 1):
-                    # if the model has multiple nodes
-                    # or if the nodes have multiple inbound_layers
-                    # the model is no longer sequential
-                    sequential_like = False
-                    break
-                nodes += v
-            if sequential_like:
-                # search for shared layers
-                for layer in model.layers:
-                    flag = False
-                    if hasattr(layer, "_inbound_nodes"):
-                        for node in layer._inbound_nodes:
-                            if node in nodes:
-                                if flag:
-                                    sequential_like = False
-                                    break
-                                else:
-                                    flag = True
-                    if not sequential_like:
-                        break
-
-        relevant_nodes = None
-        if sequential_like:
-            # header names for the different log elements
-            to_display = ['Layer (type)', 'Output Shape', 'Param #']
-        else:
-            relevant_nodes = []
-            for v in model._nodes_by_depth.values():
-                relevant_nodes += v
-
-        layers = model.layers
-        for i in range(len(layers)):
-            node = Node.from_keras(layers[i])
-            if hasattr(layers[i], '_inbound_nodes'):
-                for in_node in layers[i]._inbound_nodes:
-                    if relevant_nodes and in_node not in relevant_nodes:
-                        # node is not part of the current network
-                        continue
-                    for in_layer in nest(in_node.inbound_layers):
-                        inbound_keras_node = Node.from_keras(in_layer)
-
-                        if (inbound_keras_node.id not in graph.nodes_by_id):
-                            graph.add_node(inbound_keras_node)
-                        inbound_node = graph.nodes_by_id[inbound_keras_node.id]
-
-                        graph.add_edge(inbound_node, node)
-            graph.add_node(node)
-        return graph
-
-
-class Node(WBValue):
-    def __init__(self, id=None, name=None, class_name=None, size=None, parameters=None, output_shape=None, is_output=None, num_parameters=None, node=None):
-        self._attributes = {'name': None}
-        self.in_edges = {}  # indexed by source node id
-        self.out_edges = {}  # indexed by dest node id
-        # optional object (eg. PyTorch Parameter or Module) that this Node represents
-        self.obj = None
-
-        if node is not None:
-            self._attributes.update(node._attributes)
-            del self._attributes['id']
-            self.obj = node.obj
-
-        if id is not None:
-            self.id = id
-        if name is not None:
-            self.name = name
-        if class_name is not None:
-            self.class_name = class_name
-        if size is not None:
-            self.size = size
-        if parameters is not None:
-            self.parameters = parameters
-        if output_shape is not None:
-            self.output_shape = output_shape
-        if is_output is not None:
-            self.is_output = is_output
-        if num_parameters is not None:
-            self.num_parameters = num_parameters
-
-    def to_json(self, run=None):
-        return self._attributes
-
-    def __repr__(self):
-        return repr(self._attributes)
-
-    @property
-    def id(self):
-        """Must be unique in the graph"""
-        return self._attributes.get('id')
-
-    @id.setter
-    def id(self, val):
-        self._attributes['id'] = val
-        return val
-
-    @property
-    def name(self):
-        """Usually the type of layer or sublayer"""
-        return self._attributes.get('name')
-
-    @name.setter
-    def name(self, val):
-        self._attributes['name'] = val
-        return val
-
-    @property
-    def class_name(self):
-        """Usually the type of layer or sublayer"""
-        return self._attributes.get('class_name')
-
-    @class_name.setter
-    def class_name(self, val):
-        self._attributes['class_name'] = val
-        return val
-
-    @property
-    def functions(self):
-        return self._attributes.get('functions', [])
-
-    @functions.setter
-    def functions(self, val):
-        self._attributes["functions"] = val
-        return val
-
-    @property
-    def parameters(self):
-        return self._attributes.get('parameters', [])
-
-    @parameters.setter
-    def parameters(self, val):
-        self._attributes["parameters"] = val
-        return val
-
-    @property
-    def size(self):
-        return self._attributes.get('size')
-
-    @size.setter
-    def size(self, val):
-        """Tensor size"""
-        self._attributes['size'] = tuple(val)
-        return val
-
-    @property
-    def output_shape(self):
-        return self._attributes.get('output_shape')
-
-    @output_shape.setter
-    def output_shape(self, val):
-        """Tensor output_shape"""
-        self._attributes['output_shape'] = val
-        return val
-
-    @property
-    def is_output(self):
-        return self._attributes.get('is_output')
-
-    @is_output.setter
-    def is_output(self, val):
-        """Tensor is_output"""
-        self._attributes['is_output'] = val
-        return val
-
-    @property
-    def num_parameters(self):
-        return self._attributes.get('num_parameters')
-
-    @num_parameters.setter
-    def num_parameters(self, val):
-        """Tensor num_parameters"""
-        self._attributes['num_parameters'] = val
-        return val
-
-    @property
-    def child_parameters(self):
-        return self._attributes.get('child_parameters')
-
-    @child_parameters.setter
-    def child_parameters(self, val):
-        """Tensor child_parameters"""
-        self._attributes['child_parameters'] = val
-        return val
-
-    @property
-    def is_constant(self):
-        return self._attributes.get('is_constant')
-
-    @is_constant.setter
-    def is_constant(self, val):
-        """Tensor is_constant"""
-        self._attributes['is_constant'] = val
-        return val
-
-    @classmethod
-    def from_keras(cls, layer):
-        node = cls()
-
-        try:
-            output_shape = layer.output_shape
-        except AttributeError:
-            output_shape = ['multiple']
-
-        node.id = layer.name
-        node.name = layer.name
-        node.class_name = layer.__class__.__name__
-        node.output_shape = output_shape
-        node.num_parameters = layer.count_params()
-
-        return node
-
-
-class Edge(WBValue):
-    def __init__(self, from_node, to_node):
-        self._attributes = {}
-        self.from_node = from_node
-        self.to_node = to_node
-
-    def __repr__(self):
-        temp_attr = dict(self._attributes)
-        del temp_attr['from_node']
-        del temp_attr['to_node']
-        temp_attr['from_id'] = self.from_node.id
-        temp_attr['to_id'] = self.to_node.id
-        return str(temp_attr)
-
-    def to_json(self, run=None):
-        return [self.from_node.id, self.to_node.id]
-
-    @property
-    def name(self):
-        """Optional, not necessarily unique"""
-        return self._attributes.get('name')
-
-    @name.setter
-    def name(self, val):
-        self._attributes['name'] = val
-        return val
-
-    @property
-    def from_node(self):
-        return self._attributes.get('from_node')
-
-    @from_node.setter
-    def from_node(self, val):
-        self._attributes['from_node'] = val
-        return val
-
-    @property
-    def to_node(self):
-        return self._attributes.get('to_node')
-
-    @to_node.setter
-    def to_node(self, val):
-        self._attributes['to_node'] = val
-        return val
-
 
 class Histogram(WBValue):
     """
@@ -656,6 +115,13 @@ class Histogram(WBValue):
 
 
 class Table(WBValue):
+    """This is a table designed to display small sets of records.
+
+    Arguments:
+        columns ([str]): Names of the columns in the table.  
+            Defaults to ["Input", "Output", "Expected"].
+        data (array): 2D Array of values that will be displayed as strings.
+    """
     MAX_ROWS = 300
 
     def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
@@ -1367,3 +833,528 @@ class Image(BatchableMedia):
             return [i._caption for i in images]
         else:
             return False
+
+class Graph(WBValue):
+    """Wandb class for graphs
+    
+    This class is typically used for saving and diplaying neural net models.  It
+    represents the graph as an array of nodes and edges.  The nodes can have
+    labels that can be visualized by wandb.
+
+    Examples:
+        Import a keras model:
+        ```
+            Graph.from_keras(keras_model)
+        ```
+
+    Attributes:
+        format (string): Format to help wandb display the graph nicely.
+        nodes ([wandb.Node]): List of wandb.Nodes
+        nodes_by_id (dict): dict of ids -> nodes
+        edges ([(wandb.Node, wandb.Node)]): List of pairs of nodes interpreted as edges
+        loaded (boolean): Flag to tell whether the graph is completely loaded
+        root (wandb.Node): root node of the graph
+    """
+    def __init__(self, format="keras"):
+        # LB: TODO: I think we should factor criterion and criterion_passed out
+        self.format = format
+        self.nodes = []
+        self.nodes_by_id = {}
+        self.edges = []
+        self.loaded = False
+        self.criterion = None 
+        self.criterion_passed = False
+        self.root = None  # optional root Node if applicable
+
+    def to_json(self, run=None):
+        return {"_type": "graph", "format": self.format,
+                "nodes": [node.to_json() for node in self.nodes],
+                "edges": [edge.to_json() for edge in self.edges]}
+
+    def __getitem__(self, nid):
+        return self.nodes_by_id[nid]
+
+    def pprint(self):
+        for edge in self.edges:
+            pprint.pprint(edge.attributes)
+        for node in self.nodes:
+            pprint.pprint(node.attributes)
+
+    def add_node(self, node=None, **node_kwargs):
+        if node is None:
+            node = Node(**node_kwargs)
+        elif node_kwargs:
+            raise ValueError('Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})'.format(
+                node=node, node_kwargs=node_kwargs))
+        self.nodes.append(node)
+        self.nodes_by_id[node.id] = node
+
+        return node
+
+    def add_edge(self, from_node, to_node):
+        edge = Edge(from_node, to_node)
+        self.edges.append(edge)
+
+        return edge
+
+    @classmethod
+    def from_keras(cls, model):
+        graph = cls()
+        # Shamelessly copied from keras/keras/utils/layer_utils.py
+
+        if model.__class__.__name__ == 'Sequential':
+            sequential_like = True
+        elif not hasattr(model, "_is_graph_network") or not model._is_graph_network:
+            # We treat subclassed models as a simple sequence of layers,
+            # for logging purposes.
+            sequential_like = True
+        else:
+            sequential_like = True
+            nodes_by_depth = model._nodes_by_depth.values()
+            nodes = []
+            for v in nodes_by_depth:
+                # TensorFlow2 doesn't insure inbound is always a list
+                inbound = v[0].inbound_layers
+                if not hasattr(inbound, '__len__'):
+                    inbound = [inbound]
+                if (len(v) > 1) or (len(v) == 1 and len(inbound) > 1):
+                    # if the model has multiple nodes
+                    # or if the nodes have multiple inbound_layers
+                    # the model is no longer sequential
+                    sequential_like = False
+                    break
+                nodes += v
+            if sequential_like:
+                # search for shared layers
+                for layer in model.layers:
+                    flag = False
+                    if hasattr(layer, "_inbound_nodes"):
+                        for node in layer._inbound_nodes:
+                            if node in nodes:
+                                if flag:
+                                    sequential_like = False
+                                    break
+                                else:
+                                    flag = True
+                    if not sequential_like:
+                        break
+
+        relevant_nodes = None
+        if sequential_like:
+            # header names for the different log elements
+            to_display = ['Layer (type)', 'Output Shape', 'Param #']
+        else:
+            relevant_nodes = []
+            for v in model._nodes_by_depth.values():
+                relevant_nodes += v
+
+        layers = model.layers
+        for i in range(len(layers)):
+            node = Node.from_keras(layers[i])
+            if hasattr(layers[i], '_inbound_nodes'):
+                for in_node in layers[i]._inbound_nodes:
+                    if relevant_nodes and in_node not in relevant_nodes:
+                        # node is not part of the current network
+                        continue
+                    for in_layer in nest(in_node.inbound_layers):
+                        inbound_keras_node = Node.from_keras(in_layer)
+
+                        if (inbound_keras_node.id not in graph.nodes_by_id):
+                            graph.add_node(inbound_keras_node)
+                        inbound_node = graph.nodes_by_id[inbound_keras_node.id]
+
+                        graph.add_edge(inbound_node, node)
+            graph.add_node(node)
+        return graph
+
+
+class Node(WBValue):
+    """
+    Node used in :obj:`Graph`
+    """
+    def __init__(self, id=None, name=None, class_name=None, size=None, parameters=None, output_shape=None, is_output=None, num_parameters=None, node=None):
+        self._attributes = {'name': None}
+        self.in_edges = {}  # indexed by source node id
+        self.out_edges = {}  # indexed by dest node id
+        # optional object (eg. PyTorch Parameter or Module) that this Node represents
+        self.obj = None
+
+        if node is not None:
+            self._attributes.update(node._attributes)
+            del self._attributes['id']
+            self.obj = node.obj
+
+        if id is not None:
+            self.id = id
+        if name is not None:
+            self.name = name
+        if class_name is not None:
+            self.class_name = class_name
+        if size is not None:
+            self.size = size
+        if parameters is not None:
+            self.parameters = parameters
+        if output_shape is not None:
+            self.output_shape = output_shape
+        if is_output is not None:
+            self.is_output = is_output
+        if num_parameters is not None:
+            self.num_parameters = num_parameters
+
+    def to_json(self, run=None):
+        return self._attributes
+
+    def __repr__(self):
+        return repr(self._attributes)
+
+    @property
+    def id(self):
+        """Must be unique in the graph"""
+        return self._attributes.get('id')
+
+    @id.setter
+    def id(self, val):
+        self._attributes['id'] = val
+        return val
+
+    @property
+    def name(self):
+        """Usually the type of layer or sublayer"""
+        return self._attributes.get('name')
+
+    @name.setter
+    def name(self, val):
+        self._attributes['name'] = val
+        return val
+
+    @property
+    def class_name(self):
+        """Usually the type of layer or sublayer"""
+        return self._attributes.get('class_name')
+
+    @class_name.setter
+    def class_name(self, val):
+        self._attributes['class_name'] = val
+        return val
+
+    @property
+    def functions(self):
+        return self._attributes.get('functions', [])
+
+    @functions.setter
+    def functions(self, val):
+        self._attributes["functions"] = val
+        return val
+
+    @property
+    def parameters(self):
+        return self._attributes.get('parameters', [])
+
+    @parameters.setter
+    def parameters(self, val):
+        self._attributes["parameters"] = val
+        return val
+
+    @property
+    def size(self):
+        return self._attributes.get('size')
+
+    @size.setter
+    def size(self, val):
+        """Tensor size"""
+        self._attributes['size'] = tuple(val)
+        return val
+
+    @property
+    def output_shape(self):
+        return self._attributes.get('output_shape')
+
+    @output_shape.setter
+    def output_shape(self, val):
+        """Tensor output_shape"""
+        self._attributes['output_shape'] = val
+        return val
+
+    @property
+    def is_output(self):
+        return self._attributes.get('is_output')
+
+    @is_output.setter
+    def is_output(self, val):
+        """Tensor is_output"""
+        self._attributes['is_output'] = val
+        return val
+
+    @property
+    def num_parameters(self):
+        return self._attributes.get('num_parameters')
+
+    @num_parameters.setter
+    def num_parameters(self, val):
+        """Tensor num_parameters"""
+        self._attributes['num_parameters'] = val
+        return val
+
+    @property
+    def child_parameters(self):
+        return self._attributes.get('child_parameters')
+
+    @child_parameters.setter
+    def child_parameters(self, val):
+        """Tensor child_parameters"""
+        self._attributes['child_parameters'] = val
+        return val
+
+    @property
+    def is_constant(self):
+        return self._attributes.get('is_constant')
+
+    @is_constant.setter
+    def is_constant(self, val):
+        """Tensor is_constant"""
+        self._attributes['is_constant'] = val
+        return val
+
+    @classmethod
+    def from_keras(cls, layer):
+        node = cls()
+
+        try:
+            output_shape = layer.output_shape
+        except AttributeError:
+            output_shape = ['multiple']
+
+        node.id = layer.name
+        node.name = layer.name
+        node.class_name = layer.__class__.__name__
+        node.output_shape = output_shape
+        node.num_parameters = layer.count_params()
+
+        return node
+
+
+class Edge(WBValue):
+    """
+    Edge used in :obj:`Graph`
+    """
+    
+    def __init__(self, from_node, to_node):
+        self._attributes = {}
+        self.from_node = from_node
+        self.to_node = to_node
+
+    def __repr__(self):
+        temp_attr = dict(self._attributes)
+        del temp_attr['from_node']
+        del temp_attr['to_node']
+        temp_attr['from_id'] = self.from_node.id
+        temp_attr['to_id'] = self.to_node.id
+        return str(temp_attr)
+
+    def to_json(self, run=None):
+        return [self.from_node.id, self.to_node.id]
+
+    @property
+    def name(self):
+        """Optional, not necessarily unique"""
+        return self._attributes.get('name')
+
+    @name.setter
+    def name(self, val):
+        self._attributes['name'] = val
+        return val
+
+    @property
+    def from_node(self):
+        return self._attributes.get('from_node')
+
+    @from_node.setter
+    def from_node(self, val):
+        self._attributes['from_node'] = val
+        return val
+
+    @property
+    def to_node(self):
+        return self._attributes.get('to_node')
+
+    @to_node.setter
+    def to_node(self, val):
+        self._attributes['to_node'] = val
+        return val
+
+def nest(thing):
+    # Use tensorflows nest function if available, otherwise just wrap object in an array"""
+    
+    tfutil = util.get_module('tensorflow.python.util')
+    if tfutil:
+        return tfutil.nest.flatten(thing)
+    else:
+        return [thing]
+
+
+def history_dict_to_json(run, payload, step=None):
+    # Converts a History row dict's elements so they're friendly for JSON serialization.
+
+    if step is None:
+        # We should be at the top level of the History row; assume this key is set.
+        step = payload['_step']
+
+    for key, val in six.iteritems(payload):
+        if isinstance(val, dict):
+            payload[key] = history_dict_to_json(run, val, step=step)
+        else:
+            payload[key] = val_to_json(run, key, val, step=step)
+
+    return payload
+
+def numpy_arrays_to_lists(payload):
+    # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
+
+    for key,val in six.iteritems(payload):
+        if isinstance(val, dict):
+            payload[key] = numpy_arrays_to_lists(val)
+        elif util.is_numpy_array(val):
+            payload[key] = val.tolist()
+
+    return payload
+
+
+def val_to_json(run, key, val, step='summary'):
+    # Converts a wandb datatype to its JSON representation.
+   
+    converted = val
+    typename = util.get_full_typename(val)
+
+    if util.is_pandas_data_frame(val):
+        assert step == 'summary', "We don't yet support DataFrames in History."
+        return data_frame_to_json(val, run, key, step)
+    elif util.is_matplotlib_typename(typename):
+        # This handles plots with images in it because plotly doesn't support it
+        # TODO: should we handle a list of plots?
+        val = util.ensure_matplotlib_figure(val)
+        if any(len(ax.images) > 0 for ax in val.axes):
+            PILImage = util.get_module(
+                "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
+            buf = six.BytesIO()
+            val.savefig(buf)
+            val = Image(PILImage.open(buf))
+        else:
+            converted = plot_to_json(val)
+    elif util.is_plotly_typename(typename):
+        converted = plot_to_json(val)
+    elif isinstance(val, collections.Sequence) and all(isinstance(v, WBValue) for v in val):
+        # This check will break down if Image/Audio/... have child classes.
+        if len(val) and isinstance(val[0], BatchableMedia) and all(isinstance(v, type(val[0])) for v in val):
+            return val[0].seq_to_json(val, run, key, step)
+        else:
+            # TODO(adrian): Good idea to pass on the same key here? Maybe include
+            # the array index?
+            # There is a bug here: if this array contains two arrays of the same type of
+            # anonymous media objects, their eventual names will collide.
+            # This used to happen. The frontend doesn't handle heterogenous arrays
+            #raise ValueError(
+            #    "Mixed media types in the same list aren't supported")
+            return [val_to_json(run, key, v, step=step) for v in val]
+
+    if isinstance(val, WBValue):
+        if isinstance(val, Media) and not val.is_bound():
+            val.bind_to_run(run, key, step)
+        return val.to_json(run)
+
+    return converted
+
+def plot_to_json(obj):
+    """Converts a matplotlib or plotly object to json so that we can pass
+        it the the wandb server and display it nicely there"""
+
+    if util.is_matplotlib_typename(util.get_full_typename(obj)):
+        tools = util.get_module(
+            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+        obj = tools.mpl_to_plotly(obj)
+
+    if util.is_plotly_typename(util.get_full_typename(obj)):
+        return {"_type": "plotly", "plot": numpy_arrays_to_lists(obj.to_plotly_json())}
+    else:
+        return obj
+
+
+def data_frame_to_json(df, run, key, step):
+    """Encode a Pandas DataFrame into the JSON/backend format.
+
+    Writes the data to a file and returns a dictionary that we use to represent
+    it in `Summary`'s.
+
+    Arguments:
+        df (pandas.DataFrame): The DataFrame. Must not have columns named
+            "wandb_run_id" or "wandb_data_frame_id". They will be added to the
+            DataFrame here.
+        run (wandb_run.Run): The Run the DataFrame is associated with. We need
+            this because the information we store on the DataFrame is derived
+            from the Run it's in.
+        key (str): Name of the DataFrame, ie. the summary key path in which it's
+            stored. This is for convenience, so people exploring the
+            directory tree can have some idea of what is in the Parquet files.
+        step: History step or "summary".
+
+    Returns:
+        A dict representing the DataFrame that we can store in summaries or
+        histories. This is the format:
+        {
+            '_type': 'data-frame',
+                # Magic field that indicates that this object is a data frame as
+                # opposed to a normal dictionary or anything else.
+            'id': 'asdf',
+                # ID for the data frame that is unique to this Run.
+            'format': 'parquet',
+                # The file format in which the data frame is stored. Currently can
+                # only be Parquet.
+            'project': 'wfeas',
+                # (Current) name of the project that this Run is in. It'd be
+                # better to store the project's ID because we know it'll never
+                # change but we don't have that here. We store this just in
+                # case because we use the project name in identifiers on the
+                # back end.
+            'path': 'media/data_frames/sdlk.parquet',
+                # Path to the Parquet file in the Run directory.
+        }
+    """
+    pandas = util.get_module("pandas")
+    fastparquet = util.get_module("fastparquet")
+    missing_reqs = []
+    if not pandas:
+        missing_reqs.append('pandas')
+    if not fastparquet:
+        missing_reqs.append('fastparquet')
+    if len(missing_reqs) > 0:
+        raise wandb.Error("Failed to save data frame. Please run 'pip install %s'" % ' '.join(missing_reqs))
+
+    data_frame_id = util.generate_id()
+
+    df = df.copy()  # we don't want to modify the user's DataFrame instance.
+
+    for col_name, series in df.items():
+        for i, val in enumerate(series):
+            if isinstance(val, WBValue):
+                series.iat[i] = six.text_type(json.dumps(val_to_json(run, key, val, step)))
+
+    # We have to call this wandb_run_id because that name is treated specially by
+    # our filtering code
+    df['wandb_run_id'] = pandas.Series(
+        [six.text_type(run.id)] * len(df.index), index=df.index)
+
+    df['wandb_data_frame_id'] = pandas.Series(
+        [six.text_type(data_frame_id)] * len(df.index), index=df.index)
+    frames_dir = os.path.join(run.dir, DATA_FRAMES_SUBDIR)
+    util.mkdir_exists_ok(frames_dir)
+    path = os.path.join(frames_dir, '{}-{}.parquet'.format(key, data_frame_id))
+    fastparquet.write(path, df)
+
+    return {
+        'id': data_frame_id,
+        '_type': 'data-frame',
+        'format': 'parquet',
+        'project': run.project_name(),  # we don't have the project ID here
+        'entity': run.entity,
+        'run': run.id,
+        'path': path,
+    }
