@@ -18,6 +18,7 @@ class Preprocessor:
     re.compile(
       r'^(?P<param>\S+)\s+\{(?P<type>\S+)\}\s+--\s+(?P<desc>.+)$'),
   ]
+  _obj_re = re.compile(r'.*(?P<object>:obj:\S+).*')
 
   _keywords_map = {
     'Args:': 'Arguments',
@@ -57,9 +58,10 @@ class Preprocessor:
     """
     lines = []
     in_codeblock = False
+    in_attribute = False
     keyword = None
     components = {}
-    debug = section.identifier == os.getenv("IDENTIFIER") #"wandb.apis.public.Run.scan_history"
+    debug = section.identifier == os.getenv("IDENTIFIER")  # "wandb.apis.public.Run.scan_history"
 
     for line in section.content.split('\n'):
       line = line.strip()
@@ -102,23 +104,32 @@ class Preprocessor:
             components[keyword].append(
               '- `{param}` - {desc}'.format(**param_match.groupdict()))
           break
+      obj = self._obj_re.match(line)
+      if obj:
+        link = obj.groupdict()["object"]
+        ref = link.split(":")[-1]
+        line = line.replace(link, "[{}](#{})".format(ref, ref.lower().strip("`")))
 
       if debug:
         print("Keyword", keyword, param_match, line)
 
       if not param_match:
-        components[keyword].append('  {line}'.format(line=line))
+        if len(components[keyword]) > 0:
+            # Add to previous line
+            components[keyword][-1] = components[keyword][-1] + ' ' + line
+        else:
+            components[keyword].append('   {line}'.format(line=line))
 
     for key in components:
       self._append_section(lines, key, components)
 
     if debug:
         print(lines)
-    section.content = '\n'.join(lines)
+    section.content='\n'.join(lines)
 
   @staticmethod
   def _append_section(lines, key, sections):
-    section = sections.get(key)
+    section=sections.get(key)
     if not section:
       return
 
