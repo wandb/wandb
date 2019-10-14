@@ -33,6 +33,9 @@ cd doc_repo
 mkdir -p library/reference
 rm -rf library/reference/*
 cp ../generated_docs/* library/reference/
+# One off removal
+rm library/reference/README.md
+rm library/reference/cli.md
 git add library/reference/*
 
 #add
@@ -43,14 +46,14 @@ if ! git diff --cached --exit-code
 then
 
     # Switch to branch from current Workflow run
-    echo "Creating and switching branch..."
-    git branch "${GITHUB_REF:11}"
-    git checkout "${GITHUB_REF:11}"
+    #echo "Creating and switching branch..."
+    #git branch "${GITHUB_REF:11}"
+    #git checkout "${GITHUB_REF:11}"
     
-    git status
+    #git status
     echo "Status was called"
-    #echo "Adding files..."
-    #add
+    git commit -m "Docs updated" --author="$INPUT_AUTHOR_NAME <$INPUT_AUTHOR_EMAIL>"
+    git push --set-upstream origin master
 
     #echo "Creating commit..."
     #git commit -m "$INPUT_MESSAGE" --author="$INPUT_AUTHOR_NAME <$INPUT_AUTHOR_EMAIL>"
