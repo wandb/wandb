@@ -25,10 +25,22 @@ jobs:
               with:
                   name: "docs"
                   path: docs/
+            - name: Commit changes
+              uses: EndBug/add-and-commit@master
+              with:
+                  author_name: Chris Van Pelt
+                  author_email: vanpelt@wandb.com
+                  message: "Doc updates"
+                  path: "."
+                  pattern: "docs/*"
+                  force: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     deploy:
         runs-on: ubuntu-latest
-        if: ${{ github.ref == "feature/docs" }}
+        if: github.ref == "feature/docs"
         steps:
+            -
             - name: "Download docs"
               uses: actions/download-artifact@master
               with:
