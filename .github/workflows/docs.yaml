@@ -61,6 +61,6 @@ jobs:
                   author_email: vanpelt@wandb.com
                   force: false
                   path: "."
-                  pattern: "*"
+                  pattern: "library/reference/*"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
