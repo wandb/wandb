@@ -38,7 +38,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     deploy:
         runs-on: ubuntu-latest
-        if: github.ref == "feature/docs"
+        if: 'github.ref == "feature/docs"'
         steps:
             - name: "What's here"
               run: ls -al
