@@ -1,8 +1,41 @@
 from pydocmd import document
 from pydocmd.imp import import_object
+from pydocmd import loader
 from pydocmd.__main__ import main
 import inspect
 import sys
+
+
+def trim(docstring):
+    if not docstring:
+        return ''
+    lines = [x.rstrip() for x in docstring.split('\n')]
+    lines[0] = lines[0].lstrip()
+    debug = False
+    if " FUCK" in docstring:
+        debug = True
+        print("LINES", lines)
+
+    indent = None
+    for i, line in enumerate(lines):
+        if i == 0 or not line:
+            continue
+        new_line = line.lstrip()
+        delta = len(line) - len(new_line)
+        if debug:
+            print("DELTA", delta)
+        if indent is None:
+            # So gnarly
+            if i > 0 and lines[i-1] != "":
+                indent = int(delta / 2)
+        if indent and delta > indent:
+            new_line = ' ' * (delta - indent) + new_line
+        lines[i] = new_line
+
+    return '\n'.join(lines)
+
+
+loader.trim = trim
 
 
 class Section(object):
@@ -17,8 +50,10 @@ class Section(object):
         self.link = None
         try:
             value = import_object(identifier)
-            filename = inspect.getfile(value).split("/client/")[-1]
             lineno = inspect.getsourcelines(value)[1]
+            if len(self.doc.sections) > 0:
+                value = import_object(self.doc.sections[0].identifier)
+            filename = inspect.getsourcefile(value).split("/client/")[-1]
             self.link = "https://github.com/wandb/client/blob/feature/docs/" + \
                 filename+"#L"+str(lineno)
         except TypeError as e:
@@ -29,7 +64,7 @@ class Section(object):
 
     def maybe_link(self, title):
         if self.link:
-            return "[{}]({})".format(self.title, self.link)
+            return "{} [source]({})".format(self.title, self.link)
         else:
             return title
 
