@@ -56,7 +56,7 @@ jobs:
             - name: "Push to gitbook"
               uses: ./.github/actions/commit-docs
               with:
-                  repo: https://github.com/wandb/gitbook
+                  repo: https://github.com/wandb/gitbook.git
                   author_name: Chris Van Pelt
                   author_email: vanpelt@wandb.com
                   force: false

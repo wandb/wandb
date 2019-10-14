@@ -13,7 +13,7 @@ inputs:
     repo:
         description: "The repo to commit to"
         required: true
-        default: "https://github.com/wandb/gitbook"
+        default: "https://github.com/wandb/gitbook.git"
     force:
         description: "Whether to use the force option on git add, in order to bypass eventual gitignores"
         required: false
