@@ -49,7 +49,8 @@ jobs:
             - name: "Download docs"
               uses: actions/download-artifact@master
               with:
-                  name: generated_docs
+                  name: docs
+                  path: generated_docs
             - name: "Print what's here"
               run: ls -al
             - name: "Push to gitbook"
