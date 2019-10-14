@@ -15,6 +15,7 @@ jobs:
               run: |
                   python -m pip install --upgrade pip
                   pip install pydoc-markdown yapf
+                  pip install -e .
             - name: Build docs
               run: |
                   cd docs
@@ -24,3 +25,13 @@ jobs:
               with:
                   name: "docs"
                   path: docs/
+    deploy:
+        runs-on: ubuntu-latest
+        if: ${{ github.ref == "feature/docs" }}
+        steps:
+            - name: "Download docs"
+              uses: actions/download-artifact@master
+              with:
+                  name: docs
+            - name: "Print what's here"
+              run: ls -al docs
