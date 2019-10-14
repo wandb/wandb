@@ -11,6 +11,10 @@ generate:
           - wandb.cli++
     - keras.md:
           - wandb.keras++
+    - fastai.md:
+          - wandb.fastai++
+    - data_types.md:
+          - wandb.data_types+
 
 # These options all show off their default values. You don't have to add
 # them to your configuration if you're fine with the default.
