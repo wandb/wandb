@@ -12,11 +12,13 @@ jobs:
               with:
                   python-version: 3.7
             - name: Install dependencies
+              if: github.event_name == 'pull_request'
               run: |
                   python -m pip install --upgrade pip
                   pip install pydoc-markdown yapf numpy tensorflow fastai
                   pip install -e .
             - name: Build docs
+              if: github.event_name == 'pull_request'
               run: |
                   cd docs
                   python generate.py
@@ -43,6 +45,7 @@ jobs:
         runs-on: ubuntu-latest
         if: github.ref == 'refs/heads/feature/docs'
         steps:
+            - uses: actions/checkout@v1
             - name: "What's here"
               run: ls -al
             - name: "Download docs"
