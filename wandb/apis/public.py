@@ -534,7 +534,7 @@ class Run(Attrs):
         notes (str): Notes about the run
         read_only (boolean): Whether the run is editable
         history_keys (str): Keys of the history metrics that have been logged 
-            with wandb.log({key: value})
+            with `wandb.log({key: value})`
     """
 
     def __init__(self, client, entity, project, run_id, attrs={}):
@@ -912,7 +912,7 @@ class Sweep(Attrs):
 
 
 class Files(Paginator):
-    """Files is a paginated list of files."""
+    """Files is an iterable collection of `File` objects."""
 
     QUERY = gql('''
         query Run($project: String!, $entity: String!, $name: String!, $fileCursor: String,
@@ -968,7 +968,17 @@ class Files(Paginator):
 
 
 class File(object):
-    """File is a file saved by wandb."""
+    """File is a class associated with a file saved by wandb.
+    
+    Attributes:
+        name (string): filename
+        url (string): path to file
+        md5 (string): md5 of file
+        mimetype (string): mimetype of file
+        updated_at (string): timestamp of last update
+        size (int): size of file in bytes
+
+    """
 
     def __init__(self, client, attrs):
         self.client = client
@@ -1007,6 +1017,17 @@ class File(object):
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException))
     def download(self, replace=False, root="."):
+        """Downloads a file previously saved by a run from the wandb server.
+
+        Args:
+            replace (boolean): If `True`, download will overwrite a local file 
+                if it exists. Defaults to `False`.
+            root (str): Local directory to save the file.  Defaults to ".".  
+
+        Raises:
+            `ValueError` if file already exists and replace=False
+        """
+
         response = requests.get(self._attrs["url"], auth=(
             "api", Api().api_key), stream=True, timeout=5)
         response.raise_for_status()
