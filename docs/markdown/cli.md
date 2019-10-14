@@ -1,5 +1,5 @@
 
-# [wandb.cli](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L0)
+# wandb.cli [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L0)
 
 
 ## cli
@@ -124,7 +124,7 @@ or repr(object).
 encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
-### [cli](https://github.com/wandb/client/blob/feature/docs//Users/vanpelt/.pyenv/versions/3.6.4/envs/wubhub-3.6/lib/python3.6/site-packages/click/decorators.py#L224)
+### cli [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L224)
 ```python
 cli(ctx)
 ```
@@ -133,30 +133,27 @@ Weights & Biases.
 Run "wandb docs" for full documentation.
 
 
-## [CallbackHandler](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L74)
+## CallbackHandler [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L74)
 ```python
 CallbackHandler(self, request, client_address, server)
 ```
-Simple callback handler that stores query string parameters and
-shuts down the server.
+Simple callback handler that stores query string parameters and shuts down the server.
 
 
-## [LocalServer](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L91)
+## LocalServer [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L91)
 ```python
 LocalServer(self)
 ```
-A local HTTP server that finds an open port and listens for a callback.
-The urlencoded callback url is accessed via `.qs` the query parameters passed
-to the callback are accessed via `.result`
+A local HTTP server that finds an open port and listens for a callback. The urlencoded callback url is accessed via `.qs` the query parameters passed to the callback are accessed via `.result`
 
 
-## [display_error](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L146)
+## display_error [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L146)
 ```python
 display_error(func)
 ```
 Function decorator for catching common errors and re-raising as wandb.Error
 
-## [prompt_for_project](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L163)
+## prompt_for_project [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L163)
 ```python
 prompt_for_project(ctx, entity)
 ```

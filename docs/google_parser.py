@@ -64,7 +64,10 @@ class Preprocessor:
     debug = section.identifier == os.getenv("IDENTIFIER")  # "wandb.apis.public.Run.scan_history"
 
     for line in section.content.split('\n'):
+      indented = line.startswith("  ")
       line = line.strip()
+      if debug:
+          print("YO", indented)
 
       if line.startswith("```"):
         if debug:
@@ -88,7 +91,10 @@ class Preprocessor:
         continue
 
       if keyword is None:
-        lines.append(line)
+        if indented:
+            lines[-1] = lines[-1] + ' ' + line
+        else:
+            lines.append(line)
         continue
 
       if keyword not in components:
