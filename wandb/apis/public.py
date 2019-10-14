@@ -88,13 +88,19 @@ class RetryingClient(object):
 
 
 class Api(object):
-    """W&B Public API
+    """
     Used for querying the wandb server.
-    Initialize with wandb.Api()
+
+    Examples:
+        Most common way to initialize
+        ```
+            wandb.Api()
+        ```
 
     Args:
-        overrides (dict): You can set defaults such as
-                entity, project, and run here as well as which api server to use.
+        overrides (dict): You can set `base_url` if you are using a wandb server
+            other than https://api.wandb.ai.  
+            You can also set defaults for `entity`, `project`, and `run`.
     """
 
     _HTTP_TIMEOUT = env.get_http_timeout(9)
@@ -151,7 +157,7 @@ class Api(object):
     def flush(self):
         """
         The api object keeps a local cache of runs, so if the state of the run may 
-            change while executing your script you must clear the local cache with api.flush() 
+            change while executing your script you must clear the local cache with `api.flush()`
             to get the latest values associated with the run."""
         self._runs = {}
 
@@ -184,7 +190,17 @@ class Api(object):
         return (entity, project, run)
 
     def projects(self, entity=None, per_page=None):
-        """Return a list of projects for a given entity."""
+        """Get projects for a given entity.
+        Args:
+            entity (str): Name of the entity requested.  If None will fallback to 
+                default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
+            per_page (int): Sets the page size for query pagination.  None will use the default size.
+                Usually there is no reason to change this.
+
+        Returns:
+            A `Projects` object which is an iterable collection of `Project` objects.
+        
+        """
         if entity is None:
             entity = self.settings['entity']
             if entity is None:
@@ -195,17 +211,35 @@ class Api(object):
 
     def runs(self, path="", filters={}, order="-created_at", per_page=None):
         """Return a set of runs from a project that match the filters provided.
-        You can filter by config.*, summary.*, state, entity, createdAt, etc.
+        You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
+
+        Examples:
+            Find runs in my_project config.experiment_name has been set to "foo"
+            ```
+            api.runs(path="my_entity/my_project", {"config.experiment_name": "foo"})
+            ```
+
+            Find runs in my_project config.experiment_name has been set to "foo" or "bar"
+            ```
+            api.runs(path="my_entity/my_project", 
+                {"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            ```
+
+            Find runs in my_project sorted by ascending loss
+            ```
+            api.runs(path="my_entity/my_project", {"order": "+summary.loss"})
+            ```             
+
 
         Args:
             path (str): path to project, should be in the form: "entity/project"
             filters (dict): queries for specific runs using the MongoDB query language.
-                You can filter by run properties such as config, summary, state, entity, createdAt, etc.
+                You can filter by run properties such as config.key, summary.key, state, entity, createdAt, etc.
                 For example: {"config.experiment_name": "foo"} would find runs with a config entry
                     of experiment name set to "foo"
                 You can compose operations to make more complicated queries,
                     see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
-            order (str): Order can be created_at, heartbeat_at, config.*.value, or summary.*.  
+            order (str): Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary.*`.  
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
                 The default order is run.created_at from newest to oldest.
@@ -691,7 +725,7 @@ class Run(Attrs):
         """
         Args:
             names (list): names of the requested files, if empty returns all files
-            per_page (integer): number of results per page
+            per_page (int): number of results per page
 
         Returns:
             A `Files` object, which is an iterator over `File` obejcts. 
