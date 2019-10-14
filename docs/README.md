@@ -2,7 +2,7 @@
 
 We publish master to our offcial [documentation site](https://docs.wandb.com)
 
-You can view our latest docs on a given branch directly on github [here](docs/markdown)
+You can view our latest docs on a given branch directly on github [here](markdown)
 
 ## Development
 
