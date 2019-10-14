@@ -149,8 +149,10 @@ class Api(object):
         return key
 
     def flush(self):
-        """Api keeps a local cache of runs, so if the state of the run may change while executing your script
-           you must clear the local cache with api.flush() to get the latest values associated with the run."""
+        """
+        The api object keeps a local cache of runs, so if the state of the run may 
+            change while executing your script you must clear the local cache with api.flush() 
+            to get the latest values associated with the run."""
         self._runs = {}
 
     def _parse_path(self, path):
@@ -209,7 +211,7 @@ class Api(object):
                 The default order is run.created_at from newest to oldest.
 
         Returns:
-            A Runs object, which is an iterable set of Run objects.
+            A Runs object, which is an iterable collection of Run objects.
         """
         entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
@@ -346,7 +348,9 @@ class User(Attrs):
         super(User, self).__init__(attrs)
 
 class Projects(Paginator):
-    """An iterable set of projects"""
+    """
+    An iterable collection of `Project` objects.
+    """
     QUERY = gql('''
         query Projects($entity: String, $cursor: String, $perPage: Int = 50) {
             models(entityName: $entity, after: $cursor, first: $perPage) {
@@ -409,7 +413,7 @@ class Project(Attrs):
 
 
 class Runs(Paginator):
-    """An iterable set of runs associated with a project and optional filter.    
+    """An iterable collection of runs associated with a project and optional filter.    
     """
 
     QUERY = gql('''
@@ -531,9 +535,9 @@ class Run(Attrs):
 
     @property
     def storage_id(self):
-        """For compatibility with wandb.Run, which has storage IDs
-        in self.storage_id and names in self.id.
-        """
+        # For compatibility with wandb.Run, which has storage IDs
+        # in self.storage_id and names in self.id.
+        
         return self._attrs.get('id')
 
     @property
@@ -740,7 +744,7 @@ class Run(Attrs):
     @normalize_exceptions
     def scan_history(self, keys=None, page_size=1000):
         """
-        Returns an iterable object that iterated over all history for a run.
+        Returns an iterable collection of all history records for a run.
 
         Example:
             Export all the loss values for an example run   
@@ -757,7 +761,7 @@ class Run(Attrs):
             page_size (int, optional): size of pages to fetch from the api
         
         Returns:
-            An iterable object over dicts (history records).
+            An iterable collection over history records (dict).
         """
         if keys is None:
             return HistoryScan(run=self, client=self.client, page_size=page_size)
