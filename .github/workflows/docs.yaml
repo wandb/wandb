@@ -52,7 +52,7 @@ jobs:
             - name: "Print what's here"
               run: ls -al markdown
             - name: "Push to gitbook"
-              uses: .github/actions/commit-docs
+              uses: ./.github/actions/commit-docs
               with:
                   author_name: Chris Van Pelt
                   author_email: vanpelt@wandb.com
