@@ -40,7 +40,8 @@ jobs:
         runs-on: ubuntu-latest
         if: github.ref == "feature/docs"
         steps:
-            -
+            - name: "What's here"
+              run: ls -al
             - name: "Download docs"
               uses: actions/download-artifact@master
               with:
