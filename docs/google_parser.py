@@ -67,7 +67,7 @@ class Preprocessor:
     in_attribute = False
     keyword = None
     components = {}
-    debug = section.identifier == os.getenv("IDENTIFIER")  # "wandb.apis.public.Run.scan_history"
+    debug = os.getenv("IDENTIFIER", "XXX") in section.identifier   # "wandb.apis.public.Run.scan_history"
 
     for line in section.content.split('\n'):
       indented = line.startswith("  ")
@@ -101,7 +101,7 @@ class Preprocessor:
       if keyword is None:
         line=self.resolve_objects(line)
 
-        if indented and not lines[-1].startswith("```") and not lines[-1] == "":
+        if indented and not lines[-1].startswith("```") and lines[-1] != "" and line != "":
             if debug:
                 print("Joining new lines", lines[-1], line)
             lines[-1] = lines[-1] + ' ' + line
@@ -129,13 +129,14 @@ class Preprocessor:
       line=self.resolve_objects(line)
 
       if not param_match:
-        if len(components[keyword]) > 0 and not components[keyword][-1].startswith("```"):
+        component = components[keyword]
+        if len(component) > 0 and not component[-1].startswith("```") and component[-1].strip() != "" and line != "":
             # Add to previous line
             if debug:
-                print("Adding to previous", components[keyword][-1], line)
-            components[keyword][-1]=components[keyword][-1] + ' ' + line
+                print("Adding to previous", component[-1], line)
+            component[-1]=component[-1] + ' ' + line
         else:
-            components[keyword].append(' {line}'.format(line=line))
+            component.append(' {line}'.format(line=line))
 
     for key in components:
       self._append_section(lines, key, components)
