@@ -70,6 +70,7 @@ class Preprocessor:
     debug = os.getenv("IDENTIFIER", "XXX") in section.identifier   # "wandb.apis.public.Run.scan_history"
 
     for line in section.content.split('\n'):
+      orig_line = line
       indented = line.startswith("  ")
       line = line.strip()
       if debug:
@@ -85,9 +86,12 @@ class Preprocessor:
       if in_codeblock:
         if keyword:
           if keyword not in components:
-              components[keyword] = []
+            components[keyword] = []
           components[keyword].append(line)
         else:
+          #Preserve tab formating in codeblocks
+          if line != "```python" and lines[-1] != "```python":
+              line = orig_line
           lines.append(line)
         continue
       elif line.startswith("```") and keyword:

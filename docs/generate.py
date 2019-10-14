@@ -83,7 +83,8 @@ class PythonLoader(object):
         if callable(obj):
             sig = loader.get_function_signature(
                 obj, scope if inspect.isclass(scope) else None)
-            sig, _ = FormatCode(sig, style_config='pep8')
+            sig, _ = FormatCode(sig, style_config='google')
+            print(sig)
             section.content = '```python\n{}\n```\n'.format(
                 sig.strip()) + section.content
 
