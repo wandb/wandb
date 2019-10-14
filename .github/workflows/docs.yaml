@@ -6,7 +6,7 @@ jobs:
     build:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v
+            - uses: actions/checkout@v1
             - name: Set up Python 3.7
               uses: actions/setup-python@v1
               with:
@@ -19,3 +19,8 @@ jobs:
               run: |
                   cd docs
                   python generate.py
+            - name: Upload docs
+              uses: actions/upload-artifact@master
+              with:
+                  name: "docs"
+                  path: docs/
