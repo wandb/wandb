@@ -31,7 +31,7 @@ git_setup
 git clone $INPUT_REPO doc_repo
 cd doc_repo
 mkdir -p markdown
-cp ../docs/* library/api/*
+cp ../generated_docs/* library/api/*
 echo "${GITHUB_REF:11}"
 
 add

@@ -12,7 +12,7 @@ inputs:
         default: "actions@github.com"
     repo:
         description: "The repo to commit to"
-        required: false
+        required: true
         default: "https://github.com/wandb/gitbook"
     force:
         description: "Whether to use the force option on git add, in order to bypass eventual gitignores"

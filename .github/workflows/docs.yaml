@@ -46,16 +46,15 @@ jobs:
         if: github.ref == 'refs/heads/feature/docs'
         steps:
             - uses: actions/checkout@v1
-            - name: "What's here"
-              run: ls -al
             - name: "Download docs"
               uses: actions/download-artifact@master
               with:
-                  name: docs
+                  name: generated_docs
             - name: "Print what's here"
               run: ls -al
             - name: "Push to gitbook"
               uses: ./.github/actions/commit-docs
               with:
+                  repo: https://github.com/wandb/gitbook
                   author_name: Chris Van Pelt
                   author_email: vanpelt@wandb.com
