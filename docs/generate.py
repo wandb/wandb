@@ -6,6 +6,7 @@ from yapf.yapflib.yapf_api import FormatCode
 import inspect
 import sys
 import os
+import yaml
 
 
 def trim(docstring):
@@ -84,7 +85,6 @@ class PythonLoader(object):
             sig = loader.get_function_signature(
                 obj, scope if inspect.isclass(scope) else None)
             sig, _ = FormatCode(sig, style_config='google')
-            print(sig)
             section.content = '```python\n{}\n```\n'.format(
                 sig.strip()) + section.content
 
@@ -152,4 +152,12 @@ document.Section = Section
 sys.argv = ["generate.py", "generate"]
 if __name__ == '__main__':
     main()
+    config = yaml.load(open("pydocmd.yml"))
+    modules = [("docs/markdown/"+list(doc)[0], list(doc.values())[0]) for doc in config["generate"]]
+    with open("markdown/README.md", "w") as f:
+        f.write(
+            "# W&B Documentation\n\nAll api docs are also available on our [documentation site](https://docs.wandb.com)\n\n")
+        for link, mods in modules:
+            for mod in mods:
+                f.write("- [{}]({})\n".format(mod.replace("+", ""), link))
     print("Generated files in the markdown folder!")
