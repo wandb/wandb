@@ -995,16 +995,19 @@ class RunManager(object):
                 raise LaunchError(launch_error_s)
 
         if self._output:
-            url = self._run.get_url(self._api)
-            project_url = self._run.get_project_url(self._api)
             if self._run.resumed:
                 run_state_str = "Resuming run"
             else:
                 run_state_str = "Syncing run"
 
             wandb.termlog("{} {}".format(run_state_str, click.style(self._run.name, fg="yellow")))
-            wandb.termlog("⭐️ View project at {}".format(click.style(project_url, underline=True, fg='blue')))
-            wandb.termlog("🚀 View run at {}".format(click.style(url, underline=True, fg='blue')))
+            try:
+                url = self._run.get_url(self._api)
+                project_url = self._run.get_project_url(self._api)
+                wandb.termlog("⭐️ View project at {}".format(click.style(project_url, underline=True, fg='blue')))
+                wandb.termlog("🚀 View run at {}".format(click.style(url, underline=True, fg='blue')))
+            except CommError as e:
+                wandb.termwarn(e.message)
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         env = self._run.set_environment(environment=env)
@@ -1221,7 +1224,10 @@ class RunManager(object):
         wandb.termlog()
 
         if wandb_env.get_show_run():
-            webbrowser.open_new_tab(self._run.get_url(self._api))
+            try:
+                webbrowser.open_new_tab(self._run.get_url(self._api))
+            except CommError:
+                pass
 
         exitcode = None
         try:
@@ -1371,7 +1377,9 @@ class RunManager(object):
         self._run.history.load()
         history_keys = self._run.history.keys()
         # Only print sparklines if the terminal is utf-8
-        if len(history_keys) and sys.stdout.encoding == "UTF_8":
+        # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object 
+        #   which doesn't have the attribute 'encoding'
+        if len(history_keys) and hasattr(sys.stdout, 'encoding') and sys.stdout.encoding == "UTF_8":
             logger.info("rendering history")
             wandb.termlog('Run history:')
             max_len = max([len(k) for k in history_keys])
@@ -1398,8 +1406,10 @@ class RunManager(object):
         self._file_pusher.update_all_files()
         self._file_pusher.print_status()
 
-        url = self._run.get_url(self._api)
-
-        wandb.termlog('Synced{} {}'.format(format_run_name(self._run), url))
+        try:
+            url = self._run.get_url(self._api)
+            wandb.termlog('Synced{} {}'.format(format_run_name(self._run), url))
+        except CommError as e:
+            wandb.termwarn(e.message)
         logger.info("syncing complete: %s" % url)
         sys.exit(exitcode)

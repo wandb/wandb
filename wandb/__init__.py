@@ -377,16 +377,25 @@ def _init_jupyter(run):
             Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
         '''.format(run.api.app_url)))
     else:
-        display(HTML('''
-            Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
-            Project page: <a href="{}" target="_blank">{}</a><br/>
-            Run page: <a href="{}" target="_blank">{}</a><br/>
-            Docs: <a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">https://docs.wandb.com/integrations/jupyter.html</a><br/>
-        '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
+        displayed = False
         try:
+            display(HTML('''
+                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                Project page: <a href="{}" target="_blank">{}</a><br/>
+                Run page: <a href="{}" target="_blank">{}</a><br/>
+                Docs: <a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">https://docs.wandb.com/integrations/jupyter.html</a><br/>
+            '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
+            displayed = True
             run.save()
         except (CommError, ValueError) as e:
-            termerror(str(e))
+            if not displayed:
+                display(HTML('''
+                    Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                    Couldn't load entity due to error: {}
+                '''.format(e.message)))
+            else:
+                termerror(str(e))
+            
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
