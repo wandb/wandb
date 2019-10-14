@@ -60,5 +60,7 @@ jobs:
                   author_name: Chris Van Pelt
                   author_email: vanpelt@wandb.com
                   force: false
+                  path: "."
+                  pattern: "*"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

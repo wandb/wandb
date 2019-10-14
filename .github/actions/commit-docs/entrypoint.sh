@@ -30,9 +30,8 @@ echo "Staging files in commit path..."
 git_setup
 git clone $INPUT_REPO doc_repo
 cd doc_repo
-mkdir -p markdown
-cp ../generated_docs/* library/api/
-echo "${GITHUB_REF:11}"
+mkdir -p library/reference
+cp ../generated_docs/* library/reference/
 
 add
 
