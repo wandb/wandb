@@ -157,6 +157,12 @@ if __name__ == '__main__':
     main()
     config = yaml.load(open("pydocmd.yml"))
     modules = [(list(doc)[0], list(doc.values())[0]) for doc in config["generate"]]
+    for link, mods in modules:
+        with open("markdown/"+link, "r") as f:
+            content = f.read()
+        with open("markdown/"+link, "w") as f:
+            f.write("---\ndescription: {}\n---\n".format(mods[0].replace("+", "")))
+            f.write(content)
     with open("markdown/README.md", "w") as f:
         f.write(
             "# W&B Documentation\n\nThe current docs on master are also available on our [documentation site](https://docs.wandb.com)\n\n")

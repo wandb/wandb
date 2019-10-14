@@ -1,3 +1,6 @@
+---
+description: wandb.apis.public
+---
 
 # wandb.apis.public
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L0)

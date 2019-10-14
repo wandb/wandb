@@ -1,3 +1,6 @@
+---
+description: wandb.fastai
+---
 
 # wandb.fastai
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/fastai/__init__.py#L0)

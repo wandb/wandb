@@ -1,3 +1,6 @@
+---
+description: wandb.data_types
+---
 
 # wandb.data_types
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/data_types.py#L0)

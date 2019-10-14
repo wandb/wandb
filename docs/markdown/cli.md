@@ -1,3 +1,6 @@
+---
+description: wandb.cli
+---
 
 # wandb.cli
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L0)

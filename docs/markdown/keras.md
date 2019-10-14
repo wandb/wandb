@@ -1,3 +1,6 @@
+---
+description: wandb.keras
+---
 
 # wandb.keras
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/keras/__init__.py#L0)
