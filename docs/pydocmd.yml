@@ -9,6 +9,8 @@ generate:
           - wandb.apis.public++
     - cli.md:
           - wandb.cli++
+    - keras.md:
+          - wandb.keras++
 
 # These options all show off their default values. You don't have to add
 # them to your configuration if you're fine with the default.
