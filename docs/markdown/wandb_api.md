@@ -230,11 +230,11 @@ Run.file(self, name)
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L746)
 ```python
 Run.history(self,
-samples=500,
-keys=None,
-x_axis='_step',
-pandas=True,
-stream='default')
+            samples=500,
+            keys=None,
+            x_axis='_step',
+            pandas=True,
+            stream='default')
 ```
 
 Returns sampled history metrics for a run.  This is simpler and faster if you are ok with the history records being sampled.

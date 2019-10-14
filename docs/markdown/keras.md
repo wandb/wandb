@@ -7,24 +7,24 @@
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/keras/__init__.py#L134)
 ```python
 WandbCallback(self,
-monitor='val_loss',
-verbose=0,
-mode='auto',
-save_weights_only=False,
-log_weights=False,
-log_gradients=False,
-save_model=True,
-training_data=None,
-validation_data=None,
-labels=[],
-data_type=None,
-predictions=36,
-generator=None,
-input_type=None,
-output_type=None,
-log_evaluation=False,
-validation_steps=None,
-class_colors=None)
+              monitor='val_loss',
+              verbose=0,
+              mode='auto',
+              save_weights_only=False,
+              log_weights=False,
+              log_gradients=False,
+              save_model=True,
+              training_data=None,
+              validation_data=None,
+              labels=[],
+              data_type=None,
+              predictions=36,
+              generator=None,
+              input_type=None,
+              output_type=None,
+              log_evaluation=False,
+              validation_steps=None,
+              class_colors=None)
 ```
 WandbCallback automatically integrates keras with wandb.
 

@@ -1,11 +1,15 @@
-from pydocmd import document
-from pydocmd.imp import import_object
-from pydocmd import loader
-from pydocmd.__main__ import main
-from yapf.yapflib.yapf_api import FormatCode
+try:
+    from pydocmd import document
+    from pydocmd.imp import import_object
+    from pydocmd import loader
+    from pydocmd.__main__ import main
+    from yapf.yapflib.yapf_api import FormatCode
+except ImportError:
+    print("You need to run `pip install pydoc-markdown yapf` to generate docs")
 import inspect
 import sys
 import os
+import yaml
 
 
 def trim(docstring):
@@ -83,7 +87,7 @@ class PythonLoader(object):
         if callable(obj):
             sig = loader.get_function_signature(
                 obj, scope if inspect.isclass(scope) else None)
-            sig, _ = FormatCode(sig, style_config='pep8')
+            sig, _ = FormatCode(sig, style_config='google')
             section.content = '```python\n{}\n```\n'.format(
                 sig.strip()) + section.content
 
@@ -151,4 +155,12 @@ document.Section = Section
 sys.argv = ["generate.py", "generate"]
 if __name__ == '__main__':
     main()
+    config = yaml.load(open("pydocmd.yml"))
+    modules = [(list(doc)[0], list(doc.values())[0]) for doc in config["generate"]]
+    with open("markdown/README.md", "w") as f:
+        f.write(
+            "# W&B Documentation\n\nThe current docs on master are also available on our [documentation site](https://docs.wandb.com)\n\n")
+        for link, mods in modules:
+            for mod in mods:
+                f.write("- [{}]({})\n".format(mod.replace("+", ""), link))
     print("Generated files in the markdown folder!")

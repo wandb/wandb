@@ -5,7 +5,7 @@ site_name: "W&B"
 # is a tree of Python member names (modules, classes, etc.) that should be
 # documented. Higher indentation leads to smaller header size.
 generate:
-    - wandb_public.md:
+    - wandb_api.md:
           - wandb.apis.public++
     - cli.md:
           - wandb.cli++
