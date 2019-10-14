@@ -1,8 +1,8 @@
-"""Wandb has special data types for logging to allow for richer visualizations.  
+"""Wandb has special data types for logging rich visualizations.  
 
-All of the special data types are subclasses of WBValue.  All of the data types 
+All of the special data types are subclasses of WBValue. All of the data types 
     serialize to JSON, since that is what wandb uses to save the objects locally 
-    and upload them to the wandb server.
+    and upload them to the W&B server.
 """
 
 from __future__ import print_function
