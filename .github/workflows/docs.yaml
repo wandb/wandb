@@ -20,6 +20,8 @@ jobs:
               run: |
                   cd docs
                   python generate.py
+            - name: REF
+              run: echo '${{ github.ref }}'
             - name: Upload docs
               uses: actions/upload-artifact@master
               with:
