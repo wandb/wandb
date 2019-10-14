@@ -1,28 +1,29 @@
 
-# wandb.cli [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L0)
+# cli.wandb.cli
+[source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L0)
 
 
-## cli
+## cli.cli.cli
 ```python
 RunGroup.__call__(*args, **kwargs)
 ```
 Alias for :meth:`main`.
 
-### add_help_option
+### cli.cli.add_help_option
 bool(x) -> bool
 
 Returns True when the argument x is true, False otherwise.
 The builtins True and False are the only two instances of the class bool.
 The class bool is a subclass of the class int, and cannot be subclassed.
 
-### chain
+### cli.cli.chain
 bool(x) -> bool
 
 Returns True when the argument x is true, False otherwise.
 The builtins True and False are the only two instances of the class bool.
 The class bool is a subclass of the class int, and cannot be subclassed.
 
-### commands
+### cli.cli.commands
 dict() -> new empty dictionary
 dict(mapping) -> new dictionary initialized from a mapping object's
 (key, value) pairs
@@ -33,7 +34,7 @@ d[k] = v
 dict(**kwargs) -> new dictionary initialized with the name=value pairs
 in the keyword argument list.  For example:  dict(one=1, two=2)
 
-### context_settings
+### cli.cli.context_settings
 dict() -> new empty dictionary
 dict(mapping) -> new dictionary initialized from a mapping object's
 (key, value) pairs
@@ -44,14 +45,14 @@ d[k] = v
 dict(**kwargs) -> new dictionary initialized with the name=value pairs
 in the keyword argument list.  For example:  dict(one=1, two=2)
 
-### deprecated
+### cli.cli.deprecated
 bool(x) -> bool
 
 Returns True when the argument x is true, False otherwise.
 The builtins True and False are the only two instances of the class bool.
 The class bool is a subclass of the class int, and cannot be subclassed.
 
-### help
+### cli.cli.help
 str(object='') -> str
 str(bytes_or_buffer[, encoding[, errors]]) -> str
 
@@ -63,21 +64,21 @@ or repr(object).
 encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
-### hidden
+### cli.cli.hidden
 bool(x) -> bool
 
 Returns True when the argument x is true, False otherwise.
 The builtins True and False are the only two instances of the class bool.
 The class bool is a subclass of the class int, and cannot be subclassed.
 
-### invoke_without_command
+### cli.cli.invoke_without_command
 bool(x) -> bool
 
 Returns True when the argument x is true, False otherwise.
 The builtins True and False are the only two instances of the class bool.
 The class bool is a subclass of the class int, and cannot be subclassed.
 
-### name
+### cli.cli.name
 str(object='') -> str
 str(bytes_or_buffer[, encoding[, errors]]) -> str
 
@@ -89,14 +90,14 @@ or repr(object).
 encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
-### no_args_is_help
+### cli.cli.no_args_is_help
 bool(x) -> bool
 
 Returns True when the argument x is true, False otherwise.
 The builtins True and False are the only two instances of the class bool.
 The class bool is a subclass of the class int, and cannot be subclassed.
 
-### options_metavar
+### cli.cli.options_metavar
 str(object='') -> str
 str(bytes_or_buffer[, encoding[, errors]]) -> str
 
@@ -108,11 +109,11 @@ or repr(object).
 encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
-### params
+### cli.cli.params
 list() -> new empty list
 list(iterable) -> new list initialized from iterable's items
 
-### subcommand_metavar
+### cli.cli.subcommand_metavar
 str(object='') -> str
 str(bytes_or_buffer[, encoding[, errors]]) -> str
 
@@ -124,7 +125,8 @@ or repr(object).
 encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
-### cli [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L224)
+### cli.cli
+[source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L224)
 ```python
 cli(ctx)
 ```
@@ -133,27 +135,31 @@ Weights & Biases.
 Run "wandb docs" for full documentation.
 
 
-## CallbackHandler [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L74)
+## CallbackHandler
+[source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L74)
 ```python
 CallbackHandler(self, request, client_address, server)
 ```
 Simple callback handler that stores query string parameters and shuts down the server.
 
 
-## LocalServer [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L91)
+## LocalServer
+[source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L91)
 ```python
 LocalServer(self)
 ```
 A local HTTP server that finds an open port and listens for a callback. The urlencoded callback url is accessed via `.qs` the query parameters passed to the callback are accessed via `.result`
 
 
-## display_error [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L146)
+## cli.display_error
+[source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L146)
 ```python
 display_error(func)
 ```
 Function decorator for catching common errors and re-raising as wandb.Error
 
-## prompt_for_project [source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L163)
+## cli.prompt_for_project
+[source](https://github.com/wandb/client/blob/feature/docs/wandb/cli.py#L163)
 ```python
 prompt_for_project(ctx, entity)
 ```

@@ -193,12 +193,12 @@ class Api(object):
         """Get projects for a given entity.
         Args:
             entity (str): Name of the entity requested.  If None will fallback to 
-                default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
+                default entity passed to :obj:`Api`.  If no default entity, will raise a `ValueError`.
             per_page (int): Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
         Returns:
-            A `Projects` object which is an iterable collection of `Project` objects.
+            A :obj:`Projects` object which is an iterable collection of :obj:`Project` objects.
         
         """
         if entity is None:
@@ -245,7 +245,7 @@ class Api(object):
                 The default order is run.created_at from newest to oldest.
 
         Returns:
-            A Runs object, which is an iterable collection of Run objects.
+            A :obj:`Runs` object, which is an iterable collection of :obj:`Run` objects.
         """
         entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
@@ -263,7 +263,7 @@ class Api(object):
                 and if api.project is set this can just be the run_id.
         
         Returns:
-            A `Run` object.
+            A :obj:`Run` object.
         """
         entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
@@ -383,7 +383,7 @@ class User(Attrs):
 
 class Projects(Paginator):
     """
-    An iterable collection of `Project` objects.
+    An iterable collection of :obj:`Project` objects.
     """
     QUERY = gql('''
         query Projects($entity: String, $cursor: String, $perPage: Int = 50) {
@@ -728,7 +728,7 @@ class Run(Attrs):
             per_page (int): number of results per page
 
         Returns:
-            A `Files` object, which is an iterator over `File` obejcts. 
+            A :obj:`Files` object, which is an iterator over :obj:`File` obejcts. 
         """    
         return Files(self.client, self, names, per_page)
 
@@ -739,7 +739,7 @@ class Run(Attrs):
             name (str): name of requested file.
 
         Returns:
-            A `File` matching the name argument.
+            A :obj:`File` matching the name argument.
         """
         return Files(self.client, self, [name])[0]
 
@@ -834,7 +834,7 @@ class Sweep(Attrs):
       api.sweep(sweep_path)
 
     Attributes:
-        runs (`Runs`): list of runs
+        runs (:obj:`Runs`): list of runs
         id (str): sweep id 
         project (str): name of project
         config (str): dictionary of sweep configuration 
