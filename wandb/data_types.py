@@ -135,26 +135,26 @@ def val_to_json(run, key, val, step='summary'):
 
 
 class WBValue(object):
-    """Parent class for things that can be converted to JSON objects and
-    stored in `run.summary`, `run.history` (`wandb.log()`), DataFrames,
-    etc.
+    """Parent class for things that can be logged by wandb.log() and 
+        visualized by wandb. 
 
-    The JSON objects will always have a _type attribute that indicates how
-    to interpret the other fields.
-
-    We picked the name "WBValue" to match what we call it on the front end.
+    The objects will be serialized as JSON and always have a _type attribute 
+    that indicates how to interpret the other fields.
 
     Arguments:
-        run: A `wandb_run.Run` object in which this `WBValue` is going to
-    be stored. This is a required parameter here to support referring to
-    `Media` objects that are bound to other runs. In practice, many
-    `WBValue` children may not need a Run to be passed to them because
-    their JSON representations are self-contained.
+        run (`wandb_run.Run`): The run in which this `WBValue` is going to
+            be stored. This is a required parameter here to support referring to
+            `Media` objects that are bound to other runs. In practice, many
+            `WBValue` children may not need a Run to be passed to them because
+            their JSON representations are self-contained.
 
     Returns:
         JSON-friendly `dict` representation of this object that can later be
     serialized to a string.
     """
+    def __init__(self):
+        pass
+
     def to_json(self, run):
         """
         """
@@ -256,13 +256,34 @@ def data_frame_to_json(df, run, key, step):
 
 
 class Graph(WBValue):
+    """Wandb class for graphs
+    
+    This class is typically used for saving and diplaying neural net models.  It
+    represents the graph as an array of nodes and edges.  The nodes can have
+    labels that can be visualized by wandb.
+
+    Examples:
+        Import a keras model:
+        ```
+            Graph.from_keras(keras_model)
+        ```
+
+    Attributes:
+        format (string): Format to help wandb display the graph nicely.
+        nodes ([wandb.Node]): List of wandb.Nodes
+        nodes_by_id (dict): dict of ids -> nodes
+        edges ([(wandb.Node, wandb.Node)]): List of pairs of nodes interpreted as edges
+        loaded (boolean): Flag to tell whether the graph is completely loaded
+        root (wandb.Node): root node of the graph
+    """
     def __init__(self, format="keras"):
+        # LB: TODO: I think we should factor criterion and criterion_passed out
         self.format = format
         self.nodes = []
         self.nodes_by_id = {}
         self.edges = []
         self.loaded = False
-        self.criterion = None
+        self.criterion = None 
         self.criterion_passed = False
         self.root = None  # optional root Node if applicable
 
@@ -577,17 +598,38 @@ class Edge(WBValue):
 
 
 class Histogram(WBValue):
+    """
+    wandb class for histograms
+
+    This object works just like numpy's histogram function 
+    https://docs.scipy.org/doc/numpy/reference/generated/numpy.histogram.html
+
+    Examples:
+        Generate histogram from a sequence
+        ```
+        wandb.Histogram([1,2,3])
+        ```
+
+        Efficiently initialize from np.histogram.
+        ```
+        hist = np.histogram(data)
+        wandb.Histogram(np_histogram=hist)
+        ```
+
+    Arguments:
+        sequence (array_like): input data for histogram
+        np_histogram (numpy histogram): alternative input of a precoomputed histogram
+        num_bins (int): Number of bins for the histogram.  The default number of bins
+            is 64.  The maximum number of bins is 512
+
+    Attributes:
+        bins ([float]): edges of bins
+        histogram ([int]): number of elements falling in each bin
+    """
     MAX_LENGTH = 512
 
     def __init__(self, sequence=None, np_histogram=None, num_bins=64):
-        """Accepts a sequence to be converted into a histogram or np_histogram can be set
-        to a tuple of (values, bins_edges) as np.histogram returns i.e.
 
-        wandb.log({"histogram": wandb.Histogram(
-            np_histogram=np.histogram(data))})
-
-        The maximum number of bins currently supported is 512
-        """
         if np_histogram:
             if len(np_histogram) == 2:
                 self.histogram = np_histogram[0]
@@ -745,6 +787,16 @@ class BatchableMedia(Media):
 
 
 class Audio(BatchableMedia):
+    """
+        Wandb class for audio clips.
+
+        Args:
+            data_or_path (string or numpy array): A path to an audio file
+                or a numpy array of audio data.
+            sample_rate (int): Sample rate, required when passing in raw
+                numpy array of audio data.
+            caption (string): Caption to display with audio. 
+    """
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data. 
         """
@@ -832,16 +884,30 @@ def is_numpy_array(data):
 
 
 class Object3D(BatchableMedia):
+    """
+        Wandb class for 3D point clouds.
+
+        Args:
+            data_or_path (numpy array | string | io ):
+                Object3D can be initialized from a file or a numpy array.
+
+                The file types supported are obj, gltf, babylon, stl.  You can pass a path to 
+                    a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
+
+                The shape of the numpy array must be one of either:
+                ```
+                [[x y z],       ...] nx3
+                [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+                [x y z r g b], ...] nx4 where is rgb is color
+                ```                 
+         
+    """
+
+
     SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', 'stl'])
 
     def __init__(self, data_or_path, **kwargs):
-        """
-        Accepts a path, a numpy array, or a 3D File of type: obj, gltf, babylon, stl.
 
-        The shape of the numpy array must be one of either:
-        [[x y z],       ...] nx3
-         [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-         [x y z r g b], ...] nx4 where is rgb is color"""
         if hasattr(data_or_path, 'name'):
             # if the file has a path, we just detect the type and copy it from there
             data_or_path = data_or_path.name
@@ -924,12 +990,16 @@ class Object3D(BatchableMedia):
 
 
 class Html(BatchableMedia):
-    def __init__(self, data, inject=True):
-        """Accepts a string or file object containing valid html
+    """
+        Wandb class for arbitrary html
 
-        By default we inject a style reset into the doc to make it
-        look resonable, passing inject=False will disable it.
-        """
+        Arguments:
+            data (string or io object): HTML to display in wandb
+            inject (boolean): Add a stylesheet to the HTML object.  If set
+                to False the HTML will pass through unchanged.
+    """
+    def __init__(self, data, inject=True):
+
         if isinstance(data, str):
             self.html = data
         elif hasattr(data, 'read'):
@@ -986,6 +1056,24 @@ class Html(BatchableMedia):
         return meta
 
 class Video(BatchableMedia):
+
+    """
+        Wandb representation of video.
+
+        Args:
+            data_or_path (numpy array | string | io):
+                Video can be initialized with a path to a file or an io object.
+                    The format must be "gif", "mp4", "webm" or "ogg".
+                    The format must be specified with the format argument.
+                Video can be initialized with a numpy tensor.
+                    The numpy tensor must be either 4 dimensional or 5 dimensional.
+                    Channels should be (time, channel, height, width) or 
+                        (batch, time, channel, height width)
+            caption (string): caption associated with the video for display
+            fps (int): frames per second for video. Default is 4.
+            format (string): format of video, necessary if initializing with path or io object.
+    """
+
     EXTS = ("gif", "mp4", "webm", "ogg")
 
     def __init__(self, data_or_path, caption=None, fps=4, format=None):
@@ -1111,18 +1199,26 @@ class Video(BatchableMedia):
 
 
 class Image(BatchableMedia):
+    """
+        Wandb class for images.
+
+        Args:
+            data_or_path (numpy array | string | io): Accepts numpy array of 
+                image data, or a PIL image. The class attempts to infer
+                the data format and converts it.
+            mode (string): The PIL mode for an image. Most common are "L", "RGB",
+                "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
+            caption (string): Label for display of image.
+    """
+
     MAX_THUMBNAILS = 108
 
     # PIL limit
     MAX_DIMENSION = 65500
 
     def __init__(self, data_or_path, mode=None, caption=None, grouping=None):
-        """
-        Accepts numpy array of image data, or a PIL image. The class attempts to infer
-        the data format and converts it.
-
-        If grouping is set to a number the interface combines N images.
-        """
+        # TODO: We should remove grouping, it's a terrible name and I don't
+        # think anyone uses it.
 
         self._grouping = grouping
         self._caption = caption
