@@ -1,8 +1,11 @@
-from pydocmd import document
-from pydocmd.imp import import_object
-from pydocmd import loader
-from pydocmd.__main__ import main
-from yapf.yapflib.yapf_api import FormatCode
+try:
+    from pydocmd import document
+    from pydocmd.imp import import_object
+    from pydocmd import loader
+    from pydocmd.__main__ import main
+    from yapf.yapflib.yapf_api import FormatCode
+except ImportError:
+    print("You need to run `pip install pydoc-markdown yapf` to generate docs")
 import inspect
 import sys
 import os
