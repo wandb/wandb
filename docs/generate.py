@@ -2,8 +2,10 @@ from pydocmd import document
 from pydocmd.imp import import_object
 from pydocmd import loader
 from pydocmd.__main__ import main
+from yapf.yapflib.yapf_api import FormatCode
 import inspect
 import sys
+import os
 
 
 def trim(docstring):
@@ -12,7 +14,7 @@ def trim(docstring):
     lines = [x.rstrip() for x in docstring.split('\n')]
     lines[0] = lines[0].lstrip()
     debug = False
-    if " FUCK" in docstring:
+    if " DEBUG" in docstring:
         debug = True
         print("LINES", lines)
 
@@ -38,6 +40,57 @@ def trim(docstring):
 loader.trim = trim
 
 
+class PythonLoader(object):
+    """
+    Expects absolute identifiers to import with #import_object_with_scope().
+    """
+
+    def __init__(self, config):
+        self.config = config
+
+    def load_section(self, section):
+        """
+        Loads the contents of a #Section. The `section.identifier` is the name
+        of the object that we need to load.
+
+        # Arguments
+          section (Section): The section to load. Fill the `section.title` and
+            `section.content` values. Optionally, `section.loader_context` can
+            be filled with custom arbitrary data to reference at a later point.
+        """
+
+        assert section.identifier is not None
+        obj, scope = loader.import_object_with_scope(section.identifier)
+
+        #TODO: this is insane
+        prefix = None
+        if '.' in section.identifier:
+            parts = section.identifier.rsplit('.', 2)
+            default_title = ".".join(parts[1:])
+            prefix = parts[1]
+        else:
+            default_title = section.identifier
+
+        name = getattr(obj, '__name__', default_title)
+        if prefix and name[0].islower():
+            section.title = ".".join([str(prefix), name])
+        else:
+            section.title = name
+        section.content = trim(loader.get_docstring(obj))
+        section.loader_context = {'obj': obj, 'scope': scope}
+
+        # Add the function signature in a code-block.
+        if callable(obj):
+            sig = loader.get_function_signature(
+                obj, scope if inspect.isclass(scope) else None)
+            sig, _ = FormatCode(sig, style_config='pep8')
+            section.content = '```python\n{}\n```\n'.format(
+                sig.strip()) + section.content
+
+
+loader.PythonLoader = PythonLoader
+
+
 class Section(object):
     """
     This is our monkeypatched version of section to enable links to github.  We could put this in google_parser
@@ -54,8 +107,8 @@ class Section(object):
             if len(self.doc.sections) > 0:
                 value = import_object(self.doc.sections[0].identifier)
             filename = inspect.getsourcefile(value).split("/client/")[-1]
-            self.link = "https://github.com/wandb/client/blob/feature/docs/" + \
-                filename+"#L"+str(lineno)
+            branch = os.popen("git rev-parse --abbrev-ref HEAD").read().strip()
+            self.link = "https://github.com/wandb/client/blob/{}/{}#L{}".format(branch, filename, lineno)
         except TypeError as e:
             pass
         self.depth = depth
@@ -64,7 +117,7 @@ class Section(object):
 
     def maybe_link(self, title):
         if self.link:
-            return "{} [source]({})".format(self.title, self.link)
+            return "{}\n[source]({})".format(self.title, self.link)
         else:
             return title
 

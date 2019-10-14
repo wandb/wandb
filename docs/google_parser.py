@@ -18,7 +18,7 @@ class Preprocessor:
     re.compile(
       r'^(?P<param>\S+)\s+\{(?P<type>\S+)\}\s+--\s+(?P<desc>.+)$'),
   ]
-  _obj_re = re.compile(r'.*(?P<object>:obj:\S+).*')
+  _obj_re = re.compile(r':obj:\S+')
 
   _keywords_map = {
     'Args:': 'Arguments',
@@ -52,6 +52,12 @@ class Preprocessor:
   def get_section_names(self):
     return list(self._keywords_map.keys())
 
+  def resolve_objects(self, line):
+    for link in re.findall(self._obj_re, line):
+      ref = link.split(":")[-1]
+      line = line.replace(link, "[{}](#{})".format(ref, ref.lower().strip("`")))
+    return line
+
   def preprocess_section(self, section):
     """
     Preprocessors a given section into it's components.
@@ -70,6 +76,8 @@ class Preprocessor:
           print("YO", indented)
 
       if line.startswith("```"):
+        if line == "```" and not in_codeblock:
+            line = "```python"
         if debug:
             print("Codeblock %s" % "starting" if not in_codeblock else "closed", line, lines)
         in_codeblock = not in_codeblock
@@ -91,7 +99,9 @@ class Preprocessor:
         continue
 
       if keyword is None:
-        if indented:
+        if indented and not lines[-1].startswith("```"):
+            if debug:
+                print("Joining new lines", lines[-1], line)
             lines[-1] = lines[-1] + ' ' + line
         else:
             lines.append(line)
@@ -103,28 +113,27 @@ class Preprocessor:
       for param_re in self._param_res:
         param_match = param_re.match(line)
         if param_match:
-          if 'type' in param_match.groupdict():
-            components[keyword].append(
-              '- `{param}` _{type}_ - {desc}'.format(**param_match.groupdict()))
+          matches = param_match.groupdict()
+          pytype = matches.get("type")
+          desc = self.resolve_objects(matches.get("desc"))
+          param = matches.get("param")
+          if pytype:
+            pytype = self.resolve_objects(pytype)
+            components[keyword].append('- `{param}` _{type}_ - {desc}'.format(param=param, desc=desc, type=pytype))
           else:
-            components[keyword].append(
-              '- `{param}` - {desc}'.format(**param_match.groupdict()))
+            components[keyword].append('- `{param}` - {desc}'.format(param=param, desc=desc))
           break
-      obj = self._obj_re.match(line)
-      if obj:
-        link = obj.groupdict()["object"]
-        ref = link.split(":")[-1]
-        line = line.replace(link, "[{}](#{})".format(ref, ref.lower().strip("`")))
 
-      if debug:
-        print("Keyword", keyword, param_match, line)
+      line=self.resolve_objects(line)
 
       if not param_match:
-        if len(components[keyword]) > 0:
+        if len(components[keyword]) > 0 and not components[keyword][-1].startswith("```"):
             # Add to previous line
-            components[keyword][-1] = components[keyword][-1] + ' ' + line
+            if debug:
+                print("Adding to previous", components[keyword][-1], line)
+            components[keyword][-1]=components[keyword][-1] + ' ' + line
         else:
-            components[keyword].append('   {line}'.format(line=line))
+            components[keyword].append(' {line}'.format(line=line))
 
     for key in components:
       self._append_section(lines, key, components)
