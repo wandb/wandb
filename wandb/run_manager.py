@@ -48,6 +48,7 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb.compat import windows
 from wandb.apis import InternalApi
+from wandb.apis import CommError
 
 
 logger = logging.getLogger(__name__)
@@ -433,7 +434,6 @@ def format_run_name(run):
     "Simple helper to not show display name if its the same as id"
     return " "+run.name+":" if run.name and run.name != run.id else ":"
 
-
 class RunStatusChecker(object):
     """Polls the backend periodically to check on this run's status.
 
@@ -459,7 +459,7 @@ class RunStatusChecker(object):
                     project_name=self._run.project_name(),
                     entity_name=self._run.entity,
                     run_id=self._run.id)
-            except wandb.apis.CommError as e:
+            except CommError as e:
                 logger.exception("Failed to check stop requested status: %s" % e.exc)
             except:
                 logger.exception("An unknown error occurred while checking stop requested status. Continuing anyway..")
@@ -969,7 +969,7 @@ class RunManager(object):
         try:
             upsert_result = self._run.save(
                 id=storage_id, num_retries=num_retries, api=self._api)
-        except wandb.apis.CommError as e:
+        except CommError as e:
             logger.exception("communication error with wandb %s" % e.exc)
             # TODO: Get rid of str contains check
             if self._run.resume == 'never' and 'exists' in str(e):
