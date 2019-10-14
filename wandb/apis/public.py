@@ -912,7 +912,7 @@ class Sweep(Attrs):
 
 
 class Files(Paginator):
-    """Files is an iterable collection of `File` objects."""
+    """Files is an iterable collection of :obj:`File` objects."""
 
     QUERY = gql('''
         query Run($project: String!, $entity: String!, $name: String!, $fileCursor: String,

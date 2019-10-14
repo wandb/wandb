@@ -161,7 +161,7 @@ A single run associated with an entity and project.
 - `path` _str_ - Unique identifier [entity]/[project]/[run_id]
 - `notes` _str_ - Notes about the run
 - `read_only` _boolean_ - Whether the run is editable
-- `history_keys` _str_ - Keys of the history metrics that have been logged with wandb.log({key: value}) 
+- `history_keys` _str_ - Keys of the history metrics that have been logged with `wandb.log({key: value})` 
 
 ### Run.create
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L596)
@@ -279,11 +279,36 @@ A set of runs associated with a sweep Instantiate with: api.sweep(sweep_path)
 ```python
 Files(self, client, run, names=[], per_page=50, upload=False)
 ```
-Files is a paginated list of files.
+Files is an iterable collection of :obj:`File` objects.
 
 ## File
 [source](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L970)
 ```python
 File(self, client, attrs)
 ```
-File is a file saved by wandb.
+File is a class associated with a file saved by wandb.
+
+**Attributes**:
+
+- `name` _string_ - filename
+- `url` _string_ - path to file
+- `md5` _string_ - md5 of file
+- `mimetype` _string_ - mimetype of file
+- `updated_at` _string_ - timestamp of last update
+- `size` _int_ - size of file in bytes  
+
+### File.download
+[source](https://github.com/wandb/client/blob/feature/docs/wandb/apis/public.py#L1014)
+```python
+File.download(self, replace=False, root='.')
+```
+Downloads a file previously saved by a run from the wandb server.
+
+**Arguments**:
+
+- `replace` _boolean_ - If `True`, download will overwrite a local file if it exists. Defaults to `False`.
+- `root` _str_ - Local directory to save the file.  Defaults to ".". 
+
+**Raises**:
+
+ `ValueError` if file already exists and replace=False 
