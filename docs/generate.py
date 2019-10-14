@@ -153,10 +153,10 @@ sys.argv = ["generate.py", "generate"]
 if __name__ == '__main__':
     main()
     config = yaml.load(open("pydocmd.yml"))
-    modules = [("docs/markdown/"+list(doc)[0], list(doc.values())[0]) for doc in config["generate"]]
+    modules = [(list(doc)[0], list(doc.values())[0]) for doc in config["generate"]]
     with open("markdown/README.md", "w") as f:
         f.write(
-            "# W&B Documentation\n\nAll api docs are also available on our [documentation site](https://docs.wandb.com)\n\n")
+            "# W&B Documentation\n\nThe current docs on master are also available on our [documentation site](https://docs.wandb.com)\n\n")
         for link, mods in modules:
             for mod in mods:
                 f.write("- [{}]({})\n".format(mod.replace("+", ""), link))
