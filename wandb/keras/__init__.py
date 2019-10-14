@@ -171,13 +171,12 @@ class WandbCallback(keras.callbacks.Callback):
         validate_data: (tuple) Same format (X,y) as passed to model.fit.  A set of data 
             for wandb to visualize.  If this is set, every epoch, wandb will
             make a small number of predictions and save the results for later visualization.
-        generator: a generator that returns validation data for wandb to visualize.  This
+        generator (generator): a generator that returns validation data for wandb to visualize.  This
             generator should return tuples (X,y).  Either validate_data or generator should
             be set for wandb to visualize specific data examples.
-        validation_steps: if `validation_data` is a generator, how many
+        validation_steps (int): if `validation_data` is a generator, how many
             steps to run the generator for the full validation set.
-
-        labels: (list) If you are visualizing your data with wandb this list of labels 
+        labels (list): If you are visualizing your data with wandb this list of labels 
             will convert numeric output to understandable string if you are building a
             multiclass classifier.  If you are making a binary classifier you can pass in
             a list of two labels ["label for false", "label for true"].  If validate_data
