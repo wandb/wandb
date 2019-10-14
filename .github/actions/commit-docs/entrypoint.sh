@@ -31,9 +31,11 @@ git_setup
 git clone $INPUT_REPO doc_repo
 cd doc_repo
 mkdir -p library/reference
+rm -rf library/reference/*
 cp ../generated_docs/* library/reference/
+git add library/reference/*
 
-add
+#add
 
 echo "Checking for uncommitted changes in the git working tree..."
 # This section only runs if there have been file changes
