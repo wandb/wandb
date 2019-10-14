@@ -50,7 +50,7 @@ jobs:
               with:
                   name: docs
             - name: "Print what's here"
-              run: ls -al markdown
+              run: ls -al
             - name: "Push to gitbook"
               uses: ./.github/actions/commit-docs
               with:
