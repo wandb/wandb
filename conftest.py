@@ -365,6 +365,19 @@ def run_manager(mocker, request_mocker, upsert_run, query_viewer):
 
 
 @pytest.fixture
+def loggedin():
+    orig_environ = dict(os.environ)
+    try:
+        with CliRunner().isolated_filesystem():
+            os.environ["WANDB_API_KEY"] = "X"*40
+            yield os.environ
+    finally:
+        os.environ.clear()
+        os.environ.update(orig_environ)
+        wandb.uninit()
+
+
+@pytest.fixture
 def dryrun():
     orig_environ = dict(os.environ)
     try:
