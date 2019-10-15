@@ -1,6 +1,6 @@
 name: Build Docs
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
     build:
@@ -12,13 +12,13 @@ jobs:
               with:
                   python-version: 3.7
             - name: Install dependencies
-              if: github.event_name == 'pull_request'
+              if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
               run: |
                   python -m pip install --upgrade pip
                   pip install pydoc-markdown yapf numpy tensorflow fastai
                   pip install -e .
             - name: Build docs
-              if: github.event_name == 'pull_request'
+              if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
               run: |
                   cd docs
                   python generate.py
@@ -43,7 +43,7 @@ jobs:
     deploy:
         needs: build
         runs-on: ubuntu-latest
-        if: github.ref == 'refs/heads/feature/docs'
+        if: github.ref == 'refs/heads/master'
         steps:
             - uses: actions/checkout@v1
             - name: "Download docs"

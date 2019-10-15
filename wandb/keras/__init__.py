@@ -83,7 +83,7 @@ def patch_tf_keras():
                 cbk.validation_data = val_data
 
     def new_arrays(*args, **kwargs):
-        cbks = kwargs.get("callbacks")
+        cbks = kwargs.get("callbacks", [])
         val_inputs = kwargs.get("val_inputs")
         val_targets = kwargs.get("val_targets")
         # TODO: these could be generators, why index 0?
@@ -93,7 +93,7 @@ def patch_tf_keras():
         return old_arrays(*args, **kwargs)
 
     def new_generator(*args, **kwargs):
-        cbks = kwargs.get("callbacks")
+        cbks = kwargs.get("callbacks", [])
         val_data = kwargs.get("validation_data")
         if val_data:
             for cbk in cbks:
@@ -101,7 +101,7 @@ def patch_tf_keras():
         return old_generator(*args, **kwargs)
 
     def new_v2(*args, **kwargs):
-        cbks = kwargs.get("callbacks")
+        cbks = kwargs.get("callbacks", [])
         val_data = kwargs.get("validation_data")
         if val_data:
             for cbk in cbks:
@@ -139,17 +139,17 @@ class WandbCallback(keras.callbacks.Callback):
         model.fit(X_train, y_train,  validation_data=(X_test, y_test),
             callbacks=[WandbCallback()])
         ```
-        
+
     WandbCallback will automatically log history data from any
         metrics collected by keras: loss and anything passed into keras_model.compile() 
-    
+
     WandbCallback will set summary metrics for the run associated with the "best" training
         step, where "best" is defined by the `monitor` and `mode` attribues.  This defaults
         to the epoch with the minimum val_loss. WandbCallback will by default save the model 
         associated with the best epoch..
 
     WandbCallback can optionally log gradient and parameter histograms. 
-    
+
     WandbCallback can optionally save training and validation data for wandb to visualize.
 
     Args:
@@ -191,7 +191,7 @@ class WandbCallback(keras.callbacks.Callback):
             validation results at the end of training.
         class_colors: ([float, float, float]) if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
-    
+
     """
 
     def __init__(self, monitor='val_loss', verbose=0, mode='auto',
