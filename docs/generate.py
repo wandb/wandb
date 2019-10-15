@@ -111,7 +111,7 @@ class Section(object):
             if len(self.doc.sections) > 0:
                 value = import_object(self.doc.sections[0].identifier)
             filename = inspect.getsourcefile(value).split("/client/")[-1]
-            #TODO: this breaks on master?
+            #TODO: this breaks without the HEAD/client replace on master in github actions?
             branch = os.popen("git rev-parse --abbrev-ref HEAD").read().strip().replace("HEAD/client", "master")
             self.link = "https://github.com/wandb/client/blob/{}/{}#L{}".format(branch, filename, lineno)
         except TypeError as e:
