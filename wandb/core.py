@@ -49,7 +49,6 @@ class Error(Exception):
     def encode(self, encoding):
         return self.message
 
-
 class WandbWarning(Warning):
     """Base W&B Warning"""
     pass

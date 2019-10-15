@@ -233,8 +233,8 @@ def _init_headless(run, cloud=True):
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
     wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
         headless_args)], env=environ, **popen_kwargs)
-    termlog('Started W&B process version {} with PID {}'.format(
-        __version__, wandb_process.pid))
+    termlog('Tracking run with wandb version {}'.format(
+        __version__))
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
     # Listen on the socket waiting for the wandb process to be ready
@@ -377,14 +377,25 @@ def _init_jupyter(run):
             Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
         '''.format(run.api.app_url)))
     else:
-        display(HTML('''
-            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
-            in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-        '''.format(run.get_url())))
+        displayed = False
         try:
+            display(HTML('''
+                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                Project page: <a href="{}" target="_blank">{}</a><br/>
+                Run page: <a href="{}" target="_blank">{}</a><br/>
+                Docs: <a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">https://docs.wandb.com/integrations/jupyter.html</a><br/>
+            '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
+            displayed = True
             run.save()
         except (CommError, ValueError) as e:
-            termerror(str(e))
+            if not displayed:
+                display(HTML('''
+                    Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                    Couldn't load entity due to error: {}
+                '''.format(e.message)))
+            else:
+                termerror(str(e))
+            
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
@@ -1017,7 +1028,6 @@ def _wandb_finished(run):
     # must shutdown async logging thread before closing files
     shutdown_async_log_thread()
     run.close_files()
-
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')

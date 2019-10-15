@@ -199,7 +199,7 @@ class WandbCallback(keras.callbacks.Callback):
                  save_model=True, training_data=None, validation_data=None,
                  labels=[], data_type=None, predictions=36, generator=None,
                  input_type=None, output_type=None, log_evaluation=False,
-                 validation_steps=None, class_colors=None,
+                 validation_steps=None, class_colors=None, log_batch_frequency=None
                  ):
 
         if wandb.run is None:
@@ -235,6 +235,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_evaluation = log_evaluation
         self.validation_steps = validation_steps
         self.class_colors = np.array(class_colors) if class_colors is not None else None
+        self.log_batch_frequency = log_batch_frequency
 
         if self.training_data:
             if len(self.training_data) != 2:
@@ -294,14 +295,19 @@ class WandbCallback(keras.callbacks.Callback):
         if self.current and self.monitor_op(self.current, self.best) and self.save_model:
             self._save_model(epoch)
 
+    # This is what keras used pre tensorflow.keras
     def on_batch_begin(self, batch, logs=None):
         pass
 
+    # This is what keras used pre tensorflow.keras
     def on_batch_end(self, batch, logs=None):
         if not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
+
+        if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
+            wandb.log(logs, commit=True)
 
     def on_train_batch_begin(self, batch, logs=None):
         pass
@@ -311,6 +317,9 @@ class WandbCallback(keras.callbacks.Callback):
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
+
+        if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
+            wandb.log(logs, commit=True)
 
     def on_test_begin(self, logs=None):
         pass
