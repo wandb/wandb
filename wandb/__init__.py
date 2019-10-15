@@ -775,7 +775,7 @@ def join():
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
-         benchmark=None, anonymous=None):
+         anonymous=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -798,7 +798,6 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
             you can also pass a unique run_id
         sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or tensorboardX
         force (bool, optional): Force authentication with wandb, defaults to False
-        # TODO: Add docstring
         magic (bool, dict, or str, optional): magic configuration as bool, dict, json string,
             yaml filename
         anonymous (str, optional): Can be "allow", "must", or "never". Controls whether anonymous logging is allowed.
@@ -904,8 +903,6 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
             termwarn("wandb.init called with invalid magic parameter type", repeat=False)
         from wandb import magic_impl
         magic_impl.magic_install(init_args=init_args)
-    if benchmark:
-        os.environ[env.BENCHMARK] = benchmark
     if dir:
         os.environ[env.DIR] = dir
         util.mkdir_exists_ok(wandb_dir())
@@ -1006,10 +1003,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     run.config.set_run_dir(run.dir)
 
     if sagemaker_config:
-        run.config.update(sagemaker_config)
+        run.config._update(sagemaker_config)
         allow_val_change = True
     if config:
-        run.config.update(config, allow_val_change=allow_val_change)
+        run.config._update(config, allow_val_change=allow_val_change, as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
     run.history
