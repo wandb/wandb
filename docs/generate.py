@@ -111,7 +111,8 @@ class Section(object):
             if len(self.doc.sections) > 0:
                 value = import_object(self.doc.sections[0].identifier)
             filename = inspect.getsourcefile(value).split("/client/")[-1]
-            branch = os.popen("git rev-parse --abbrev-ref HEAD").read().strip()
+            #TODO: this breaks on master?
+            branch = os.popen("git rev-parse --abbrev-ref HEAD").read().strip().replace("HEAD/client", "master")
             self.link = "https://github.com/wandb/client/blob/{}/{}#L{}".format(branch, filename, lineno)
         except TypeError as e:
             pass
