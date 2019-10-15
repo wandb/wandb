@@ -265,6 +265,10 @@ class TorchGraph(wandb.data_types.Graph):
         modules = set()
         layers = 0
         graph = self
+        if hasattr(module, "_wandb_watch_called") and module._wandb_watch_called:
+            raise ValueError(
+                "You can only call `wandb.watch` once per model.  Pass a new instance of the model if you need to call wandb.watch again in your code.")
+        module._wandb_watch_called = True
         if criterion:
             graph.criterion = criterion
             graph.criterion_passed = True
@@ -451,4 +455,3 @@ class TorchGraph(wandb.data_types.Graph):
         node.class_name = type(module).__name__
 
         return node
-

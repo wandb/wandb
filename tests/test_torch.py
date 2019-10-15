@@ -16,6 +16,7 @@ from pkg_resources import parse_version
 from wandb.history import History
 History.keep_rows = True
 
+# TODO: FLAKY SPECS sometimes these specs are timing out
 
 def dummy_torch_tensor(size, requires_grad=True):
     if parse_version(torch.__version__) >= parse_version('0.4'):
@@ -489,11 +490,14 @@ def test_sequence_net():
 
 
 def test_multi_net(wandb_init_run):
-    net = ConvNet()
-    graphs = wandb.watch((net, net))
-    output = net.forward(dummy_torch_tensor((64, 1, 28, 28)))
+    net1 = ConvNet()
+    net2 = ConvNet()
+    graphs = wandb.watch((net1, net2))
+    output1 = net1.forward(dummy_torch_tensor((64, 1, 28, 28)))
+    output2 = net2.forward(dummy_torch_tensor((64, 1, 28, 28)))
     grads = torch.ones(64, 10)
-    output.backward(grads)
+    output1.backward(grads)
+    output2.backward(grads)
     graph1 = graphs[0].to_json()
     graph2 = graphs[1].to_json()
     assert len(graph1["nodes"]) == 5
