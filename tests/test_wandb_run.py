@@ -9,7 +9,7 @@ from .utils import git_repo
 
 from wandb import wandb_run
 from wandb import env
-from wandb.apis import InternalApi
+from wandb.apis import InternalApi, CommError
 
 # Tests which rely on row history in memory should set `History.keep_rows = True`
 from wandb.history import History
@@ -95,6 +95,17 @@ def test_name_and_desc_setters(git_repo):
     my_env = {}
     run.set_environment(my_env)
     assert my_env[env.DESCRIPTION] == "123\nso much desc\nthis is fun"
+
+
+def test_get_url(git_repo, loggedin):
+    api = InternalApi({"entity": "cool"})
+    api.set_setting("anonymous", "true")
+    run = wandb_run.Run(api=api)
+    assert run.get_url() == "https://app.wandb.ai/cool/uncategorized/runs/"+run.id+"?apiKey="+"X"*40
+    assert run.get_project_url() == "https://app.wandb.ai/cool/uncategorized?apiKey="+"X"*40
+    api.set_setting("entity", "")
+    with pytest.raises(CommError):
+        run.get_url()
 
 
 def test_history_updates_keys_until_summary_writes(git_repo):
