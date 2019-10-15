@@ -338,7 +338,8 @@ class Run(object):
             if meta.get("git"):
                 run_update["commit"] = meta["git"].get("commit")
                 run_update["repo"] = meta["git"].get("remote")
-            run_update["host"] = meta["host"]
+            if meta.get("host"):
+                run_update["host"] = meta["host"]
             run_update["program_path"] = meta["program"]
             run_update["job_type"] = meta.get("jobType")
             run_update["notes"] = meta.get("notes")
@@ -443,12 +444,13 @@ class Run(object):
     def _generate_query_string(self, api, params=None):
         """URL encodes dictionary of params"""
 
-        if params == {} or params == None:
-            return ""
+        params = params or {}
 
         if str(api.settings().get('anonymous', 'false')) == 'true':
             params['apiKey'] = api.api_key
 
+        if not params:
+            return ""
         return '?' + urllib.parse.urlencode(params)
 
     def _load_entity(self, api, network):
