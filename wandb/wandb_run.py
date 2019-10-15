@@ -444,12 +444,13 @@ class Run(object):
     def _generate_query_string(self, api, params=None):
         """URL encodes dictionary of params"""
 
-        if params == {} or params == None:
-            return ""
+        params = params or {}
 
         if str(api.settings().get('anonymous', 'false')) == 'true':
             params['apiKey'] = api.api_key
 
+        if not params:
+            return ""
         return '?' + urllib.parse.urlencode(params)
 
     def _load_entity(self, api, network):
