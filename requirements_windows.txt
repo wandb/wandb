@@ -7,7 +7,7 @@ tox==2.6.0
 coverage==4.5.2
 Sphinx==1.5.3
 PyYAML==4.2b4
-pytest==4.1.1
+pytest==5.2.0
 pytest-faulthandler==1.5.0
 pytest-watch==4.1.0
 pytest-mock==1.10.0
