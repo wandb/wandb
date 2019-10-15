@@ -247,7 +247,7 @@ class Config(object):
         if not isinstance(params, dict):
             raise ConfigError('Expected dict but received %s' % params)
         for key, val in params.items():
-            key, val = self._sanitize(key, val, allow_val_change=allow_val_change)
+            key, val = self._sanitize(key, val, allow_val_change=allow_val_change or as_defaults)
             if as_defaults and key in self._items:
                 continue
             self._items[key] = val
