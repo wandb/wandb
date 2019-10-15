@@ -25,6 +25,9 @@ import traceback
 import yaml
 import threading
 import random
+import platform
+import datetime
+import shutil
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
 
@@ -740,6 +743,28 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         sys.exit(1)
     rm.run_user_process(program, args, environ)
 
+@cli.command(context_settings=RUN_CONTEXT)
+@click.pass_context
+@click.option('--keep', '-N', default=24, help="Keep runs created in the last N hours", type=int)
+def gc(ctx, keep):
+    """Garbage collector, cleans up your local run directory"""
+    directory = wandb.wandb_dir()
+    if not os.path.exists(directory):
+        raise ClickException('No wandb directory found at %s' % directory)
+    paths = glob.glob(directory+"/*run*")
+    dates = [datetime.datetime.strptime(p.split("-")[1],'%Y%m%d_%H%M%S') for p in paths]
+    since = datetime.datetime.utcnow() - datetime.timedelta(hours=keep)
+    bad_paths = [paths[i] for i, d, in enumerate(dates) if d < since]
+    if len(bad_paths) > 0:
+        click.echo("Found {} runs, {} are older than {} hours".format(len(paths), len(bad_paths), keep))
+        click.confirm(click.style(
+                "Are you sure you want to remove %i runs?" % len(bad_paths), bold=True), abort=True)
+        for path in bad_paths:
+            shutil.rmtree(path)
+        click.echo(click.style("Success!", fg="green"))
+    else:
+        click.echo(click.style("No runs older than %i hours found" % keep, fg="red"))
+
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
 @click.pass_context
 @click.argument('docker_run_args', nargs=-1)
@@ -961,9 +986,6 @@ def sweep(ctx, controller, verbose, config_yaml):
 @click.argument('sweep_id')
 @display_error
 def agent(sweep_id):
-    if sys.platform == 'win32':
-        wandb.termerror('Agent is not supported on Windows')
-        sys.exit(1)
     click.echo('Starting wandb agent 🕵️')
     wandb_agent.run_agent(sweep_id)
 

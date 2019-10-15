@@ -53,6 +53,7 @@ import sys
 import tempfile
 import threading
 import traceback
+import platform
 
 import six
 from six.moves import queue, shlex_quote
@@ -146,7 +147,7 @@ class WindowSizeChangeHandler(object):
 
 def init_sigwinch_handler():
     global SIGWINCH_HANDLER
-    if SIGWINCH_HANDLER is None and sys.stdout.isatty() and sys.platform != "win32" and not wandb.env.is_debug():
+    if SIGWINCH_HANDLER is None and sys.stdout.isatty() and platform.system() != "Windows" and not wandb.env.is_debug():
         SIGWINCH_HANDLER = WindowSizeChangeHandler()
         SIGWINCH_HANDLER.register()
 
@@ -291,6 +292,24 @@ def spawn_reader_writer(get_data_fn, put_data_fn):
     return t
 
 
+class WindowsRedirector(object):
+    """Simple windows Tee
+    """
+
+    def __init__(self, from_stream, to_file):
+        self.from_stream = from_stream
+        self.to_file = to_file
+
+    def redirect(self):
+        self.tee = SimpleTee(self.from_stream, self.to_file)
+
+    def restore(self):
+        if not self.to_file.closed:
+            self.to_file.close()
+        if hasattr(self.from_stream, "orig_write"):
+            self.from_stream.write = self.from_stream.orig_write
+
+
 class FileRedirector(object):
     """Redirects a file object to a different file descriptor.
 
@@ -326,6 +345,7 @@ class FileRedirector(object):
         if self.disabled:
             return
         self.redir_file.flush()  # flush library buffers that dup2 knows nothing about
+        # TODO: mirror stdout / err here
         os.dup2(self._to_fd, self._from_fd)  # $ exec >&to
 
     # This isn't tested properly:
