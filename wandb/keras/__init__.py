@@ -191,7 +191,10 @@ class WandbCallback(keras.callbacks.Callback):
             validation results at the end of training.
         class_colors: ([float, float, float]) if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
-
+        log_batch_frequency: integer or None
+            if None, callback will log every epoch
+            if integer, callback will log training metrics every log_batch_frequency 
+            batches.
     """
 
     def __init__(self, monitor='val_loss', verbose=0, mode='auto',
@@ -201,7 +204,6 @@ class WandbCallback(keras.callbacks.Callback):
                  input_type=None, output_type=None, log_evaluation=False,
                  validation_steps=None, class_colors=None, log_batch_frequency=None
                  ):
-
         if wandb.run is None:
             raise wandb.Error(
                 'You must call wandb.init() before WandbCallback()')
@@ -399,7 +401,8 @@ class WandbCallback(keras.callbacks.Callback):
         # if its a binary mask, just return it as grayscale instead of picking the argmax
         if len(masks[0].shape) == 2 or masks[0].shape[-1] == 1:
             return masks
-        class_colors = self.class_colors if self.class_colors is not None else np.array(wandb.util.class_colors(masks[0].shape[2]))
+        class_colors = self.class_colors if self.class_colors is not None else np.array(
+            wandb.util.class_colors(masks[0].shape[2]))
         imgs = class_colors[np.argmax(masks, axis=-1)]
         return imgs
 
