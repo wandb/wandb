@@ -1,32 +1,39 @@
-'''W&B Callback for fast.ai
-
+'''
 This module hooks fast.ai Learners to Weights & Biases through a callback.
 Requested logged data can be configured through the callback constructor.
 
 Examples:
     WandbCallback can be used when initializing the Learner::
 
+    ```
         from wandb.fastai import WandbCallback
         [...]
         learn = Learner(data, ..., callback_fns=WandbCallback)
         learn.fit(epochs)
+    ```
     
     Custom parameters can be given using functools.partial::
 
+    ```
         from wandb.fastai import WandbCallback
         from functools import partial
         [...]
         learn = Learner(data, ..., callback_fns=partial(WandbCallback, ...))
         learn.fit(epochs)
+    ```
 
     Finally, it is possible to use WandbCallback only when starting
     training. In this case it must be instantiated::
 
+    ```
         learn.fit(..., callbacks=WandbCallback(learn))
+    ```
 
     or, with custom parameters::
 
-        learn.fit(..., callbacks=WandBCallback(learn, ...))
+    ```
+        learn.fit(..., callbacks=WandbCallback(learn, ...))
+    ```
 '''
 import wandb
 import fastai
@@ -42,9 +49,24 @@ except:
 
 
 class WandbCallback(TrackerCallback):
+    """
+    Automatically saves model topology, losses & metrics.
+    Optionally logs weights, gradients, sample predictions and best trained model.
 
+    Args:
+        learn (fastai.basic_train.Learner): the fast.ai learner to hook.
+        log (str): "gradients", "parameters", "all", or None. Losses & metrics are always logged.
+        save_model (bool): save model at the end of each epoch. It will also load best model at the end of training.
+        monitor (str): metric to monitor for saving best model. None uses default TrackerCallback monitor value.
+        mode (str): "auto", "min" or "max" to compare "monitor" values and define best model.
+        input_type (str): "images" or None. Used to display sample predictions.
+        validation_data (list): data used for sample predictions if input_type is set.
+        predictions (int): number of predictions to make if input_type is set and validation_data is None.
+        seed (int): initialize random generator for sample predictions if input_type is set and validation_data is None.
+    """
+    
     # Record if watch has been called previously (even in another instance)
-    watch_called = False
+    _watch_called = False
 
     def __init__(self,
                  learn,
@@ -56,22 +78,7 @@ class WandbCallback(TrackerCallback):
                  validation_data=None,
                  predictions=36,
                  seed=12345):
-        """WandB fast.ai Callback
 
-        Automatically saves model topology, losses & metrics.
-        Optionally logs weights, gradients, sample predictions and best trained model.
-
-        Args:
-            learn (fastai.basic_train.Learner): the fast.ai learner to hook.
-            log (str): "gradients", "parameters", "all", or None. Losses & metrics are always logged.
-            save_model (bool): save model at the end of each epoch. It will also load best model at the end of training.
-            monitor (str): metric to monitor for saving best model. None uses default TrackerCallback monitor value.
-            mode (str): "auto", "min" or "max" to compare "monitor" values and define best model.
-            input_type (str): "images" or None. Used to display sample predictions.
-            validation_data (list): data used for sample predictions if input_type is set.
-            predictions (int): number of predictions to make if input_type is set and validation_data is None.
-            seed (int): initialize random generator for sample predictions if input_type is set and validation_data is None.
-        """
 
         # Check if wandb.init has been called
         if wandb.run is None:
@@ -107,8 +114,8 @@ class WandbCallback(TrackerCallback):
         super().on_train_begin()
 
         # Ensure we don't call "watch" multiple times
-        if not WandbCallback.watch_called:
-            WandbCallback.watch_called = True
+        if not WandbCallback._watch_called:
+            WandbCallback._watch_called = True
 
             # Logs model topology and optionally gradients and weights
             wandb.watch(self.learn.model, log=self.log)

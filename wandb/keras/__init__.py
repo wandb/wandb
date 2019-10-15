@@ -35,7 +35,8 @@ def is_dataset(data):
 
 
 def is_generator_like(data):
-    """Checks if data is a generator, Sequence, or Iterator."""
+    # Checks if data is a generator, Sequence, or Iterator.
+
     types = (keras.utils.Sequence,)
     iterator_ops = wandb.util.get_module(
         "tensorflow.python.data.ops.iterator_ops")
@@ -82,7 +83,7 @@ def patch_tf_keras():
                 cbk.validation_data = val_data
 
     def new_arrays(*args, **kwargs):
-        cbks = kwargs.get("callbacks")
+        cbks = kwargs.get("callbacks", [])
         val_inputs = kwargs.get("val_inputs")
         val_targets = kwargs.get("val_targets")
         # TODO: these could be generators, why index 0?
@@ -92,7 +93,7 @@ def patch_tf_keras():
         return old_arrays(*args, **kwargs)
 
     def new_generator(*args, **kwargs):
-        cbks = kwargs.get("callbacks")
+        cbks = kwargs.get("callbacks", [])
         val_data = kwargs.get("validation_data")
         if val_data:
             for cbk in cbks:
@@ -100,7 +101,7 @@ def patch_tf_keras():
         return old_generator(*args, **kwargs)
 
     def new_v2(*args, **kwargs):
-        cbks = kwargs.get("callbacks")
+        cbks = kwargs.get("callbacks", [])
         val_data = kwargs.get("validation_data")
         if val_data:
             for cbk in cbks:
@@ -131,14 +132,65 @@ if "tensorflow" in wandb.util.get_full_typename(keras):
 
 
 class WandbCallback(keras.callbacks.Callback):
-    """WandB Keras Callback.
+    """WandbCallback automatically integrates keras with wandb.
 
-    Automatically saves history and summary data.  Optionally logs gradients, writes modes,
-    and saves example images.
+    Example:
+        ```
+        model.fit(X_train, y_train,  validation_data=(X_test, y_test),
+            callbacks=[WandbCallback()])
+        ```
 
-    Optionally saves the best model while training.
+    WandbCallback will automatically log history data from any
+        metrics collected by keras: loss and anything passed into keras_model.compile() 
 
-    Optionally logs weights and gradients during training.
+    WandbCallback will set summary metrics for the run associated with the "best" training
+        step, where "best" is defined by the `monitor` and `mode` attribues.  This defaults
+        to the epoch with the minimum val_loss. WandbCallback will by default save the model 
+        associated with the best epoch..
+
+    WandbCallback can optionally log gradient and parameter histograms. 
+
+    WandbCallback can optionally save training and validation data for wandb to visualize.
+
+    Args:
+        monitor (str): name of metric to monitor.  Defaults to val_loss.
+        mode (str): one of {"auto", "min", "max"}.
+            "min" - save model when monitor is minimized
+            "max" - save model when monitor is maximized
+            "auto" - try to guess when to save the model (default).
+        save_model:
+            True - save a model when monitor beats all previous epochs
+            False - don't save models
+        save_weights_only (boolean): if True, then only the model's weights will be
+            saved (`model.save_weights(filepath)`), else the full model
+            is saved (`model.save(filepath)`).
+        log_weights: (boolean) if True save histograms of the model's layer's weights.
+        log_gradients: (boolean) if True log histograms of the training gradients
+        training_data: (tuple) Same format (X,y) as passed to model.fit.  This is needed 
+            for calculating gradients - this is mandatory if `log_gradients` is `True`.
+        validate_data: (tuple) Same format (X,y) as passed to model.fit.  A set of data 
+            for wandb to visualize.  If this is set, every epoch, wandb will
+            make a small number of predictions and save the results for later visualization.
+        generator (generator): a generator that returns validation data for wandb to visualize.  This
+            generator should return tuples (X,y).  Either validate_data or generator should
+            be set for wandb to visualize specific data examples.
+        validation_steps (int): if `validation_data` is a generator, how many
+            steps to run the generator for the full validation set.
+        labels (list): If you are visualizing your data with wandb this list of labels 
+            will convert numeric output to understandable string if you are building a
+            multiclass classifier.  If you are making a binary classifier you can pass in
+            a list of two labels ["label for false", "label for true"].  If validate_data
+            and generator are both false, this won't do anything.
+        predictions (int): the number of predictions to make for visualization each epoch, max 
+            is 100.
+        input_type (string): type of the model input to help visualization. can be one of:
+            ("image", "images", "segmentation_mask").
+        output_type (string): type of the model output to help visualziation. can be one of:
+            ("image", "images", "segmentation_mask").  
+        log_evaluation (boolean): if True save a dataframe containing the full
+            validation results at the end of training.
+        class_colors: ([float, float, float]) if the input or output is a segmentation mask, 
+            an array containing an rgb tuple (range 0-1) for each class.
 
     """
 
@@ -147,41 +199,9 @@ class WandbCallback(keras.callbacks.Callback):
                  save_model=True, training_data=None, validation_data=None,
                  labels=[], data_type=None, predictions=36, generator=None,
                  input_type=None, output_type=None, log_evaluation=False,
-                 validation_steps=None, class_colors=None,
+                 validation_steps=None, class_colors=None, log_batch_frequency=None
                  ):
-        """Constructor.
 
-        # Arguments
-            monitor: quantity to monitor.
-            mode: one of {auto, min, max}.
-                'min' - save model when monitor is minimized
-                'max' - save model when monitor is maximized
-                'auto' - try to guess when to save the model
-            save_weights_only: if True, then only the model's weights will be
-                saved (`model.save_weights(filepath)`), else the full model
-                is saved (`model.save(filepath)`).
-            save_model:
-                True - save a model when monitor beats all previous epochs
-                False - don't save models
-            log_weights: if True save the weights in wandb.history
-            log_gradients: if True log the training gradients in wandb.history
-            training_data: tuple (X,y) needed for calculating gradients
-            labels: list of labels to convert numeric output to if you are building a
-                multiclass classifier.  If you are making a binary classifier you can pass in
-                a list of two labels ["label for false", "label for true"]
-            predictions: the number of predictions to make each epic if data_type is set, max is 100.
-            generator: a generator to use for making predictions
-            input_type: the type of the model input. can be one of:
-                (label, image, segmentation_mask).
-            output_type: the type of the model output. can be one of:
-                (label, image, segmentation_mask).
-            log_evaluation: if True save a dataframe containing the full
-                validation results at the end of training.
-            validation_steps: if `validation_data` is a generator, how many
-                steps to run the generator for the full validation set.
-            class_colors: if the input or output is a segmentation mask, an array
-                containing an rgb tuple (range 0.-1.) for each class.
-        """
         if wandb.run is None:
             raise wandb.Error(
                 'You must call wandb.init() before WandbCallback()')
@@ -215,6 +235,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_evaluation = log_evaluation
         self.validation_steps = validation_steps
         self.class_colors = np.array(class_colors) if class_colors is not None else None
+        self.log_batch_frequency = log_batch_frequency
 
         if self.training_data:
             if len(self.training_data) != 2:
@@ -274,14 +295,19 @@ class WandbCallback(keras.callbacks.Callback):
         if self.current and self.monitor_op(self.current, self.best) and self.save_model:
             self._save_model(epoch)
 
+    # This is what keras used pre tensorflow.keras
     def on_batch_begin(self, batch, logs=None):
         pass
 
+    # This is what keras used pre tensorflow.keras
     def on_batch_end(self, batch, logs=None):
         if not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
+
+        if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
+            wandb.log(logs, commit=True)
 
     def on_train_batch_begin(self, batch, logs=None):
         pass
@@ -291,6 +317,9 @@ class WandbCallback(keras.callbacks.Callback):
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
+
+        if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
+            wandb.log(logs, commit=True)
 
     def on_test_begin(self, logs=None):
         pass
@@ -370,7 +399,7 @@ class WandbCallback(keras.callbacks.Callback):
         # if its a binary mask, just return it as grayscale instead of picking the argmax
         if len(masks[0].shape) == 2 or masks[0].shape[-1] == 1:
             return masks
-        class_colors = self.class_colors or np.array(wandb.util.class_colors(masks[0].shape[2]))
+        class_colors = self.class_colors if self.class_colors is not None else np.array(wandb.util.class_colors(masks[0].shape[2]))
         imgs = class_colors[np.argmax(masks, axis=-1)]
         return imgs
 

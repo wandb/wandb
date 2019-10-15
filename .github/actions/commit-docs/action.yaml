@@ -1,0 +1,40 @@
+name: "Add & Commit"
+description: "Add & commit files from a path directly from GitHub Actions"
+
+inputs:
+    author_name:
+        description: "The name of the user that will be displayed as the author of the commit"
+        required: true
+        default: "Add & Commit GitHub Action"
+    author_email:
+        description: "The email of the user that will be displayed as the author of the commit"
+        required: true
+        default: "actions@github.com"
+    repo:
+        description: "The repo to commit to"
+        required: true
+        default: "https://github.com/wandb/gitbook.git"
+    force:
+        description: "Whether to use the force option on git add, in order to bypass eventual gitignores"
+        required: false
+        default: false
+    message:
+        description: "The message for the commit"
+        required: true
+        default: "Commit from GitHub Actions"
+    path:
+        description: "The path to stage files from"
+        required: true
+        default: "."
+    pattern:
+        description: "The pattern that mathces file names"
+        required: false
+        default: "*.*"
+
+runs:
+    using: "docker"
+    image: "Dockerfile"
+
+branding:
+    icon: "git-commit"
+    color: black

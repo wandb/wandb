@@ -104,10 +104,7 @@ def hook_torch(*args, **kwargs):
     return watch(*args, **kwargs)
 
 
-watch_called = False
-
-
-def watch(models, criterion=None, log="gradients", log_freq=100):
+def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
@@ -116,17 +113,13 @@ def watch(models, criterion=None, log="gradients", log_freq=100):
     :param (torch.F) criterion: An optional loss value being optimized
     :param (str) log: One of "gradients", "parameters", "all", or None
     :param (int) log_freq: log gradients and parameters every N batches
+    :param (int) idx: an index to be used when calling wandb.watch on multiple models
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
-    global watch_called
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling watch")
-    if watch_called:
-        raise ValueError(
-            "You can only call `wandb.watch` once per process. If you want to watch multiple models, pass them in as a tuple."
-        )
-    watch_called = True
+
     log_parameters = False
     log_gradients = True
     if log == "all":
@@ -141,15 +134,16 @@ def watch(models, criterion=None, log="gradients", log_freq=100):
         models = (models,)
     graphs = []
     prefix = ''
-    for idx, model in enumerate(models):
-        if idx > 0:
-            prefix = "graph_%i" % idx
+    for local_idx, model in enumerate(models):
+        global_idx = idx + local_idx
+        if global_idx > 0:
+            prefix = "graph_%i" % global_idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
             model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
 
         graph = wandb_torch.TorchGraph.hook_torch(
-            model, criterion, graph_idx=idx)
+            model, criterion, graph_idx=global_idx)
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
@@ -235,9 +229,9 @@ def _init_headless(run, cloud=True):
     # up terminal control until syncing is finished.
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
     wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
-            headless_args)], env=environ, **popen_kwargs)
-    termlog('Started W&B process version {} with PID {}'.format(
-        __version__, wandb_process.pid))
+        headless_args)], env=environ, **popen_kwargs)
+    termlog('Tracking run with wandb version {}'.format(
+        __version__))
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
     # Listen on the socket waiting for the wandb process to be ready
@@ -384,14 +378,25 @@ def _init_jupyter(run):
             Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
         '''.format(run.api.app_url)))
     else:
-        display(HTML('''
-            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
-            in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-        '''.format(run.get_url())))
+        displayed = False
         try:
+            display(HTML('''
+                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                Project page: <a href="{}" target="_blank">{}</a><br/>
+                Run page: <a href="{}" target="_blank">{}</a><br/>
+                Docs: <a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">https://docs.wandb.com/integrations/jupyter.html</a><br/>
+            '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
+            displayed = True
             run.save()
         except (CommError, ValueError) as e:
-            termerror(str(e))
+            if not displayed:
+                display(HTML('''
+                    Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                    Couldn't load entity due to error: {}
+                '''.format(e.message)))
+            else:
+                termerror(str(e))
+            
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
@@ -674,12 +679,11 @@ def ensure_configured():
 def uninit(only_patches=False):
     """Undo the effects of init(). Useful for testing.
     """
-    global run, config, summary, watch_called, patched, _saved_files
+    global run, config, summary, patched, _saved_files
     if not only_patches:
         run = None
         config = util.PreInitObject("wandb.config")
         summary = util.PreInitObject("wandb.summary")
-        watch_called = False
         _saved_files = set()
     # UNDO patches
     for mod in patched["tensorboard"]:
@@ -1017,7 +1021,6 @@ def _wandb_finished(run):
     # must shutdown async logging thread before closing files
     shutdown_async_log_thread()
     run.close_files()
-
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
