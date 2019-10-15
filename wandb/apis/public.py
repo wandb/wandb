@@ -88,14 +88,22 @@ class RetryingClient(object):
 
 
 class Api(object):
-    """W&B Public API
+    """
+    Used for querying the wandb server.
+
+    Examples:
+        Most common way to initialize
+        ```
+            wandb.Api()
+        ```
 
     Args:
-        setting_overrides(:obj:`dict`, optional): You can set defaults such as
-        entity, project, and run here as well as which api server to use.
+        overrides (dict): You can set `base_url` if you are using a wandb server
+            other than https://api.wandb.ai.  
+            You can also set defaults for `entity`, `project`, and `run`.
     """
 
-    HTTP_TIMEOUT = env.get_http_timeout(9)
+    _HTTP_TIMEOUT = env.get_http_timeout(9)
 
     def __init__(self, overrides={}):
         self.settings = {
@@ -117,7 +125,7 @@ class Api(object):
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
-                timeout=self.HTTP_TIMEOUT,
+                timeout=self._HTTP_TIMEOUT,
                 auth=("api", self.api_key),
                 url='%s/graphql' % self.settings['base_url']
             )
@@ -147,7 +155,10 @@ class Api(object):
         return key
 
     def flush(self):
-        """Clear the local cache"""
+        """
+        The api object keeps a local cache of runs, so if the state of the run may 
+            change while executing your script you must clear the local cache with `api.flush()`
+            to get the latest values associated with the run."""
         self._runs = {}
 
     def _parse_path(self, path):
@@ -179,7 +190,17 @@ class Api(object):
         return (entity, project, run)
 
     def projects(self, entity=None, per_page=None):
-        """Return a list of projects for a given entity."""
+        """Get projects for a given entity.
+        Args:
+            entity (str): Name of the entity requested.  If None will fallback to 
+                default entity passed to :obj:`Api`.  If no default entity, will raise a `ValueError`.
+            per_page (int): Sets the page size for query pagination.  None will use the default size.
+                Usually there is no reason to change this.
+
+        Returns:
+            A :obj:`Projects` object which is an iterable collection of :obj:`Project` objects.
+        
+        """
         if entity is None:
             entity = self.settings['entity']
             if entity is None:
@@ -190,14 +211,41 @@ class Api(object):
 
     def runs(self, path="", filters={}, order="-created_at", per_page=None):
         """Return a set of runs from a project that match the filters provided.
-        You can filter by config.*, summary.*, state, entity, createdAt, etc.
+        You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
 
-        The filters use the same query language as MongoDB:
+        Examples:
+            Find runs in my_project config.experiment_name has been set to "foo"
+            ```
+            api.runs(path="my_entity/my_project", {"config.experiment_name": "foo"})
+            ```
 
-        https://docs.mongodb.com/manual/reference/operator/query
+            Find runs in my_project config.experiment_name has been set to "foo" or "bar"
+            ```
+            api.runs(path="my_entity/my_project", 
+                {"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            ```
 
-        Order can be created_at, heartbeat_at, config.*.value, or summary.*.  By default
-        the order is descending, if you prepend order with a + order becomes ascending.
+            Find runs in my_project sorted by ascending loss
+            ```
+            api.runs(path="my_entity/my_project", {"order": "+summary.loss"})
+            ```             
+
+
+        Args:
+            path (str): path to project, should be in the form: "entity/project"
+            filters (dict): queries for specific runs using the MongoDB query language.
+                You can filter by run properties such as config.key, summary.key, state, entity, createdAt, etc.
+                For example: {"config.experiment_name": "foo"} would find runs with a config entry
+                    of experiment name set to "foo"
+                You can compose operations to make more complicated queries,
+                    see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
+            order (str): Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary.*`.  
+                If you prepend order with a + order is ascending.
+                If you prepend order with a - order is descending (default).
+                The default order is run.created_at from newest to oldest.
+
+        Returns:
+            A :obj:`Runs` object, which is an iterable collection of :obj:`Run` objects.
         """
         entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
@@ -207,9 +255,16 @@ class Api(object):
 
     @normalize_exceptions
     def run(self, path=""):
-        """Returns a run by parsing path in the form entity/project/run, if
-        defaults were set on the Api, only overrides what's passed.  I.E. you can just pass
-        run_id if you set entity and project on the Api"""
+        """Returns a single run by parsing path in the form entity/project/run_id.
+        
+        Args:
+            path (str): path to run in the form entity/project/run_id.  
+                If api.entity is set, this can be in the form project/run_id 
+                and if api.project is set this can just be the run_id.
+        
+        Returns:
+            A :obj:`Run` object.
+        """
         entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
             self._runs[path] = Run(self.client, entity, project, run)
@@ -217,6 +272,17 @@ class Api(object):
 
     @normalize_exceptions
     def sweep(self, path=""):
+        """
+        Returns a sweep by parsing path in the form entity/project/sweep_id.
+        
+        Args:
+            path (str, optional): path to sweep in the form entity/project/sweep_id.  If api.entity
+                is set, this can be in the form project/sweep_id and if api.project is set
+                this can just be the sweep_id.
+        
+        Returns:
+            A :obj:`Sweep` object.
+        """
         entity, project, sweep_id = self._parse_path(path)
         if not self._sweeps.get(sweep_id):
             self._sweeps[path] = Sweep(self.client, entity, project, sweep_id)
@@ -316,6 +382,9 @@ class User(Attrs):
         super(User, self).__init__(attrs)
 
 class Projects(Paginator):
+    """
+    An iterable collection of :obj:`Project` objects.
+    """
     QUERY = gql('''
         query Projects($entity: String, $cursor: String, $perPage: Int = 50) {
             models(entityName: $entity, after: $cursor, first: $perPage) {
@@ -367,6 +436,8 @@ class Projects(Paginator):
         return "<Projects {}>".format(self.entity)
 
 class Project(Attrs):
+    """A project is a namespace for runs"""
+
     def __init__(self, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
         self.entity = entity
@@ -376,6 +447,9 @@ class Project(Attrs):
 
 
 class Runs(Paginator):
+    """An iterable collection of runs associated with a project and optional filter.    
+    """
+
     QUERY = gql('''
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
             project(name: $project, entityName: $entity) {
@@ -439,9 +513,34 @@ class Runs(Paginator):
 
 
 class Run(Attrs):
-    """A single run associated with a user and project"""
+    """
+    A single run associated with an entity and project.
+    
+    Attributes:
+        tags ([str]): a list of tags associated with the run
+        url (str): the url of this run
+        id (str): unique identifier for the run (defaults to eight characters)
+        name (str): the name of the run
+        state (str): one of: running, finished, crashed, aborted
+        config (dict): a dict of hyperparameters associated with the run
+        created_at (str): ISO timestamp when the run was started
+        system_metrics (dict): the latest system metrics recorded for the run
+        summary (dict): A mutable dict-like property that holds the current summary. 
+                    Calling update will persist any changes.
+        project (str): the project associated with the run
+        entity (str): the name of the entity associated with the run
+        user (str): the name of the user who created the run
+        path (str): Unique identifier [entity]/[project]/[run_id]
+        notes (str): Notes about the run
+        read_only (boolean): Whether the run is editable
+        history_keys (str): Keys of the history metrics that have been logged 
+            with `wandb.log({key: value})`
+    """
 
     def __init__(self, client, entity, project, run_id, attrs={}):
+        """
+        Run is always initialized by calling api.runs() where api is an instance of wandb.Api
+        """
         super(Run, self).__init__(dict(attrs))
         self.client = client
         self._entity = entity
@@ -470,9 +569,9 @@ class Run(Attrs):
 
     @property
     def storage_id(self):
-        """For compatibility with wandb.Run, which has storage IDs
-        in self.storage_id and names in self.id.
-        """
+        # For compatibility with wandb.Run, which has storage IDs
+        # in self.storage_id and names in self.id.
+        
         return self._attrs.get('id')
 
     @property
@@ -563,6 +662,9 @@ class Run(Attrs):
 
     @normalize_exceptions
     def update(self):
+        """
+        Persists changes to the run object to the wandb backend.
+        """
         mutation = gql('''
         mutation upsertRun($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
             upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config}) {
@@ -620,15 +722,32 @@ class Run(Attrs):
 
     @normalize_exceptions
     def files(self, names=[], per_page=50):
+        """
+        Args:
+            names (list): names of the requested files, if empty returns all files
+            per_page (int): number of results per page
+
+        Returns:
+            A :obj:`Files` object, which is an iterator over :obj:`File` obejcts. 
+        """    
         return Files(self.client, self, names, per_page)
 
     @normalize_exceptions
     def file(self, name):
+        """
+        Args:
+            name (str): name of requested file.
+
+        Returns:
+            A :obj:`File` matching the name argument.
+        """
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
     def history(self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"):
-        """Return history metrics for a run
+        """
+        Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
+        the history records being sampled.
 
         Args:
             samples (int, optional): The number of samples to return
@@ -636,6 +755,10 @@ class Run(Attrs):
             keys (list, optional): Only return metrics for specific keys
             x_axis (str, optional): Use this metric as the xAxis defaults to _step
             stream (str, optional): "default" for metrics, "system" for machine metrics
+        
+        Returns:
+            If pandas=True returns a `pandas.DataFrame` of history metrics.
+            If pandas=False returns a list of dicts of history metrics.    
         """
         if keys and stream != "default":
             wandb.termerror("stream must be default when specifying keys")
@@ -654,11 +777,25 @@ class Run(Attrs):
 
     @normalize_exceptions
     def scan_history(self, keys=None, page_size=1000):
-        """Returns an iterable that returns all history for a run unsampled
+        """
+        Returns an iterable collection of all history records for a run.
+
+        Example:
+            Export all the loss values for an example run   
+            
+            ```python
+            run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
+            history = run.scan_history(keys=["Loss"])
+            losses = [row["Loss"] for row in history]
+            ```
+            
 
         Args:
-            keys ([str], optional): only fetch these keys, and rows that have all of them
+            keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
             page_size (int, optional): size of pages to fetch from the api
+        
+        Returns:
+            An iterable collection over history records (dict).
         """
         if keys is None:
             return HistoryScan(run=self, client=self.client, page_size=page_size)
@@ -692,7 +829,16 @@ class Run(Attrs):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
 class Sweep(Attrs):
-    """A set of runs associated with a sweep"""
+    """A set of runs associated with a sweep
+    Instantiate with:
+      api.sweep(sweep_path)
+
+    Attributes:
+        runs (:obj:`Runs`): list of runs
+        id (str): sweep id 
+        project (str): name of project
+        config (str): dictionary of sweep configuration 
+    """
 
     def __init__(self, client, entity, project, sweep_id, attrs={}):
         # TODO: Add agents / flesh this out.
@@ -766,6 +912,8 @@ class Sweep(Attrs):
 
 
 class Files(Paginator):
+    """Files is an iterable collection of :obj:`File` objects."""
+
     QUERY = gql('''
         query Run($project: String!, $entity: String!, $name: String!, $fileCursor: String,
             $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {
@@ -820,6 +968,18 @@ class Files(Paginator):
 
 
 class File(object):
+    """File is a class associated with a file saved by wandb.
+    
+    Attributes:
+        name (string): filename
+        url (string): path to file
+        md5 (string): md5 of file
+        mimetype (string): mimetype of file
+        updated_at (string): timestamp of last update
+        size (int): size of file in bytes
+
+    """
+
     def __init__(self, client, attrs):
         self.client = client
         self._attrs = attrs
@@ -857,6 +1017,17 @@ class File(object):
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException))
     def download(self, replace=False, root="."):
+        """Downloads a file previously saved by a run from the wandb server.
+
+        Args:
+            replace (boolean): If `True`, download will overwrite a local file 
+                if it exists. Defaults to `False`.
+            root (str): Local directory to save the file.  Defaults to ".".  
+
+        Raises:
+            `ValueError` if file already exists and replace=False
+        """
+
         response = requests.get(self._attrs["url"], auth=(
             "api", Api().api_key), stream=True, timeout=5)
         response.raise_for_status()
