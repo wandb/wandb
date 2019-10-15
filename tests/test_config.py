@@ -39,12 +39,12 @@ def test_config_docker_env_digest():
         del os.environ[env.DOCKER]
 
 
-def test_config_empty_by_default():
+def test_config_set_items():
     with CliRunner().isolated_filesystem():
         conf = config.Config()
         conf['a'] = 15
         conf.b = 16
-        assert list(conf.keys()) == ['_wandb', 'a', 'b']
+        assert list(conf.keys()) == ['a', 'b']
         assert conf.a == 15
         assert conf['b'] == 16
 
