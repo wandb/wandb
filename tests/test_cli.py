@@ -740,7 +740,7 @@ def test_run_simple(runner, git_repo, mock_server, monkeypatch):
     # This is disabled for now because it hasn't worked for a long time:
     #assert "Verifying uploaded files... verified!" in result.output
     assert result.exit_code == 0
-    assert "Synced lovely-dawn-32" in result.output
+    assert "Syncing run lovely-dawn-32" in result.output
 
 def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     run_id = "abc123"
@@ -758,7 +758,7 @@ def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     # This is disabled for now because it hasn't worked for a long time:
     #assert "Verifying uploaded files... verified!" in result.output
     assert result.exit_code == 0
-    assert "Synced lovely-dawn-32" in result.output
+    assert "Syncing run lovely-dawn-32" in result.output
     assert 'storage?file=diff.patch' not in mock_server.requests.keys()
     wandb.reset_env()
 
@@ -778,7 +778,7 @@ wandb.log({"img": [wandb.Image(np.ones((28,28,1)))]})
     print(result.exception)
     #print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    assert "Synced lovely-dawn-32" in result.output
+    assert "Syncing run lovely-dawn-32" in result.output
     assert "CommError" not in result.output
 
 

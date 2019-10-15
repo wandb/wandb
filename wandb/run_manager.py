@@ -1409,7 +1409,7 @@ class RunManager(object):
         try:
             url = self._run.get_url(self._api)
             wandb.termlog('Synced{} {}'.format(format_run_name(self._run), url))
+            logger.info("syncing complete: %s" % url)
         except CommError as e:
             wandb.termwarn(e.message)
-        logger.info("syncing complete: %s" % url)
         sys.exit(exitcode)
