@@ -790,9 +790,11 @@ def set_api_key(api, key, anonymous=False):
     if not key:
         return
 
-    prefix, key = key.split('-') if '-' in key else ('', key)
+    # Normal API keys are 40-character hex strings. Onprem API keys have a
+    # variable-length prefix, a dash, then the 40-char string.
+    prefix, suffix = key.split('-') if '-' in key else ('', key)
 
-    if len(key) == 40:
+    if len(suffix) == 40:
         os.environ[env.API_KEY] = key
         api.set_setting('anonymous', str(anonymous).lower(), globally=True)
         write_netrc(api.api_url, "user", key)
@@ -803,22 +805,34 @@ def set_api_key(api, key, anonymous=False):
 def isatty(ob):
     return hasattr(ob, "isatty") and ob.isatty()
 
-def prompt_api_key(api, browser_callback=None):
-    anonymode = 'Private wandb.ai dashboard, no account required'
-    create_account = 'Create a wandb.ai account'
-    existing_account = 'Use an existing wandb.ai account'
-    dryrun = "Don't visualize my results"
 
-    choices = [anonymode, create_account, existing_account, dryrun]
+LOGIN_CHOICE_ANON = 'Private W&B dashboard, no account required'
+LOGIN_CHOICE_NEW = 'Create a W&B account'
+LOGIN_CHOICE_EXISTS = 'Use an existing W&B account'
+LOGIN_CHOICE_DRYRUN = "Don't visualize my results"
+LOGIN_CHOICES = [
+    LOGIN_CHOICE_ANON,
+    LOGIN_CHOICE_NEW,
+    LOGIN_CHOICE_EXISTS,
+    LOGIN_CHOICE_DRYRUN
+]
+
+
+def prompt_api_key(api, input_callback=None, browser_callback=None):
+    input_callback = input_callback or getpass.getpass
+
+    choices = [choice for choice in LOGIN_CHOICES]
     if os.environ.get(env.ANONYMOUS, "never") == "never":
-        # Omit anonymode as a choice if the env var is set to never
-        choices = choices[1:]
+        # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
+        choices.remove(LOGIN_CHOICE_ANON)
+    if os.environ.get(env.JUPYTER, "false") == "true":
+        choices.remove(LOGIN_CHOICE_DRYRUN)
 
     if os.environ.get(env.ANONYMOUS) == "must":
-        result = anonymode
+        result = LOGIN_CHOICE_ANON
     # If we're not in an interactive environment, default to dry-run.
     elif not isatty(sys.stdout) or not isatty(sys.stdin):
-        result = dryrun
+        result = LOGIN_CHOICE_DRYRUN
     else:
         for i, choice in enumerate(choices):
             wandb.termlog("(%i) %s" % (i + 1, choice))
@@ -833,35 +847,34 @@ def prompt_api_key(api, browser_callback=None):
             if idx < 0 or idx > len(choices) - 1:
                 wandb.termwarn("Invalid choice")
         result = choices[idx]
-        wandb.termlog("You chose %s" % result)
+        wandb.termlog("You chose '%s'" % result)
 
-    if result == anonymode:
+    if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
 
         set_api_key(api, key, anonymous=True)
         return key
-    elif result == create_account:
-        key = browser_callback() if browser_callback else None
+    elif result == LOGIN_CHOICE_NEW:
+        key = browser_callback(signup=True) if browser_callback else None
 
         if not key:
-            wandb.termlog('Create an account here: {}/login?signup=true'.format(api.app_url))
-            wandb.termlog('You can find you API key in your browser here: {}/authorize'.format(api.app_url))
-            key = getpass.getpass('%s: Paste an API key from your profile and hit enter: ' % wandb.core.LOG_STRING).strip()
+            wandb.termlog('Create an account here: {}/authorize?signup=true'.format(api.app_url))
+            key = input_callback('%s: Paste an API key from your profile and hit enter' % wandb.core.LOG_STRING).strip()
             
         set_api_key(api, key)
         return key
-    elif result == existing_account:
+    elif result == LOGIN_CHOICE_EXISTS:
         key = browser_callback() if browser_callback else None
 
         if not key:
             wandb.termlog('You can find your API key in your browser here: {}/authorize'.format(api.app_url))
-            key = getpass.getpass('%s: Paste an API key from your profile and hit enter: ' % wandb.core.LOG_STRING).strip()
+            key = input_callback('%s: Paste an API key from your profile and hit enter' % wandb.core.LOG_STRING).strip()
         set_api_key(api, key)
         return key
     else:
         # Jupyter environments don't have a tty, but we can still try logging in using the browser callback if one
         # is supplied.
-        key, anonymous = browser_callback() if os.environ.get(env.JUPYTER) and browser_callback else (None, False)
+        key, anonymous = browser_callback() if os.environ.get(env.JUPYTER, "false") == "true" and browser_callback else (None, False)
 
         set_api_key(api, key, anonymous=anonymous)
         return key

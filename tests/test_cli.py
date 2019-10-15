@@ -6,7 +6,7 @@ import traceback
 import click
 from wandb import __version__
 from wandb.apis import InternalApi
-from wandb import cli
+from wandb import cli, env
 from wandb import util
 from .utils import runner, git_repo
 from .api_mocks import *
@@ -453,6 +453,21 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
         assert DUMMY_API_KEY in generatedNetrc
 
 
+def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        api = InternalApi()
+        monkeypatch.setattr(cli, 'api', api)
+        monkeypatch.setattr(api, 'create_anonymous_api_key', lambda *args, **kwargs: DUMMY_API_KEY)
+        result = runner.invoke(cli.login, ['--anonymously'])
+        print('Output: ', result.output)
+        print('Exception: ', result.exception)
+        print('Traceback: ', traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        with open("netrc", "r") as f:
+            generated_netrc = f.read()
+        assert DUMMY_API_KEY in generated_netrc
+
+
 def test_login_abort(runner, empty_netrc, local_netrc, mocker, monkeypatch):
     with runner.isolated_filesystem():
         reload(wandb)
@@ -600,7 +615,8 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_view
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
-    assert "not found" in str(result.output) or "No such file" in str(result.output)
+    output = result.output.encode("utf8")
+    assert "not found" in str(output) or "No such file" in str(output)
     # TODO: there's a race between the sigint and the actual failure so exit_code could be 1 or 255
     assert result.exit_code > 0
 
@@ -724,7 +740,7 @@ def test_run_simple(runner, git_repo, mock_server, monkeypatch):
     # This is disabled for now because it hasn't worked for a long time:
     #assert "Verifying uploaded files... verified!" in result.output
     assert result.exit_code == 0
-    assert "Synced lovely-dawn-32" in result.output
+    assert "Syncing run lovely-dawn-32" in result.output
 
 def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     run_id = "abc123"
@@ -742,7 +758,7 @@ def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     # This is disabled for now because it hasn't worked for a long time:
     #assert "Verifying uploaded files... verified!" in result.output
     assert result.exit_code == 0
-    assert "Synced lovely-dawn-32" in result.output
+    assert "Syncing run lovely-dawn-32" in result.output
     assert 'storage?file=diff.patch' not in mock_server.requests.keys()
     wandb.reset_env()
 
@@ -762,7 +778,7 @@ wandb.log({"img": [wandb.Image(np.ones((28,28,1)))]})
     print(result.exception)
     #print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    assert "Synced lovely-dawn-32" in result.output
+    assert "Syncing run lovely-dawn-32" in result.output
     assert "CommError" not in result.output
 
 

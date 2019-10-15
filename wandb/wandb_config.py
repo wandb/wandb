@@ -285,5 +285,6 @@ class Config(object):
         s = b"wandb_version: 1"
         as_dict = self.as_dict()
         if as_dict:  # adding an empty dictionary here causes a parse error
-            s += b'\n\n' + yaml.dump(as_dict, Dumper=yaml.SafeDumper, default_flow_style=False, allow_unicode=True, encoding='utf-8')
+            s += b'\n\n' + yaml.dump(as_dict, Dumper=yaml.SafeDumper, default_flow_style=False,
+                                     allow_unicode=True, encoding='utf-8')
         return s.decode("utf-8")

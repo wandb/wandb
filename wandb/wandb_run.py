@@ -22,7 +22,7 @@ from wandb import util
 from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
-from wandb.apis import InternalApi
+from wandb.apis import InternalApi, CommError
 from wandb.wandb_config import Config
 import six
 from six.moves import input
@@ -45,7 +45,7 @@ class Run(object):
     def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None,
                  config=None, sweep_id=None, storage_id=None, description=None, resume=None,
                  program=None, args=None, wandb_dir=None, tags=None, name=None, notes=None,
-                 api=None):
+                 benchmark=None, api=None):
         """Create a Run.
 
         Arguments:
@@ -101,6 +101,8 @@ class Run(object):
         if notes is not None:
             self.notes = notes
 
+        self.benchmark = benchmark
+
         self.program = program
         if not self.program:
             try:
@@ -118,7 +120,10 @@ class Run(object):
             self.project = self.api.settings("project")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
-            scope.set_tag("url", self.get_url(self.api, network=False))  # TODO: Move this somewhere outside of init
+            try:
+                scope.set_tag("url", self.get_url(self.api, network=False))  # TODO: Move this somewhere outside of init
+            except CommError:
+                pass
 
         if self.resume == "auto":
             util.mkdir_exists_ok(wandb.wandb_dir())
@@ -236,6 +241,7 @@ class Run(object):
         description = environment.get(env.DESCRIPTION)
         name = environment.get(env.NAME)
         notes = environment.get(env.NOTES)
+        benchmark = environment.get(env.BENCHMARK)
         args = env.get_args(env=environment)
         wandb_dir = env.get_dir(env=environment)
         tags = env.get_tags(env=environment)
@@ -245,7 +251,7 @@ class Run(object):
                   group, job_type, config,
                   sweep_id, storage_id, program=program, description=description,
                   args=args, wandb_dir=wandb_dir, tags=tags,
-                  name=name, notes=notes,
+                  name=name, notes=notes, benchmark=benchmark,
                   resume=resume, api=api)
 
         return run
@@ -276,7 +282,10 @@ class Run(object):
         res = api.upsert_run(name=run_id, project=project, entity=entity, display_name=run_name)
         entity = res["project"]["entity"]["name"]
         wandb.termlog("Syncing {} to:".format(directory))
-        wandb.termlog(res["displayName"] + " " + run.get_url(api))
+        try:
+            wandb.termlog(res["displayName"] + " " + run.get_url(api))
+        except CommError as e:
+            wandb.termwarn(e.message)
 
         file_api = api.get_file_stream_api()
         file_api.start()
@@ -335,7 +344,10 @@ class Run(object):
             run_update["host"] = meta["host"]
             run_update["program_path"] = meta["program"]
             run_update["job_type"] = meta.get("jobType")
+
+            # TODO: we're reading this, but where does it get set?
             run_update["notes"] = meta.get("notes")
+            run_update["benchmark"] = meta.get("benchmark")
         else:
             run_update["host"] = run.host
 
@@ -387,6 +399,7 @@ class Run(object):
                                        config=self.config.as_dict(), description=self._name_and_description, host=self.host,
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
                                        display_name=self._name, notes=self.notes,
+                                       benchmark=self.benchmark,
                                        summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
         self.storage_id = upsert_result['id']
         self.name = upsert_result.get('displayName')
@@ -396,6 +409,7 @@ class Run(object):
         """Set environment variables needed to reconstruct this object inside
         a user scripts (eg. in `wandb.init()`).
         """
+        # TODO: do we need something here?
         if environment is None:
             environment = os.environ
         environment[env.RUN_ID] = self.id
@@ -423,6 +437,8 @@ class Run(object):
             environment[env.NAME] = self._name
         if self.notes is not None:
             environment[env.NOTES] = self.notes
+        if self.benchmark is not None:
+            environment[env.BENCHMARK] = self.benchmark
         if len(self.tags) > 0:
             environment[env.TAGS] = ",".join(self.tags)
         return environment
@@ -433,36 +449,70 @@ class Run(object):
     def project_name(self, api=None):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
+        
+    def _generate_query_string(self, api, params=None):
+        """URL encodes dictionary of params"""
 
-    def get_url(self, api=None, network=True, params=None):
-        """If network is False we don't query for entity, required for wandb.init"""
-        params = params or {}
-        api = api or self.api
-        if api.api_key:
-            if api.settings('entity') is None and network:
+        if params == {} or params == None:
+            return ""
+
+        if str(api.settings().get('anonymous', 'false')) == 'true':
+            params['apiKey'] = api.api_key
+
+        return '?' + urllib.parse.urlencode(params)
+
+    def _load_entity(self, api, network):
+        if not api.api_key:
+            raise CommError("Can't find API key, run wandb login or set WANDB_API_KEY")
+
+        entity = api.settings('entity')
+        if network:
+            if api.settings('entity') is None:
                 viewer = api.viewer()
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])
-            if api.settings('entity'):
-                if str(api.settings().get('anonymous', 'false')) == 'true':
-                    params['apiKey'] = api.api_key
+        
+            entity = api.settings('entity')
+        
+        if not entity:
+            # This can happen on network failure
+            raise CommError("Can't connect to network to query entity from API key")
 
-                query_string = ""
-                if params != {}:
-                    query_string = '?' + urllib.parse.urlencode(params)
+        return entity
 
-                return "{base}/{entity}/{project}/runs/{run}{query_string}".format(
-                    base=api.app_url,
-                    entity=urllib.parse.quote_plus(api.settings('entity')),
-                    project=urllib.parse.quote_plus(self.project_name(api)),
-                    run=urllib.parse.quote_plus(self.id),
-                    query_string=query_string
-                )
-            else:
-                # TODO: I think this could only happen if the api key is invalid
-                return "run pending creation, url not known"
-        else:
-            return "not logged in, run wandb login or set WANDB_API_KEY"
+    def get_project_url(self, api=None, network=None, params=None):
+        """Generate a url for a project.
+        
+        If network is false and entity isn't specified in the environment raises wandb.apis.CommError
+        """
+        params = params or {}
+        api = api or self.api
+        self._load_entity(api, network)
+
+        return "{base}/{entity}/{project}{query_string}".format(
+            base=api.app_url,
+            entity=urllib.parse.quote_plus(api.settings('entity')),
+            project=urllib.parse.quote_plus(self.project_name(api)),
+            query_string=self._generate_query_string(api, params)
+        )
+
+    def get_url(self, api=None, network=True, params=None):
+        """Generate a url for a run.
+        
+        If network is false and entity isn't specified in the environment raises wandb.apis.CommError
+        """
+        params = params or {}
+        api = api or self.api
+        self._load_entity(api, network)
+
+        return "{base}/{entity}/{project}/runs/{run}{query_string}".format(
+            base=api.app_url,
+            entity=urllib.parse.quote_plus(api.settings('entity')),
+            project=urllib.parse.quote_plus(self.project_name(api)),
+            run=urllib.parse.quote_plus(self.id),
+            query_string=self._generate_query_string(api, params)
+        )
+         
 
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
@@ -473,7 +523,10 @@ class Run(object):
             pusher.finish()
 
     def __repr__(self):
-        return "W&B Run: %s" % self.get_url()
+        try:
+            return "W&B Run: %s" % self.get_url()
+        except CommError as e:
+            return "W&B Error: %s" % e.message
 
     @property
     def name(self):

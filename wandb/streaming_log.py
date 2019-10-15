@@ -92,6 +92,10 @@ class TextStreamPusher(object):
     def write_string(self, message, cur_time=None):
         return self.write(message.encode('utf-8'), cur_time)
 
+    def flush(self):
+        """flush stub needed for windows support"""
+        pass
+
     def write(self, message, cur_time=None):
         """Write some text to the pusher.
 

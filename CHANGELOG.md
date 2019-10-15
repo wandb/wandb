@@ -1,4 +1,41 @@
-## 0.8.10 (Sep 5, 2019)
+## 0.8.13 (TBD)
+
+#### :bug: Bug Fix
+
+-   Create nested directory when videos are logged from tensorboard namespaces
+-   Fix race when using wandb.log `async=True`
+-   run.summary now acts like a real dictionary
+
+#### :nail_care: Enhancement
+
+-   Allow wandb.watch to be called multiple times on different models
+-   Improved support for watching multple tfevent files
+-   Windows no longer requires `wandb run` simply run `python script_name.py`
+-   New benchmark argument to init for simple linking
+-   Nice error when wandb.log is called without a dict
+
+## 0.8.12 (Sep 20, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix compatibility issue with python 2.7 and old pip dependencies
+
+#### :nail_care: Enhancement
+
+-   Improved onboarding flow when creating new accounts and entering api_key
+
+## 0.8.11 (Sep 19, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix public api returning incorrect data when config value is 0 or False
+-   Resumed runs no longer overwrite run names with run id
+
+#### :nail_care: Enhancement
+
+-   Added recording of spell.run id in config
+
+## 0.8.10 (Sep 13, 2019)
 
 #### :bug: Bug Fix
 

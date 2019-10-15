@@ -1,3 +1,0 @@
-# Weights & Biases Documentation
-
-W&B documentation has [moved](https://docs.wandb.com)...
