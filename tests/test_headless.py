@@ -29,6 +29,7 @@ def test_dry_run(runner):
         assert meta["program"] == "train.py"
         assert meta["exitcode"] == 0
         assert os.path.exists(os.path.join(run_dir, "output.log"))
+        # TODO: FLAKY SPEC Sometimes output.log is empty...
         assert "loss:" in open(os.path.join(run_dir, "output.log")).read()
         assert os.path.exists(os.path.join(
             run_dir, "wandb-history.jsonl"))
@@ -116,7 +117,7 @@ def test_mock_server_no_internet(runner):
             time.sleep(5)  # TODO: this might not always be enough...
             res.kill()
             res.stdout
-        except (sh.ErrorReturnCode, ProcessLookupError): # noqa: F821
+        except (sh.ErrorReturnCode, ProcessLookupError):  # noqa: F821
             pass
         stdout = res.stdout.decode("utf8")
         stderr = res.stderr.decode("utf8")
@@ -146,7 +147,7 @@ def test_mock_server_with_internet(runner, live_mock_server):
         stdout, stderr = "", ""
         try:
             res.wait()
-        except (sh.ErrorReturnCode, ProcessLookupError): # noqa: F821
+        except (sh.ErrorReturnCode, ProcessLookupError):  # noqa: F821
             pass
         print(res)
         stdout = res.stdout.decode("utf8")

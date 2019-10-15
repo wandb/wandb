@@ -16,6 +16,7 @@ from pkg_resources import parse_version
 from wandb.history import History
 History.keep_rows = True
 
+# TODO: FLAKY SPECS sometimes these specs are timing out
 
 def dummy_torch_tensor(size, requires_grad=True):
     if parse_version(torch.__version__) >= parse_version('0.4'):
