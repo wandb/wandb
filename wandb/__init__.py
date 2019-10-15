@@ -30,6 +30,7 @@ import tempfile
 import re
 import glob
 import threading
+import platform
 import collections
 from six.moves import queue
 from importlib import import_module
@@ -47,7 +48,7 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
-from wandb.run_manager import LaunchError
+from wandb.run_manager import LaunchError, Process
 from wandb.data_types import Image
 from wandb.data_types import Video
 from wandb.data_types import Audio
@@ -66,7 +67,7 @@ from wandb import wandb_torch
 from wandb.wandb_controller import controller
 from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep
-
+from wandb.compat import windows
 
 logger = logging.getLogger(__name__)
 
@@ -194,8 +195,10 @@ def _init_headless(run, cloud=True):
     hooks = ExitHooks()
     hooks.hook()
 
-    if sys.platform == "win32":
-        # PTYs don't work in windows so we use pipes.
+    if platform.system() == "Windows":
+        # PTYs don't work in windows so we create these unused pipes and
+        # mirror stdout to run.dir/output.log.  There should be a way to make
+        # pipes work, but I haven't figured it out.  See links in compat/windows
         stdout_master_fd, stdout_slave_fd = os.pipe()
         stderr_master_fd, stderr_slave_fd = os.pipe()
     else:
@@ -213,7 +216,7 @@ def _init_headless(run, cloud=True):
     internal_cli_path = os.path.join(
         os.path.dirname(__file__), 'internal_cli.py')
 
-    if six.PY2:
+    if six.PY2 or platform.system() == "Windows":
         # TODO(adrian): close_fds=False is bad for security. we set
         # it so we can pass the PTY FDs to the wandb process. We
         # should use subprocess32, which has pass_fds.
@@ -254,11 +257,15 @@ def _init_headless(run, cloud=True):
         raise LaunchError(
             "W&B process failed to launch, see: {}".format(path))
 
-    stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
-    stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-
-    stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-    stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+    if platform.system() == "Windows":
+        output = open(os.path.join(run.dir, "output.log"), "wb")
+        stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output)
+        stderr_redirector = io_wrap.WindowsRedirector(sys.stderr, output)
+    else:
+        stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
+        stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
+        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
 
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code
@@ -958,13 +965,6 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # set this immediately after setting the run and the config. if there is an
     # exception after this it'll probably break the user script anyway
     os.environ[env.INITED] = '1'
-
-    # we do these checks after setting the run and the config because users scripts
-    # may depend on those things
-    if sys.platform == 'win32' and run.mode != 'clirun':
-        termerror(
-            'To use wandb on Windows, you need to run the command "wandb run python <your_train_script>.py"')
-        return run
 
     if in_jupyter:
         _init_jupyter(run)

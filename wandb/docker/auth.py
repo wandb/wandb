@@ -8,8 +8,9 @@ import json
 import logging
 import os
 import sys
+import platform
 
-IS_WINDOWS_PLATFORM = (sys.platform == 'win32')
+IS_WINDOWS_PLATFORM = (platform.system() == 'Windows')
 DOCKER_CONFIG_FILENAME = os.path.join('.docker', 'config.json')
 LEGACY_DOCKER_CONFIG_FILENAME = '.dockercfg'
 INDEX_NAME = 'docker.io'
@@ -384,7 +385,6 @@ def decode_auth(auth):
     s = base64.b64decode(auth)
     login, pwd = s.split(b':', 1)
     return login.decode('utf8'), pwd.decode('utf8')
-
 
 
 def parse_auth(entries, raise_on_error=False):
