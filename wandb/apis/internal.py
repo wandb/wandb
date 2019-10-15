@@ -665,7 +665,7 @@ class Api(object):
     def upsert_run(self, id=None, name=None, project=None, host=None,
                    group=None, tags=None,
                    config=None, description=None, entity=None, state=None,
-                   display_name=None, notes=None,
+                   display_name=None, notes=None, benchmark=None,
                    repo=None, job_type=None, program_path=None, commit=None,
                    sweep_name=None, summary_metrics=None, num_retries=None):
         """Update a run
@@ -694,6 +694,7 @@ class Api(object):
             $description: String,
             $displayName: String,
             $notes: String,
+            $benchmark: String,
             $commit: String,
             $config: JSONString,
             $host: String,
@@ -715,6 +716,7 @@ class Api(object):
                 description: $description,
                 displayName: $displayName,
                 notes: $notes,
+                benchmark: $benchmark,
                 config: $config,
                 commit: $commit,
                 host: $host,
@@ -758,7 +760,7 @@ class Api(object):
             'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
             'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
-            'displayName': display_name, 'notes': notes,
+            'displayName': display_name, 'notes': notes, 'benchmark': benchmark,
             'host': None if self.settings().get('anonymous') == 'true' else host,
             'debug': env.is_debug(env=self._environ), 'repo': repo, 'program': program_path, 'jobType': job_type,
             'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics

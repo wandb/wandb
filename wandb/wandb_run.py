@@ -45,7 +45,7 @@ class Run(object):
     def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None,
                  config=None, sweep_id=None, storage_id=None, description=None, resume=None,
                  program=None, args=None, wandb_dir=None, tags=None, name=None, notes=None,
-                 api=None):
+                 benchmark=None, api=None):
         """Create a Run.
 
         Arguments:
@@ -100,6 +100,8 @@ class Run(object):
             self.name = name
         if notes is not None:
             self.notes = notes
+
+        self.benchmark = benchmark
 
         self.program = program
         if not self.program:
@@ -239,6 +241,7 @@ class Run(object):
         description = environment.get(env.DESCRIPTION)
         name = environment.get(env.NAME)
         notes = environment.get(env.NOTES)
+        benchmark = environment.get(env.BENCHMARK)
         args = env.get_args(env=environment)
         wandb_dir = env.get_dir(env=environment)
         tags = env.get_tags(env=environment)
@@ -248,7 +251,7 @@ class Run(object):
                   group, job_type, config,
                   sweep_id, storage_id, program=program, description=description,
                   args=args, wandb_dir=wandb_dir, tags=tags,
-                  name=name, notes=notes,
+                  name=name, notes=notes, benchmark=benchmark,
                   resume=resume, api=api)
 
         return run
@@ -341,7 +344,10 @@ class Run(object):
             run_update["host"] = meta["host"]
             run_update["program_path"] = meta["program"]
             run_update["job_type"] = meta.get("jobType")
+
+            # TODO: we're reading this, but where does it get set?
             run_update["notes"] = meta.get("notes")
+            run_update["benchmark"] = meta.get("benchmark")
         else:
             run_update["host"] = run.host
 
@@ -393,6 +399,7 @@ class Run(object):
                                        config=self.config.as_dict(), description=self._name_and_description, host=self.host,
                                        program_path=program or self.program, repo=api.git.remote_url, sweep_name=self.sweep_id,
                                        display_name=self._name, notes=self.notes,
+                                       benchmark=self.benchmark,
                                        summary_metrics=summary_metrics, job_type=self.job_type, num_retries=num_retries)
         self.storage_id = upsert_result['id']
         self.name = upsert_result.get('displayName')
@@ -402,6 +409,7 @@ class Run(object):
         """Set environment variables needed to reconstruct this object inside
         a user scripts (eg. in `wandb.init()`).
         """
+        # TODO: do we need something here?
         if environment is None:
             environment = os.environ
         environment[env.RUN_ID] = self.id
@@ -429,6 +437,8 @@ class Run(object):
             environment[env.NAME] = self._name
         if self.notes is not None:
             environment[env.NOTES] = self.notes
+        if self.benchmark is not None:
+            environment[env.BENCHMARK] = self.benchmark
         if len(self.tags) > 0:
             environment[env.TAGS] = ",".join(self.tags)
         return environment
