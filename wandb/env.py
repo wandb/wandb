@@ -64,11 +64,7 @@ def immutable_keys():
     return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
             ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, DIR, SILENT, CONFIG_PATHS,
             ANONYMOUS, RUN_GROUP, JOB_TYPE, TAGS, RESUME, AGENT_REPORT_INTERVAL, HTTP_TIMEOUT,
-<<<<<<< HEAD
-            USERNAME, HOST, BENCHMARK, SYNC_MLFLOW]
-=======
-            USERNAME, HOST]
->>>>>>> master
+            USERNAME, HOST, SYNC_MLFLOW]
 
 
 def _env_as_bool(var, default=None, env=None):
