@@ -22,7 +22,6 @@
 -   Windows no longer requires `wandb run` simply run `python script_name.py`
 -   `wandb agent` now works on windows.
 -   Nice error message when wandb.log is called without a dict
--   Added benchmark argument and environment variable for linking benchmark runs
 -   Keras callback has a new `log_batch_frequency` for logging metrics every N batches
 
 ## 0.8.12 (Sep 20, 2019)
