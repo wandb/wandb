@@ -3,11 +3,11 @@ description: wandb.keras
 ---
 
 # wandb.keras
-[source](https://github.com/wandb/client/blob/feature/docs/wandb/keras/__init__.py#L0)
+[source](https://github.com/wandb/client/blob/master/wandb/keras/__init__.py#L0)
 
 
 ## WandbCallback
-[source](https://github.com/wandb/client/blob/feature/docs/wandb/keras/__init__.py#L134)
+[source](https://github.com/wandb/client/blob/master/wandb/keras/__init__.py#L134)
 ```python
 WandbCallback(self,
               monitor='val_loss',

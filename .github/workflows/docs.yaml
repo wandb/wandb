@@ -17,6 +17,8 @@ jobs:
                   python -m pip install --upgrade pip
                   pip install pydoc-markdown yapf numpy tensorflow fastai
                   pip install -e .
+            - name: Debug head ref
+              run: git rev-parse --abbrev-ref HEAD
             - name: Build docs
               if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
               run: |

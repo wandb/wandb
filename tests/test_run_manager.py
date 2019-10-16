@@ -83,7 +83,7 @@ def test_pip_freeze(mocker, run_manager):
     assert wbv in reqs
 
 
-def test_spell_sync(mocker, run_manager, mock_server):
+def test_spell_sync(mocker, loggedin, run_manager, mock_server, local_netrc):
     run_manager._block_file_observer()
     run_manager.init_run(env={"SPELL_RUN_URL": "https://spell.run/test"})
     assert mock_server.requests['wandb_url'][0]["url"]

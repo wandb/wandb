@@ -191,7 +191,10 @@ class WandbCallback(keras.callbacks.Callback):
             validation results at the end of training.
         class_colors: ([float, float, float]) if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
-
+        log_batch_frequency: integer or None
+            if None, callback will log every epoch
+            if integer, callback will log training metrics every log_batch_frequency 
+            batches.
     """
 
     def __init__(self, monitor='val_loss', verbose=0, mode='auto',
@@ -199,9 +202,8 @@ class WandbCallback(keras.callbacks.Callback):
                  save_model=True, training_data=None, validation_data=None,
                  labels=[], data_type=None, predictions=36, generator=None,
                  input_type=None, output_type=None, log_evaluation=False,
-                 validation_steps=None, class_colors=None,
+                 validation_steps=None, class_colors=None, log_batch_frequency=None
                  ):
-
         if wandb.run is None:
             raise wandb.Error(
                 'You must call wandb.init() before WandbCallback()')
@@ -235,6 +237,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_evaluation = log_evaluation
         self.validation_steps = validation_steps
         self.class_colors = np.array(class_colors) if class_colors is not None else None
+        self.log_batch_frequency = log_batch_frequency
 
         if self.training_data:
             if len(self.training_data) != 2:
@@ -294,14 +297,19 @@ class WandbCallback(keras.callbacks.Callback):
         if self.current and self.monitor_op(self.current, self.best) and self.save_model:
             self._save_model(epoch)
 
+    # This is what keras used pre tensorflow.keras
     def on_batch_begin(self, batch, logs=None):
         pass
 
+    # This is what keras used pre tensorflow.keras
     def on_batch_end(self, batch, logs=None):
         if not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
+
+        if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
+            wandb.log(logs, commit=True)
 
     def on_train_batch_begin(self, batch, logs=None):
         pass
@@ -311,6 +319,9 @@ class WandbCallback(keras.callbacks.Callback):
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
+
+        if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
+            wandb.log(logs, commit=True)
 
     def on_test_begin(self, logs=None):
         pass
@@ -390,7 +401,8 @@ class WandbCallback(keras.callbacks.Callback):
         # if its a binary mask, just return it as grayscale instead of picking the argmax
         if len(masks[0].shape) == 2 or masks[0].shape[-1] == 1:
             return masks
-        class_colors = self.class_colors or np.array(wandb.util.class_colors(masks[0].shape[2]))
+        class_colors = self.class_colors if self.class_colors is not None else np.array(
+            wandb.util.class_colors(masks[0].shape[2]))
         imgs = class_colors[np.argmax(masks, axis=-1)]
         return imgs
 
