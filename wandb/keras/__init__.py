@@ -191,9 +191,8 @@ class WandbCallback(keras.callbacks.Callback):
             validation results at the end of training.
         class_colors ([float, float, float]): if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
-        log_batch_frequency (integer):
-            if None, callback will log every epoch
-            if integer, callback will log training metrics every log_batch_frequency 
+        log_batch_frequency (integer): if None, callback will log every epoch.
+            If set to integer, callback will log training metrics every log_batch_frequency 
             batches.
     """
 
