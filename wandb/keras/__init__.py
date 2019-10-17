@@ -189,9 +189,9 @@ class WandbCallback(keras.callbacks.Callback):
             ("image", "images", "segmentation_mask").  
         log_evaluation (boolean): if True save a dataframe containing the full
             validation results at the end of training.
-        class_colors: ([float, float, float]) if the input or output is a segmentation mask, 
+        class_colors ([float, float, float]): if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
-        log_batch_frequency: integer or None
+        log_batch_frequency (integer):
             if None, callback will log every epoch
             if integer, callback will log training metrics every log_batch_frequency 
             batches.
