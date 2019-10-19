@@ -28,7 +28,7 @@ else:
 def is_dataset(data):
     dataset_ops = wandb.util.get_module(
         "tensorflow.python.data.ops.dataset_ops")
-    if dataset_ops:
+    if dataset_ops and hasattr(dataset_ops, "DatasetV2"):
         dataset_types = (dataset_ops.DatasetV2,)
         if hasattr(dataset_ops, "DatasetV1"):
             dataset_types = dataset_types + (dataset_ops.DatasetV1,)
