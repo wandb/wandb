@@ -408,12 +408,21 @@ def request_mocker(request):
 
 
 @pytest.fixture(autouse=True)
-def clean_environ():
-    """Remove any env variables set in tests"""
+def check_environ():
+    """Warn about WANDB_ environment variables the user has set
+
+    Sometimes it's useful to set things like WANDB_DEBUG intentionally, or
+    set other things for hacky debugging, but we want to make sure the user
+    knows about it.
+    """
+    # we ignore WANDB_DESCRIPTION because we set it intentionally in
+    # pytest_runtest_setup()
     wandb_keys = [key for key in os.environ.keys() if key.startswith(
-        'WANDB_') and key not in ['WANDB_TEST']]
-    for key in wandb_keys:
-        del os.environ[key]
+        'WANDB_') and key not in ['WANDB_TEST', 'WANDB_DESCRIPTION']]
+    if wandb_keys:
+        wandb.termwarn('You have WANDB_ environment variable(s) set. These may interfere with tests:')
+        for key in wandb_keys:
+            wandb.termwarn('    {} = {}'.format(key, repr(os.environ[key])))
 
 
 @pytest.fixture
