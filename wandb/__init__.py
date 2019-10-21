@@ -313,7 +313,8 @@ def login(anonymous=None, key=None):
         return api.api_key
     elif in_jupyter:
         os.environ[env.JUPYTER] = "true"
-        return _jupyter_login(api=api)
+        # Don't return key to ensure it's not displayed in the notebook.
+        _jupyter_login(api=api)
     else:
         return util.prompt_api_key(api)
 
@@ -365,17 +366,21 @@ def _init_jupyter(run):
     os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
+        # Fetches or prompts the users for an API key. Or if anonymode enabled, uses anonymous API key
         key = _jupyter_login()
         # Ensure our api client picks up the new key
         if key:
             run.api.reauth()
         else:
             run.mode = "dryrun"
+            display(HTML('''
+                <b>Could not authenticate.</b><br/>
+            '''))
     run.resume = "allow"
     if run.mode == "dryrun":
         display(HTML('''
-            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>.  Results will not be sent to the cloud.  
-            Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
+            Using <a href="https://wandb.com" target="_blank">Weights & Biases</a> in dryrun mode. Not logging results to the cloud.<br/>
+            Call wandb.login() to authenticate this machine.<br/>
         '''.format(run.api.app_url)))
     else:
         displayed = False
@@ -396,7 +401,7 @@ def _init_jupyter(run):
                 '''.format(e.message)))
             else:
                 termerror(str(e))
-            
+
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
