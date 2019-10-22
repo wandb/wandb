@@ -8,6 +8,7 @@ import os
 import string
 import sys
 import time
+import tempfile
 
 import click
 
@@ -29,7 +30,11 @@ IS_GIT = os.path.exists(os.path.join(LIB_ROOT, '.git'))
 
 
 def wandb_dir():
-    return os.path.join(env.get_dir(os.getcwd()), __stage_dir__ or ("wandb" + os.sep))
+    path = os.path.join(env.get_dir(os.getcwd()), __stage_dir__ or ("wandb" + os.sep))
+    if not os.access(path, os.W_OK):
+        termwarn("Path %s wasn't writable, using system temp directory" % path)
+        path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
+    return path
 
 
 def _set_stage_dir(stage_dir):
@@ -48,6 +53,7 @@ class Error(Exception):
     # For python 2 support
     def encode(self, encoding):
         return self.message
+
 
 class WandbWarning(Warning):
     """Base W&B Warning"""

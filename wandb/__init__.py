@@ -264,8 +264,13 @@ def _init_headless(run, cloud=True):
     else:
         stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
         stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+        try:
+            stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+            stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+        except ValueError:
+            # stdout / err aren't files
+            stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output)
+            stderr_redirector = io_wrap.WindowsRedirector(sys.stderr, output)
 
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code
