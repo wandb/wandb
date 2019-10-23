@@ -237,7 +237,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                     orig_exist = os.path.exists
 
                     def exists(path):
-                        return True if path in (config_path, secrets_path) else orig_exist(path)
+                        return True if path in (config_path, secrets_path, resource_path) else orig_exist(path)
                     mocker.patch('wandb.os.path.exists', exists)
 
                     def magic(path, *args, **kwargs):
