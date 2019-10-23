@@ -269,6 +269,7 @@ def _init_headless(run, cloud=True):
             stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
         except ValueError:
             # stdout / err aren't files
+            output = open(os.path.join(run.dir, "output.log"), "wb")
             stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output)
             stderr_redirector = io_wrap.WindowsRedirector(sys.stderr, output)
 
