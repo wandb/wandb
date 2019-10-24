@@ -408,6 +408,16 @@ def request_mocker(request):
 
 
 @pytest.fixture(autouse=True)
+def preserve_environ():
+    environ = dict(os.environ)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(environ)
+
+
+@pytest.fixture(autouse=True)
 def check_environ():
     """Warn about WANDB_ environment variables the user has set
 
