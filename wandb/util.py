@@ -310,7 +310,7 @@ def json_friendly(obj):
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
-        logger.warning("Object %s is %i bytes", obj, getsizeof(obj))
+        logger.warning("Object of type %s is %i bytes", type(obj).__name__, getsizeof(obj))
 
     return obj, converted
 
