@@ -171,7 +171,7 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
 
     log_dict = tf_summary_to_dict(tf_summary_str_or_pb, namespace)
     # Pass timestamp to history for loading historic data
-    timestamp = log_dict["_timestamp"]
+    timestamp = log_dict.get("_timestamp", time.time())
     # Store our initial timestamp
     if STEPS["global"]["last_log"] is None:
         STEPS["global"]["last_log"] = timestamp

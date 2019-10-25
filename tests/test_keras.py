@@ -98,13 +98,13 @@ def test_basic_keras_multi_fit(dummy_model, dummy_data, wandb_init_run):
     assert wandb.run.summary["accuracy"] > 0
     assert len(wandb.run.summary["graph"].nodes) == 3
 
+
 def test_keras_log_batch(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=10,
                     callbacks=[WandbCallback(log_batch_frequency=2)])
     wandb.run.summary.load()
     print("History", wandb.run.history.rows)
     assert len(wandb.run.history.rows) == 12
-
 
 
 def test_keras_image_bad_data(dummy_model, dummy_data, wandb_init_run):

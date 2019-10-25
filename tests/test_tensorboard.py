@@ -124,6 +124,6 @@ def test_tensorboardX(run_manager):
     assert rows[0]["matplotlib"]['_type'] == 'images'
     assert rows[0]["video"]['_type'] == 'videos'
     assert rows[0]["data/scalar_group/foo"] == 10
-    assert rows[0]["data/scalar_group/foo/step"] == 1
-    assert rows[1]["data/scalar_group/bar"] == 100
+    assert rows[0]["data/scalar_group/foo/global_step"] == 1
+    assert rows[0]['data/scalar_group/bar'] == 100
     assert len(events) == 3
