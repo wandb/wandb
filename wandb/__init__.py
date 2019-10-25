@@ -634,7 +634,7 @@ def shutdown_async_log_thread():
         # FIXME: py 2.7 will return None here so we dont know if we dropped data
 
 _last_time = 0
-_slow_streak = 0
+_fast_streak = 0
 def _record_log_timing():
     """
         Keeps track of how frequently log is being called.
@@ -644,12 +644,12 @@ def _record_log_timing():
     global _last_time, _slow_streak
     cur_time = time.time()
 
-    if (cur_time - _last_time < 1.0):
-        _slow_streak += 1
+    if (cur_time - _last_time < 0.1):
+        _fast_streak += 1
     else:
-        _slow_streak = 0
+        _fast_streak = 0
 
-    if _slow_streak == 5:
+    if _fast_streak == 5:
         termwarn('Calling wandb.log() more frequently than once per second can affect your runtime performance.')
 
     _last_time = cur_time
