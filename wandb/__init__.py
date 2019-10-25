@@ -633,6 +633,26 @@ def shutdown_async_log_thread():
             # FIXME: it is worse than this, likely the program will crash because files will be closed
         # FIXME: py 2.7 will return None here so we dont know if we dropped data
 
+_last_time = 0
+_slow_streak = 0
+def _record_log_timing():
+    """
+        Keeps track of how frequently log is being called.
+        If user calls wandb.log with commit=True more than 5 times with less than a second
+        in between we will warn them.
+    """
+    global _last_time, _slow_streak
+    cur_time = time.time()
+
+    if (cur_time - _last_time < 1.0):
+        _slow_streak += 1
+    else:
+        _slow_streak = 0
+
+    if _slow_streak == 5:
+        termwarn('Calling wandb.log() more frequently than once per second can affect your runtime performance.')
+
+    _last_time = cur_time
 
 def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
     """Log a dict to the global run's history.
@@ -665,6 +685,7 @@ def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
 
     if commit or step is not None:
         run.history.add(row, *args, step=step, **kwargs)
+        _record_log_timing()
     else:
         run.history.update(row, *args, **kwargs)
 
