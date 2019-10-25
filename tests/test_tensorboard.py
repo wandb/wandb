@@ -5,6 +5,7 @@ import sys
 import os
 import pytest
 import glob
+import json
 import wandb
 import numpy as np
 import pytest
@@ -47,13 +48,28 @@ def test_tensorboard_no_step(run_manager):
     assert len(wandb.run.history.rows) == 2
 
 
+@pytest.mark.mocked_run_manager()
+def test_tensorboard_load_complex(wandb_init_run):
+    """This test is to ensure the final event logged in a given step remains in that step"""
+    steps_for_meta = []
+    for summary in tf.train.summary_iterator(os.path.join(os.path.dirname(__file__),
+                                                          "fixtures/events.out.tfevents.111.complex.localdomain")):
+        parsed = wandb.tensorboard.tf_summary_to_dict(summary)
+        if parsed.get("meta/activation/D/mean/high"):
+            steps_for_meta.append(summary.step)
+        wandb.tensorboard.log(summary, step=summary.step)
+    wandb_init_run.run_manager.test_shutdown()
+    rows = [json.loads(row) for row in open(os.path.join(wandb_init_run.dir, "wandb-history.jsonl")).readlines()]
+    assert steps_for_meta == [row["global_step"] for row in rows if row.get("meta/activation/D/mean/high")]
+
+
 def test_tensorboard_s3(run_manager, capsys, mocker):
     # This mocks out the tensorboard writer so we dont attempt to talk to s3
     from tensorflow.python.summary.writer import event_file_writer
 
     def fake_init(self, logdir, **kwargs):
-        self._closed = False
-        writer = event_file_writer.EventFileWriter("test")
+        self._closed=False
+        writer=event_file_writer.EventFileWriter("test")
         mocker.patch.object(writer._ev_writer, "FileName",
                             lambda: logdir.encode("utf8"))
         mocker.patch.object(writer._ev_writer, "Flush")
@@ -61,12 +77,12 @@ def test_tensorboard_s3(run_manager, capsys, mocker):
     mocker.patch("tensorflow.summary.FileWriter.__init__", fake_init)
     wandb.tensorboard.patch(tensorboardX=False)
     tf.summary.FileWriterCache.clear()
-    summary = tf.summary.FileWriter("s3://simple/test")
+    summary=tf.summary.FileWriter("s3://simple/test")
     summary.add_summary(tf.Summary(
         value=[tf.Summary.Value(tag="foo", simple_value=1)]), 0)
     summary.flush()
     run_manager.test_shutdown()
-    out, err = capsys.readouterr()
+    out, err=capsys.readouterr()
     assert "s3://simple/test" in err
     assert "can't save file to wandb" in err
     print(wandb.run.history.row)
@@ -80,14 +96,14 @@ def test_tensorboard_s3(run_manager, capsys, mocker):
 def test_tensorboardX(run_manager):
     wandb.tensorboard.patch(tensorboardX=True)
 
-    fig = plt.figure()
-    c1 = plt.Circle((0.2, 0.5), 0.2, color='r')
+    fig=plt.figure()
+    c1=plt.Circle((0.2, 0.5), 0.2, color='r')
 
-    ax = plt.gca()
+    ax=plt.gca()
     ax.add_patch(c1)
     plt.axis('scaled')
 
-    writer = SummaryWriter()
+    writer=SummaryWriter()
     writer.add_figure('matplotlib', fig, 0)
     writer.add_video('video', np.random.random(size=(1, 5, 3, 28, 28)), 0)
     writer.add_scalars('data/scalar_group', {
@@ -96,8 +112,8 @@ def test_tensorboardX(run_manager):
     }, 1)
     writer.close()
     run_manager.test_shutdown()
-    rows = run_manager.run.history.rows
-    events = []
+    rows=run_manager.run.history.rows
+    events=[]
     for root, dirs, files in os.walk(run_manager.run.dir):
         print("ROOT", root, files)
         for file in files:

@@ -104,8 +104,7 @@ def history():
 
 
 @pytest.fixture
-def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume_status,
-                   upload_logs, monkeypatch, mocker, capsys, local_netrc):
+def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mocker, capsys, local_netrc):
     """Fixture that calls wandb.init(), yields a run (or an exception) that
     gets created, then cleans up afterward.  This is meant to test the logic
     in wandb.init, it should generally not spawn a run_manager.  If you need
@@ -118,10 +117,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
     run = None
     try:
         with CliRunner().isolated_filesystem():
-            upsert_run(request_mocker)
             if request.node.get_closest_marker('jupyter'):
-                query_run_resume_status(request_mocker)
-
                 def fake_ipython():
                     class Jupyter(object):
                         __module__ = "jupyter"
@@ -266,7 +262,6 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 # env was leaking when running the whole suite...
                 if os.getenv(env.RUN_ID):
                     del os.environ[env.RUN_ID]
-                query_run_resume_status(request_mocker)
                 os.mkdir(wandb.wandb_dir())
                 with open(os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME), "w") as f:
                     f.write(json.dumps({"run_id": "test"}))
@@ -352,13 +347,11 @@ def fake_run_manager(mocker, run=None, cloud=True, rm_class=wandb.run_manager.Ru
 
 
 @pytest.fixture
-def run_manager(mocker, request_mocker, upsert_run, query_viewer):
+def run_manager(mocker, mock_server):
     """This fixture emulates the run_manager headless mode in a single process
     Just call run_manager.test_shutdown() to join the threads
     """
     with CliRunner().isolated_filesystem():
-        query_viewer(request_mocker)
-        upsert_run(request_mocker)
         run_manager = fake_run_manager(mocker)
         yield run_manager
         wandb.uninit()

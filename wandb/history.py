@@ -216,6 +216,7 @@ class History(object):
         self.row = data_types.history_dict_to_json(self._run, self.row)
 
     def _write(self):
+        self._current_timestamp = self._current_timestamp or time.time()
         # Saw a race in tests where we closed history and another log was called
         # we check if self._file is set to ensure we don't bomb out
         if self.row and self._file:
