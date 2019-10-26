@@ -20,7 +20,7 @@ def stats(api):
 def test_defaults(stats):
     stats.shutdown()
     # on a machine with a gpu there will be extra stats
-    assert sorted(stats.stats().keys()) == sorted(
+    assert set(stats.stats().keys()).issuperset(
         ['cpu', 'memory', 'network', 'disk', 'proc.memory.rssMB', 'proc.memory.availableMB', 'proc.memory.percent', 'proc.cpu.threads'])
     assert stats.sample_rate_seconds == 2
     assert stats.samples_to_average == 15
