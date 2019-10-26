@@ -342,7 +342,8 @@ def _jupyter_login(force=True, api=None):
                 termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
                 key = getpass.getpass("API Key: ").strip()
             except NotImplementedError:
-                termerror("Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
+                termerror(
+                    "Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
         return key, anonymous
 
     api = api or (run.api if run else None)
@@ -396,7 +397,7 @@ def _init_jupyter(run):
                 '''.format(e.message)))
             else:
                 termerror(str(e))
-            
+
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
@@ -477,6 +478,9 @@ def save(glob_str, base_path=None, policy="live"):
     if policy not in ("live", "end"):
         raise ValueError(
             'Only "live" and "end" policies are currently supported.')
+    if not isinstance(glob_str, str):
+        raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+
     if base_path is None:
         base_path = os.path.dirname(glob_str)
     if isinstance(glob_str, bytes):
@@ -1021,6 +1025,7 @@ def _wandb_finished(run):
     # must shutdown async logging thread before closing files
     shutdown_async_log_thread()
     run.close_files()
+
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')
