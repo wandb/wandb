@@ -30,7 +30,7 @@ from watchdog.events import PatternMatchingEventHandler
 import webbrowser
 
 import wandb
-from wandb.apis.file_stream import BinaryFilePolicy, CRDedupeFilePolicy, DefaultFilePolicy, OverwriteFilePolicy
+from wandb.apis import file_stream
 from wandb import __version__
 from wandb import env as wandb_env
 from wandb import Error
@@ -713,9 +713,11 @@ class RunManager(object):
 
         if save_name not in self._file_event_handlers:
             if save_name == 'wandb-history.jsonl':
+                self._api.get_file_stream_api().set_file_policy(save_name, file_stream.HistoryFilePolicy())
                 self._file_event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
                     file_path, 'wandb-history.jsonl', self._api)
             elif save_name == 'wandb-events.jsonl':
+                self._api.get_file_stream_api().set_file_policy(save_name, file_stream.HistoryFilePolicy())
                 self._file_event_handlers['wandb-events.jsonl'] = FileEventHandlerTextStream(
                     file_path, 'wandb-events.jsonl', self._api)
             elif 'tfevents' in save_name or 'graph.pbtxt' in save_name:
@@ -728,7 +730,7 @@ class RunManager(object):
             #    # TODO: This is hard-coded, but we want to give users control
             #    # over streaming files (or detect them).
             #    self._api.get_file_stream_api().set_file_policy(save_name,
-            #                                                    BinaryFilePolicy())
+            #                                                    file_stream.BinaryFilePolicy())
             #    self._file_event_handlers[save_name] = FileEventHandlerBinaryStream(
             #        file_path, save_name, self._api)
             # Overwrite handler (non-deferred) has a bug, wherein if the file is truncated
@@ -742,7 +744,7 @@ class RunManager(object):
             elif save_name == 'wandb-summary.json':
                 # Load the summary into the syncer process for meta etc to work
                 self._run.summary.load()
-                self._api.get_file_stream_api().set_file_policy(save_name, OverwriteFilePolicy())
+                self._api.get_file_stream_api().set_file_policy(save_name, file_stream.SummaryFilePolicy())
                 self._file_event_handlers[save_name] = FileEventHandlerSummary(
                     file_path, save_name, self._api, self._file_pusher, self._run)
             elif save_name.startswith('media/') or save_name.startswith('code/') or save_name in ["requirements.txt", "diff.patch"]:
@@ -878,17 +880,17 @@ class RunManager(object):
 
         # output.log
         self._api.get_file_stream_api().set_file_policy(
-            util.OUTPUT_FNAME, CRDedupeFilePolicy(resume_status['logLineCount']))
+            util.OUTPUT_FNAME, file_stream.CRDedupeFilePolicy(resume_status['logLineCount']))
 
         # history
         self._api.get_file_stream_api().set_file_policy(
-            wandb_run.HISTORY_FNAME, DefaultFilePolicy(
+            wandb_run.HISTORY_FNAME, file_stream.HistoryFilePolicy(
                 start_chunk_id=resume_status['historyLineCount']))
         self._file_event_handlers[wandb_run.HISTORY_FNAME] = FileEventHandlerTextStream(
             self._run.history.fname, wandb_run.HISTORY_FNAME, self._api, seek_end=resume_status['historyLineCount'] > 0)
         # events
         self._api.get_file_stream_api().set_file_policy(
-            wandb_run.EVENTS_FNAME, DefaultFilePolicy(
+            wandb_run.EVENTS_FNAME, file_stream.HistoryFilePolicy(
                 start_chunk_id=resume_status['eventsLineCount']))
         self._file_event_handlers[wandb_run.EVENTS_FNAME] = FileEventHandlerTextStream(
             self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=resume_status['eventsLineCount'] > 0)
@@ -1024,7 +1026,7 @@ class RunManager(object):
         self._api.save_pip(self._run.dir)
         logger.info("initializing streaming files api")
         self._api.get_file_stream_api().set_default_file_policy(
-            util.OUTPUT_FNAME, CRDedupeFilePolicy())
+            util.OUTPUT_FNAME, file_stream.CRDedupeFilePolicy())
         self._api.get_file_stream_api().start()
         self._project = self._api.settings("project")
 

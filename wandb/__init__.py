@@ -437,11 +437,16 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         while wandb_process.poll() is None:
             time.sleep(0.1)
     except KeyboardInterrupt:
-        pass
+        if wandb_process.poll() is None:
+            termlog('Sending ctrl-c to W&B process, PID {}'.format(wandb_process.pid))
 
-    if wandb_process.poll() is None:
-        termlog('Killing W&B process, PID {}'.format(wandb_process.pid))
-        wandb_process.kill()
+    try:
+        while wandb_process.poll() is None:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        if wandb_process.poll() is None:
+            termlog('Killing W&B process, PID {}'.format(wandb_process.pid))
+            wandb_process.kill()
 
 
 # Will be set to the run object for the current run, as returned by
