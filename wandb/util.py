@@ -548,8 +548,13 @@ def request_with_retry(func, *args, **kwargs):
             response.raise_for_status()
             return response
         except (requests.exceptions.ConnectionError,
-                requests.exceptions.HTTPError,  # XXX 500s aren't retryable
+                requests.exceptions.HTTPError,
                 requests.exceptions.Timeout) as e:
+            if isinstance(e, requests.exceptions.HTTPError):
+                if e.response.status_code in {400, 403, 404, 409, 500}:
+                    # not retrieable
+                    return e
+
             if retry_count == max_retries:
                 return e
             retry_count += 1

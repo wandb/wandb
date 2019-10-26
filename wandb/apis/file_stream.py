@@ -11,6 +11,8 @@ from six.moves import queue
 from wandb import util
 from wandb import env
 
+MAX_SUMMARY_HISTORY_LINE_SIZE = 8 * 1024 * 1024  # imposed by backend storage
+
 logger = logging.getLogger(__name__)
 
 Chunk = collections.namedtuple('Chunk', ('filename', 'data'))
@@ -29,10 +31,36 @@ class DefaultFilePolicy(object):
         }
 
 
-class OverwriteFilePolicy(object):
+class HistoryFilePolicy(object):
+    def __init__(self, start_chunk_id=0):
+        self._chunk_id = start_chunk_id
+
     def process_chunks(self, chunks):
+        chunk_id = self._chunk_id
+        self._chunk_id += len(chunks)
+        chunk_data = []
+        for chunk in chunks:
+            if len(chunk.data) + 1 > MAX_SUMMARY_HISTORY_LINE_SIZE:
+                wandb.termerror('History line is {} bytes but maximum size is {} bytes. Truncating to the maximum size. Some data may be missing from plots.'.format(len(chunk.data), MAX_SUMMARY_HISTORY_LINE_SIZE - 1))
+                chunk_data.append(chunk.data[:MAX_SUMMARY_HISTORY_LINE_SIZE - 1])
+            else:
+                chunk_data.append(chunk.data)
+
         return {
-            'offset': 0, 'content': [chunks[-1].data]
+            'offset': chunk_id,
+            'content': chunk_data,
+        }
+
+
+class SummaryFilePolicy(object):
+    def process_chunks(self, chunks):
+        data = chunks[-1].data
+        # +1 for newline
+        if len(data) + 1 > MAX_SUMMARY_HISTORY_LINE_SIZE:
+            wandb.termerror('Summary is {} bytes but maximum size is {} bytes. Truncating to the maximum size. Some data may be missing from plots.'.format(len(data), MAX_SUMMARY_HISTORY_LINE_SIZE - 1))
+            data = data[:MAX_SUMMARY_HISTORY_LINE_SIZE - 1]
+        return {
+            'offset': 0, 'content': [data]
         }
 
 
@@ -185,6 +213,8 @@ class FileStreamApi(object):
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
+            raise response
+            wandb.termerror('Droppped streaming file chunk (see wandb/debug.log)')
             logging.error("dropped chunk %s" % response)
         elif response.json().get("limits"):
             parsed = response.json()
@@ -196,12 +226,12 @@ class FileStreamApi(object):
         files = {}
         # Groupby needs group keys to be consecutive, so sort first.
         chunks.sort(key=lambda c: c.filename)
-        #print('fsapi', chunks)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
             self.set_default_file_policy(filename, DefaultFilePolicy())
             files[filename] = self._file_policies[filename].process_chunks(
                 file_chunks)
+
         self._handle_response(util.request_with_retry(
             self._client.post, self._endpoint, json={'files': files}))
 
