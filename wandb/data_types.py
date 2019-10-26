@@ -37,6 +37,7 @@ MEDIA_TMP = tempfile.TemporaryDirectory('wandb-media')
 
 DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
 
+
 class WBValue(object):
     """Abstract parent class for things that can be logged by wandb.log() and 
         visualized by wandb. 
@@ -48,6 +49,7 @@ class WBValue(object):
         JSON-friendly `dict` representation of this object that can later be
             serialized to a string.
     """
+
     def __init__(self):
         pass
 
@@ -55,6 +57,7 @@ class WBValue(object):
         """
         """
         raise NotImplementedError
+
 
 class Histogram(WBValue):
     """
@@ -225,13 +228,15 @@ class Media(WBValue):
         The resulting dict lets you load this object into other W&B runs.
         """
         if not self.is_bound():
-            raise RuntimeError('Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.'.format(type(self).__name__))
+            raise RuntimeError(
+                'Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.'.format(type(self).__name__))
 
         assert self._run is run, "For now we don't support referring to media files across runs."
 
         return {
             '_type': 'file',  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-            'path': os.path.relpath(self._path, self._run.dir),  # TODO(adrian): Convert this to a path with forward slashes.
+            # TODO(adrian): Convert this to a path with forward slashes.
+            'path': os.path.relpath(self._path, self._run.dir),
             'sha256': self._sha256,
             'size': self._size,
             #'entity': self._run.entity,
@@ -263,6 +268,7 @@ class Audio(BatchableMedia):
                 numpy array of audio data.
             caption (string): Caption to display with audio. 
     """
+
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data. 
         """
@@ -366,9 +372,8 @@ class Object3D(BatchableMedia):
                 [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
                 [x y z r g b], ...] nx4 where is rgb is color
                 ```                 
-         
-    """
 
+    """
 
     SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', 'stl'])
 
@@ -445,7 +450,8 @@ class Object3D(BatchableMedia):
 
         for obj in jsons:
             if not obj['path'].startswith(cls.get_media_subdir()):
-                raise ValueError('Files in an array of Object3D\'s must be in the {} directory, not {}'.format(cls.get_media_subdir(), obj['path']))
+                raise ValueError('Files in an array of Object3D\'s must be in the {} directory, not {}'.format(
+                    cls.get_media_subdir(), obj['path']))
 
         return {
             "_type": "object3D",
@@ -464,6 +470,7 @@ class Html(BatchableMedia):
             inject (boolean): Add a stylesheet to the HTML object.  If set
                 to False the HTML will pass through unchanged.
     """
+
     def __init__(self, data, inject=True):
 
         if isinstance(data, str):
@@ -521,6 +528,7 @@ class Html(BatchableMedia):
         }
         return meta
 
+
 class Video(BatchableMedia):
 
     """
@@ -565,7 +573,7 @@ class Video(BatchableMedia):
             super(Video, self).__init__(data_or_path, is_tmp=False)
             #ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
-            if hasattr(data_or_path, "numpy"): # TF data eager tensors
+            if hasattr(data_or_path, "numpy"):  # TF data eager tensors
                 self.data = data_or_path.numpy()
             elif is_numpy_array(data_or_path):
                 self.data = data_or_path
@@ -574,7 +582,8 @@ class Video(BatchableMedia):
             self.encode()
 
     def encode(self):
-        mpy = util.get_module("moviepy.editor", required='wandb.Video requires moviepy and imageio when passing raw data.  Install with "pip install moviepy imageio"')
+        mpy = util.get_module(
+            "moviepy.editor", required='wandb.Video requires moviepy and imageio when passing raw data.  Install with "pip install moviepy imageio"')
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape
 
@@ -584,7 +593,8 @@ class Video(BatchableMedia):
         filename = os.path.join(MEDIA_TMP.name, util.generate_id() + '.'+ self._format)
         try:  # older version of moviepy does not support progress_bar argument.
             if self._format == "gif":
-                clip.write_gif(filename, verbose=False, progress_bar=False)
+
+                clip.write_gif(filename, verbose=True, progress_bar=False)
             else:
                 clip.write_videofile(filename, verbose=False, progress_bar=False)
         except TypeError:
@@ -614,15 +624,16 @@ class Video(BatchableMedia):
     def _prepare_video(self, V):
         """This logic was mostly taken from tensorboardX"""
         np = util.get_module(
-                "numpy", required='wandb.Video requires numpy when passing raw data. To get it, run "pip install numpy".')
+            "numpy", required='wandb.Video requires numpy when passing raw data. To get it, run "pip install numpy".')
         if V.ndim < 4:
             raise ValueError("Video must be atleast 4 dimensions: time, channels, height, width")
         if V.ndim == 4:
             V = V.reshape(1, *V.shape)
         b, t, c, h, w = V.shape
 
-        if V.dtype == np.uint8:
-            V = np.float32(V) / 255.
+        if V.dtype != np.uint8:
+            logging.warning("Converting video data to uint8")
+            V = V.astype(np.uint8)
 
         def is_power2(num):
             return num != 0 and ((num & (num - 1)) == 0)
@@ -639,6 +650,7 @@ class Video(BatchableMedia):
         V = np.reshape(V, newshape=(n_rows, n_cols, t, c, h, w))
         V = np.transpose(V, axes=(2, 0, 4, 1, 5, 3))
         V = np.reshape(V, newshape=(t, n_rows * h, n_cols * w, c))
+        print("Here ", V.min(), V.max(), V.sum())
         return V
 
     @classmethod
@@ -714,7 +726,7 @@ class Image(BatchableMedia):
                 self._image = PILImage.fromarray(data.mul(255).clamp(
                     0, 255).byte().permute(1, 2, 0).cpu().numpy())
             else:
-                if hasattr(data, "numpy"): # TF data eager tensors
+                if hasattr(data, "numpy"):  # TF data eager tensors
                     data = data.numpy()
                 if data.ndim > 2:
                     data = data.squeeze()  # get rid of trivial dimensions as a convenience
@@ -801,7 +813,8 @@ class Image(BatchableMedia):
 
         if width * num_images_to_log > Image.MAX_DIMENSION:
             max_images_by_dimension = Image.MAX_DIMENSION // width
-            logging.warning('Only {} images will be uploaded. The maximum total width for a set of thumbnails is 65,500px, or {} images, each with a width of {} pixels.'.format(max_images_by_dimension, max_images_by_dimension, width))
+            logging.warning('Only {} images will be uploaded. The maximum total width for a set of thumbnails is 65,500px, or {} images, each with a width of {} pixels.'.format(
+                max_images_by_dimension, max_images_by_dimension, width))
             num_images_to_log = max_images_by_dimension
 
         total_width = width * num_images_to_log
@@ -834,9 +847,10 @@ class Image(BatchableMedia):
         else:
             return False
 
+
 class Graph(WBValue):
     """Wandb class for graphs
-    
+
     This class is typically used for saving and diplaying neural net models.  It
     represents the graph as an array of nodes and edges.  The nodes can have
     labels that can be visualized by wandb.
@@ -855,6 +869,7 @@ class Graph(WBValue):
         loaded (boolean): Flag to tell whether the graph is completely loaded
         root (wandb.Node): root node of the graph
     """
+
     def __init__(self, format="keras"):
         # LB: TODO: I think we should factor criterion and criterion_passed out
         self.format = format
@@ -862,7 +877,7 @@ class Graph(WBValue):
         self.nodes_by_id = {}
         self.edges = []
         self.loaded = False
-        self.criterion = None 
+        self.criterion = None
         self.criterion_passed = False
         self.root = None  # optional root Node if applicable
 
@@ -972,6 +987,7 @@ class Node(WBValue):
     """
     Node used in :obj:`Graph`
     """
+
     def __init__(self, id=None, name=None, class_name=None, size=None, parameters=None, output_shape=None, is_output=None, num_parameters=None, node=None):
         self._attributes = {'name': None}
         self.in_edges = {}  # indexed by source node id
@@ -1137,7 +1153,7 @@ class Edge(WBValue):
     """
     Edge used in :obj:`Graph`
     """
-    
+
     def __init__(self, from_node, to_node):
         self._attributes = {}
         self.from_node = from_node
@@ -1182,9 +1198,10 @@ class Edge(WBValue):
         self._attributes['to_node'] = val
         return val
 
+
 def nest(thing):
     # Use tensorflows nest function if available, otherwise just wrap object in an array"""
-    
+
     tfutil = util.get_module('tensorflow.python.util')
     if tfutil:
         return tfutil.nest.flatten(thing)
@@ -1207,10 +1224,11 @@ def history_dict_to_json(run, payload, step=None):
 
     return payload
 
+
 def numpy_arrays_to_lists(payload):
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
-    for key,val in six.iteritems(payload):
+    for key, val in six.iteritems(payload):
         if isinstance(val, dict):
             payload[key] = numpy_arrays_to_lists(val)
         elif util.is_numpy_array(val):
@@ -1221,7 +1239,7 @@ def numpy_arrays_to_lists(payload):
 
 def val_to_json(run, key, val, step='summary'):
     # Converts a wandb datatype to its JSON representation.
-   
+
     converted = val
     typename = util.get_full_typename(val)
 
@@ -1262,6 +1280,7 @@ def val_to_json(run, key, val, step='summary'):
         return val.to_json(run)
 
     return converted
+
 
 def plot_to_json(obj):
     """Converts a matplotlib or plotly object to json so that we can pass
