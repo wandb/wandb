@@ -213,7 +213,7 @@ class Api(object):
         return self._projects[entity]
 
     def reports(self, path="", name=None, per_page=None):
-        """Get projects for a given entity.
+        """Get reports for a given project path.
         Args:
             path (str): path to project the report resides in, should be in the form: "entity/project"
             name (str): optional name of the report requested.
@@ -1302,11 +1302,12 @@ class Report(Attrs):
         order = self._key_to_server_path(run_set["sort"]["key"])
         if run_set["sort"].get("ascending"):
             order = "+"+order
+        else:
+            order = "-"+order
         filters = self.filter_to_mongo(run_set["filters"])
         if only_selected:
             #TODO: handle this not always existing
             filters["$or"][0]["$and"].append({"name": {"$in": run_set["selections"]["tree"]}})
-        print("Using filters: %s order: %s"%  (filters, order))
         return Runs(self.client, self.entity, self.project,
                     filters=filters, order=order, per_page=per_page)
 
