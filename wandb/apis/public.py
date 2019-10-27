@@ -200,7 +200,7 @@ class Api(object):
 
         Returns:
             A :obj:`Projects` object which is an iterable collection of :obj:`Project` objects.
-        
+
         """
         if entity is None:
             entity = self.settings['entity']
@@ -252,18 +252,18 @@ class Api(object):
         key = path + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(self.client, entity, project,
-                    filters=filters, order=order, per_page=per_page)
+                                   filters=filters, order=order, per_page=per_page)
         return self._runs[key]
 
     @normalize_exceptions
     def run(self, path=""):
         """Returns a single run by parsing path in the form entity/project/run_id.
-        
+
         Args:
             path (str): path to run in the form entity/project/run_id.  
                 If api.entity is set, this can be in the form project/run_id 
                 and if api.project is set this can just be the run_id.
-        
+
         Returns:
             A :obj:`Run` object.
         """
@@ -276,12 +276,12 @@ class Api(object):
     def sweep(self, path=""):
         """
         Returns a sweep by parsing path in the form entity/project/sweep_id.
-        
+
         Args:
             path (str, optional): path to sweep in the form entity/project/sweep_id.  If api.entity
                 is set, this can be in the form project/sweep_id and if api.project is set
                 this can just be the sweep_id.
-        
+
         Returns:
             A :obj:`Sweep` object.
         """
@@ -383,6 +383,7 @@ class User(Attrs):
     def init(self, attrs):
         super(User, self).__init__(attrs)
 
+
 class Projects(Paginator):
     """
     An iterable collection of :obj:`Project` objects.
@@ -436,6 +437,7 @@ class Projects(Paginator):
 
     def __repr__(self):
         return "<Projects {}>".format(self.entity)
+
 
 class Project(Attrs):
     """A project is a namespace for runs"""
@@ -507,6 +509,56 @@ class Runs(Paginator):
         else:
             return None
 
+    def summary_list(self):
+        """
+        Returns a list of dicts for every run's summary values.
+            Files are excluded.
+        """
+        summary_list = []
+        for run in self:
+            summary_list.append(run.summary._json_dict)
+        return summary_list
+
+    def config_list(self, remove_complex_objects=True):
+        """
+        Returns a list of dicts for every run's config values.
+
+        Args:
+            remove_complex_objects (boolean): Removes fancy config values like graphs, images, etc.  Default true.
+
+        """
+        config_list = []
+        for run in self:
+            config_list.append({})
+            for k, v in run.config.items():
+                if remove_complex_objects and (isinstance(v, dict) or isinstance(v, list)):
+                    next
+                if k.startswith('_'):
+                    # wandb internal value
+                    next
+
+                config_list[-1][k] = v
+
+        return config_list
+
+    def to_dataframe(self):
+        """
+        Returns a pandas dataframe of the runs name, summary and config values.
+        """
+
+        pd = util.get_module('pandas', required='Exporting runs requires the pandas library.')
+
+        name_list = [run.name for run in self]
+        config_list = self.config_list
+        summary_list = self.summary_list
+
+        summary_df = pd.DataFrame.from_records(summary_list)
+        config_df = pd.DataFrame.from_records(config_list)
+        name_df = pd.DataFrame({'name': name_list})
+
+        all_df = pd.concat([name_df, config_df, summary_df], axis=1)
+        return all_df
+
     def convert_objects(self):
         objs = []
         for run_response in self.last_response['project']['runs']['edges']:
@@ -518,7 +570,7 @@ class Runs(Paginator):
                     sweep = self._sweeps[run.sweep_name]
                 else:
                     sweep = Sweep.get(self.client, self.entity, self.project,
-                            run.sweep_name, withRuns=False)
+                                      run.sweep_name, withRuns=False)
                     self._sweeps[run.sweep_name] = sweep
 
                 run.sweep = sweep
@@ -535,7 +587,7 @@ class Runs(Paginator):
 class Run(Attrs):
     """
     A single run associated with an entity and project.
-    
+
     Attributes:
         tags ([str]): a list of tags associated with the run
         url (str): the url of this run
@@ -592,7 +644,7 @@ class Run(Attrs):
     def storage_id(self):
         # For compatibility with wandb.Run, which has storage IDs
         # in self.storage_id and names in self.id.
-        
+
         return self._attrs.get('id')
 
     @property
@@ -638,7 +690,7 @@ class Run(Attrs):
                      'project': project, 'name': run_id}
         res = api.client.execute(mutation, variable_values=variables)
         res = res['upsertBucket']['bucket']
-        return Run(api.client, res["project"]["entity"]["name"],  res["project"]["name"], res["name"], {
+        return Run(api.client, res["project"]["entity"]["name"], res["project"]["name"], res["name"], {
             "id": res["id"],
             "config": "{}",
             "systemMetrics": "{}",
@@ -672,7 +724,7 @@ class Run(Attrs):
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
                 self.sweep = Sweep.get(self.client, self.entity, self.project,
-                        self.sweep_name, withRuns=False)
+                                       self.sweep_name, withRuns=False)
                 self.sweep.runs.append(self)
                 self.sweep.runs_by_id[self.id] = self
 
@@ -737,7 +789,6 @@ class Run(Attrs):
         response = self._exec(query, specs=[json.dumps(spec)])
         return [line for line in response['project']['run']['sampledHistory']]
 
-
     def _full_history(self, samples=500, stream="default"):
         node = "history" if stream == "default" else "events"
         query = gql('''
@@ -760,7 +811,7 @@ class Run(Attrs):
 
         Returns:
             A :obj:`Files` object, which is an iterator over :obj:`File` obejcts. 
-        """    
+        """
         return Files(self.client, self, names, per_page)
 
     @normalize_exceptions
@@ -786,7 +837,7 @@ class Run(Attrs):
             keys (list, optional): Only return metrics for specific keys
             x_axis (str, optional): Use this metric as the xAxis defaults to _step
             stream (str, optional): "default" for metrics, "system" for machine metrics
-        
+
         Returns:
             If pandas=True returns a `pandas.DataFrame` of history metrics.
             If pandas=False returns a list of dicts of history metrics.    
@@ -813,18 +864,18 @@ class Run(Attrs):
 
         Example:
             Export all the loss values for an example run   
-            
+
             ```python
             run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
             history = run.scan_history(keys=["Loss"])
             losses = [row["Loss"] for row in history]
             ```
-            
+
 
         Args:
             keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
             page_size (int, optional): size of pages to fetch from the api
-        
+
         Returns:
             An iterable collection over history records (dict).
         """
@@ -858,6 +909,7 @@ class Run(Attrs):
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
+
 
 class Sweep(Attrs):
     """A set of runs associated with a sweep
@@ -1030,7 +1082,7 @@ class Files(Paginator):
 
 class File(object):
     """File is a class associated with a file saved by wandb.
-    
+
     Attributes:
         name (string): filename
         url (string): path to file
@@ -1107,6 +1159,7 @@ class File(object):
     def __repr__(self):
         return "<File {} ({})>".format(self.name, self.mimetype)
 
+
 class HistoryScan(object):
     QUERY = gql('''
         query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
@@ -1122,9 +1175,9 @@ class HistoryScan(object):
         self.client = client
         self.run = run
         self.page_size = page_size
-        self.page_offset = 0 # minStep for next page
-        self.scan_offset = 0 # index within current page of rows
-        self.rows = [] # current page of rows
+        self.page_offset = 0  # minStep for next page
+        self.scan_offset = 0  # index within current page of rows
+        self.rows = []  # current page of rows
 
     def __iter__(self):
         self.page_offset = 0
@@ -1162,6 +1215,7 @@ class HistoryScan(object):
         self.page_offset += self.page_size
         self.scan_offset = 0
 
+
 class SampledHistoryScan(object):
     QUERY = gql('''
         query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
@@ -1178,9 +1232,9 @@ class SampledHistoryScan(object):
         self.run = run
         self.keys = keys
         self.page_size = page_size
-        self.page_offset = 0 # minStep for next page
-        self.scan_offset = 0 # index within current page of rows
-        self.rows = [] # current page of rows
+        self.page_offset = 0  # minStep for next page
+        self.scan_offset = 0  # index within current page of rows
+        self.rows = []  # current page of rows
 
     def __iter__(self):
         self.page_offset = 0
