@@ -650,7 +650,6 @@ class Video(BatchableMedia):
         V = np.reshape(V, newshape=(n_rows, n_cols, t, c, h, w))
         V = np.transpose(V, axes=(2, 0, 4, 1, 5, 3))
         V = np.reshape(V, newshape=(t, n_rows * h, n_cols * w, c))
-        print("Here ", V.min(), V.max(), V.sum())
         return V
 
     @classmethod
