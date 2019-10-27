@@ -562,10 +562,10 @@ class Runs(Paginator):
             config_list.append({})
             for k, v in run.config.items():
                 if remove_complex_objects and (isinstance(v, dict) or isinstance(v, list)):
-                    next
+                    continue
                 if k.startswith('_'):
                     # wandb internal value
-                    next
+                    continue
 
                 config_list[-1][k] = v
 
@@ -579,8 +579,8 @@ class Runs(Paginator):
         pd = util.get_module('pandas', required='Exporting runs requires the pandas library.')
 
         name_list = [run.name for run in self]
-        config_list = self.config_list
-        summary_list = self.summary_list
+        config_list = self.config_list()
+        summary_list = self.summary_list()
 
         summary_df = pd.DataFrame.from_records(summary_list)
         config_df = pd.DataFrame.from_records(config_list)
