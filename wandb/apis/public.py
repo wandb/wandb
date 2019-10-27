@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 PROJECT_FRAGMENT = '''fragment ProjectFragment on Project {
     id
     name
+    entityName
     createdAt
     isBenchmark
 }'''
@@ -120,6 +121,7 @@ class Api(object):
         self._projects = {}
         self._runs = {}
         self._sweeps = {}
+        self._reports = {}
         self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent, 'Use-Admin-Privileges': "true"},
@@ -209,6 +211,29 @@ class Api(object):
         if entity not in self._projects:
             self._projects[entity] = Projects(self.client, entity, per_page=per_page)
         return self._projects[entity]
+
+    def reports(self, path="", name=None, per_page=None):
+        """Get reports for a given project path.
+        Args:
+            path (str): path to project the report resides in, should be in the form: "entity/project"
+            name (str): optional name of the report requested.
+            per_page (int): Sets the page size for query pagination.  None will use the default size.
+                Usually there is no reason to change this.
+
+        Returns:
+            A :obj:`Reports` object which is an iterable collection of :obj:`Report` objects.
+        """
+        entity, project, run = self._parse_path(path)
+        if entity is None:
+            entity = self.settings['entity']
+            if entity is None:
+                raise ValueError('entity must be passed as a parameter, or set in settings')
+        if name:
+            name = urllib.parse.unquote(name)
+        key = "/".join([entity, project, str(name)])
+        if key not in self._reports:
+            self._reports[key] = Reports(self.client, Project(entity, project, {}), name=name, per_page=per_page)
+        return self._reports[key]
 
     def runs(self, path="", filters={}, order="-created_at", per_page=None):
         """Return a set of runs from a project that match the filters provided.
@@ -444,10 +469,15 @@ class Project(Attrs):
 
     def __init__(self, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
+        self.name = project
         self.entity = entity
 
+    @property
+    def path(self):
+        return [self.entity, self.name]
+
     def __repr__(self):
-        return "<Project {}/{}>".format(self.entity, self.name)
+        return "<Project {}>".format("/".join(self.path))
 
 
 class Runs(Paginator):
@@ -1158,6 +1188,186 @@ class File(object):
 
     def __repr__(self):
         return "<File {} ({})>".format(self.name, self.mimetype)
+
+
+class Reports(Paginator):
+    """Reports is an iterable collection of :obj:`Report` objects."""
+
+    QUERY = gql('''
+        query Run($project: String!, $entity: String!, $reportCursor: String, 
+            $reportLimit: Int = 50, $viewType: String = "runs", $viewName: String) {
+            project(name: $project, entityName: $entity) {
+                allViews(viewType: $viewType, viewName: $viewName, first: 
+                    $reportLimit, after: $reportCursor) {
+                    edges {
+                        node {
+                            name
+                            description
+                            user {
+                                username
+                                photoUrl
+                            }
+                            spec
+                            updatedAt
+                        }
+                        cursor
+                    }
+                }
+            }
+        }
+        ''')
+
+    def __init__(self, client, project, name=None, entity=None, per_page=50):
+        self.project = project
+        self.name = name
+        variables = {
+            'project': project.name, 'entity': project.entity, 'viewName': self.name
+        }
+        super(Reports, self).__init__(client, variables, per_page)
+
+    @property
+    def length(self):
+        #TODO: Add the count the backend
+        return self.per_page
+
+    @property
+    def more(self):
+        if self.last_response:
+            return len(self.last_response['project']['allViews']['edges']) == self.per_page
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response['project']['allViews']['edges'][-1]['cursor']
+        else:
+            return None
+
+    def update_variables(self):
+        self.variables.update({'reportCursor': self.cursor, 'reportLimit': self.per_page})
+
+    def convert_objects(self):
+        return [Report(self.client, r["node"], entity=self.project.entity, project=self.project.name)
+                for r in self.last_response['project']['allViews']['edges']]
+
+    def __repr__(self):
+        return "<Reports {}>".format("/".join(self.project.path))
+
+
+class Report(Attrs):
+    """Report is a class associated with a reports created in wandb.
+
+    Attributes:
+        name (string): report name
+        description (string): report descirpiton;
+        user (:obj:User): the user that created the report
+        spec (dict): the spec off the report;
+        updated_at (string): timestamp of last update
+    """
+    INDIVIDUAL_OP_TO_MONGO = {
+        '!=': '$ne',
+        '>': '$gt',
+        '>=': '$gte',
+        '<': '$lt',
+        '<=': '$lte',
+        "IN": '$in',
+        "NIN": '$nin',
+        "REGEX": '$regex'
+    }
+    GROUP_OP_TO_MONGO = {
+        "AND": '$and',
+        "OR": '$or'
+    }
+
+    def __init__(self, client, attrs, entity=None, project=None):
+        self.client = client
+        self.project = project
+        self.entity = entity
+        super(Report, self).__init__(dict(attrs))
+        self._attrs["spec"] = json.loads(self._attrs["spec"])
+
+    def _is_group(self, op):
+        return op.get("filters") != None
+
+    def _is_individual(self, op):
+        return op.get("key") != None
+
+    def _to_mongo_op_value(self, op, value):
+        if op == "=":
+            return value
+        else:
+            return {self.INDIVIDUAL_OP_TO_MONGO[op]: value}
+
+    def _key_to_server_path(self, key):
+        if key["section"] == 'config':
+            return 'config.' + key["name"]
+        elif key["section"] == 'summary':
+            return 'summary_metrics.' + key["name"]
+        elif key["section"] == 'keys_info':
+            return 'keys_info.keys.' + key["name"]
+        elif key["section"] == 'run':
+            return key["name"]
+        elif key["section"] == 'tags':
+            return 'tags.' + key["name"]
+        raise ValueError("Invalid key: %s" % key)
+
+    def _to_mongo_individual(self, filter):
+        if filter["key"]["name"] == '':
+            return None
+
+        if filter.get("value") == None and filter["op"] != '=' and filter["op"] != '!=':
+            return None
+
+        if filter.get("disabled") != None and filter["disabled"]:
+            return None
+
+        if filter["key"]["section"] == 'tags':
+            if filter["op"] == 'IN':
+                return {"tags": {"$in": filter["value"]}}
+            if filter["value"] == False:
+                return {
+                    "$or": [{"tags": None}, {"tags": {"$ne": filter["key"]["name"]}}]
+                }
+            else:
+                return {"tags": filter["key"]["name"]}
+        path = self._key_to_server_path(filter.key)
+        if path == None:
+            return path
+        return {
+            path: self._to_mongo_op_value(filter["op"], filter["value"])
+        }
+
+    def filter_to_mongo(self, filter):
+        if self._is_individual(filter):
+            return self._to_mongo_individual(filter)
+        elif self._is_group(filter):
+            return {
+                self.GROUP_OP_TO_MONGO[filter["op"]]: [self.filter_to_mongo(f) for f in filter["filters"]]
+            }
+
+    @property
+    def sections(self):
+        return self.spec['panelGroups']
+
+    def runs(self, section, per_page=50, only_selected=True):
+        run_set_idx = section.get('openRunSet', 0)
+        run_set = section['runSets'][run_set_idx]
+        order = self._key_to_server_path(run_set["sort"]["key"])
+        if run_set["sort"].get("ascending"):
+            order = "+"+order
+        else:
+            order = "-"+order
+        filters = self.filter_to_mongo(run_set["filters"])
+        if only_selected:
+            #TODO: handle this not always existing
+            filters["$or"][0]["$and"].append({"name": {"$in": run_set["selections"]["tree"]}})
+        return Runs(self.client, self.entity, self.project,
+                    filters=filters, order=order, per_page=per_page)
+
+    @property
+    def updated_at(self):
+        return self._attrs["updatedAt"]
 
 
 class HistoryScan(object):
