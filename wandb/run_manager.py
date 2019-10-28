@@ -464,9 +464,9 @@ class RunStatusChecker(object):
                     run_id=self._run.id)
             except CommError as e:
                 logger.exception("Failed to check stop requested status: %s" % e.exc)
+                should_exit = False
             except:
                 logger.exception("An unknown error occurred while checking stop requested status. Continuing anyway..")
-            finally:
                 should_exit = False
 
             if should_exit:
@@ -1206,6 +1206,7 @@ class RunManager(object):
         # When not running in agent mode, start a status checker.
         # TODO(adrnswanberg): Remove 'stop' command checking in agent code,
         # and unconditionally start the status checker.
+        logger.info("IN SYNC ETC")
         if self._run.sweep_id is None:
             def stop_handler():
                 if isinstance(self.proc, Process):
