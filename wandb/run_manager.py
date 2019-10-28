@@ -1206,7 +1206,6 @@ class RunManager(object):
         # When not running in agent mode, start a status checker.
         # TODO(adrnswanberg): Remove 'stop' command checking in agent code,
         # and unconditionally start the status checker.
-        logger.info("IN SYNC ETC")
         if self._run.sweep_id is None:
             def stop_handler():
                 if isinstance(self.proc, Process):
