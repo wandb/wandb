@@ -20,6 +20,7 @@ file.close()
 """
 import pypandoc
 import pandas as pd
+import glob
 
 def runs_to_df(runs):
     summary_list = []
@@ -75,12 +76,26 @@ def markdown_to_latex(markdown):
     return latex
 
 
-def section_to_latex(section):
+def section_to_latex(section, charts=[]):
+    """Convert a section of a report to a latex string
+    
+    Args:
+    section (dict): Report section
+    charts ([filenames]): list of filenames of charts to include in the section
+    """
+
     section_latex = ""
     title = section['name']
     for panel in section['panels']['views']['0']['config']:
         if panel['viewType'] == "Markdown Panel":
             section_latex += markdown_to_latex(panel['config']['value'])
+
+    if len(charts) > 0:
+        section_latex += '\\begin{figure}[h]\n'
+        for chart_filename in charts:
+            section_latex += \
+                '\includegraphics[width=0.5\linewidth]{' + chart_filename + '}\n'
+        section_latex += '\end{figure}\n'
 
     return section_latex
 
@@ -110,21 +125,28 @@ def runs_table_to_latex(runs, columns=None):
     return filtered_cols_df.to_latex(longtable=True)
 
 
-def report_to_latex(report, columns=None):
+def report_to_latex(report, columns=None, download_charts=True):
     """
     Converts a report object to latex
 
     Args:
     - report (Report): the Report object to convert
     - columns (str or None): the columns to use for tables.  If None, use all columns.
+    - download_charts (boolean): if true download images of charts
 
     Returns:
     A str which is a latex document
     """
     report_latex = ""
     report_latex += HEADER.replace("AUTHOR", report.entity).replace("TITLE", report.name)
-    for section in report.sections:
-        report_latex += section_to_latex(section)
+    
+    if download_charts:
+        report.download_charts()
+
+    for i, section in enumerate(report.sections):
+        charts = glob.glob("charts/section_{}*".format(i))
+
+        report_latex += section_to_latex(section, charts)
 
         runs = report.runs(section)
         report_latex += runs_table_to_latex(runs, columns)
