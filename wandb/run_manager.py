@@ -1008,6 +1008,9 @@ class RunManager(object):
                 url = self._run.get_url(self._api)
                 project_url = self._run.get_project_url(self._api)
                 wandb.termlog("⭐️ View project at {}".format(click.style(project_url, underline=True, fg='blue')))
+                sweep_url = self._run.get_sweep_url(self._api)
+                if sweep_url:
+                    wandb.termlog("🧹 View sweep at {}".format(click.style(sweep_url, underline=True, fg='blue')))
                 wandb.termlog("🚀 View run at {}".format(click.style(url, underline=True, fg='blue')))
             except CommError as e:
                 wandb.termwarn(e.message)
