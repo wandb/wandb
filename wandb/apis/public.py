@@ -398,9 +398,14 @@ class Paginator(object):
 
     def __next__(self):
         self.index += 1
+  
         if len(self.objects) <= self.index:
             if not self._load_page():
                 raise StopIteration
+        
+        if len(self.objects) <= self.index:
+            raise StopIteration
+
         return self.objects[self.index]
 
     next = __next__
@@ -1333,7 +1338,7 @@ class Report(Attrs):
                 }
             else:
                 return {"tags": filter["key"]["name"]}
-        path = self._key_to_server_path(filter.key)
+        path = self._key_to_server_path(filter["key"])
         if path == None:
             return path
         return {
@@ -1361,9 +1366,10 @@ class Report(Attrs):
         else:
             order = "-"+order
         filters = self.filter_to_mongo(run_set["filters"])
-        if only_selected:
+        if only_selected and len(run_set["selections"]["tree"]) > 0:
             #TODO: handle this not always existing
             filters["$or"][0]["$and"].append({"name": {"$in": run_set["selections"]["tree"]}})
+        
         return Runs(self.client, self.entity, self.project,
                     filters=filters, order=order, per_page=per_page)
 
