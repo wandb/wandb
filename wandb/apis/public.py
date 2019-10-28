@@ -113,6 +113,8 @@ class Api(object):
             'run': "latest",
             'base_url': env.get_base_url("https://api.wandb.ai")
         }
+        if self.api_key is None:
+            wandb.login()
         self.settings.update(overrides)
         if 'username' in overrides and 'entity' not in overrides:
             wandb.termwarn('Passing "username" to Api is deprecated. please use "entity" instead.')
