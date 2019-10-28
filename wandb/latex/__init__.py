@@ -88,17 +88,46 @@ def section_to_latex(section):
     return section_latex
 
 
-def runs_table_to_latex(runs):
+def runs_table_to_latex(runs, columns=None):
+    """
+    Converts runs to a latex table
+
+    Args:
+    runs (Runs): the Runs object to convert
+    columns (str or None): the columns to use for tables.  If None, use all columns.
+
+    Returns:
+    A str which is a latex table
+    """
+
     df = runs_to_df(runs)
-    return df.to_latex(longtable=True)
+
+    if columns:
+        filtered_cols_df = pd.DataFrame(df, columns=columns)
+    else:
+        filtered_cols_df = df
+
+    return filtered_cols_df.to_latex(longtable=True)
 
 
-def report_to_latex(report):
+def report_to_latex(report, columns=None):
+    """
+    Converts a report object to latex
+
+    Args:
+    - report (Report): the Report object to convert
+    - columns (str or None): the columns to use for tables.  If None, use all columns.
+
+    Returns:
+    A str which is a latex document
+    """
     report_latex = ""
     report_latex += HEADER.replace("AUTHOR", report.entity).replace("TITLE", report.name)
     for section in report.sections:
         report_latex += section_to_latex(section)
-        report_latex += runs_table_to_latex(report.runs(section))
+
+        runs = report.runs(section)
+        report_latex += runs_table_to_latex(runs, columns)
 
     report_latex += FOOTER
     return report_latex
