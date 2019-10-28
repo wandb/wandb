@@ -642,7 +642,7 @@ class RunManager(object):
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
         ignore_globs = self._api.settings("ignore_globs")
-        for dirpath, dirnames, filenames in os.walk(self._run.dir):
+        for dirpath, _, filenames in os.walk(self._run.dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._run.dir)
@@ -970,7 +970,7 @@ class RunManager(object):
             num_retries = 0  # no retries because we want to let the user process run even if the backend is down
 
         try:
-            upsert_result = self._run.save(
+            _ = self._run.save(
                 id=storage_id, num_retries=num_retries, api=self._api)
         except CommError as e:
             logger.exception("communication error with wandb %s" % e.exc)
@@ -1188,7 +1188,7 @@ class RunManager(object):
                     self._tensorboard_consumer.start()
             self._tensorboard_watchers[-1].start()
             return self._tensorboard_watchers
-        except ImportError as e:
+        except ImportError:
             wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
 
