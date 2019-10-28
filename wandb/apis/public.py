@@ -8,6 +8,7 @@ import re
 import six
 import yaml
 import tempfile
+import tarfile
 import datetime
 from gql import Client, gql
 from gql.client import RetryError
@@ -78,8 +79,9 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
 
 
 class RetryingClient(object):
-    def __init__(self, client):
+    def __init__(self, client, api_key):
         self._client = client
+        self.api_key = api_key
 
     @retriable(retry_timedelta=datetime.timedelta(
         seconds=20),
@@ -133,7 +135,7 @@ class Api(object):
                 url='%s/graphql' % self.settings['base_url']
             )
         )
-        self._client = RetryingClient(self._base_client)
+        self._client = RetryingClient(self._base_client, self.api_key)
 
     def create_run(self, **kwargs):
         return Run.create(self, **kwargs)
@@ -1364,6 +1366,16 @@ class Report(Attrs):
             filters["$or"][0]["$and"].append({"name": {"$in": run_set["selections"]["tree"]}})
         return Runs(self.client, self.entity, self.project,
                     filters=filters, order=order, per_page=per_page)
+
+    def download_charts(self, namespace=None):
+        res = requests.get("https://calm-dawn-66022.herokuapp.com/charts", params={
+            "apiKey": self.client.api_key,
+            "path": "{}/{}/reports?view={}/{}".format(self.entity, self.project, namespace or self.entity, self.name)
+        })
+        print(res.request.url)
+        open('charts.tar.gz', 'wb').write(res.content)
+        tf = tarfile.open('charts.tar.gz')
+        tf.extractall()
 
     @property
     def updated_at(self):
