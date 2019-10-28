@@ -40,9 +40,6 @@ def runs_to_df(runs):
     name_df = pd.DataFrame({'name': name_list})
     all_df = pd.concat([name_df, config_df, summary_df], axis=1)
 
-    # should put smarter logic in here to drop all columns that are non-numeric or strings
-    all_df = all_df.drop(['graph'], axis=1)
-
     return all_df
 
 
@@ -101,6 +98,9 @@ def runs_table_to_latex(runs, columns=None):
     """
 
     df = runs_to_df(runs)
+
+    if df.shape[0] == 0:
+        return ""
 
     if columns:
         filtered_cols_df = pd.DataFrame(df, columns=columns)
