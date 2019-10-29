@@ -535,8 +535,8 @@ def restore(name, run_path=None, replace=False, root="."):
     api = Api()
     api_run = api.run(run_path or run.path)
     root = run.dir if run else root
-    path = os.path.exists(os.path.join(root, name))
-    if path and replace == False:
+    path = os.path.join(root, name)
+    if os.path.exists(path) and replace == False:
         return open(path, "r")
     files = api_run.files([name])
     if len(files) == 0:
