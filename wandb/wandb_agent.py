@@ -245,7 +245,8 @@ class Agent(object):
             proc = AgentProcess(function=self._function, env=env,
                     run_id=command.get('run_id'), in_jupyter=self._in_jupyter)
         else:
-            command_list = ['/usr/bin/env', 'python', command['program']] + flags
+            command_list = ['/usr/bin/env'] if platform.system() != "Windows" else []
+            command_list += ['python', command['program']] + flags
             proc = AgentProcess(command=command_list, env=env)
         self._run_processes[run.id] = proc
 
