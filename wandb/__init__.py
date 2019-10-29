@@ -381,12 +381,14 @@ def _init_jupyter(run):
     else:
         displayed = False
         try:
+            sweep_url = run.get_sweep_url()
+            sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(sweep_url, sweep_url) if sweep_url else ""
+            docs_html = '<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">(Documentation)</a>'
             display(HTML('''
-                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a> {}.<br/>
                 Project page: <a href="{}" target="_blank">{}</a><br/>
-                Run page: <a href="{}" target="_blank">{}</a><br/>
-                Docs: <a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">https://docs.wandb.com/integrations/jupyter.html</a><br/>
-            '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
+                {}Run page: <a href="{}" target="_blank">{}</a><br/>
+            '''.format(docs_html, run.get_project_url(), run.get_project_url(), sweep_line, run.get_url(), run.get_url() )))
             displayed = True
             run.save()
         except (CommError, ValueError) as e:
