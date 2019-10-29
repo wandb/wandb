@@ -970,7 +970,7 @@ class RunManager(object):
             num_retries = 0  # no retries because we want to let the user process run even if the backend is down
 
         try:
-            _ = self._run.save(
+            self._run.save(
                 id=storage_id, num_retries=num_retries, api=self._api)
         except CommError as e:
             logger.exception("communication error with wandb %s" % e.exc)
