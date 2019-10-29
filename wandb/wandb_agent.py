@@ -9,6 +9,7 @@ import sys
 import traceback
 import time
 import signal
+import platform
 
 import six
 from six.moves import queue
@@ -37,8 +38,9 @@ class AgentProcess(object):
         self._finished_q = multiprocessing.Queue()
 
         if command:
+            kwargs = dict(preexec_fn=os.setpgrp) if platform.system() != "Windows" else dict()
             self._popen = subprocess.Popen(command,
-                env=env, preexec_fn=os.setpgrp)
+                env=env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(target=self._start,
                     args=(self._finished_q, env, function, run_id, in_jupyter))
