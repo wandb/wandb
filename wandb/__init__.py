@@ -236,7 +236,7 @@ def _init_headless(run, cloud=True):
     os.close(stderr_master_fd)
     # Listen on the socket waiting for the wandb process to be ready
     try:
-        success, message = server.listen(30)
+        success, _ = server.listen(30)
     except KeyboardInterrupt:
         success = False
     else:
@@ -245,7 +245,7 @@ def _init_headless(run, cloud=True):
                 wandb_process.pid))
     if not success:
         wandb_process.kill()
-        for i in range(20):
+        for _ in range(20):
             time.sleep(0.1)
             if wandb_process.poll() is not None:
                 break
