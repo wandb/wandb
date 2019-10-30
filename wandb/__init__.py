@@ -433,6 +433,9 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     if not env.is_debug():
         stderr_redirector.restore()
 
+    if len(patched["tensorboard"]) > 0:
+        tensorboard.reset_state()
+
     termlog()
     termlog("Waiting for W&B process to finish, PID {}".format(wandb_process.pid))
     server.done(hooks.exit_code)
