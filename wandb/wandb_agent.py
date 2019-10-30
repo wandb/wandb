@@ -104,9 +104,9 @@ class AgentProcess(object):
         return self._proc.terminate()
 
 
-def handle_keyboard_int(a, b=None)
+def handle_keyboard_int(a, b=None):
     print("got intc")
-    raise KeyboardInterrupt()
+    raise KeyboardInterrupt
 
 class Agent(object):
     POLL_INTERVAL = 5
