@@ -39,7 +39,8 @@ class AgentProcess(object):
 
         if command:
             if platform.system() == "Windows":
-                kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                #kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                kwargs = dict(shell=True)
             else:
                 kwargs = dict(preexec_fn=os.setpgrp)
             self._popen = subprocess.Popen(command,
