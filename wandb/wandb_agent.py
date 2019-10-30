@@ -115,6 +115,8 @@ class AgentProcess(object):
 
     def terminate(self):
         if self._popen:
+            if sys.platform == "win32":
+                return self._popen.send_signal(signal.CTRL_C_EVENT)
             return self._popen.terminate()
         return self._proc.terminate()
 
