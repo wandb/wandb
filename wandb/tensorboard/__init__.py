@@ -64,7 +64,6 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
         else:
             # If we're using tensorflow >= 2.0 this patch won't be used, but we'll do it anyway
             tensorboard_py_module = TENSORBOARD_LEGACY_MODULE
-
     writers = set()
     writer = wandb.util.get_module(tensorboard_py_module)
 
@@ -147,6 +146,27 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
 STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 # We support rate limited logging by settings this to number of seconds, can be a floating point
 RATE_LIMIT_SECONDS = None
+# To skip importing certain event types this can be set.  i.e. ["image", "histo"]
+IGNORE_KINDS = []
+
+
+def configure(ignore_kinds=None, rate_limit_seconds=None):
+    """Configure tensorboard import to be rate_limited or ignore types of events.
+
+    Example:
+        # Don't log histograms to W&B and log events at most 1 once every 2 seconds
+        wandb.tensorboard.configure(ignore_kinds=["histo"], rate_limit_seconds=2)
+    """
+    global IGNORE_KINDS
+    global RATE_LIMIT_SECONDS
+    IGNORE_KINDS = ignore_kinds or []
+    RATE_LIMIT_SECONDS = rate_limit_seconds
+
+
+def reset_state():
+    """Internal method for reseting state, called by wandb.join"""
+    global STEPS
+    STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
 
 def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
@@ -240,6 +260,8 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
 
     for value in summary_pb.value:
         kind = value.WhichOneof("value")
+        if kind in IGNORE_KINDS:
+            continue
         if kind == "simple_value":
             values[namespaced_tag(value.tag, namespace)] = value.simple_value
         elif kind == "image":

@@ -18,7 +18,7 @@ History.keep_rows = True
 
 
 def test_tensorboard(run_manager):
-    wandb.tensorboard.patch(tensorboardX=False)
+    wandb.tensorboard.patch(tensorboardX=False, pytorch=False)
     tf.summary.FileWriterCache.clear()
     summary = tf.summary.FileWriter(".")
     summary.add_summary(tf.Summary(
@@ -32,7 +32,7 @@ def test_tensorboard(run_manager):
 
 
 def test_tensorboard_no_step(run_manager):
-    wandb.tensorboard.patch(tensorboardX=False)
+    wandb.tensorboard.patch(tensorboardX=False, pytorch=False)
     tf.summary.FileWriterCache.clear()
     summary = tf.summary.FileWriter(".")
     summary.add_summary(tf.Summary(
@@ -42,7 +42,6 @@ def test_tensorboard_no_step(run_manager):
         value=[tf.Summary.Value(tag="foo", simple_value=2)]), 1)
     summary.flush()
     run_manager.test_shutdown()
-    print("Shutdown", wandb.run.history.rows)
     assert wandb.run.history.rows[1]["foo"] == 2
     assert wandb.run.history.rows[0]["bar"] == 32
     assert len(wandb.run.history.rows) == 2
@@ -61,11 +60,30 @@ def test_tensorboard_load_complex(wandb_init_run):
     wandb_init_run.run_manager.test_shutdown()
     rows = [json.loads(row) for row in open(os.path.join(wandb_init_run.dir, "wandb-history.jsonl")).readlines()]
     assert steps_for_meta == [row["global_step"] for row in rows if row.get("meta/activation/D/mean/high")]
+    assert len(rows) == 43
 
 
+@pytest.mark.mocked_run_manager()
+def test_tensorboard_load_rate_limit_filter(wandb_init_run):
+    """This test is to ensure the final event logged in a given step remains in that step"""
+    try:
+        wandb.tensorboard.configure(rate_limit_seconds=10, ignore_kinds=["histo"])
+        for summary in tf.train.summary_iterator(os.path.join(os.path.dirname(__file__),
+                                                              "fixtures/events.out.tfevents.111.complex.localdomain")):
+            wandb.tensorboard.log(summary, step=summary.step)
+        wandb_init_run.run_manager.test_shutdown()
+        rows = [json.loads(row) for row in open(os.path.join(wandb_init_run.dir, "wandb-history.jsonl")).readlines()]
+        assert len(rows) == 4
+        assert rows[0].get("gradient/netG_A/norm/histogram") == None
+    finally:
+        wandb.tensorboard.configure()
+
+
+#@pytest.mark.skip(reason="The internals of tensorboard have changed making this test super tricky")
 def test_tensorboard_s3(run_manager, capsys, mocker):
     # This mocks out the tensorboard writer so we dont attempt to talk to s3
     from tensorflow.python.summary.writer import event_file_writer
+    #from tensorboard.summary.writer import event_file_writer
 
     def fake_init(self, logdir, **kwargs):
         self._closed=False
@@ -75,7 +93,7 @@ def test_tensorboard_s3(run_manager, capsys, mocker):
         mocker.patch.object(writer._ev_writer, "Flush")
         super(tf.summary.FileWriter, self).__init__(writer, None, None)
     mocker.patch("tensorflow.summary.FileWriter.__init__", fake_init)
-    wandb.tensorboard.patch(tensorboardX=False)
+    wandb.tensorboard.patch(tensorboardX=False, pytorch=False)
     tf.summary.FileWriterCache.clear()
     summary=tf.summary.FileWriter("s3://simple/test")
     summary.add_summary(tf.Summary(
@@ -83,6 +101,8 @@ def test_tensorboard_s3(run_manager, capsys, mocker):
     summary.flush()
     run_manager.test_shutdown()
     out, err=capsys.readouterr()
+    print("OUT", out)
+    print("ERR", err)
     assert "s3://simple/test" in err
     assert "can't save file to wandb" in err
     print(wandb.run.history.row)
@@ -123,7 +143,8 @@ def test_tensorboardX(run_manager):
     assert rows[0]["matplotlib"]['height'] == 480
     assert rows[0]["matplotlib"]['_type'] == 'images'
     assert rows[0]["video"]['_type'] == 'videos'
-    assert rows[0]["data/scalar_group/foo"] == 10
-    assert rows[0]["data/scalar_group/foo/global_step"] == 1
-    assert rows[0]['data/scalar_group/bar'] == 100
+    assert rows[1]["data/scalar_group/foo"] == 10
+    assert rows[1]["data/scalar_group/foo/global_step"] == 1
+    assert rows[1]['data/scalar_group/bar'] == 100
+    assert rows[1]['global_step'] == 1
     assert len(events) == 3

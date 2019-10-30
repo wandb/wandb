@@ -115,6 +115,8 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
     orig_environ = dict(os.environ)
     orig_namespace = None
     run = None
+    # Reset the tensorboard state
+    wandb.tensorboard.reset_state()
     try:
         with CliRunner().isolated_filesystem():
             if request.node.get_closest_marker('jupyter'):
@@ -351,6 +353,8 @@ def run_manager(mocker, mock_server):
     """This fixture emulates the run_manager headless mode in a single process
     Just call run_manager.test_shutdown() to join the threads
     """
+    # Reset the tensorboard state
+    wandb.tensorboard.reset_state()
     with CliRunner().isolated_filesystem():
         run_manager = fake_run_manager(mocker)
         yield run_manager
