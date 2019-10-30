@@ -236,7 +236,7 @@ def _init_headless(run, cloud=True):
     os.close(stderr_master_fd)
     # Listen on the socket waiting for the wandb process to be ready
     try:
-        success, message = server.listen(30)
+        success, _ = server.listen(30)
     except KeyboardInterrupt:
         success = False
     else:
@@ -245,7 +245,7 @@ def _init_headless(run, cloud=True):
                 wandb_process.pid))
     if not success:
         wandb_process.kill()
-        for i in range(20):
+        for _ in range(20):
             time.sleep(0.1)
             if wandb_process.poll() is not None:
                 break
@@ -381,12 +381,14 @@ def _init_jupyter(run):
     else:
         displayed = False
         try:
+            sweep_url = run.get_sweep_url()
+            sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(sweep_url, sweep_url) if sweep_url else ""
+            docs_html = '<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">(Documentation)</a>'
             display(HTML('''
-                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a> {}.<br/>
                 Project page: <a href="{}" target="_blank">{}</a><br/>
-                Run page: <a href="{}" target="_blank">{}</a><br/>
-                Docs: <a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">https://docs.wandb.com/integrations/jupyter.html</a><br/>
-            '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
+                {}Run page: <a href="{}" target="_blank">{}</a><br/>
+            '''.format(docs_html, run.get_project_url(), run.get_project_url(), sweep_line, run.get_url(), run.get_url() )))
             displayed = True
             run.save()
         except (CommError, ValueError) as e:
@@ -430,6 +432,9 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     stdout_redirector.restore()
     if not env.is_debug():
         stderr_redirector.restore()
+
+    if len(patched["tensorboard"]) > 0:
+        tensorboard.reset_state()
 
     termlog()
     termlog("Waiting for W&B process to finish, PID {}".format(wandb_process.pid))
@@ -533,8 +538,8 @@ def restore(name, run_path=None, replace=False, root="."):
     api = Api()
     api_run = api.run(run_path or run.path)
     root = run.dir if run else root
-    path = os.path.exists(os.path.join(root, name))
-    if path and replace == False:
+    path = os.path.join(root, name)
+    if os.path.exists(path) and replace == False:
         return open(path, "r")
     files = api_run.files([name])
     if len(files) == 0:
