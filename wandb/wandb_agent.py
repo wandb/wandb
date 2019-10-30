@@ -87,6 +87,21 @@ class AgentProcess(object):
 
     def wait(self):
         if self._popen:
+            # if on windows, wait() will block and we wont be able to interrupt
+            if sys.platform == "win32":
+                try:
+                    print("poll wait")
+                    for x in range(30):
+                        print("w")
+                        time.sleep(1)
+                        p = self._popen.poll()
+                        if p is not None:
+                            print("finished", p)
+                            return p
+                    print("never finished")
+                    return None
+                except KeyboardInterrupt:
+                    raise
             return self._popen.wait()
         return self._proc.join()
 
@@ -168,10 +183,10 @@ class Agent(object):
                         self._process_command(command))
         except KeyboardInterrupt:
             # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
-            if sys.platform == "win32":
-                import win32api
-                print("install handler")
-                win32api.SetConsoleCtrlHandler(handle_keyboard_int, True)
+            #if sys.platform == "win32":
+            #    import win32api
+            #    print("install handler")
+            #    win32api.SetConsoleCtrlHandler(handle_keyboard_int, True)
             try:
                 print("debug1")
                 wandb.termlog(
