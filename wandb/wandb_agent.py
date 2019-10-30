@@ -38,7 +38,10 @@ class AgentProcess(object):
         self._finished_q = multiprocessing.Queue()
 
         if command:
-            kwargs = dict(preexec_fn=os.setpgrp) if platform.system() != "Windows" else dict()
+            if platform.system() == "Windows":
+                kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+            else:
+                kwargs = dict(preexec_fn=os.setpgrp)
             self._popen = subprocess.Popen(command,
                 env=env, **kwargs)
         elif function:
