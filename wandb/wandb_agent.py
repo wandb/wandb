@@ -169,6 +169,7 @@ class Agent(object):
         except KeyboardInterrupt:
             # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
             if sys.platform == "win32":
+                import win32api
                 print("install handler")
                 win32api.SetConsoleCtrlHandler(handle_keyboard_int, True)
             try:
