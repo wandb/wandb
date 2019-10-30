@@ -164,24 +164,32 @@ class Agent(object):
                         self._process_command(command))
         except KeyboardInterrupt:
             try:
+                print("debug1")
                 wandb.termlog(
                     'Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them.')
+                print("debug2")
                 for run_id, run_process in six.iteritems(self._run_processes):
                     run_process.wait()
+                print("debug3")
             except KeyboardInterrupt:
+                print("debug4")
                 pass
         finally:
             try:
                 if not self._in_jupyter:
                     wandb.termlog(
                         'Terminating and syncing runs. Press ctrl-c to kill.')
+                print("debug5")
                 for run_id, run_process in six.iteritems(self._run_processes):
                     try:
+                        print("debug6")
                         run_process.terminate()
                     except OSError:
                         pass  # if process is already dead
+                print("debug7")
                 for run_id, run_process in six.iteritems(self._run_processes):
                     run_process.wait()
+                print("debug8")
             except KeyboardInterrupt:
                 wandb.termlog('Killing runs and quitting.')
                 try:
