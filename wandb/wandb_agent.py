@@ -117,15 +117,11 @@ class AgentProcess(object):
         if self._popen:
             if sys.platform == "win32":
                 print("send control-c")
-                #return self._popen.send_signal(signal.CTRL_C_EVENT)
-                return self._popen.send_signal(signal.CTRL_BREAK_EVENT)
+                return self._popen.send_signal(signal.CTRL_C_EVENT)
+                #return self._popen.send_signal(signal.CTRL_BREAK_EVENT)
             return self._popen.terminate()
         return self._proc.terminate()
 
-
-def handle_keyboard_int(a, b=None):
-    print("got intc")
-    raise KeyboardInterrupt
 
 class Agent(object):
     POLL_INTERVAL = 5
@@ -186,11 +182,6 @@ class Agent(object):
                     self._server_responses.append(
                         self._process_command(command))
         except KeyboardInterrupt:
-            # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
-            #if sys.platform == "win32":
-            #    import win32api
-            #    print("install handler")
-            #    win32api.SetConsoleCtrlHandler(handle_keyboard_int, True)
             try:
                 print("debug1")
                 wandb.termlog(
