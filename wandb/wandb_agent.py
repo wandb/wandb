@@ -104,6 +104,10 @@ class AgentProcess(object):
         return self._proc.terminate()
 
 
+def handle_keyboard_int(a, b=None)
+    print("got intc")
+    raise KeyboardInterrupt()
+
 class Agent(object):
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 5
@@ -163,6 +167,10 @@ class Agent(object):
                     self._server_responses.append(
                         self._process_command(command))
         except KeyboardInterrupt:
+            # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
+            if sys.platform == "win32":
+                print("install handler")
+                win32api.SetConsoleCtrlHandler(handle_keyboard_int, True)
             try:
                 print("debug1")
                 wandb.termlog(
