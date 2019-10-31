@@ -91,16 +91,11 @@ class AgentProcess(object):
             # if on windows, wait() will block and we wont be able to interrupt
             if sys.platform == "win32":
                 try:
-                    print("poll wait")
-                    for x in range(30):
-                        print("w")
-                        time.sleep(1)
+                    while True:
                         p = self._popen.poll()
                         if p is not None:
-                            print("finished", p)
                             return p
-                    print("never finished")
-                    return None
+                        time.sleep(1)
                 except KeyboardInterrupt:
                     raise
             return self._popen.wait()
@@ -116,10 +111,9 @@ class AgentProcess(object):
 
     def terminate(self):
         if self._popen:
+            # windows terminate is too strong, send Ctrl-C instead
             if sys.platform == "win32":
-                print("send control-c")
                 return self._popen.send_signal(signal.CTRL_C_EVENT)
-                #return self._popen.send_signal(signal.CTRL_BREAK_EVENT)
             return self._popen.terminate()
         return self._proc.terminate()
 
@@ -184,32 +178,24 @@ class Agent(object):
                         self._process_command(command))
         except KeyboardInterrupt:
             try:
-                print("debug1")
                 wandb.termlog(
                     'Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them.')
-                print("debug2")
                 for run_id, run_process in six.iteritems(self._run_processes):
                     run_process.wait()
-                print("debug3")
             except KeyboardInterrupt:
-                print("debug4")
                 pass
         finally:
             try:
                 if not self._in_jupyter:
                     wandb.termlog(
                         'Terminating and syncing runs. Press ctrl-c to kill.')
-                print("debug5")
                 for run_id, run_process in six.iteritems(self._run_processes):
                     try:
-                        print("debug6")
                         run_process.terminate()
                     except OSError:
                         pass  # if process is already dead
-                print("debug7")
                 for run_id, run_process in six.iteritems(self._run_processes):
                     run_process.wait()
-                print("debug8")
             except KeyboardInterrupt:
                 wandb.termlog('Killing runs and quitting.')
                 try:
