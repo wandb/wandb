@@ -42,7 +42,7 @@ xgboost
 ray
 gym
 configparser
-tensorflow==1.15.0
+tensorflow==1.14.0
 protobuf>=3.6.0
 vcrpy>=2.0.0
 pytest-vcr>=1.0.0
