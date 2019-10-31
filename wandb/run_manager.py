@@ -464,9 +464,9 @@ class RunStatusChecker(object):
                     run_id=self._run.id)
             except CommError as e:
                 logger.exception("Failed to check stop requested status: %s" % e.exc)
+                should_exit = False
             except:
                 logger.exception("An unknown error occurred while checking stop requested status. Continuing anyway..")
-            finally:
                 should_exit = False
 
             if should_exit:
@@ -642,7 +642,7 @@ class RunManager(object):
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
         ignore_globs = self._api.settings("ignore_globs")
-        for dirpath, dirnames, filenames in os.walk(self._run.dir):
+        for dirpath, _, filenames in os.walk(self._run.dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._run.dir)
@@ -872,6 +872,10 @@ class RunManager(object):
         # load the previous runs summary to avoid losing it, the user process will need to load it
         self._run.summary.update(json.loads(resume_status['summaryMetrics'] or "{}"))
 
+        # load the previous runs config
+        self._run.config.load_json(json.loads(resume_status.get('config') or "{}"))
+        self._run.config.persist()
+
         # Note: these calls need to happen after writing the files above. Because the access
         # to self._run.events below triggers events to initialize, but we need the previous
         # events to be written before that happens.
@@ -970,7 +974,7 @@ class RunManager(object):
             num_retries = 0  # no retries because we want to let the user process run even if the backend is down
 
         try:
-            upsert_result = self._run.save(
+            self._run.save(
                 id=storage_id, num_retries=num_retries, api=self._api)
         except CommError as e:
             logger.exception("communication error with wandb %s" % e.exc)
@@ -1006,9 +1010,21 @@ class RunManager(object):
             wandb.termlog("{} {}".format(run_state_str, click.style(self._run.name, fg="yellow")))
             try:
                 url = self._run.get_url(self._api)
+                emojis = {}
+                if platform.system() != "Windows":
+                    emojis = dict(star="⭐️", broom="🧹 ", rocket="🚀")
                 project_url = self._run.get_project_url(self._api)
-                wandb.termlog("⭐️ View project at {}".format(click.style(project_url, underline=True, fg='blue')))
-                wandb.termlog("🚀 View run at {}".format(click.style(url, underline=True, fg='blue')))
+                wandb.termlog("{} View project at {}".format(
+                    emojis.get("star", ""),
+                    click.style(project_url, underline=True, fg='blue')))
+                sweep_url = self._run.get_sweep_url(self._api)
+                if sweep_url:
+                    wandb.termlog("{} View sweep at {}".format(
+                        emojis.get("broom", ""),
+                        click.style(sweep_url, underline=True, fg='blue')))
+                wandb.termlog("{} View run at {}".format(
+                    emojis.get("rocket", ""),
+                    click.style(url, underline=True, fg='blue')))
             except CommError as e:
                 wandb.termwarn(e.message)
             wandb.termlog("Run `wandb off` to turn off syncing.")
@@ -1188,7 +1204,7 @@ class RunManager(object):
                     self._tensorboard_consumer.start()
             self._tensorboard_watchers[-1].start()
             return self._tensorboard_watchers
-        except ImportError as e:
+        except ImportError:
             wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
 
