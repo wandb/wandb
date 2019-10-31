@@ -17,6 +17,7 @@ from wandb.history import History
 History.keep_rows = True
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="This test doesn't work in py2 tensorboard")
 def test_tensorboard(run_manager):
     wandb.tensorboard.patch(tensorboardX=False, pytorch=False)
     tf.summary.FileWriterCache.clear()
@@ -31,6 +32,7 @@ def test_tensorboard(run_manager):
     assert len(glob.glob(wandb.run.dir + "/*tfevents*")) == 1
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="This test doesn't work in py2 tensorboard")
 def test_tensorboard_no_step(run_manager):
     wandb.tensorboard.patch(tensorboardX=False, pytorch=False)
     tf.summary.FileWriterCache.clear()
@@ -79,7 +81,7 @@ def test_tensorboard_load_rate_limit_filter(wandb_init_run):
         wandb.tensorboard.configure()
 
 
-#@pytest.mark.skip(reason="The internals of tensorboard have changed making this test super tricky")
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="This test doesn't work in py2 tensorboard")
 def test_tensorboard_s3(run_manager, capsys, mocker):
     # This mocks out the tensorboard writer so we dont attempt to talk to s3
     from tensorflow.python.summary.writer import event_file_writer
