@@ -1007,14 +1007,14 @@ class RunManager(object):
             try:
                 url = self._run.get_url(self._api)
                 project_url = self._run.get_project_url(self._api)
-                wandb.termlog("⭐️ View project at ", nl=False)
-                wandb.termlog("{}".format(click.style(project_url, underline=True, fg='blue')))
+                wandb.termlog("⭐️ View project at ", newline=False)
+                wandb.termlog("{}".format(click.style(project_url, underline=True, fg='blue')), label=False)
                 sweep_url = self._run.get_sweep_url(self._api)
                 if sweep_url:
-                    wandb.termlog("🧹 View sweep at {", nl=False)
-                    wandb.termlog("{}".format(click.style(sweep_url, underline=True, fg='blue')))
-                wandb.termlog("🚀 View run at ", nl=False)
-                wandb.termlog("{}".format(click.style(url, underline=True, fg='blue')))
+                    wandb.termlog("🧹 View sweep at {",  newline=False)
+                    wandb.termlog("{}".format(click.style(sweep_url, underline=True, fg='blue')), label=False)
+                wandb.termlog("🚀 View run at ", newline=False)
+                wandb.termlog("{}".format(click.style(url, underline=True, fg='blue')), label=False)
             except CommError as e:
                 wandb.termwarn(e.message)
             wandb.termlog("Run `wandb off` to turn off syncing.")
