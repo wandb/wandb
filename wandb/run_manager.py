@@ -1011,13 +1011,16 @@ class RunManager(object):
                     emojis = dict(star="⭐️", broom="🧹 ", rocket="🚀")
                 project_url = self._run.get_project_url(self._api)
                 wandb.termlog("{} View project at {}".format(
-                    emojis.get("star", ""), click.style(project_url, underline=True, fg='blue')))
+                    emojis.get("star", ""),
+                    click.style(project_url, underline=True, fg='blue')))
                 sweep_url = self._run.get_sweep_url(self._api)
                 if sweep_url:
                     wandb.termlog("{} View sweep at {}".format(
-                        emojis.get("broom", ""), click.style(sweep_url, underline=True, fg='blue')))
+                        emojis.get("broom", ""),
+                        click.style(sweep_url, underline=True, fg='blue')))
                 wandb.termlog("{} View run at {}".format(
-                    emojis.get("rocket", ""), click.style(url, underline=True, fg='blue')))
+                    emojis.get("rocket", ""),
+                    click.style(url, underline=True, fg='blue')))
             except CommError as e:
                 wandb.termwarn(e.message)
             wandb.termlog("Run `wandb off` to turn off syncing.")
