@@ -488,6 +488,31 @@ class Run(object):
             query_string=self._generate_query_string(api, params)
         )
 
+    def get_sweep_url(self, api=None, network=None, params=None):
+        """Generate a url for a sweep.
+
+        If network is false and entity isn't specified in the environment raises wandb.apis.CommError
+
+        Returns:
+            string - url if the run is part of a sweep
+            None - if the run is not part of the sweep
+        """
+        params = params or {}
+        api = api or self.api
+        self._load_entity(api, network)
+
+        sweep_id = self.sweep_id
+        if sweep_id is None:
+            return
+
+        return "{base}/{entity}/{project}/sweeps/{sweepid}{query_string}".format(
+            base=api.app_url,
+            entity=urllib.parse.quote_plus(api.settings('entity')),
+            project=urllib.parse.quote_plus(self.project_name(api)),
+            sweepid=urllib.parse.quote_plus(sweep_id),
+            query_string=self._generate_query_string(api, params)
+        )
+
     def get_url(self, api=None, network=True, params=None):
         """Generate a url for a run.
         
