@@ -203,8 +203,10 @@ def _init_headless(run, cloud=True):
     if platform.system() == "Windows":
         # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
         import win32api
-        print("install handler")
-        win32api.SetConsoleCtrlHandler(handle_keyboard_int, True)
+        print("install null handler")
+        #win32api.SetConsoleCtrlHandler(handle_keyboard_int, True)
+        win32api.SetConsoleCtrlHandler(None, False)
+
 
         # PTYs don't work in windows so we create these unused pipes and
         # mirror stdout to run.dir/output.log.  There should be a way to make
