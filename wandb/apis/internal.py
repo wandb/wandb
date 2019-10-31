@@ -589,6 +589,7 @@ class Api(object):
                     eventsLineCount
                     historyTail
                     eventsTail
+                    config
                 }
             }
         }
