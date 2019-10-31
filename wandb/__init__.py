@@ -196,6 +196,12 @@ def _init_headless(run, cloud=True):
     hooks.hook()
 
     if platform.system() == "Windows":
+        import win32api
+        # Make sure we are not ignoring CTRL_C_EVENT
+        # https://docs.microsoft.com/en-us/windows/console/setconsolectrlhandler
+        # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
+        win32api.SetConsoleCtrlHandler(None, False)
+
         # PTYs don't work in windows so we create these unused pipes and
         # mirror stdout to run.dir/output.log.  There should be a way to make
         # pipes work, but I haven't figured it out.  See links in compat/windows
