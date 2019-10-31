@@ -62,7 +62,7 @@ PRINTED_MESSAGES = set()
 
 # TODO(adrian): if output has been redirected, make this write to the original STDERR
 # so it doesn't get logged to the backend
-def termlog(string='', newline=True, repeat=True, label=True):
+def termlog(string='', newline=True, repeat=True):
     """Log to standard error with formatting.
 
     Args:
@@ -71,11 +71,8 @@ def termlog(string='', newline=True, repeat=True, label=True):
             repeat (bool, optional): If set to False only prints the string once per process
     """
     if string:
-        if label:
-            line = '\n'.join(['{}: {}'.format(LOG_STRING, s)
-                            for s in string.split('\n')])
-        else:
-            line = string
+        line = '\n'.join(['{}: {}'.format(LOG_STRING, s)
+                         for s in string.split('\n')])
     else:
         line = ''
     if not repeat and line in PRINTED_MESSAGES:
