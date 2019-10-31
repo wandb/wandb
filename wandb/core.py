@@ -72,7 +72,7 @@ def termlog(string='', newline=True, repeat=True):
     """
     if string:
         line = '\n'.join(['{}: {}'.format(LOG_STRING, s)
-                         for s in string.split('\n')])
+                          for s in string.split('\n')])
     else:
         line = ''
     if not repeat and line in PRINTED_MESSAGES:

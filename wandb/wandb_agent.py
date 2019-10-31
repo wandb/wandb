@@ -39,8 +39,7 @@ class AgentProcess(object):
 
         if command:
             if platform.system() == "Windows":
-                kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP, shell=True)
-                #kwargs = dict(shell=True)
+                kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
             else:
                 kwargs = dict(preexec_fn=os.setpgrp)
             self._popen = subprocess.Popen(command,
@@ -89,7 +88,7 @@ class AgentProcess(object):
     def wait(self):
         if self._popen:
             # if on windows, wait() will block and we wont be able to interrupt
-            if sys.platform == "win32":
+            if platform.system() == "Windows":
                 try:
                     while True:
                         p = self._popen.poll()
@@ -112,7 +111,7 @@ class AgentProcess(object):
     def terminate(self):
         if self._popen:
             # windows terminate is too strong, send Ctrl-C instead
-            if sys.platform == "win32":
+            if platform.system() == "Windows":
                 return self._popen.send_signal(signal.CTRL_C_EVENT)
             return self._popen.terminate()
         return self._proc.terminate()
