@@ -25,6 +25,9 @@ import traceback
 import yaml
 import threading
 import random
+import platform
+import datetime
+import shutil
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
 
@@ -479,9 +482,9 @@ def pull(run, project, entity):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
-@click.option("--anonymous/--no-anonymous", default=False, help="Login anonymously")
+@click.option("--anonymously", is_flag=True, help="Log in anonymously")
 @display_error
-def login(key, server=LocalServer(), browser=True, anonymous=False):
+def login(key, anonymously, server=LocalServer(), browser=True):
     global api
 
     key = key[0] if len(key) > 0 else None
@@ -504,7 +507,7 @@ def login(key, server=LocalServer(), browser=True, anonymous=False):
     if key:
         util.set_api_key(api, key)
     else:
-        if anonymous:
+        if anonymously:
             os.environ[env.ANONYMOUS] = "must"
         key = util.prompt_api_key(api, input_callback=click.prompt, browser_callback=get_api_key_from_browser)
 
@@ -740,6 +743,28 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         sys.exit(1)
     rm.run_user_process(program, args, environ)
 
+@cli.command(context_settings=RUN_CONTEXT)
+@click.pass_context
+@click.option('--keep', '-N', default=24, help="Keep runs created in the last N hours", type=int)
+def gc(ctx, keep):
+    """Garbage collector, cleans up your local run directory"""
+    directory = wandb.wandb_dir()
+    if not os.path.exists(directory):
+        raise ClickException('No wandb directory found at %s' % directory)
+    paths = glob.glob(directory+"/*run*")
+    dates = [datetime.datetime.strptime(p.split("-")[1],'%Y%m%d_%H%M%S') for p in paths]
+    since = datetime.datetime.utcnow() - datetime.timedelta(hours=keep)
+    bad_paths = [paths[i] for i, d, in enumerate(dates) if d < since]
+    if len(bad_paths) > 0:
+        click.echo("Found {} runs, {} are older than {} hours".format(len(paths), len(bad_paths), keep))
+        click.confirm(click.style(
+                "Are you sure you want to remove %i runs?" % len(bad_paths), bold=True), abort=True)
+        for path in bad_paths:
+            shutil.rmtree(path)
+        click.echo(click.style("Success!", fg="green"))
+    else:
+        click.echo(click.style("No runs older than %i hours found" % keep, fg="red"))
+
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
 @click.pass_context
 @click.argument('docker_run_args', nargs=-1)
@@ -787,7 +812,7 @@ def docker_run(ctx, docker_run_args, help):
 @click.option('--dir', default="/app", help="Which directory to mount the code in the container")
 @click.option('--no-dir', is_flag=True, help="Don't mount the current directory")
 @click.option('--shell', default="/bin/bash", help="The shell to start the container with")
-@click.option('--port', default="8888", help="The hot port to bind jupyter on")
+@click.option('--port', default="8888", help="The host port to bind jupyter on")
 @click.option('--cmd', help="The command to run in the container")
 @click.option('--no-tty', is_flag=True, default=False, help="Run the command without a tty")
 @display_error
@@ -961,9 +986,6 @@ def sweep(ctx, controller, verbose, config_yaml):
 @click.argument('sweep_id')
 @display_error
 def agent(sweep_id):
-    if sys.platform == 'win32':
-        wandb.termerror('Agent is not supported on Windows')
-        sys.exit(1)
     click.echo('Starting wandb agent 🕵️')
     wandb_agent.run_agent(sweep_id)
 

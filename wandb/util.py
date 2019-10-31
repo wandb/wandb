@@ -310,7 +310,7 @@ def json_friendly(obj):
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
-        logger.warning("Object %s is %i bytes", obj, getsizeof(obj))
+        logger.warning("Object of type %s is %i bytes", type(obj).__name__, getsizeof(obj))
 
     return obj, converted
 
@@ -821,10 +821,12 @@ LOGIN_CHOICES = [
 def prompt_api_key(api, input_callback=None, browser_callback=None):
     input_callback = input_callback or getpass.getpass
 
-    choices = LOGIN_CHOICES
+    choices = [choice for choice in LOGIN_CHOICES]
     if os.environ.get(env.ANONYMOUS, "never") == "never":
         # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
-        choices = choices[1:]
+        choices.remove(LOGIN_CHOICE_ANON)
+    if os.environ.get(env.JUPYTER, "false") == "true":
+        choices.remove(LOGIN_CHOICE_DRYRUN)
 
     if os.environ.get(env.ANONYMOUS) == "must":
         result = LOGIN_CHOICE_ANON
@@ -872,7 +874,7 @@ def prompt_api_key(api, input_callback=None, browser_callback=None):
     else:
         # Jupyter environments don't have a tty, but we can still try logging in using the browser callback if one
         # is supplied.
-        key, anonymous = browser_callback() if os.environ.get(env.JUPYTER) and browser_callback else (None, False)
+        key, anonymous = browser_callback() if os.environ.get(env.JUPYTER, "false") == "true" and browser_callback else (None, False)
 
         set_api_key(api, key, anonymous=anonymous)
         return key
