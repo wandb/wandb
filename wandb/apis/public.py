@@ -36,6 +36,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     tags
     name
     displayName
+    sweepName
     state
     config
     readOnly
@@ -248,10 +249,11 @@ class Api(object):
             A :obj:`Runs` object, which is an iterable collection of :obj:`Run` objects.
         """
         entity, project, run = self._parse_path(path)
-        if not self._runs.get(path):
-            self._runs[path + str(filters) + str(order)] = Runs(self.client, entity, project,
-                                                                filters=filters, order=order, per_page=per_page)
-        return self._runs[path + str(filters) + str(order)]
+        key = path + str(filters) + str(order)
+        if not self._runs.get(key):
+            self._runs[key] = Runs(self.client, entity, project,
+                    filters=filters, order=order, per_page=per_page)
+        return self._runs[key]
 
     @normalize_exceptions
     def run(self, path=""):
@@ -284,7 +286,7 @@ class Api(object):
             A :obj:`Sweep` object.
         """
         entity, project, sweep_id = self._parse_path(path)
-        if not self._sweeps.get(sweep_id):
+        if not self._sweeps.get(path):
             self._sweeps[path] = Sweep(self.client, entity, project, sweep_id)
         return self._sweeps[path]
 
@@ -477,6 +479,7 @@ class Runs(Paginator):
         self.project = project
         self.filters = filters
         self.order = order
+        self._sweeps = {}
         variables = {
             'project': self.project, 'entity': self.entity, 'order': self.order,
             'filters': json.dumps(self.filters)
@@ -505,8 +508,25 @@ class Runs(Paginator):
             return None
 
     def convert_objects(self):
-        return [Run(self.client, self.entity, self.project, r["node"]["name"], r["node"])
-                for r in self.last_response['project']['runs']['edges']]
+        objs = []
+        for run_response in self.last_response['project']['runs']['edges']:
+            run = Run(self.client, self.entity, self.project, run_response["node"]["name"], run_response["node"])
+            objs.append(run)
+
+            if run.sweep_name:
+                if run.sweep_name in self._sweeps:
+                    sweep = self._sweeps[run.sweep_name]
+                else:
+                    sweep = Sweep.get(self.client, self.entity, self.project,
+                            run.sweep_name, withRuns=False)
+                    self._sweeps[run.sweep_name] = sweep
+
+                run.sweep = sweep
+                if run.id not in sweep.runs_by_id:
+                    sweep.runs_by_id[run.id] = run
+                    sweep.runs.append(run)
+
+        return objs
 
     def __repr__(self):
         return "<Runs {}/{} ({})>".format(self.entity, self.project, len(self))
@@ -548,6 +568,7 @@ class Run(Attrs):
         self._files = {}
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
+        self.sweep = None
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -641,10 +662,20 @@ class Run(Attrs):
         ''' % RUN_FRAGMENT)
         if force or not self._attrs:
             response = self._exec(query)
-            if response['project'] is None or response['project']['run'] is None:
+            if response is None or response.get('project') is None \
+                    or response['project'].get('run') is None:
                 raise ValueError("Could not find run %s" % self)
             self._attrs = response['project']['run']
             self.state = self._attrs['state']
+
+            if self.sweep_name and not self.sweep:
+                # There may be a lot of runs. Don't bother pulling them all
+                # just for the sake of this one.
+                self.sweep = Sweep.get(self.client, self.entity, self.project,
+                        self.sweep_name, withRuns=False)
+                self.sweep.runs.append(self)
+                self.sweep.runs_by_id[self.id] = self
+
         self._attrs['summaryMetrics'] = json.loads(
             self._attrs['summaryMetrics']) if self._attrs.get('summaryMetrics') else {}
         self._attrs['systemMetrics'] = json.loads(
@@ -840,6 +871,27 @@ class Sweep(Attrs):
         config (str): dictionary of sweep configuration 
     """
 
+    QUERY = gql('''
+    query Sweep($project: String!, $entity: String, $name: String!, $withRuns: Boolean!) {
+        project(name: $project, entityName: $entity) {
+            sweep(sweepName: $name) {
+                id
+                name
+                bestLoss
+                config
+                runs @include(if: $withRuns) {
+                    edges {
+                        node {
+                            ...RunFragment
+                        }
+                    }
+                }
+            }
+        }
+    }
+    %s
+    ''' % RUN_FRAGMENT)
+
     def __init__(self, client, entity, project, sweep_id, attrs={}):
         # TODO: Add agents / flesh this out.
         super(Sweep, self).__init__(dict(attrs))
@@ -848,6 +900,7 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
+        self.runs_by_id = {}
 
         self.load(force=not attrs)
 
@@ -865,47 +918,55 @@ class Sweep(Attrs):
         return yaml.load(self._attrs["config"])
 
     def load(self, force=False):
-        query = gql('''
-        query Sweep($project: String!, $entity: String, $name: String!) {
-            project(name: $project, entityName: $entity) {
-                sweep(sweepName: $name) {
-                    id
-                    name
-                    bestLoss
-                    config
-                    runs {
-                        edges {
-                            node {
-                                ...RunFragment
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        %s
-        ''' % RUN_FRAGMENT)
         if force or not self._attrs:
-            response = self._exec(query)
-            if response['project'] is None or response['project']['sweep'] is None:
+            sweep = self.get(self.client, self.entity, self.project, self.id)
+            if sweep is None:
                 raise ValueError("Could not find sweep %s" % self)
-            # TODO: make this paginate
-            self.runs = [Run(self.client, self.entity, self.project, r["node"]["name"], r["node"]) for
-                r in response['project']['sweep']['runs']['edges']]
-            del response['project']['sweep']['runs']
-            self._attrs = response['project']['sweep']
+            self._attrs = sweep._attrs
+            self.runs = sweep.runs
+            self.runs_by_id = sweep.runs_by_id
+
         return self._attrs
 
     @property
     def path(self):
         return [urllib.parse.quote_plus(str(self.entity)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
-    def _exec(self, query, **kwargs):
+    @classmethod
+    def get(cls, client, entity=None, project=None, sid=None, withRuns=True, query=None, **kwargs):
         """Execute a query against the cloud backend"""
-        variables = {'entity': self.entity,
-                     'project': self.project, 'name': self.id}
+        if query is None:
+            query = cls.QUERY
+
+        variables = {'entity': entity, 'project': project, 'name': sid, 'withRuns': withRuns}
         variables.update(kwargs)
-        return self.client.execute(query, variable_values=variables)
+
+        response = client.execute(query, variable_values=variables)
+        if response.get('project') is None:
+            return None
+        elif response['project'].get('sweep') is None:
+            return None
+
+        sweep_response = response['project']['sweep']
+
+        # TODO: make this paginate
+        runs_response = sweep_response.get('runs')
+        runs = []
+        if runs_response:
+            for r in runs_response['edges']:
+                run = Run(client, entity, project, r["node"]["name"], r["node"])
+                runs.append(run)
+
+            del sweep_response['runs']
+
+        sweep = cls(client, entity, project, sid, attrs=sweep_response)
+        sweep.runs = runs
+
+        for run in runs:
+            sweep.runs_by_id[run.id] = run
+            run.sweep = sweep
+
+        return sweep
 
     def __repr__(self):
         return "<Sweep {}>".format("/".join(self.path))

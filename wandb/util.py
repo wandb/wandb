@@ -310,7 +310,7 @@ def json_friendly(obj):
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
-        logger.warning("Object %s is %i bytes", obj, getsizeof(obj))
+        logger.warning("Object of type %s is %i bytes", type(obj).__name__, getsizeof(obj))
 
     return obj, converted
 
@@ -396,7 +396,8 @@ def parse_tfjob_config():
 def parse_sm_config():
     """Attempts to parse SageMaker configuration returning False if it can't find it"""
     sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
-    if os.path.exists(sagemaker_config):
+    resource_config = "/opt/ml/input/config/resourceconfig.json"
+    if os.path.exists(sagemaker_config) and os.path.exists(resource_config):
         conf = {}
         conf["sagemaker_training_job_name"] = os.getenv('TRAINING_JOB_NAME')
         # Hyper-parameter searchs quote configs...
