@@ -33,7 +33,7 @@ else:
 
 # XXX backport: ResourceWarning was added in Python 3.2.
 # For earlier versions, fall back to RuntimeWarning instead.
-_ResourceWarning = RuntimeWarning if sys.version_info < (3, 2) else ResourceWarning # noqa: F821
+_ResourceWarning = RuntimeWarning if sys.version_info < (3, 2) else ResourceWarning  # noqa: F821
 
 
 class TemporaryDirectory(object):
@@ -54,9 +54,12 @@ class TemporaryDirectory(object):
 
     @classmethod
     def _cleanup(cls, name, warn_message):
-        _rmtree(name)
+        try:
+            _rmtree(name)
+        # On windows only one process can open a file at a time TODO: PermissionError when > 3.5
+        except OSError:
+            _warnings.warn("Couldn't remove temp directory %s" % name)
         _warnings.warn(warn_message, _ResourceWarning)
-
 
     def __repr__(self):
         return "<{} {!r}>".format(self.__class__.__name__, self.name)
@@ -69,4 +72,8 @@ class TemporaryDirectory(object):
 
     def cleanup(self):
         if self._finalizer.detach():
-            _rmtree(self.name)
+            try:
+                _rmtree(self.name)
+            # On windows only one process can open a file at a time TODO: PermissionError when > 3.5
+            except OSError:
+                _warnings.warn("Couldn't remove temp directory %s" % self.name)

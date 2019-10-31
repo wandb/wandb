@@ -104,8 +104,7 @@ def history():
 
 
 @pytest.fixture
-def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume_status,
-                   upload_logs, monkeypatch, mocker, capsys, local_netrc):
+def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mocker, capsys, local_netrc):
     """Fixture that calls wandb.init(), yields a run (or an exception) that
     gets created, then cleans up afterward.  This is meant to test the logic
     in wandb.init, it should generally not spawn a run_manager.  If you need
@@ -116,12 +115,11 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
     orig_environ = dict(os.environ)
     orig_namespace = None
     run = None
+    # Reset the tensorboard state
+    wandb.tensorboard.reset_state()
     try:
         with CliRunner().isolated_filesystem():
-            upsert_run(request_mocker)
             if request.node.get_closest_marker('jupyter'):
-                query_run_resume_status(request_mocker)
-
                 def fake_ipython():
                     class Jupyter(object):
                         __module__ = "jupyter"
@@ -237,7 +235,7 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                     orig_exist = os.path.exists
 
                     def exists(path):
-                        return True if path in (config_path, secrets_path) else orig_exist(path)
+                        return True if path in (config_path, secrets_path, resource_path) else orig_exist(path)
                     mocker.patch('wandb.os.path.exists', exists)
 
                     def magic(path, *args, **kwargs):
@@ -266,7 +264,6 @@ def wandb_init_run(request, tmpdir, request_mocker, upsert_run, query_run_resume
                 # env was leaking when running the whole suite...
                 if os.getenv(env.RUN_ID):
                     del os.environ[env.RUN_ID]
-                query_run_resume_status(request_mocker)
                 os.mkdir(wandb.wandb_dir())
                 with open(os.path.join(wandb.wandb_dir(), wandb_run.RESUME_FNAME), "w") as f:
                     f.write(json.dumps({"run_id": "test"}))
@@ -352,15 +349,28 @@ def fake_run_manager(mocker, run=None, cloud=True, rm_class=wandb.run_manager.Ru
 
 
 @pytest.fixture
-def run_manager(mocker, request_mocker, upsert_run, query_viewer):
+def run_manager(mocker, mock_server):
     """This fixture emulates the run_manager headless mode in a single process
     Just call run_manager.test_shutdown() to join the threads
     """
+    # Reset the tensorboard state
+    wandb.tensorboard.reset_state()
     with CliRunner().isolated_filesystem():
-        query_viewer(request_mocker)
-        upsert_run(request_mocker)
         run_manager = fake_run_manager(mocker)
         yield run_manager
+        wandb.uninit()
+
+
+@pytest.fixture
+def loggedin():
+    orig_environ = dict(os.environ)
+    try:
+        with CliRunner().isolated_filesystem():
+            os.environ["WANDB_API_KEY"] = "X"*40
+            yield os.environ
+    finally:
+        os.environ.clear()
+        os.environ.update(orig_environ)
         wandb.uninit()
 
 
@@ -395,12 +405,31 @@ def request_mocker(request):
 
 
 @pytest.fixture(autouse=True)
-def clean_environ():
-    """Remove any env variables set in tests"""
+def preserve_environ():
+    environ = dict(os.environ)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(environ)
+
+
+@pytest.fixture(autouse=True)
+def check_environ():
+    """Warn about WANDB_ environment variables the user has set
+
+    Sometimes it's useful to set things like WANDB_DEBUG intentionally, or
+    set other things for hacky debugging, but we want to make sure the user
+    knows about it.
+    """
+    # we ignore WANDB_DESCRIPTION because we set it intentionally in
+    # pytest_runtest_setup()
     wandb_keys = [key for key in os.environ.keys() if key.startswith(
-        'WANDB_') and key not in ['WANDB_TEST']]
-    for key in wandb_keys:
-        del os.environ[key]
+        'WANDB_') and key not in ['WANDB_TEST', 'WANDB_DESCRIPTION']]
+    if wandb_keys:
+        wandb.termwarn('You have WANDB_ environment variable(s) set. These may interfere with tests:')
+        for key in wandb_keys:
+            wandb.termwarn('    {} = {}'.format(key, repr(os.environ[key])))
 
 
 @pytest.fixture

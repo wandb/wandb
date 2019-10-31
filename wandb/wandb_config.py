@@ -146,7 +146,7 @@ class Config(object):
 
     def keys(self):
         """All keys in the current configuration"""
-        return self._items.keys()
+        return [k for k in self._items.keys() if k != '_wandb']
 
     def desc(self, key):
         """The description of a given key"""
@@ -233,7 +233,7 @@ class Config(object):
                 val = str(val)
             return val
 
-    def update(self, params, allow_val_change=False):
+    def _update(self, params, allow_val_change=False, as_defaults=False):
         if not isinstance(params, dict):
             # Handle some cases where params is not a dictionary
             # by trying to convert it into a dictionary
@@ -264,9 +264,26 @@ class Config(object):
         if not isinstance(params, dict):
             raise ConfigError('Expected dict but received %s' % params)
         for key, val in params.items():
-            key, val = self._sanitize(key, val, allow_val_change=allow_val_change)
+            key, val = self._sanitize(key, val, allow_val_change=allow_val_change or as_defaults)
+            if as_defaults and key in self._items:
+                continue
             self._items[key] = val
         self.persist()
+
+    def update(self, params, allow_val_change=False):
+        self._update(params, allow_val_change=allow_val_change)
+
+    def setdefaults(self, params):
+        self._update(params, as_defaults=True)
+        return dict(self)
+
+    def setdefault(self, key, default=None):
+        key, val = self._sanitize(key, default, allow_val_change=True)
+        if key in self._items:
+            return self._items[key]
+        self._items[key] = val
+        self.persist()
+        return val
 
     def as_dict(self):
         defaults = {}

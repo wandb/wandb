@@ -9,9 +9,10 @@ import sys
 import traceback
 import time
 import signal
-import queue
+import platform
 
 import six
+from six.moves import queue
 
 import wandb
 from wandb.apis import InternalApi
@@ -37,8 +38,12 @@ class AgentProcess(object):
         self._finished_q = multiprocessing.Queue()
 
         if command:
+            if platform.system() == "Windows":
+                kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+            else:
+                kwargs = dict(preexec_fn=os.setpgrp)
             self._popen = subprocess.Popen(command,
-                env=env, preexec_fn=os.setpgrp)
+                env=env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(target=self._start,
                     args=(self._finished_q, env, function, run_id, in_jupyter))
@@ -82,6 +87,16 @@ class AgentProcess(object):
 
     def wait(self):
         if self._popen:
+            # if on windows, wait() will block and we wont be able to interrupt
+            if platform.system() == "Windows":
+                try:
+                    while True:
+                        p = self._popen.poll()
+                        if p is not None:
+                            return p
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    raise
             return self._popen.wait()
         return self._proc.join()
 
@@ -95,6 +110,9 @@ class AgentProcess(object):
 
     def terminate(self):
         if self._popen:
+            # windows terminate is too strong, send Ctrl-C instead
+            if platform.system() == "Windows":
+                return self._popen.send_signal(signal.CTRL_C_EVENT)
             return self._popen.terminate()
         return self._proc.terminate()
 
@@ -243,7 +261,8 @@ class Agent(object):
             proc = AgentProcess(function=self._function, env=env,
                     run_id=command.get('run_id'), in_jupyter=self._in_jupyter)
         else:
-            command_list = ['/usr/bin/env', 'python', command['program']] + flags
+            command_list = ['/usr/bin/env'] if platform.system() != "Windows" else []
+            command_list += ['python', command['program']] + flags
             proc = AgentProcess(command=command_list, env=env)
         self._run_processes[run.id] = proc
 

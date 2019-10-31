@@ -1,10 +1,16 @@
-import pytest
-import os
-import sys
+import functools
 import json
-from six import binary_type
 import logging
+import os
+import random
+import string
+import sys
+
+import pytest
+from six import binary_type
 from wandb.apis import InternalApi
+import wandb.util
+import yaml
 
 
 def _files():
@@ -54,7 +60,8 @@ def _run_resume_status(name='test', empty=False, files=None):
             'historyLineCount': 15,
             'eventsLineCount': 0,
             'historyTail': '["{\\"_step\\": 15, \\"acc\\": 1}"]',
-            'eventsTail': '[]'
+            'eventsTail': '[]',
+            'config': '{"epochs": {"value": 20}}'
         }
     }
 
@@ -85,7 +92,7 @@ def _project(name='test-projo'):
     }
 
 
-def _run(name='test'):
+def run_response(name='test'):
     return {
         'id': 'test',
         'name': name,
@@ -106,7 +113,46 @@ def _run(name='test'):
             '{"cpu": 30}'
         ],
         'tags': [],
-        'notes': None
+        'notes': None,
+        'sweepName': None,
+    }
+
+
+def random_run_response():
+    root = 'run-test-{}'.format(wandb.util.generate_id())
+    name = '{}-name'.format(root)
+    return {
+        'id': '{}-id'.format(root),
+        'name': name,
+        'displayName': name,
+        'state': "running",
+        'config': '{"epochs": {"value": 10}}',
+        'description': "",
+        'systemMetrics': '{"cpu": 100}',
+        'summaryMetrics': '{"acc": 100, "loss": 0}',
+        'history': [
+            '{"acc": 10, "loss": 90}',
+            '{"acc": 20, "loss": 80}',
+            '{"acc": 30, "loss": 70}'
+        ],
+        'events': [
+            '{"cpu": 10}',
+            '{"cpu": 20}',
+            '{"cpu": 30}'
+        ],
+        'tags': [],
+        'notes': None,
+        'sweepName': None,
+    }
+
+
+def random_sweep_response():
+    root = 'sweep-test-{}'.format(wandb.util.generate_id())
+    return {
+        'id': '{}-id'.format(root),
+        'name': '{}-name'.format(root),
+        'bestLoss': 0.23,
+        'config': yaml.dump({'method': 'random', 'parameters': {'lr': {'max': 0.1, 'min': 0.01}}}),
     }
 
 
@@ -140,62 +186,99 @@ index 30d74d2..9a2c773 100644
     }
 
 
-def success_or_failure(payload=None, body_match="query"):
-    def wrapper(mocker, status_code=200, error=None, attempts=1):
-        """attempts will pass the status_code provided until the final attempt when it will pass 200"""
-        if error:
-            body = {'errors': error}
-        else:
-            body = {'data': payload}
+def mock_graphql_request(mocker, payload=None, error=None, body_match=None,
+        status_code=None, attempts=None):
+    """Mock a sequence of graphql requests (retries) and their eventual response.
 
-        def match_body(request):
-            return body_match in (request.text or '')
+    Arguments:
+        mocker: request_mocker fixture
+        payload (nested dict/list): Response body to eventually return.
+        error (nested dict/list): Error payload to return rather than `payload`.
+        body_match (str = 'query'): A string to match in the request body that
+            causes this mock to be used. This is important any time you're using
+            more than one request mock at once. Otherwise, the last mock defined
+            will determine what gets returned.
+        status_code (int = 200): HTTP response status code to return on request
+            attempts before the final one. The final attempt will always return
+            200.
+        attempts (int): Number of attempts to wait for before allowing the
+            request to succeed or fail.
+    """
+    if error:
+        body = {'errors': error}
+    else:
+        body = {'data': payload}
+    if body_match is None:
+        body_match = 'query'
+    if status_code is None:
+        status_code = 200
+    if attempts is None:
+        attempts = 1
 
-        res = [{'json': body, 'status_code': status_code}]
-        if attempts > 1:
-            for i in range(attempts - 1):
-                if i == attempts - 2:
-                    status_code = 200
-                res.append({'json': body, 'status_code': status_code})
-        return mocker.register_uri('POST', 'https://api.wandb.ai/graphql',
-                                   res, additional_matcher=match_body)
+    def match_body(request):
+        return body_match in (request.text or '')
+
+    res = [{'json': body, 'status_code': status_code}]
+    if attempts > 1:
+        for i in range(attempts - 1):
+            if i == attempts - 2:
+                status_code = 200
+            res.append({'json': body, 'status_code': status_code})
+    return mocker.register_uri('POST', 'https://api.wandb.ai/graphql',
+                               res, additional_matcher=match_body)
+
+
+def graphql_request_mocker(payload=None, body_match=None):
+    """Make a function to mock a query or mutation that returns a particular
+    response after a certain number of retries.
+
+    Arguments to this function and the function it returns match
+    `mock_graphql_request()`.
+    """
+    @functools.wraps(mock_graphql_request)
+    def wrapper(mocker, status_code=None, error=None, attempts=None):
+        return mock_graphql_request(mocker, payload=payload,
+            body_match=body_match, error=error, status_code=status_code,
+            attempts=attempts)
     return wrapper
 
 
-def _query(key, json, body_match="query"):
+def query_mocker(key, json, body_match="query"):
+    """Shorthand of `graphql_request_mocker()` for a single query."""
     payload = {}
     if type(json) == list:
         json = {'edges': [{'node': item} for item in json]}
     payload[key] = json
-    return success_or_failure(payload=payload, body_match=body_match)
+    return graphql_request_mocker(payload=payload, body_match=body_match)
 
 
-def _mutate(key, json):
+def mutation_mocker(key, json):
+    """Shorthand of `graphql_request_mocker()` for a single mutation."""
     payload = {}
     payload[key] = json
-    return success_or_failure(payload=payload, body_match="mutation")
+    return graphql_request_mocker(payload=payload, body_match="mutation")
 
 
 @pytest.fixture
 def upsert_run(request, entity_name='bagsy', project_name='new-project'):
-    return _mutate('upsertBucket',
+    return mutation_mocker('upsertBucket',
                    {'bucket': _bucket("default", entity_name=entity_name, project_name=project_name)})
 
 
 @pytest.fixture
 def query_project():
     # this should really be called query_download_urls
-    return _query('model', _download_urls(), body_match="updatedAt")
+    return query_mocker('model', _download_urls(), body_match="updatedAt")
 
 
 @pytest.fixture
 def query_run_resume_status(request):
-    return _query('model', _run_resume_status(), body_match="historyTail")
+    return query_mocker('model', _run_resume_status(), body_match="historyTail")
 
 
 @pytest.fixture
 def query_no_run_resume_status():
-    return _query('model', {'bucket': None}, body_match="historyTail")
+    return query_mocker('model', {'bucket': None}, body_match="historyTail")
 
 
 @pytest.fixture
@@ -203,7 +286,7 @@ def query_download_h5():
     def wrapper(mocker, status_code=200, error=None, content=None):
         mocker.register_uri('GET', 'https://h5py.url',
                             content=content, status_code=status_code)
-        return _query('model', _download_urls(files={'edges': [{'node': {
+        return query_mocker('model', _download_urls(files={'edges': [{'node': {
             'name': 'wandb.h5',
             'url': 'https://h5py.url',
             'md5': 'fakemd5',
@@ -217,7 +300,7 @@ def query_download_h5():
 def query_upload_h5(mocker):
     def wrapper(mocker, status_code=200, error=None, content=None):
         mocker.register_uri('PUT', "https://h5py.url")
-        return _query('model', _download_urls(files={'edges': [{'node': {
+        return query_mocker('model', _download_urls(files={'edges': [{'node': {
             'name': 'wandb.h5',
             'url': 'https://h5py.url',
             'md5': 'fakemd5'
@@ -227,17 +310,17 @@ def query_upload_h5(mocker):
 
 @pytest.fixture
 def query_empty_project():
-    return _query('model', _download_urls(empty=True))
+    return query_mocker('model', _download_urls(empty=True))
 
 
 @pytest.fixture
 def query_projects():
-    return _query('models', [_download_urls("test_1"), _download_urls("test_2"), _download_urls("test_3")], body_match="query Models")
+    return query_mocker('models', [_download_urls("test_1"), _download_urls("test_2"), _download_urls("test_3")], body_match="query Models")
 
 
 @pytest.fixture
 def query_runs():
-    return _query('buckets', [_bucket("default"), _bucket("test_1")])
+    return query_mocker('buckets', [_bucket("default"), _bucket("test_1")])
 
 
 @pytest.fixture
@@ -245,33 +328,33 @@ def query_run(request_mocker):
     def wrapper(request_mocker, metadata={"docker": "test/docker", "program": "train.py", "args": ["--test", "foo"]}):
         request_mocker.register_uri('GET', 'https://metadata.json',
                                     content=json.dumps(metadata).encode('utf8'), status_code=200)
-        return _query('model', {'bucket': _bucket_config()})(request_mocker)
+        return query_mocker('model', {'bucket': _bucket_config()})(request_mocker)
     return wrapper
 
 
 @pytest.fixture
 def query_run_v2():
-    return _query('project', {'run': _run()}, body_match='run(name:')
+    return query_mocker('project', {'run': run_response()}, body_match='run(name:')
 
 
 @pytest.fixture
 def query_run_files(request_mocker):
     request_mocker.register_uri('GET', "https://weights.url")
-    return _query('project', {'run': _run_files()},
+    return query_mocker('project', {'run': _run_files()},
                   body_match='files(names: ')
 
 
 @pytest.fixture
 def query_runs_v2():
-    return _query('project', {
+    return query_mocker('project', {
         'runCount': 4,
         'runs': {
             'pageInfo': {
                 'hasNextPage': True,
                 'endCursor': 'end'
             },
-            'edges': [{'node': _run(),
-                       'cursor': 'cursor'}, {'node': _run(),
+            'edges': [{'node': run_response(),
+                       'cursor': 'cursor'}, {'node': run_response(),
                                              'cursor': 'cursor'}]
         }
     })
@@ -279,7 +362,7 @@ def query_runs_v2():
 
 @pytest.fixture
 def query_projects_v2():
-    return _query('models', {
+    return query_mocker('models', {
         'pageInfo': {
             'hasNextPage': False,
             'endCursor': 'end'
@@ -298,7 +381,7 @@ def query_viewer(request):
         teams = marker.args
     else:
         teams = ['foo']
-    return success_or_failure(payload={'viewer': {
+    return graphql_request_mocker(payload={'viewer': {
         'entity': 'foo',
         'teams': {
             'edges': [{'node': {'name': team}} for team in teams]

@@ -118,7 +118,7 @@ class Api(object):
             for err in data['errors']:
                 if not err.get('message'):
                     continue
-                wandb.termerror('Error while calling W&B API: %s' % err['message'])
+                wandb.termerror('Error while calling W&B API: {} ({})'.format(err['message'], res))
 
 
     def disabled(self):
@@ -130,9 +130,14 @@ class Api(object):
             env = env or os.environ
             run.config._set_wandb("spell_url", env.get("SPELL_RUN_URL"))
             run.config.persist()
+            try:
+                url = run.get_url()
+            except CommError as e:
+                wandb.termerror("Unable to register run with spell.run: %s" % e.message)
+                return False
             return requests.put(env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url", json={
                 "access_token": env.get("WANDB_ACCESS_TOKEN"),
-                "url": run.get_url()
+                "url": url
             }, timeout=2)
         except requests.RequestException:
             return False
@@ -584,6 +589,7 @@ class Api(object):
                     eventsLineCount
                     historyTail
                     eventsTail
+                    config
                 }
             }
         }

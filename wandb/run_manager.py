@@ -1,3 +1,5 @@
+# -*- encoding: utf-8 -*-
+
 import errno
 import json
 import logging
@@ -44,7 +46,9 @@ from wandb import util
 from wandb import wandb_config as config
 from wandb import wandb_run
 from wandb import wandb_socket
+from wandb.compat import windows
 from wandb.apis import InternalApi
+from wandb.apis import CommError
 
 
 logger = logging.getLogger(__name__)
@@ -337,7 +341,6 @@ class FileEventHandlerTextStream(FileEventHandler):
             self._tailer.stop()
             self._tailer = None
 
-
 class FileEventHandlerBinaryStream(FileEventHandler):
     def __init__(self, *args, **kwargs):
         super(FileEventHandlerBinaryStream, self).__init__(*args, **kwargs)
@@ -397,7 +400,11 @@ class Process(object):
     def poll(self):
         if self.returncode is None:
             try:
-                os.kill(self.pid, 0)
+                if platform.system() == "Windows":
+                    if windows.pid_running(self.pid) == False:
+                        raise OSError(0, "Process isn't running")
+                else:
+                    os.kill(self.pid, 0)
             except OSError as err:
                 if err.errno == errno.ESRCH:
                     # ESRCH == No such process
@@ -430,7 +437,6 @@ def format_run_name(run):
     "Simple helper to not show display name if its the same as id"
     return " "+run.name+":" if run.name and run.name != run.id else ":"
 
-
 class RunStatusChecker(object):
     """Polls the backend periodically to check on this run's status.
 
@@ -456,8 +462,11 @@ class RunStatusChecker(object):
                     project_name=self._run.project_name(),
                     entity_name=self._run.entity,
                     run_id=self._run.id)
-            except wandb.apis.CommError as e:
+            except CommError as e:
                 logger.exception("Failed to check stop requested status: %s" % e.exc)
+                should_exit = False
+            except:
+                logger.exception("An unknown error occurred while checking stop requested status. Continuing anyway..")
                 should_exit = False
 
             if should_exit:
@@ -633,7 +642,7 @@ class RunManager(object):
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
         ignore_globs = self._api.settings("ignore_globs")
-        for dirpath, dirnames, filenames in os.walk(self._run.dir):
+        for dirpath, _, filenames in os.walk(self._run.dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._run.dir)
@@ -863,6 +872,10 @@ class RunManager(object):
         # load the previous runs summary to avoid losing it, the user process will need to load it
         self._run.summary.update(json.loads(resume_status['summaryMetrics'] or "{}"))
 
+        # load the previous runs config
+        self._run.config.load_json(json.loads(resume_status.get('config') or "{}"))
+        self._run.config.persist()
+
         # Note: these calls need to happen after writing the files above. Because the access
         # to self._run.events below triggers events to initialize, but we need the previous
         # events to be written before that happens.
@@ -895,9 +908,8 @@ class RunManager(object):
         """
         io_wrap.init_sigwinch_handler()
         self._check_update_available(__version__)
-
         if self._output:
-            wandb.termlog("Local directory: %s" % os.path.relpath(self._run.dir))
+            wandb.termlog("Run data is saved locally in %s" % os.path.relpath(self._run.dir))
 
         self._system_stats.start()
         self._meta.start()
@@ -962,9 +974,9 @@ class RunManager(object):
             num_retries = 0  # no retries because we want to let the user process run even if the backend is down
 
         try:
-            upsert_result = self._run.save(
+            self._run.save(
                 id=storage_id, num_retries=num_retries, api=self._api)
-        except wandb.apis.CommError as e:
+        except CommError as e:
             logger.exception("communication error with wandb %s" % e.exc)
             # TODO: Get rid of str contains check
             if self._run.resume == 'never' and 'exists' in str(e):
@@ -990,8 +1002,31 @@ class RunManager(object):
                 raise LaunchError(launch_error_s)
 
         if self._output:
-            url = self._run.get_url(self._api)
-            wandb.termlog("{}{} {}".format("Resuming run" if self._run.resumed else "Syncing run", format_run_name(self._run), url))
+            if self._run.resumed:
+                run_state_str = "Resuming run"
+            else:
+                run_state_str = "Syncing run"
+
+            wandb.termlog("{} {}".format(run_state_str, click.style(self._run.name, fg="yellow")))
+            try:
+                url = self._run.get_url(self._api)
+                emojis = {}
+                if platform.system() != "Windows":
+                    emojis = dict(star="⭐️", broom="🧹 ", rocket="🚀")
+                project_url = self._run.get_project_url(self._api)
+                wandb.termlog("{} View project at {}".format(
+                    emojis.get("star", ""),
+                    click.style(project_url, underline=True, fg='blue')))
+                sweep_url = self._run.get_sweep_url(self._api)
+                if sweep_url:
+                    wandb.termlog("{} View sweep at {}".format(
+                        emojis.get("broom", ""),
+                        click.style(sweep_url, underline=True, fg='blue')))
+                wandb.termlog("{} View run at {}".format(
+                    emojis.get("rocket", ""),
+                    click.style(url, underline=True, fg='blue')))
+            except CommError as e:
+                wandb.termwarn(e.message)
             wandb.termlog("Run `wandb off` to turn off syncing.")
 
         env = self._run.set_environment(environment=env)
@@ -1042,7 +1077,7 @@ class RunManager(object):
         """
         stdout_streams, stderr_streams = self._get_stdout_stderr_streams()
 
-        if sys.platform == "win32":
+        if platform.system() == "Windows":
             # PTYs don't work in windows so we use pipes.
             self._stdout_tee = io_wrap.Tee.pipe(*stdout_streams)
             self._stderr_tee = io_wrap.Tee.pipe(*stderr_streams)
@@ -1059,7 +1094,10 @@ class RunManager(object):
         runner = util.find_runner(program)
         if runner:
             command = runner + command
-        command = ' '.join(six.moves.shlex_quote(arg) for arg in command)
+        if platform.system() == "Windows":
+            command = ' '.join(windows.quote_arg(arg) for arg in command)
+        else:
+            command = ' '.join(six.moves.shlex_quote(arg) for arg in command)
         self._stdout_stream.write_string(command + "\n\n")
 
         try:
@@ -1166,7 +1204,7 @@ class RunManager(object):
                     self._tensorboard_consumer.start()
             self._tensorboard_watchers[-1].start()
             return self._tensorboard_watchers
-        except ImportError as e:
+        except ImportError:
             wandb.termerror("Couldn't import tensorboard, not streaming events. Run `pip install tensorboard`")
 
 
@@ -1205,7 +1243,10 @@ class RunManager(object):
         wandb.termlog()
 
         if wandb_env.get_show_run():
-            webbrowser.open_new_tab(self._run.get_url(self._api))
+            try:
+                webbrowser.open_new_tab(self._run.get_url(self._api))
+            except CommError:
+                pass
 
         exitcode = None
         try:
@@ -1355,7 +1396,9 @@ class RunManager(object):
         self._run.history.load()
         history_keys = self._run.history.keys()
         # Only print sparklines if the terminal is utf-8
-        if len(history_keys) and sys.stdout.encoding == "UTF_8":
+        # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object 
+        #   which doesn't have the attribute 'encoding'
+        if len(history_keys) and hasattr(sys.stdout, 'encoding') and sys.stdout.encoding == "UTF_8":
             logger.info("rendering history")
             wandb.termlog('Run history:')
             max_len = max([len(k) for k in history_keys])
@@ -1382,8 +1425,10 @@ class RunManager(object):
         self._file_pusher.update_all_files()
         self._file_pusher.print_status()
 
-        url = self._run.get_url(self._api)
-
-        wandb.termlog('Synced{} {}'.format(format_run_name(self._run), url))
-        logger.info("syncing complete: %s" % url)
+        try:
+            url = self._run.get_url(self._api)
+            wandb.termlog('Synced{} {}'.format(format_run_name(self._run), url))
+            logger.info("syncing complete: %s" % url)
+        except CommError as e:
+            wandb.termwarn(e.message)
         sys.exit(exitcode)

@@ -62,7 +62,8 @@ def immutable_keys():
     certain values between multiple calls to wandb.init within a single process."""
     return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
             ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, DIR, SILENT, CONFIG_PATHS,
-            ANONYMOUS]
+            ANONYMOUS, RUN_GROUP, JOB_TYPE, TAGS, RESUME, AGENT_REPORT_INTERVAL, HTTP_TIMEOUT,
+            USERNAME, HOST]
 
 
 def _env_as_bool(var, default=None, env=None):

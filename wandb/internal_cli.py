@@ -9,6 +9,7 @@ import socket
 import sys
 import time
 import traceback
+import platform
 
 import six
 import wandb
@@ -17,6 +18,7 @@ import wandb.io_wrap
 import wandb.run_manager
 import wandb.wandb_run
 from wandb import util
+from wandb.compat import windows
 
 
 def headless(args):
@@ -30,7 +32,6 @@ def headless(args):
     user_process_pid = args['pid']
     stdout_master_fd = args['stdout_master_fd']
     stderr_master_fd = args['stderr_master_fd']
-
     try:
         run = wandb.wandb_run.Run.from_environment_or_defaults(disable_persist=True)
         run.enable_logging()
