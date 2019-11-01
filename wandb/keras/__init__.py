@@ -28,8 +28,11 @@ else:
 def is_dataset(data):
     dataset_ops = wandb.util.get_module(
         "tensorflow.python.data.ops.dataset_ops")
-    if dataset_ops:
-        return isinstance(data, (dataset_ops.DatasetV1, dataset_ops.DatasetV2))
+    if dataset_ops and hasattr(dataset_ops, "DatasetV2"):
+        dataset_types = (dataset_ops.DatasetV2,)
+        if hasattr(dataset_ops, "DatasetV1"):
+            dataset_types = dataset_types + (dataset_ops.DatasetV1,)
+        return isinstance(data, dataset_types)
     else:
         return False
 
@@ -189,11 +192,10 @@ class WandbCallback(keras.callbacks.Callback):
             ("image", "images", "segmentation_mask").  
         log_evaluation (boolean): if True save a dataframe containing the full
             validation results at the end of training.
-        class_colors: ([float, float, float]) if the input or output is a segmentation mask, 
+        class_colors ([float, float, float]): if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
-        log_batch_frequency: integer or None
-            if None, callback will log every epoch
-            if integer, callback will log training metrics every log_batch_frequency 
+        log_batch_frequency (integer): if None, callback will log every epoch.
+            If set to integer, callback will log training metrics every log_batch_frequency 
             batches.
     """
 
