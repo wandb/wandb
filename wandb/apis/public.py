@@ -216,6 +216,9 @@ class Api(object):
 
     def reports(self, path="", name=None, per_page=None):
         """Get reports for a given project path.
+
+        WARNING: This api is in beta and will likely change in a future release
+
         Args:
             path (str): path to project the report resides in, should be in the form: "entity/project"
             name (str): optional name of the report requested.
@@ -223,7 +226,7 @@ class Api(object):
                 Usually there is no reason to change this.
 
         Returns:
-            A :obj:`Reports` object which is an iterable collection of :obj:`Report` objects.
+            A :obj:`Reports` object which is an iterable collection of :obj:`BetaReport` objects.
         """
         entity, project, run = self._parse_path(path)
         if entity is None:
@@ -1140,7 +1143,7 @@ class File(object):
         return "<File {} ({})>".format(self.name, self.mimetype)
 
 class Reports(Paginator):
-    """Reports is an iterable collection of :obj:`Report` objects."""
+    """Reports is an iterable collection of :obj:`BetaReport` objects."""
 
     QUERY = gql('''
         query Run($project: String!, $entity: String!, $reportCursor: String, 
@@ -1220,6 +1223,9 @@ class QueryGenerator(object):
         "AND": '$and',
         "OR": '$or'
     }
+
+    def __init__(self):
+        pass
 
     def _is_group(self, op):
         return op.get("filters") != None
