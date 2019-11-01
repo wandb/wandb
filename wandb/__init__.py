@@ -136,12 +136,14 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
         models = (models,)
     graphs = []
     prefix = ''
-    idx = idx or _global_watch_idx
+    if idx is None:
+        idx = _global_watch_idx
     for local_idx, model in enumerate(models):
         global_idx = idx + local_idx
         _global_watch_idx += 1
         if global_idx > 0:
-            prefix = "model_%i/" % global_idx
+            # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
+            prefix = "graph_%i" % global_idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
             model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)

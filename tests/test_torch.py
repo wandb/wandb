@@ -398,7 +398,7 @@ def test_unwatch_multi(wandb_init_run):
         output2.backward(grads)
         assert(len(wandb_init_run.history.row) == 16)
         print(wandb_init_run.history.row)
-        assert wandb_init_run.history.row.get('gradients/model_1/conv1.bias')
+        assert wandb_init_run.history.row.get('gradients/graph_1conv1.bias')
         assert wandb_init_run.history.row.get('gradients/conv1.bias') is None
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
