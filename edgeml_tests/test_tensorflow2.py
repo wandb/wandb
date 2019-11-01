@@ -181,7 +181,7 @@ def test_tfkeras_no_validation_data(wandb_init_run, image_model, capsys):
     image_model.fit(np.ones((10, 28, 28, 1)), np.ones((10,)), epochs=1,
                     callbacks=[WandbCallback(data_type="image")])
     print("WHOA", wandb_init_run.history.rows[0])
-    captured_out, captured_err = capsys.readouterr()
+    captured_out, _ = capsys.readouterr()
     assert "No validation_data set" not in captured_out
     assert wandb_init_run.history.rows[0].get("examples") is None
 

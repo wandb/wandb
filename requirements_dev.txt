@@ -23,7 +23,7 @@ coveralls==1.5.1
 recommonmark==0.4.0
 freezegun==0.3.9
 sh==1.12.14
-pillow==5.0.0
+pillow==6.2.0
 mock==2.0.0
 twine==1.11.0
 numpy==1.16.0
@@ -42,7 +42,7 @@ xgboost
 ray
 gym
 configparser
-tensorflow==1.13.2
+tensorflow==1.14.0
 protobuf>=3.6.0
 vcrpy>=2.0.0
 pytest-vcr>=1.0.0

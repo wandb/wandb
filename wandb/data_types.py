@@ -621,8 +621,9 @@ class Video(BatchableMedia):
             V = V.reshape(1, *V.shape)
         b, t, c, h, w = V.shape
 
-        if V.dtype == np.uint8:
-            V = np.float32(V) / 255.
+        if V.dtype != np.uint8:
+            logging.warning("Converting video data to uint8")
+            V = V.astype(np.uint8)
 
         def is_power2(num):
             return num != 0 and ((num & (num - 1)) == 0)
