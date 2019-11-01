@@ -103,8 +103,8 @@ def hook_torch(*args, **kwargs):
         "DEPRECATED: wandb.hook_torch is deprecated, use `wandb.watch`")
     return watch(*args, **kwargs)
 
-
-def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
+_global_watch_idx = 0
+def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
@@ -116,6 +116,8 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
     :param (int) idx: an index to be used when calling wandb.watch on multiple models
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
+    global _global_watch_idx
+
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling watch")
@@ -134,9 +136,13 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
         models = (models,)
     graphs = []
     prefix = ''
+    if idx is None:
+        idx = _global_watch_idx
     for local_idx, model in enumerate(models):
         global_idx = idx + local_idx
+        _global_watch_idx += 1
         if global_idx > 0:
+            # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
             prefix = "graph_%i" % global_idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
@@ -147,6 +153,24 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
+
+def unwatch(models=None):
+    """Remove pytorch gradient and parameter hooks.
+
+    Args:
+        models (list): Optional list of pytorch models that have had watch called on them
+    """
+    if models:
+        if not isinstance(models, (tuple, list)):
+            models = (models,)
+        for model in models:
+            if not hasattr(model, "_wandb_hook_names"):
+                termwarn("%s model has not been watched" % model)
+            else:
+                for name in model._wandb_hook_names:
+                    run.history.torch.unhook(name)
+    else:
+        run.history.torch.unhook_all()
 
 
 class ExitHooks(object):
@@ -453,9 +477,6 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     stdout_redirector.restore()
     if not env.is_debug():
         stderr_redirector.restore()
-
-    if len(patched["tensorboard"]) > 0:
-        tensorboard.reset_state()
 
     termlog()
     termlog("Waiting for W&B process to finish, PID {}".format(wandb_process.pid))
@@ -839,10 +860,15 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     trigger.call('on_init', **init_args)
     global run
     global __stage_dir__
+    global _global_watch_idx
 
     # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
     if reinit or (in_jupyter and reinit != False):
+        # Reset global state for pytorch watch and tensorboard
+        _global_watch_idx = 0
+        if len(patched["tensorboard"]) > 0:
+            tensorboard.reset_state()
         reset_env(exclude=env.immutable_keys())
         run = None
 

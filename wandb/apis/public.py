@@ -675,8 +675,10 @@ class Run(Attrs):
                 # just for the sake of this one.
                 self.sweep = Sweep.get(self.client, self.entity, self.project,
                         self.sweep_name, withRuns=False)
-                self.sweep.runs.append(self)
-                self.sweep.runs_by_id[self.id] = self
+                # TODO: Older runs don't always have sweeps when sweep_name is set
+                if self.sweep:
+                    self.sweep.runs.append(self)
+                    self.sweep.runs_by_id[self.id] = self
 
         self._attrs['summaryMetrics'] = json.loads(
             self._attrs['summaryMetrics']) if self._attrs.get('summaryMetrics') else {}
