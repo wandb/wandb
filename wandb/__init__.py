@@ -1034,11 +1034,14 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     # set the run directory in the config so it actually gets persisted
     run.config.set_run_dir(run.dir)
+    # we have re-read the config, add telemetry data
+    telemetry_updated = run.config._telemetry_update()
 
     if sagemaker_config:
         run.config._update(sagemaker_config)
         allow_val_change = True
-    if config:
+    if config or telemetry_updated:
+        print("about to save", config)
         run.config._update(config, allow_val_change=allow_val_change, as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
