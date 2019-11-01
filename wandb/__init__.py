@@ -196,6 +196,12 @@ def _init_headless(run, cloud=True):
     hooks.hook()
 
     if platform.system() == "Windows":
+        import win32api
+        # Make sure we are not ignoring CTRL_C_EVENT
+        # https://docs.microsoft.com/en-us/windows/console/setconsolectrlhandler
+        # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
+        win32api.SetConsoleCtrlHandler(None, False)
+
         # PTYs don't work in windows so we create these unused pipes and
         # mirror stdout to run.dir/output.log.  There should be a way to make
         # pipes work, but I haven't figured it out.  See links in compat/windows
@@ -236,7 +242,7 @@ def _init_headless(run, cloud=True):
     os.close(stderr_master_fd)
     # Listen on the socket waiting for the wandb process to be ready
     try:
-        success, message = server.listen(30)
+        success, _ = server.listen(30)
     except KeyboardInterrupt:
         success = False
     else:
@@ -245,7 +251,7 @@ def _init_headless(run, cloud=True):
                 wandb_process.pid))
     if not success:
         wandb_process.kill()
-        for i in range(20):
+        for _ in range(20):
             time.sleep(0.1)
             if wandb_process.poll() is not None:
                 break
@@ -348,7 +354,8 @@ def _jupyter_login(force=True, api=None):
                 termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
                 key = getpass.getpass("API Key: ").strip()
             except NotImplementedError:
-                termerror("Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
+                termerror(
+                    "Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
         return key, anonymous
 
     api = api or (run.api if run else None)
@@ -386,12 +393,14 @@ def _init_jupyter(run):
     else:
         displayed = False
         try:
+            sweep_url = run.get_sweep_url()
+            sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(sweep_url, sweep_url) if sweep_url else ""
+            docs_html = '<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">(Documentation)</a>'
             display(HTML('''
-                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a> {}.<br/>
                 Project page: <a href="{}" target="_blank">{}</a><br/>
-                Run page: <a href="{}" target="_blank">{}</a><br/>
-                Docs: <a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">https://docs.wandb.com/integrations/jupyter.html</a><br/>
-            '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
+                {}Run page: <a href="{}" target="_blank">{}</a><br/>
+            '''.format(docs_html, run.get_project_url(), run.get_project_url(), sweep_line, run.get_url(), run.get_url() )))
             displayed = True
             run.save()
         except (CommError, ValueError) as e:
@@ -402,7 +411,7 @@ def _init_jupyter(run):
                 '''.format(e.message)))
             else:
                 termerror(str(e))
-            
+
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
@@ -435,6 +444,9 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
     stdout_redirector.restore()
     if not env.is_debug():
         stderr_redirector.restore()
+
+    if len(patched["tensorboard"]) > 0:
+        tensorboard.reset_state()
 
     termlog()
     termlog("Waiting for W&B process to finish, PID {}".format(wandb_process.pid))
@@ -483,6 +495,9 @@ def save(glob_str, base_path=None, policy="live"):
     if policy not in ("live", "end"):
         raise ValueError(
             'Only "live" and "end" policies are currently supported.')
+    if not isinstance(glob_str, str):
+        raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+
     if base_path is None:
         base_path = os.path.dirname(glob_str)
     if isinstance(glob_str, bytes):
@@ -535,8 +550,8 @@ def restore(name, run_path=None, replace=False, root="."):
     api = Api()
     api_run = api.run(run_path or run.path)
     root = run.dir if run else root
-    path = os.path.exists(os.path.join(root, name))
-    if path and replace == False:
+    path = os.path.join(root, name)
+    if os.path.exists(path) and replace == False:
         return open(path, "r")
     files = api_run.files([name])
     if len(files) == 0:
@@ -919,6 +934,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
     if resume == True:
         os.environ[env.RESUME] = "auto"
+    elif resume in ("allow", "must", "never"):
+        os.environ[env.RESUME] = resume
+        if id:
+            os.environ[env.RUN_ID] = id
     elif resume:
         os.environ[env.RESUME] = os.environ.get(env.RESUME, "allow")
         # TODO: remove allowing resume as a string in the future
@@ -1027,6 +1046,7 @@ def _wandb_finished(run):
     # must shutdown async logging thread before closing files
     shutdown_async_log_thread()
     run.close_files()
+
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')

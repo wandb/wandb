@@ -118,7 +118,7 @@ class Api(object):
             for err in data['errors']:
                 if not err.get('message'):
                     continue
-                wandb.termerror('Error while calling W&B API: %s' % err['message'])
+                wandb.termerror('Error while calling W&B API: {} ({})'.format(err['message'], res))
 
 
     def disabled(self):
@@ -589,6 +589,7 @@ class Api(object):
                     eventsLineCount
                     historyTail
                     eventsTail
+                    config
                 }
             }
         }

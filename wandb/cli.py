@@ -812,7 +812,7 @@ def docker_run(ctx, docker_run_args, help):
 @click.option('--dir', default="/app", help="Which directory to mount the code in the container")
 @click.option('--no-dir', is_flag=True, help="Don't mount the current directory")
 @click.option('--shell', default="/bin/bash", help="The shell to start the container with")
-@click.option('--port', default="8888", help="The hot port to bind jupyter on")
+@click.option('--port', default="8888", help="The host port to bind jupyter on")
 @click.option('--cmd', help="The command to run in the container")
 @click.option('--no-tty', is_flag=True, default=False, help="Run the command without a tty")
 @display_error
