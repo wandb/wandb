@@ -1203,16 +1203,8 @@ class Reports(Paginator):
     def __repr__(self):
         return "<Reports {}>".format("/".join(self.project.path))
 
-class Report(Attrs):
-    """Report is a class associated with a reports created in wandb.
-
-    Attributes:
-        name (string): report name
-        description (string): report descirpiton;
-        user (:obj:User): the user that created the report
-        spec (dict): the spec off the report;
-        updated_at (string): timestamp of last update
-    """
+class QueryGenerator(object):
+    """QueryGenerator is a helper object to write filters for runs"""
     INDIVIDUAL_OP_TO_MONGO = {
         '!=': '$ne',
         '>': '$gt',
@@ -1223,17 +1215,11 @@ class Report(Attrs):
         "NIN": '$nin',
         "REGEX": '$regex'
     }
+
     GROUP_OP_TO_MONGO = {
         "AND": '$and',
         "OR": '$or'
     }
-
-    def __init__(self, client, attrs, entity=None, project=None):
-        self.client = client
-        self.project = project
-        self.entity = entity
-        super(Report, self).__init__(dict(attrs))
-        self._attrs["spec"] = json.loads(self._attrs["spec"])
 
     def _is_group(self, op):
         return op.get("filters") != None
@@ -1247,7 +1233,7 @@ class Report(Attrs):
         else:
             return {self.INDIVIDUAL_OP_TO_MONGO[op]: value}
     
-    def _key_to_server_path(self, key):
+    def key_to_server_path(self, key):
         if key["section"] == 'config':
             return 'config.' + key["name"]
         elif key["section"] == 'summary':
@@ -1279,7 +1265,7 @@ class Report(Attrs):
                 }
             else:
                 return {"tags": filter["key"]["name"]}
-        path = self._key_to_server_path(filter.key)
+        path = self.key_to_server_path(filter.key)
         if path == None:
             return path
         return {
@@ -1294,6 +1280,26 @@ class Report(Attrs):
                 self.GROUP_OP_TO_MONGO[filter["op"]]: [self.filter_to_mongo(f) for f in filter["filters"]]
             }
 
+
+class Report(Attrs):
+    """Report is a class associated with reports created in wandb.
+
+    Attributes:
+        name (string): report name
+        description (string): report descirpiton;
+        user (:obj:User): the user that created the report
+        spec (dict): the spec off the report;
+        updated_at (string): timestamp of last update
+    """
+
+    def __init__(self, client, attrs, entity=None, project=None):
+        self.client = client
+        self.project = project
+        self.entity = entity
+        self.query_generator = QueryGenerator()
+        super(Report, self).__init__(dict(attrs))
+        self._attrs["spec"] = json.loads(self._attrs["spec"])
+
     @property
     def sections(self):
         return self.spec['panelGroups']
@@ -1301,12 +1307,12 @@ class Report(Attrs):
     def runs(self, section, per_page=50, only_selected=True):
         run_set_idx = section.get('openRunSet', 0)
         run_set = section['runSets'][run_set_idx]
-        order = self._key_to_server_path(run_set["sort"]["key"])
+        order = self.query_generator.key_to_server_path(run_set["sort"]["key"])
         if run_set["sort"].get("ascending"):
             order = "+"+order
         else:
             order = "-"+order
-        filters = self.filter_to_mongo(run_set["filters"])
+        filters = self.query_generator.filter_to_mongo(run_set["filters"])
         if only_selected:
             #TODO: handle this not always existing
             filters["$or"][0]["$and"].append({"name": {"$in": run_set["selections"]["tree"]}})
