@@ -204,6 +204,10 @@ class TorchHistory(object):
         self._hook_handles[name] = handle
         return handle
 
+    def unhook_all(self):
+        for name, handle in self._hook_handles.items():
+            handle.remove()
+
     def unhook(self, name):
         handle = self._hook_handles.pop(name)
         handle.remove()
