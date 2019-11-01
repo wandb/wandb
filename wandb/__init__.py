@@ -671,7 +671,7 @@ def _record_log_timing():
         If user calls wandb.log with commit=True more than 5 times with less than a second
         in between we will warn them.
     """
-    global _last_time, _slow_streak
+    global _last_time, _fast_streak
     cur_time = time.time()
 
     if (cur_time - _last_time < 0.1):
