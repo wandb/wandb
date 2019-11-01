@@ -1197,7 +1197,7 @@ class Reports(Paginator):
         self.variables.update({'reportCursor': self.cursor, 'reportLimit': self.per_page})
 
     def convert_objects(self):
-        return [Report(self.client, r["node"], entity=self.project.entity, project=self.project.name)
+        return [BetaReport(self.client, r["node"], entity=self.project.entity, project=self.project.name)
                 for r in self.last_response['project']['allViews']['edges']]
 
     def __repr__(self):
@@ -1281,8 +1281,10 @@ class QueryGenerator(object):
             }
 
 
-class Report(Attrs):
-    """Report is a class associated with reports created in wandb.
+class BetaReport(Attrs):
+    """BetaReport is a class associated with reports created in wandb.
+
+    WARNING: this API will likely change in a future release
 
     Attributes:
         name (string): report name
@@ -1297,7 +1299,7 @@ class Report(Attrs):
         self.project = project
         self.entity = entity
         self.query_generator = QueryGenerator()
-        super(Report, self).__init__(dict(attrs))
+        super(BetaReport, self).__init__(dict(attrs))
         self._attrs["spec"] = json.loads(self._attrs["spec"])
 
     @property
