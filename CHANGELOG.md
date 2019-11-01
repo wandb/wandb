@@ -22,7 +22,7 @@
 -   TensorBoard logging now supports configuring rate_limits and filtering event types
 -   Use simple output mirroring stdout doesn't have a file descriptor
 -   Write wandb meta files to the system temp directory if the local directory isn't writable
--   Added api.reports to the public API
+-   Added beta api.reports to the public API
 -   Added wandb.unwatch to remove hooks from pytorch models
 -   Store the framework used in config._wandb
 
