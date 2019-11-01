@@ -1012,7 +1012,7 @@ class RunManager(object):
                 url = self._run.get_url(self._api)
                 emojis = {}
                 if platform.system() != "Windows":
-                    emojis = dict(star="⭐️", broom="🧹 ", rocket="🚀")
+                    emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
                 project_url = self._run.get_project_url(self._api)
                 wandb.termlog("{} View project at {}".format(
                     emojis.get("star", ""),
