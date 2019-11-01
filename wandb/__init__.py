@@ -141,7 +141,7 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
         global_idx = idx + local_idx
         _global_watch_idx += 1
         if global_idx > 0:
-            prefix = "graph_%i" % global_idx
+            prefix = "model_%i/" % global_idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
             model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
@@ -152,9 +152,23 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
 
-def unwatch():
-    "Remove all pytorch gradient and parameter hooks"
-    run.history.torch.unhook_all()
+def unwatch(models=None):
+    """Remove pytorch gradient and parameter hooks.
+
+    Args:
+        models (list): Optional list of pytorch models that have had watch called on them
+    """
+    if models:
+        if not isinstance(models, (tuple, list)):
+            models = (models,)
+        for model in models:
+            if not hasattr(model, "_wandb_hook_names"):
+                termwarn("%s model has not been watched" % model)
+            else:
+                for name in model._wandb_hook_names:
+                    run.history.torch.unhook(name)
+    else:
+        run.history.torch.unhook_all()
 
 
 class ExitHooks(object):
