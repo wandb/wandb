@@ -10,6 +10,8 @@
 -   wandb.Video only accepts uint8 instead of incorrectly converting to floats
 -   SageMaker environment detection is now more robust
 -   Resuming correctly populates config
+-   wandb.restore respects root when run.dir is set #658
+-   Calling wandb.watch multiple times properly namespaces histograms and graphs
 
 #### :nail_care: Enhancement
 
@@ -20,6 +22,9 @@
 -   TensorBoard logging now supports configuring rate_limits and filtering event types
 -   Use simple output mirroring stdout doesn't have a file descriptor
 -   Write wandb meta files to the system temp directory if the local directory isn't writable
+-   Added api.reports to the public API
+-   Added wandb.unwatch to remove hooks from pytorch models
+-   Store the framework used in config._wandb
 
 ## 0.8.13 (Oct 15, 2019)
 
