@@ -43,28 +43,29 @@ def test_tensorboard_pytorch(wandb_init_run, caplog):
         output = net(torch.ones((64, 1, 28, 28)))
         loss = F.mse_loss(output, torch.ones((64, 10)))
         output.backward(torch.ones(64, 10))
-        writer.add_scalar("loss", loss / 64, i+1)
-        writer.add_image("example", torch.ones((1, 28, 28)), i+1)
+        writer.add_scalar("loss", loss / 64, i)
+        writer.add_image("example", torch.ones((1, 28, 28)), i)
         # TODO: There's a race here and it's gross
         assert(len(wandb_init_run.history.row) in (3, 4, 8, 12))
     wandb_init_run.run_manager.test_shutdown()
     print("DIR: ", glob.glob(wandb_init_run.dir + "/*"),
           glob.glob(wandb_init_run.dir + "/**/*"))
     assert len(glob.glob(wandb_init_run.dir + "/*.tfevents.*")) == 1
-    assert(len(wandb_init_run.history.rows) == 4)
-    print("Rows: ", wandb_init_run.history.rows)
-    assert list(wandb_init_run.history.rows[0].keys()) == ['gradients/fc2.bias',
-                                                           'gradients/fc2.weight',
-                                                           'gradients/fc1.bias',
-                                                           'gradients/fc1.weight',
-                                                           'gradients/conv2.weight',
-                                                           'gradients/conv2.bias',
-                                                           'gradients/conv1.weight',
-                                                           'gradients/conv1.bias',
-                                                           'global_step',
-                                                           '_timestamp',
-                                                           'loss',
-                                                           '_runtime',
-                                                           '_step']
-    assert list(wandb_init_run.history.rows[-1].keys()) == ['global_step',
-                                                            '_timestamp', 'example', '_runtime', '_step']
+    assert(len(wandb_init_run.history.rows) == 3)
+    print("LAST KEYS:", sorted(list(wandb_init_run.history.rows[-1].keys())))
+    assert sorted(list(wandb_init_run.history.rows[0].keys())) == sorted(['gradients/fc2.bias',
+                                                                          'gradients/fc2.weight',
+                                                                          'gradients/fc1.bias',
+                                                                          'gradients/fc1.weight',
+                                                                          'gradients/conv2.weight',
+                                                                          'gradients/conv2.bias',
+                                                                          'gradients/conv1.weight',
+                                                                          'gradients/conv1.bias',
+                                                                          'global_step',
+                                                                          '_timestamp',
+                                                                          'example',
+                                                                          'loss',
+                                                                          '_runtime',
+                                                                          '_step'])
+    assert sorted(list(wandb_init_run.history.rows[-1].keys())) == sorted(['global_step',
+                                                                           '_timestamp', 'example', 'loss', '_runtime', '_step'])

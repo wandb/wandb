@@ -60,7 +60,8 @@ def _run_resume_status(name='test', empty=False, files=None):
             'historyLineCount': 15,
             'eventsLineCount': 0,
             'historyTail': '["{\\"_step\\": 15, \\"acc\\": 1}"]',
-            'eventsTail': '[]'
+            'eventsTail': '[]',
+            'config': '{"epochs": {"value": 20}}'
         }
     }
 
