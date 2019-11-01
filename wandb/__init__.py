@@ -540,7 +540,7 @@ def save(glob_str, base_path=None, policy="live"):
     return files
 
 
-def restore(name, run_path=None, replace=False, root="."):
+def restore(name, run_path=None, replace=False, root=None):
     """ Downloads the specified file from cloud storage into the current run directory
     if it doesn exist.
 
@@ -558,7 +558,7 @@ def restore(name, run_path=None, replace=False, root="."):
             "You must call `wandb.init` before calling restore or specify a run_path")
     api = Api()
     api_run = api.run(run_path or run.path)
-    root = run.dir if run else root
+    root = root or run.dir if run else "."
     path = os.path.join(root, name)
     if os.path.exists(path) and replace == False:
         return open(path, "r")
