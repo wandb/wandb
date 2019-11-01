@@ -1041,7 +1041,6 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         run.config._update(sagemaker_config)
         allow_val_change = True
     if config or telemetry_updated:
-        print("about to save", config)
         run.config._update(config, allow_val_change=allow_val_change, as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
