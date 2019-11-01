@@ -302,6 +302,10 @@ def login(anonymous=None, key=None):
 
        anonymous can be "never", "must", or "allow".  If set to "must" we'll always login anonymously,
        if set to "allow" we'll only create an anonymous user if the user isn't already logged in.
+
+       Returns:
+            True if login was successful
+            False on failure
     """
     # This ensures we have a global api object
     ensure_configured()
@@ -314,14 +318,15 @@ def login(anonymous=None, key=None):
         if in_jupyter:
             termwarn("Calling wandb.login() without arguments from jupyter should prompt you for an api key.")
         util.set_api_key(api, key)
-        return key
     elif api.api_key and anonymous != "must":
-        return api.api_key
+        key = api.api_key
     elif in_jupyter:
         os.environ[env.JUPYTER] = "true"
-        return _jupyter_login(api=api)
+        # Don't return key to ensure it's not displayed in the notebook.
+        key = _jupyter_login(api=api)
     else:
-        return util.prompt_api_key(api)
+        key = util.prompt_api_key(api)
+    return True if key else False
 
 
 def _jupyter_login(force=True, api=None):
@@ -372,17 +377,21 @@ def _init_jupyter(run):
     os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
+        # Fetches or prompts the users for an API key. Or if anonymode enabled, uses anonymous API key
         key = _jupyter_login()
         # Ensure our api client picks up the new key
         if key:
             run.api.reauth()
         else:
             run.mode = "dryrun"
+            display(HTML('''
+                <b>Could not authenticate.</b><br/>
+            '''))
     run.resume = "allow"
     if run.mode == "dryrun":
         display(HTML('''
-            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>.  Results will not be sent to the cloud.  
-            Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
+            Using <a href="https://wandb.com" target="_blank">Weights & Biases</a> in dryrun mode. Not logging results to the cloud.<br/>
+            Call wandb.login() to authenticate this machine.<br/>
         '''.format(run.api.app_url)))
     else:
         displayed = False
