@@ -220,6 +220,21 @@ def test_sweep(request_mocker):
     assert len(sweep.runs) == len(run_responses)
 
 
+def test_reports(request_mocker):
+    report_response = basic_report_response()
+    mock_graphql_request(request_mocker, {'project': report_response}, body_match='query Run')
+    report = api.reports("test/test/test")[0]
+    assert report.sections[0]['name'] == '01: Effect of hidden layer size on feedforward net'
+    query = {"op": "OR",
+             "filters": [{"op": "AND",
+                          "filters": [{"key": {"section": "tags", "name": "basic_feedforward"},
+                                       "op": "=",
+                                       "value": True,
+                                       "disabled": False}]}]}
+    print(report.query_generator.filter_to_mongo(query))
+    assert report.query_generator.filter_to_mongo(query) == {'$or': [{'$and': [{'tags': 'basic_feedforward'}]}]}
+
+
 def test_run_sweep(request_mocker):
     run_response = random_run_response()
     sweep_response = random_sweep_response()
@@ -262,9 +277,9 @@ def test_runs_sweeps(request_mocker):
     }
     mock_graphql_request(request_mocker, runs_response, body_match='query Runs')
     mock_graphql_request(request_mocker, {'project': {'sweep': sweep_a_response}},
-        body_match=sweep_a_response['name'])
+                         body_match=sweep_a_response['name'])
     mock_graphql_request(request_mocker, {'project': {'sweep': sweep_b_response}},
-        body_match=sweep_b_response['name'])
+                         body_match=sweep_b_response['name'])
 
     runs = list(api.runs('test/test'))
     sweep_a = runs[1].sweep

@@ -156,6 +156,27 @@ def random_sweep_response():
     }
 
 
+def basic_report_response():
+    spec = open(os.path.join(os.path.dirname(__file__), "fixtures/report.json")).read()
+    return {
+        'allViews': {
+            'edges': [{
+                'node': {
+                    'name': "Test report",
+                    'description': "Test",
+                    'user': {
+                        'name': 'vanpelt',
+                        'photoUrl': 'http://vandev.com'
+                    },
+                    'spec': spec,
+                    'updatedAt': 'today'
+                },
+                'cursor': 'rand'
+            }]
+        }
+    }
+
+
 def _run_files():
     return {
         'fileCount': 2,
@@ -187,7 +208,7 @@ index 30d74d2..9a2c773 100644
 
 
 def mock_graphql_request(mocker, payload=None, error=None, body_match=None,
-        status_code=None, attempts=None):
+                         status_code=None, attempts=None):
     """Mock a sequence of graphql requests (retries) and their eventual response.
 
     Arguments:
@@ -205,24 +226,24 @@ def mock_graphql_request(mocker, payload=None, error=None, body_match=None,
             request to succeed or fail.
     """
     if error:
-        body = {'errors': error}
+        body={'errors': error}
     else:
-        body = {'data': payload}
+        body={'data': payload}
     if body_match is None:
-        body_match = 'query'
+        body_match='query'
     if status_code is None:
-        status_code = 200
+        status_code=200
     if attempts is None:
-        attempts = 1
+        attempts=1
 
     def match_body(request):
         return body_match in (request.text or '')
 
-    res = [{'json': body, 'status_code': status_code}]
+    res=[{'json': body, 'status_code': status_code}]
     if attempts > 1:
         for i in range(attempts - 1):
             if i == attempts - 2:
-                status_code = 200
+                status_code=200
             res.append({'json': body, 'status_code': status_code})
     return mocker.register_uri('POST', 'https://api.wandb.ai/graphql',
                                res, additional_matcher=match_body)
@@ -238,31 +259,31 @@ def graphql_request_mocker(payload=None, body_match=None):
     @functools.wraps(mock_graphql_request)
     def wrapper(mocker, status_code=None, error=None, attempts=None):
         return mock_graphql_request(mocker, payload=payload,
-            body_match=body_match, error=error, status_code=status_code,
-            attempts=attempts)
+                                    body_match=body_match, error=error, status_code=status_code,
+                                    attempts=attempts)
     return wrapper
 
 
 def query_mocker(key, json, body_match="query"):
     """Shorthand of `graphql_request_mocker()` for a single query."""
-    payload = {}
+    payload={}
     if type(json) == list:
-        json = {'edges': [{'node': item} for item in json]}
-    payload[key] = json
+        json={'edges': [{'node': item} for item in json]}
+    payload[key]=json
     return graphql_request_mocker(payload=payload, body_match=body_match)
 
 
 def mutation_mocker(key, json):
     """Shorthand of `graphql_request_mocker()` for a single mutation."""
-    payload = {}
-    payload[key] = json
+    payload={}
+    payload[key]=json
     return graphql_request_mocker(payload=payload, body_match="mutation")
 
 
 @pytest.fixture
 def upsert_run(request, entity_name='bagsy', project_name='new-project'):
     return mutation_mocker('upsertBucket',
-                   {'bucket': _bucket("default", entity_name=entity_name, project_name=project_name)})
+                           {'bucket': _bucket("default", entity_name=entity_name, project_name=project_name)})
 
 
 @pytest.fixture
@@ -341,7 +362,7 @@ def query_run_v2():
 def query_run_files(request_mocker):
     request_mocker.register_uri('GET', "https://weights.url")
     return query_mocker('project', {'run': _run_files()},
-                  body_match='files(names: ')
+                        body_match='files(names: ')
 
 
 @pytest.fixture

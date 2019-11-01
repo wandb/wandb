@@ -115,8 +115,9 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
     orig_environ = dict(os.environ)
     orig_namespace = None
     run = None
-    # Reset the tensorboard state
+    # Reset the tensorboard and pytest state
     wandb.tensorboard.reset_state()
+    wandb._global_watch_idx = 0
     try:
         with CliRunner().isolated_filesystem():
             if request.node.get_closest_marker('jupyter'):
