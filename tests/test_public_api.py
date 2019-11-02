@@ -13,7 +13,6 @@ import os
 import yaml
 import tempfile
 from .api_mocks import *
-from .api_mocks import _run, _query
 from click.testing import CliRunner
 import git
 import json
@@ -203,15 +202,109 @@ def test_projects(mocker, request_mocker, query_projects_v2):
     assert count == 2
 
 
+def test_sweep(request_mocker):
+    run_responses = [random_run_response() for _ in range(5)]
+    sweep_response = random_sweep_response()
+    sweep_response['runs'] = {'edges': [{'node': r} for r in run_responses]}
+    for r in run_responses:
+        r['sweepName'] = sweep_response['name']
+
+    mock_graphql_request(request_mocker, {'project': {'sweep': sweep_response}})
+
+    sweep = api.sweep('test/test/{}'.format(sweep_response['name']))
+    assert sweep.entity == 'test'
+    assert sweep.project == 'test'
+    assert sweep.name
+    assert sweep.config
+    assert sweep.best_loss
+    assert len(sweep.runs) == len(run_responses)
+
+
+def test_reports(request_mocker):
+    report_response = basic_report_response()
+    mock_graphql_request(request_mocker, {'project': report_response}, body_match='query Run')
+    report = api.reports("test/test/test")[0]
+    assert report.sections[0]['name'] == '01: Effect of hidden layer size on feedforward net'
+    query = {"op": "OR",
+             "filters": [{"op": "AND",
+                          "filters": [{"key": {"section": "tags", "name": "basic_feedforward"},
+                                       "op": "=",
+                                       "value": True,
+                                       "disabled": False}]}]}
+    print(report.query_generator.filter_to_mongo(query))
+    assert report.query_generator.filter_to_mongo(query) == {'$or': [{'$and': [{'tags': 'basic_feedforward'}]}]}
+
+
+def test_run_sweep(request_mocker):
+    run_response = random_run_response()
+    sweep_response = random_sweep_response()
+    run_response['sweepName'] = sweep_response['name']
+
+    mock_graphql_request(request_mocker, {'project': {'run': run_response}}, body_match='query Run')
+    mock_graphql_request(request_mocker, {'project': {'sweep': sweep_response}}, body_match='query Sweep')
+
+    run = api.run('test/test/{}'.format(run_response['name']))
+    assert run.id
+    assert run.name
+    assert run.sweep
+    assert run.sweep.id
+    assert run.sweep.runs == [run]
+
+
+def test_runs_sweeps(request_mocker):
+    """Request a bunch of runs from different sweeps at the same time.
+    Ensure each run's sweep attribute is set to the appropriate value.
+    """
+    api = Api()
+    run_responses = [random_run_response() for _ in range(7)]
+    sweep_a_response = random_sweep_response()
+    sweep_b_response = random_sweep_response()
+    run_responses[0]['sweepName'] = sweep_b_response['name']
+    run_responses[1]['sweepName'] = sweep_a_response['name']
+    run_responses[3]['sweepName'] = sweep_b_response['name']
+    run_responses[4]['sweepName'] = sweep_a_response['name']
+    run_responses[5]['sweepName'] = sweep_b_response['name']
+    run_responses[6]['sweepName'] = sweep_b_response['name']
+
+    runs_response = {
+        'project': {
+            'runCount': len(run_responses),
+            'runs': {
+                'pageInfo': {'hasNextPage': False},
+                'edges': [{'node': r, 'cursor': 'cursor'} for r in run_responses],
+            }
+        }
+    }
+    mock_graphql_request(request_mocker, runs_response, body_match='query Runs')
+    mock_graphql_request(request_mocker, {'project': {'sweep': sweep_a_response}},
+                         body_match=sweep_a_response['name'])
+    mock_graphql_request(request_mocker, {'project': {'sweep': sweep_b_response}},
+                         body_match=sweep_b_response['name'])
+
+    runs = list(api.runs('test/test'))
+    sweep_a = runs[1].sweep
+    sweep_b = runs[0].sweep
+    assert len(runs) == len(run_responses)
+    assert sweep_a.runs == [runs[1], runs[4]]
+    assert sweep_b.runs == [runs[0], runs[3], runs[5], runs[6]]
+    assert runs[0].sweep is sweep_b
+    assert runs[1].sweep is sweep_a
+    assert runs[2].sweep is None
+    assert runs[3].sweep is sweep_b
+    assert runs[4].sweep is sweep_a
+    assert runs[5].sweep is sweep_b
+    assert runs[6].sweep is sweep_b
+
+
 # @pytest.mark.skip(readon='fails when I run the whole suite, but not when I run just this file')
 def test_read_advanced_summary(runner, request_mocker, upsert_run, query_download_h5, query_upload_h5):
     with runner.isolated_filesystem():
-        run = _run()
+        run = run_response()
         run["summaryMetrics"] = json.dumps({
             "special": {"_type": "numpy.ndarray", "min": 0, "max": 20},
             "normal": 32,
             "nested": {"deep": {"_type": "numpy.ndarray", "min": 0, "max": 20}}})
-        _query('project', {'run': run})(request_mocker)
+        query_mocker('project', {'run': run})(request_mocker)
         file = os.path.join(tempfile.gettempdir(), "test.h5")
         with h5py.File(file, 'w') as h5:
             h5["summary/special"] = np.random.rand(100)

@@ -75,7 +75,7 @@ def test_tf_summary_in_history(history):
     # History keys get in the way. And the images wind up being a
     # dict (which may be a bug)
 
-
+@pytest.mark.skip(reason="No one is using the hook")
 def test_hook(history):
     g1 = tf.Graph()
     with g1.as_default():

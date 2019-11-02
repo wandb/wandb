@@ -10,8 +10,8 @@ def image_categorizer_dataframe(x, y_true, y_pred, labels, example_ids=None):
 
     # If there is only one output value of true_prob, convert to 2 class false_prob, true_prob
     if y_true[0].shape[-1] == 1 and y_pred[0].shape[-1] == 1:
-        y_true = np.concatenate(1-y_true, y_true, axis=-1)
-        y_pred = np.concatenate(1-y_pred, y_pred, axis=-1)
+        y_true = np.concatenate((1-y_true, y_true), axis=-1)
+        y_pred = np.concatenate((1-y_pred, y_pred), axis=-1)
 
     if x.shape[0] != y_true.shape[0]:
         termwarn('Sample count mismatch: x(%d) != y_true(%d). skipping evaluation' % (x.shape[0], y_true.shape[0]))

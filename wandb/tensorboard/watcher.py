@@ -25,10 +25,10 @@ class Event(object):
     def __init__(self, event, namespace):
         self.event = event
         self.namespace = namespace
-        self.created_at = event.wall_time
+        self.created_at = time.time()
 
     def __lt__(self, other):
-        return self.event.step < other.event.step
+        return self.event.wall_time < other.event.wall_time
 
 
 class Consumer(object):
@@ -43,7 +43,7 @@ class Consumer(object):
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
         self._shutdown = False
-        self._delay = 10
+        self._delay = delay
 
     def start(self):
         self._thread.start()
