@@ -398,11 +398,11 @@ class Paginator(object):
 
     def __next__(self):
         self.index += 1
-  
+
         if len(self.objects) <= self.index:
             if not self._load_page():
                 raise StopIteration
-        
+
         if len(self.objects) <= self.index:
             raise StopIteration
 
@@ -561,8 +561,7 @@ class Runs(Paginator):
         Returns a list of dicts for every run's config values.
 
         Args:
-            remove_complex_objects (boolean): Removes fancy config values like graphs, images, etc.  Default true.
-
+            remove_complex_objects (boolean): Removes large config values like graphs, images, etc.  Default true.
         """
         config_list = []
         for run in self:
@@ -1369,7 +1368,7 @@ class Report(Attrs):
         if only_selected and len(run_set["selections"]["tree"]) > 0:
             #TODO: handle this not always existing
             filters["$or"][0]["$and"].append({"name": {"$in": run_set["selections"]["tree"]}})
-        
+
         return Runs(self.client, self.entity, self.project,
                     filters=filters, order=order, per_page=per_page)
 
