@@ -868,7 +868,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         # Reset global state for pytorch watch and tensorboard
         _global_watch_idx = 0
         if len(patched["tensorboard"]) > 0:
-            tensorboard.reset_state()
+            util.get_module("wandb.tensorboard").reset_state()
         reset_env(exclude=env.immutable_keys())
         run = None
 
