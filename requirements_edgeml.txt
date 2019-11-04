@@ -15,7 +15,7 @@ absl-py
 ipython
 matplotlib
 plotly
-tensorflow>=2.0.0b0
+tensorflow
 tb-nightly
 future
 vcrpy>=2.0.0

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 PROJECT_FRAGMENT = '''fragment ProjectFragment on Project {
     id
     name
+    entityName
     createdAt
     isBenchmark
 }'''
@@ -36,6 +37,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     tags
     name
     displayName
+    sweepName
     state
     config
     readOnly
@@ -112,6 +114,8 @@ class Api(object):
             'run': "latest",
             'base_url': env.get_base_url("https://api.wandb.ai")
         }
+        if self.api_key is None:
+            wandb.login()
         self.settings.update(overrides)
         if 'username' in overrides and 'entity' not in overrides:
             wandb.termwarn('Passing "username" to Api is deprecated. please use "entity" instead.')
@@ -119,6 +123,7 @@ class Api(object):
         self._projects = {}
         self._runs = {}
         self._sweeps = {}
+        self._reports = {}
         self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent, 'Use-Admin-Privileges': "true"},
@@ -209,6 +214,32 @@ class Api(object):
             self._projects[entity] = Projects(self.client, entity, per_page=per_page)
         return self._projects[entity]
 
+    def reports(self, path="", name=None, per_page=None):
+        """Get reports for a given project path.
+
+        WARNING: This api is in beta and will likely change in a future release
+
+        Args:
+            path (str): path to project the report resides in, should be in the form: "entity/project"
+            name (str): optional name of the report requested.
+            per_page (int): Sets the page size for query pagination.  None will use the default size.
+                Usually there is no reason to change this.
+
+        Returns:
+            A :obj:`Reports` object which is an iterable collection of :obj:`BetaReport` objects.
+        """
+        entity, project, run = self._parse_path(path)
+        if entity is None:
+            entity = self.settings['entity']
+            if entity is None:
+                raise ValueError('entity must be passed as a parameter, or set in settings')
+        if name:
+            name = urllib.parse.unquote(name)
+        key = "/".join([entity, project, str(name)])
+        if key not in self._reports:
+            self._reports[key] = Reports(self.client, Project(entity, project, {}), name=name, per_page=per_page)
+        return self._reports[key]
+
     def runs(self, path="", filters={}, order="-created_at", per_page=None):
         """Return a set of runs from a project that match the filters provided.
         You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
@@ -248,10 +279,11 @@ class Api(object):
             A :obj:`Runs` object, which is an iterable collection of :obj:`Run` objects.
         """
         entity, project, run = self._parse_path(path)
-        if not self._runs.get(path):
-            self._runs[path + str(filters) + str(order)] = Runs(self.client, entity, project,
-                                                                filters=filters, order=order, per_page=per_page)
-        return self._runs[path + str(filters) + str(order)]
+        key = path + str(filters) + str(order)
+        if not self._runs.get(key):
+            self._runs[key] = Runs(self.client, entity, project,
+                    filters=filters, order=order, per_page=per_page)
+        return self._runs[key]
 
     @normalize_exceptions
     def run(self, path=""):
@@ -284,7 +316,7 @@ class Api(object):
             A :obj:`Sweep` object.
         """
         entity, project, sweep_id = self._parse_path(path)
-        if not self._sweeps.get(sweep_id):
+        if not self._sweeps.get(path):
             self._sweeps[path] = Sweep(self.client, entity, project, sweep_id)
         return self._sweeps[path]
 
@@ -440,10 +472,15 @@ class Project(Attrs):
 
     def __init__(self, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
+        self.name = project
         self.entity = entity
 
+    @property
+    def path(self):
+        return [self.entity, self.name]
+
     def __repr__(self):
-        return "<Project {}/{}>".format(self.entity, self.name)
+        return "<Project {}>".format("/".join(self.path))
 
 
 class Runs(Paginator):
@@ -477,6 +514,7 @@ class Runs(Paginator):
         self.project = project
         self.filters = filters
         self.order = order
+        self._sweeps = {}
         variables = {
             'project': self.project, 'entity': self.entity, 'order': self.order,
             'filters': json.dumps(self.filters)
@@ -505,8 +543,25 @@ class Runs(Paginator):
             return None
 
     def convert_objects(self):
-        return [Run(self.client, self.entity, self.project, r["node"]["name"], r["node"])
-                for r in self.last_response['project']['runs']['edges']]
+        objs = []
+        for run_response in self.last_response['project']['runs']['edges']:
+            run = Run(self.client, self.entity, self.project, run_response["node"]["name"], run_response["node"])
+            objs.append(run)
+
+            if run.sweep_name:
+                if run.sweep_name in self._sweeps:
+                    sweep = self._sweeps[run.sweep_name]
+                else:
+                    sweep = Sweep.get(self.client, self.entity, self.project,
+                            run.sweep_name, withRuns=False)
+                    self._sweeps[run.sweep_name] = sweep
+
+                run.sweep = sweep
+                if run.id not in sweep.runs_by_id:
+                    sweep.runs_by_id[run.id] = run
+                    sweep.runs.append(run)
+
+        return objs
 
     def __repr__(self):
         return "<Runs {}/{} ({})>".format(self.entity, self.project, len(self))
@@ -548,6 +603,7 @@ class Run(Attrs):
         self._files = {}
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
+        self.sweep = None
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -641,10 +697,22 @@ class Run(Attrs):
         ''' % RUN_FRAGMENT)
         if force or not self._attrs:
             response = self._exec(query)
-            if response['project'] is None or response['project']['run'] is None:
+            if response is None or response.get('project') is None \
+                    or response['project'].get('run') is None:
                 raise ValueError("Could not find run %s" % self)
             self._attrs = response['project']['run']
             self.state = self._attrs['state']
+
+            if self.sweep_name and not self.sweep:
+                # There may be a lot of runs. Don't bother pulling them all
+                # just for the sake of this one.
+                self.sweep = Sweep.get(self.client, self.entity, self.project,
+                        self.sweep_name, withRuns=False)
+                # TODO: Older runs don't always have sweeps when sweep_name is set
+                if self.sweep:
+                    self.sweep.runs.append(self)
+                    self.sweep.runs_by_id[self.id] = self
+
         self._attrs['summaryMetrics'] = json.loads(
             self._attrs['summaryMetrics']) if self._attrs.get('summaryMetrics') else {}
         self._attrs['systemMetrics'] = json.loads(
@@ -840,6 +908,27 @@ class Sweep(Attrs):
         config (str): dictionary of sweep configuration 
     """
 
+    QUERY = gql('''
+    query Sweep($project: String!, $entity: String, $name: String!, $withRuns: Boolean!) {
+        project(name: $project, entityName: $entity) {
+            sweep(sweepName: $name) {
+                id
+                name
+                bestLoss
+                config
+                runs @include(if: $withRuns) {
+                    edges {
+                        node {
+                            ...RunFragment
+                        }
+                    }
+                }
+            }
+        }
+    }
+    %s
+    ''' % RUN_FRAGMENT)
+
     def __init__(self, client, entity, project, sweep_id, attrs={}):
         # TODO: Add agents / flesh this out.
         super(Sweep, self).__init__(dict(attrs))
@@ -848,6 +937,7 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
+        self.runs_by_id = {}
 
         self.load(force=not attrs)
 
@@ -865,47 +955,55 @@ class Sweep(Attrs):
         return yaml.load(self._attrs["config"])
 
     def load(self, force=False):
-        query = gql('''
-        query Sweep($project: String!, $entity: String, $name: String!) {
-            project(name: $project, entityName: $entity) {
-                sweep(sweepName: $name) {
-                    id
-                    name
-                    bestLoss
-                    config
-                    runs {
-                        edges {
-                            node {
-                                ...RunFragment
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        %s
-        ''' % RUN_FRAGMENT)
         if force or not self._attrs:
-            response = self._exec(query)
-            if response['project'] is None or response['project']['sweep'] is None:
+            sweep = self.get(self.client, self.entity, self.project, self.id)
+            if sweep is None:
                 raise ValueError("Could not find sweep %s" % self)
-            # TODO: make this paginate
-            self.runs = [Run(self.client, self.entity, self.project, r["node"]["name"], r["node"]) for
-                r in response['project']['sweep']['runs']['edges']]
-            del response['project']['sweep']['runs']
-            self._attrs = response['project']['sweep']
+            self._attrs = sweep._attrs
+            self.runs = sweep.runs
+            self.runs_by_id = sweep.runs_by_id
+
         return self._attrs
 
     @property
     def path(self):
         return [urllib.parse.quote_plus(str(self.entity)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
-    def _exec(self, query, **kwargs):
+    @classmethod
+    def get(cls, client, entity=None, project=None, sid=None, withRuns=True, query=None, **kwargs):
         """Execute a query against the cloud backend"""
-        variables = {'entity': self.entity,
-                     'project': self.project, 'name': self.id}
+        if query is None:
+            query = cls.QUERY
+
+        variables = {'entity': entity, 'project': project, 'name': sid, 'withRuns': withRuns}
         variables.update(kwargs)
-        return self.client.execute(query, variable_values=variables)
+
+        response = client.execute(query, variable_values=variables)
+        if response.get('project') is None:
+            return None
+        elif response['project'].get('sweep') is None:
+            return None
+
+        sweep_response = response['project']['sweep']
+
+        # TODO: make this paginate
+        runs_response = sweep_response.get('runs')
+        runs = []
+        if runs_response:
+            for r in runs_response['edges']:
+                run = Run(client, entity, project, r["node"]["name"], r["node"])
+                runs.append(run)
+
+            del sweep_response['runs']
+
+        sweep = cls(client, entity, project, sid, attrs=sweep_response)
+        sweep.runs = runs
+
+        for run in runs:
+            sweep.runs_by_id[run.id] = run
+            run.sweep = sweep
+
+        return sweep
 
     def __repr__(self):
         return "<Sweep {}>".format("/".join(self.path))
@@ -1045,6 +1143,195 @@ class File(object):
 
     def __repr__(self):
         return "<File {} ({})>".format(self.name, self.mimetype)
+
+class Reports(Paginator):
+    """Reports is an iterable collection of :obj:`BetaReport` objects."""
+
+    QUERY = gql('''
+        query Run($project: String!, $entity: String!, $reportCursor: String, 
+            $reportLimit: Int = 50, $viewType: String = "runs", $viewName: String) {
+            project(name: $project, entityName: $entity) {
+                allViews(viewType: $viewType, viewName: $viewName, first: 
+                    $reportLimit, after: $reportCursor) {
+                    edges {
+                        node {
+                            name
+                            description
+                            user {
+                                username
+                                photoUrl
+                            }
+                            spec
+                            updatedAt
+                        }
+                        cursor
+                    }
+                }
+            }
+        }
+        ''')
+
+    def __init__(self, client, project, name=None, entity=None, per_page=50):
+        self.project = project
+        self.name = name
+        variables = {
+            'project': project.name, 'entity': project.entity, 'viewName': self.name
+        }
+        super(Reports, self).__init__(client, variables, per_page)
+
+    @property
+    def length(self):
+        #TODO: Add the count the backend
+        return self.per_page
+
+    @property
+    def more(self):
+        if self.last_response:
+            return len(self.last_response['project']['allViews']['edges']) == self.per_page
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response['project']['allViews']['edges'][-1]['cursor']
+        else:
+            return None
+
+    def update_variables(self):
+        self.variables.update({'reportCursor': self.cursor, 'reportLimit': self.per_page})
+
+    def convert_objects(self):
+        return [BetaReport(self.client, r["node"], entity=self.project.entity, project=self.project.name)
+                for r in self.last_response['project']['allViews']['edges']]
+
+    def __repr__(self):
+        return "<Reports {}>".format("/".join(self.project.path))
+
+class QueryGenerator(object):
+    """QueryGenerator is a helper object to write filters for runs"""
+    INDIVIDUAL_OP_TO_MONGO = {
+        '!=': '$ne',
+        '>': '$gt',
+        '>=': '$gte',
+        '<': '$lt',
+        '<=': '$lte',
+        "IN": '$in',
+        "NIN": '$nin',
+        "REGEX": '$regex'
+    }
+
+    GROUP_OP_TO_MONGO = {
+        "AND": '$and',
+        "OR": '$or'
+    }
+
+    def __init__(self):
+        pass
+
+    def _is_group(self, op):
+        return op.get("filters") != None
+
+    def _is_individual(self, op):
+        return op.get("key") != None
+
+    def _to_mongo_op_value(self, op, value):
+        if op == "=":
+            return value
+        else:
+            return {self.INDIVIDUAL_OP_TO_MONGO[op]: value}
+    
+    def key_to_server_path(self, key):
+        if key["section"] == 'config':
+            return 'config.' + key["name"]
+        elif key["section"] == 'summary':
+            return 'summary_metrics.' + key["name"]
+        elif key["section"] == 'keys_info':
+            return 'keys_info.keys.' + key["name"]
+        elif key["section"] == 'run':
+            return key["name"]
+        elif key["section"] == 'tags':
+            return 'tags.' + key["name"]
+        raise ValueError("Invalid key: %s" % key)
+
+    def _to_mongo_individual(self, filter):
+        if filter["key"]["name"] == '':
+            return None
+
+        if filter.get("value") == None and filter["op"] != '=' and filter["op"] != '!=':
+            return None
+
+        if filter.get("disabled") != None and filter["disabled"]:
+            return None
+
+        if filter["key"]["section"] == 'tags':
+            if filter["op"] == 'IN':
+                return {"tags": {"$in": filter["value"]}}
+            if filter["value"] == False:
+                return {
+                    "$or": [{"tags": None}, {"tags": {"$ne": filter["key"]["name"]}}]
+                }
+            else:
+                return {"tags": filter["key"]["name"]}
+        path = self.key_to_server_path(filter.key)
+        if path == None:
+            return path
+        return {
+            path: self._to_mongo_op_value(filter["op"], filter["value"])
+        }
+
+    def filter_to_mongo(self, filter):
+        if self._is_individual(filter):
+            return self._to_mongo_individual(filter)
+        elif self._is_group(filter):
+            return {
+                self.GROUP_OP_TO_MONGO[filter["op"]]: [self.filter_to_mongo(f) for f in filter["filters"]]
+            }
+
+
+class BetaReport(Attrs):
+    """BetaReport is a class associated with reports created in wandb.
+
+    WARNING: this API will likely change in a future release
+
+    Attributes:
+        name (string): report name
+        description (string): report descirpiton;
+        user (:obj:User): the user that created the report
+        spec (dict): the spec off the report;
+        updated_at (string): timestamp of last update
+    """
+
+    def __init__(self, client, attrs, entity=None, project=None):
+        self.client = client
+        self.project = project
+        self.entity = entity
+        self.query_generator = QueryGenerator()
+        super(BetaReport, self).__init__(dict(attrs))
+        self._attrs["spec"] = json.loads(self._attrs["spec"])
+
+    @property
+    def sections(self):
+        return self.spec['panelGroups']
+
+    def runs(self, section, per_page=50, only_selected=True):
+        run_set_idx = section.get('openRunSet', 0)
+        run_set = section['runSets'][run_set_idx]
+        order = self.query_generator.key_to_server_path(run_set["sort"]["key"])
+        if run_set["sort"].get("ascending"):
+            order = "+"+order
+        else:
+            order = "-"+order
+        filters = self.query_generator.filter_to_mongo(run_set["filters"])
+        if only_selected:
+            #TODO: handle this not always existing
+            filters["$or"][0]["$and"].append({"name": {"$in": run_set["selections"]["tree"]}})
+        return Runs(self.client, self.entity, self.project,
+                    filters=filters, order=order, per_page=per_page)
+
+    @property
+    def updated_at(self):
+        return self._attrs["updatedAt"]
 
 class HistoryScan(object):
     QUERY = gql('''

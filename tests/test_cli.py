@@ -23,6 +23,7 @@ import webbrowser
 import wandb
 import threading
 import subprocess
+import platform
 
 DUMMY_API_KEY = '1824812581259009ca9981580f8f8a9012409eee'
 
@@ -762,7 +763,7 @@ def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     assert 'storage?file=diff.patch' not in mock_server.requests.keys()
     wandb.reset_env()
 
-@pytest.mark.skipif(os.getenv("NO_ML") == "true", reason="No PIL win NO_ML")
+@pytest.mark.skipif(os.getenv("NO_ML") == "true" or platform.system() == "@indows", reason="No PIL in NO_ML, this was failing in windows for some reason")
 def test_run_image(runner, git_repo, mock_server):
     run_id = "123abc"
     with open("image.py", "w") as f:

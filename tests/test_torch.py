@@ -370,6 +370,39 @@ def test_gradient_logging(wandb_init_run):
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
 
+def test_unwatch(wandb_init_run):
+    net = ConvNet()
+    wandb.watch(net, log_freq=1, log="all")
+    wandb.unwatch()
+    for i in range(3):
+        output = net(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output.backward(grads)
+        assert(len(wandb_init_run.history.row) == 0)
+        assert(
+            wandb_init_run.history.row.get('gradients/fc2.bias') is None)
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 3)
+
+def test_unwatch_multi(wandb_init_run):
+    net1 = ConvNet()
+    net2 = ConvNet()
+    wandb.watch(net1, log_freq=1, log="all")
+    wandb.watch(net2, log_freq=1, log="all")
+    wandb.unwatch(net1)
+    for i in range(3):
+        output1 = net1(dummy_torch_tensor((64, 1, 28, 28)))
+        output2 = net2(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output1.backward(grads)
+        output2.backward(grads)
+        assert(len(wandb_init_run.history.row) == 16)
+        print(wandb_init_run.history.row)
+        assert wandb_init_run.history.row.get('gradients/graph_1conv1.bias')
+        assert wandb_init_run.history.row.get('gradients/conv1.bias') is None
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 3)
+
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_gradient_logging_freq(wandb_init_run):
     net = ConvNet()
@@ -502,6 +535,18 @@ def test_multi_net(wandb_init_run):
     graph2 = graphs[1].to_json()
     assert len(graph1["nodes"]) == 5
     assert len(graph2["nodes"]) == 5
+
+def test_multi_net_global(wandb_init_run):
+    net1 = ConvNet()
+    net2 = ConvNet()
+    wandb.watch(net1)
+    wandb.watch(net2)
+    output1 = net1.forward(dummy_torch_tensor((64, 1, 28, 28)))
+    output2 = net2.forward(dummy_torch_tensor((64, 1, 28, 28)))
+    grads = torch.ones(64, 10)
+    output1.backward(grads)
+    output2.backward(grads)
+    assert wandb.run.summary["graph_1"]
 
 
 def test_alex_net():

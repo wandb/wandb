@@ -1,3 +1,31 @@
+## 0.8.14 (Nov 1, 2019)
+
+#### :bug: Bug Fix
+
+-   Improve large object warning when values reach maximum size
+-   Warn when wandb.save isn't passed a string
+-   Run stopping from the UI works since regressing in 0.8.12
+-   Restoring a file that already exists locally works
+-   Fixed TensorBoard incorrectly placing some keys in the wrong step since 0.8.10
+-   wandb.Video only accepts uint8 instead of incorrectly converting to floats
+-   SageMaker environment detection is now more robust
+-   Resuming correctly populates config
+-   wandb.restore respects root when run.dir is set #658
+-   Calling wandb.watch multiple times properly namespaces histograms and graphs
+
+#### :nail_care: Enhancement
+
+-   Sweeps now work in Windows!
+-   Added sweep attribute to Run in the public api
+-   Added sweep link to Jupyter and terminal output
+-   TensorBoard logging now stores proper timestamps when importing historic results
+-   TensorBoard logging now supports configuring rate_limits and filtering event types
+-   Use simple output mirroring stdout doesn't have a file descriptor
+-   Write wandb meta files to the system temp directory if the local directory isn't writable
+-   Added beta api.reports to the public API
+-   Added wandb.unwatch to remove hooks from pytorch models
+-   Store the framework used in config._wandb
+
 ## 0.8.13 (Oct 15, 2019)
 
 #### :bug: Bug Fix

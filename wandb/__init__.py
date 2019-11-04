@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.13'
+__version__ = '0.8.14'
 
 import atexit
 import click
@@ -103,8 +103,8 @@ def hook_torch(*args, **kwargs):
         "DEPRECATED: wandb.hook_torch is deprecated, use `wandb.watch`")
     return watch(*args, **kwargs)
 
-
-def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
+_global_watch_idx = 0
+def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
@@ -116,6 +116,8 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
     :param (int) idx: an index to be used when calling wandb.watch on multiple models
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
+    global _global_watch_idx
+
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling watch")
@@ -134,9 +136,13 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
         models = (models,)
     graphs = []
     prefix = ''
+    if idx is None:
+        idx = _global_watch_idx
     for local_idx, model in enumerate(models):
         global_idx = idx + local_idx
+        _global_watch_idx += 1
         if global_idx > 0:
+            # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
             prefix = "graph_%i" % global_idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
@@ -147,6 +153,24 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=0):
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
+
+def unwatch(models=None):
+    """Remove pytorch gradient and parameter hooks.
+
+    Args:
+        models (list): Optional list of pytorch models that have had watch called on them
+    """
+    if models:
+        if not isinstance(models, (tuple, list)):
+            models = (models,)
+        for model in models:
+            if not hasattr(model, "_wandb_hook_names"):
+                termwarn("%s model has not been watched" % model)
+            else:
+                for name in model._wandb_hook_names:
+                    run.history.torch.unhook(name)
+    else:
+        run.history.torch.unhook_all()
 
 
 class ExitHooks(object):
@@ -196,6 +220,12 @@ def _init_headless(run, cloud=True):
     hooks.hook()
 
     if platform.system() == "Windows":
+        import win32api
+        # Make sure we are not ignoring CTRL_C_EVENT
+        # https://docs.microsoft.com/en-us/windows/console/setconsolectrlhandler
+        # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
+        win32api.SetConsoleCtrlHandler(None, False)
+
         # PTYs don't work in windows so we create these unused pipes and
         # mirror stdout to run.dir/output.log.  There should be a way to make
         # pipes work, but I haven't figured it out.  See links in compat/windows
@@ -236,7 +266,7 @@ def _init_headless(run, cloud=True):
     os.close(stderr_master_fd)
     # Listen on the socket waiting for the wandb process to be ready
     try:
-        success, message = server.listen(30)
+        success, _ = server.listen(30)
     except KeyboardInterrupt:
         success = False
     else:
@@ -245,7 +275,7 @@ def _init_headless(run, cloud=True):
                 wandb_process.pid))
     if not success:
         wandb_process.kill()
-        for i in range(20):
+        for _ in range(20):
             time.sleep(0.1)
             if wandb_process.poll() is not None:
                 break
@@ -264,8 +294,14 @@ def _init_headless(run, cloud=True):
     else:
         stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
         stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+        try:
+            stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+            stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+        except ValueError:
+            # stdout / err aren't files
+            output = open(os.path.join(run.dir, "output.log"), "wb")
+            stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output)
+            stderr_redirector = io_wrap.WindowsRedirector(sys.stderr, output)
 
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code
@@ -296,6 +332,10 @@ def login(anonymous=None, key=None):
 
        anonymous can be "never", "must", or "allow".  If set to "must" we'll always login anonymously,
        if set to "allow" we'll only create an anonymous user if the user isn't already logged in.
+
+       Returns:
+            True if login was successful
+            False on failure
     """
     # This ensures we have a global api object
     ensure_configured()
@@ -308,14 +348,15 @@ def login(anonymous=None, key=None):
         if in_jupyter:
             termwarn("Calling wandb.login() without arguments from jupyter should prompt you for an api key.")
         util.set_api_key(api, key)
-        return key
     elif api.api_key and anonymous != "must":
-        return api.api_key
+        key = api.api_key
     elif in_jupyter:
         os.environ[env.JUPYTER] = "true"
-        return _jupyter_login(api=api)
+        # Don't return key to ensure it's not displayed in the notebook.
+        key = _jupyter_login(api=api)
     else:
-        return util.prompt_api_key(api)
+        key = util.prompt_api_key(api)
+    return True if key else False
 
 
 def _jupyter_login(force=True, api=None):
@@ -342,7 +383,8 @@ def _jupyter_login(force=True, api=None):
                 termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
                 key = getpass.getpass("API Key: ").strip()
             except NotImplementedError:
-                termerror("Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
+                termerror(
+                    "Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
         return key, anonymous
 
     api = api or (run.api if run else None)
@@ -365,27 +407,33 @@ def _init_jupyter(run):
     os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
+        # Fetches or prompts the users for an API key. Or if anonymode enabled, uses anonymous API key
         key = _jupyter_login()
         # Ensure our api client picks up the new key
         if key:
             run.api.reauth()
         else:
             run.mode = "dryrun"
+            display(HTML('''
+                <b>Could not authenticate.</b><br/>
+            '''))
     run.resume = "allow"
     if run.mode == "dryrun":
         display(HTML('''
-            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>.  Results will not be sent to the cloud.  
-            Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
+            Using <a href="https://wandb.com" target="_blank">Weights & Biases</a> in dryrun mode. Not logging results to the cloud.<br/>
+            Call wandb.login() to authenticate this machine.<br/>
         '''.format(run.api.app_url)))
     else:
         displayed = False
         try:
+            sweep_url = run.get_sweep_url()
+            sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(sweep_url, sweep_url) if sweep_url else ""
+            docs_html = '<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">(Documentation)</a>'
             display(HTML('''
-                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a> {}.<br/>
                 Project page: <a href="{}" target="_blank">{}</a><br/>
-                Run page: <a href="{}" target="_blank">{}</a><br/>
-                Docs: <a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">https://docs.wandb.com/integrations/jupyter.html</a><br/>
-            '''.format(run.get_project_url(), run.get_project_url(), run.get_url(), run.get_url() )))
+                {}Run page: <a href="{}" target="_blank">{}</a><br/>
+            '''.format(docs_html, run.get_project_url(), run.get_project_url(), sweep_line, run.get_url(), run.get_url() )))
             displayed = True
             run.save()
         except (CommError, ValueError) as e:
@@ -396,7 +444,7 @@ def _init_jupyter(run):
                 '''.format(e.message)))
             else:
                 termerror(str(e))
-            
+
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
@@ -477,6 +525,9 @@ def save(glob_str, base_path=None, policy="live"):
     if policy not in ("live", "end"):
         raise ValueError(
             'Only "live" and "end" policies are currently supported.')
+    if not isinstance(glob_str, str):
+        raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+
     if base_path is None:
         base_path = os.path.dirname(glob_str)
     if isinstance(glob_str, bytes):
@@ -510,7 +561,7 @@ def save(glob_str, base_path=None, policy="live"):
     return files
 
 
-def restore(name, run_path=None, replace=False, root="."):
+def restore(name, run_path=None, replace=False, root=None):
     """ Downloads the specified file from cloud storage into the current run directory
     if it doesn exist.
 
@@ -528,9 +579,9 @@ def restore(name, run_path=None, replace=False, root="."):
             "You must call `wandb.init` before calling restore or specify a run_path")
     api = Api()
     api_run = api.run(run_path or run.path)
-    root = run.dir if run else root
-    path = os.path.exists(os.path.join(root, name))
-    if path and replace == False:
+    root = root or run.dir if run else "."
+    path = os.path.join(root, name)
+    if os.path.exists(path) and replace == False:
         return open(path, "r")
     files = api_run.files([name])
     if len(files) == 0:
@@ -809,10 +860,15 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     trigger.call('on_init', **init_args)
     global run
     global __stage_dir__
+    global _global_watch_idx
 
     # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
     if reinit or (in_jupyter and reinit != False):
+        # Reset global state for pytorch watch and tensorboard
+        _global_watch_idx = 0
+        if len(patched["tensorboard"]) > 0:
+            tensorboard.reset_state()
         reset_env(exclude=env.immutable_keys())
         run = None
 
@@ -913,6 +969,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
     if resume == True:
         os.environ[env.RESUME] = "auto"
+    elif resume in ("allow", "must", "never"):
+        os.environ[env.RESUME] = resume
+        if id:
+            os.environ[env.RUN_ID] = id
     elif resume:
         os.environ[env.RESUME] = os.environ.get(env.RESUME, "allow")
         # TODO: remove allowing resume as a string in the future
@@ -1000,11 +1060,13 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     # set the run directory in the config so it actually gets persisted
     run.config.set_run_dir(run.dir)
+    # we have re-read the config, add telemetry data
+    telemetry_updated = run.config._telemetry_update()
 
     if sagemaker_config:
         run.config._update(sagemaker_config)
         allow_val_change = True
-    if config:
+    if config or telemetry_updated:
         run.config._update(config, allow_val_change=allow_val_change, as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
@@ -1021,6 +1083,7 @@ def _wandb_finished(run):
     # must shutdown async logging thread before closing files
     shutdown_async_log_thread()
     run.close_files()
+
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')
 tensorboard = util.LazyLoader('tensorboard', globals(), 'wandb.tensorboard')

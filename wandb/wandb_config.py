@@ -55,6 +55,27 @@ class Config(object):
 
         self.persist()
 
+    def _telemetry_update(self):
+        """Add telemetry data to internal config structure."""
+        updated = False
+
+        # detect framework by checking what is loaded
+        loaded = {}
+        loaded['fastai'] = sys.modules.get('fastai')
+        loaded['torch'] = sys.modules.get('torch')
+        loaded['keras'] = sys.modules.get('keras')  # vanilla keras
+        loaded['tensorflow'] = sys.modules.get('tensorflow')
+        # TODO(jhr): tfkeras is always loaded with recent tensorflow
+        #loaded['tfkeras'] = sys.modules.get('tensorflow.python.keras')
+
+        priority = ('fastai', 'torch', 'keras', 'tfkeras', 'tensorflow')
+        framework = next((f for f in priority if loaded.get(f)), None)
+        if framework:
+            self._set_wandb('framework', framework)
+            updated = True
+
+        return updated
+
     @classmethod
     def from_environment_or_defaults(cls):
         conf_paths = os.environ.get(env.CONFIG_PATHS, [])
@@ -217,6 +238,7 @@ class Config(object):
             return val
 
     def _update(self, params, allow_val_change=False, as_defaults=False):
+        params = params or {}
         if not isinstance(params, dict):
             # Handle some cases where params is not a dictionary
             # by trying to convert it into a dictionary

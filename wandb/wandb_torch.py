@@ -88,6 +88,8 @@ class TorchHistory(object):
         if name is not None:
             prefix = prefix + name
 
+        module._wandb_hook_names = []
+
         if log_parameters:
             def parameter_log_hook(module, input_, output, log_track):
                 if not log_track_update(log_track):
@@ -101,13 +103,16 @@ class TorchHistory(object):
                     self.log_tensor_stats(
                         data.cpu(), 'parameters/' + prefix + name)
             log_track_params = log_track_init(log_freq)
-            module.register_forward_hook(
+            hook = module.register_forward_hook(
                 lambda mod, inp, outp: parameter_log_hook(mod, inp, outp, log_track_params))
+            self._hook_handles['parameters/'+prefix] = hook
+            module._wandb_hook_names.append('parameters/'+prefix)
 
         if log_gradients:
             for name, parameter in module.named_parameters():
                 if parameter.requires_grad:
                     log_track_grad = log_track_init(log_freq)
+                    module._wandb_hook_names.append('gradients/' + prefix + name)
                     self._hook_variable_gradient_stats(
                         parameter, 'gradients/' + prefix + name, log_track_grad)
 
@@ -203,6 +208,11 @@ class TorchHistory(object):
         handle = var.register_hook(lambda grad: _callback(grad, log_track))
         self._hook_handles[name] = handle
         return handle
+
+    def unhook_all(self):
+        for handle in self._hook_handles.values():
+            handle.remove()
+        self._hook_handles = []
 
     def unhook(self, name):
         handle = self._hook_handles.pop(name)
