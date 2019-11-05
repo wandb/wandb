@@ -24,6 +24,7 @@ from wandb.apis import normalize_exceptions
 
 logger = logging.getLogger(__name__)
 
+WANDB_INTERNAL_KEYS = {'_wandb', 'wandb_version'}
 PROJECT_FRAGMENT = '''fragment ProjectFragment on Project {
     id
     name
@@ -719,13 +720,16 @@ class Run(Attrs):
             self._attrs['systemMetrics']) if self._attrs.get('systemMetrics') else {}
         if self._attrs.get('user'):
             self.user = User(self._attrs["user"])
-        config = {}
+        config_user, config_raw = {}, {}
         for key, value in six.iteritems(json.loads(self._attrs.get('config') or "{}")):
+            config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
             else:
                 config[key] = value
-        self._attrs['config'] = config
+        config_raw.update(config_user)
+        self._attrs['config'] = config_user
+        self._attrs['rawconfig'] = config_raw
         return self._attrs
 
     @normalize_exceptions
