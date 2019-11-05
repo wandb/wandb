@@ -311,7 +311,7 @@ def json_friendly(obj):
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
-        logger.warning("Object of type %s is %i bytes", type(obj).__name__, getsizeof(obj))
+        wandb.termwarn("Serializing object of type {} that is {} bytes".format(type(obj).__name__, getsizeof(obj)))
 
     return obj, converted
 
@@ -551,8 +551,13 @@ def request_with_retry(func, *args, **kwargs):
                 requests.exceptions.HTTPError,
                 requests.exceptions.Timeout) as e:
             if isinstance(e, requests.exceptions.HTTPError):
-                if e.response.status_code in {400, 403, 404, 409, 500}:
-                    # not retrieable
+                # Non-retriable HTTP errors.
+                #
+                # We retry 500s just to be cautious, and because the back end
+                # returns them when there are infrastructure issues. If retrying
+                # some request winds up being problematic, we'll change the
+                # back end to indicate that it shouldn't be retried.
+                if e.response.status_code in {400, 403, 404, 409}:
                     return e
 
             if retry_count == max_retries:
