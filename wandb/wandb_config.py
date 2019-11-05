@@ -61,14 +61,16 @@ class Config(object):
 
         # detect framework by checking what is loaded
         loaded = {}
+        loaded['xgboost'] = sys.modules.get('xgboost')
         loaded['fastai'] = sys.modules.get('fastai')
         loaded['torch'] = sys.modules.get('torch')
         loaded['keras'] = sys.modules.get('keras')  # vanilla keras
         loaded['tensorflow'] = sys.modules.get('tensorflow')
+        loaded['sklearn'] = sys.modules.get('sklearn')
         # TODO(jhr): tfkeras is always loaded with recent tensorflow
         #loaded['tfkeras'] = sys.modules.get('tensorflow.python.keras')
 
-        priority = ('fastai', 'torch', 'keras', 'tfkeras', 'tensorflow')
+        priority = ('xgboost', 'fastai', 'torch', 'keras', 'tfkeras', 'tensorflow', 'sklearn')
         framework = next((f for f in priority if loaded.get(f)), None)
         if framework:
             self._set_wandb('framework', framework)
