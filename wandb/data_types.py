@@ -1196,17 +1196,19 @@ def nest(thing):
 def history_dict_to_json(run, payload, step=None):
     # Converts a History row dict's elements so they're friendly for JSON serialization.
 
+    json_payload = {}
     if step is None:
         # We should be at the top level of the History row; assume this key is set.
         step = payload['_step']
 
-    for key, val in six.iteritems(payload):
+    # We copy here to avoid changed size during iteration errors
+    for key, val in six.iteritems(payload.copy()):
         if isinstance(val, dict):
-            payload[key] = history_dict_to_json(run, val, step=step)
+            json_payload[key] = history_dict_to_json(run, val, step=step)
         else:
-            payload[key] = val_to_json(run, key, val, step=step)
+            json_payload[key] = val_to_json(run, key, val, step=step)
 
-    return payload
+    return json_payload
 
 def numpy_arrays_to_lists(payload):
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
