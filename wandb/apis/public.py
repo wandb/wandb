@@ -961,7 +961,7 @@ class Sweep(Attrs):
 
     def load(self, force=False):
         if force or not self._attrs:
-            sweep = self.get(self.client, self.entity, self.project, self.id)
+            sweep = self.get(self.client, self.entity, self.project, self.id, order=self.order)
             if sweep is None:
                 raise ValueError("Could not find sweep %s" % self)
             self._attrs = sweep._attrs
@@ -998,12 +998,12 @@ class Sweep(Attrs):
         return [urllib.parse.quote_plus(str(self.entity)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
     @classmethod
-    def get(cls, client, entity=None, project=None, sid=None, withRuns=True, query=None, **kwargs):
+    def get(cls, client, entity=None, project=None, sid=None, withRuns=True, order=None, query=None, **kwargs):
         """Execute a query against the cloud backend"""
         if query is None:
             query = cls.QUERY
 
-        variables = {'entity': entity, 'project': project, 'name': sid, 'withRuns': withRuns}
+        variables = {'entity': entity, 'project': project, 'name': sid, 'order': order, 'withRuns': withRuns}
         variables.update(kwargs)
 
         response = client.execute(query, variable_values=variables)
