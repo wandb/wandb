@@ -437,8 +437,7 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         while wandb_process.poll() is None:
             time.sleep(0.1)
     except KeyboardInterrupt:
-        if wandb_process.poll() is None:
-            termlog('Sending ctrl-c to W&B process, PID {}'.format(wandb_process.pid))
+        termlog('Sending ctrl-c to W&B process, PID {}. Press ctrl-c again to kill it.'.format(wandb_process.pid))
 
     try:
         while wandb_process.poll() is None:

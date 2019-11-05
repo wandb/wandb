@@ -713,11 +713,11 @@ class RunManager(object):
 
         if save_name not in self._file_event_handlers:
             if save_name == 'wandb-history.jsonl':
-                self._api.get_file_stream_api().set_file_policy(save_name, file_stream.HistoryFilePolicy())
+                self._api.get_file_stream_api().set_file_policy(save_name, file_stream.JsonlFilePolicy())
                 self._file_event_handlers['wandb-history.jsonl'] = FileEventHandlerTextStream(
                     file_path, 'wandb-history.jsonl', self._api)
             elif save_name == 'wandb-events.jsonl':
-                self._api.get_file_stream_api().set_file_policy(save_name, file_stream.HistoryFilePolicy())
+                self._api.get_file_stream_api().set_file_policy(save_name, file_stream.JsonlFilePolicy())
                 self._file_event_handlers['wandb-events.jsonl'] = FileEventHandlerTextStream(
                     file_path, 'wandb-events.jsonl', self._api)
             elif 'tfevents' in save_name or 'graph.pbtxt' in save_name:
@@ -884,13 +884,13 @@ class RunManager(object):
 
         # history
         self._api.get_file_stream_api().set_file_policy(
-            wandb_run.HISTORY_FNAME, file_stream.HistoryFilePolicy(
+            wandb_run.HISTORY_FNAME, file_stream.JsonlFilePolicy(
                 start_chunk_id=resume_status['historyLineCount']))
         self._file_event_handlers[wandb_run.HISTORY_FNAME] = FileEventHandlerTextStream(
             self._run.history.fname, wandb_run.HISTORY_FNAME, self._api, seek_end=resume_status['historyLineCount'] > 0)
         # events
         self._api.get_file_stream_api().set_file_policy(
-            wandb_run.EVENTS_FNAME, file_stream.HistoryFilePolicy(
+            wandb_run.EVENTS_FNAME, file_stream.JsonlFilePolicy(
                 start_chunk_id=resume_status['eventsLineCount']))
         self._file_event_handlers[wandb_run.EVENTS_FNAME] = FileEventHandlerTextStream(
             self._run.events.fname, wandb_run.EVENTS_FNAME, self._api, seek_end=resume_status['eventsLineCount'] > 0)

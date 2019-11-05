@@ -11,7 +11,7 @@ from six.moves import queue
 from wandb import util
 from wandb import env
 
-MAX_SUMMARY_HISTORY_LINE_SIZE = 8 * 1024 * 1024  # imposed by backend storage
+MAX_LINE_SIZE = 4*1024*1024 - 100*1024  # imposed by back end
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class DefaultFilePolicy(object):
         }
 
 
-class HistoryFilePolicy(object):
+class JsonlFilePolicy(object):
     def __init__(self, start_chunk_id=0):
         self._chunk_id = start_chunk_id
 
@@ -40,9 +40,9 @@ class HistoryFilePolicy(object):
         self._chunk_id += len(chunks)
         chunk_data = []
         for chunk in chunks:
-            if len(chunk.data) + 1 > MAX_SUMMARY_HISTORY_LINE_SIZE:
-                wandb.termerror('History line is {} bytes but maximum size is {} bytes. Truncating to the maximum size. Some data may be missing from plots.'.format(len(chunk.data), MAX_SUMMARY_HISTORY_LINE_SIZE - 1))
-                chunk_data.append(chunk.data[:MAX_SUMMARY_HISTORY_LINE_SIZE - 1])
+            if len(chunk.data) > MAX_LINE_SIZE:
+                wandb.termerror('JSONL (history) row is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(chunk.data), MAX_LINE_SIZE))
+                chunk_data.append('{}')
             else:
                 chunk_data.append(chunk.data)
 
@@ -55,16 +55,22 @@ class HistoryFilePolicy(object):
 class SummaryFilePolicy(object):
     def process_chunks(self, chunks):
         data = chunks[-1].data
-        # +1 for newline
-        if len(data) + 1 > MAX_SUMMARY_HISTORY_LINE_SIZE:
-            wandb.termerror('Summary is {} bytes but maximum size is {} bytes. Truncating to the maximum size. Some data may be missing from plots.'.format(len(data), MAX_SUMMARY_HISTORY_LINE_SIZE - 1))
-            data = data[:MAX_SUMMARY_HISTORY_LINE_SIZE - 1]
+        if len(data) > MAX_LINE_SIZE:
+            wandb.termerror('Summary is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(data), MAX_LINE_SIZE))
+            data = '{}'
         return {
             'offset': 0, 'content': [data]
         }
 
 
 class CRDedupeFilePolicy(object):
+    """File stream policy that removes characters that would be erased by
+    carriage returns.
+
+    This is what a terminal does. We use it for console output to reduce the
+    amount of data we need to send over the network (eg. for progress bars),
+    while preserving the output's appearance in the web app.
+    """
     def __init__(self, start_chunk_id=0):
         self._chunk_id = start_chunk_id
 
