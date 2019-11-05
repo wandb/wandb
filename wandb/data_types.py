@@ -1200,13 +1200,13 @@ def history_dict_to_json(run, payload, step=None):
         # We should be at the top level of the History row; assume this key is set.
         step = payload['_step']
 
-    for key, val in six.iteritems(payload.copy()):
+    for key, val in six.iteritems(payload):
         if isinstance(val, dict):
             payload[key] = history_dict_to_json(run, val, step=step)
         else:
             payload[key] = val_to_json(run, key, val, step=step)
 
-    return json_payload
+    return payload
 
 def numpy_arrays_to_lists(payload):
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
