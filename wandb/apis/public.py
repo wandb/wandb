@@ -961,7 +961,7 @@ class Sweep(Attrs):
 
     def load(self, force=False):
         if force or not self._attrs:
-            sweep = self.get(self.client, self.entity, self.project, self.id, order=self.order)
+            sweep = self.get(self.client, self.entity, self.project, self.id)
             if sweep is None:
                 raise ValueError("Could not find sweep %s" % self)
             self._attrs = sweep._attrs
@@ -972,7 +972,7 @@ class Sweep(Attrs):
 
     @property
     def order(self):
-        if self.config.get("metric"):
+        if self._attrs.get("config") and self.config.get("metric"):
             sort_order = self.config["metric"].get("goal", "minimize")
             prefix = "+" if sort_order == "minimize" else "-"
             return QueryGenerator.format_order_key(prefix + self.config["metric"]["name"])
