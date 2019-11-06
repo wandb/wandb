@@ -41,7 +41,9 @@ class JsonlFilePolicy(object):
         chunk_data = []
         for chunk in chunks:
             if len(chunk.data) > MAX_LINE_SIZE:
-                wandb.termerror('JSONL (history) row is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(chunk.data), MAX_LINE_SIZE))
+                msg = 'JSONL (history) row is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(chunk.data), MAX_LINE_SIZE)
+                wandb.termerror(msg)
+                util.sentry_message(msg)
                 chunk_data.append('{}')
             else:
                 chunk_data.append(chunk.data)
@@ -56,7 +58,9 @@ class SummaryFilePolicy(object):
     def process_chunks(self, chunks):
         data = chunks[-1].data
         if len(data) > MAX_LINE_SIZE:
-            wandb.termerror('Summary is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(data), MAX_LINE_SIZE))
+            msg = 'Summary is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(data), MAX_LINE_SIZE)
+            wandb.termerror(msg)
+            util.sentry_message(msg)
             data = '{}'
         return {
             'offset': 0, 'content': [data]
