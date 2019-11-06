@@ -1,3 +1,16 @@
+## 0.8.15 (Nov 5, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix calling wandb.init with sync_tensorboard multiple times in Jupyter
+-   Fix RuntimeError race when using threads and calling wandb.log
+-   Don't initialize Sentry when error reporting is disabled
+
+#### :nail_care: Enhancement
+
+-   Added best_run() to wandb.sweep() public Api objects
+-   Remove internal tracking keys from wandb.config objects in the public Api
+
 ## 0.8.14 (Nov 1, 2019)
 
 #### :bug: Bug Fix
@@ -24,7 +37,7 @@
 -   Write wandb meta files to the system temp directory if the local directory isn't writable
 -   Added beta api.reports to the public API
 -   Added wandb.unwatch to remove hooks from pytorch models
--   Store the framework used in config._wandb
+-   Store the framework used in config.\_wandb
 
 ## 0.8.13 (Oct 15, 2019)
 
