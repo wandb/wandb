@@ -59,10 +59,11 @@ if wandb.core.IS_GIT:
 else:
     SENTRY_ENV = 'production'
 
-sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
-                release=wandb.__version__,
-                default_integrations=False,
-                environment=SENTRY_ENV)
+if error_reporting_enabled():
+    sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
+                    release=wandb.__version__,
+                    default_integrations=False,
+                    environment=SENTRY_ENV)
 
 
 def sentry_message(message):
