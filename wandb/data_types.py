@@ -1200,6 +1200,7 @@ def history_dict_to_json(run, payload, step=None):
         # We should be at the top level of the History row; assume this key is set.
         step = payload['_step']
 
+    # We use list here because we were still seeing cases of RuntimeError dict changed size
     for key in list(payload):
         val = payload[key]
         if isinstance(val, dict):
