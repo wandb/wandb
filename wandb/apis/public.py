@@ -913,18 +913,23 @@ class Sweep(Attrs):
     """
 
     QUERY = gql('''
-    query Sweep($project: String!, $entity: String, $name: String!, $withRuns: Boolean!) {
+    query Sweep($project: String!, $entity: String, $name: String!, $withRuns: Boolean!, $order: String) {
         project(name: $project, entityName: $entity) {
             sweep(sweepName: $name) {
                 id
                 name
                 bestLoss
                 config
-                runs @include(if: $withRuns) {
+                runs(order: $order) @include(if: $withRuns) {
                     edges {
                         node {
                             ...RunFragment
                         }
+                        cursor
+                    }
+                    pageInfo {
+                        endCursor
+                        hasNextPage
                     }
                 }
             }
@@ -970,16 +975,39 @@ class Sweep(Attrs):
         return self._attrs
 
     @property
+    def order(self):
+        if self._attrs.get("config") and self.config.get("metric"):
+            sort_order = self.config["metric"].get("goal", "minimize")
+            prefix = "+" if sort_order == "minimize" else "-"
+            return QueryGenerator.format_order_key(prefix + self.config["metric"]["name"])
+
+    def best_run(self, order=None):
+        "Returns the best run sorted by the metric defined in config or the order passed in"
+        if order is None:
+            order = self.order
+        else:
+            order = QueryGenerator.format_order_key(order)
+        if order is None:
+            wandb.termwarn("No order specified and couldn't find metric in sweep config, returning most recent run")
+        else:
+            wandb.termlog("Sorting runs by %s" % order)
+        filters = {"$and": [{"sweep": self.id}]}
+        try:
+            return Runs(self.client, self.entity, self.project, order=order, filters=filters, per_page=1)[0]
+        except IndexError:
+            return None
+
+    @property
     def path(self):
         return [urllib.parse.quote_plus(str(self.entity)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
     @classmethod
-    def get(cls, client, entity=None, project=None, sid=None, withRuns=True, query=None, **kwargs):
+    def get(cls, client, entity=None, project=None, sid=None, withRuns=True, order=None, query=None, **kwargs):
         """Execute a query against the cloud backend"""
         if query is None:
             query = cls.QUERY
 
-        variables = {'entity': entity, 'project': project, 'name': sid, 'withRuns': withRuns}
+        variables = {'entity': entity, 'project': project, 'name': sid, 'order': order, 'withRuns': withRuns}
         variables.update(kwargs)
 
         response = client.execute(query, variable_values=variables)
@@ -1232,6 +1260,24 @@ class QueryGenerator(object):
 
     def __init__(self):
         pass
+
+    @classmethod
+    def format_order_key(self, key):
+        if key.startswith("+") or key.startswith("-"):
+            direction = key[0]
+            key = key[1:]
+        else:
+            direction = "-"
+        parts = key.split(".")
+        if len(parts) == 1:
+            # Assume the user meant summary_metrics if not a run column
+            if parts[0] not in ["createdAt", "updatedAt", "name", "sweep"]:
+                return direction + "summary_metrics."+parts[0]
+        # Assume summary metrics if prefix isn't known
+        elif parts[0] not in ["config", "summary_metrics", "tags"]:
+            return direction + ".".join(["summary_metrics"] + parts)
+        else:
+            return direction + ".".join(parts)
 
     def _is_group(self, op):
         return op.get("filters") != None
