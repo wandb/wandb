@@ -162,9 +162,10 @@ class History(object):
     def update(self, new_vals):
         """Add a dictionary of values to the current step without writing it to disk.
         """
-        for k, v in six.iteritems(new_vals):
-            k = k.strip()
-            self.row[k] = v
+        with self._lock:
+            for k, v in six.iteritems(new_vals):
+                k = k.strip()
+                self.row[k] = v
 
     @contextlib.contextmanager
     def step(self, compute=True):
