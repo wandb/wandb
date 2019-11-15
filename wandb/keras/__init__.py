@@ -68,21 +68,22 @@ def patch_tf_keras():
 
     def set_wandb_attrs(cbk, val_data):
         if isinstance(cbk, WandbCallback):
-            if is_generator_like(val_data):
-                cbk.generator = val_data
-            elif is_dataset(val_data):
-                if context.executing_eagerly():
-                    cbk.generator = iter(val_data)
-                else:
-                    wandb.termwarn(
-                        "Found a validation dataset in graph mode, can't patch Keras.")
-            elif isinstance(val_data, tuple) and isinstance(val_data[0], tf.Tensor):
-                # Graph mode dataset generator
-                def gen():
-                    while True:
-                        yield K.get_session().run(val_data)
-                cbk.generator = gen()
-            else:
+            if cbk.generator is None:
+                if is_generator_like(val_data):
+                    cbk.generator = val_data
+                elif is_dataset(val_data):
+                    if context.executing_eagerly():
+                        cbk.generator = iter(val_data)
+                    else:
+                        wandb.termwarn(
+                            "Found a validation dataset in graph mode, can't patch Keras.")
+                elif isinstance(val_data, tuple) and isinstance(val_data[0], tf.Tensor):
+                    # Graph mode dataset generator
+                    def gen():
+                        while True:
+                            yield K.get_session().run(val_data)
+                    cbk.generator = gen()
+            elif cbk.validation_data is None:
                 cbk.validation_data = val_data
 
     def new_arrays(*args, **kwargs):
