@@ -392,6 +392,20 @@ def _jupyter_login(force=True, api=None):
         raise LaunchError("Internal error: api required for jupyter login")
     return util.prompt_api_key(api, browser_callback=get_api_key_from_browser)
 
+_jupyter_hooks = {}
+def _ensure_one_jupyter_hook(event, hook):
+    """Calling wandb.init multiple times in notebooks shouldn't create multiple hooks"""
+    global _jupyter_hooks
+    ipython = get_ipython()
+    if _jupyter_hooks.get(event):
+        ipython.events.unregister(event, _jupyter_hooks[event])
+        # Run the old post run hook before attaching new ones
+        if event == 'post_run_cell':
+            _jupyter_hooks[event]()
+    elif event == 'pre_run_cell':
+        hook()
+    ipython.events.register(event, hook)
+    _jupyter_hooks[event] = hook
 
 def _init_jupyter(run):
     """Asks for user input to configure the machine if it isn't already and creates a new run.
@@ -450,17 +464,19 @@ def _init_jupyter(run):
     ipython = get_ipython()
     ipython.register_magics(jupyter.WandBMagics)
 
-    def reset_start():
-        """Reset START_TIME to when the cell starts"""
+    def start_jupyter_agent():
+        """Reset START_TIME to when the cell starts and start agent"""
         global START_TIME
         START_TIME = time.time()
-    ipython.events.register("pre_run_cell", reset_start)
+        run._start_jupyter_agent()
 
-    def cleanup():
+    def stop_jupyter_agent():
         # shutdown async logger because _user_process_finished isn't called in jupyter
         shutdown_async_log_thread()
         run._stop_jupyter_agent()
-    ipython.events.register('post_run_cell', cleanup)
+
+    _ensure_one_jupyter_hook("pre_run_cell", start_jupyter_agent)
+    _ensure_one_jupyter_hook('post_run_cell', stop_jupyter_agent)
 
 
 join = None

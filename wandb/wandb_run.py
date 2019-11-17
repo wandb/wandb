@@ -175,6 +175,9 @@ class Run(object):
     def _stop_jupyter_agent(self):
         self._jupyter_agent.stop()
 
+    def _start_jupyter_agent(self):
+        self._jupyter_agent.start()
+
     def send_message(self, options):
         """ Sends a message to the wandb process changing the policy
         of saved files.  This is primarily used internally by wandb.save
@@ -187,12 +190,11 @@ class Run(object):
             self.socket.send(options)
         elif self._jupyter_agent:
             # Running in jupyter
-            self._jupyter_agent.start()
             if options.get("save_policy"):
                 self._jupyter_agent.rm.update_user_file_policy(
-                    options["save_policy"])
+                    options["save_policy"]) # TODO: this won't persist between cells
             elif options.get("tensorboard"):
-                self._jupyter_agent.rm.start_tensorboard_watcher(
+                self._jupyter_agent.start_tensorboard_watcher(
                     options["tensorboard"]["logdir"], options["tensorboard"]["save"])
         elif self._run_manager:
             # Running in the wandb process, used for tfevents saving
@@ -639,9 +641,8 @@ class Run(object):
     @property
     def history(self):
         if self._history is None:
-            jupyter_callback = self._jupyter_agent.start if self._jupyter_agent else None
             self._history = history.History(
-                self, add_callback=self._history_added, jupyter_callback=jupyter_callback)
+                self, add_callback=self._history_added)
             if self._history._steps > 0:
                 self.resumed = True
         return self._history

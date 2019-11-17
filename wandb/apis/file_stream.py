@@ -228,4 +228,8 @@ class FileStreamApi(object):
             exitcode: The exitcode of the watched process.
         """
         self._queue.put(self.Finish(exitcode))
-        self._thread.join()
+        try:
+            self._thread.join()
+        except RuntimeError:
+            # Thread not started
+            pass
