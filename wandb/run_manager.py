@@ -316,8 +316,9 @@ class FileEventHandlerTextStream(FileEventHandler):
 
     def on_created(self):
         if self._tailer:
-            logger.error(
-                'Streaming file created twice in same run: %s', self.file_path)
+            if not self._seek_end:
+                logger.error(
+                    'Streaming file created twice in same run: %s', self.file_path)
             return
         self._setup()
 

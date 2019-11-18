@@ -599,7 +599,7 @@ class Api(object):
             'entity': entity, 'project': project_name, 'name': name,
         })
 
-        if 'model' not in response or 'bucket' not in response['model']:
+        if 'model' not in response or 'bucket' not in (response['model'] or {}):
             return None
 
         project = response['model']
