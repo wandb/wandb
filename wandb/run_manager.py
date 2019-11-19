@@ -160,7 +160,7 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
 
     @property
     def current_size(self):
-        return os.path.getsize(self.file_path)
+        return os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
 
     def on_modified(self):
         # Don't upload anything if it's zero size.
