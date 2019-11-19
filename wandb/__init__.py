@@ -398,7 +398,9 @@ def _ensure_one_jupyter_hook(event, hook):
     global _jupyter_hooks
     ipython = get_ipython()
     if _jupyter_hooks.get(event):
-        ipython.events.unregister(event, _jupyter_hooks[event])
+        # No unregister in older ipython
+        if hasattr(ipython.events, "unregister"):
+            ipython.events.unregister(event, _jupyter_hooks[event])
         # Run the old post run hook before attaching new ones
         if event == 'post_run_cell':
             _jupyter_hooks[event]()
