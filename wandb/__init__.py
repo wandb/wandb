@@ -103,7 +103,10 @@ def hook_torch(*args, **kwargs):
         "DEPRECATED: wandb.hook_torch is deprecated, use `wandb.watch`")
     return watch(*args, **kwargs)
 
+
 _global_watch_idx = 0
+
+
 def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
@@ -153,6 +156,7 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
+
 
 def unwatch(models=None):
     """Remove pytorch gradient and parameter hooks.
@@ -427,7 +431,8 @@ def _init_jupyter(run):
         displayed = False
         try:
             sweep_url = run.get_sweep_url()
-            sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(sweep_url, sweep_url) if sweep_url else ""
+            sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
+                sweep_url, sweep_url) if sweep_url else ""
             docs_html = '<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">(Documentation)</a>'
             display(HTML('''
                 Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a> {}.<br/>
@@ -923,6 +928,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     if job_type:
         os.environ[env.JOB_TYPE] = job_type
     if tags:
+        if isinstance(tags, str):
+            # People sometimes pass a string instead of an array of strings...
+            tags = [tags]
         os.environ[env.TAGS] = ",".join(tags)
     if id:
         os.environ[env.RUN_ID] = id
