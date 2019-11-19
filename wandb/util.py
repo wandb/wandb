@@ -98,6 +98,9 @@ def vendor_import(name):
     vendor_dir = os.path.join(parent_dir, 'vendor')
 
     sys.path.insert(1, vendor_dir)
+    for module in sys.modules.keys():
+        if module.startswith("prompt_toolkit"):
+            del sys.modules[module]
     return import_module(name)
 
 
