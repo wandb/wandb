@@ -265,6 +265,8 @@ class Api(object):
         """
         result = self.default_settings.copy()
         result.update(self._settings.items(section=section))
+        if result.get("anonymous") and self._environ.get(env.ANONYMOUS) == "never":
+            result["anonymous"] = "false"
         result.update({
             'entity': env.get_entity(
                 self._settings.get(Settings.DEFAULT_SECTION, "entity", fallback=result.get('entity')),
