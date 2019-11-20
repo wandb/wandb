@@ -15,7 +15,7 @@ import threading
 from click.testing import CliRunner
 
 from .api_mocks import *
-from .utils import runner
+from .utils import runner, git_repo
 import wandb
 from wandb import wandb_run
 from wandb import env
@@ -178,6 +178,18 @@ def test_login_no_key(local_netrc, mocker):
     assert wandb.api.api_key == None
     wandb.login()
     assert wandb.api.api_key == "C" * 40
+
+
+def test_run_context_multi_run(live_mock_server, git_repo):
+    os.environ[env.BASE_URL] = "http://localhost:%i" % 8765
+    os.environ["WANDB_API_KEY"] = "B" * 40
+    with wandb.init() as run:
+        run.log({"a": 1, "b": 2})
+
+    with wandb.init(reinit=True) as run:
+        run.log({"c": 3, "d": 4})
+
+    assert len(glob.glob("wandb/*")) == 4
 
 
 def test_login_jupyter_anonymous(mock_server, local_netrc, mocker):

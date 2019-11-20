@@ -78,7 +78,7 @@ def patch():
     def end_run(status):
         # TODO: use status and switch to set_terminated for joining the run
         fluent.orig_end_run(status)
-        wandb.join()
+        wandb.join(0 if status == "FINISHED" else 1)
     fluent.end_run = end_run
     mlflow.end_run = end_run
 
