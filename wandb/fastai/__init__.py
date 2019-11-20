@@ -64,9 +64,6 @@ class WandbCallback(TrackerCallback):
         predictions (int): number of predictions to make if input_type is set and validation_data is None.
         seed (int): initialize random generator for sample predictions if input_type is set and validation_data is None.
     """
-    
-    # Record if watch has been called previously (even in another instance)
-    _watch_called = False
 
     def __init__(self,
                  learn,
@@ -113,12 +110,8 @@ class WandbCallback(TrackerCallback):
         # Set self.best, method inherited from "TrackerCallback" by "SaveModelCallback"
         super().on_train_begin()
 
-        # Ensure we don't call "watch" multiple times
-        if not WandbCallback._watch_called:
-            WandbCallback._watch_called = True
-
-            # Logs model topology and optionally gradients and weights
-            wandb.watch(self.learn.model, log=self.log)
+        # Logs model topology and optionally gradients and weights
+        wandb.watch(self.learn.model, log=self.log)
 
     def on_epoch_end(self, epoch, smooth_loss, last_metrics, **kwargs):
         "Logs training loss, validation loss and custom metrics & log prediction samples & save model"

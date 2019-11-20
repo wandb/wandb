@@ -51,6 +51,7 @@ def dummy_model_with_callback_images(mnist_data):
 
 
 def test_fastai_callback_in_model(wandb_init_run, dummy_model_with_callback):
+    wandb._global_watch_idx = 0
     dummy_model_with_callback.fit(1)
     wandb.run.summary.load()
     assert wandb.run.history.rows[0]["epoch"] == 0
@@ -60,6 +61,7 @@ def test_fastai_callback_in_model(wandb_init_run, dummy_model_with_callback):
 
 
 def test_fastai_callback_in_training(wandb_init_run, dummy_model_no_callback):
+    wandb._global_watch_idx = 0
     dummy_model_no_callback.fit(
         1, callbacks=WandbCallback(dummy_model_no_callback))
     wandb.run.summary.load()
