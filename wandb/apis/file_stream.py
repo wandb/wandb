@@ -41,10 +41,10 @@ class JsonlFilePolicy(object):
         chunk_data = []
         for chunk in chunks:
             if len(chunk.data) > MAX_LINE_SIZE:
-                msg = 'JSONL (history) row is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(chunk.data), MAX_LINE_SIZE)
+                msg = 'Metric data is {} bytes but the maximum size is {} bytes. Dropping it.'.format(
+                    len(chunk.data), MAX_LINE_SIZE)
                 wandb.termerror(msg)
                 util.sentry_message(msg)
-                chunk_data.append('{}')
             else:
                 chunk_data.append(chunk.data)
 
@@ -59,9 +59,9 @@ class SummaryFilePolicy(object):
         data = chunks[-1].data
         if len(data) > MAX_LINE_SIZE:
             msg = 'Summary is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(data), MAX_LINE_SIZE)
-            wandb.termerror(msg)
+            wandb.termerror(msg, repeat=False)
             util.sentry_message(msg)
-            data = '{}'
+            return False
         return {
             'offset': 0, 'content': [data]
         }
@@ -75,6 +75,7 @@ class CRDedupeFilePolicy(object):
     amount of data we need to send over the network (eg. for progress bars),
     while preserving the output's appearance in the web app.
     """
+
     def __init__(self, start_chunk_id=0):
         self._chunk_id = start_chunk_id
 
@@ -241,6 +242,8 @@ class FileStreamApi(object):
             self.set_default_file_policy(filename, DefaultFilePolicy())
             files[filename] = self._file_policies[filename].process_chunks(
                 file_chunks)
+            if not files[filename]:
+                del files[filename]
 
         self._handle_response(util.request_with_retry(
             self._client.post, self._endpoint, json={'files': files}))

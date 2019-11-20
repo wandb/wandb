@@ -9,5 +9,8 @@ possible if the user logs a lot of data.
 
 import sys
 import wandb
+import time
 wandb.init()
+wandb.log({'b': 12354})
+time.sleep(5)
 wandb.log({'a': 'l' * (4194217 - 100 * 1024)})
