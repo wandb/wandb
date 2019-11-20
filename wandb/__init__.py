@@ -748,7 +748,8 @@ def ensure_configured():
 def uninit(only_patches=False):
     """Undo the effects of init(). Useful for testing.
     """
-    global run, config, summary, patched, _saved_files
+    global run, config, summary, patched, _saved_files, _jupyter_hooks
+    _jupyter_hooks = {}
     if not only_patches:
         run = None
         config = util.PreInitObject("wandb.config")
