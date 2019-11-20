@@ -361,8 +361,7 @@ class FileSummary(Summary):
     def _write(self, commit=False):
         # TODO: we just ignore commit to ensure backward capability
         with open(self._fname, 'w') as f:
-            s = util.json_dumps_safer(self._json_dict, indent=4)
-            f.write(s)
+            f.write(util.json_dumps_safer(self._json_dict))
             f.write('\n')
             f.flush()
             os.fsync(f.fileno())

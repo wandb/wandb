@@ -16,6 +16,7 @@ import weakref
 
 from wandb.wandb_torch import TorchHistory
 import wandb
+import wandb.apis.file_stream
 from wandb import util
 from wandb import data_types
 

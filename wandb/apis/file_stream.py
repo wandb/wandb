@@ -11,6 +11,8 @@ from six.moves import queue
 from wandb import util
 from wandb import env
 
+MAX_LINE_SIZE = 4*1024*1024 - 100*1024  # imposed by back end
+
 logger = logging.getLogger(__name__)
 
 Chunk = collections.namedtuple('Chunk', ('filename', 'data'))
@@ -29,14 +31,50 @@ class DefaultFilePolicy(object):
         }
 
 
-class OverwriteFilePolicy(object):
+class JsonlFilePolicy(object):
+    def __init__(self, start_chunk_id=0):
+        self._chunk_id = start_chunk_id
+
     def process_chunks(self, chunks):
+        chunk_id = self._chunk_id
+        self._chunk_id += len(chunks)
+        chunk_data = []
+        for chunk in chunks:
+            if len(chunk.data) > MAX_LINE_SIZE:
+                msg = 'JSONL (history) row is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(chunk.data), MAX_LINE_SIZE)
+                wandb.termerror(msg)
+                util.sentry_message(msg)
+                chunk_data.append('{}')
+            else:
+                chunk_data.append(chunk.data)
+
         return {
-            'offset': 0, 'content': [chunks[-1].data]
+            'offset': chunk_id,
+            'content': chunk_data,
+        }
+
+
+class SummaryFilePolicy(object):
+    def process_chunks(self, chunks):
+        data = chunks[-1].data
+        if len(data) > MAX_LINE_SIZE:
+            msg = 'Summary is {} bytes but the maximum size is {} bytes. Dropping it.'.format(len(data), MAX_LINE_SIZE)
+            wandb.termerror(msg)
+            util.sentry_message(msg)
+            data = '{}'
+        return {
+            'offset': 0, 'content': [data]
         }
 
 
 class CRDedupeFilePolicy(object):
+    """File stream policy that removes characters that would be erased by
+    carriage returns.
+
+    This is what a terminal does. We use it for console output to reduce the
+    amount of data we need to send over the network (eg. for progress bars),
+    while preserving the output's appearance in the web app.
+    """
     def __init__(self, start_chunk_id=0):
         self._chunk_id = start_chunk_id
 
@@ -185,6 +223,8 @@ class FileStreamApi(object):
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
+            raise response
+            wandb.termerror('Droppped streaming file chunk (see wandb/debug.log)')
             logging.error("dropped chunk %s" % response)
         elif response.json().get("limits"):
             parsed = response.json()
@@ -196,12 +236,12 @@ class FileStreamApi(object):
         files = {}
         # Groupby needs group keys to be consecutive, so sort first.
         chunks.sort(key=lambda c: c.filename)
-        #print('fsapi', chunks)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
             self.set_default_file_policy(filename, DefaultFilePolicy())
             files[filename] = self._file_policies[filename].process_chunks(
                 file_chunks)
+
         self._handle_response(util.request_with_retry(
             self._client.post, self._endpoint, json={'files': files}))
 
