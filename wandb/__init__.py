@@ -315,6 +315,7 @@ def _init_headless(run, cloud=True):
                     wandb_process, stdout_redirector, stderr_redirector)
 
     def _wandb_join():
+        run.close_files()
         _user_process_finished(server, hooks,
                                wandb_process, stdout_redirector, stderr_redirector)
     join = _wandb_join

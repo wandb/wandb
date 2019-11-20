@@ -247,7 +247,8 @@ class FileStreamApi(object):
 
     def stream_file(self, path):
         name = path.split("/")[-1]
-        self._send([Chunk(name, line) for line in open(path).readlines()])
+        with open(path) as file:
+            self._send([Chunk(name, line) for line in file.readlines()])
 
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.
