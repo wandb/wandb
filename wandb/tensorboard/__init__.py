@@ -5,6 +5,7 @@ import six
 import sys
 import glob
 import wandb
+import numpy as np
 
 
 # Constants for patching tensorboard
@@ -263,10 +264,13 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
             continue
         if kind == "simple_value":
             values[namespaced_tag(value.tag, namespace)] = value.simple_value
-        elif kind == "tensor":
+        elif kind == "tensor" and value.tag != "_hparams_/session_start_info":
             tensorboard_util = wandb.util.get_module("tensorboard.util")
             if tensorboard_util:
-                values[namespaced_tag(value.tag, namespace)] = tensorboard_util.tensor_util.make_ndarray(value.tensor)
+                numpy_array = tensorboard_util.tensor_util.make_ndarray(value.tensor)
+                # Only log numbers, some tensors can be configs
+                if np.issubdtype(numpy_array.dtype, np.integer) or np.issubdtype(numpy_array.dtype, np.floating):
+                    values[namespaced_tag(value.tag, namespace)] = numpy_array
             else:
                 wandb.termwarn(
                     "Couldn't log tensor type, upgrade tensorboard with pip install tensorboard --upgrade", repeat=False)
@@ -321,7 +325,6 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
             else:
                 wandb.termerror(
                     "Received hparams tf.summary, but could not import the hparams plugin from tensorboard")
-
     return values
 
 
