@@ -43,7 +43,7 @@ class JsonlFilePolicy(object):
             if len(chunk.data) > MAX_LINE_SIZE:
                 msg = 'Metric data is {} bytes but the maximum size is {} bytes. Dropping it.'.format(
                     len(chunk.data), MAX_LINE_SIZE)
-                wandb.termerror(msg)
+                wandb.termerror(msg, repeat=False)
                 util.sentry_message(msg)
             else:
                 chunk_data.append(chunk.data)
