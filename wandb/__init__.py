@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.14'
+__version__ = '0.8.15'
 
 import atexit
 import click
@@ -104,7 +104,10 @@ def hook_torch(*args, **kwargs):
         "DEPRECATED: wandb.hook_torch is deprecated, use `wandb.watch`")
     return watch(*args, **kwargs)
 
+
 _global_watch_idx = 0
+
+
 def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
@@ -154,6 +157,7 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
+
 
 def unwatch(models=None):
     """Remove pytorch gradient and parameter hooks.
@@ -428,7 +432,8 @@ def _init_jupyter(run):
         displayed = False
         try:
             sweep_url = run.get_sweep_url()
-            sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(sweep_url, sweep_url) if sweep_url else ""
+            sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
+                sweep_url, sweep_url) if sweep_url else ""
             docs_html = '<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">(Documentation)</a>'
             display(HTML('''
                 Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a> {}.<br/>
@@ -486,11 +491,15 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         while wandb_process.poll() is None:
             time.sleep(0.1)
     except KeyboardInterrupt:
-        pass
+        termlog('Sending ctrl-c to W&B process, PID {}. Press ctrl-c again to kill it.'.format(wandb_process.pid))
 
-    if wandb_process.poll() is None:
-        termlog('Killing W&B process, PID {}'.format(wandb_process.pid))
-        wandb_process.kill()
+    try:
+        while wandb_process.poll() is None:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        if wandb_process.poll() is None:
+            termlog('Killing W&B process, PID {}'.format(wandb_process.pid))
+            wandb_process.kill()
 
 
 # Will be set to the run object for the current run, as returned by
@@ -869,7 +878,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         # Reset global state for pytorch watch and tensorboard
         _global_watch_idx = 0
         if len(patched["tensorboard"]) > 0:
-            tensorboard.reset_state()
+            util.get_module("wandb.tensorboard").reset_state()
         reset_env(exclude=env.immutable_keys())
         run = None
 
@@ -924,6 +933,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     if job_type:
         os.environ[env.JOB_TYPE] = job_type
     if tags:
+        if isinstance(tags, str):
+            # People sometimes pass a string instead of an array of strings...
+            tags = [tags]
         os.environ[env.TAGS] = ",".join(tags)
     if id:
         os.environ[env.RUN_ID] = id
