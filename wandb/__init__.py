@@ -33,6 +33,7 @@ import threading
 import platform
 import collections
 from six.moves import queue
+from six import string_types
 from importlib import import_module
 
 from . import env
@@ -525,13 +526,13 @@ def save(glob_str, base_path=None, policy="live"):
     if policy not in ("live", "end"):
         raise ValueError(
             'Only "live" and "end" policies are currently supported.')
-    if not isinstance(glob_str, str):
+    if isinstance(glob_str, bytes):
+        glob_str = glob_str.decode('utf-8')
+    if not isinstance(glob_str, string_types):
         raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
 
     if base_path is None:
         base_path = os.path.dirname(glob_str)
-    if isinstance(glob_str, bytes):
-        glob_str = glob_str.decode('utf-8')
     wandb_glob_str = os.path.relpath(glob_str, base_path)
     if "../" in wandb_glob_str:
         raise ValueError(
