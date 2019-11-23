@@ -472,7 +472,7 @@ class Run(object):
 
         return entity
 
-    def get_project_url(self, api=None, network=None, params=None):
+    def get_project_url(self, api=None, network=True, params=None):
         """Generate a url for a project.
         
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
@@ -488,7 +488,7 @@ class Run(object):
             query_string=self._generate_query_string(api, params)
         )
 
-    def get_sweep_url(self, api=None, network=None, params=None):
+    def get_sweep_url(self, api=None, network=True, params=None):
         """Generate a url for a sweep.
 
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
