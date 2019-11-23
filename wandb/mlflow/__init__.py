@@ -22,9 +22,8 @@ def patch():
     from mlflow.tracking import fluent
     client = MlflowClient()
 
-    fluent.orig_get_or_start_run = fluent._get_or_start_run
-    fluent.orig_start_run = fluent.start_run
-    fluent.orig_end_run = fluent.end_run
+    orig_start_run = fluent.start_run
+    orig_end_run = fluent.end_run
     MlflowClient.orig_log_metric = MlflowClient.log_metric
     MlflowClient.orig_log_param = MlflowClient.log_param
     MlflowClient.orig_set_tag = MlflowClient.set_tag
@@ -69,7 +68,7 @@ def patch():
             print('\n'.join(lines))
 
     def start_run(**kwargs):
-        run = fluent.orig_start_run(**kwargs)
+        run = orig_start_run(**kwargs)
         _get_or_start_wandb_run(run, run_id=kwargs.get("run_id"), name=kwargs.get("run_name"))
         return run
     fluent.start_run = start_run
@@ -77,7 +76,7 @@ def patch():
 
     def end_run(status):
         # TODO: use status and switch to set_terminated for joining the run
-        fluent.orig_end_run(status)
+        orig_end_run(status)
         wandb.join(0 if status == "FINISHED" else 1)
     fluent.end_run = end_run
     mlflow.end_run = end_run
