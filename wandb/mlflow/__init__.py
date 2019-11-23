@@ -91,12 +91,12 @@ def patch():
             return run
 
     def log_param(self, run_id, key, value):
-        self.orig_log_param(run_id, key, value)
+        MlflowClient.orig_log_param(self, run_id, key, value)
         _get_run(run_id).config[key] = value
     MlflowClient.log_param = log_param
 
     def set_tag(self, run_id, key, value):
-        self.orig_set_tag(run_id, key, value)
+        MlflowClient.orig_set_tag(self, run_id, key, value)
         _get_run(run_id).config[key] = value
     MlflowClient.set_tag = set_tag
 
@@ -122,13 +122,13 @@ def patch():
         return metrics, step
 
     def log_metric(self, run_id, key, value, timestamp=None, step=None):
-        self.orig_log_metric(run_id, key, value, timestamp, step)
+        MlflowClient.orig_log_metric(self, run_id, key, value, timestamp, step)
         metrics, step = _fix_step(run_id, {key: value}, step, timestamp)
         _get_run(run_id).history.add(metrics, step=step)
     MlflowClient.log_metric = log_metric
 
     def log_batch(self, run_id, metrics=(), params=(), tags=()):
-        self.orig_log_batch(run_id, metrics, params, tags)
+        MlflowClient.orig_log_batch(self, run_id, metrics, params, tags)
         run = _get_run(run_id)
         for metric in metrics:
             metrics, step = _fix_step(run_id, {metric.key: metric.value}, metric.step, metric.timestamp)
@@ -138,7 +138,7 @@ def patch():
     MlflowClient.log_batch = log_batch
 
     def log_artifact(self, run_id, local_path, artifact_path=None):
-        self.orig_log_artifact(run_id, local_path, artifact_path)
+        MlflowClient.orig_log_artifact(self, run_id, local_path, artifact_path)
         if os.getenv(env.SYNC_MLFLOW) != "all":
             return
         if os.path.isdir(local_path):
@@ -152,7 +152,7 @@ def patch():
     MlflowClient.log_artifact = log_artifact
 
     def log_artifacts(self, run_id, local_dir, artifact_path=None):
-        self.orig_log_artifacts(run_id, local_dir, artifact_path)
+        MlflowClient.orig_log_artifacts(self, run_id, local_dir, artifact_path)
         if os.getenv(env.SYNC_MLFLOW) != "all":
             return
         #TODO: abspath?
