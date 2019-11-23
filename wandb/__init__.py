@@ -225,11 +225,14 @@ def _init_headless(run, cloud=True):
     hooks.hook()
 
     if platform.system() == "Windows":
-        import win32api
-        # Make sure we are not ignoring CTRL_C_EVENT
-        # https://docs.microsoft.com/en-us/windows/console/setconsolectrlhandler
-        # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
-        win32api.SetConsoleCtrlHandler(None, False)
+        try:
+            import win32api
+            # Make sure we are not ignoring CTRL_C_EVENT
+            # https://docs.microsoft.com/en-us/windows/console/setconsolectrlhandler
+            # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
+            win32api.SetConsoleCtrlHandler(None, False)
+        except ImportError:
+            termerror("Install the win32api library with `pip install pypiwin32`")
 
         # PTYs don't work in windows so we create these unused pipes and
         # mirror stdout to run.dir/output.log.  There should be a way to make
@@ -525,6 +528,7 @@ patched = {
 }
 _saved_files = set()
 _global_run_stack = []
+
 
 def join(exit_code=None):
     """Marks a run as finished"""
@@ -825,6 +829,7 @@ def sagemaker_auth(overrides={}, path="."):
         for k, v in six.iteritems(overrides):
             file.write("{}={}\n".format(k, v))
 
+
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
@@ -862,10 +867,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     init_args = locals()
     trigger.call('on_init', **init_args)
     global run
-    global join
     global __stage_dir__
     global _global_watch_idx
-    global _global_run_stack
 
     # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
