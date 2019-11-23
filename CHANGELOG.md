@@ -1,3 +1,10 @@
+## 0.8.16 (Nov 21, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix regression syncing some versions of Tensorboard since 0.8.13
+-   Fix network error in Jupyter
+
 ## 0.8.15 (Nov 5, 2019)
 
 #### :bug: Bug Fix
