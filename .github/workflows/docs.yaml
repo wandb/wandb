@@ -40,7 +40,7 @@ jobs:
                   author_email: vanpelt@wandb.com
                   message: "Doc updates"
                   path: "."
-                  pattern: "docs/*"
+                  pattern: "docs/markdown/*"
                   force: false
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
