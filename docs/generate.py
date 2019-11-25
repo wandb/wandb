@@ -110,12 +110,11 @@ class Section(object):
             lineno = inspect.getsourcelines(value)[1]
             if len(self.doc.sections) > 0:
                 value = import_object(self.doc.sections[0].identifier)
-            filename = inspect.getsourcefile(value).split("/client/")[-1].replace("/client", "")
-            print("FILENAME", filename)
+            filename = inspect.getsourcefile(value).split("client/")[-1]
             #TODO: this breaks without the HEAD/client replace on master in github actions?
             branch = os.popen("git rev-parse --abbrev-ref HEAD").read().strip().replace("HEAD/client",
                                                                                         "master").replace("HEAD", "master")
-            print("BRANCH", branch)
+            print("FILENAME/BRANCH", filename, branch)
             self.link = "https://github.com/wandb/client/blob/{}/{}#L{}".format(branch, filename, lineno)
         except TypeError as e:
             pass
