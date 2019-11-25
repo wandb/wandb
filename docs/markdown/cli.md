@@ -113,8 +113,10 @@ encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
 ### cli.params
-list() -> new empty list
-list(iterable) -> new list initialized from iterable's items
+Built-in mutable sequence.
+
+If no argument is given, the constructor creates a new empty list.
+The argument must be an iterable if specified.
 
 ### cli.subcommand_metavar
 str(object='') -> str

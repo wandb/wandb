@@ -170,11 +170,11 @@ A project is a namespace for runs
 ```python
 Runs(self, client, entity, project, filters={}, order=None, per_page=50)
 ```
-An iterable collection of runs associated with a project and optional filter.
+An iterable collection of runs associated with a project and optional filter. This is generally used indirectly via the [`Api`.runs](#api`.runs) method
 
 
 ## Run
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L573)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L574)
 ```python
 Run(self, client, entity, project, run_id, attrs={})
 ```
@@ -202,14 +202,14 @@ A single run associated with an entity and project.
  
 
 ### Run.create
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L655)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L656)
 ```python
 Run.create(api, run_id=None, project=None, entity=None)
 ```
 Create a run for the given project
 
 ### Run.update
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L737)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L738)
 ```python
 Run.update(self)
 ```
@@ -218,7 +218,7 @@ Persists changes to the run object to the wandb backend.
 
 
 ### Run.files
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L797)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L798)
 ```python
 Run.files(self, names=[], per_page=50)
 ```
@@ -235,7 +235,7 @@ Run.files(self, names=[], per_page=50)
  
 
 ### Run.file
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L809)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L810)
 ```python
 Run.file(self, name)
 ```
@@ -251,7 +251,7 @@ Run.file(self, name)
  
 
 ### Run.history
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L820)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L821)
 ```python
 Run.history(self,
             samples=500,
@@ -278,7 +278,7 @@ Returns sampled history metrics for a run.  This is simpler and faster if you ar
  
 
 ### Run.scan_history
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L852)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L853)
 ```python
 Run.scan_history(self, keys=None, page_size=1000)
 ```
@@ -309,7 +309,7 @@ losses = [row["Loss"] for row in history]
  
 
 ## Sweep
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L905)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L906)
 ```python
 Sweep(self, client, entity, project, sweep_id, attrs={})
 ```
@@ -324,14 +324,14 @@ A set of runs associated with a sweep Instantiate with: api.sweep(sweep_path)
  
 
 ### Sweep.best_run
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L986)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L987)
 ```python
 Sweep.best_run(self, order=None)
 ```
 Returns the best run sorted by the metric defined in config or the order passed in
 
 ### Sweep.get
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1006)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1007)
 ```python
 Sweep.get(client,
           entity=None,
@@ -345,14 +345,14 @@ Sweep.get(client,
 Execute a query against the cloud backend
 
 ## Files
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1046)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1047)
 ```python
 Files(self, client, run, names=[], per_page=50, upload=False)
 ```
 Files is an iterable collection of [`File`](#file) objects.
 
 ## File
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1102)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1103)
 ```python
 File(self, client, attrs)
 ```
@@ -370,7 +370,7 @@ File is a class associated with a file saved by wandb.
  
 
 ### File.download
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1146)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1147)
 ```python
 File.download(self, replace=False, root='.')
 ```
@@ -388,14 +388,14 @@ Downloads a file previously saved by a run from the wandb server.
  
 
 ## Reports
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1181)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1182)
 ```python
 Reports(self, client, project, name=None, entity=None, per_page=50)
 ```
 Reports is an iterable collection of [`BetaReport`](#betareport) objects.
 
 ## QueryGenerator
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1245)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1246)
 ```python
 QueryGenerator(self)
 ```
@@ -424,7 +424,7 @@ dict(**kwargs) -> new dictionary initialized with the name=value pairs
 in the keyword argument list.  For example:  dict(one=1, two=2)
 
 ## BetaReport
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1344)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1345)
 ```python
 BetaReport(self, client, attrs, entity=None, project=None)
 ```
