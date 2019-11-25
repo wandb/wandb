@@ -31,6 +31,8 @@ jobs:
               with:
                   name: "docs"
                   path: docs/markdown
+            - name: Git status
+              run: git status
             - name: Commit changes
               uses: EndBug/add-and-commit@master
               with:
