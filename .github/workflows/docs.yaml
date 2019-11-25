@@ -43,7 +43,7 @@ jobs:
                   pattern: "*.md"
                   force: false
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_API_TOKEN }}
     deploy:
         needs: build
         runs-on: ubuntu-latest
