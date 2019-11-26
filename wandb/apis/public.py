@@ -487,7 +487,8 @@ class Project(Attrs):
 
 
 class Runs(Paginator):
-    """An iterable collection of runs associated with a project and optional filter.    
+    """An iterable collection of runs associated with a project and optional filter.
+    This is generally used indirectly via the :obj:`Api`.runs method
     """
 
     QUERY = gql('''

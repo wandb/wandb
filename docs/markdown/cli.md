@@ -113,8 +113,10 @@ encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
 ### cli.params
-list() -> new empty list
-list(iterable) -> new list initialized from iterable's items
+Built-in mutable sequence.
+
+If no argument is given, the constructor creates a new empty list.
+The argument must be an iterable if specified.
 
 ### cli.subcommand_metavar
 str(object='') -> str
@@ -129,7 +131,7 @@ encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
 ### cli
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L224)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L225)
 ```python
 cli(ctx)
 ```
@@ -139,7 +141,7 @@ Run "wandb docs" for full documentation.
 
 
 ## CallbackHandler
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L74)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L75)
 ```python
 CallbackHandler(self, request, client_address, server)
 ```
@@ -147,7 +149,7 @@ Simple callback handler that stores query string parameters and shuts down the s
 
 
 ## LocalServer
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L91)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L92)
 ```python
 LocalServer(self)
 ```
@@ -155,14 +157,14 @@ A local HTTP server that finds an open port and listens for a callback. The urle
 
 
 ## cli.display_error
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L146)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L147)
 ```python
 display_error(func)
 ```
 Function decorator for catching common errors and re-raising as wandb.Error
 
 ## cli.prompt_for_project
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L163)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L164)
 ```python
 prompt_for_project(ctx, entity)
 ```
