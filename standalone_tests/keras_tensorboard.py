@@ -6,7 +6,10 @@ import glob
 import os
 
 #wandb.init(project="tf2", sync_tensorboard=True, resume=True)
-wandb.init(sync_tensorboard=True, resume=True)
+
+os.environ["WANDB_API_KEY"] = "board-1af66940aff425b562a69c91d5705d232bc0129e"
+os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
+wandb.init(sync_tensorboard=True)
 
 wandb.config['nice'] = 'So cool fun'
 
