@@ -5,12 +5,10 @@ from click.testing import CliRunner
 import git
 import requests
 import json
-from wandb import cli
 from wandb import util
 from wandb.apis import InternalApi
 
 import webbrowser
-whaaaaat = util.vendor_import("whaaaaat")
 from wandb.git_repo import GitRepo
 from distutils.version import LooseVersion
 
@@ -27,7 +25,8 @@ if torch:
 
 @pytest.fixture
 def runner(monkeypatch):
-    monkeypatch.setattr(cli, 'api', InternalApi(
+    whaaaaat = util.vendor_import("whaaaaat")
+    monkeypatch.setattr('wandb.cli.api', InternalApi(
         default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
     monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {
