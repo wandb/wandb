@@ -162,7 +162,7 @@ Wandb representation of video.
  
 
 ## Image
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L667)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L668)
 ```python
 Image(self, data_or_path, mode=None, caption=None, grouping=None)
 ```
@@ -177,7 +177,7 @@ Wandb class for images.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L837)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L838)
 ```python
 Graph(self, format='keras')
 ```
@@ -203,7 +203,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L971)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L972)
 ```python
 Node(self,
      id=None,
@@ -221,7 +221,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1136)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1137)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -230,14 +230,14 @@ Edge used in [`Graph`](#graph)
 
 
 ## data_types.plot_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1266)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1269)
 ```python
 plot_to_json(obj)
 ```
 Converts a matplotlib or plotly object to json so that we can pass it the the wandb server and display it nicely there
 
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1281)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1284)
 ```python
 data_frame_to_json(df, run, key, step)
 ```
