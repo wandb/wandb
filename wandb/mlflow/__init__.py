@@ -19,6 +19,10 @@ def patch():
     if os.getenv(env.SYNC_MLFLOW) in ["false", "0", "none"] or mlflow is None or len(wandb.patched["mlflow"]) > 0:
         return False
     from mlflow.tracking.client import MlflowClient
+    # was seeing infinite recursion in pytest
+    if hasattr(MlflowClient, "orig_log_metric"):
+        return False
+
     from mlflow.tracking import fluent
     client = MlflowClient()
 
