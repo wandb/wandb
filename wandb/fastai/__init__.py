@@ -76,7 +76,6 @@ class WandbCallback(TrackerCallback):
                  predictions=36,
                  seed=12345):
 
-
         # Check if wandb.init has been called
         if wandb.run is None:
             raise ValueError(
@@ -110,8 +109,9 @@ class WandbCallback(TrackerCallback):
         # Set self.best, method inherited from "TrackerCallback" by "SaveModelCallback"
         super().on_train_begin()
 
-        # Logs model topology and optionally gradients and weights
-        wandb.watch(self.learn.model, log=self.log)
+        if not hasattr(self.learn.model, "_wandb_watch_called"):
+            # Logs model topology and optionally gradients and weights
+            wandb.watch(self.learn.model, log=self.log)
 
     def on_epoch_end(self, epoch, smooth_loss, last_metrics, **kwargs):
         "Logs training loss, validation loss and custom metrics & log prediction samples & save model"
@@ -171,7 +171,7 @@ class WandbCallback(TrackerCallback):
                 # likely to be an image
                 elif hasattr(y, "shape") and (
                     (len(y.shape) == 2) or
-                    (len(y.shape) == 3 and y.shape[0] in [1, 3, 4])):
+                        (len(y.shape) == 3 and y.shape[0] in [1, 3, 4])):
 
                     pred_log.extend([
                         wandb.Image(x.data, caption='Input data', grouping=3),
