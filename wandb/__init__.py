@@ -10,7 +10,7 @@ from __future__ import print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.16'
+__version__ = '0.8.17'
 
 import atexit
 import click
