@@ -1,3 +1,15 @@
+## 0.8.17 (Dec 2, 2019)
+
+#### :nail_care: Enhancement
+
+-   Handle tags being passed in as a string
+
+#### :bug: Bug Fix
+
+-   Pin graphql-core < 3.0.0 to fix install errors
+-   TQDM progress bars update logs properly
+-   Oversized summary or history logs are now dropped which prevents retry hanging
+
 ## 0.8.16 (Nov 21, 2019)
 
 #### :bug: Bug Fix
