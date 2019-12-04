@@ -942,9 +942,11 @@ wandb_magic_install()
 @click.pass_context
 @click.option('--controller', is_flag=True, default=False, help="Run local controller")
 @click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
+@click.option('--name', default=False, help="Set sweep name")
+@click.option('--program', default=False, help="Set sweep program")
 @click.argument('config_yaml')
 @display_error
-def sweep(ctx, controller, verbose, config_yaml):
+def sweep(ctx, controller, verbose, name, program, config_yaml):
     click.echo('Creating sweep from: %s' % config_yaml)
     try:
         yaml_file = open(config_yaml)
@@ -959,6 +961,12 @@ def sweep(ctx, controller, verbose, config_yaml):
     if config is None:
         wandb.termerror('Configuration file is empty')
         return
+
+    # Set or override parameters
+    if name:
+        config["name"] = name
+    if program:
+        config["program"] = program
 
     is_local = config.get('controller', {}).get('type') == 'local'
     if is_local:
