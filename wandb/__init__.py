@@ -1104,5 +1104,7 @@ gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
 
 
-__all__ = ['init', 'config', 'termlog', 'termwarn', 'termerror', 'tensorflow',
-           'run', 'types', 'callbacks', 'join']
+__all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
+    'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai', 
+    'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video', 
+    'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']

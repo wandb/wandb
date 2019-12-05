@@ -272,7 +272,7 @@ class FilePusher(object):
         return self._file_stats
 
     def summary(self):
-        progress_values = self._progress.values()
+        progress_values = list(self._progress.values())
         return {
             'failed_batches': len([f for f in progress_values if f['failed']]),
             'uploaded_bytes': sum(f['uploaded'] for f in progress_values),

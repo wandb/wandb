@@ -580,3 +580,6 @@ class WandbCallback(keras.callbacks.Callback):
             wandb.termerror(
                 "Can't save model, h5py returned error: %s" % e)
             self.save_model = False
+
+
+__all__ = ['WandbCallback']
