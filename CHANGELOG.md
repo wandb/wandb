@@ -1,3 +1,14 @@
+## 0.8.18 (Dec 4, 2019)
+
+#### :nail_care: Enhancement
+
+-   Added min_step and max_step to run.scan_history for grabbing sub-sections of metrics
+-   wandb.init(reinit=True) now automatically calls wandb.join() to better support multiple runs per process
+
+#### :bug: Bug Fix
+
+-   wandb.init(sync_tensorboard=True) works again for TensorFlow 2.0
+
 ## 0.8.17 (Dec 2, 2019)
 
 #### :nail_care: Enhancement
