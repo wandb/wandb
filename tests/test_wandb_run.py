@@ -31,8 +31,6 @@ def test_wandb_run_args(git_repo):
 
 
 def test_url_escape(git_repo):
-    #TODO: ensure we cleanup global settings
-    api.set_setting("anonymous", "false")
     environ = dict(os.environ)
     environ[env.ENTITY] = "†est"
     environ[env.PROJECT] = "wild projo"
@@ -43,8 +41,6 @@ def test_url_escape(git_repo):
 
 
 def test_url_escape_query_string(git_repo):
-    #TODO: ensure we cleanup global settings
-    api.set_setting("anonymous", "false")
     environ = dict(os.environ)
     environ[env.ENTITY] = "†est"
     environ[env.PROJECT] = "wild projo"
