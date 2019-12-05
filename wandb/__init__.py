@@ -225,11 +225,14 @@ def _init_headless(run, cloud=True):
     hooks.hook()
 
     if platform.system() == "Windows":
-        import win32api
-        # Make sure we are not ignoring CTRL_C_EVENT
-        # https://docs.microsoft.com/en-us/windows/console/setconsolectrlhandler
-        # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
-        win32api.SetConsoleCtrlHandler(None, False)
+        try:
+            import win32api
+            # Make sure we are not ignoring CTRL_C_EVENT
+            # https://docs.microsoft.com/en-us/windows/console/setconsolectrlhandler
+            # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
+            win32api.SetConsoleCtrlHandler(None, False)
+        except ImportError:
+            termerror("Install the win32api library with `pip install pypiwin32`")
 
         # PTYs don't work in windows so we create these unused pipes and
         # mirror stdout to run.dir/output.log.  There should be a way to make
@@ -314,9 +317,16 @@ def _init_headless(run, cloud=True):
     atexit.register(_user_process_finished, server, hooks,
                     wandb_process, stdout_redirector, stderr_redirector)
 
-    def _wandb_join():
+    def _wandb_join(exit_code=None):
+        global _global_run_stack
+        shutdown_async_log_thread()
+        run.close_files()
+        if exit_code is not None:
+            hooks.exit_code = exit_code
         _user_process_finished(server, hooks,
                                wandb_process, stdout_redirector, stderr_redirector)
+        if len(_global_run_stack) > 0:
+            _global_run_stack.pop()
     join = _wandb_join
     _user_process_finished_called = False
 
@@ -469,7 +479,6 @@ def _init_jupyter(run):
     ipython.events.register('post_run_cell', cleanup)
 
 
-join = None
 _user_process_finished_called = False
 
 
@@ -518,6 +527,16 @@ patched = {
     "gym": []
 }
 _saved_files = set()
+_global_run_stack = []
+
+
+def join(exit_code=None):
+    """Marks a run as finished"""
+    shutdown_async_log_thread()
+    if run:
+        run.close_files()
+    if len(_global_run_stack) > 0:
+        _global_run_stack.pop()
 
 
 def save(glob_str, base_path=None, policy="live"):
@@ -711,23 +730,7 @@ def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
         raise ValueError(
             "You must call `wandb.init` in the same process before calling log")
 
-    if sync == False:
-        _ensure_async_log_thread_started()
-        return _async_log_queue.put({"row": row, "commit": commit, "step": step})
-
-    if row is None:
-        row = {}
-
-    if not isinstance(row, collections.Mapping):
-        raise ValueError("wandb.log must be passed a dictionary")
-
-    if any(not isinstance(key, six.string_types) for key in row.keys()):
-        raise ValueError("Key values passed to `wandb.log` must be strings.")
-
-    if commit or step is not None:
-        run.history.add(row, *args, step=step, **kwargs)
-    else:
-        run.history.update(row, *args, **kwargs)
+    run.log(row, commit, step, sync, *args, **kwargs)
 
 
 def ensure_configured():
@@ -827,11 +830,6 @@ def sagemaker_auth(overrides={}, path="."):
             file.write("{}={}\n".format(k, v))
 
 
-def join():
-    # no-op until it's overridden in _init_headless
-    pass
-
-
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
@@ -880,6 +878,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         if len(patched["tensorboard"]) > 0:
             util.get_module("wandb.tensorboard").reset_state()
         reset_env(exclude=env.immutable_keys())
+        if len(_global_run_stack) > 0:
+            if len(_global_run_stack) > 1:
+                termwarn("If you want to track multiple runs concurrently in wandb you should use multi-processing not threads")
+            join()
         run = None
 
     # TODO: deprecate tensorboard
@@ -1022,6 +1024,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     try:
         run = wandb_run.Run.from_environment_or_defaults()
+        _global_run_stack.append(run)
     except IOError as e:
         termerror('Failed to create run directory: {}'.format(e))
         raise LaunchError("Could not write to filesystem.")
@@ -1087,15 +1090,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # Load the summary to support resuming
     run.summary.load()
 
-    atexit.register(_wandb_finished, run)
-
     return run
-
-
-def _wandb_finished(run):
-    # must shutdown async logging thread before closing files
-    shutdown_async_log_thread()
-    run.close_files()
 
 
 tensorflow = util.LazyLoader('tensorflow', globals(), 'wandb.tensorflow')

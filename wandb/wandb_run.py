@@ -8,6 +8,7 @@ import fnmatch
 import tempfile
 import shutil
 import glob
+import collections
 
 from sentry_sdk import configure_scope
 
@@ -636,6 +637,25 @@ class Run(object):
     def _history_added(self, row):
         self.summary.update(row, overwrite=False)
 
+    def log(self, row=None, commit=True, step=None, sync=True, *args, **kwargs):
+        if sync == False:
+            wandb._ensure_async_log_thread_started()
+            return wandb._async_log_queue.put({"row": row, "commit": commit, "step": step})
+
+        if row is None:
+            row = {}
+
+        if not isinstance(row, collections.Mapping):
+            raise ValueError("wandb.log must be passed a dictionary")
+
+        if any(not isinstance(key, six.string_types) for key in row.keys()):
+            raise ValueError("Key values passed to `wandb.log` must be strings.")
+
+        if commit or step is not None:
+            self.history.add(row, *args, step=step, **kwargs)
+        else:
+            self.history.update(row, *args, **kwargs)
+
     @property
     def history(self):
         if self._history is None:
@@ -681,6 +701,13 @@ class Run(object):
             self._history.close()
             self._history = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        exit_code = 0 if exc_type is None else 1
+        wandb.join(exit_code)
+        return exc_type is None 
 
 def run_dir_path(run_id, dry=False):
     if dry:
