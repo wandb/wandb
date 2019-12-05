@@ -197,10 +197,11 @@ class Agent(object):
                     run_process.wait()
             except KeyboardInterrupt:
                 wandb.termlog('Killing runs and quitting.')
-                try:
-                    run_process.kill()
-                except OSError:
-                    pass  # if process is already dead
+                for run_id, run_process in six.iteritems(self._run_processes):
+                    try:
+                        run_process.kill()
+                    except OSError:
+                        pass  # if process is already dead
 
     def _process_command(self, command):
         logger.info('Agent received command: %s' %
