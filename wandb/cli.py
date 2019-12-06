@@ -942,9 +942,26 @@ wandb_magic_install()
 @click.pass_context
 @click.option('--controller', is_flag=True, default=False, help="Run local controller")
 @click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
+@click.option('--name', default=False, help="Set sweep name")
+@click.option('--program', default=False, help="Set sweep program")
+@click.option('--settings', default=False, help="Set sweep settings", hidden=True)
 @click.argument('config_yaml')
 @display_error
-def sweep(ctx, controller, verbose, config_yaml):
+def sweep(ctx, controller, verbose, name, program, settings, config_yaml):
+    def _parse_settings(settings):
+        """settings could be json or comma seperated assignments."""
+        ret = {}
+        # TODO(jhr): merge with magic_impl:_parse_magic
+        if settings.find('=') > 0:
+            for item in settings.split(","):
+                kv = item.split("=")
+                if len(kv) != 2:
+                    wandb.termwarn("Unable to parse sweep settings key value pair", repeat=False)
+                ret.update(dict([kv]))
+            return ret
+        wandb.termwarn("Unable to parse settings parameter", repeat=False)
+        return ret
+
     click.echo('Creating sweep from: %s' % config_yaml)
     try:
         yaml_file = open(config_yaml)
@@ -960,6 +977,20 @@ def sweep(ctx, controller, verbose, config_yaml):
         wandb.termerror('Configuration file is empty')
         return
 
+    # Set or override parameters
+    if name:
+        config["name"] = name
+    if program:
+        config["program"] = program
+    if settings:
+        settings = _parse_settings(settings)
+        if settings:
+            config.setdefault("settings", {})
+            config["settings"].update(settings)
+    if controller:
+        config.setdefault("controller", {})
+        config["controller"]["type"] = "local"
+
     is_local = config.get('controller', {}).get('type') == 'local'
     if is_local:
         tuner = wandb_controller.controller()
@@ -967,11 +998,9 @@ def sweep(ctx, controller, verbose, config_yaml):
         if err:
             wandb.termerror('Error in sweep file: %s' % err)
             return
-    else:
-        if controller:
-            wandb.termerror('Option "controller" only permitted for controller type "local"')
-            return
-    sweep_id = api.upsert_sweep(config)
+
+    project = env.get_project() or util.auto_project_name(config.get("program"), api)
+    sweep_id = api.upsert_sweep(config, project=project)
     print('Create sweep with ID:', sweep_id)
     sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
     if sweep_url:

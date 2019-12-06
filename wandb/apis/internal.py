@@ -1075,7 +1075,7 @@ class Api(object):
             return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
-    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None):
+    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None):
         """Upsert a sweep object.
 
         Args:
@@ -1122,7 +1122,7 @@ class Api(object):
             'config': yaml.dump(config),
             'description': config.get("description"),
             'entityName': self.settings("entity"),
-            'projectName': self.settings("project"),
+            'projectName': project or self.settings("project"),
             'controller': controller,
             'scheduler': scheduler},
             check_retry_fn=no_retry_400_or_404)
