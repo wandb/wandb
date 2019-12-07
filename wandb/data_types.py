@@ -408,6 +408,22 @@ class Object3D(BatchableMedia):
                                  ", ".join(Object3D.SUPPORTED_TYPES))
 
             super(Object3D, self).__init__(data_or_path, is_tmp=False)
+        # Supported different types and scene for 3D scenes
+        elif 'type' in data_or_path:
+            if data_or_path['type'] == 'lidar/v1':
+                data = {
+                    'type': data_or_path['type'],
+                    'points': data_or_path['points'].tolist(),
+                    'boxes': data_or_path['boxes'].tolist(),
+                    'center': data_or_path['center'],
+                }
+            else:
+                raise Error("type not supported")
+
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
+            json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
+                      separators=(',', ':'), sort_keys=True, indent=4)
+            super(Object3D, self).__init__(tmp_path, is_tmp=True, extension='.pts.json')
         elif is_numpy_array(data_or_path):
             data = data_or_path
 
