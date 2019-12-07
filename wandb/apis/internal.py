@@ -1102,6 +1102,14 @@ class Api(object):
             }) {
                 sweep {
                     name
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
                 }
             }
         }
@@ -1126,6 +1134,15 @@ class Api(object):
             'controller': controller,
             'scheduler': scheduler},
             check_retry_fn=no_retry_400_or_404)
+
+        sweep = response['upsertSweep']['sweep']
+        project = sweep.get('project')
+        if project:
+            self.set_setting('project', project['name'])
+            entity = project.get('entity')
+            if entity:
+                self.set_setting('entity', entity['name'])
+
         return response['upsertSweep']['sweep']['name']
 
     @normalize_exceptions
