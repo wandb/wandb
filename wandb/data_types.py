@@ -410,7 +410,7 @@ class Object3D(BatchableMedia):
             super(Object3D, self).__init__(data_or_path, is_tmp=False)
         # Supported different types and scene for 3D scenes
         elif 'type' in data_or_path:
-            if data_or_path['type'] == 'lidar/v1':
+            if data_or_path['type'] == 'scene/v1':
                 data = {
                     'type': data_or_path['type'],
                     'points': data_or_path['points'].tolist(),

@@ -7,7 +7,7 @@ wandb.log(
     {
         "point_scene": wandb.Object3D(
             {
-                "type": "lidar/v1",
+                "type": "scene/v1",
                 "points": np.array([[0.4, 1, 1.3], [1, 1, 1], [1.2, 1, 1.2]]),
                 "boxes": np.array(
                     [
