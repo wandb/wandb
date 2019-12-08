@@ -986,7 +986,7 @@ class Api(object):
     upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
 
     @normalize_exceptions
-    def register_agent(self, host, sweep_id=None, project_name=None):
+    def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
         """Register a new agent
 
         Args:
@@ -1014,6 +1014,8 @@ class Api(object):
             }
         }
         ''')
+        if entity is None:
+            entity = self.settings("entity")
         if project_name is None:
             project_name = self.settings('project')
 
@@ -1028,7 +1030,7 @@ class Api(object):
 
         response = self.gql(mutation, variable_values={
             'host': host,
-            'entityName': self.settings("entity"),
+            'entityName': entity,
             'projectName': project_name,
             'sweep': sweep_id}, check_retry_fn=no_retry_400)
         return response['createAgent']['agent']
@@ -1075,7 +1077,7 @@ class Api(object):
             return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
-    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None):
+    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None, entity=None):
         """Upsert a sweep object.
 
         Args:
@@ -1138,7 +1140,7 @@ class Api(object):
                     'id': obj_id,
                     'config': yaml.dump(config),
                     'description': config.get("description"),
-                    'entityName': self.settings("entity"),
+                    'entityName': entity or self.settings("entity"),
                     'projectName': project or self.settings("project"),
                     'controller': controller,
                     'scheduler': scheduler},
