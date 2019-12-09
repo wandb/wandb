@@ -23,6 +23,11 @@ from tests.mock_server import create_app
 
 
 def pytest_runtest_setup(item):
+    wandb.reset_env()
+    wandb.uninit()
+    global_settings = os.path.expanduser("~/.config/wandb/settings")
+    if os.path.exists(global_settings):
+        os.remove(global_settings)
     # This is used to find tests that are leaking outside of tmp directories
     os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
 
@@ -160,8 +165,8 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
             if request.node.get_closest_marker('silent'):
                 os.environ['WANDB_SILENT'] = "true"
 
-            assert wandb.run is None
             orig_namespace = vars(wandb)
+            assert wandb.run is None
             # Mock out run_manager, we add it to run to access state in tests
             orig_rm = wandb.run_manager.RunManager
             mock = mocker.patch('wandb.run_manager.RunManager')

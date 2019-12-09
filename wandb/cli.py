@@ -944,7 +944,7 @@ wandb_magic_install()
 @click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
 @click.option('--name', default=False, help="Set sweep name")
 @click.option('--program', default=False, help="Set sweep program")
-@click.option('--settings', default=False, help="Set sweep settings")
+@click.option('--settings', default=False, help="Set sweep settings", hidden=True)
 @click.argument('config_yaml')
 @display_error
 def sweep(ctx, controller, verbose, name, program, settings, config_yaml):
@@ -960,7 +960,7 @@ def sweep(ctx, controller, verbose, name, program, settings, config_yaml):
                 ret.update(dict([kv]))
             return ret
         wandb.termwarn("Unable to parse settings parameter", repeat=False)
-        return ret   
+        return ret
 
     click.echo('Creating sweep from: %s' % config_yaml)
     try:
@@ -999,7 +999,8 @@ def sweep(ctx, controller, verbose, name, program, settings, config_yaml):
             wandb.termerror('Error in sweep file: %s' % err)
             return
 
-    sweep_id = api.upsert_sweep(config)
+    project = env.get_project() or util.auto_project_name(config.get("program"), api)
+    sweep_id = api.upsert_sweep(config, project=project)
     print('Create sweep with ID:', sweep_id)
     sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
     if sweep_url:

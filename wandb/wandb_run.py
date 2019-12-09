@@ -8,6 +8,7 @@ import fnmatch
 import tempfile
 import shutil
 import glob
+import collections
 
 from sentry_sdk import configure_scope
 
@@ -363,24 +364,7 @@ class Run(object):
         return run
 
     def auto_project_name(self, api):
-        # if we're in git, set project name to git repo name + relative path within repo
-        root_dir = api.git.root_dir
-        if root_dir is None:
-            return None
-        repo_name = os.path.basename(root_dir)
-        program = self.program
-        if program is None:
-            return repo_name
-        if not os.path.isabs(program):
-            program = os.path.join(os.curdir, program)
-        prog_dir = os.path.dirname(os.path.abspath(program))
-        if not prog_dir.startswith(root_dir):
-            return repo_name
-        project = repo_name
-        sub_path = os.path.relpath(prog_dir, root_dir)
-        if sub_path != '.':
-            project += '-' + sub_path
-        return project.replace(os.sep, '_')
+        return util.auto_project_name(self.program, api)
 
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
         api = api or self.api
@@ -636,6 +620,25 @@ class Run(object):
     def _history_added(self, row):
         self.summary.update(row, overwrite=False)
 
+    def log(self, row=None, commit=True, step=None, sync=True, *args, **kwargs):
+        if sync == False:
+            wandb._ensure_async_log_thread_started()
+            return wandb._async_log_queue.put({"row": row, "commit": commit, "step": step})
+
+        if row is None:
+            row = {}
+
+        if not isinstance(row, collections.Mapping):
+            raise ValueError("wandb.log must be passed a dictionary")
+
+        if any(not isinstance(key, six.string_types) for key in row.keys()):
+            raise ValueError("Key values passed to `wandb.log` must be strings.")
+
+        if commit or step is not None:
+            self.history.add(row, *args, step=step, **kwargs)
+        else:
+            self.history.update(row, *args, **kwargs)
+
     @property
     def history(self):
         if self._history is None:
@@ -681,6 +684,13 @@ class Run(object):
             self._history.close()
             self._history = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        exit_code = 0 if exc_type is None else 1
+        wandb.join(exit_code)
+        return exc_type is None 
 
 def run_dir_path(run_id, dry=False):
     if dry:

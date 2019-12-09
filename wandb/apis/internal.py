@@ -1075,13 +1075,23 @@ class Api(object):
             return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
-    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None):
+    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None):
         """Upsert a sweep object.
 
         Args:
             config (str): sweep config (will be converted to yaml)
         """
-        mutation = gql('''
+        project_query = '''
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
+        '''
+        mutation_str = '''
         mutation UpsertSweep(
             $id: ID,
             $config: String,
@@ -1102,10 +1112,15 @@ class Api(object):
             }) {
                 sweep {
                     name
+                    _PROJECT_QUERY_
                 }
             }
         }
-        ''')
+        '''
+        # FIXME(jhr): we need protocol versioning to know schema is not supported
+        # for now we will just try both new and old query
+        mutation_new = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
+        mutation_old = gql(mutation_str.replace("_PROJECT_QUERY_", ""))
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
@@ -1117,15 +1132,36 @@ class Api(object):
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
 
-        response = self.gql(mutation, variable_values={
-            'id': obj_id,
-            'config': yaml.dump(config),
-            'description': config.get("description"),
-            'entityName': self.settings("entity"),
-            'projectName': self.settings("project"),
-            'controller': controller,
-            'scheduler': scheduler},
-            check_retry_fn=no_retry_400_or_404)
+        for mutation in mutation_new, mutation_old:
+            try:
+                response = self.gql(mutation, variable_values={
+                    'id': obj_id,
+                    'config': yaml.dump(config),
+                    'description': config.get("description"),
+                    'entityName': self.settings("entity"),
+                    'projectName': project or self.settings("project"),
+                    'controller': controller,
+                    'scheduler': scheduler},
+                    check_retry_fn=no_retry_400_or_404)
+            except UsageError as e:
+                raise(e)
+            except Exception as e:
+                # graphql schema exception is generic
+                err = e
+                continue
+            err = None
+            break
+        if err:
+            raise(err)
+
+        sweep = response['upsertSweep']['sweep']
+        project = sweep.get('project')
+        if project:
+            self.set_setting('project', project['name'])
+            entity = project.get('entity')
+            if entity:
+                self.set_setting('entity', entity['name'])
+
         return response['upsertSweep']['sweep']['name']
 
     @normalize_exceptions
