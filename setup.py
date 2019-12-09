@@ -21,10 +21,7 @@ requirements = [
     'subprocess32>=3.5.3',
     'docker-pycreds>=0.4.0',
     'configparser>=3.8.1',
-    # Removed until we bring back the board
-    # 'flask-cors>=3.0.3',
-    # 'flask-graphql>=1.4.0',
-    # 'graphene>=2.0.0',
+    'graphql-core<3.0.0',
 ]
 
 test_requirements = [
@@ -36,7 +33,7 @@ kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
     name='wandb',
-    version='0.8.15',
+    version='0.8.17',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

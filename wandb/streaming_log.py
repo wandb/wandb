@@ -12,17 +12,20 @@ from six import b
 
 logger = logging.getLogger(__name__)
 
+# If the backend receive a line ending with \r, it assumes that
+# line is part of a progress bar and ignores it. To handle terminal
+# output properly on Windows we need to ensure we always pass along
+# a newline if it comes after a carriage return.
+LINE_END_RE = re.compile(b('\r\n|\r|\n'))
+
+ANSI_CURSOR_UP = b('\x1b\x5b\x41')
+
 
 class LineBuffer(object):
     """Streaming string parser that extracts lines."""
 
     def __init__(self):
         self._buf = []
-        # If the backend receive a line ending with \r, it assumes that
-        # line is part of a progress bar and ignores it. To handle terminal
-        # output properly on Windows we need to ensure we always pass along
-        # a newline if it comes after a carriage return.
-        self._line_end_re = re.compile(b('\r\n|\r|\n'))
 
     def add_string(self, data):
         """Process some data splitting it into complete lines and buffering the rest
@@ -35,7 +38,7 @@ class LineBuffer(object):
         """
         lines = []
         while data:
-            match = self._line_end_re.search(data)
+            match = LINE_END_RE.search(data)
             if match is None:
                 chunk = data
             else:
@@ -43,18 +46,25 @@ class LineBuffer(object):
 
             data = data[len(chunk):]
 
-            if self._buf and self._buf[-1].endswith(b('\r')) and not chunk.startswith(b('\n')):
-                # if we get a carriage return followed by something other than
-                # a newline then we assume that we're overwriting the current
-                # line (ie. a progress bar)
-                #
-                # We don't terminate lines that end with a carriage return until
-                # we see what's coming next so we can distinguish between a
-                # progress bar situation and a Windows line terminator.
-                #
+            if self._buf:
                 # TODO(adrian): some day these hacks should be replaced with
                 # real terminal emulation
-                lines.append(self._finish_line())
+
+                if self._buf[-1].endswith(ANSI_CURSOR_UP) and chunk.startswith(b('\n')):
+                    # Some progress bars (TQDM) move up then immediately back down.
+                    # These cancel out.
+                    self._buf[-1] = self._buf[-1][:-len(ANSI_CURSOR_UP)]
+                    chunk = chunk[1:]
+
+                if self._buf[-1].endswith(b('\r')) and not chunk.startswith(b('\n')):
+                    # if we get a carriage return followed by something other than
+                    # a newline then we assume that we're overwriting the current
+                    # line (ie. a progress bar)
+                    #
+                    # We don't terminate lines that end with a carriage return until
+                    # we see what's coming next so we can distinguish between a
+                    # progress bar situation and a Windows line terminator.
+                    lines.append(self._finish_line())
 
             self._buf.append(chunk)
             if chunk.endswith(b('\n')):

@@ -31,6 +31,8 @@ jobs:
               with:
                   name: "docs"
                   path: docs/markdown
+            - name: Git status
+              run: git status
             - name: Commit changes
               uses: EndBug/add-and-commit@master
               with:
@@ -38,10 +40,10 @@ jobs:
                   author_email: vanpelt@wandb.com
                   message: "Doc updates"
                   path: "."
-                  pattern: "docs/*"
+                  pattern: "*.md"
                   force: false
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_API_TOKEN }}
     deploy:
         needs: build
         runs-on: ubuntu-latest
