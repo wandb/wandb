@@ -78,10 +78,10 @@ def main():
             sweep_config = sweep_config()
             sweep_config.save(args.file)
         if args.create:
-            wandb.sweep(sweep_config)
-        if args.controller:
-            sweep = wandb.controller(sweep_id)
-            sweep.run()
+            sweep_id = wandb.sweep(sweep_config)
+            if args.controller:
+                sweep = wandb.controller(sweep_id)
+                sweep.run()
         return
     train()
 

@@ -13,10 +13,6 @@ class HyperOpt:
         #super(Tune, self).__init__(_cfg_module, _cfg_version)
         pass
 
-    def run(self, config, version=None):
-        #print("this", config, version)
-        return TuneRun(config)
-
     def loguniform(self, config, version=None):
         from ray import tune
         args = dict(config)

@@ -6,7 +6,7 @@ from wandb.sweeps.config import SweepConfig
 from wandb.sweeps import config
 from wandb.sweeps import engine
 from wandb.sweeps import util
-from wandb.sweeps import sweepwarn
+from wandb.sweeps import sweeperror
 
 
 supported = {
