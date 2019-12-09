@@ -830,14 +830,14 @@ LOGIN_CHOICES = [
 ]
 
 
-def prompt_api_key(api, input_callback=None, browser_callback=None):
+def prompt_api_key(api, input_callback=None, browser_callback=None, no_offline=False):
     input_callback = input_callback or getpass.getpass
 
     choices = [choice for choice in LOGIN_CHOICES]
     if os.environ.get(env.ANONYMOUS, "never") == "never":
         # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
         choices.remove(LOGIN_CHOICE_ANON)
-    if os.environ.get(env.JUPYTER, "false") == "true":
+    if os.environ.get(env.JUPYTER, "false") == "true" or no_offline:
         choices.remove(LOGIN_CHOICE_DRYRUN)
 
     if os.environ.get(env.ANONYMOUS) == "must":

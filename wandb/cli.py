@@ -484,7 +484,7 @@ def pull(run, project, entity):
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
 @click.option("--anonymously", is_flag=True, help="Log in anonymously")
 @display_error
-def login(key, anonymously, server=LocalServer(), browser=True):
+def login(key, anonymously, server=LocalServer(), browser=True, no_offline=False):
     global api
 
     key = key[0] if len(key) > 0 else None
@@ -509,12 +509,12 @@ def login(key, anonymously, server=LocalServer(), browser=True):
     else:
         if anonymously:
             os.environ[env.ANONYMOUS] = "must"
-        key = util.prompt_api_key(api, input_callback=click.prompt, browser_callback=get_api_key_from_browser)
+        key = util.prompt_api_key(api, input_callback=click.prompt, browser_callback=get_api_key_from_browser, no_offline=no_offline)
 
     if key:
         api.clear_setting('disabled')
         click.secho("Successfully logged in to Weights & Biases!", fg="green")
-    else:
+    elif not no_offline:
         api.set_setting('disabled', 'true')
         click.echo("Disabling Weights & Biases. Run 'wandb login' again to re-enable.")
 
@@ -940,6 +940,8 @@ wandb_magic_install()
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
 @click.pass_context
+@click.option("--project", "-p", default=None, envvar=env.PROJECT, help="The project of the sweep.")
+@click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity scope for the project.")
 @click.option('--controller', is_flag=True, default=False, help="Run local controller")
 @click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
 @click.option('--name', default=False, help="Set sweep name")
@@ -947,7 +949,7 @@ wandb_magic_install()
 @click.option('--settings', default=False, help="Set sweep settings", hidden=True)
 @click.argument('config_yaml')
 @display_error
-def sweep(ctx, controller, verbose, name, program, settings, config_yaml):
+def sweep(ctx, project, entity, controller, verbose, name, program, settings, config_yaml):
     def _parse_settings(settings):
         """settings could be json or comma seperated assignments."""
         ret = {}
@@ -962,7 +964,11 @@ def sweep(ctx, controller, verbose, name, program, settings, config_yaml):
         wandb.termwarn("Unable to parse settings parameter", repeat=False)
         return ret
 
-    click.echo('Creating sweep from: %s' % config_yaml)
+    if api.api_key is None:
+        termlog("Login to W&B to use the sweep feature")
+        ctx.invoke(login, no_offline=True)
+
+    wandb.termlog('Creating sweep from: {}'.format(config_yaml))
     try:
         yaml_file = open(config_yaml)
     except (OSError, IOError):
@@ -999,24 +1005,36 @@ def sweep(ctx, controller, verbose, name, program, settings, config_yaml):
             wandb.termerror('Error in sweep file: %s' % err)
             return
 
-    project = env.get_project() or util.auto_project_name(config.get("program"), api)
-    sweep_id = api.upsert_sweep(config, project=project)
-    print('Create sweep with ID:', sweep_id)
+    entity = entity or env.get_entity()
+    project = project or env.get_project() or util.auto_project_name(config.get("program"), api)
+    sweep_id = api.upsert_sweep(config, project=project, entity=entity)
+    wandb.termlog('Created sweep with ID: {}'.format(
+            click.style(sweep_id, fg="yellow")))
     sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
     if sweep_url:
-        print('Sweep URL:', sweep_url)
+        wandb.termlog("View sweep at: {}".format(
+            click.style(sweep_url, underline=True, fg='blue')))
+    wandb.termlog("Run sweep agent with: {}".format(
+            click.style("wandb agent %s" % sweep_id, fg="yellow")))
     if controller:
-        click.echo('Starting wandb controller...')
+        wandb.termlog('Starting wandb controller...')
         tuner = wandb_controller.controller(sweep_id)
         tuner.run(verbose=verbose)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
+@click.pass_context
+@click.option("--project", "-p", default=None, envvar=env.PROJECT, help="The project of the sweep.")
+@click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity scope for the project.")
 @click.argument('sweep_id')
 @display_error
-def agent(sweep_id):
-    click.echo('Starting wandb agent 🕵️')
-    wandb_agent.run_agent(sweep_id)
+def agent(ctx, project, entity, sweep_id):
+    if api.api_key is None:
+        termlog("Login to W&B to use the sweep agent feature")
+        ctx.invoke(login, no_offline=True)
+
+    wandb.termlog('Starting wandb agent 🕵️')
+    wandb_agent.run_agent(sweep_id, entity=entity, project=project)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
