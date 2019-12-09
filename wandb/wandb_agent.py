@@ -326,7 +326,35 @@ class AgentApi(object):
         return result
 
 
-def run_agent(sweep_id, function=None, in_jupyter=None):
+def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None):
+    if not isinstance(sweep_id, str):
+        wandb.termerror('Expected string sweep_id')
+        return
+
+    sweep_split = sweep_id.split('/')
+    if len(sweep_split) == 1:
+        pass
+    elif len(sweep_split) == 2:
+        split_project, sweep_id = sweep_split
+        if project and split_project:
+            wandb.termwarn('Ignoring project commandline parameter')
+        project = split_project or project
+    elif len(sweep_split) == 3:
+        split_entity, split_project, sweep_id = sweep_split
+        if entity and split_entity:
+            wandb.termwarn('Ignoring entity commandline parameter')
+        if project and split_project:
+            wandb.termwarn('Ignoring project commandline parameter')
+        project = split_project or project
+        entity = split_entity or entity
+    else:
+        wandb.termerror('Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep')
+        return
+
+    if entity:
+        env.set_entity(entity)
+    if project:
+        env.set_project(project)
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     log_level = logging.DEBUG
@@ -363,8 +391,4 @@ def agent(sweep_id, function=None, entity=None, project=None):
         _api0 = InternalApi()
         if not _api0.api_key:
             wandb._jupyter_login(api=_api0)
-    if entity:
-        env.set_entity(entity)
-    if project:
-        env.set_project(project)
-    return run_agent(sweep_id, function=function, in_jupyter=in_jupyter)
+    return run_agent(sweep_id, function=function, in_jupyter=in_jupyter, entity=entity, project=project)

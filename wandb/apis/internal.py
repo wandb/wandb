@@ -986,7 +986,7 @@ class Api(object):
     upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
 
     @normalize_exceptions
-    def register_agent(self, host, sweep_id=None, project_name=None):
+    def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
         """Register a new agent
 
         Args:
@@ -1014,23 +1014,25 @@ class Api(object):
             }
         }
         ''')
+        if entity is None:
+            entity = self.settings("entity")
         if project_name is None:
             project_name = self.settings('project')
 
-        # don't retry on validation errors
-        def no_retry_400(e):
+        # don't retry on validation or not found errors
+        def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if e.response.status_code != 400:
+            if not(e.response.status_code >= 400 and e.response.status_code < 500):
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
 
         response = self.gql(mutation, variable_values={
             'host': host,
-            'entityName': self.settings("entity"),
+            'entityName': entity,
             'projectName': project_name,
-            'sweep': sweep_id}, check_retry_fn=no_retry_400)
+            'sweep': sweep_id}, check_retry_fn=no_retry_4xx)
         return response['createAgent']['agent']
 
     def agent_heartbeat(self, agent_id, metrics, run_states):
@@ -1075,7 +1077,7 @@ class Api(object):
             return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
-    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None):
+    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None, entity=None):
         """Upsert a sweep object.
 
         Args:
@@ -1124,10 +1126,10 @@ class Api(object):
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
-        def no_retry_400_or_404(e):
+        def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if e.response.status_code != 400 and e.response.status_code != 404:
+            if not(e.response.status_code >= 400 and e.response.status_code < 500):
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
@@ -1138,11 +1140,11 @@ class Api(object):
                     'id': obj_id,
                     'config': yaml.dump(config),
                     'description': config.get("description"),
-                    'entityName': self.settings("entity"),
+                    'entityName': entity or self.settings("entity"),
                     'projectName': project or self.settings("project"),
                     'controller': controller,
                     'scheduler': scheduler},
-                    check_retry_fn=no_retry_400_or_404)
+                    check_retry_fn=no_retry_4xx)
             except UsageError as e:
                 raise(e)
             except Exception as e:
