@@ -24,6 +24,7 @@ from wandb.apis import normalize_exceptions
 
 logger = logging.getLogger(__name__)
 
+WANDB_INTERNAL_KEYS = {'_wandb', 'wandb_version'}
 PROJECT_FRAGMENT = '''fragment ProjectFragment on Project {
     id
     name
@@ -101,7 +102,7 @@ class Api(object):
 
     Args:
         overrides (dict): You can set `base_url` if you are using a wandb server
-            other than https://api.wandb.ai.  
+            other than https://api.wandb.ai.
             You can also set defaults for `entity`, `project`, and `run`.
     """
 
@@ -161,7 +162,7 @@ class Api(object):
 
     def flush(self):
         """
-        The api object keeps a local cache of runs, so if the state of the run may 
+        The api object keeps a local cache of runs, so if the state of the run may
             change while executing your script you must clear the local cache with `api.flush()`
             to get the latest values associated with the run."""
         self._runs = {}
@@ -197,14 +198,14 @@ class Api(object):
     def projects(self, entity=None, per_page=None):
         """Get projects for a given entity.
         Args:
-            entity (str): Name of the entity requested.  If None will fallback to 
+            entity (str): Name of the entity requested.  If None will fallback to
                 default entity passed to :obj:`Api`.  If no default entity, will raise a `ValueError`.
             per_page (int): Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
         Returns:
             A :obj:`Projects` object which is an iterable collection of :obj:`Project` objects.
-        
+
         """
         if entity is None:
             entity = self.settings['entity']
@@ -252,14 +253,14 @@ class Api(object):
 
             Find runs in my_project config.experiment_name has been set to "foo" or "bar"
             ```
-            api.runs(path="my_entity/my_project", 
+            api.runs(path="my_entity/my_project",
                 {"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
             ```
 
             Find runs in my_project sorted by ascending loss
             ```
             api.runs(path="my_entity/my_project", {"order": "+summary.loss"})
-            ```             
+            ```
 
 
         Args:
@@ -270,7 +271,7 @@ class Api(object):
                     of experiment name set to "foo"
                 You can compose operations to make more complicated queries,
                     see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
-            order (str): Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary.*`.  
+            order (str): Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary.*`.
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
                 The default order is run.created_at from newest to oldest.
@@ -288,12 +289,12 @@ class Api(object):
     @normalize_exceptions
     def run(self, path=""):
         """Returns a single run by parsing path in the form entity/project/run_id.
-        
+
         Args:
-            path (str): path to run in the form entity/project/run_id.  
-                If api.entity is set, this can be in the form project/run_id 
+            path (str): path to run in the form entity/project/run_id.
+                If api.entity is set, this can be in the form project/run_id
                 and if api.project is set this can just be the run_id.
-        
+
         Returns:
             A :obj:`Run` object.
         """
@@ -306,12 +307,12 @@ class Api(object):
     def sweep(self, path=""):
         """
         Returns a sweep by parsing path in the form entity/project/sweep_id.
-        
+
         Args:
             path (str, optional): path to sweep in the form entity/project/sweep_id.  If api.entity
                 is set, this can be in the form project/sweep_id and if api.project is set
                 this can just be the sweep_id.
-        
+
         Returns:
             A :obj:`Sweep` object.
         """
@@ -404,6 +405,8 @@ class Paginator(object):
         if len(self.objects) <= self.index:
             if not self._load_page():
                 raise StopIteration
+            if len(self.objects) <= self.index:
+                raise StopIteration
         return self.objects[self.index]
 
     next = __next__
@@ -484,7 +487,8 @@ class Project(Attrs):
 
 
 class Runs(Paginator):
-    """An iterable collection of runs associated with a project and optional filter.    
+    """An iterable collection of runs associated with a project and optional filter.
+    This is generally used indirectly via the :obj:`Api`.runs method
     """
 
     QUERY = gql('''
@@ -570,7 +574,7 @@ class Runs(Paginator):
 class Run(Attrs):
     """
     A single run associated with an entity and project.
-    
+
     Attributes:
         tags ([str]): a list of tags associated with the run
         url (str): the url of this run
@@ -580,7 +584,7 @@ class Run(Attrs):
         config (dict): a dict of hyperparameters associated with the run
         created_at (str): ISO timestamp when the run was started
         system_metrics (dict): the latest system metrics recorded for the run
-        summary (dict): A mutable dict-like property that holds the current summary. 
+        summary (dict): A mutable dict-like property that holds the current summary.
                     Calling update will persist any changes.
         project (str): the project associated with the run
         entity (str): the name of the entity associated with the run
@@ -588,7 +592,7 @@ class Run(Attrs):
         path (str): Unique identifier [entity]/[project]/[run_id]
         notes (str): Notes about the run
         read_only (boolean): Whether the run is editable
-        history_keys (str): Keys of the history metrics that have been logged 
+        history_keys (str): Keys of the history metrics that have been logged
             with `wandb.log({key: value})`
     """
 
@@ -627,7 +631,7 @@ class Run(Attrs):
     def storage_id(self):
         # For compatibility with wandb.Run, which has storage IDs
         # in self.storage_id and names in self.id.
-        
+
         return self._attrs.get('id')
 
     @property
@@ -719,13 +723,16 @@ class Run(Attrs):
             self._attrs['systemMetrics']) if self._attrs.get('systemMetrics') else {}
         if self._attrs.get('user'):
             self.user = User(self._attrs["user"])
-        config = {}
+        config_user, config_raw = {}, {}
         for key, value in six.iteritems(json.loads(self._attrs.get('config') or "{}")):
+            config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
             else:
                 config[key] = value
-        self._attrs['config'] = config
+        config_raw.update(config_user)
+        self._attrs['config'] = config_user
+        self._attrs['rawconfig'] = config_raw
         return self._attrs
 
     @normalize_exceptions
@@ -796,8 +803,8 @@ class Run(Attrs):
             per_page (int): number of results per page
 
         Returns:
-            A :obj:`Files` object, which is an iterator over :obj:`File` obejcts. 
-        """    
+            A :obj:`Files` object, which is an iterator over :obj:`File` obejcts.
+        """
         return Files(self.client, self, names, per_page)
 
     @normalize_exceptions
@@ -823,10 +830,10 @@ class Run(Attrs):
             keys (list, optional): Only return metrics for specific keys
             x_axis (str, optional): Use this metric as the xAxis defaults to _step
             stream (str, optional): "default" for metrics, "system" for machine metrics
-        
+
         Returns:
             If pandas=True returns a `pandas.DataFrame` of history metrics.
-            If pandas=False returns a list of dicts of history metrics.    
+            If pandas=False returns a list of dicts of history metrics.
         """
         if keys and stream != "default":
             wandb.termerror("stream must be default when specifying keys")
@@ -844,31 +851,39 @@ class Run(Attrs):
         return lines
 
     @normalize_exceptions
-    def scan_history(self, keys=None, page_size=1000):
+    def scan_history(self, keys=None, page_size=1000, min_step=None, max_step=None):
         """
         Returns an iterable collection of all history records for a run.
 
         Example:
-            Export all the loss values for an example run   
-            
+            Export all the loss values for an example run
+
             ```python
             run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
             history = run.scan_history(keys=["Loss"])
             losses = [row["Loss"] for row in history]
             ```
-            
+
 
         Args:
             keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
             page_size (int, optional): size of pages to fetch from the api
-        
+
         Returns:
             An iterable collection over history records (dict).
         """
+        # set defaults for min/max step
+        if min_step is None:
+            min_step = 0
+        if max_step is None:
+            max_step = self.lastHistoryStep + 1
+        # if the max step is past the actual last step, clamp it down
+        if max_step > self.lastHistoryStep:
+            max_step = self.lastHistoryStep + 1
         if keys is None:
-            return HistoryScan(run=self, client=self.client, page_size=page_size)
+            return HistoryScan(run=self, client=self.client, page_size=page_size, min_step=min_step, max_step=max_step)
         else:
-            return SampledHistoryScan(run=self, client=self.client, keys=keys, page_size=page_size)
+            return SampledHistoryScan(run=self, client=self.client, keys=keys, page_size=page_size, min_step=min_step, max_step=max_step)
 
     @property
     def summary(self):
@@ -903,24 +918,29 @@ class Sweep(Attrs):
 
     Attributes:
         runs (:obj:`Runs`): list of runs
-        id (str): sweep id 
+        id (str): sweep id
         project (str): name of project
-        config (str): dictionary of sweep configuration 
+        config (str): dictionary of sweep configuration
     """
 
     QUERY = gql('''
-    query Sweep($project: String!, $entity: String, $name: String!, $withRuns: Boolean!) {
+    query Sweep($project: String!, $entity: String, $name: String!, $withRuns: Boolean!, $order: String) {
         project(name: $project, entityName: $entity) {
             sweep(sweepName: $name) {
                 id
                 name
                 bestLoss
                 config
-                runs @include(if: $withRuns) {
+                runs(order: $order) @include(if: $withRuns) {
                     edges {
                         node {
                             ...RunFragment
                         }
+                        cursor
+                    }
+                    pageInfo {
+                        endCursor
+                        hasNextPage
                     }
                 }
             }
@@ -966,16 +986,39 @@ class Sweep(Attrs):
         return self._attrs
 
     @property
+    def order(self):
+        if self._attrs.get("config") and self.config.get("metric"):
+            sort_order = self.config["metric"].get("goal", "minimize")
+            prefix = "+" if sort_order == "minimize" else "-"
+            return QueryGenerator.format_order_key(prefix + self.config["metric"]["name"])
+
+    def best_run(self, order=None):
+        "Returns the best run sorted by the metric defined in config or the order passed in"
+        if order is None:
+            order = self.order
+        else:
+            order = QueryGenerator.format_order_key(order)
+        if order is None:
+            wandb.termwarn("No order specified and couldn't find metric in sweep config, returning most recent run")
+        else:
+            wandb.termlog("Sorting runs by %s" % order)
+        filters = {"$and": [{"sweep": self.id}]}
+        try:
+            return Runs(self.client, self.entity, self.project, order=order, filters=filters, per_page=1)[0]
+        except IndexError:
+            return None
+
+    @property
     def path(self):
         return [urllib.parse.quote_plus(str(self.entity)), urllib.parse.quote_plus(str(self.project)), urllib.parse.quote_plus(str(self.id))]
 
     @classmethod
-    def get(cls, client, entity=None, project=None, sid=None, withRuns=True, query=None, **kwargs):
+    def get(cls, client, entity=None, project=None, sid=None, withRuns=True, order=None, query=None, **kwargs):
         """Execute a query against the cloud backend"""
         if query is None:
             query = cls.QUERY
 
-        variables = {'entity': entity, 'project': project, 'name': sid, 'withRuns': withRuns}
+        variables = {'entity': entity, 'project': project, 'name': sid, 'order': order, 'withRuns': withRuns}
         variables.update(kwargs)
 
         response = client.execute(query, variable_values=variables)
@@ -1067,7 +1110,7 @@ class Files(Paginator):
 
 class File(object):
     """File is a class associated with a file saved by wandb.
-    
+
     Attributes:
         name (string): filename
         url (string): path to file
@@ -1118,9 +1161,9 @@ class File(object):
         """Downloads a file previously saved by a run from the wandb server.
 
         Args:
-            replace (boolean): If `True`, download will overwrite a local file 
+            replace (boolean): If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
-            root (str): Local directory to save the file.  Defaults to ".".  
+            root (str): Local directory to save the file.  Defaults to ".".
 
         Raises:
             `ValueError` if file already exists and replace=False
@@ -1148,10 +1191,10 @@ class Reports(Paginator):
     """Reports is an iterable collection of :obj:`BetaReport` objects."""
 
     QUERY = gql('''
-        query Run($project: String!, $entity: String!, $reportCursor: String, 
+        query Run($project: String!, $entity: String!, $reportCursor: String,
             $reportLimit: Int = 50, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
-                allViews(viewType: $viewType, viewName: $viewName, first: 
+                allViews(viewType: $viewType, viewName: $viewName, first:
                     $reportLimit, after: $reportCursor) {
                     edges {
                         node {
@@ -1229,6 +1272,24 @@ class QueryGenerator(object):
     def __init__(self):
         pass
 
+    @classmethod
+    def format_order_key(self, key):
+        if key.startswith("+") or key.startswith("-"):
+            direction = key[0]
+            key = key[1:]
+        else:
+            direction = "-"
+        parts = key.split(".")
+        if len(parts) == 1:
+            # Assume the user meant summary_metrics if not a run column
+            if parts[0] not in ["createdAt", "updatedAt", "name", "sweep"]:
+                return direction + "summary_metrics."+parts[0]
+        # Assume summary metrics if prefix isn't known
+        elif parts[0] not in ["config", "summary_metrics", "tags"]:
+            return direction + ".".join(["summary_metrics"] + parts)
+        else:
+            return direction + ".".join(parts)
+
     def _is_group(self, op):
         return op.get("filters") != None
 
@@ -1240,7 +1301,7 @@ class QueryGenerator(object):
             return value
         else:
             return {self.INDIVIDUAL_OP_TO_MONGO[op]: value}
-    
+
     def key_to_server_path(self, key):
         if key["section"] == 'config':
             return 'config.' + key["name"]
@@ -1344,16 +1405,18 @@ class HistoryScan(object):
         }
         ''')
 
-    def __init__(self, client, run, page_size=1000):
+    def __init__(self, client, run, min_step, max_step, page_size=1000):
         self.client = client
         self.run = run
         self.page_size = page_size
-        self.page_offset = 0 # minStep for next page
+        self.min_step = min_step
+        self.max_step = max_step
+        self.page_offset = min_step # minStep for next page
         self.scan_offset = 0 # index within current page of rows
         self.rows = [] # current page of rows
 
     def __iter__(self):
-        self.page_offset = 0
+        self.page_offset = self.min_step
         self.scan_offset = 0
         self.rows = []
         return self
@@ -1364,7 +1427,7 @@ class HistoryScan(object):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset > self.run.lastHistoryStep:
+            if self.page_offset >= self.max_step:
                 raise StopIteration()
             self._load_next()
 
@@ -1373,12 +1436,15 @@ class HistoryScan(object):
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException))
     def _load_next(self):
+        max_step = self.page_offset + self.page_size
+        if max_step > self.max_step:
+            max_step = self.max_step
         variables = {
             "entity": self.run.entity,
             "project": self.run.project,
             "run": self.run.id,
             "minStep": int(self.page_offset),
-            "maxStep": int(self.page_offset + self.page_size),
+            "maxStep": int(max_step),
             "pageSize": int(self.page_size)
         }
 
@@ -1399,17 +1465,19 @@ class SampledHistoryScan(object):
         }
         ''')
 
-    def __init__(self, client, run, keys, page_size=1000):
+    def __init__(self, client, run, keys, min_step, max_step, page_size=1000):
         self.client = client
         self.run = run
         self.keys = keys
         self.page_size = page_size
-        self.page_offset = 0 # minStep for next page
+        self.min_step = min_step
+        self.max_step = max_step
+        self.page_offset = min_step # minStep for next page
         self.scan_offset = 0 # index within current page of rows
         self.rows = [] # current page of rows
 
     def __iter__(self):
-        self.page_offset = 0
+        self.page_offset = self.min_step
         self.scan_offset = 0
         self.rows = []
         return self
@@ -1420,7 +1488,7 @@ class SampledHistoryScan(object):
                 row = self.rows[self.scan_offset]
                 self.scan_offset += 1
                 return row
-            if self.page_offset >= self.run.lastHistoryStep:
+            if self.page_offset >= self.max_step:
                 raise StopIteration()
             self._load_next()
 
@@ -1429,6 +1497,9 @@ class SampledHistoryScan(object):
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException))
     def _load_next(self):
+        max_step = self.page_offset + self.page_size
+        if max_step > self.max_step:
+            max_step = self.max_step
         variables = {
             "entity": self.run.entity,
             "project": self.run.project,
@@ -1436,7 +1507,7 @@ class SampledHistoryScan(object):
             "spec": json.dumps({
                 "keys": self.keys,
                 "minStep": int(self.page_offset),
-                "maxStep": int(self.page_offset + self.page_size),
+                "maxStep": int(max_step),
                 "samples": int(self.page_size)
             })
         }

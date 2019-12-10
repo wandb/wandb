@@ -1,3 +1,46 @@
+## 0.8.18 (Dec 4, 2019)
+
+#### :nail_care: Enhancement
+
+-   Added min_step and max_step to run.scan_history for grabbing sub-sections of metrics
+-   wandb.init(reinit=True) now automatically calls wandb.join() to better support multiple runs per process
+
+#### :bug: Bug Fix
+
+-   wandb.init(sync_tensorboard=True) works again for TensorFlow 2.0
+
+## 0.8.17 (Dec 2, 2019)
+
+#### :nail_care: Enhancement
+
+-   Handle tags being passed in as a string
+
+#### :bug: Bug Fix
+
+-   Pin graphql-core < 3.0.0 to fix install errors
+-   TQDM progress bars update logs properly
+-   Oversized summary or history logs are now dropped which prevents retry hanging
+
+## 0.8.16 (Nov 21, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix regression syncing some versions of Tensorboard since 0.8.13
+-   Fix network error in Jupyter
+
+## 0.8.15 (Nov 5, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix calling wandb.init with sync_tensorboard multiple times in Jupyter
+-   Fix RuntimeError race when using threads and calling wandb.log
+-   Don't initialize Sentry when error reporting is disabled
+
+#### :nail_care: Enhancement
+
+-   Added best_run() to wandb.sweep() public Api objects
+-   Remove internal tracking keys from wandb.config objects in the public Api
+
 ## 0.8.14 (Nov 1, 2019)
 
 #### :bug: Bug Fix
@@ -24,7 +67,7 @@
 -   Write wandb meta files to the system temp directory if the local directory isn't writable
 -   Added beta api.reports to the public API
 -   Added wandb.unwatch to remove hooks from pytorch models
--   Store the framework used in config._wandb
+-   Store the framework used in config.\_wandb
 
 ## 0.8.13 (Oct 15, 2019)
 

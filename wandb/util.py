@@ -59,10 +59,11 @@ if wandb.core.IS_GIT:
 else:
     SENTRY_ENV = 'production'
 
-sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
-                release=wandb.__version__,
-                default_integrations=False,
-                environment=SENTRY_ENV)
+if error_reporting_enabled():
+    sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
+                    release=wandb.__version__,
+                    default_integrations=False,
+                    environment=SENTRY_ENV)
 
 
 def sentry_message(message):
@@ -310,7 +311,7 @@ def json_friendly(obj):
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
-        logger.warning("Object of type %s is %i bytes", type(obj).__name__, getsizeof(obj))
+        wandb.termwarn("Serializing object of type {} that is {} bytes".format(type(obj).__name__, getsizeof(obj)))
 
     return obj, converted
 
@@ -547,8 +548,18 @@ def request_with_retry(func, *args, **kwargs):
             response.raise_for_status()
             return response
         except (requests.exceptions.ConnectionError,
-                requests.exceptions.HTTPError,  # XXX 500s aren't retryable
+                requests.exceptions.HTTPError,
                 requests.exceptions.Timeout) as e:
+            if isinstance(e, requests.exceptions.HTTPError):
+                # Non-retriable HTTP errors.
+                #
+                # We retry 500s just to be cautious, and because the back end
+                # returns them when there are infrastructure issues. If retrying
+                # some request winds up being problematic, we'll change the
+                # back end to indicate that it shouldn't be retried.
+                if e.response.status_code in {400, 403, 404, 409}:
+                    return e
+
             if retry_count == max_retries:
                 return e
             retry_count += 1
@@ -819,14 +830,14 @@ LOGIN_CHOICES = [
 ]
 
 
-def prompt_api_key(api, input_callback=None, browser_callback=None):
+def prompt_api_key(api, input_callback=None, browser_callback=None, no_offline=False):
     input_callback = input_callback or getpass.getpass
 
     choices = [choice for choice in LOGIN_CHOICES]
     if os.environ.get(env.ANONYMOUS, "never") == "never":
         # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
         choices.remove(LOGIN_CHOICE_ANON)
-    if os.environ.get(env.JUPYTER, "false") == "true":
+    if os.environ.get(env.JUPYTER, "false") == "true" or no_offline:
         choices.remove(LOGIN_CHOICE_DRYRUN)
 
     if os.environ.get(env.ANONYMOUS) == "must":
@@ -879,3 +890,23 @@ def prompt_api_key(api, input_callback=None, browser_callback=None):
 
         set_api_key(api, key, anonymous=anonymous)
         return key
+
+
+def auto_project_name(program, api):
+    # if we're in git, set project name to git repo name + relative path within repo
+    root_dir = api.git.root_dir
+    if root_dir is None:
+        return None
+    repo_name = os.path.basename(root_dir)
+    if program is None:
+        return repo_name
+    if not os.path.isabs(program):
+        program = os.path.join(os.curdir, program)
+    prog_dir = os.path.dirname(os.path.abspath(program))
+    if not prog_dir.startswith(root_dir):
+        return repo_name
+    project = repo_name
+    sub_path = os.path.relpath(prog_dir, root_dir)
+    if sub_path != '.':
+        project += '-' + sub_path
+    return project.replace(os.sep, '_')

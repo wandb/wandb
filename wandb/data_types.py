@@ -1216,7 +1216,9 @@ def history_dict_to_json(run, payload, step=None):
         # We should be at the top level of the History row; assume this key is set.
         step = payload['_step']
 
-    for key, val in six.iteritems(payload):
+    # We use list here because we were still seeing cases of RuntimeError dict changed size
+    for key in list(payload):
+        val = payload[key]
         if isinstance(val, dict):
             payload[key] = history_dict_to_json(run, val, step=step)
         else:

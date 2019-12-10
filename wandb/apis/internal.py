@@ -599,7 +599,7 @@ class Api(object):
             'entity': entity, 'project': project_name, 'name': name,
         })
 
-        if 'model' not in response or 'bucket' not in response['model']:
+        if 'model' not in response or 'bucket' not in (response['model'] or {}):
             return None
 
         project = response['model']
@@ -986,7 +986,7 @@ class Api(object):
     upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
 
     @normalize_exceptions
-    def register_agent(self, host, sweep_id=None, project_name=None):
+    def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
         """Register a new agent
 
         Args:
@@ -1014,23 +1014,25 @@ class Api(object):
             }
         }
         ''')
+        if entity is None:
+            entity = self.settings("entity")
         if project_name is None:
             project_name = self.settings('project')
 
-        # don't retry on validation errors
-        def no_retry_400(e):
+        # don't retry on validation or not found errors
+        def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if e.response.status_code != 400:
+            if not(e.response.status_code >= 400 and e.response.status_code < 500):
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
 
         response = self.gql(mutation, variable_values={
             'host': host,
-            'entityName': self.settings("entity"),
+            'entityName': entity,
             'projectName': project_name,
-            'sweep': sweep_id}, check_retry_fn=no_retry_400)
+            'sweep': sweep_id}, check_retry_fn=no_retry_4xx)
         return response['createAgent']['agent']
 
     def agent_heartbeat(self, agent_id, metrics, run_states):
@@ -1075,13 +1077,23 @@ class Api(object):
             return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
-    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None):
+    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None, entity=None):
         """Upsert a sweep object.
 
         Args:
             config (str): sweep config (will be converted to yaml)
         """
-        mutation = gql('''
+        project_query = '''
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
+        '''
+        mutation_str = '''
         mutation UpsertSweep(
             $id: ID,
             $config: String,
@@ -1102,30 +1114,56 @@ class Api(object):
             }) {
                 sweep {
                     name
+                    _PROJECT_QUERY_
                 }
             }
         }
-        ''')
+        '''
+        # FIXME(jhr): we need protocol versioning to know schema is not supported
+        # for now we will just try both new and old query
+        mutation_new = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
+        mutation_old = gql(mutation_str.replace("_PROJECT_QUERY_", ""))
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
-        def no_retry_400_or_404(e):
+        def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if e.response.status_code != 400 and e.response.status_code != 404:
+            if not(e.response.status_code >= 400 and e.response.status_code < 500):
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
 
-        response = self.gql(mutation, variable_values={
-            'id': obj_id,
-            'config': yaml.dump(config),
-            'description': config.get("description"),
-            'entityName': self.settings("entity"),
-            'projectName': self.settings("project"),
-            'controller': controller,
-            'scheduler': scheduler},
-            check_retry_fn=no_retry_400_or_404)
+        for mutation in mutation_new, mutation_old:
+            try:
+                response = self.gql(mutation, variable_values={
+                    'id': obj_id,
+                    'config': yaml.dump(config),
+                    'description': config.get("description"),
+                    'entityName': entity or self.settings("entity"),
+                    'projectName': project or self.settings("project"),
+                    'controller': controller,
+                    'scheduler': scheduler},
+                    check_retry_fn=no_retry_4xx)
+            except UsageError as e:
+                raise(e)
+            except Exception as e:
+                # graphql schema exception is generic
+                err = e
+                continue
+            err = None
+            break
+        if err:
+            raise(err)
+
+        sweep = response['upsertSweep']['sweep']
+        project = sweep.get('project')
+        if project:
+            self.set_setting('project', project['name'])
+            entity = project.get('entity')
+            if entity:
+                self.set_setting('entity', entity['name'])
+
         return response['upsertSweep']['sweep']['name']
 
     @normalize_exceptions
