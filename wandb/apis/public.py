@@ -195,7 +195,7 @@ class Api(object):
             project = parts[0]
         return (entity, project, run)
 
-    def projects(self, entity=None, per_page=None):
+    def projects(self, entity=None, per_page=200):
         """Get projects for a given entity.
         Args:
             entity (str): Name of the entity requested.  If None will fallback to
@@ -215,7 +215,7 @@ class Api(object):
             self._projects[entity] = Projects(self.client, entity, per_page=per_page)
         return self._projects[entity]
 
-    def reports(self, path="", name=None, per_page=None):
+    def reports(self, path="", name=None, per_page=50):
         """Get reports for a given project path.
 
         WARNING: This api is in beta and will likely change in a future release
@@ -241,7 +241,7 @@ class Api(object):
             self._reports[key] = Reports(self.client, Project(entity, project, {}), name=name, per_page=per_page)
         return self._reports[key]
 
-    def runs(self, path="", filters={}, order="-created_at", per_page=None):
+    def runs(self, path="", filters={}, order="-created_at", per_page=50):
         """Return a set of runs from a project that match the filters provided.
         You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
 
@@ -349,7 +349,9 @@ class Paginator(object):
     def __init__(self, client, variables, per_page=50):
         self.client = client
         self.variables = variables
-        self.per_page = per_page
+        # We don't allow unbounded paging
+        if per_page is not None:
+            self.per_page = per_page
         self.objects = []
         self.index = -1
         self.last_response = None
