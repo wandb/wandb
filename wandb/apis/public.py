@@ -351,7 +351,7 @@ class Paginator(object):
         self.variables = variables
         # We don't allow unbounded paging
         self.per_page = per_page
-        if per_page is None:
+        if self.per_page is None:
             self.per_page = 50
         self.objects = []
         self.index = -1
