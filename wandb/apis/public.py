@@ -346,12 +346,13 @@ class Attrs(object):
 class Paginator(object):
     QUERY = None
 
-    def __init__(self, client, variables, per_page=50):
+    def __init__(self, client, variables, per_page=None):
         self.client = client
         self.variables = variables
         # We don't allow unbounded paging
-        if per_page is not None:
-            self.per_page = per_page
+        self.per_page = per_page
+        if per_page is None:
+            self.per_page = 50
         self.objects = []
         self.index = -1
         self.last_response = None
