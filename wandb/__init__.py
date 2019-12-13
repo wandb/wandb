@@ -539,7 +539,7 @@ def join(exit_code=None):
         _global_run_stack.pop()
 
 
-def save(glob_str, base_path=None, policy="live"):
+def save(glob_str, base_path=None, policy="live", artifact_name=None):
     """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
     base_path: the base path to run the glob relative to
@@ -572,7 +572,7 @@ def save(glob_str, base_path=None, policy="live"):
             "%s is a cloud storage url, can't save file to wandb." % glob_str)
         return []
     run.send_message(
-        {"save_policy": {"glob": wandb_glob_str, "policy": policy}})
+        {"save_policy": {"glob": wandb_glob_str, "policy": policy, "artifact": artifact_name}})
     files = []
     for path in glob.glob(glob_str):
         file_name = os.path.relpath(path, base_path)

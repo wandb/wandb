@@ -87,9 +87,9 @@ class Api(object):
             )
         )
         self.gql = retry.Retry(self.execute,
-            retry_timedelta=retry_timedelta,
-            check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(RetryError, requests.RequestException))
+                               retry_timedelta=retry_timedelta,
+                               check_retry_fn=util.no_retry_auth,
+                               retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None
 
@@ -119,7 +119,6 @@ class Api(object):
                 if not err.get('message'):
                     continue
                 wandb.termerror('Error while calling W&B API: {} ({})'.format(err['message'], res))
-
 
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, 'disabled', fallback=False)
@@ -428,7 +427,7 @@ class Api(object):
             }
         }
         ''')
-        data =  self.gql(query, variable_values={
+        data = self.gql(query, variable_values={
             'entity': entity or self.settings('entity'), 'project': project or self.settings('project'), 'sweep': sweep, 'specs': specs})['model']['sweep']
         if data:
             data['runs'] = self._flatten_edges(data['runs'])
@@ -631,9 +630,8 @@ class Api(object):
         run = project.get('run', None)
         if not run:
             return False
-        
-        return run['stopped']
 
+        return run['stopped']
 
     def format_project(self, project):
         return re.sub(r'\W+', '-', project.lower()).strip("-_")
@@ -779,7 +777,7 @@ class Api(object):
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
-    def upload_urls(self, project, files, run=None, entity=None, description=None):
+    def upload_urls(self, project, files, run=None, entity=None, description=None, artifact_id=None):
         """Generate temporary resumeable upload urls
 
         Args:
@@ -798,11 +796,12 @@ class Api(object):
                 }
         """
         query = gql('''
-        query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
+        query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String, $artifactID: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run, desc: $description) {
                     id
-                    files(names: $files) {
+                    files(names: $files, addToArtifactID: $artifactID) {
+                        uploadHeaders
                         edges {
                             node {
                                 name
@@ -821,13 +820,14 @@ class Api(object):
             'name': project, 'run': run_id,
             'entity': entity,
             'description': description,
-            'files': [file for file in files]
+            'files': [file for file in files],
+            'artifactID': artifact_id
         })
 
         run = query_result['model']['bucket']
         if run:
             result = {file['name']: file for file in self._flatten_edges(run['files'])}
-            return run['id'], result
+            return run['id'], run['files']['uploadHeaders'], result
         else:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run_id))
 
@@ -964,7 +964,6 @@ class Api(object):
         Returns:
             The requests library response object
         """
-        extra_headers = extra_headers.copy()
         response = None
         progress = Progress(file, callback=callback)
         if progress.len == 0:
@@ -984,6 +983,36 @@ class Api(object):
         return response
 
     upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
+
+    def create_artifact_version(self, entity_name, project_name, run_name, artifact_name, description=None):
+        mutation = gql('''
+        mutation CreateArtifact(
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!,
+            $name: String!,
+            $description: String
+        ) {
+            createArtifactVersion(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                name: $name,
+                description: $description
+            }) {
+                artifact {
+                    id
+                }
+            }
+        }
+        ''')
+        response = self.gql(mutation, variable_values={
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+            'name': artifact_name,
+            'description': description})
+        return response['createArtifactVersion']['artifact']
 
     @normalize_exceptions
     def register_agent(self, host, sweep_id=None, project_name=None):
@@ -1267,7 +1296,7 @@ class Api(object):
         return self.settings('project')
 
     @normalize_exceptions
-    def push(self, files, run=None, entity=None, project=None, description=None, force=True, progress=False):
+    def push(self, files, run=None, entity=None, project=None, description=None, force=True, artifact_id=None, progress=False):
         """Uploads multiple files to W&B
 
         Args:
@@ -1293,8 +1322,12 @@ class Api(object):
         # TODO(adrian): we use a retriable version of self.upload_file() so
         # will never retry self.upload_urls() here. Instead, maybe we should
         # make push itself retriable.
-        run_id, result = self.upload_urls(
-            project, files, run, entity, description)
+        run_id, upload_headers, result = self.upload_urls(
+            project, files, run, entity, description, artifact_id)
+        extra_headers = {}
+        for upload_header in upload_headers:
+            key, val = upload_header.split(':', 1)
+            extra_headers[key] = val
         responses = []
         for file_name, file_info in result.items():
             file_url = file_info['url']
@@ -1314,7 +1347,8 @@ class Api(object):
                 print("%s does not exist" % file_name)
                 continue
 
-            responses.append(self._upload_file_with_progress(file_url, open_file, progress))
+            responses.append(self._upload_file_with_progress(
+                file_url, open_file, progress, extra_headers=extra_headers))
             open_file.close()
         return responses
 
@@ -1339,14 +1373,14 @@ class Api(object):
         """Return an array from the nested graphql relay structure"""
         return [node['node'] for node in response['edges']]
 
-    def _upload_file_with_progress(self, url, file, progress=None):
+    def _upload_file_with_progress(self, url, file, progress=None, extra_headers=None):
         if progress:
             if hasattr(progress, '__call__'):
-                return self.upload_file_retry(url, file, progress)
+                return self.upload_file_retry(url, file, progress, extra_headers=extra_headers)
             else:
                 length = os.fstat(file.fileno()).st_size
                 with click.progressbar(file=progress, length=length, label='Uploading file: %s' % file.name,
                                        fill_char=click.style('&', fg='green')) as bar:
-                    return self.upload_file_retry(url, file, lambda bites, _: bar.update(bites))
+                    return self.upload_file_retry(url, file, lambda bites, _: bar.update(bites), extra_headers=extra_headers)
         else:
-            return self.upload_file_retry(url, file)
+            return self.upload_file_retry(url, file, extra_headers=extra_headers)

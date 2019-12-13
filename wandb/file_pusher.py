@@ -11,6 +11,7 @@ import wandb
 import wandb.util
 from wandb.compat import tempfile
 
+
 def resolve_path(path):
     try:
         from pathlib import Path
@@ -18,6 +19,7 @@ def resolve_path(path):
     except:
         # Pathlib isn't present for python versions earlier than 3.3
         return os.path.realpath(path)
+
 
 # Get rid of cleanup warnings in Python 2.7.
 warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'wandb.compat.tempfile')
@@ -32,13 +34,13 @@ TMP_DIR = tempfile.TemporaryDirectory('wandb')
 EventFileBatch = collections.namedtuple(
     'EventFileBatch', ('batch_id', 'file_changed_events',))
 EventFileChanged = collections.namedtuple(
-    'EventFileChanged', ('path', 'save_name', 'copy'))
+    'EventFileChanged', ('path', 'save_name', 'artifact_id', 'copy'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
 
 class UploadJob(threading.Thread):
-    def __init__(self, done_queue, progress, api, save_name, path, copy=True):
+    def __init__(self, done_queue, progress, api, save_name, path, artifact_id, copy=True):
         """A file upload thread.
 
         Arguments:
@@ -60,6 +62,7 @@ class UploadJob(threading.Thread):
         self._api = api
         self.save_name = save_name
         self.save_path = self.path = path
+        self.artifact_id = artifact_id
         self.copy = copy
         self.needs_restart = False
         self.label = save_name
@@ -100,6 +103,7 @@ class UploadJob(threading.Thread):
             with open(self.save_path, 'rb') as f:
                 self._api.push(
                     {self.save_name: f},
+                    artifact_id=self.artifact_id,
                     progress=lambda _, t: self.progress(t))
         except Exception as e:
             self._progress[self.label]['uploaded'] = 0
@@ -135,15 +139,15 @@ class BatchUploadJob(UploadJob):
                     time.sleep(0.1)
                     try:
                         tar.add(resolve_path(event.path),
-                            arcname=event.save_name)
+                                arcname=event.save_name)
                     except OSError:
                         wandb.termwarn("Failed to add %s to batch archive." %
-                            event.save_name)
+                                       event.save_name)
 
         save_name = '___batch_archive_{}.tgz'.format(batch_id)
 
         super(BatchUploadJob, self).__init__(done_queue, files, api, save_name,
-            tgz_path)
+                                             tgz_path, None)
 
         self.label = 'batch_{}'.format(batch_id)
         self.tgz_path = tgz_path
@@ -192,7 +196,7 @@ class FilePusher(object):
     # minute.
     BATCH_MAX_FILES = 100
 
-    # If there are fewer than this many files gathered over a batch threshold, 
+    # If there are fewer than this many files gathered over a batch threshold,
     # then just upload them individually.
     BATCH_MIN_FILES = 3
 
@@ -340,7 +344,7 @@ class FilePusher(object):
                     new_batch_id = str(self._batch_num)
                     self._event_queue.put(EventFileBatch(new_batch_id, batch))
                     self._batch_num += 1
-            
+
             # And stop the infinite loop if we've finished
             if finished:
                 break
@@ -362,7 +366,7 @@ class FilePusher(object):
         if len(self._running_jobs) == self._max_jobs:
             self._pending_events.append(event)
             return
-            
+
         # Start now if we have capacity
         self._start_or_restart_event_job(event)
 
@@ -397,15 +401,15 @@ class FilePusher(object):
     def _start_event_job(self, label, event):
         if isinstance(event, EventFileChanged):
             return self._start_single_job(event.save_name, event.path,
-                event.copy)
+                                          event.artifact_id, event.copy)
 
         if isinstance(event, EventFileBatch):
             return self._start_batch_job(event.batch_id,
-                event.file_changed_events)
+                                         event.file_changed_events)
 
-    def _start_single_job(self, save_name, path, copy):
+    def _start_single_job(self, save_name, path, artifact_id, copy):
         # wandb.termlog("Starting individual upload: %s" % save_name)
-        job = UploadJob(self._event_queue, self._progress, self._api, save_name, path, copy)
+        job = UploadJob(self._event_queue, self._progress, self._api, save_name, path, artifact_id, copy)
         job.start()
         return job
 
@@ -413,7 +417,7 @@ class FilePusher(object):
         # wandb.termlog("Starting batch %s (%d files)" % (batch_id,
         #     len(file_changed_events)))
         job = BatchUploadJob(self._event_queue, self._progress, self._api,
-            batch_id, file_changed_events)
+                             batch_id, file_changed_events)
         job.start()
         return job
 
@@ -422,9 +426,14 @@ class FilePusher(object):
         Whether a file gets batched depends on file size. Anything above
         1MB should be handled individually.
         """
-        return os.path.getsize(file_change_event.path) < 1000000
+        # TODO(artifacts): we disable batching on artifacts for now.
+        # To fix this, it seems the best solution is to store the artifact ID
+        # as a pax key/value attribute in the tar archive. Then when the backend
+        # unpacks it, it can do the artifact association.
+        return False
+        return file_change_event.artifact_id is None and os.path.getsize(file_change_event.path) < 1000000
 
-    def file_changed(self, save_name, path, copy=True):
+    def file_changed(self, save_name, path, artifact_id, copy=True):
         """Tell the file pusher that a file's changed and should be uploaded.
 
         Arguments:
@@ -443,7 +452,7 @@ class FilePusher(object):
         if os.path.getsize(path) == 0:
             return
 
-        event = EventFileChanged(path, save_name, copy)
+        event = EventFileChanged(path, save_name, artifact_id, copy)
 
         if self.should_batch(event):
             self._batch_queue.put(event)
