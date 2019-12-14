@@ -975,7 +975,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         magic_impl.magic_install(init_args=init_args)
     if dir:
         os.environ[env.DIR] = dir
-        util.mkdir_exists_ok(wandb_dir())
+        util.mkdir_exists_ok(wandb_dir(not_exist_ok=True))
     if anonymous is not None:
         os.environ[env.ANONYMOUS] = anonymous
     if os.environ.get(env.ANONYMOUS, "never") not in ["allow", "must", "never"]:
