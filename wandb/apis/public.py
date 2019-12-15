@@ -83,8 +83,7 @@ fragment ArtifactsFragment on ArtifactConnection {
          node {
              id
              name
-             url
-             fingerprint
+             description
              createdAt
          }
          cursor
@@ -95,6 +94,28 @@ fragment ArtifactsFragment on ArtifactConnection {
     }
 }
 '''
+
+# TODO, factor out common file fragment
+ARTIFACT_VERSION_FILES_FRAGMENT = '''fragment ArtifactVersionFilesFragment on Artifact {
+    files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+        edges {
+            node {
+                id
+                name
+                url
+                sizeBytes
+                mimetype
+                updatedAt
+                md5
+            }
+            cursor
+        }
+        pageInfo {
+            endCursor
+            hasNextPage
+        }
+    }
+}'''
 
 
 class RetryingClient(object):
@@ -341,9 +362,15 @@ class Api(object):
         return self._sweeps[path]
 
     @normalize_exceptions
-    def published_artifacts(self, path=None, name=None):
-        entity, project, _ = self._parse_path(path)
-        return ProjectArtifacts(self.client, entity, project, name)
+    def artifact_versions(self, path=None):
+        entity, project, artifact_name = self._parse_path(path)
+        return ProjectArtifactVersions(self.client, entity, project, artifact_name)
+
+    @normalize_exceptions
+    def artifact_version(self, path=None):
+        # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
+        entity, project, id = self._parse_path(path)
+        return ArtifactVersion(self.client, entity, project, id)
 
 
 class Attrs(object):
@@ -1151,9 +1178,9 @@ class File(object):
     def __init__(self, client, attrs):
         self.client = client
         self._attrs = attrs
-        if self.size == 0:
-            raise AttributeError(
-                "File {} does not exist.".format(self._attrs["name"]))
+        #if self.size == 0:
+        #    raise AttributeError(
+        #        "File {} does not exist.".format(self._attrs["name"]))
 
     @property
     def name(self):
@@ -1177,7 +1204,10 @@ class File(object):
 
     @property
     def size(self):
-        return int(self._attrs["sizeBytes"])
+        sizeBytes = self._attrs['sizeBytes']
+        if sizeBytes is not None:
+            return int(sizeBytes)
+        return 0
 
     @normalize_exceptions
     @retriable(retry_timedelta=datetime.timedelta(
@@ -1207,7 +1237,7 @@ class File(object):
         return open(path, "r")
 
     def __repr__(self):
-        return "<File {} ({})>".format(self.name, self.mimetype)
+        return "<File {} ({}) {}>".format(self.name, self.mimetype, util.sizeof_fmt(self.size))
 
 class Reports(Paginator):
     """Reports is an iterable collection of :obj:`BetaReport` objects."""
@@ -1541,16 +1571,16 @@ class SampledHistoryScan(object):
         self.scan_offset = 0
 
 
-class ProjectArtifacts(Paginator):
+class ProjectArtifactVersions(Paginator):
     QUERY = gql('''
-        query ProjectArtifacts(
+        query ProjectArtifactVersions(
             $entity: String!,
             $project: String!,
-            $name: String,
+            $name: String!,
             $cursor: String,
         ) {
             project(name: $project, entityName: $entity) {
-                artifactsPublished(name: $name, after: $cursor) {
+                artifactVersions(name: $name, after: $cursor) {
                     ...ArtifactsFragment
                 }
             }
@@ -1568,7 +1598,7 @@ class ProjectArtifacts(Paginator):
             'name': name,
         }
 
-        super(ProjectArtifacts, self).__init__(client, variable_values, per_page)
+        super(ProjectArtifactVersions, self).__init__(client, variable_values, per_page)
 
     @property
     def length(self):
@@ -1578,14 +1608,14 @@ class ProjectArtifacts(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response['project']['artifactsPublished']['pageInfo']['hasNextPage']
+            return self.last_response['project']['artifactVersions']['pageInfo']['hasNextPage']
         else:
             return True
 
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response['project']['artifactsPublished']['edges'][-1]['cursor']
+            return self.last_response['project']['artifactVersions']['edges'][-1]['cursor']
         else:
             return None
 
@@ -1593,8 +1623,8 @@ class ProjectArtifacts(Paginator):
         self.variables.update({'cursor': self.cursor})
 
     def convert_objects(self):
-        return [Artifact(self.client, r["node"])
-                for r in self.last_response['project']['artifactsPublished']['edges']]
+        return [ArtifactVersion(self.client, self.entity, self.project, r["node"]["id"], r["node"])
+                for r in self.last_response['project']['artifactVersions']['edges']]
 
 
 class RunArtifacts(Paginator):
@@ -1654,7 +1684,7 @@ class RunArtifacts(Paginator):
                 for r in self.last_response['project']['run']['artifactsPublished']['edges']]
 
 
-class Artifact(object):
+class ArtifactVersion(object):
     CONSUME_ARTIFACT_MUTATION = gql('''
     mutation ConsumeArtifact(
         $entityName: String!,
@@ -1677,9 +1707,21 @@ class Artifact(object):
     }
     ''')
 
-    def __init__(self, client, attrs):
+    def __init__(self, client, entity, project, id, attrs=None):
         self.client = client
+        self.entity = entity
+        self.project = project
+        self.id = id
         self._attrs = attrs
+        if self._attrs is None:
+            self.load()
+
+    @property
+    def path(self):
+        # TODO: This is a different style than the rest of the paths. The rest of the
+        # paths don't include the object type (which makes them hard to distinguish).
+        # We should maybe use URIs here.
+        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.name, self.id)
 
     @property
     def name(self):
@@ -1689,35 +1731,93 @@ class Artifact(object):
     def description(self):
         return self._attrs["description"]
 
-    @property
-    def fingerprint(self):
-        return self._attrs["fingerprint"]
-
-    @property
-    def url(self):
-        return self._attrs["url"]
+    def load(self):
+        query = gql('''
+        query Run($project: String!, $entity: String!, $id: String!) {
+            project(name: $project, entityName: $entity) {
+                artifactVersion(id: $id) {
+                    id
+                    name
+                    description
+                    createdAt
+                }
+            }
+        }
+        ''')
+        response = self.client.execute(query, variable_values={'entity': self.entity, 'project': self.project, 'id': self.id})
+        if response is None or response.get('project') is None \
+                or response['project'].get('artifactVersion') is None:
+            raise ValueError("Could not find artifact version %s" % self)
+        self._attrs = response['project']['artifactVersion']
+        return self._attrs
 
     @normalize_exceptions
-    @retriable(
-        retry_timedelta=datetime.timedelta(seconds=10),
-        check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException))
-    def pull(self, cache_dir="wandb/artifacts"):
-        run = wandb.run
-        path = os.path.join(cache_dir, run.project, self.fingerprint, self.name)
+    def files(self, names=[], per_page=50):
+        return ArtifactVersionFiles(self.client, self, names, per_page)
 
-        self.client.execute(self.CONSUME_ARTIFACT_MUTATION, variable_values={
-            'entityName': run.entity,
-            'projectName': run.project,
-            'runName': run.id,
-            'name': self.name,
-            'fingerprint': self.fingerprint,
-        })
-
-        # Download the artifact if it isn't cached.
-        if not os.path.exists(path):
-            util.download_file_from_url(path, self.url, Api().api_key)
-        return path
+    def pull(self):
+        for f in self.files():
+            f.download()
 
     def __repr__(self):
-        return "<Artifact {} ({})>".format(self.name, self.fingerprint)
+        return "<Artifact {} ({})>".format(self.name, self.id)
+
+class ArtifactVersionFiles(Paginator):
+    QUERY = gql('''
+        query ArtifactVersionFiles(
+            $entity: String!,
+            $project: String!,
+            $id: String!,
+            $fileNames: [String] = [],
+            $fileCursor: String,
+            $fileLimit: Int = 50
+        ) {
+            project(name: $project, entityName: $entity) {
+                artifactVersion(id: $id) {
+                    id
+                    ...ArtifactVersionFilesFragment
+                }
+            }
+        }
+        %s
+    ''' % ARTIFACT_VERSION_FILES_FRAGMENT)
+
+    def __init__(self, client, artifact_version, names=[], per_page=50):
+        self.artifact_version = artifact_version
+        variables = {
+            'project': artifact_version.project,
+            'entity': artifact_version.entity,
+            'id': artifact_version.id,
+        }
+        super(ArtifactVersionFiles, self).__init__(client, variables, per_page)
+
+    @property
+    def length(self):
+        if self.last_response:
+            return self.last_response['project']['artifactVersion']['fileCount']
+        else:
+            return None
+
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response['project']['artifactVersion']['files']['pageInfo']['hasNextPage']
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response['project']['artifactVersion']['files']['edges'][-1]['cursor']
+        else:
+            return None
+
+    def update_variables(self):
+        self.variables.update({'fileLimit': self.per_page, 'fileCursor': self.cursor})
+
+    def convert_objects(self):
+        return [File(self.client, r["node"])
+                for r in self.last_response['project']['artifactVersion']['files']['edges']]
+
+    def __repr__(self):
+        return "<Files {} ({})>".format("/".join(self.artifact_version.path), len(self))
