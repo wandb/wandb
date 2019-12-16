@@ -415,7 +415,6 @@ class Object3D(BatchableMedia):
                     'type': data_or_path['type'],
                     'points': data_or_path['points'].tolist(),
                     'boxes': data_or_path['boxes'].tolist(),
-                    'center': data_or_path['center'],
                 }
             else:
                 raise Error("type not supported")
