@@ -26,8 +26,7 @@ wandb.log(
                             "depth": 4,
                         }
                     ]
-                ),
-                "center": [1, 1, 1],
+                )
             }
         )
     }
