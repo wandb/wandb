@@ -65,9 +65,9 @@ from wandb.dataframes import image_segmentation_binary_dataframe
 from wandb.dataframes import image_segmentation_multiclass_dataframe
 
 from wandb import wandb_torch
-from wandb.wandb_controller import controller
 from wandb.wandb_agent import agent
-from wandb.wandb_controller import sweep
+from wandb.wandb_controller import sweep, controller
+
 from wandb.compat import windows
 
 logger = logging.getLogger(__name__)

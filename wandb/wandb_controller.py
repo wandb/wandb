@@ -695,6 +695,13 @@ def _sweep_status(sweep_obj, sweep_conf, sweep_runs):
 
 
 def sweep(sweep, entity=None, project=None):
+    from wandb.sweeps.config import SweepConfig
+    import types
+
+    if isinstance(sweep, types.FunctionType):
+        sweep = sweep()
+    if isinstance(sweep, SweepConfig):
+        sweep = dict(sweep)
     """Sweep create for controller api and jupyter (eventually for cli)."""
     in_jupyter = wandb._get_python_type() != "python"
     if in_jupyter:
