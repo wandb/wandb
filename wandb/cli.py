@@ -277,9 +277,8 @@ def runs(ctx, project, entity):
 @cli.command(context_settings=CONTEXT, help="List local & remote file status")
 @click.argument("run", envvar=env.RUN_ID)
 @click.option("--settings/--no-settings", help="Show the current settings", default=True)
-@click.option("--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to.")
 @display_error
-def status(run, settings, project):
+def status(run, settings):
     logged_in = bool(api.api_key)
     if not os.path.isdir(wandb_dir()):
         if logged_in:
@@ -1005,8 +1004,9 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
             wandb.termerror('Error in sweep file: %s' % err)
             return
 
-    entity = entity or env.get_entity()
-    project = project or env.get_project() or util.auto_project_name(config.get("program"), api)
+    entity = entity or env.get_entity() or config.get('entity')
+    project = project or env.get_project() or config.get('project') or util.auto_project_name(
+            config.get("program"), api)
     sweep_id = api.upsert_sweep(config, project=project, entity=entity)
     wandb.termlog('Created sweep with ID: {}'.format(
             click.style(sweep_id, fg="yellow")))
@@ -1026,15 +1026,16 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
 @click.pass_context
 @click.option("--project", "-p", default=None, envvar=env.PROJECT, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity scope for the project.")
+@click.option("--count", default=None, help="The max number of runs for this agent.")
 @click.argument('sweep_id')
 @display_error
-def agent(ctx, project, entity, sweep_id):
+def agent(ctx, project, entity, count, sweep_id):
     if api.api_key is None:
         termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
 
     wandb.termlog('Starting wandb agent 🕵️')
-    wandb_agent.run_agent(sweep_id, entity=entity, project=project)
+    wandb_agent.run_agent(sweep_id, entity=entity, project=project, count=count)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
