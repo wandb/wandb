@@ -72,7 +72,7 @@ class UploadJob(threading.Thread):
             shutil.copy2(self.path, self.save_path)
 
     def cleanup_file(self):
-        if self.copy:
+        if self.copy and os.path.isfile(self.save_path):
             os.remove(self.save_path)
 
     def run(self):
