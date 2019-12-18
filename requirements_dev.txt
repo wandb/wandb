@@ -39,7 +39,7 @@ matplotlib
 plotly
 Keras
 xgboost
-ray
+ray[tune]
 gym
 configparser
 tensorflow==1.14.0
