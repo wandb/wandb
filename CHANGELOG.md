@@ -1,3 +1,16 @@
+## 0.8.19 (Dec 18, 2019)
+
+#### :nail_care: Enhancement
+
+-   Added beta support for ray/tune hyperopt search strategy
+-   Added ability to specify max runs per agent
+-   Improve experience starting a sweep without a project already created
+
+#### :bug: Bug Fix
+
+-   Fix repeated wandb.Api().Run(id).scan_history() calls get updated data
+-   Fix early_terminate/hyperband in notebook/python environments
+
 ## 0.8.18 (Dec 4, 2019)
 
 #### :nail_care: Enhancement
