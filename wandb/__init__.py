@@ -1100,11 +1100,12 @@ keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
+lightgbm = util.LazyLoader('lightgbm', globals(), 'wandb.lightgbm')
 gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
 
 
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
-    'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai', 
-    'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video', 
+    'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
+    'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
     'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']
