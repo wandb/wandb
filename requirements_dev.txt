@@ -41,6 +41,7 @@ Keras
 xgboost
 ray[tune]
 gym
+scikit-plot
 configparser
 tensorflow==1.14.0
 protobuf>=3.6.0
