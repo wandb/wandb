@@ -1026,7 +1026,7 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
 @click.pass_context
 @click.option("--project", "-p", default=None, envvar=env.PROJECT, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity scope for the project.")
-@click.option("--count", default=None, help="The max number of runs for this agent.")
+@click.option("--count", default=None, type=int, help="The max number of runs for this agent.")
 @click.argument('sweep_id')
 @display_error
 def agent(ctx, project, entity, count, sweep_id):
