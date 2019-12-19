@@ -38,7 +38,7 @@ plotly
 Keras
 https://download.pytorch.org/whl/cpu/torch-1.1.0-cp36-cp36m-win_amd64.whl
 https://download.pytorch.org/whl/cpu/torchvision-0.3.0-cp36-cp36m-win_amd64.whl
-tensorflow==1.13.1
+tensorflow==1.15.0
 protobuf>=3.6.0
 vcrpy>=2.0.0
 pytest-vcr>=1.0.0
