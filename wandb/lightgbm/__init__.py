@@ -19,11 +19,11 @@ def wandb_callback():
         recorder = lightgbm.record_evaluation(eval_results)
         recorder(env)
 
-        print(eval_results)
         for validation_key in eval_results.keys():
             for key in eval_results[validation_key].keys():
                 wandb.log({
                     validation_key + "_" + key: eval_results[validation_key][key][0]
                 }, commit=False)
+        # Previous log statements use commit=False. This commits them.
         wandb.log({})
     return callback
