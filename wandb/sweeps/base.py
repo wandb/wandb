@@ -5,6 +5,14 @@ Base classes to be inherited from for Search and EarlyTerminate algorithms
 import math
 
 
+class Run(object):
+    def __init__(self, params, summary=None, history=None):
+        self.config = params
+        self.summaryMetrics = summary or {}
+        if history is not None:
+            self.history = history
+
+
 class Search():
     def _metric_from_run(self, sweep_config, run, default=None):
         metric = None
@@ -47,6 +55,29 @@ class Search():
                     "Couldn't find summary metric {}".format(metric_name))
             metric = default
         return metric
+
+    def _prior_runs_from_config(self, sweep_config):
+        priors = sweep_config.get('priors')
+        if not priors:
+            return None
+        if not isinstance(priors, list):
+            return None
+        ret = []
+        for p in priors:
+            if not isinstance(p, dict):
+                continue
+            params = p.get('parameters')
+            if not isinstance(params, dict):
+                continue
+            results = p.get('results')
+            if results is not None and not isinstance(results, dict):
+                continue
+            config = {}
+            for k, v in params.items():
+                config[k] = dict(value=v)
+            r = Run(config, summary=results)
+            ret.append(r)
+        return ret
 
     def next_run(self, sweep):
         """Called each time an agent requests new work.

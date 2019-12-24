@@ -373,6 +373,9 @@ class BayesianSearch(Search):
         X_bounds = [[0., 1.]] * len(params.searchable_params)
 
         runs = sweep['runs']
+        prior_runs = self._prior_runs_from_config(sweep['config'])
+        if prior_runs:
+            runs = prior_runs + runs
 
         # we calc the max metric to put as the metric for failed runs
         # so that our bayesian search stays away from them
