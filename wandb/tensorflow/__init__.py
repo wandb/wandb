@@ -7,6 +7,11 @@ from wandb.apis.file_stream import Chunk
 from wandb.data_types import history_dict_to_json
 from wandb.tensorboard import *
 import wandb
+try:
+    from tensorflow.train import summary_iterator
+except ImportError:
+    from tensorflow.compat.v1.train import summary_iterator
+
 
 if hasattr(tf.estimator, 'SessionRunHook'):
     # In tf 1.14 and beyond, SessionRunHook is in the estimator package.
@@ -46,7 +51,7 @@ def stream_tfevents(path, file_api, run, step=0, namespace=""):
     last_row = {}
     global_step_key = namespaced_tag("global_step", namespace)
     try:
-        for summary in tf.train.summary_iterator(path):
+        for summary in summary_iterator(path):
             parsed = tf_summary_to_dict(summary, namespace=namespace)
             if last_step != parsed[global_step_key]:
                 last_step = parsed[global_step_key]
