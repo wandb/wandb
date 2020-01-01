@@ -6,7 +6,7 @@ jobs:
     build:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v1
+            - uses: actions/checkout@v2
             - name: Set up Python 3.7
               uses: actions/setup-python@v1
               with:
@@ -34,7 +34,7 @@ jobs:
             - name: Git status
               run: git status
             - name: Commit changes
-              uses: EndBug/add-and-commit@master
+              uses: EndBug/add-and-commit@v2
               with:
                   author_name: Chris Van Pelt
                   author_email: vanpelt@wandb.com
