@@ -480,11 +480,14 @@ def pull(run, project, entity):
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
+@click.option("--local", default=None, help="Login to a local instance of W&B")
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
 @click.option("--anonymously", is_flag=True, help="Log in anonymously")
 @display_error
-def login(key, anonymously, server=LocalServer(), browser=True, no_offline=False):
+def login(key, local, anonymously, server=LocalServer(), browser=True, no_offline=False):
     global api
+    if local:
+        api.set_setting("base_url", local, globally=True)
 
     key = key[0] if len(key) > 0 else None
 
@@ -508,7 +511,8 @@ def login(key, anonymously, server=LocalServer(), browser=True, no_offline=False
     else:
         if anonymously:
             os.environ[env.ANONYMOUS] = "must"
-        key = util.prompt_api_key(api, input_callback=click.prompt, browser_callback=get_api_key_from_browser, no_offline=no_offline)
+        key = util.prompt_api_key(api, input_callback=click.prompt,
+            browser_callback=get_api_key_from_browser, no_offline=no_offline, local=local)
 
     if key:
         api.clear_setting('disabled')
@@ -744,6 +748,29 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
 
 @cli.command(context_settings=RUN_CONTEXT)
 @click.pass_context
+@click.option('--port', '-p', default="8080", help="The host port to bind W&B local on")
+@click.option('--daemon/--no-daemon', default=True, help="Run or don't run in daemon mode")
+@click.option('--edge', is_flag=True, default=False, help="Run the bleading edge")
+def local(ctx, port, daemon, edge):
+    if not find_executable('docker'):
+        raise ClickException(
+            "Docker not installed, install it from https://docker.com" )
+    image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
+    command = ['docker', 'run', '-v', 'wandb:/vol', '-p', port+':8080', '--name', 'wandb-local']
+    host = "http://localhost:%s" % port
+    api.set_setting("base_url", host, globally=True)
+    if daemon:
+        command += ["-d"]
+    command += [image]
+    subprocess.call(command)
+    if daemon:
+        wandb.termlog("W&B local started at http://localhost:%s \U0001F6A2" % port)
+        wandb.termlog("You can stop the server by running `docker kill wandb-local`")
+        if not api.api_key:
+            ctx.invoke(login, local=host)
+
+@cli.command(context_settings=RUN_CONTEXT)
+@click.pass_context
 @click.option('--keep', '-N', default=24, help="Keep runs created in the last N hours", type=int)
 def gc(ctx, keep):
     """Garbage collector, cleans up your local run directory"""
@@ -832,7 +859,7 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
     """
     if not find_executable('docker'):
         raise ClickException(
-            "Docker not installed, install it from https://docker.com" )
+            "Docker not installed, install it from https://docker.com")
     args = list(docker_run_args)
     image = docker_image or ""
     # remove run for users used to nvidia-docker
