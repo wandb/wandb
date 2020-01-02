@@ -750,24 +750,44 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
 @click.pass_context
 @click.option('--port', '-p', default="8080", help="The host port to bind W&B local on")
 @click.option('--daemon/--no-daemon', default=True, help="Run or don't run in daemon mode")
+@click.option('--upgrade', is_flag=True, default=False, help="Upgrade to the most recent version")
 @click.option('--edge', is_flag=True, default=False, help="Run the bleading edge")
-def local(ctx, port, daemon, edge):
+@display_error
+def local(ctx, port, daemon, upgrade, edge):
     if not find_executable('docker'):
         raise ClickException(
             "Docker not installed, install it from https://docker.com" )
+    if wandb.docker.image_id("wandb/local") != wandb.docker.image_id_from_registry("wandb/local"):
+        if upgrade:
+            subprocess.call(["docker", "pull", "wandb/local"])
+        else:
+            wandb.termlog("A new version of W&B local is available, upgrade by calling `wandb local --upgrade`")
+    running = subprocess.check_output(["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"])
+    if running != b"":
+        if upgrade:
+            subprocess.call(["docker", "restart", "wandb-local"])
+            exit(0)
+        else:
+            wandb.termerror("A container named wandb-local is already running, run `docker kill wandb-local` if you want to start a new instance")
+            exit(1)
     image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
-    command = ['docker', 'run', '-v', 'wandb:/vol', '-p', port+':8080', '--name', 'wandb-local']
+    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port+':8080', '--name', 'wandb-local']
     host = "http://localhost:%s" % port
     api.set_setting("base_url", host, globally=True)
     if daemon:
         command += ["-d"]
     command += [image]
-    subprocess.call(command)
+    wandb.termlog("Running: `%s`" % " ".join(command))
+    code = subprocess.call(command, stdout=subprocess.DEVNULL)
     if daemon:
-        wandb.termlog("W&B local started at http://localhost:%s \U0001F6A2" % port)
-        wandb.termlog("You can stop the server by running `docker kill wandb-local`")
-        if not api.api_key:
-            ctx.invoke(login, local=host)
+        if code != 0:
+            wandb.termerror("Failed to launch the W&B local container, see the above error.")
+            exit(1)
+        else:
+            wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
+            wandb.termlog("You can stop the server by running `docker kill wandb-local`")
+            if not api.api_key:
+                ctx.invoke(login, local=host)
 
 @cli.command(context_settings=RUN_CONTEXT)
 @click.pass_context
