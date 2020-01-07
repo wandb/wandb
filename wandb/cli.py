@@ -777,7 +777,6 @@ def local(ctx, port, daemon, upgrade, edge):
     if daemon:
         command += ["-d"]
     command += [image]
-    wandb.termlog("Running: `%s`" % " ".join(command))
     code = subprocess.call(command, stdout=subprocess.DEVNULL)
     if daemon:
         if code != 0:
