@@ -6,11 +6,19 @@ jobs:
     build:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v1
+              with:
+                  fetch-depth: 1
             - name: Set up Python 3.7
               uses: actions/setup-python@v1
               with:
                   python-version: 3.7
+            - uses: actions/cache@v1
+              with:
+                  path: ~/.cache/pip
+                  key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pip-
             - name: Install dependencies
               if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
               run: |
@@ -33,7 +41,6 @@ jobs:
                   path: docs/markdown
             - name: Git status
               run: |
-                  git checkout ${{ github.head_ref }}
                   git status
             - name: Commit changes
               uses: stefanzweifel/git-auto-commit-action@v2.5.0
