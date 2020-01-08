@@ -32,11 +32,14 @@ jobs:
                   name: "docs"
                   path: docs/markdown
             - name: Git status
-              run: git status
+              run: |
+                  git checkout ${{ github.head_ref }}
+                  git status
             - name: Commit changes
               uses: stefanzweifel/git-auto-commit-action@v2.5.0
               with:
                   commit_message: "Doc updates"
+                  branch: ${{ github.head_ref }}
                   file_pattern: "*.md"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_API_TOKEN }}
