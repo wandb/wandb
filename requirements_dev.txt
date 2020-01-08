@@ -9,7 +9,7 @@ coverage==4.5.2
 Sphinx==1.5.3
 PyYAML==4.2b4
 attrs==19.1.0
-pytest==5.3.2
+pytest==4.6.9
 pytest-watch==4.1.0
 pytest-mock==1.10.0
 pytest-cov==2.6.1
