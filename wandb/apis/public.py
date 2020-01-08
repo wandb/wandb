@@ -872,14 +872,15 @@ class Run(Attrs):
         Returns:
             An iterable collection over history records (dict).
         """
+        lastStep = self.lastHistoryStep
         # set defaults for min/max step
         if min_step is None:
             min_step = 0
         if max_step is None:
-            max_step = self.lastHistoryStep + 1
+            max_step = lastStep + 1
         # if the max step is past the actual last step, clamp it down
-        if max_step > self.lastHistoryStep:
-            max_step = self.lastHistoryStep + 1
+        if max_step > lastStep:
+            max_step = lastStep + 1
         if keys is None:
             return HistoryScan(run=self, client=self.client, page_size=page_size, min_step=min_step, max_step=max_step)
         else:
@@ -905,7 +906,19 @@ class Run(Attrs):
 
     @property
     def lastHistoryStep(self):
-        history_keys = self._attrs['historyKeys']
+        query = gql('''
+        query Run($project: String!, $entity: String!, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { historyKeys }
+            }
+        }
+        ''')
+        response = self._exec(query)
+        if response is None or response.get('project') is None \
+                or response['project'].get('run') is None or \
+                response['project']['run'].get('historyKeys') is None:
+            return -1
+        history_keys = response['project']['run']['historyKeys']
         return history_keys['lastStep'] if 'lastStep' in history_keys else -1
 
     def __repr__(self):

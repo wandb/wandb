@@ -36,6 +36,7 @@ class AgentProcess(object):
         self._popen = None
         self._proc = None
         self._finished_q = multiprocessing.Queue()
+        self._proc_killed = False
 
         if command:
             if platform.system() == "Windows":
@@ -77,6 +78,10 @@ class AgentProcess(object):
     def poll(self):
         if self._popen:
             return self._popen.poll()
+        if self._proc_killed:
+            # we need to join process to prevent zombies
+            self._proc.join()
+            return True
         try:
             finished = self._finished_q.get(False, 0)
             if finished:
@@ -105,7 +110,9 @@ class AgentProcess(object):
             return self._popen.kill()
         pid = self._proc.pid
         if pid:
-            return os.kill(pid, signal.SIGKILL)
+            ret = os.kill(pid, signal.SIGKILL)
+            self._proc_killed = True
+            return ret
         return
 
     def terminate(self):
@@ -122,7 +129,7 @@ class Agent(object):
     REPORT_INTERVAL = 5
     KILL_DELAY = 30
 
-    def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None):
+    def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None):
         self._api = api
         self._queue = queue
         self._run_processes = {}  # keyed by run.id (GQL run name)
@@ -135,6 +142,8 @@ class Agent(object):
         self._function = function
         self._report_interval = wandb.env.get_agent_report_interval(self.REPORT_INTERVAL)
         self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
+        self._finished = 0
+        self._count = count
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
@@ -164,9 +173,14 @@ class Agent(object):
                     if run_process.poll() is None:
                         run_status[run_id] = True
                     else:
-                        logger.info('Cleaning up dead run: %s', run_id)
+                        logger.info('Cleaning up finished run: %s', run_id)
                         del self._run_processes[run_id]
                         self._last_report_time = None
+                        self._finished += 1
+
+                if self._count and self._finished >= self._count:
+                    self._running = False
+                    continue
 
                 commands = self._api.agent_heartbeat(agent_id, {}, run_status)
 
@@ -175,6 +189,7 @@ class Agent(object):
                 for command in commands:
                     self._server_responses.append(
                         self._process_command(command))
+
         except KeyboardInterrupt:
             try:
                 wandb.termlog(
@@ -326,7 +341,7 @@ class AgentApi(object):
         return result
 
 
-def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None):
+def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None):
     if not isinstance(sweep_id, str):
         wandb.termerror('Expected string sweep_id')
         return
@@ -369,14 +384,14 @@ def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=Non
 
         api = InternalApi()
         queue = multiprocessing.Queue()
-        agent = Agent(api, queue, sweep_id=sweep_id, function=function, in_jupyter=in_jupyter)
+        agent = Agent(api, queue, sweep_id=sweep_id, function=function, in_jupyter=in_jupyter, count=count)
         agent.run()
     finally:
         # make sure we remove the logging handler (important for jupyter notebooks)
         logger.removeHandler(ch)
 
 
-def agent(sweep_id, function=None, entity=None, project=None):
+def agent(sweep_id, function=None, entity=None, project=None, count=None):
     """Generic agent entrypoint, used for CLI or jupyter.
 
     Args:
@@ -391,4 +406,4 @@ def agent(sweep_id, function=None, entity=None, project=None):
         _api0 = InternalApi()
         if not _api0.api_key:
             wandb._jupyter_login(api=_api0)
-    return run_agent(sweep_id, function=function, in_jupyter=in_jupyter, entity=entity, project=project)
+    return run_agent(sweep_id, function=function, in_jupyter=in_jupyter, entity=entity, project=project, count=count)
