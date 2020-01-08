@@ -285,8 +285,8 @@ class Api(object):
 
         return result if key is None else result[key]
 
-    def clear_setting(self, key):
-        self._settings.clear(Settings.DEFAULT_SECTION, key)
+    def clear_setting(self, key, globally=False):
+        self._settings.clear(Settings.DEFAULT_SECTION, key, globally=globally)
 
     def set_setting(self, key, value, globally=False):
         self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally)

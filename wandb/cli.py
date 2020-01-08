@@ -480,14 +480,18 @@ def pull(run, project, entity):
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
-@click.option("--local", default=None, help="Login to a local instance of W&B")
+@click.option("--host", default="https://api.wandb.ai", help="Login to a specific instance of W&B")
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
 @click.option("--anonymously", is_flag=True, help="Log in anonymously")
 @display_error
-def login(key, local, anonymously, server=LocalServer(), browser=True, no_offline=False):
+def login(key, host, anonymously, server=LocalServer(), browser=True, no_offline=False):
     global api
-    if local:
-        api.set_setting("base_url", local, globally=True)
+    if host == "https://api.wandb.ai":
+        api.clear_setting("base_url", globally=True)
+    else:
+        if not host.startswith("http"):
+            raise ClickException("host must start with http(s)://")
+        api.set_setting("base_url", host, globally=True)
 
     key = key[0] if len(key) > 0 else None
 
@@ -512,7 +516,7 @@ def login(key, local, anonymously, server=LocalServer(), browser=True, no_offlin
         if anonymously:
             os.environ[env.ANONYMOUS] = "must"
         key = util.prompt_api_key(api, input_callback=click.prompt,
-            browser_callback=get_api_key_from_browser, no_offline=no_offline, local=local)
+            browser_callback=get_api_key_from_browser, no_offline=no_offline, local=host != "https://api.wandb.ai")
 
     if key:
         api.clear_setting('disabled')
@@ -786,7 +790,7 @@ def local(ctx, port, daemon, upgrade, edge):
             wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
             wandb.termlog("You can stop the server by running `docker kill wandb-local`")
             if not api.api_key:
-                ctx.invoke(login, local=host)
+                ctx.invoke(login, host=host)
 
 @cli.command(context_settings=RUN_CONTEXT)
 @click.pass_context
