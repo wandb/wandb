@@ -77,7 +77,10 @@ class Api(object):
         }
         self.client = Client(
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': self.user_agent, 'X-WANDB-USERNAME': env.get_username(env=self._environ)},
+                headers={
+                    'User-Agent': self.user_agent,
+                    'X-WANDB-USERNAME': env.get_username(env=self._environ),
+                    'X-WANDB-USER-EMAIL': env.get_user_email(env=self._environ)},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
@@ -87,9 +90,9 @@ class Api(object):
             )
         )
         self.gql = retry.Retry(self.execute,
-            retry_timedelta=retry_timedelta,
-            check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(RetryError, requests.RequestException))
+                               retry_timedelta=retry_timedelta,
+                               check_retry_fn=util.no_retry_auth,
+                               retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None
 
@@ -119,7 +122,6 @@ class Api(object):
                 if not err.get('message'):
                     continue
                 wandb.termerror('Error while calling W&B API: {} ({})'.format(err['message'], res))
-
 
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, 'disabled', fallback=False)
@@ -428,7 +430,7 @@ class Api(object):
             }
         }
         ''')
-        data =  self.gql(query, variable_values={
+        data = self.gql(query, variable_values={
             'entity': entity or self.settings('entity'), 'project': project or self.settings('project'), 'sweep': sweep, 'specs': specs})['model']['sweep']
         if data:
             data['runs'] = self._flatten_edges(data['runs'])
@@ -631,9 +633,8 @@ class Api(object):
         run = project.get('run', None)
         if not run:
             return False
-        
-        return run['stopped']
 
+        return run['stopped']
 
     def format_project(self, project):
         return re.sub(r'\W+', '-', project.lower()).strip("-_")
