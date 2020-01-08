@@ -129,7 +129,7 @@ class Agent(object):
     REPORT_INTERVAL = 5
     KILL_DELAY = 30
 
-    def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None):
+    def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None, name=None):
         self._api = api
         self._queue = queue
         self._run_processes = {}  # keyed by run.id (GQL run name)
@@ -144,6 +144,7 @@ class Agent(object):
         self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
         self._finished = 0
         self._count = count
+        self._name = name
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
@@ -152,7 +153,7 @@ class Agent(object):
     def run(self):
         # TODO: include sweep ID
         agent = self._api.register_agent(
-            socket.gethostname(), sweep_id=self._sweep_id)
+            socket.gethostname(), sweep_id=self._sweep_id, name=self._name)
         agent_id = agent['id']
 
         try:
@@ -341,8 +342,8 @@ class AgentApi(object):
         return result
 
 
-def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None):
-    if not isinstance(sweep_id, str):
+def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None, name=None):
+    if not isinstance(sweep_id, six.string_types):
         wandb.termerror('Expected string sweep_id')
         return
 
@@ -384,7 +385,7 @@ def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=Non
 
         api = InternalApi()
         queue = multiprocessing.Queue()
-        agent = Agent(api, queue, sweep_id=sweep_id, function=function, in_jupyter=in_jupyter, count=count)
+        agent = Agent(api, queue, sweep_id=sweep_id, function=function, in_jupyter=in_jupyter, count=count, name=name)
         agent.run()
     finally:
         # make sure we remove the logging handler (important for jupyter notebooks)
