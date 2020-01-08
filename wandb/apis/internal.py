@@ -986,7 +986,7 @@ class Api(object):
     upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
 
     @normalize_exceptions
-    def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
+    def register_agent(self, host, sweep_id=None, project_name=None, entity=None, name=None):
         """Register a new agent
 
         Args:
@@ -1000,13 +1000,15 @@ class Api(object):
             $host: String!
             $projectName: String!,
             $entityName: String!,
-            $sweep: String!
+            $sweep: String!,
+            $displayName: String
         ) {
             createAgent(input: {
                 host: $host,
                 projectName: $projectName,
                 entityName: $entityName,
                 sweep: $sweep,
+                displayName: $displayName
             }) {
                 agent {
                     id
@@ -1032,6 +1034,7 @@ class Api(object):
             'host': host,
             'entityName': entity,
             'projectName': project_name,
+            'displayName': name,
             'sweep': sweep_id}, check_retry_fn=no_retry_4xx)
         return response['createAgent']['agent']
 
@@ -1077,7 +1080,7 @@ class Api(object):
             return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
-    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None, entity=None):
+    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None, entity=None, name=None):
         """Upsert a sweep object.
 
         Args:
@@ -1101,7 +1104,8 @@ class Api(object):
             $entityName: String!,
             $projectName: String!,
             $controller: JSONString,
-            $scheduler: JSONString
+            $scheduler: JSONString,
+            $displayName: String
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -1110,7 +1114,8 @@ class Api(object):
                 entityName: $entityName,
                 projectName: $projectName,
                 controller: $controller,
-                scheduler: $scheduler
+                scheduler: $scheduler,
+                displayName: $displayName
             }) {
                 sweep {
                     name
@@ -1143,7 +1148,9 @@ class Api(object):
                     'entityName': entity or self.settings("entity"),
                     'projectName': project or self.settings("project"),
                     'controller': controller,
-                    'scheduler': scheduler},
+                    'scheduler': scheduler,
+                    'displayName': name,
+                    },
                     check_retry_fn=no_retry_4xx)
             except UsageError as e:
                 raise(e)

@@ -1007,7 +1007,7 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
     entity = entity or env.get_entity() or config.get('entity')
     project = project or env.get_project() or config.get('project') or util.auto_project_name(
             config.get("program"), api)
-    sweep_id = api.upsert_sweep(config, project=project, entity=entity)
+    sweep_id = api.upsert_sweep(config, project=project, entity=entity, name=name)
     wandb.termlog('Created sweep with ID: {}'.format(
             click.style(sweep_id, fg="yellow")))
     sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
@@ -1027,15 +1027,16 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
 @click.option("--project", "-p", default=None, envvar=env.PROJECT, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity scope for the project.")
 @click.option("--count", default=None, type=int, help="The max number of runs for this agent.")
+@click.option('--name', default=None, help="Set agent name")
 @click.argument('sweep_id')
 @display_error
-def agent(ctx, project, entity, count, sweep_id):
+def agent(ctx, project, entity, count, name, sweep_id):
     if api.api_key is None:
         termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
 
     wandb.termlog('Starting wandb agent 🕵️')
-    wandb_agent.run_agent(sweep_id, entity=entity, project=project, count=count)
+    wandb_agent.run_agent(sweep_id, entity=entity, project=project, count=count, name=name)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
