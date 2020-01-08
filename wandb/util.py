@@ -728,7 +728,7 @@ def async_call(target, timeout=None):
        Returns a new method that will call the original with any args, waiting for upto timeout seconds.
        This new method blocks on the original and returns the result or None
        if timeout was reached, along with the thread.
-       You can check thread.isAlive() to determine if a timeout was reached.
+       You can check thread.is_alive() to determine if a timeout was reached.
        If an exception is thrown in the thread, we reraise it.
     """
     q = queue.Queue()
