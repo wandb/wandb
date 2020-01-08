@@ -342,7 +342,7 @@ class AgentApi(object):
 
 
 def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None):
-    if not isinstance(sweep_id, str):
+    if not isinstance(sweep_id, six.string_types):
         wandb.termerror('Expected string sweep_id')
         return
 
