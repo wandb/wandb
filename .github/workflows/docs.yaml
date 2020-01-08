@@ -34,12 +34,11 @@ jobs:
             - name: Git status
               run: git status
             - name: Commit changes
-              uses: EndBug/add-and-commit@v2
+              uses: stefanzweifel/git-auto-commit-action@v2.5.0
               with:
-                  message: "Doc updates"
-                  path: "."
-                  pattern: "*.md"
-                  force: false
+                  commit_message: "Doc updates"
+                  branch: ${{ github.head_ref }}
+                  file_pattern: "*.md"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_API_TOKEN }}
     deploy:
