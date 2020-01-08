@@ -236,7 +236,7 @@ class Api(object):
         api_url = self.api_url
         # Development
         if api_url.endswith('.test') or self.settings().get("dev_prod"):
-            return 'http://app.test'
+            return 'http://app.wandb.test'
         # On-prem VM
         if api_url.endswith(':11001'):
             return api_url.replace(':11001', ':11000')
