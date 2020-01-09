@@ -924,3 +924,34 @@ def auto_project_name(program, api):
     if sub_path != '.':
         project += '-' + sub_path
     return project.replace(os.sep, '_')
+
+
+def parse_sweep_id(parts_dict):
+    """In place parse sweep path from parts dict.
+
+    Args:
+        parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
+    
+    Returns:
+        None or str if there is an error
+    """
+
+    entity = None
+    project = None
+    sweep_id = parts_dict.get("name")
+    if not isinstance(sweep_id, six.string_types):
+        return 'Expected string sweep_id'
+
+    sweep_split = sweep_id.split('/')
+    if len(sweep_split) == 1:
+        pass
+    elif len(sweep_split) == 2:
+        split_project, sweep_id = sweep_split
+        project = split_project or project
+    elif len(sweep_split) == 3:
+        split_entity, split_project, sweep_id = sweep_split
+        project = split_project or project
+        entity = split_entity or entity
+    else:
+        return 'Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep'
+    parts_dict.update(dict(name=sweep_id, project=project, entity=entity))

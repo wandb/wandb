@@ -998,9 +998,10 @@ wandb_magic_install()
 @click.option('--name', default=False, help="Set sweep name")
 @click.option('--program', default=False, help="Set sweep program")
 @click.option('--settings', default=False, help="Set sweep settings", hidden=True)
+@click.option('--update', default=None, help="Update pending sweep")
 @click.argument('config_yaml')
 @display_error
-def sweep(ctx, project, entity, controller, verbose, name, program, settings, config_yaml):
+def sweep(ctx, project, entity, controller, verbose, name, program, settings, update, config_yaml):
     def _parse_settings(settings):
         """settings could be json or comma seperated assignments."""
         ret = {}
@@ -1019,7 +1020,25 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
         termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
 
-    wandb.termlog('Creating sweep from: {}'.format(config_yaml))
+    sweep_obj_id = None
+    if update:
+        parts = dict(entity=entity, project=project, name=update)
+        err = util.parse_sweep_id(parts)
+        if err:
+            wandb.termerror(err)
+            return
+        entity = parts.get("entity") or entity
+        project = parts.get("project") or project
+        sweep_id = parts.get("name") or update
+        found = api.sweep(sweep_id, '{}', entity=entity, project=project)
+        if not found:
+            wandb.termerror('Could not find sweep {}/{}/{}'.format(entity, project, sweep_id))
+            return
+        sweep_obj_id = found['id']
+
+    wandb.termlog('{} sweep from: {}'.format(
+            'Updating' if sweep_obj_id else 'Creating',
+            config_yaml))
     try:
         yaml_file = open(config_yaml)
     except (OSError, IOError):
@@ -1059,8 +1078,9 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
     entity = entity or env.get_entity() or config.get('entity')
     project = project or env.get_project() or config.get('project') or util.auto_project_name(
             config.get("program"), api)
-    sweep_id = api.upsert_sweep(config, project=project, entity=entity)
-    wandb.termlog('Created sweep with ID: {}'.format(
+    sweep_id = api.upsert_sweep(config, project=project, entity=entity, obj_id=sweep_obj_id)
+    wandb.termlog('{} sweep with ID: {}'.format(
+            'Updated' if sweep_obj_id else 'Created',
             click.style(sweep_id, fg="yellow")))
     sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
     if sweep_url:
