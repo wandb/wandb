@@ -757,7 +757,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
 @click.option('--port', '-p', default="8080", help="The host port to bind W&B local on")
 @click.option('--daemon/--no-daemon', default=True, help="Run or don't run in daemon mode")
 @click.option('--upgrade', is_flag=True, default=False, help="Upgrade to the most recent version")
-@click.option('--edge', is_flag=True, default=False, help="Run the bleading edge")
+@click.option('--edge', is_flag=True, default=False, help="Run the bleading edge", hidden=True)
 @display_error
 def local(ctx, port, daemon, upgrade, edge):
     if not find_executable('docker'):
