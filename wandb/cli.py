@@ -1014,8 +1014,19 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
     if sweep_url:
         wandb.termlog("View sweep at: {}".format(
             click.style(sweep_url, underline=True, fg='blue')))
+
+    # reprobe entity if it was autodetected by upsert_sweep
+    entity = entity or env.get_entity()
+
+    if entity and project:
+        sweep_path = "{}/{}/{}".format(entity, project, sweep_id)
+    elif project:
+        sweep_path = "{}/{}".format(project, sweep_id)
+    else:
+        sweep_path = sweep_id
+
     wandb.termlog("Run sweep agent with: {}".format(
-            click.style("wandb agent %s" % sweep_id, fg="yellow")))
+            click.style("wandb agent %s" % sweep_path, fg="yellow")))
     if controller:
         wandb.termlog('Starting wandb controller...')
         tuner = wandb_controller.controller(sweep_id)

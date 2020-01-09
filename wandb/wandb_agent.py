@@ -351,15 +351,9 @@ def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=Non
         pass
     elif len(sweep_split) == 2:
         split_project, sweep_id = sweep_split
-        if project and split_project:
-            wandb.termwarn('Ignoring project commandline parameter')
         project = split_project or project
     elif len(sweep_split) == 3:
         split_entity, split_project, sweep_id = sweep_split
-        if entity and split_entity:
-            wandb.termwarn('Ignoring entity commandline parameter')
-        if project and split_project:
-            wandb.termwarn('Ignoring project commandline parameter')
         project = split_project or project
         entity = split_entity or entity
     else:
