@@ -66,8 +66,8 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.2-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
-                      - v3.2-dependencies-edge-ml
+                      - v3.3-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+                      - v3.3-dependencies-edge-ml
             - run:
                   name: Install dependencies
                   command: |
@@ -78,7 +78,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.2-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+                  key: v3.3-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
             - run:
                   name: Run tests
                   command: |
@@ -100,8 +100,8 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.1-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
-                      - v3.1-dependencies-no-ml
+                      - v3.2-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+                      - v3.2-dependencies-no-ml
             - run:
                   name: Install dependencies
                   command: |
@@ -111,7 +111,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.1-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+                  key: v3.2-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
             - run:
                   name: Run tests
                   command: |

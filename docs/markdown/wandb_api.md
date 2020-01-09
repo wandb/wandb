@@ -309,7 +309,7 @@ losses = [row["Loss"] for row in history]
  
 
 ## Sweep
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L914)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L927)
 ```python
 Sweep(self, client, entity, project, sweep_id, attrs={})
 ```
@@ -324,14 +324,14 @@ A set of runs associated with a sweep Instantiate with: api.sweep(sweep_path)
  
 
 ### Sweep.best_run
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L995)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1008)
 ```python
 Sweep.best_run(self, order=None)
 ```
 Returns the best run sorted by the metric defined in config or the order passed in
 
 ### Sweep.get
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1015)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1028)
 ```python
 Sweep.get(client,
           entity=None,
@@ -345,14 +345,14 @@ Sweep.get(client,
 Execute a query against the cloud backend
 
 ## Files
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1055)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1068)
 ```python
 Files(self, client, run, names=[], per_page=50, upload=False)
 ```
 Files is an iterable collection of [`File`](#file) objects.
 
 ## File
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1111)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1124)
 ```python
 File(self, client, attrs)
 ```
@@ -370,7 +370,7 @@ File is a class associated with a file saved by wandb.
  
 
 ### File.download
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1155)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1168)
 ```python
 File.download(self, replace=False, root='.')
 ```
@@ -388,14 +388,14 @@ Downloads a file previously saved by a run from the wandb server.
  
 
 ## Reports
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1190)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1203)
 ```python
 Reports(self, client, project, name=None, entity=None, per_page=50)
 ```
 Reports is an iterable collection of [`BetaReport`](#betareport) objects.
 
 ## QueryGenerator
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1254)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1267)
 ```python
 QueryGenerator(self)
 ```
@@ -424,7 +424,7 @@ dict(**kwargs) -> new dictionary initialized with the name=value pairs
 in the keyword argument list.  For example:  dict(one=1, two=2)
 
 ## BetaReport
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1353)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1366)
 ```python
 BetaReport(self, client, attrs, entity=None, project=None)
 ```
