@@ -128,6 +128,8 @@ class Agent(object):
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 5
     KILL_DELAY = 30
+    FLAPPING_MAX_SECONDS = 60
+    FLAPPING_MAX_FAILURES = 3
 
     def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None):
         self._api = api
@@ -143,11 +145,20 @@ class Agent(object):
         self._report_interval = wandb.env.get_agent_report_interval(self.REPORT_INTERVAL)
         self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
         self._finished = 0
+        self._failed = 0
         self._count = count
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
             raise AgentError("Invalid agent kill delay")
+
+    def is_flapping(self):
+        """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
+            exit codes in the first FLAPPING_MAX_SECONDS"""
+        if os.getenv(env.AGENT_DISABLE_FLAPPING) == "true":
+            return False
+        if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
+            return self._failed >= self.FLAPPING_MAX_FAILURES
 
     def run(self):
         # TODO: include sweep ID
@@ -170,15 +181,23 @@ class Agent(object):
                     self._last_report_time = now
                 run_status = {}
                 for run_id, run_process in list(six.iteritems(self._run_processes)):
-                    if run_process.poll() is None:
+                    poll_result = run_process.poll()
+                    if poll_result is None:
                         run_status[run_id] = True
+                    elif isinstance(poll_result, int) and poll_result > 0:
+                        self._failed += 1
+                        if self.is_flapping():
+                            logger.error("Detected %i failed runs in the first %i seconds, shutting down.", self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS)
+                            logger.info("To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true")
+                            self._running = False
+                            break
                     else:
                         logger.info('Cleaning up finished run: %s', run_id)
                         del self._run_processes[run_id]
                         self._last_report_time = None
                         self._finished += 1
 
-                if self._count and self._finished >= self._count:
+                if self._count and self._finished >= self._count or not self._running:
                     self._running = False
                     continue
 
