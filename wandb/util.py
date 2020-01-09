@@ -160,6 +160,7 @@ class LazyLoader(types.ModuleType):
         module = self._load()
         return dir(module)
 
+
 class PreInitObject(object):
     def __init__(self, name):
         self._name = name
@@ -185,6 +186,7 @@ class PreInitObject(object):
                 'You must call wandb.init() before {}.{}'.format(self._name, key))
         else:
             raise AttributeError()
+
 
 np = get_module('numpy')
 
@@ -222,8 +224,10 @@ def is_tf_tensor(obj):
 def is_tf_tensor_typename(typename):
     return typename.startswith('tensorflow.') and ('Tensor' in typename or 'Variable' in typename)
 
+
 def is_tf_eager_tensor_typename(typename):
     return typename.startswith('tensorflow.') and ('EagerTensor' in typename)
+
 
 def is_pytorch_tensor(obj):
     import torch
@@ -241,14 +245,18 @@ def is_pandas_data_frame_typename(typename):
 def is_matplotlib_typename(typename):
     return typename.startswith("matplotlib.")
 
+
 def is_plotly_typename(typename):
     return typename.startswith("plotly.")
+
 
 def is_numpy_array(obj):
     return np and isinstance(obj, np.ndarray)
 
+
 def is_pandas_data_frame(obj):
     return is_pandas_data_frame_typename(get_full_typename(obj))
+
 
 def ensure_matplotlib_figure(obj):
     """Extract the current figure from a matplotlib object or return the object if it's a figure.
@@ -318,7 +326,8 @@ def json_friendly(obj):
 
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
-        tools = get_module("plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+        tools = get_module(
+            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
         obj = tools.mpl_to_plotly(obj)
 
     if is_plotly_typename(get_full_typename(obj)):
@@ -497,7 +506,8 @@ def write_netrc(host, entity, key):
         return None
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
-        wandb.termlog("Appending key for {} to your netrc file: {}".format(normalized_host, os.path.expanduser('~/.netrc')))
+        wandb.termlog("Appending key for {} to your netrc file: {}".format(
+            normalized_host, os.path.expanduser('~/.netrc')))
         machine_line = 'machine %s' % normalized_host
         path = os.path.expanduser('~/.netrc')
         orig_lines = None
@@ -593,7 +603,7 @@ def find_runner(program):
         # program is a path to a non-executable file
         try:
             opened = open(program)
-        except IOError: # PermissionError doesn't exist in 2.7
+        except IOError:  # PermissionError doesn't exist in 2.7
             return None
         first_line = opened.readline().strip()
         if first_line.startswith('#!'):
@@ -653,8 +663,8 @@ def image_from_docker_args(args):
     If excludes any argments that start with a dash, and the argument after it if it isn't a boolean
     switch.  This can be improved, we currently fallback gracefully when this fails.
     """
-    bool_args = ["-t", "--tty", "--rm","--privileged", "--oom-kill-disable","--no-healthcheck", "-i",
-        "--interactive", "--init", "--help", "--detach", "-d", "--sig-proxy", "-it", "-itd"]
+    bool_args = ["-t", "--tty", "--rm", "--privileged", "--oom-kill-disable", "--no-healthcheck", "-i",
+                 "--interactive", "--init", "--help", "--detach", "-d", "--sig-proxy", "-it", "-itd"]
     last_flag = -2
     last_arg = ""
     possible_images = []
@@ -718,7 +728,7 @@ def async_call(target, timeout=None):
        Returns a new method that will call the original with any args, waiting for upto timeout seconds.
        This new method blocks on the original and returns the result or None
        if timeout was reached, along with the thread.
-       You can check thread.isAlive() to determine if a timeout was reached.
+       You can check thread.is_alive() to determine if a timeout was reached.
        If an exception is thrown in the thread, we reraise it.
     """
     q = queue.Queue()
@@ -814,6 +824,7 @@ def set_api_key(api, key, anonymous=False):
         return
     raise ValueError("API key must be 40 characters long, yours was %s" % len(key))
 
+
 def isatty(ob):
     return hasattr(ob, "isatty") and ob.isatty()
 
@@ -830,7 +841,7 @@ LOGIN_CHOICES = [
 ]
 
 
-def prompt_api_key(api, input_callback=None, browser_callback=None, no_offline=False):
+def prompt_api_key(api, input_callback=None, browser_callback=None, no_offline=False, local=False):
     input_callback = input_callback or getpass.getpass
 
     choices = [choice for choice in LOGIN_CHOICES]
@@ -845,9 +856,12 @@ def prompt_api_key(api, input_callback=None, browser_callback=None, no_offline=F
     # If we're not in an interactive environment, default to dry-run.
     elif not isatty(sys.stdout) or not isatty(sys.stdin):
         result = LOGIN_CHOICE_DRYRUN
+    elif local:
+        result = LOGIN_CHOICE_EXISTS
     else:
         for i, choice in enumerate(choices):
             wandb.termlog("(%i) %s" % (i + 1, choice))
+
         def prompt_choice():
             try:
                 return int(six.moves.input("%s: Enter your choice: " % wandb.core.LOG_STRING)) - 1
@@ -872,7 +886,7 @@ def prompt_api_key(api, input_callback=None, browser_callback=None, no_offline=F
         if not key:
             wandb.termlog('Create an account here: {}/authorize?signup=true'.format(api.app_url))
             key = input_callback('%s: Paste an API key from your profile and hit enter' % wandb.core.LOG_STRING).strip()
-            
+
         set_api_key(api, key)
         return key
     elif result == LOGIN_CHOICE_EXISTS:

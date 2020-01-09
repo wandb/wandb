@@ -120,6 +120,8 @@ class RequestsMock(object):
             del kwargs["auth"]
         if "timeout" in kwargs:
             del kwargs["timeout"]
+        if "cookies" in kwargs:
+            del kwargs["cookies"]
         return kwargs
 
     def _store_request(self, url, body):
