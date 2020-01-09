@@ -417,7 +417,7 @@ class Object3D(BatchableMedia):
                     'boxes': data_or_path['boxes'].tolist(),
                 }
             else:
-                raise Error("type not supported")
+                raise ValueError("Type not supported, only 'lidar/beta' is currently supported")
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
             json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
