@@ -433,8 +433,12 @@ class Api(object):
             }
         }
         ''')
-        data = self.gql(query, variable_values={
-            'entity': entity or self.settings('entity'), 'project': project or self.settings('project'), 'sweep': sweep, 'specs': specs})['model']['sweep']
+        entity = entity or self.settings('entity')
+        project = project or self.settings('project')
+        response = self.gql(query, variable_values={'entity': entity, 'project': project, 'sweep': sweep, 'specs': specs})
+        if response['model'] is None or response['model']['sweep'] is None:
+            raise ValueError("Sweep {}/{}/{} not found".format(entity, project, sweep) )
+        data = response['model']['sweep']
         if data:
             data['runs'] = self._flatten_edges(data['runs'])
         return data

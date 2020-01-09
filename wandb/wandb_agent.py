@@ -359,25 +359,15 @@ class AgentApi(object):
             print(result['exception'])
         return result
 
-
 def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None):
-    if not isinstance(sweep_id, six.string_types):
-        wandb.termerror('Expected string sweep_id')
+    parts = dict(entity=entity, project=project, name=sweep_id)
+    err = util.parse_sweep_id(parts)
+    if err:
+        wandb.termerror(err)
         return
-
-    sweep_split = sweep_id.split('/')
-    if len(sweep_split) == 1:
-        pass
-    elif len(sweep_split) == 2:
-        split_project, sweep_id = sweep_split
-        project = split_project or project
-    elif len(sweep_split) == 3:
-        split_entity, split_project, sweep_id = sweep_split
-        project = split_project or project
-        entity = split_entity or entity
-    else:
-        wandb.termerror('Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep')
-        return
+    entity = parts.get("entity") or entity
+    project = parts.get("project") or project
+    sweep_id = parts.get("name") or sweep_id
 
     if entity:
         env.set_entity(entity)
