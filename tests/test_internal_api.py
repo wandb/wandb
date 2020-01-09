@@ -81,7 +81,7 @@ def test_parse_slug():
 
 def test_app_url():
     api.set_setting("base_url", "https://api.test")
-    assert api.app_url == "http://app.test"
+    assert api.app_url == "http://app.wandb.test"
     api.set_setting("base_url", "https://api.foo.bar.baz")
     assert api.app_url == "https://app.foo.bar.baz"
 
