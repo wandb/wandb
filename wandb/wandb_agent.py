@@ -181,9 +181,10 @@ class Agent(object):
                     self._last_report_time = now
                 run_status = {}
                 for run_id, run_process in list(six.iteritems(self._run_processes)):
-                    if run_process.poll() is None:
+                    poll_result = run_process.poll()
+                    if poll_result is None:
                         run_status[run_id] = True
-                    elif isinstance(run_process.poll(), int) and run_process.poll() > 0:
+                    elif isinstance(poll_result, int) and poll_result > 0:
                         self._failed += 1
                         if self.is_flapping():
                             logger.error("Detected %i failed runs in the first %i seconds, shutting down.", self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS)
