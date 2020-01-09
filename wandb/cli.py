@@ -480,7 +480,7 @@ def pull(run, project, entity):
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
-@click.option("--host", default="https://api.wandb.ai", help="Login to a specific instance of W&B")
+@click.option("--host", default=None, help="Login to a specific instance of W&B")
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
 @click.option("--anonymously", is_flag=True, help="Log in anonymously")
 @display_error
@@ -488,7 +488,7 @@ def login(key, host, anonymously, server=LocalServer(), browser=True, no_offline
     global api
     if host == "https://api.wandb.ai":
         api.clear_setting("base_url", globally=True)
-    else:
+    elif host:
         if not host.startswith("http"):
             raise ClickException("host must start with http(s)://")
         api.set_setting("base_url", host, globally=True)
@@ -515,8 +515,10 @@ def login(key, host, anonymously, server=LocalServer(), browser=True, no_offline
     else:
         if anonymously:
             os.environ[env.ANONYMOUS] = "must"
+        # Don't allow signups or dryrun for local
+        local = host != None or host != "https://api.wandb.ai"
         key = util.prompt_api_key(api, input_callback=click.prompt,
-            browser_callback=get_api_key_from_browser, no_offline=no_offline, local=host != "https://api.wandb.ai")
+            browser_callback=get_api_key_from_browser, no_offline=no_offline, local=local)
 
     if key:
         api.clear_setting('disabled')
