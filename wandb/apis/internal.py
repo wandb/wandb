@@ -100,6 +100,10 @@ class Api(object):
         """Ensures the current api key is set in the transport"""
         self.client.transport.auth = ("api", self.api_key or "")
 
+    def relocate(self):
+        """Ensures the current api points to the right server"""
+        self.client.transport.url = '%s/graphql' % self.settings('base_url')
+
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
         try:
@@ -284,8 +288,8 @@ class Api(object):
 
         return result if key is None else result[key]
 
-    def clear_setting(self, key):
-        self._settings.clear(Settings.DEFAULT_SECTION, key)
+    def clear_setting(self, key, globally=False):
+        self._settings.clear(Settings.DEFAULT_SECTION, key, globally=globally)
 
     def set_setting(self, key, value, globally=False):
         self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally)
@@ -293,6 +297,8 @@ class Api(object):
             env.set_entity(value, env=self._environ)
         elif key == 'project':
             env.set_project(value, env=self._environ)
+        elif key == 'base_url':
+            self.relocate()
 
     def parse_slug(self, slug, project=None, run=None):
         if slug and "/" in slug:
@@ -430,8 +436,13 @@ class Api(object):
             }
         }
         ''')
-        data = self.gql(query, variable_values={
-            'entity': entity or self.settings('entity'), 'project': project or self.settings('project'), 'sweep': sweep, 'specs': specs})['model']['sweep']
+        entity = entity or self.settings('entity')
+        project = project or self.settings('project')
+        response = self.gql(query, variable_values={'entity': entity,
+                                                    'project': project, 'sweep': sweep, 'specs': specs})
+        if response['model'] is None or response['model']['sweep'] is None:
+            raise ValueError("Sweep {}/{}/{} not found".format(entity, project, sweep) )
+        data = response['model']['sweep']
         if data:
             data['runs'] = self._flatten_edges(data['runs'])
         return data

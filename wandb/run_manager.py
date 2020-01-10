@@ -929,7 +929,7 @@ class RunManager(object):
                 resume_status, thread = async_resume_status(self._api.settings("entity"), self._project, self._run.id)
 
                 if resume_status == None and self._run.resume == 'must':
-                    if thread.isAlive():
+                    if thread.is_alive():
                         raise LaunchError(
                             "resume='must' but we were unable to connect to the W&B service after %i seconds" % InternalApi.HTTP_TIMEOUT)
                     else:
@@ -952,7 +952,7 @@ class RunManager(object):
             logger.info("upserting run before process can begin, waiting at most %d seconds" % InternalApi.HTTP_TIMEOUT)
             async_upsert = util.async_call(self._upsert_run, timeout=InternalApi.HTTP_TIMEOUT)
             _, self._upsert_run_thread = async_upsert(True, storage_id, env)
-            if self._upsert_run_thread.isAlive():
+            if self._upsert_run_thread.is_alive():
                 logger.error("Failed to connect to W&B servers after %i seconds.\
                     Letting user process proceed while attempting to reconnect." % InternalApi.HTTP_TIMEOUT)
 
