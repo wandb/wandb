@@ -128,6 +128,8 @@ class Agent(object):
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 5
     KILL_DELAY = 30
+    FLAPPING_MAX_SECONDS = 60
+    FLAPPING_MAX_FAILURES = 3
 
     def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None):
         self._api = api
@@ -143,11 +145,20 @@ class Agent(object):
         self._report_interval = wandb.env.get_agent_report_interval(self.REPORT_INTERVAL)
         self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
         self._finished = 0
+        self._failed = 0
         self._count = count
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
             raise AgentError("Invalid agent kill delay")
+
+    def is_flapping(self):
+        """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
+            exit codes in the first FLAPPING_MAX_SECONDS"""
+        if os.getenv(env.AGENT_DISABLE_FLAPPING) == "true":
+            return False
+        if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
+            return self._failed >= self.FLAPPING_MAX_FAILURES
 
     def run(self):
         # TODO: include sweep ID
@@ -170,15 +181,23 @@ class Agent(object):
                     self._last_report_time = now
                 run_status = {}
                 for run_id, run_process in list(six.iteritems(self._run_processes)):
-                    if run_process.poll() is None:
+                    poll_result = run_process.poll()
+                    if poll_result is None:
                         run_status[run_id] = True
+                    elif isinstance(poll_result, int) and poll_result > 0:
+                        self._failed += 1
+                        if self.is_flapping():
+                            logger.error("Detected %i failed runs in the first %i seconds, shutting down.", self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS)
+                            logger.info("To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true")
+                            self._running = False
+                            break
                     else:
                         logger.info('Cleaning up finished run: %s', run_id)
                         del self._run_processes[run_id]
                         self._last_report_time = None
                         self._finished += 1
 
-                if self._count and self._finished >= self._count:
+                if self._count and self._finished >= self._count or not self._running:
                     self._running = False
                     continue
 
@@ -340,31 +359,15 @@ class AgentApi(object):
             print(result['exception'])
         return result
 
-
 def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None):
-    if not isinstance(sweep_id, str):
-        wandb.termerror('Expected string sweep_id')
+    parts = dict(entity=entity, project=project, name=sweep_id)
+    err = util.parse_sweep_id(parts)
+    if err:
+        wandb.termerror(err)
         return
-
-    sweep_split = sweep_id.split('/')
-    if len(sweep_split) == 1:
-        pass
-    elif len(sweep_split) == 2:
-        split_project, sweep_id = sweep_split
-        if project and split_project:
-            wandb.termwarn('Ignoring project commandline parameter')
-        project = split_project or project
-    elif len(sweep_split) == 3:
-        split_entity, split_project, sweep_id = sweep_split
-        if entity and split_entity:
-            wandb.termwarn('Ignoring entity commandline parameter')
-        if project and split_project:
-            wandb.termwarn('Ignoring project commandline parameter')
-        project = split_project or project
-        entity = split_entity or entity
-    else:
-        wandb.termerror('Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep')
-        return
+    entity = parts.get("entity") or entity
+    project = parts.get("project") or project
+    sweep_id = parts.get("name") or sweep_id
 
     if entity:
         env.set_entity(entity)

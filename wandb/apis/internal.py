@@ -87,15 +87,19 @@ class Api(object):
             )
         )
         self.gql = retry.Retry(self.execute,
-            retry_timedelta=retry_timedelta,
-            check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(RetryError, requests.RequestException))
+                               retry_timedelta=retry_timedelta,
+                               check_retry_fn=util.no_retry_auth,
+                               retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
         self.client.transport.auth = ("api", self.api_key or "")
+
+    def relocate(self):
+        """Ensures the current api points to the right server"""
+        self.client.transport.url = '%s/graphql' % self.settings('base_url')
 
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
@@ -119,7 +123,6 @@ class Api(object):
                 if not err.get('message'):
                     continue
                 wandb.termerror('Error while calling W&B API: {} ({})'.format(err['message'], res))
-
 
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, 'disabled', fallback=False)
@@ -236,7 +239,7 @@ class Api(object):
         api_url = self.api_url
         # Development
         if api_url.endswith('.test') or self.settings().get("dev_prod"):
-            return 'http://app.test'
+            return 'http://app.wandb.test'
         # On-prem VM
         if api_url.endswith(':11001'):
             return api_url.replace(':11001', ':11000')
@@ -282,8 +285,8 @@ class Api(object):
 
         return result if key is None else result[key]
 
-    def clear_setting(self, key):
-        self._settings.clear(Settings.DEFAULT_SECTION, key)
+    def clear_setting(self, key, globally=False):
+        self._settings.clear(Settings.DEFAULT_SECTION, key, globally=globally)
 
     def set_setting(self, key, value, globally=False):
         self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally)
@@ -291,6 +294,8 @@ class Api(object):
             env.set_entity(value, env=self._environ)
         elif key == 'project':
             env.set_project(value, env=self._environ)
+        elif key == 'base_url':
+            self.relocate()
 
     def parse_slug(self, slug, project=None, run=None):
         if slug and "/" in slug:
@@ -428,8 +433,12 @@ class Api(object):
             }
         }
         ''')
-        data =  self.gql(query, variable_values={
-            'entity': entity or self.settings('entity'), 'project': project or self.settings('project'), 'sweep': sweep, 'specs': specs})['model']['sweep']
+        entity = entity or self.settings('entity')
+        project = project or self.settings('project')
+        response = self.gql(query, variable_values={'entity': entity, 'project': project, 'sweep': sweep, 'specs': specs})
+        if response['model'] is None or response['model']['sweep'] is None:
+            raise ValueError("Sweep {}/{}/{} not found".format(entity, project, sweep) )
+        data = response['model']['sweep']
         if data:
             data['runs'] = self._flatten_edges(data['runs'])
         return data
@@ -631,9 +640,8 @@ class Api(object):
         run = project.get('run', None)
         if not run:
             return False
-        
-        return run['stopped']
 
+        return run['stopped']
 
     def format_project(self, project):
         return re.sub(r'\W+', '-', project.lower()).strip("-_")
