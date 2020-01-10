@@ -32,6 +32,7 @@ def test_wandb_run_args(git_repo):
 
 def test_url_escape(git_repo):
     environ = dict(os.environ)
+    environ[env.ANONYMOUS] = "never"
     environ[env.ENTITY] = "†est"
     environ[env.PROJECT] = "wild projo"
     environ[env.API_KEY] = "abcdefghijabcdefghijabcdefghijabcdefghij"
@@ -42,6 +43,7 @@ def test_url_escape(git_repo):
 
 def test_url_escape_query_string(git_repo):
     environ = dict(os.environ)
+    environ[env.ANONYMOUS] = "never"
     environ[env.ENTITY] = "†est"
     environ[env.PROJECT] = "wild projo"
     environ[env.API_KEY] = "abcdefghijabcdefghijabcdefghijabcdefghij"

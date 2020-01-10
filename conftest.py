@@ -21,7 +21,6 @@ from wandb.wandb_run import Run
 from tests import utils
 from tests.mock_server import create_app
 
-
 def pytest_runtest_setup(item):
     wandb.reset_env()
     wandb.uninit()
@@ -31,6 +30,9 @@ def pytest_runtest_setup(item):
     # This is used to find tests that are leaking outside of tmp directories
     os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
 
+def pytest_collectstart(collector):
+    if collector.fspath and collector.fspath.ext == '.ipynb':
+        collector.skip_compare += 'stderr',
 
 def request_repr(self):
     try:

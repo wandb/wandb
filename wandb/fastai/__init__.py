@@ -64,9 +64,6 @@ class WandbCallback(TrackerCallback):
         predictions (int): number of predictions to make if input_type is set and validation_data is None.
         seed (int): initialize random generator for sample predictions if input_type is set and validation_data is None.
     """
-    
-    # Record if watch has been called previously (even in another instance)
-    _watch_called = False
 
     def __init__(self,
                  learn,
@@ -78,7 +75,6 @@ class WandbCallback(TrackerCallback):
                  validation_data=None,
                  predictions=36,
                  seed=12345):
-
 
         # Check if wandb.init has been called
         if wandb.run is None:
@@ -113,10 +109,7 @@ class WandbCallback(TrackerCallback):
         # Set self.best, method inherited from "TrackerCallback" by "SaveModelCallback"
         super().on_train_begin()
 
-        # Ensure we don't call "watch" multiple times
-        if not WandbCallback._watch_called:
-            WandbCallback._watch_called = True
-
+        if not hasattr(self.learn.model, "_wandb_watch_called"):
             # Logs model topology and optionally gradients and weights
             wandb.watch(self.learn.model, log=self.log)
 
@@ -178,7 +171,7 @@ class WandbCallback(TrackerCallback):
                 # likely to be an image
                 elif hasattr(y, "shape") and (
                     (len(y.shape) == 2) or
-                    (len(y.shape) == 3 and y.shape[0] in [1, 3, 4])):
+                        (len(y.shape) == 3 and y.shape[0] in [1, 3, 4])):
 
                     pred_log.extend([
                         wandb.Image(x.data, caption='Input data', grouping=3),

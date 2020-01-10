@@ -160,7 +160,7 @@ class FileEventHandlerThrottledOverwrite(FileEventHandler):
 
     @property
     def current_size(self):
-        return os.path.getsize(self.file_path)
+        return os.path.getsize(self.file_path) if os.path.exists(self.file_path) else 0
 
     def on_modified(self):
         # Don't upload anything if it's zero size.
@@ -316,8 +316,9 @@ class FileEventHandlerTextStream(FileEventHandler):
 
     def on_created(self):
         if self._tailer:
-            logger.error(
-                'Streaming file created twice in same run: %s', self.file_path)
+            if not self._seek_end:
+                logger.error(
+                    'Streaming file created twice in same run: %s', self.file_path)
             return
         self._setup()
 
@@ -1181,7 +1182,7 @@ class RunManager(object):
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy["policy"]].append(policy["glob"])
 
-    def start_tensorboard_watcher(self, logdir, save=True):
+    def start_tensorboard_watcher(self, logdir, save=True, since=None):
         try:
             from wandb.tensorboard.watcher import Watcher, Consumer
             dirs = [logdir] + [w.logdir for w in self._tensorboard_watchers]
@@ -1200,7 +1201,7 @@ class RunManager(object):
             if len(dirs) == 1 and namespace not in ["train", "validation"]:
                 namespace = None
             with self._tensorboard_lock:
-                self._tensorboard_watchers.append(Watcher(logdir, self._watcher_queue, namespace=namespace, save=save))
+                self._tensorboard_watchers.append(Watcher(logdir, self._watcher_queue, since=since, namespace=namespace, save=save))
                 if self._tensorboard_consumer is None:
                     self._tensorboard_consumer = Consumer(self._watcher_queue)
                     self._tensorboard_consumer.start()

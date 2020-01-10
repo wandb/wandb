@@ -4,7 +4,7 @@ from flask import Flask, request
 import json
 
 
-def create_app():
+def create_app(resume=True):
     app = Flask(__name__)
 
     @app.route("/graphql", methods=["POST"])
@@ -25,23 +25,26 @@ def create_app():
                 }
             })
         if "historyTail" in body["query"]:
-            return json.dumps({
-                'data': {
-                    'model': {
-                        'bucket': {
-                            'name': "test",
-                            'displayName': 'funky-town-13',
-                            'id': "test",
-                            'summaryMetrics': '{"acc": 10}',
-                            'logLineCount': 14,
-                            'historyLineCount': 15,
-                            'eventsLineCount': 0,
-                            'historyTail': '["{\\"_step\\": 15, \\"acc\\": 1}"]',
-                            'eventsTail': '[]'
+            if resume:
+                return json.dumps({
+                    'data': {
+                        'model': {
+                            'bucket': {
+                                'name': "test",
+                                'displayName': 'funky-town-13',
+                                'id': "test",
+                                'summaryMetrics': '{"acc": 10}',
+                                'logLineCount': 14,
+                                'historyLineCount': 15,
+                                'eventsLineCount': 0,
+                                'historyTail': '["{\\"_step\\": 15, \\"acc\\": 1}"]',
+                                'eventsTail': '[]'
+                            }
                         }
                     }
-                }
-            })
+                })
+            else:
+                return json.dumps({'data': {'model': None}})
         if "query Run" in body["query"]:
             return json.dumps({
                 'data': {

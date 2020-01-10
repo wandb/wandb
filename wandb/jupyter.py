@@ -116,10 +116,20 @@ class JupyterAgent(object):
 
     def __init__(self):
         self.paused = True
+        self.watchers = {}
+
+    def start_tensorboard_watcher(self, logdir, save):
+        self.watchers[logdir] = (save, time.time())
+        self.start_watchers()
+
+    def start_watchers(self):
+        for logdir, args in self.watchers.items():
+            self.rm.start_tensorboard_watcher(logdir, *args)
 
     def start(self):
         if self.paused:
             self.rm = RunManager(wandb.run, output=False, cloud=wandb.run.mode != "dryrun")
+            self.start_watchers()
             wandb.run.api._file_stream_api = None
             self.rm.mirror_stdout_stderr()
             self.paused = False
@@ -136,6 +146,9 @@ class JupyterAgent(object):
             self.rm.shutdown()
             wandb.run.close_files()
             self.paused = True
+            # Reset time for watchers
+            for logdir, args in self.watchers.items():
+                self.watchers[logdir] = (args[0], time.time())
 
 
 class Run(object):

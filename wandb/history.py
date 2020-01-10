@@ -29,7 +29,7 @@ class History(object):
     # Only tests are allowed to keep all row history in memory
     keep_rows = False
 
-    def __init__(self, run, add_callback=None, jupyter_callback=None, stream_name="default"):
+    def __init__(self, run, add_callback=None, stream_name="default"):
         self._run = run
         out_dir = run.dir
         fname = wandb.wandb_run.HISTORY_FNAME
@@ -55,7 +55,6 @@ class History(object):
         self.load()
         self._file = open(self.fname, 'a')
         self._add_callback = add_callback
-        self._jupyter_callback = jupyter_callback
 
     def load(self):
         self.rows = []
@@ -198,10 +197,6 @@ class History(object):
         from wandb.tensorflow import tf_summary_to_dict
         self.add(tf_summary_to_dict(summary_pb_bin))
 
-    def ensure_jupyter_started(self):
-        if self._jupyter_callback:
-            self._jupyter_callback()
-
     def _index(self, row, keep_rows=False):
         """Add a row to the internal list of rows without writing it to disk.
 
@@ -223,9 +218,6 @@ class History(object):
         # we check if self._file is set to ensure we don't bomb out
         if self.row and self._file:
             self._lock.acquire()
-            # Jupyter starts logging the first time wandb.log is called in a cell.
-            # This will resume the run and potentially update self._steps
-            self.ensure_jupyter_started()
             try:
                 self.row['_runtime'] = self._current_timestamp - self._start_time
                 self.row['_timestamp'] = self._current_timestamp
