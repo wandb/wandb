@@ -3,7 +3,7 @@
 #### :nail_care: Enhancement
 
 -   Added support for LightGBM
--   Added local board support
+-   Added local board support (Experimental)
 -   Added ability to modify sweep configuration
 -   Added GPU power logging to system metrics
 
