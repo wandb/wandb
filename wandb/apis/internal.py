@@ -77,7 +77,10 @@ class Api(object):
         }
         self.client = Client(
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': self.user_agent, 'X-WANDB-USERNAME': env.get_username(env=self._environ)},
+                headers={
+                    'User-Agent': self.user_agent,
+                    'X-WANDB-USERNAME': env.get_username(env=self._environ),
+                    'X-WANDB-USER-EMAIL': env.get_user_email(env=self._environ)},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
@@ -435,7 +438,8 @@ class Api(object):
         ''')
         entity = entity or self.settings('entity')
         project = project or self.settings('project')
-        response = self.gql(query, variable_values={'entity': entity, 'project': project, 'sweep': sweep, 'specs': specs})
+        response = self.gql(query, variable_values={'entity': entity,
+                                                    'project': project, 'sweep': sweep, 'specs': specs})
         if response['model'] is None or response['model']['sweep'] is None:
             raise ValueError("Sweep {}/{}/{} not found".format(entity, project, sweep) )
         data = response['model']['sweep']

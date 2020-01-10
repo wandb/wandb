@@ -99,7 +99,7 @@ class SystemStats(object):
                 temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
                 power_watts = nvmlDeviceGetPowerUsage(handle) / 1000
                 power_capacity_watts = nvmlDeviceGetEnforcedPowerLimit(handle) / 1000
-                power_usage = power_watts * power_capacity_watts * 100
+                power_usage = (power_watts / power_capacity_watts) * 100
 
                 stats["gpu.{}.{}".format(i, "gpu")] = util.gpu
                 stats["gpu.{}.{}".format(i, "memory")] = util.memory

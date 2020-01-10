@@ -133,7 +133,8 @@ class FileStreamApi(object):
         self._client.timeout = self.HTTP_TIMEOUT
         self._client.headers.update({
             'User-Agent': api.user_agent,
-            'X-WANDB-USERNAME': env.get_username()
+            'X-WANDB-USERNAME': env.get_username(),
+            'X-WANDB-USER-EMAIL': env.get_user_email()
         })
         self._file_policies = {}
         self._queue = queue.Queue()
