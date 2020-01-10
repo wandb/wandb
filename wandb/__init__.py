@@ -63,6 +63,7 @@ from wandb.dataframes import image_categorizer_dataframe
 from wandb.dataframes import image_segmentation_dataframe
 from wandb.dataframes import image_segmentation_binary_dataframe
 from wandb.dataframes import image_segmentation_multiclass_dataframe
+from wandb.viz import visualize
 
 from wandb import wandb_torch
 from wandb.wandb_agent import agent
