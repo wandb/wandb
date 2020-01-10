@@ -1,3 +1,16 @@
+## 0.8.20 (Jan 10, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added support for LightGBM
+-   Added local board support
+-   Added ability to modify sweep configuration
+-   Added GPU power logging to system metrics
+
+#### :bug: Bug Fix
+
+-   Prevent sweep agent from failing continously when misconfigured
+
 ## 0.8.19 (Dec 18, 2019)
 
 #### :nail_care: Enhancement
