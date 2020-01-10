@@ -97,17 +97,17 @@ class SystemStats(object):
                 util = nvmlDeviceGetUtilizationRates(handle)
                 memory = nvmlDeviceGetMemoryInfo(handle)
                 temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
-                power = (
-                    nvmlDeviceGetPowerUsage(handle) /
-                    nvmlDeviceGetEnforcedPowerLimit(handle)
-                ) * 100
+                power_watts = nvmlDeviceGetPowerUsage(handle) / 1000
+                power_capacity_watts = nvmlDeviceGetEnforcedPowerLimit(handle) / 1000
+                power_usage = power_watts * power_capacity_watts * 100
 
                 stats["gpu.{}.{}".format(i, "gpu")] = util.gpu
                 stats["gpu.{}.{}".format(i, "memory")] = util.memory
                 stats["gpu.{}.{}".format(
                     i, "memoryAllocated")] = memory.used / memory.total * 100
                 stats["gpu.{}.{}".format(i, "temp")] = temp
-                stats["gpu.{}.{}".format(i, "power")] = power
+                stats["gpu.{}.{}".format(i, "powerWatts")] = power_watts
+                stats["gpu.{}.{}".format(i, "powerPercent")] = power_usage
             except NVMLError as err:
                 pass
         if psutil:
