@@ -783,7 +783,13 @@ def local(ctx, port, daemon, upgrade, edge):
     if daemon:
         command += ["-d"]
     command += [image]
-    code = subprocess.call(command, stdout=subprocess.DEVNULL)
+
+    # DEVNULL is only in py3
+    try:
+        from subprocess import DEVNULL
+    except ImportError:
+        DEVNULL = open(os.devnull, 'wb')
+    code = subprocess.call(command, stdout=DEVNULL)
     if daemon:
         if code != 0:
             wandb.termerror("Failed to launch the W&B local container, see the above error.")
