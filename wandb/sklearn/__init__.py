@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 
 counter = 1
 
-
 def round_3(n):
     return round(n, 3)
 
@@ -36,6 +35,7 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
             if X is not None and y is not None:
                 fig = plt.figure()
                 ax = plt.axes()
+                # Learning Curve
                 scikitplot.estimators.plot_learning_curve(estimator, X, y, ax=ax)
                 wandb.log({prefix("learning_curve"): fig}, commit=False)
 
@@ -44,16 +44,19 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
                 y_pred = estimator.predict(X_test)
                 y_probas = estimator.predict_proba(X_test)
 
+                # ROC Curve
                 fig = plt.figure()
                 ax = plt.axes()
                 scikitplot.metrics.plot_roc(y_test, y_probas, ax=ax)
                 wandb.log({prefix("roc"): fig}, commit=False)
 
+                # Confusion Matrix
                 fig = plt.figure()
                 ax = plt.axes()
                 scikitplot.metrics.plot_confusion_matrix(y_test, y_pred, ax=ax)
                 wandb.log({prefix("confusion_matrix"): fig}, commit=False)
 
+                # Table with precision, recall, f1, accuracy and other scores
                 classifier_table.add_data(
                     name,
                     round_3(sklearn.metrics.accuracy_score(y_test, y_pred)),
@@ -61,6 +64,8 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
                     round_3(sklearn.metrics.recall_score(y_test, y_pred, average="weighted")),
                     round_3(sklearn.metrics.f1_score(y_test, y_pred, average="weighted"))
                 )
+
+            # Feature Importances
             if labels is not None:
                 fig = plt.figure()
                 ax = plt.axes()
@@ -70,12 +75,14 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
             if X is not None and y is not None:
                 fig = plt.figure()
                 ax = plt.axes()
+                # Learning Curve
                 scikitplot.estimators.plot_learning_curve(estimator, X, y, ax=ax)
                 wandb.log({prefix("learning_curve"): fig}, commit=False)
 
             if X_test is not None and y_test is not None:
                 y_pred = estimator.predict(X_test)
 
+                # Table with MAE, MSE and R2
                 mae = sklearn.metrics.mean_absolute_error(y_test, y_pred)
                 mse = sklearn.metrics.mean_squared_error(y_test, y_pred)
                 r2 = sklearn.metrics.r2_score(y_test, y_pred)
@@ -90,6 +97,7 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
             if X is not None:
                 fig = plt.figure()
                 ax = plt.axes()
+                # Elbow curve
                 scikitplot.cluster.plot_elbow_curve(estimator, X, ax=ax)
                 wandb.log({prefix("elbow_curve"): fig}, commit=False)
 
@@ -97,6 +105,7 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
 
                 fig = plt.figure()
                 ax = plt.axes()
+                # Silhouette plot
                 scikitplot.metrics.plot_silhouette(X, cluster_labels, ax=ax)
                 wandb.log({prefix("silhouette"): fig}, commit=False)
         counter += 1
