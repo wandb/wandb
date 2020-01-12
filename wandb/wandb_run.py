@@ -25,6 +25,7 @@ from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi, CommError
 from wandb.wandb_config import Config
+from wandb.viz import Visualize
 import six
 from six.moves import input
 from six.moves import urllib
@@ -424,7 +425,7 @@ class Run(object):
     def project_name(self, api=None):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
-        
+
     def _generate_query_string(self, api, params=None):
         """URL encodes dictionary of params"""
 
@@ -447,9 +448,9 @@ class Run(object):
                 viewer = api.viewer()
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])
-        
+
             entity = api.settings('entity')
-        
+
         if not entity:
             # This can happen on network failure
             raise CommError("Can't connect to network to query entity from API key")
@@ -458,7 +459,7 @@ class Run(object):
 
     def get_project_url(self, api=None, network=True, params=None):
         """Generate a url for a project.
-        
+
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
         """
         params = params or {}
@@ -499,7 +500,7 @@ class Run(object):
 
     def get_url(self, api=None, network=True, params=None):
         """Generate a url for a run.
-        
+
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
         """
         params = params or {}
@@ -513,7 +514,7 @@ class Run(object):
             run=urllib.parse.quote_plus(self.id),
             query_string=self._generate_query_string(api, params)
         )
-         
+
 
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
@@ -628,6 +629,11 @@ class Run(object):
         if row is None:
             row = {}
 
+        for k in row:
+            if isinstance(row[k], Visualize):
+                self._add_viz(k, row[k].viz_id)
+                row[k] = row[k].value
+
         if not isinstance(row, collections.Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
@@ -638,6 +644,18 @@ class Run(object):
             self.history.add(row, *args, step=step, **kwargs)
         else:
             self.history.update(row, *args, **kwargs)
+
+    def _add_viz(self, key, viz_id):
+        if not 'viz' in self.config['_wandb']:
+            self.config._set_wandb('viz', {})
+        self.config['_wandb']['viz']['key'] = {
+            'id': viz_id,
+            'historyFieldSettings': {
+                'key': key,
+                'x-axis': '_step'
+            }
+        }
+        self.config.persist()
 
     @property
     def history(self):
@@ -690,7 +708,7 @@ class Run(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         exit_code = 0 if exc_type is None else 1
         wandb.join(exit_code)
-        return exc_type is None 
+        return exc_type is None
 
 def run_dir_path(run_id, dry=False):
     if dry:
