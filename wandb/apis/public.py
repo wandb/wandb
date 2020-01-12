@@ -53,6 +53,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
         name
         username
     }
+    historyKeys
 }'''
 
 FILE_FRAGMENT = '''fragment RunFilesFragment on Run {

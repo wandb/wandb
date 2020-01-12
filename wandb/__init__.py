@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.19'
+__version__ = '0.8.20'
 
 import atexit
 import click
@@ -305,7 +305,7 @@ def _init_headless(run, cloud=True):
         try:
             stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
             stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
-        except ValueError:
+        except (ValueError, AttributeError):
             # stdout / err aren't files
             output = open(os.path.join(run.dir, "output.log"), "wb")
             stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output)
@@ -1100,12 +1100,13 @@ keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
+lightgbm = util.LazyLoader('lightgbm', globals(), 'wandb.lightgbm')
 gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
 sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 
 
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
-    'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai', 
-    'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video', 
+    'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
+    'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
     'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']

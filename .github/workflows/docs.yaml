@@ -7,10 +7,18 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v1
+              with:
+                  fetch-depth: 1
             - name: Set up Python 3.7
               uses: actions/setup-python@v1
               with:
                   python-version: 3.7
+            - uses: actions/cache@v1
+              with:
+                  path: ~/.cache/pip
+                  key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pip-
             - name: Install dependencies
               if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
               run: |
@@ -32,16 +40,14 @@ jobs:
                   name: "docs"
                   path: docs/markdown
             - name: Git status
-              run: git status
+              run: |
+                  git status
             - name: Commit changes
-              uses: EndBug/add-and-commit@master
+              uses: stefanzweifel/git-auto-commit-action@v2.5.0
               with:
-                  author_name: Chris Van Pelt
-                  author_email: vanpelt@wandb.com
-                  message: "Doc updates"
-                  path: "."
-                  pattern: "*.md"
-                  force: false
+                  commit_message: "Doc updates"
+                  branch: ${{ github.head_ref }}
+                  file_pattern: "*.md"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_API_TOKEN }}
     deploy:

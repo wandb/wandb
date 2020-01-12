@@ -9,7 +9,7 @@ with open('README.md') as readme_file:
 requirements = [
     'Click>=7.0',
     'GitPython>=1.0.0',
-    'gql>=0.1.0',
+    'gql==0.2.0',
     'nvidia-ml-py3>=7.352.0',
     'python-dateutil>=2.6.1',
     'requests>=2.0.0',
@@ -21,7 +21,6 @@ requirements = [
     'subprocess32>=3.5.3',
     'docker-pycreds>=0.4.0',
     'configparser>=3.8.1',
-    'graphql-core<3.0.0',
 ]
 
 test_requirements = [
@@ -33,7 +32,7 @@ kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
     name='wandb',
-    version='0.8.19',
+    version='0.8.20',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

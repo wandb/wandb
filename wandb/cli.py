@@ -480,11 +480,18 @@ def pull(run, project, entity):
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
+@click.option("--host", default=None, help="Login to a specific instance of W&B")
 @click.option("--browser/--no-browser", default=True, help="Attempt to launch a browser for login")
 @click.option("--anonymously", is_flag=True, help="Log in anonymously")
 @display_error
-def login(key, anonymously, server=LocalServer(), browser=True, no_offline=False):
+def login(key, host, anonymously, server=LocalServer(), browser=True, no_offline=False):
     global api
+    if host == "https://api.wandb.ai":
+        api.clear_setting("base_url", globally=True)
+    elif host:
+        if not host.startswith("http"):
+            raise ClickException("host must start with http(s)://")
+        api.set_setting("base_url", host, globally=True)
 
     key = key[0] if len(key) > 0 else None
 
@@ -508,7 +515,10 @@ def login(key, anonymously, server=LocalServer(), browser=True, no_offline=False
     else:
         if anonymously:
             os.environ[env.ANONYMOUS] = "must"
-        key = util.prompt_api_key(api, input_callback=click.prompt, browser_callback=get_api_key_from_browser, no_offline=no_offline)
+        # Don't allow signups or dryrun for local
+        local = host != None or host != "https://api.wandb.ai"
+        key = util.prompt_api_key(api, input_callback=click.prompt,
+            browser_callback=get_api_key_from_browser, no_offline=no_offline, local=local)
 
     if key:
         api.clear_setting('disabled')
@@ -744,6 +754,54 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
 
 @cli.command(context_settings=RUN_CONTEXT)
 @click.pass_context
+@click.option('--port', '-p', default="8080", help="The host port to bind W&B local on")
+@click.option('--daemon/--no-daemon', default=True, help="Run or don't run in daemon mode")
+@click.option('--upgrade', is_flag=True, default=False, help="Upgrade to the most recent version")
+@click.option('--edge', is_flag=True, default=False, help="Run the bleading edge", hidden=True)
+@display_error
+def local(ctx, port, daemon, upgrade, edge):
+    if not find_executable('docker'):
+        raise ClickException(
+            "Docker not installed, install it from https://docker.com" )
+    if wandb.docker.image_id("wandb/local") != wandb.docker.image_id_from_registry("wandb/local"):
+        if upgrade:
+            subprocess.call(["docker", "pull", "wandb/local"])
+        else:
+            wandb.termlog("A new version of W&B local is available, upgrade by calling `wandb local --upgrade`")
+    running = subprocess.check_output(["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"])
+    if running != b"":
+        if upgrade:
+            subprocess.call(["docker", "restart", "wandb-local"])
+            exit(0)
+        else:
+            wandb.termerror("A container named wandb-local is already running, run `docker kill wandb-local` if you want to start a new instance")
+            exit(1)
+    image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
+    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port+':8080', '--name', 'wandb-local']
+    host = "http://localhost:%s" % port
+    api.set_setting("base_url", host, globally=True)
+    if daemon:
+        command += ["-d"]
+    command += [image]
+
+    # DEVNULL is only in py3
+    try:
+        from subprocess import DEVNULL
+    except ImportError:
+        DEVNULL = open(os.devnull, 'wb')
+    code = subprocess.call(command, stdout=DEVNULL)
+    if daemon:
+        if code != 0:
+            wandb.termerror("Failed to launch the W&B local container, see the above error.")
+            exit(1)
+        else:
+            wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
+            wandb.termlog("You can stop the server by running `docker kill wandb-local`")
+            if not api.api_key:
+                ctx.invoke(login, host=host)
+
+@cli.command(context_settings=RUN_CONTEXT)
+@click.pass_context
 @click.option('--keep', '-N', default=24, help="Keep runs created in the last N hours", type=int)
 def gc(ctx, keep):
     """Garbage collector, cleans up your local run directory"""
@@ -832,7 +890,7 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
     """
     if not find_executable('docker'):
         raise ClickException(
-            "Docker not installed, install it from https://docker.com" )
+            "Docker not installed, install it from https://docker.com")
     args = list(docker_run_args)
     image = docker_image or ""
     # remove run for users used to nvidia-docker
@@ -946,9 +1004,10 @@ wandb_magic_install()
 @click.option('--name', default=False, help="Set sweep name")
 @click.option('--program', default=False, help="Set sweep program")
 @click.option('--settings', default=False, help="Set sweep settings", hidden=True)
+@click.option('--update', default=None, help="Update pending sweep")
 @click.argument('config_yaml')
 @display_error
-def sweep(ctx, project, entity, controller, verbose, name, program, settings, config_yaml):
+def sweep(ctx, project, entity, controller, verbose, name, program, settings, update, config_yaml):
     def _parse_settings(settings):
         """settings could be json or comma seperated assignments."""
         ret = {}
@@ -967,7 +1026,25 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
         termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
 
-    wandb.termlog('Creating sweep from: {}'.format(config_yaml))
+    sweep_obj_id = None
+    if update:
+        parts = dict(entity=entity, project=project, name=update)
+        err = util.parse_sweep_id(parts)
+        if err:
+            wandb.termerror(err)
+            return
+        entity = parts.get("entity") or entity
+        project = parts.get("project") or project
+        sweep_id = parts.get("name") or update
+        found = api.sweep(sweep_id, '{}', entity=entity, project=project)
+        if not found:
+            wandb.termerror('Could not find sweep {}/{}/{}'.format(entity, project, sweep_id))
+            return
+        sweep_obj_id = found['id']
+
+    wandb.termlog('{} sweep from: {}'.format(
+            'Updating' if sweep_obj_id else 'Creating',
+            config_yaml))
     try:
         yaml_file = open(config_yaml)
     except (OSError, IOError):
@@ -1007,15 +1084,27 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, co
     entity = entity or env.get_entity() or config.get('entity')
     project = project or env.get_project() or config.get('project') or util.auto_project_name(
             config.get("program"), api)
-    sweep_id = api.upsert_sweep(config, project=project, entity=entity)
-    wandb.termlog('Created sweep with ID: {}'.format(
+    sweep_id = api.upsert_sweep(config, project=project, entity=entity, obj_id=sweep_obj_id)
+    wandb.termlog('{} sweep with ID: {}'.format(
+            'Updated' if sweep_obj_id else 'Created',
             click.style(sweep_id, fg="yellow")))
     sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
     if sweep_url:
         wandb.termlog("View sweep at: {}".format(
             click.style(sweep_url, underline=True, fg='blue')))
+
+    # reprobe entity if it was autodetected by upsert_sweep
+    entity = entity or env.get_entity()
+
+    if entity and project:
+        sweep_path = "{}/{}/{}".format(entity, project, sweep_id)
+    elif project:
+        sweep_path = "{}/{}".format(project, sweep_id)
+    else:
+        sweep_path = sweep_id
+
     wandb.termlog("Run sweep agent with: {}".format(
-            click.style("wandb agent %s" % sweep_id, fg="yellow")))
+            click.style("wandb agent %s" % sweep_path, fg="yellow")))
     if controller:
         wandb.termlog('Starting wandb controller...')
         tuner = wandb_controller.controller(sweep_id)
