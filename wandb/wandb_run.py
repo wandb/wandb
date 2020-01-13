@@ -648,7 +648,7 @@ class Run(object):
     def _add_viz(self, key, viz_id):
         if not 'viz' in self.config['_wandb']:
             self.config._set_wandb('viz', {})
-        self.config['_wandb']['viz']['key'] = {
+        self.config['_wandb']['viz'][key] = {
             'id': viz_id,
             'historyFieldSettings': {
                 'key': key,
