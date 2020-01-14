@@ -184,6 +184,7 @@ class Agent(object):
                     poll_result = run_process.poll()
                     if poll_result is None:
                         run_status[run_id] = True
+                        continue
                     elif isinstance(poll_result, int) and poll_result > 0:
                         self._failed += 1
                         if self.is_flapping():
@@ -191,11 +192,10 @@ class Agent(object):
                             logger.info("To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true")
                             self._running = False
                             break
-                    else:
-                        logger.info('Cleaning up finished run: %s', run_id)
-                        del self._run_processes[run_id]
-                        self._last_report_time = None
-                        self._finished += 1
+                    logger.info('Cleaning up finished run: %s', run_id)
+                    del self._run_processes[run_id]
+                    self._last_report_time = None
+                    self._finished += 1
 
                 if self._count and self._finished >= self._count or not self._running:
                     self._running = False
