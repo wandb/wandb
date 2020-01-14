@@ -1093,8 +1093,9 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, up
         wandb.termlog("View sweep at: {}".format(
             click.style(sweep_url, underline=True, fg='blue')))
 
-    # reprobe entity if it was autodetected by upsert_sweep
+    # reprobe entity and project if it was autodetected by upsert_sweep
     entity = entity or env.get_entity()
+    project = project or env.get_project()
 
     if entity and project:
         sweep_path = "{}/{}/{}".format(entity, project, sweep_id)
