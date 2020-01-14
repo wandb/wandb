@@ -926,10 +926,18 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     image = util.image_id_from_k8s()
     if image:
         os.environ[env.DOCKER] = image
-    if project:
-        os.environ[env.PROJECT] = project
-    if entity:
-        os.environ[env.ENTITY] = entity
+
+    if not os.environ.get(env.SWEEP_ID):
+        if project:
+            os.environ[env.PROJECT] = project
+        if entity:
+            os.environ[env.ENTITY] = entity
+    else:
+        if entity and entity != os.environ.get(env.ENTITY):
+            termwarn("Ignoring entity='{}' passed to wandb.init when running a sweep".format(entity))
+        if project and project != os.environ.get(env.PROJECT):
+            termwarn("Ignoring project='{}' passed to wandb.init when running a sweep".format(project))
+
     if group:
         os.environ[env.RUN_GROUP] = group
     if job_type:
