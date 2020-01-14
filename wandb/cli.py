@@ -752,7 +752,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         sys.exit(1)
     rm.run_user_process(program, args, environ)
 
-@cli.command(context_settings=RUN_CONTEXT)
+@cli.command(context_settings=RUN_CONTEXT, help="Launch local W&B container (Experimental)")
 @click.pass_context
 @click.option('--port', '-p', default="8080", help="The host port to bind W&B local on")
 @click.option('--daemon/--no-daemon', default=True, help="Run or don't run in daemon mode")
