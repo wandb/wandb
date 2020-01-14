@@ -509,7 +509,8 @@ class _WandbController():
 
     def done(self):
         self._start_if_not_started()
-        if self._sweep_obj.get('state') == 'RUNNING':
+        state = self._sweep_obj.get('state')
+        if state in ('RUNNING', 'PENDING'):
             return False
         return True
 
