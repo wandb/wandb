@@ -1,7 +1,12 @@
 import wandb
 import sklearn
+import numpy as np
 import scikitplot
 import matplotlib.pyplot as plt
+from keras.callbacks import LambdaCallback
+from __future__ import absolute_import, division, print_function, \
+    unicode_literals
+from sklearn.model_selection import learning_curve
 
 counter = 1
 
@@ -36,8 +41,7 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
                 fig = plt.figure()
                 ax = plt.axes()
                 # Learning Curve
-                scikitplot.estimators.plot_learning_curve(estimator, X, y, ax=ax)
-                wandb.log({prefix("learning_curve"): fig}, commit=False)
+                plot_learning_curve(estimator, X, y)
 
                 # scores["auc"] = sklearn.metrics.auc(X, y)
             if X_test is not None and y_test is not None:
@@ -116,3 +120,45 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
         wandb.log({"regressor_scores": regressor_table}, commit=False)
 
     wandb.log({})
+
+def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
+                        shuffle=False, random_state=None,
+                        train_sizes=None, n_jobs=1, scoring=None,
+                        ax=None, figsize=None, title_fontsize="large",
+                        text_fontsize="medium"):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+    if train_sizes is None:
+        train_sizes = np.linspace(.1, 1.0, 5)
+
+    ax.set_title(title, fontsize=title_fontsize)
+    ax.set_xlabel("Training examples", fontsize=text_fontsize)
+    ax.set_ylabel("Score", fontsize=text_fontsize)
+    train_sizes, train_scores, test_scores = learning_curve(
+        clf, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes,
+        scoring=scoring, shuffle=shuffle, random_state=random_state)
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.std(test_scores, axis=1)
+
+    # Take in data, return wandb.Table()
+    def confusion(train, test, trainsize):
+        return wandb.Table(
+            columns=['train', 'test', 'train_size'],
+            data=[
+                [train[i], test[i], trainsize[i]] for i in range(len(train))
+            ]
+        )
+    wandb.log({'learning_curve': confusion(train_scores_mean, test_scores_mean, train_sizes)})
+    '''
+    ax.grid()
+    ax.plot(train_sizes, train_scores_mean, 'o-', color="r",
+            label="Training score")
+    ax.plot(train_sizes, test_scores_mean, 'o-', color="g",
+            label="Cross-validation score")
+    ax.tick_params(labelsize=text_fontsize)
+    ax.legend(loc="best", fontsize=text_fontsize)
+    '''
+    return
