@@ -1,11 +1,10 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import wandb
 import sklearn
 import numpy as np
 import scikitplot
 import matplotlib.pyplot as plt
 from keras.callbacks import LambdaCallback
-from __future__ import absolute_import, division, print_function, \
-    unicode_literals
 from sklearn.model_selection import learning_curve
 
 counter = 1
