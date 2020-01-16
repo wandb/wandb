@@ -1,3 +1,14 @@
+## 0.8.21 (Jan 15, 2020)
+
+#### :nail_care: Enhancement
+
+-   Ignore wandb.init() specified project and entity when running a sweep 
+
+#### :bug: Bug Fix
+
+-   Fix agent "flapping" detection
+-   Fix local controller not starting when sweep is pending
+
 ## 0.8.20 (Jan 10, 2020)
 
 #### :nail_care: Enhancement
