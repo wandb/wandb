@@ -185,7 +185,7 @@ class Agent(object):
                     if poll_result is None:
                         run_status[run_id] = True
                         continue
-                    elif isinstance(poll_result, int) and poll_result > 0:
+                    elif not isinstance(poll_result, bool) and isinstance(poll_result, int) and poll_result > 0:
                         self._failed += 1
                         if self.is_flapping():
                             logger.error("Detected %i failed runs in the first %i seconds, shutting down.", self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS)
