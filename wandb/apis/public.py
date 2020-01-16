@@ -1444,6 +1444,8 @@ class HistoryScan(object):
                 raise StopIteration()
             self._load_next()
 
+    next = __next__
+
     @normalize_exceptions
     @retriable(
         check_retry_fn=util.no_retry_auth,
@@ -1504,6 +1506,8 @@ class SampledHistoryScan(object):
             if self.page_offset >= self.max_step:
                 raise StopIteration()
             self._load_next()
+
+    next = __next__
 
     @normalize_exceptions
     @retriable(
