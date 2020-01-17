@@ -151,7 +151,7 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
     test_scores_mean = np.mean(test_scores, axis=1)
     test_scores_std = np.std(test_scores, axis=1)
 
-    def learning_curve(train, test, trainsize):
+    def learning_curve_table(train, test, trainsize):
         data=[]
         for i in range(len(train)):
             train_set = ["train", round(train[i],2), trainsize[i]]
@@ -162,7 +162,7 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
             columns=['dataset', 'score', 'train_size'],
             data=data
         )
-    wandb.log({'learning_curve': learning_curve(train_scores_mean, test_scores_mean, train_sizes)})
+    wandb.log({'learning_curve': learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)})
     return
 
 def plot_roc(y_true, y_probas, title='ROC Curves',
@@ -183,7 +183,7 @@ def plot_roc(y_true, y_probas, title='ROC Curves',
 
     indices_to_plot = np.in1d(classes, classes_to_plot)
 
-    def roc(fpr_dict, tpr_dict, classes, indices_to_plot):
+    def roc_table(fpr_dict, tpr_dict, classes, indices_to_plot):
         for i, to_plot in enumerate(indices_to_plot):
             fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true, probas[:, i],
                                                     pos_label=classes[i])
@@ -201,7 +201,7 @@ def plot_roc(y_true, y_probas, title='ROC Curves',
                     columns=['class', 'fpr', 'tpr'],
                     data=data
                 )
-    wandb.log({'learning_curve': roc(fpr_dict, tpr_dict, classes, indices_to_plot)})
+    wandb.log({'roc': roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)})
 
     return
 
