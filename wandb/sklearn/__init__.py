@@ -67,7 +67,7 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
                     round_3(sklearn.metrics.recall_score(y_test, y_pred, average="weighted")),
                     round_3(sklearn.metrics.f1_score(y_test, y_pred, average="weighted"))
                 )
-a
+
             # Feature Importances
             if labels is not None:
                 fig = plt.figure()
@@ -606,4 +606,64 @@ def plot_lift_curve(y_true, y_probas, title='Lift Curve',
     ax.grid('on')
     ax.legend(loc='lower right', fontsize=text_fontsize)
 
+    return ax
+
+def plot_feature_importances(clf, title='Feature Importance',
+                             feature_names=None, max_num_features=20,
+                             order='descending', x_tick_rotation=0, ax=None,
+                             figsize=None, title_fontsize="large",
+                             text_fontsize="medium"):
+    if not hasattr(clf, 'feature_importances_'):
+        raise TypeError('"feature_importances_" attribute not in classifier. '
+                        'Cannot plot feature importances.')
+
+    importances = clf.feature_importances_
+
+    if hasattr(clf, 'estimators_')\
+            and isinstance(clf.estimators_, list)\
+            and hasattr(clf.estimators_[0], 'feature_importances_'):
+        std = np.std([tree.feature_importances_ for tree in clf.estimators_],
+                     axis=0)
+
+    else:
+        std = None
+
+    if order == 'descending':
+        indices = np.argsort(importances)[::-1]
+
+    elif order == 'ascending':
+        indices = np.argsort(importances)
+
+    elif order is None:
+        indices = np.array(range(len(importances)))
+
+    else:
+        raise ValueError('Invalid argument {} for "order"'.format(order))
+
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+    if feature_names is None:
+        feature_names = indices
+    else:
+        feature_names = np.array(feature_names)[indices]
+
+    max_num_features = min(max_num_features, len(importances))
+
+    ax.set_title(title, fontsize=title_fontsize)
+
+    if std is not None:
+        ax.bar(range(max_num_features),
+               importances[indices][:max_num_features], color='r',
+               yerr=std[indices][:max_num_features], align='center')
+    else:
+        ax.bar(range(max_num_features),
+               importances[indices][:max_num_features],
+               color='r', align='center')
+
+    ax.set_xticks(range(max_num_features))
+    ax.set_xticklabels(feature_names[:max_num_features],
+                       rotation=x_tick_rotation)
+    ax.set_xlim([-1, max_num_features])
+    ax.tick_params(labelsize=text_fontsize)
     return ax
