@@ -145,8 +145,8 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
     def confusion(train, test, trainsize):
         data=[]
         for i in range(len(train)):
-            train_set = ["train", train[i], trainsize[i]]
-            test_set = ["test", test[i], trainsize[i]]
+            train_set = ["train", round(train[i],2), trainsize[i]]
+            test_set = ["test", round(test[i],2), trainsize[i]]
             data.append(train_set)
             data.append(test_set)
         return wandb.Table(
