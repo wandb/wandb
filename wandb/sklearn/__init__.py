@@ -191,7 +191,7 @@ def plot_roc(y_true, y_probas, title='ROC Curves',
                 roc_auc = auc(fpr_dict[i], tpr_dict[i])
                 data=[]
                 for j in range(len(fpr_dict)):
-                    fpr = [classes[i], round(fpr_dict[j],2), round(tpr_dict[j],2)]
+                    fpr = [classes[i], fpr_dict[j], tpr_dict[j]]
                     data.append(train_set)
                 return wandb.Table(
                     columns=['class', 'fpr', 'tpr'],
