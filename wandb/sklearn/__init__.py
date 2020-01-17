@@ -189,10 +189,6 @@ def plot_roc(y_true, y_probas, title='ROC Curves',
                                                     pos_label=classes[i])
             if to_plot:
                 roc_auc = auc(fpr_dict[i], tpr_dict[i])
-                color = plt.cm.get_cmap(cmap)(float(i) / len(classes))
-                ax.plot(fpr_dict[i], tpr_dict[i], lw=2, color=color,
-                        label='ROC curve of class {0} (area = {1:0.2f})'
-                              ''.format(classes[i], roc_auc))
                 data=[]
                 for j in range(len(fpr_dict)):
                     fpr = [classes[i], round(fpr_dict[j],2), round(tpr_dict[j],2)]
