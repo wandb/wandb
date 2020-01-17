@@ -144,7 +144,7 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
     # Take in data, return wandb.Table()
     def confusion(train, test, trainsize):
         data=[]
-        for i in range(len(train):
+        for i in range(len(train)):
             data.append(["train"], train[i], trainsize[i])
             data.append(["test"], test[i], trainsize[i])
         return wandb.Table(
@@ -667,3 +667,47 @@ def plot_feature_importances(clf, title='Feature Importance',
     ax.set_xlim([-1, max_num_features])
     ax.tick_params(labelsize=text_fontsize)
     return ax
+
+def plot_elbow_curve(clf, X, title='Elbow Plot', cluster_ranges=None, n_jobs=1,
+                     show_cluster_time=True, ax=None, figsize=None,
+                     title_fontsize="large", text_fontsize="medium"):
+    if cluster_ranges is None:
+        cluster_ranges = range(1, 12, 2)
+    else:
+        cluster_ranges = sorted(cluster_ranges)
+
+    if not hasattr(clf, 'n_clusters'):
+        raise TypeError('"n_clusters" attribute not in classifier. '
+                        'Cannot plot elbow method.')
+
+    tuples = Parallel(n_jobs=n_jobs)(delayed(_clone_and_score_clusterer)
+                                     (clf, X, i) for i in cluster_ranges)
+    clfs, times = zip(*tuples)
+
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+    ax.set_title(title, fontsize=title_fontsize)
+    ax.plot(cluster_ranges, np.absolute(clfs), 'b*-')
+    ax.grid(True)
+    ax.set_xlabel('Number of clusters', fontsize=text_fontsize)
+    ax.set_ylabel('Sum of Squared Errors', fontsize=text_fontsize)
+    ax.tick_params(labelsize=text_fontsize)
+
+    if show_cluster_time:
+        ax2_color = 'green'
+        ax2 = ax.twinx()
+        ax2.plot(cluster_ranges, times, ':', alpha=0.75, color=ax2_color)
+        ax2.set_ylabel('Clustering duration (seconds)',
+                       color=ax2_color, alpha=0.75,
+                       fontsize=text_fontsize)
+        ax2.tick_params(colors=ax2_color, labelsize=text_fontsize)
+
+    return ax
+
+
+def _clone_and_score_clusterer(clf, X, n_clusters):
+    start = time.time()
+    clf = clone(clf)
+    setattr(clf, 'n_clusters', n_clusters)
+    return clf.fit(X).score(X), time.time() - start
