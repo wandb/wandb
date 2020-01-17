@@ -6,6 +6,17 @@ import scikitplot
 import matplotlib.pyplot as plt
 from keras.callbacks import LambdaCallback
 from sklearn.model_selection import learning_curve
+from sklearn.metrics import confusion_matrix
+from sklearn.preprocessing import label_binarize
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import roc_curve
+from sklearn.metrics import auc
+from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import average_precision_score
+from sklearn.utils.multiclass import unique_labels
+from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_samples
+from sklearn.calibration import calibration_curve
 
 counter = 1
 
@@ -50,8 +61,7 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
                 # ROC Curve
                 fig = plt.figure()
                 ax = plt.axes()
-                scikitplot.metrics.plot_roc(y_test, y_probas, ax=ax)
-                wandb.log({prefix("roc"): fig}, commit=False)
+                plot_roc(y_test, y_probas)
 
                 # Confusion Matrix
                 fig = plt.figure()
@@ -141,8 +151,7 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
     test_scores_mean = np.mean(test_scores, axis=1)
     test_scores_std = np.std(test_scores, axis=1)
 
-    # Take in data, return wandb.Table()
-    def confusion(train, test, trainsize):
+    def learning_curve(train, test, trainsize):
         data=[]
         for i in range(len(train)):
             train_set = ["train", round(train[i],2), trainsize[i]]
@@ -153,7 +162,47 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
             columns=['dataset', 'score', 'train_size'],
             data=data
         )
-    wandb.log({'learning_curve': confusion(train_scores_mean, test_scores_mean, train_sizes)})
+    wandb.log({'learning_curve': learning_curve(train_scores_mean, test_scores_mean, train_sizes)})
+    return
+
+def plot_roc(y_true, y_probas, title='ROC Curves',
+                   plot_micro=True, plot_macro=True, classes_to_plot=None,
+                   ax=None, figsize=None, cmap='nipy_spectral',
+                   title_fontsize="large", text_fontsize="medium"):
+    y_true = np.array(y_true)
+    y_probas = np.array(y_probas)
+
+    classes = np.unique(y_true)
+    probas = y_probas
+
+    if classes_to_plot is None:
+        classes_to_plot = classes
+
+    fpr_dict = dict()
+    tpr_dict = dict()
+
+    indices_to_plot = np.in1d(classes, classes_to_plot)
+
+    def roc(fpr_dict, tpr_dict, classes, indices_to_plot):
+        for i, to_plot in enumerate(indices_to_plot):
+            fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true, probas[:, i],
+                                                    pos_label=classes[i])
+            if to_plot:
+                roc_auc = auc(fpr_dict[i], tpr_dict[i])
+                color = plt.cm.get_cmap(cmap)(float(i) / len(classes))
+                ax.plot(fpr_dict[i], tpr_dict[i], lw=2, color=color,
+                        label='ROC curve of class {0} (area = {1:0.2f})'
+                              ''.format(classes[i], roc_auc))
+                data=[]
+                for j in range(len(fpr_dict)):
+                    fpr = [classes[i], round(fpr_dict[j],2), round(tpr_dict[j],2)]
+                    data.append(train_set)
+                return wandb.Table(
+                    columns=['class', 'fpr', 'tpr'],
+                    data=data
+                )
+    wandb.log({'learning_curve': roc(fpr_dict, tpr_dict, classes, indices_to_plot)})
+
     return
 
 def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
@@ -230,79 +279,6 @@ def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
     ax.set_xlabel('Predicted label', fontsize=text_fontsize)
     ax.grid(False)
 
-    return ax
-
-
-def plot_roc(y_true, y_probas, title='ROC Curves',
-                   plot_micro=True, plot_macro=True, classes_to_plot=None,
-                   ax=None, figsize=None, cmap='nipy_spectral',
-                   title_fontsize="large", text_fontsize="medium"):
-    y_true = np.array(y_true)
-    y_probas = np.array(y_probas)
-
-    classes = np.unique(y_true)
-    probas = y_probas
-
-    if classes_to_plot is None:
-        classes_to_plot = classes
-
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-    ax.set_title(title, fontsize=title_fontsize)
-
-    fpr_dict = dict()
-    tpr_dict = dict()
-
-    indices_to_plot = np.in1d(classes, classes_to_plot)
-    for i, to_plot in enumerate(indices_to_plot):
-        fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true, probas[:, i],
-                                                pos_label=classes[i])
-        if to_plot:
-            roc_auc = auc(fpr_dict[i], tpr_dict[i])
-            color = plt.cm.get_cmap(cmap)(float(i) / len(classes))
-            ax.plot(fpr_dict[i], tpr_dict[i], lw=2, color=color,
-                    label='ROC curve of class {0} (area = {1:0.2f})'
-                          ''.format(classes[i], roc_auc))
-
-    if plot_micro:
-        binarized_y_true = label_binarize(y_true, classes=classes)
-        if len(classes) == 2:
-            binarized_y_true = np.hstack(
-                (1 - binarized_y_true, binarized_y_true))
-        fpr, tpr, _ = roc_curve(binarized_y_true.ravel(), probas.ravel())
-        roc_auc = auc(fpr, tpr)
-        ax.plot(fpr, tpr,
-                label='micro-average ROC curve '
-                      '(area = {0:0.2f})'.format(roc_auc),
-                color='deeppink', linestyle=':', linewidth=4)
-
-    if plot_macro:
-        # Compute macro-average ROC curve and ROC area
-        # First aggregate all false positive rates
-        all_fpr = np.unique(np.concatenate([fpr_dict[x] for x in range(len(classes))]))
-
-        # Then interpolate all ROC curves at this points
-        mean_tpr = np.zeros_like(all_fpr)
-        for i in range(len(classes)):
-            mean_tpr += interp(all_fpr, fpr_dict[i], tpr_dict[i])
-
-        # Finally average it and compute AUC
-        mean_tpr /= len(classes)
-        roc_auc = auc(all_fpr, mean_tpr)
-
-        ax.plot(all_fpr, mean_tpr,
-                label='macro-average ROC curve '
-                      '(area = {0:0.2f})'.format(roc_auc),
-                color='navy', linestyle=':', linewidth=4)
-
-    ax.plot([0, 1], [0, 1], 'k--', lw=2)
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.05])
-    ax.set_xlabel('False Positive Rate', fontsize=text_fontsize)
-    ax.set_ylabel('True Positive Rate', fontsize=text_fontsize)
-    ax.tick_params(labelsize=text_fontsize)
-    ax.legend(loc='lower right', fontsize=text_fontsize)
     return ax
 
 
