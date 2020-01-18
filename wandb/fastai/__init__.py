@@ -35,9 +35,11 @@ Examples:
         learn.fit(..., callbacks=WandbCallback(learn, ...))
     ```
 '''
+from PIL import Image
 import wandb
 import fastai
 from fastai.callbacks import TrackerCallback
+from fastai.vision import ClassificationInterpretation
 from pathlib import Path
 import random
 try:
@@ -64,7 +66,7 @@ class WandbCallback(TrackerCallback):
         predictions (int): number of predictions to make if input_type is set and validation_data is None.
         seed (int): initialize random generator for sample predictions if input_type is set and validation_data is None.
     """
-    
+
     # Record if watch has been called previously (even in another instance)
     _watch_called = False
 
@@ -77,6 +79,8 @@ class WandbCallback(TrackerCallback):
                  input_type=None,
                  validation_data=None,
                  predictions=36,
+                 confusion_matrix=True,
+                 conf_dpi=150,
                  seed=12345):
 
 
@@ -93,6 +97,8 @@ class WandbCallback(TrackerCallback):
             super().__init__(learn, monitor=monitor, mode=mode)
         self.save_model = save_model
         self.model_path = Path(wandb.run.dir) / 'bestmodel.pth'
+        self.confusion_matrix = confusion_matrix
+        self.conf_dpi = conf_dpi
 
         self.log = log
         self.input_type = input_type
@@ -212,3 +218,10 @@ class WandbCallback(TrackerCallback):
                     self.learn.load(model_file, purge=False)
                     print('Loaded best saved model from {}'.format(
                         self.model_path))
+
+        if self.confusion_matrix:
+            interpret = ClassificationInterpretation.from_learner(self.learn)
+            conf_plt = interpret.plot_confusion_matrix(dpi=self.conf_dpi, return_fig=True, title='Confusion Matrix')
+            self.interpret = interpret # save for later use if needed
+
+            wandb.log({"Confusion Matrix": wandb.Image(conf_plt)})
