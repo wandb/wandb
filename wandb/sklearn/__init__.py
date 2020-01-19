@@ -259,7 +259,7 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
 #         }
 #       ]
 #     }
-#   ] 
+#   ]
 # }
     wandb.log({'learning_curve': learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)})
     return
@@ -384,7 +384,7 @@ def plot_roc(y_true, y_probas, title='ROC Curves',
 #         }
 #       ]
 #     }
-#   ] 
+#   ]
 # }
 
 def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
@@ -435,14 +435,14 @@ def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
         )
     wandb.log({'confusion matrix': confusion_matrix_table(cm, pred_classes, true_classes)})
 
-    return 
+    return
 
 # {
 #   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
 #   "padding": 5,
 #   "width": 500,
 #   "height": 500,
-#   "data": 
+#   "data":
 #     {
 #       "name": "${history-table:rows:x-axis,key}"
 #     },
@@ -550,10 +550,10 @@ def plot_precision_recall(y_true, y_probas,
                 sample_recall.append(recall[int(len(recall)*k/samples)])
 
             pr_curves[classes[i]] = (sample_precision, sample_recall)
-            
 
-            
-            
+
+
+
 
     # if plot_micro:
     #     precision, recall, _ = precision_recall_curve(
@@ -656,7 +656,7 @@ def plot_precision_recall(y_true, y_probas,
 #         }
 #       ]
 #     }
-#   ] 
+#   ]
 # }
 
 
@@ -1079,13 +1079,19 @@ def plot_calibration_curve(X, y, estimator, name):
     model_dict = [] # color
     frac_positives_dict = [] # y axis
     mean_pred_value_dict = [] # x axis
+    hist_dict = [] # barchart y
+    edge_dict = [] # barchart x
 
     # Add curve for perfectly calibrated model
     # format: model, fraction_of_positives, mean_predicted_value
     model_dict.append('Perfectly calibrated')
     frac_positives_dict.append(0)
     mean_pred_value_dict.append(0)
+    hist_dict.append(0)
+    edge_dict.append(0)
     model_dict.append('Perfectly calibrated')
+    hist_dict.append(0)
+    edge_dict.append(0)
     frac_positives_dict.append(1)
     mean_pred_value_dict.append(1)
 
@@ -1110,21 +1116,28 @@ def plot_calibration_curve(X, y, estimator, name):
 
         fraction_of_positives, mean_predicted_value = \
             calibration_curve(y_test, prob_pos, n_bins=10)
+        hist, edges = np.histogram(
+                        prob_pos,
+                        bins=10,
+                        density=False)
+        print("Len ", len(model_dict))
 
         # format: model, fraction_of_positives, mean_predicted_value
         for i in range(len(fraction_of_positives)):
+            hist_dict.append(hist[i])
+            edge_dict.append(edges[i])
             model_dict.append(name)
             frac_positives_dict.append(round_3(fraction_of_positives[i]))
             mean_pred_value_dict.append(round_3(mean_predicted_value[i]))
 
-        def calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict):
+        def calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict, hist_dict, edge_dict):
             return wandb.Table(
-                columns=['model', 'fraction_of_positives', 'mean_predicted_value'],
+                columns=['model', 'fraction_of_positives', 'mean_predicted_value', 'hist_dict', 'edge_dict'],
                 data=[
-                    [model_dict[i], frac_positives_dict[i], mean_pred_value_dict[i]] for i in range(len(model_dict))
+                    [model_dict[i], frac_positives_dict[i], mean_pred_value_dict[i], hist_dict[i], edge_dict[i]] for i in range(len(model_dict))
                 ]
             )
-    wandb.log({'calibration_curve': calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict)})
+    wandb.log({'calibration_curve': calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict, hist_dict, edge_dict)})
     '''
     {
       "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
@@ -1166,8 +1179,8 @@ def plot_calibration_curve(X, y, estimator, name):
         {
         "mark": {"type": "tick"},
         "encoding": {
-          "x": {"field": "mean_predicted_value", "type": "quantitative","bin":true, "axis": {"title": "Mean predicted value"}},
-          "y": {"field": "fraction_of_positives", "type": "quantitative", "axis": {"title": "Counts"}},
+          "x": {"field": "edge_dict", "type": "quantitative","bin":true, "axis": {"title": "Mean predicted value"}},
+          "y": {"field": "hist_dict", "type": "quantitative", "axis": {"title": "Counts"}},
           "strokeWidth": {
             "value": 2
           },
@@ -1235,18 +1248,20 @@ def plot_outlier_candidates(reg, X, y):
           "name": "${history-table:rows:x-axis,key}"
         },
       "title": {
-        "text": "Learning Curve"
+        "text": "Cook's Distance Outlier Detection"
       },
      "layer": [{
         "mark": "bar",
         "encoding": {
           "x": {
             "field": "instance_indicies",
-            "type": "quantitative"
+            "type": "quantitative",
+            "axis": {"title": "Instances"}
           },
           "y": {
             "field": "distance",
-            "type": "quantitative"
+            "type": "quantitative",
+            "axis": {"title": "Influence (Cook's Distance)"}
           },
           "color":  {"value": "#3498DB"}
         }
@@ -1310,21 +1325,21 @@ def plot_residuals(model, X, y):
         )
     wandb.log({'residuals': residuals(y_pred_train, residuals_train, y_pred_test, residuals_test, train_score_, test_score_)})
     '''
-        {
+    {
       "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-      "padding": 5,
+      "width": "container",
       "data":
         {
           "name": "${history-table:rows:x-axis,key}"
         },
-      "title": "Calibration Curve",
-      "hconcat": [
+      "title": "Residuals Plot",
+      "vconcat": [
         {
           "layer": [
           {
             "encoding": {
-              "x": {"field": "y_pred", "type": "quantitative", "axis": {"title": "Predicted Value"}},
-              "y": {"field": "residuals", "type": "quantitative", "axis": {"title": "Residuals"}},
+              "y": {"field": "y_pred", "type": "quantitative", "axis": {"title": "Predicted Value"}},
+              "x": {"field": "residuals", "type": "quantitative", "axis": {"title": "Residuals"}},
               "color": {
                 "field": "dataset",
                 "type": "nominal",
@@ -1346,8 +1361,8 @@ def plot_residuals(model, X, y):
         "mark": {"type": "bar",
                 "opacity": 0.8},
         "encoding": {
-          "y": {"field": "residuals", "type": "quantitative", "bin": true, "axis": {"title": "Residuals"}},
-          "x": {
+          "x": {"field": "residuals", "type": "quantitative", "bin": true, "axis": {"title": "Residuals"}},
+          "y": {
             "aggregate": "count", "field": "residuals", "type": "quantitative", "axis": {"title": "Distribution"}},
           "strokeWidth": {
             "value": 1
