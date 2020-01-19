@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import wandb
+import itertools
 import sklearn
 import numpy as np
 import scipy as sp
@@ -172,6 +173,94 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
             columns=['dataset', 'score', 'train_size'],
             data=data
         )
+#     l2k2/sklearn_learningcurve
+
+#     {
+#   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+#   "padding": 5,
+#   "width": "500",
+#   "height": "500",
+#   "data":
+#     {
+#       "name": "${history-table:rows:x-axis,key}"
+#     },
+#   "title": {
+#     "text": "Learning Curve"
+#   },"layer": [
+#     {
+#       "encoding": {
+#         "x": {"field": "train_size", "type": "quantitative"},
+#         "y": {"field": "score", "type": "quantitative"},
+#         "color": {"field": "dataset", "type": "nominal"}
+#       },
+#       "layer": [
+#         {"mark": "line"},
+#         {
+#           "selection": {
+#             "label": {
+#               "type": "single",
+#               "nearest": true,
+#               "on": "mouseover",
+#               "encodings": ["x"],
+#               "empty": "none"
+#             }
+#           },
+#           "mark": "point",
+#           "encoding": {
+#             "opacity": {
+#               "condition": {"selection": "label", "value": 1},
+#               "value": 0
+#             }
+#           }
+#         }
+#       ]
+#     },
+#     {
+#       "transform": [{"filter": {"selection": "label"}}],
+#       "layer": [
+#         {
+#           "mark": {"type": "rule", "color": "gray"},
+#           "encoding": {
+#             "x": {"type": "quantitative", "field": "train_size"}
+#           }
+#         },
+#         {
+#           "encoding": {
+#             "text": {"type": "quantitative", "field": "score"},
+#             "x": {"type": "quantitative", "field": "train_size"},
+#             "y": {"type": "quantitative", "field": "score"}
+#           },
+#           "layer": [
+#             {
+#               "mark": {
+#                 "type": "text",
+#                 "stroke": "white",
+#                 "strokeWidth": 2,
+#                 "align": "left",
+#                 "dx": 5,
+#                 "dy": -5
+#               }
+#             },
+#             {
+#               "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
+#               "encoding": {
+#                 "color": {
+#                   "type": "nominal", "field": "dataset", "scale": {
+#                   "domain": ["train", "test"],
+#                   "range": ["#3498DB", "#AB47BC"]
+#                   },
+#                   "legend": {
+#                   "title": " "
+#                   }
+#                 }
+#               }
+#             }
+#           ]
+#         }
+#       ]
+#     }
+#   ] 
+# }
     wandb.log({'learning_curve': learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)})
     return
 
@@ -181,7 +270,6 @@ def plot_roc(y_true, y_probas, title='ROC Curves',
                    title_fontsize="large", text_fontsize="medium"):
     y_true = np.array(y_true)
     y_probas = np.array(y_probas)
-
     classes = np.unique(y_true)
     probas = y_probas
 
@@ -194,33 +282,116 @@ def plot_roc(y_true, y_probas, title='ROC Curves',
     indices_to_plot = np.in1d(classes, classes_to_plot)
 
     def roc_table(fpr_dict, tpr_dict, classes, indices_to_plot):
+        data=[]
+
         for i, to_plot in enumerate(indices_to_plot):
+            print(probas.shape)
             fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true, probas[:, i],
                                                     pos_label=classes[i])
             if to_plot:
                 roc_auc = auc(fpr_dict[i], tpr_dict[i])
-                data=[]
-                for j in range(len(fpr_dict)):
-                    fpr = [classes[i], fpr_dict[j], tpr_dict[j]]
+                for j in range(len(fpr_dict[i])):
+                    fpr = [classes[i], fpr_dict[i][j], tpr_dict[i][j]]
                     data.append(fpr)
-                return wandb.Table(
-                    columns=['class', 'fpr', 'tpr'],
-                    data=data
-                )
+        return wandb.Table(
+            columns=['class', 'fpr', 'tpr'],
+            data=data
+        )
     wandb.log({'roc': roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)})
 
     return
 
+#    {
+#   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+#   "padding": 5,
+#   "width": "500",
+#   "height": "500",
+#   "data":
+#     {
+#       "name": "${history-table:rows:x-axis,key}"
+#     },
+#   "title": {
+#     "text": "Learning Curve"
+#   },"layer": [
+#     {
+#       "encoding": {
+#         "x": {"field": "fpr", "type": "quantitative"},
+#         "y": {"field": "tpr", "type": "quantitative"},
+#         "color": {"field": "class", "type": "nominal"}
+#       },
+#       "layer": [
+#         {"mark": "line"},
+#         {
+#           "selection": {
+#             "label": {
+#               "type": "single",
+#               "nearest": true,
+#               "on": "mouseover",
+#               "encodings": ["x"],
+#               "empty": "none"
+#             }
+#           },
+#           "mark": "point",
+#           "encoding": {
+#             "opacity": {
+#               "condition": {"selection": "label", "value": 1},
+#               "value": 0
+#             }
+#           }
+#         }
+#       ]
+#     },
+#     {
+#       "transform": [{"filter": {"selection": "label"}}],
+#       "layer": [
+#         {
+#           "mark": {"type": "rule", "color": "gray"},
+#           "encoding": {
+#             "x": {"type": "quantitative", "field": "train_size"}
+#           }
+#         },
+#         {
+#           "encoding": {
+#             "text": {"type": "quantitative", "field": "score"},
+#             "x": {"type": "quantitative", "field": "train_size"},
+#             "y": {"type": "quantitative", "field": "score"}
+#           },
+#           "layer": [
+#             {
+#               "mark": {
+#                 "type": "text",
+#                 "stroke": "white",
+#                 "strokeWidth": 2,
+#                 "align": "left",
+#                 "dx": 5,
+#                 "dy": -5
+#               }
+#             },
+#             {
+#               "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
+#               "encoding": {
+#                 "color": {
+#                   "type": "nominal", "field": "dataset", "scale": {
+#                   "range": ["#3498DB", "#AB47BC"]
+#                   },
+#                   "legend": {
+#                   "title": " "
+#                   }
+#                 }
+#               }
+#             }
+#           ]
+#         }
+#       ]
+#     }
+#   ] 
+# }
+
 def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
                           pred_labels=None, title=None, normalize=False,
-                          hide_zeros=False, hide_counts=False, x_tick_rotation=0, ax=None,
-                          figsize=None, cmap='Blues', title_fontsize="large",
-                          text_fontsize="medium"):
+                          hide_zeros=False, hide_counts=False):
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
-
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
 
     cm = confusion_matrix(y_true, y_pred, labels=labels)
     if labels is None:
@@ -253,44 +424,59 @@ def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
         pred_classes = classes[pred_label_indexes]
         cm = cm[:, pred_label_indexes]
 
-    if title:
-        ax.set_title(title, fontsize=title_fontsize)
-    elif normalize:
-        ax.set_title('Normalized Confusion Matrix', fontsize=title_fontsize)
-    else:
-        ax.set_title('Confusion Matrix', fontsize=title_fontsize)
+    def confusion_matrix_table(cm, pred_classes, true_classes):
+        data=[]
 
-    image = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.get_cmap(cmap))
-    plt.colorbar(mappable=image)
-    x_tick_marks = np.arange(len(pred_classes))
-    y_tick_marks = np.arange(len(true_classes))
-    ax.set_xticks(x_tick_marks)
-    ax.set_xticklabels(pred_classes, fontsize=text_fontsize,
-                       rotation=x_tick_rotation)
-    ax.set_yticks(y_tick_marks)
-    ax.set_yticklabels(true_classes, fontsize=text_fontsize)
-
-    thresh = cm.max() / 2.
-
-    if not hide_counts:
         for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-            if not (hide_zeros and cm[i, j] == 0):
-                ax.text(j, i, cm[i, j],
-                        horizontalalignment="center",
-                        verticalalignment="center",
-                        fontsize=text_fontsize,
-                        color="white" if cm[i, j] > thresh else "black")
+            data.append([pred_classes[i], true_classes[j], cm[i,j]])
+        return wandb.Table(
+            columns=['Predicted', 'Actual', 'Count'],
+            data=data
+        )
+    wandb.log({'confusion matrix': confusion_matrix_table(cm, pred_classes, true_classes)})
 
-    ax.set_ylabel('True label', fontsize=text_fontsize)
-    ax.set_xlabel('Predicted label', fontsize=text_fontsize)
-    ax.grid(False)
+    return 
 
-    return ax
+# {
+#   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+#   "padding": 5,
+#   "width": 500,
+#   "height": 500,
+#   "data": 
+#     {
+#       "name": "${history-table:rows:x-axis,key}"
+#     },
+#   "title": {
+#     "text": "Confusion Matrix"
+#   },
+#     "mark": "circle",
+#   "encoding": {
+#     "x": {
+#       "field": "Predicted",
+#       "type": "nominal",
+#       "axis": {
+#         "maxExtent": 50,
+#         "labelLimit": 40,
+#         "labelAngle": -45
+#       }
+#     },
+#     "y": {
+#       "field": "Actual",
+#       "type": "nominal"
+
+#     },
+#     "size": {
+#       "field": "Count",
+#       "type": "quantitative"
+#     }
+#   }
+# }
 
 
 def plot_ks_statistic(y_true, y_probas, title='KS Statistic Plot',
                       ax=None, figsize=None, title_fontsize="large",
                       text_fontsize="medium"):
+    # LB Not done
     y_true = np.array(y_true)
     y_probas = np.array(y_probas)
 
@@ -330,12 +516,8 @@ def plot_ks_statistic(y_true, y_probas, title='KS Statistic Plot',
 
 
 def plot_precision_recall(y_true, y_probas,
-                          title='Precision-Recall Curve',
                           plot_micro=True,
-                          classes_to_plot=None, ax=None,
-                          figsize=None, cmap='nipy_spectral',
-                          title_fontsize="large",
-                          text_fontsize="medium"):
+                          classes_to_plot=None):
     y_true = np.array(y_true)
     y_probas = np.array(y_probas)
 
@@ -350,11 +532,7 @@ def plot_precision_recall(y_true, y_probas,
         binarized_y_true = np.hstack(
             (1 - binarized_y_true, binarized_y_true))
 
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-    ax.set_title(title, fontsize=title_fontsize)
-
+    pr_curves = {}
     indices_to_plot = np.in1d(classes, classes_to_plot)
     for i, to_plot in enumerate(indices_to_plot):
         if to_plot:
@@ -363,31 +541,123 @@ def plot_precision_recall(y_true, y_probas,
                 probas[:, i])
             precision, recall, _ = precision_recall_curve(
                 y_true, probas[:, i], pos_label=classes[i])
-            color = plt.cm.get_cmap(cmap)(float(i) / len(classes))
-            ax.plot(recall, precision, lw=2,
-                    label='Precision-recall curve of class {0} '
-                          '(area = {1:0.3f})'.format(classes[i],
-                                                     average_precision),
-                    color=color)
 
-    if plot_micro:
-        precision, recall, _ = precision_recall_curve(
-            binarized_y_true.ravel(), probas.ravel())
-        average_precision = average_precision_score(binarized_y_true,
-                                                    probas,
-                                                    average='micro')
-        ax.plot(recall, precision,
-                label='micro-average Precision-recall curve '
-                      '(area = {0:0.3f})'.format(average_precision),
-                color='navy', linestyle=':', linewidth=4)
+            samples = 20
+            sample_precision = []
+            sample_recall = []
+            for k in range(samples):
+                sample_precision.append(precision[int(len(precision)*k/samples)])
+                sample_recall.append(recall[int(len(recall)*k/samples)])
 
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.05])
-    ax.set_xlabel('Recall')
-    ax.set_ylabel('Precision')
-    ax.tick_params(labelsize=text_fontsize)
-    ax.legend(loc='best', fontsize=text_fontsize)
-    return ax
+            pr_curves[classes[i]] = (sample_precision, sample_recall)
+            
+
+            
+            
+
+    # if plot_micro:
+    #     precision, recall, _ = precision_recall_curve(
+    #         binarized_y_true.ravel(), probas.ravel())
+    #     average_precision = average_precision_score(binarized_y_true,
+    #                                                 probas,
+    #                                                 average='micro')
+    #     ax.plot(recall, precision,
+    #             label='micro-average Precision-recall curve '
+    #                   '(area = {0:0.3f})'.format(average_precision),
+    #             color='navy', linestyle=':', linewidth=4)
+
+    def pr_table(pr_curves):
+        data=[]
+
+        for i, class_name in enumerate(pr_curves.keys()):
+            precision, recall = pr_curves[class_name]
+            for p, r in zip(precision, recall):
+                data.append([class_name, p, r])
+        return wandb.Table(
+            columns=['class', 'precision', 'recall'],
+            data=data
+        )
+    wandb.log({'pr': pr_table(pr_curves)})
+
+    return
+# { "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+#   "padding": 5,
+#   "width": 500,
+#   "height": 500,
+#   "data":
+#     {
+#       "name": "${history-table:rows:x-axis,key}"
+#     },
+#   "title": {
+#     "text": "Precision Recall"
+#   },"layer": [
+#     {
+#       "encoding": {
+#         "x": {"field": "precision", "type": "quantitative"},
+#         "y": {"field": "recall", "type": "quantitative"},
+#         "color": {"field": "class", "type": "nominal"}
+#       },
+#       "layer": [
+#         {"mark": "line"},
+#         {
+#           "selection": {
+#             "label": {
+#               "type": "single",
+#               "nearest": true,
+#               "on": "mouseover",
+#               "encodings": ["x"],
+#               "empty": "none"
+#             }
+#           },
+#           "mark": "point",
+#           "encoding": {
+#             "opacity": {
+#               "condition": {"selection": "label", "value": 1},
+#               "value": 0
+#             }
+#           }
+#         }
+#       ]
+#     },
+#     {
+#       "transform": [{"filter": {"selection": "label"}}],
+#       "layer": [
+#         {
+#           "encoding": {
+#             "text": {"type": "quantitative", "field": "class"},
+#             "x": {"type": "quantitative", "field": "precision"},
+#             "y": {"type": "quantitative", "field": "recall"}
+#           },
+#           "layer": [
+#             {
+#               "mark": {
+#                 "type": "text",
+#                 "stroke": "white",
+#                 "strokeWidth": 2,
+#                 "align": "left",
+#                 "dx": 5,
+#                 "dy": -5
+#               }
+#             },
+#             {
+#               "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
+#               "encoding": {
+#                 "color": {
+#                   "type": "nominal", "field": "dataset", "scale": {
+#                   "range": ["#3498DB", "#AB47BC", "#55BBBB", "#BB9955"]
+#                   },
+#                   "legend": {
+#                   "title": " "
+#                   }
+#                 }
+#               }
+#             }
+#           ]
+#         }
+#       ]
+#     }
+#   ] 
+# }
 
 
 def plot_silhouette(X, cluster_labels, title='Silhouette Analysis',
