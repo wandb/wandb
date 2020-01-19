@@ -2,10 +2,12 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import wandb
 import sklearn
 import numpy as np
+import scipy as sp
 import scikitplot
 import matplotlib.pyplot as plt
 from keras.callbacks import LambdaCallback
 from sklearn.model_selection import learning_curve
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import label_binarize
 from sklearn.preprocessing import LabelEncoder
@@ -13,11 +15,17 @@ from sklearn.metrics import roc_curve
 from sklearn.metrics import auc
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
+from sklearn.metrics import (brier_score_loss, precision_score, recall_score, f1_score)
 from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics import silhouette_score
 from sklearn.metrics import silhouette_samples
 from sklearn.calibration import calibration_curve
 from sklearn.utils.multiclass import unique_labels, type_of_target
+from sklearn import datasets
+from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 
 counter = 1
 
@@ -130,8 +138,6 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
         wandb.log({"classifier_scores": classifier_table}, commit=False)
     if len(regressor_table.data) > 0:
         wandb.log({"regressor_scores": regressor_table}, commit=False)
-
-    wandb.log({})
 
 def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
                         shuffle=False, random_state=None,
@@ -691,8 +697,7 @@ def _clone_and_score_clusterer(clf, X, n_clusters):
     return clf.fit(X).score(X), time.time() - start
 
 ## -------------- YB Plots Start Here ------------
-
-def plot_class_balance(y_train, y_test=None, labels=None):
+def plot_class_balance(y_train, y_test=None):
     # Get the unique values from the dataset
     y_train = np.array(y_train)
     y_test = np.array(y_test)
@@ -703,7 +708,7 @@ def plot_class_balance(y_train, y_test=None, labels=None):
     class_counts_train = np.array([(y_train == c).sum() for c in classes_])
     class_counts_test = np.array([(y_test == c).sum() for c in classes_])
 
-    def log_table(classes_, class_counts_train, class_counts_test):
+    def class_balance(classes_, class_counts_train, class_counts_test):
         class_dict = []
         dataset_dict = []
         count_dict = []
@@ -723,35 +728,370 @@ def plot_class_balance(y_train, y_test=None, labels=None):
                 [class_dict[i], dataset_dict[i], count_dict[i]] for i in range(len(class_dict))
             ]
         )
-    wandb.log({'class_balance': log_table(classes_, class_counts_train, class_counts_test)})
-
+    wandb.log({'class_balance': class_balance(classes_, class_counts_train, class_counts_test)})
     '''
-    # Draw the bar chart
-    self.ax.bar(
-        np.arange(len(class_counts)),
-        self.support_,
-        color=colors,
-        align="center",
-        width=0.5,
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "width": 500,
+      "height": 500,
+      "title": "Class Proportions in Target Variable",
+      "data": {
+        "name": "${history-table:rows:x-axis,key}"
+      },
+      "selection": {
+        "highlight": {"type": "single", "empty": "none", "on": "mouseover"},
+        "select": {"type": "multi"}
+      },
+      "mark": {
+        "type": "bar",
+        "stroke": "black",
+        "cursor": "pointer"
+      },
+      "encoding": {
+        "x": {"field": "class", "type": "ordinal"},
+        "y": {"field": "count", "type": "quantitative", "axis": {"title": "Number of instances"}},
+        "fillOpacity": {
+          "condition": {"selection": "select", "value": 1},
+          "value": 0.3
+        },
+        "color": {
+          "field": "dataset",
+          "type": "nominal",
+          "scale": {
+            "domain": ["train", "test"],
+            "range": ["#3498DB", "#4DB6AC"]
+          },
+          "legend": {"title": "Dataset"}
+        },
+        "strokeWidth": {
+          "condition": [
+            {
+              "test": {
+                "and": [
+                  {"selection": "select"},
+                  "length(data(\"select_store\"))"
+                ]
+              },
+              "value": 2
+            },
+            {"selection": "highlight", "value": 1}
+          ],
+          "value": 0
+        }
+      },
+      "config": {
+        "scale": {
+          "bandPaddingInner": 0.2
+        }
+      }
+    }
+    '''
+
+def plot_calibration_curve(X, y, estimator, name):
+    """Plot calibration curve for estimator w/o and with calibration. """
+    # Create dataset of classification task with many redundant and few
+    # informative features
+    X, y = datasets.make_classification(n_samples=100000, n_features=20,
+                                        n_informative=2, n_redundant=10,
+                                        random_state=42)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.99,
+                                                        random_state=42)
+    # Calibrated with isotonic calibration
+    isotonic = CalibratedClassifierCV(estimator, cv=2, method='isotonic')
+
+    # Calibrated with sigmoid calibration
+    sigmoid = CalibratedClassifierCV(estimator, cv=2, method='sigmoid')
+
+    # Logistic regression with no calibration as baseline
+    lr = LogisticRegression(C=1.)
+
+    model_dict = [] # color
+    frac_positives_dict = [] # y axis
+    mean_pred_value_dict = [] # x axis
+
+    # Add curve for perfectly calibrated model
+    # format: model, fraction_of_positives, mean_predicted_value
+    model_dict.append('Perfectly calibrated')
+    frac_positives_dict.append(0)
+    mean_pred_value_dict.append(0)
+    model_dict.append('Perfectly calibrated')
+    frac_positives_dict.append(1)
+    mean_pred_value_dict.append(1)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.98,
+                                                        random_state=42)
+
+    # Add curve for LogisticRegression baseline and other models
+    for clf, name in [(lr, 'Logistic'),
+                      (estimator, name),
+                      (isotonic, name + ' + Isotonic'),
+                      (sigmoid, name + ' + Sigmoid')]:
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+        if hasattr(clf, "predict_proba"):
+            prob_pos = clf.predict_proba(X_test)[:, 1]
+        else:  # use decision function
+            prob_pos = clf.decision_function(X_test)
+            prob_pos = \
+                (prob_pos - prob_pos.min()) / (prob_pos.max() - prob_pos.min())
+
+        clf_score = brier_score_loss(y_test, prob_pos, pos_label=y.max())
+
+        fraction_of_positives, mean_predicted_value = \
+            calibration_curve(y_test, prob_pos, n_bins=10)
+
+        # format: model, fraction_of_positives, mean_predicted_value
+        for i in range(len(fraction_of_positives)):
+            model_dict.append(name)
+            frac_positives_dict.append(round_3(fraction_of_positives[i]))
+            mean_pred_value_dict.append(round_3(mean_predicted_value[i]))
+
+        def calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict):
+            return wandb.Table(
+                columns=['model', 'fraction_of_positives', 'mean_predicted_value'],
+                data=[
+                    [model_dict[i], frac_positives_dict[i], mean_pred_value_dict[i]] for i in range(len(model_dict))
+                ]
+            )
+    wandb.log({'calibration_curve': calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict)})
+    '''
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "padding": 5,
+      "data":
+        {
+          "name": "${history-table:rows:x-axis,key}"
+        },
+      "title": "Calibration Curve",
+      "vconcat": [
+        {
+          "layer": [
+          {
+            "encoding": {
+              "x": {"field": "mean_predicted_value", "type": "quantitative", "axis": {"title": "Mean predicted value"}},
+              "y": {"field": "fraction_of_positives", "type": "quantitative", "axis": {"title": "Fraction of positives"}},
+              "color": {
+                "field": "model",
+                "type": "nominal",
+                "axis": {"title": "Models"},
+                "scale": {
+                  "range": ["#3498DB", "#AB47BC", "#55BBBB", "#BB9955"]
+                }
+              }
+            },
+            "layer": [
+              {
+                "mark": {
+                  "type": "line",
+                  "point": {
+                    "filled": false,
+                    "fill": "white"
+                  }
+                }
+              }
+            ]
+          }]
+        },
+        {
+        "mark": {"type": "tick"},
+        "encoding": {
+          "x": {"field": "mean_predicted_value", "type": "quantitative","bin":true, "axis": {"title": "Mean predicted value"}},
+          "y": {"field": "fraction_of_positives", "type": "quantitative", "axis": {"title": "Counts"}},
+          "strokeWidth": {
+            "value": 2
+          },
+          "color": {
+            "field": "model",
+            "type": "nominal",
+            "axis": {"title": "Models"},
+            "scale": {
+              "range": ["#3498DB", "#AB47BC", "#55BBBB", "#BB9955"]
+            }
+          }
+        }
+        }
+      ]
+    }
+    '''
+
+def plot_outlier_candidates(reg, X, y):
+    # Fit a linear model to X and y to compute MSE
+    reg.fit(X, y)
+
+    # Leverage is computed as the diagonal of the projection matrix of X
+    leverage = (X * np.linalg.pinv(X).T).sum(1)
+
+    # Compute the rank and the degrees of freedom of the OLS model
+    rank = np.linalg.matrix_rank(X)
+    df = X.shape[0] - rank
+
+    # Compute the MSE from the residuals
+    residuals = y - reg.predict(X)
+    mse = np.dot(residuals, residuals) / df
+
+    # Compute Cook's distance
+    residuals_studentized = residuals / np.sqrt(mse) / np.sqrt(1 - leverage)
+    distance_ = residuals_studentized ** 2 / X.shape[1]
+    distance_ *= leverage / (1 - leverage)
+
+    # Compute the p-values of Cook's Distance
+    p_values_ = sp.stats.f.sf(distance_, X.shape[1], df)
+
+    # Compute the influence threshold rule of thumb
+    influence_threshold_ = 4 / X.shape[0]
+    outlier_percentage_ = (
+        sum(distance_ > influence_threshold_) / X.shape[0]
     )
+    outlier_percentage_ *= 100.0
 
-    # Set the title
-    self.set_title("Class Balance for {:,} Instances".format(self.support_.sum()))
+    # Draw a stem plot with the influence for each instance
+    # format: distance_, len(distance_), influence_threshold_, round_3(outlier_percentage_)
+    def outlier_candidates(distance, outlier_percentage, influence_threshold):
+        return wandb.Table(
+            columns=['distance', 'instance_indicies', 'outlier_percentage', 'influence_threshold'],
+            data=[
+                [distance[i], i, round_3(outlier_percentage_), influence_threshold_] for i in range(len(distance))
+            ]
+        )
+    wandb.log({'outlier_candidates': outlier_candidates(distance_, outlier_percentage_, influence_threshold_)})
+    return
+    '''
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "padding": 5,
+      "data":
+        {
+          "name": "${history-table:rows:x-axis,key}"
+        },
+      "title": {
+        "text": "Learning Curve"
+      },
+     "layer": [{
+        "mark": "bar",
+        "encoding": {
+          "x": {
+            "field": "instance_indicies",
+            "type": "quantitative"
+          },
+          "y": {
+            "field": "distance",
+            "type": "quantitative"
+          },
+          "color":  {"value": "#3498DB"}
+        }
+      },{
+        "mark": {
+          "type":"rule",
+          "strokeDash": [6, 4],
+          "stroke":"#f88c99"},
+        "encoding": {
+          "y": {
+            "field": "influence_threshold",
+            "type": "quantitative"
+          },
+          "color": {"value": "red"},
+          "size": {"value": 1}
+        }
+      }]
+    }
+    '''
 
-    # Set the x ticks with the class names or labels if specified
-    labels = classes_
-    xticks = np.arange(len(labels))
-    if self._mode == COMPARE:
-        xticks = xticks + (0.35 / 2)
+def plot_residuals(model, X, y):
+    # Create the train and test splits
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-    self.ax.set_xticks(xticks)
-    self.ax.set_xticklabels(labels)
+    # Store labels and colors for the legend ordered by call
+    _labels, _colors = [], []
+    model.fit(X_train, y_train)
+    train_score_ = model.score(X_train, y_train)
+    test_score_ = model.score(X_test, y_test)
 
-    # Compute the ceiling for the y limit
-    cmax = self.support_.max()
-    self.ax.set_ylim(0, cmax + cmax * 0.1)
-    self.ax.set_ylabel("support")
+    y_pred_train = model.predict(X_train)
+    residuals_train = y_pred_train - y_train
 
-    # Remove the vertical grid
-    self.ax.grid(False, axis="x")
+    y_pred_test = model.predict(X_test)
+    residuals_test = y_pred_test - y_test
+
+    # format:
+    # Legend: train_score_, test_score_ (play with opacity)
+    # Scatterplot: dataset(train, test)(color), y_pred(x), residuals(y)
+    # Histogram: dataset(train, test)(color), residuals(y), aggregate(residuals(x)) with bins=50
+    def residuals(y_pred_train, residuals_train, y_pred_test, residuals_test, train_score_, test_score_):
+        y_pred_dict = []
+        dataset_dict = []
+        residuals_dict = []
+        for i in range(280):
+            # add class counts from training set
+            y_pred_dict.append(y_pred_train[i])
+            dataset_dict.append("train")
+            residuals_dict.append(residuals_train[i])
+        for i in range(20):
+            # add class counts from test set
+            y_pred_dict.append(y_pred_test[i])
+            dataset_dict.append("test")
+            residuals_dict.append(residuals_test[i])
+
+        return wandb.Table(
+            columns=['dataset', 'y_pred', 'residuals', 'train_score', 'test_score'],
+            data=[
+                [dataset_dict[i], y_pred_dict[i], residuals_dict[i], train_score_, test_score_] for i in range(len(y_pred_dict))
+            ]
+        )
+    wandb.log({'residuals': residuals(y_pred_train, residuals_train, y_pred_test, residuals_test, train_score_, test_score_)})
+    '''
+        {
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "padding": 5,
+      "data":
+        {
+          "name": "${history-table:rows:x-axis,key}"
+        },
+      "title": "Calibration Curve",
+      "hconcat": [
+        {
+          "layer": [
+          {
+            "encoding": {
+              "x": {"field": "y_pred", "type": "quantitative", "axis": {"title": "Predicted Value"}},
+              "y": {"field": "residuals", "type": "quantitative", "axis": {"title": "Residuals"}},
+              "color": {
+                "field": "dataset",
+                "type": "nominal",
+                "axis": {"title": "Dataset"}
+              }
+            },
+            "layer": [
+              {
+                "mark": {
+                  "type": "point",
+                  "opacity": 0.5,
+                  "filled" : true
+                }
+              }
+            ]
+          }]
+        },
+        {
+        "mark": {"type": "bar",
+                "opacity": 0.8},
+        "encoding": {
+          "y": {"field": "residuals", "type": "quantitative", "bin": true, "axis": {"title": "Residuals"}},
+          "x": {
+            "aggregate": "count", "field": "residuals", "type": "quantitative", "axis": {"title": "Distribution"}},
+          "strokeWidth": {
+            "value": 1
+          },
+          "color": {
+            "field": "dataset",
+            "type": "nominal",
+            "axis": {"title": "Dataset"},
+            "scale": {
+              "range": ["#AB47BC", "#3498DB"]
+            }
+          }
+        }
+        }
+      ]
+    }
     '''
