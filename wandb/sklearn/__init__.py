@@ -18,6 +18,7 @@ from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics import silhouette_score
 from sklearn.metrics import silhouette_samples
 from sklearn.calibration import calibration_curve
+from sklearn.utils.multiclass import unique_labels, type_of_target
 
 counter = 1
 
@@ -78,6 +79,9 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
                     round_3(sklearn.metrics.recall_score(y_test, y_pred, average="weighted")),
                     round_3(sklearn.metrics.f1_score(y_test, y_pred, average="weighted"))
                 )
+
+                # Class Balance Plot
+                plot_class_balance(y, y_test, labels)
 
             # Feature Importances
             if labels is not None:
@@ -955,3 +959,69 @@ def _clone_and_score_clusterer(clf, X, n_clusters):
     clf = clone(clf)
     setattr(clf, 'n_clusters', n_clusters)
     return clf.fit(X).score(X), time.time() - start
+
+## -------------- YB Plots Start Here ------------
+
+def plot_class_balance(y_train, y_test=None, labels=None):
+    # Get the unique values from the dataset
+    y_train = np.array(y_train)
+    y_test = np.array(y_test)
+    targets = (y_train,) if y_test is None else (y_train, y_test)
+    classes_ = np.array(unique_labels(*targets))
+
+    # Compute the class counts
+    class_counts_train = np.array([(y_train == c).sum() for c in classes_])
+    class_counts_test = np.array([(y_test == c).sum() for c in classes_])
+
+    def log_table(classes_, class_counts_train, class_counts_test):
+        class_dict = []
+        dataset_dict = []
+        count_dict = []
+        for i in range(len(classes_)):
+            # add class counts from training set
+            class_dict.append(classes_[i])
+            dataset_dict.append("train")
+            count_dict.append(class_counts_train[i])
+            # add class counts from test set
+            class_dict.append(classes_[i])
+            dataset_dict.append("test")
+            count_dict.append(class_counts_test[i])
+
+        return wandb.Table(
+            columns=['class', 'dataset', 'count'],
+            data=[
+                [class_dict[i], dataset_dict[i], count_dict[i]] for i in range(len(class_dict))
+            ]
+        )
+    wandb.log({'class_balance': log_table(classes_, class_counts_train, class_counts_test)})
+
+    '''
+    # Draw the bar chart
+    self.ax.bar(
+        np.arange(len(class_counts)),
+        self.support_,
+        color=colors,
+        align="center",
+        width=0.5,
+    )
+
+    # Set the title
+    self.set_title("Class Balance for {:,} Instances".format(self.support_.sum()))
+
+    # Set the x ticks with the class names or labels if specified
+    labels = classes_
+    xticks = np.arange(len(labels))
+    if self._mode == COMPARE:
+        xticks = xticks + (0.35 / 2)
+
+    self.ax.set_xticks(xticks)
+    self.ax.set_xticklabels(labels)
+
+    # Compute the ceiling for the y limit
+    cmax = self.support_.max()
+    self.ax.set_ylim(0, cmax + cmax * 0.1)
+    self.ax.set_ylabel("support")
+
+    # Remove the vertical grid
+    self.ax.grid(False, axis="x")
+    '''
