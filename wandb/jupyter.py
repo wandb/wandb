@@ -105,7 +105,7 @@ def notebook_metadata():
             return {}
         for nn in res:
             # TODO: wandb/client#400 found a case where res returned an array of strings...
-            if isinstance(nn, dict) and nn.get("kernel"):
+            if isinstance(nn, dict) and nn.get("kernel") and 'notebook' in nn:
                 if nn['kernel']['id'] == kernel_id:
                     return {"root": s['notebook_dir'], "path": nn['notebook']['path'], "name": nn['notebook']['name']}
     return {}
