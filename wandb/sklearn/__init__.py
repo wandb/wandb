@@ -528,7 +528,7 @@ def plot_ks_statistic(y_true, y_probas, title='KS Statistic Plot',
     return ax
 
 
-def plot_precision_recall(y_true, y_probas,
+def precision_recall(y_true, y_probas,
                           plot_micro=True,
                           classes_to_plot=None):
     y_true = np.array(y_true)
@@ -590,9 +590,16 @@ def plot_precision_recall(y_true, y_probas,
             columns=['class', 'precision', 'recall'],
             data=data
         )
-    wandb.log({'pr': pr_table(pr_curves)})
+  
 
-    return
+    return pr_table(pr_curves)
+
+def plot_precision_recall(y_true, y_probas,
+                          plot_micro=True,
+                          classes_to_plot=None):
+  wandb.log({'pr':precision_recall(y_true, y_probas,
+                          plot_micro,
+                          classes_to_plot)})
 # { "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
 #   "padding": 5,
 #   "width": 500,
