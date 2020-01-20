@@ -1,7 +1,7 @@
 import pytest
 from sklearn.naive_bayes import MultinomialNB
 import wandb
-from wandb.sklearn import learning_curve, roc
+from wandb.sklearn import learning_curve, roc, confusion_matrix
 
 @pytest.fixture
 def dummy_classifier(request):
@@ -28,3 +28,9 @@ def test_roc(dummy_classifier):
     r = roc(y_test, y_probas)
     
     assert(r.data[0] == [0, 0.0, 1.0])
+
+def test_confusion_matrix(dummy_classifier):
+    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
+    cm = confusion_matrix(y_test, y_pred)
+    assert(len(cm.data)==4)
+    assert(cm.data[0]== [0,0,0])

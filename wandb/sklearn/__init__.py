@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from keras.callbacks import LambdaCallback
 from sklearn import model_selection
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
+from sklearn import metrics
 from sklearn.preprocessing import label_binarize
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import roc_curve
@@ -393,13 +393,13 @@ def plot_roc(y_true, y_probas,
 #   ]
 # }
 
-def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
+def confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
                           pred_labels=None, title=None, normalize=False,
                           hide_zeros=False, hide_counts=False):
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
 
-    cm = confusion_matrix(y_true, y_pred, labels=labels)
+    cm = metrics.confusion_matrix(y_true, y_pred, labels=labels)
     if labels is None:
         classes = unique_labels(y_true, y_pred)
     else:
@@ -439,9 +439,16 @@ def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
             columns=['Predicted', 'Actual', 'Count'],
             data=data
         )
-    wandb.log({'confusion matrix': confusion_matrix_table(cm, pred_classes, true_classes)})
 
-    return
+    return confusion_matrix_table(cm, pred_classes, true_classes)
+
+def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
+                          pred_labels=None, title=None, normalize=False,
+                          hide_zeros=False, hide_counts=False):
+    wandb.log({'confusion matrix': confusion_matrix(y_true, y_pred, labels, true_labels,
+                          pred_labels, title, normalize,
+                          hide_zeros, hide_counts)})
+
 
 # {
 #   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
