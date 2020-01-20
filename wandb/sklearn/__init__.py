@@ -7,7 +7,7 @@ import scipy as sp
 import scikitplot
 import matplotlib.pyplot as plt
 from keras.callbacks import LambdaCallback
-from sklearn.model_selection import learning_curve
+from sklearn import model_selection
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import label_binarize
@@ -140,21 +140,13 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
     if len(regressor_table.data) > 0:
         wandb.log({"regressor_scores": regressor_table}, commit=False)
 
-def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
+def learning_curve(clf, X, y, title='Learning Curve', cv=None,
                         shuffle=False, random_state=None,
-                        train_sizes=None, n_jobs=1, scoring=None,
-                        ax=None, figsize=None, title_fontsize="large",
-                        text_fontsize="medium"):
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-
+                        train_sizes=None, n_jobs=1, scoring=None):
     if train_sizes is None:
         train_sizes = np.linspace(.1, 1.0, 5)
 
-    ax.set_title(title, fontsize=title_fontsize)
-    ax.set_xlabel("Training examples", fontsize=text_fontsize)
-    ax.set_ylabel("Score", fontsize=text_fontsize)
-    train_sizes, train_scores, test_scores = learning_curve(
+    train_sizes, train_scores, test_scores = model_selection.learning_curve(
         clf, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes,
         scoring=scoring, shuffle=shuffle, random_state=random_state)
     train_scores_mean = np.mean(train_scores, axis=1)
@@ -173,96 +165,106 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
             columns=['dataset', 'score', 'train_size'],
             data=data
         )
-#     l2k2/sklearn_learningcurve
 
-#     {
-#   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-#   "padding": 5,
-#   "width": "500",
-#   "height": "500",
-#   "data":
-#     {
-#       "name": "${history-table:rows:x-axis,key}"
-#     },
-#   "title": {
-#     "text": "Learning Curve"
-#   },"layer": [
-#     {
-#       "encoding": {
-#         "x": {"field": "train_size", "type": "quantitative"},
-#         "y": {"field": "score", "type": "quantitative"},
-#         "color": {"field": "dataset", "type": "nominal"}
-#       },
-#       "layer": [
-#         {"mark": "line"},
-#         {
-#           "selection": {
-#             "label": {
-#               "type": "single",
-#               "nearest": true,
-#               "on": "mouseover",
-#               "encodings": ["x"],
-#               "empty": "none"
-#             }
-#           },
-#           "mark": "point",
-#           "encoding": {
-#             "opacity": {
-#               "condition": {"selection": "label", "value": 1},
-#               "value": 0
-#             }
-#           }
-#         }
-#       ]
-#     },
-#     {
-#       "transform": [{"filter": {"selection": "label"}}],
-#       "layer": [
-#         {
-#           "mark": {"type": "rule", "color": "gray"},
-#           "encoding": {
-#             "x": {"type": "quantitative", "field": "train_size"}
-#           }
-#         },
-#         {
-#           "encoding": {
-#             "text": {"type": "quantitative", "field": "score"},
-#             "x": {"type": "quantitative", "field": "train_size"},
-#             "y": {"type": "quantitative", "field": "score"}
-#           },
-#           "layer": [
-#             {
-#               "mark": {
-#                 "type": "text",
-#                 "stroke": "white",
-#                 "strokeWidth": 2,
-#                 "align": "left",
-#                 "dx": 5,
-#                 "dy": -5
-#               }
-#             },
-#             {
-#               "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
-#               "encoding": {
-#                 "color": {
-#                   "type": "nominal", "field": "dataset", "scale": {
-#                   "domain": ["train", "test"],
-#                   "range": ["#3498DB", "#AB47BC"]
-#                   },
-#                   "legend": {
-#                   "title": " "
-#                   }
-#                 }
-#               }
-#             }
-#           ]
-#         }
-#       ]
-#     }
-#   ]
-# }
-    wandb.log({'learning_curve': learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)})
-    return
+    return learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)
+
+def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
+                        shuffle=False, random_state=None,
+                        train_sizes=None, n_jobs=1, scoring=None):
+  wandb.log({'learning_curve': learning_curve(clf, X, y, title, cv, shuffle, 
+      random_state, train_sizes, n_jobs, scoring)})
+
+
+'''
+    l2k2/sklearn_learningcurve
+
+    {
+  "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+  "padding": 5,
+  "width": "500",
+  "height": "500",
+  "data":
+    {
+      "name": "${history-table:rows:x-axis,key}"
+    },
+  "title": {
+    "text": "Learning Curve"
+  },"layer": [
+    {
+      "encoding": {
+        "x": {"field": "train_size", "type": "quantitative"},
+        "y": {"field": "score", "type": "quantitative"},
+        "color": {"field": "dataset", "type": "nominal"}
+      },
+      "layer": [
+        {"mark": "line"},
+        {
+          "selection": {
+            "label": {
+              "type": "single",
+              "nearest": true,
+              "on": "mouseover",
+              "encodings": ["x"],
+              "empty": "none"
+            }
+          },
+          "mark": "point",
+          "encoding": {
+            "opacity": {
+              "condition": {"selection": "label", "value": 1},
+              "value": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "transform": [{"filter": {"selection": "label"}}],
+      "layer": [
+        {
+          "mark": {"type": "rule", "color": "gray"},
+          "encoding": {
+            "x": {"type": "quantitative", "field": "train_size"}
+          }
+        },
+        {
+          "encoding": {
+            "text": {"type": "quantitative", "field": "score"},
+            "x": {"type": "quantitative", "field": "train_size"},
+            "y": {"type": "quantitative", "field": "score"}
+          },
+          "layer": [
+            {
+              "mark": {
+                "type": "text",
+                "stroke": "white",
+                "strokeWidth": 2,
+                "align": "left",
+                "dx": 5,
+                "dy": -5
+              }
+            },
+            {
+              "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
+              "encoding": {
+                "color": {
+                  "type": "nominal", "field": "dataset", "scale": {
+                  "domain": ["train", "test"],
+                  "range": ["#3498DB", "#AB47BC"]
+                  },
+                  "legend": {
+                  "title": " "
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+'''
 
 def plot_roc(y_true, y_probas, title='ROC Curves',
                    plot_micro=True, plot_macro=True, classes_to_plot=None,
