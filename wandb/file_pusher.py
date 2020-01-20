@@ -38,17 +38,17 @@ TMP_DIR = tempfile.TemporaryDirectory('wandb')
 
 # This is handled by the batching thread
 UploadRequest = collections.namedtuple(
-    'EventUploadRequest', ('path', 'save_name', 'artifact_id', 'copy'))
+    'EventUploadRequest', ('path', 'save_name', 'artifact_id'))
 
 # These are handled by the event thread
 EventStartUploadJob = collections.namedtuple(
-    'EventStartUploadJob', ('path', 'save_name', 'url', 'copy'))
+    'EventStartUploadJob', ('path', 'save_name', 'url'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
 
 class UploadJob(threading.Thread):
-    def __init__(self, done_queue, progress, api, save_name, path, upload_url, copy=False):
+    def __init__(self, done_queue, progress, api, save_name, path, upload_url):
         """A file upload thread.
 
         Arguments:
@@ -59,11 +59,6 @@ class UploadJob(threading.Thread):
             save_name: string logical location of the file relative to the run
                 directory.
             path: actual string path of the file to upload on the filesystem.
-            copy: (bool) Whether to copy the file before uploading it. Defaults
-                to True because if you try to upload a file while it's being
-                rewritten, it's possible that we'll upload something truncated
-                or corrupt. Our file-uploading rules are generally designed
-                so that that won't happen during normal operation.
         """
         self._done_queue = done_queue
         self._progress = progress
@@ -71,27 +66,12 @@ class UploadJob(threading.Thread):
         self.save_name = save_name
         self.save_path = self.path = path
         self._upload_url = upload_url
-        self.copy = copy
         super(UploadJob, self).__init__()
-
-    def prepare_file(self):
-        if self.copy:
-            self.save_path = os.path.join(TMP_DIR.name, self.save_name)
-            wandb.util.mkdir_exists_ok(os.path.dirname(self.save_path))
-            shutil.copy2(self.path, self.save_path)
-
-    def cleanup_file(self):
-        if self.copy:
-            os.remove(self.save_path)
 
     def run(self):
         try:
-            # wandb.termlog('Uploading file: %s' % self.save_name)
-            self.prepare_file()
             self.push()
-            # wandb.termlog('Done uploading file: %s' % self.save_name)
         finally:
-            self.cleanup_file()
             self._done_queue.put(EventJobDone(self))
 
     def push(self):
@@ -123,26 +103,6 @@ class UploadJob(threading.Thread):
         self._progress[self.save_name]['uploaded'] = total_bytes
 
 
-class FileStats(object):
-    def __init__(self, save_name, file_path):
-        """Tracks file upload progress
-
-        save_name: the file's path in a run. It's an ID of sorts.
-        file_path: the local path.
-        """
-        self._save_name = save_name
-        self._file_path = file_path
-        self.size = 0
-        self.uploaded = 0
-        self.failed = False
-
-    def update_size(self):
-        try:
-            self.size = os.path.getsize(self._file_path)
-        except (OSError, IOError):
-            pass
-
-
 class FilePusher(object):
     """Parallel file upload class.
 
@@ -156,10 +116,10 @@ class FilePusher(object):
     # waiting any longer.
     BATCH_THRESHOLD_SECS = 3
 
-    BATCH_MAX_FILES = 100
+    BATCH_MAX_FILES = 1000
 
 
-    def __init__(self, api, max_jobs=16):
+    def __init__(self, api, max_jobs=64):
         self._file_stats = {}  # stats for all files
         self._progress = {}   # amount uploaded
 
@@ -290,12 +250,13 @@ class FilePusher(object):
                         }
                     else:
                         start_upload_event = EventStartUploadJob(
-                            e.path, e.save_name, response_file['url'], e.copy)
+                            e.path, e.save_name, response_file['url'])
                         self._event_queue.put(start_upload_event)
                 batch = []
 
             # And stop the infinite loop if we've finished
             if finished:
+                self._event_queue.put(EventFinish())
                 break
 
     def _process_event(self, event):
@@ -331,22 +292,17 @@ class FilePusher(object):
         # Start it.
         self._last_job_started_at = time.time()
         job = UploadJob(self._event_queue, self._progress, self._api,
-                        event.save_name, event.path, event.url, event.copy)
+                        event.save_name, event.path, event.url)
         self._running_jobs[event.save_name] = job
         job.start()
 
-    def file_changed(self, save_name, path, artifact_id, copy=True):
+    def file_changed(self, save_name, path, artifact_id):
         """Tell the file pusher that a file's changed and should be uploaded.
 
         Arguments:
             save_name: string logical location of the file relative to the run
                 directory.
             path: actual string path of the file to upload on the filesystem.
-            copy: (bool) Whether to copy the file before uploading it. Defaults
-                to True because if you try to upload a file while it's being
-                rewritten, it's possible that we'll upload something truncated
-                or corrupt. Our file-uploading rules are generally designed
-                so that that won't happen during normal operation.
         """
         # Tests in linux were failing because wandb-events.jsonl didn't exist
         if not os.path.exists(path) or not os.path.isfile(path):
@@ -354,13 +310,12 @@ class FilePusher(object):
         if os.path.getsize(path) == 0:
             return
 
-        event = UploadRequest(path, save_name, artifact_id, copy)
+        event = UploadRequest(path, save_name, artifact_id)
         self._checksum_queue.put(event)
 
 
     def finish(self):
         self._checksum_queue.put(EventFinish())
-        self._event_queue.put(EventFinish())
 
     def shutdown(self):
         self.finish()

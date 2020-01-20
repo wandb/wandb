@@ -607,7 +607,7 @@ class RunManager(object):
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
         ignore_globs = self._api.settings("ignore_globs")
-        for dirpath, _, filenames in os.walk(self._run.dir):
+        for dirpath, _, filenames in os.walk(self._run.dir, followlinks=True):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._run.dir)
