@@ -171,7 +171,7 @@ def learning_curve(clf, X, y, cv=None,
 def plot_learning_curve(clf, X, y, cv=None,
                         shuffle=False, random_state=None,
                         train_sizes=None, n_jobs=1, scoring=None):
-  wandb.log({'learning_curve': learning_curve(clf, X, y, title, cv, shuffle, 
+  wandb.log({'learning_curve': learning_curve(clf, X, y, title, cv, shuffle,
       random_state, train_sizes, n_jobs, scoring)})
 
 
@@ -485,49 +485,6 @@ def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
 #   }
 # }
 
-
-def plot_ks_statistic(y_true, y_probas, title='KS Statistic Plot',
-                      ax=None, figsize=None, title_fontsize="large",
-                      text_fontsize="medium"):
-    # LB Not done
-    y_true = np.array(y_true)
-    y_probas = np.array(y_probas)
-
-    classes = np.unique(y_true)
-    if len(classes) != 2:
-        raise ValueError('Cannot calculate KS statistic for data with '
-                         '{} category/ies'.format(len(classes)))
-    probas = y_probas
-
-    # Compute KS Statistic curves
-    thresholds, pct1, pct2, ks_statistic, \
-        max_distance_at, classes = binary_ks_curve(y_true,
-                                                   probas[:, 1].ravel())
-
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-    ax.set_title(title, fontsize=title_fontsize)
-
-    ax.plot(thresholds, pct1, lw=3, label='Class {}'.format(classes[0]))
-    ax.plot(thresholds, pct2, lw=3, label='Class {}'.format(classes[1]))
-    idx = np.where(thresholds == max_distance_at)[0][0]
-    ax.axvline(max_distance_at, *sorted([pct1[idx], pct2[idx]]),
-               label='KS Statistic: {:.3f} at {:.3f}'.format(ks_statistic,
-                                                             max_distance_at),
-               linestyle=':', lw=3, color='black')
-
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.0])
-
-    ax.set_xlabel('Threshold', fontsize=text_fontsize)
-    ax.set_ylabel('Percentage below threshold', fontsize=text_fontsize)
-    ax.tick_params(labelsize=text_fontsize)
-    ax.legend(loc='lower right', fontsize=text_fontsize)
-
-    return ax
-
-
 def precision_recall(y_true, y_probas,
                           plot_micro=True,
                           classes_to_plot=None):
@@ -590,7 +547,7 @@ def precision_recall(y_true, y_probas,
             columns=['class', 'precision', 'recall'],
             data=data
         )
-  
+
 
     return pr_table(pr_curves)
 
@@ -737,87 +694,6 @@ def plot_silhouette(X, cluster_labels, title='Silhouette Analysis',
 
     ax.tick_params(labelsize=text_fontsize)
     ax.legend(loc='best', fontsize=text_fontsize)
-
-    return ax
-
-def plot_cumulative_gain(y_true, y_probas, title='Cumulative Gains Curve',
-                         ax=None, figsize=None, title_fontsize="large",
-                         text_fontsize="medium"):
-    y_true = np.array(y_true)
-    y_probas = np.array(y_probas)
-
-    classes = np.unique(y_true)
-    if len(classes) != 2:
-        raise ValueError('Cannot calculate Cumulative Gains for data with '
-                         '{} category/ies'.format(len(classes)))
-
-    # Compute Cumulative Gain Curves
-    percentages, gains1 = cumulative_gain_curve(y_true, y_probas[:, 0],
-                                                classes[0])
-    percentages, gains2 = cumulative_gain_curve(y_true, y_probas[:, 1],
-                                                classes[1])
-
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-    ax.set_title(title, fontsize=title_fontsize)
-
-    ax.plot(percentages, gains1, lw=3, label='Class {}'.format(classes[0]))
-    ax.plot(percentages, gains2, lw=3, label='Class {}'.format(classes[1]))
-
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.0])
-
-    ax.plot([0, 1], [0, 1], 'k--', lw=2, label='Baseline')
-
-    ax.set_xlabel('Percentage of sample', fontsize=text_fontsize)
-    ax.set_ylabel('Gain', fontsize=text_fontsize)
-    ax.tick_params(labelsize=text_fontsize)
-    ax.grid('on')
-    ax.legend(loc='lower right', fontsize=text_fontsize)
-
-    return ax
-
-
-def plot_lift_curve(y_true, y_probas, title='Lift Curve',
-                    ax=None, figsize=None, title_fontsize="large",
-                    text_fontsize="medium"):
-    y_true = np.array(y_true)
-    y_probas = np.array(y_probas)
-
-    classes = np.unique(y_true)
-    if len(classes) != 2:
-        raise ValueError('Cannot calculate Lift Curve for data with '
-                         '{} category/ies'.format(len(classes)))
-
-    # Compute Cumulative Gain Curves
-    percentages, gains1 = cumulative_gain_curve(y_true, y_probas[:, 0],
-                                                classes[0])
-    percentages, gains2 = cumulative_gain_curve(y_true, y_probas[:, 1],
-                                                classes[1])
-
-    percentages = percentages[1:]
-    gains1 = gains1[1:]
-    gains2 = gains2[1:]
-
-    gains1 = gains1 / percentages
-    gains2 = gains2 / percentages
-
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-    ax.set_title(title, fontsize=title_fontsize)
-
-    ax.plot(percentages, gains1, lw=3, label='Class {}'.format(classes[0]))
-    ax.plot(percentages, gains2, lw=3, label='Class {}'.format(classes[1]))
-
-    ax.plot([0, 1], [1, 1], 'k--', lw=2, label='Baseline')
-
-    ax.set_xlabel('Percentage of sample', fontsize=text_fontsize)
-    ax.set_ylabel('Lift', fontsize=text_fontsize)
-    ax.tick_params(labelsize=text_fontsize)
-    ax.grid('on')
-    ax.legend(loc='lower right', fontsize=text_fontsize)
 
     return ax
 
