@@ -140,7 +140,7 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
     if len(regressor_table.data) > 0:
         wandb.log({"regressor_scores": regressor_table}, commit=False)
 
-def learning_curve(clf, X, y, title='Learning Curve', cv=None,
+def learning_curve(clf, X, y, cv=None,
                         shuffle=False, random_state=None,
                         train_sizes=None, n_jobs=1, scoring=None):
     if train_sizes is None:
@@ -168,7 +168,7 @@ def learning_curve(clf, X, y, title='Learning Curve', cv=None,
 
     return learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)
 
-def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
+def plot_learning_curve(clf, X, y, cv=None,
                         shuffle=False, random_state=None,
                         train_sizes=None, n_jobs=1, scoring=None):
   wandb.log({'learning_curve': learning_curve(clf, X, y, title, cv, shuffle, 
@@ -266,10 +266,9 @@ def plot_learning_curve(clf, X, y, title='Learning Curve', cv=None,
 }
 '''
 
-def plot_roc(y_true, y_probas, title='ROC Curves',
+def roc(y_true, y_probas,
                    plot_micro=True, plot_macro=True, classes_to_plot=None,
-                   ax=None, figsize=None, cmap='nipy_spectral',
-                   title_fontsize="large", text_fontsize="medium"):
+                   ):
     y_true = np.array(y_true)
     y_probas = np.array(y_probas)
     classes = np.unique(y_true)
@@ -299,9 +298,14 @@ def plot_roc(y_true, y_probas, title='ROC Curves',
             columns=['class', 'fpr', 'tpr'],
             data=data
         )
-    wandb.log({'roc': roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)})
+    return roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)
 
-    return
+def plot_roc(y_true, y_probas,
+                   plot_micro=True, plot_macro=True, classes_to_plot=None,
+                   ):
+  wandb.log({'roc': roc(y_true, y_probas,
+                   plot_micro, plot_macro, classes_to_plot)})
+
 
 #    {
 #   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",

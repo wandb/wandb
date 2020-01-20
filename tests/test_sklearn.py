@@ -1,7 +1,7 @@
 import pytest
 from sklearn.naive_bayes import MultinomialNB
 import wandb
-from wandb.sklearn import learning_curve
+from wandb.sklearn import learning_curve, roc
 
 @pytest.fixture
 def dummy_classifier(request):
@@ -22,3 +22,9 @@ def test_learning_curve(dummy_classifier):
     assert(lc_table.data[0][0] == 'train')
     assert(lc_table.data[1][0] == 'test')
 
+def test_roc(dummy_classifier):
+    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
+    lc_table = learning_curve(nb, x_train, y_train)
+    r = roc(y_test, y_probas)
+    
+    assert(r.data[0] == [0, 0.0, 1.0])
