@@ -180,7 +180,8 @@ class FileEventHandlerThrottledOverwrite(FileEventHandlerWithFilePusher):
         return 0
 
     def finish(self):
-        self.file_pusher_file_changed()
+        if self.current_size != self._last_uploaded_size:
+            self.file_pusher_file_changed()
 
     def save_file(self):
         self._last_uploaded_time = time.time()
