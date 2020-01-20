@@ -720,67 +720,6 @@ def plot_silhouette(X, cluster_labels, title='Silhouette Analysis',
 
     return ax
 
-
-def plot_calibration_curve(y_true, probas_list, clf_names=None, n_bins=10,
-                           title='Calibration plots (Reliability Curves)',
-                           ax=None, figsize=None, cmap='nipy_spectral',
-                           title_fontsize="large", text_fontsize="medium"):
-    y_true = np.asarray(y_true)
-    if not isinstance(probas_list, list):
-        raise ValueError('`probas_list` does not contain a list.')
-
-    classes = np.unique(y_true)
-    if len(classes) > 2:
-        raise ValueError('plot_calibration_curve only '
-                         'works for binary classification')
-
-    if clf_names is None:
-        clf_names = ['Classifier {}'.format(x+1)
-                     for x in range(len(probas_list))]
-
-    if len(clf_names) != len(probas_list):
-        raise ValueError('Length {} of `clf_names` does not match length {} of'
-                         ' `probas_list`'.format(len(clf_names),
-                                                 len(probas_list)))
-
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-    ax.plot([0, 1], [0, 1], "k:", label="Perfectly calibrated")
-
-    for i, probas in enumerate(probas_list):
-        probas = np.asarray(probas)
-        if probas.ndim > 2:
-            raise ValueError('Index {} in probas_list has invalid '
-                             'shape {}'.format(i, probas.shape))
-        if probas.ndim == 2:
-            probas = probas[:, 1]
-
-        if probas.shape != y_true.shape:
-            raise ValueError('Index {} in probas_list has invalid '
-                             'shape {}'.format(i, probas.shape))
-
-        probas = (probas - probas.min()) / (probas.max() - probas.min())
-
-        fraction_of_positives, mean_predicted_value = \
-            calibration_curve(y_true, probas, n_bins=n_bins)
-
-        color = plt.cm.get_cmap(cmap)(float(i) / len(probas_list))
-
-        ax.plot(mean_predicted_value, fraction_of_positives, 's-',
-                label=clf_names[i], color=color)
-
-    ax.set_title(title, fontsize=title_fontsize)
-
-    ax.set_xlabel('Mean predicted value', fontsize=text_fontsize)
-    ax.set_ylabel('Fraction of positives', fontsize=text_fontsize)
-
-    ax.set_ylim([-0.05, 1.05])
-    ax.legend(loc='lower right')
-
-    return ax
-
-
 def plot_cumulative_gain(y_true, y_probas, title='Cumulative Gains Curve',
                          ax=None, figsize=None, title_fontsize="large",
                          text_fontsize="medium"):
@@ -1120,7 +1059,6 @@ def plot_calibration_curve(X, y, estimator, name):
                         prob_pos,
                         bins=10,
                         density=False)
-        print("Len ", len(model_dict))
 
         # format: model, fraction_of_positives, mean_predicted_value
         for i in range(len(fraction_of_positives)):
@@ -1263,7 +1201,8 @@ def plot_outlier_candidates(reg, X, y):
             "type": "quantitative",
             "axis": {"title": "Influence (Cook's Distance)"}
           },
-          "color":  {"value": "#3498DB"}
+          "color":  {"value": "#3498DB"},
+          "opacity":  {"value": 0.4}
         }
       },{
         "mark": {
@@ -1277,6 +1216,13 @@ def plot_outlier_candidates(reg, X, y):
           },
           "color": {"value": "red"},
           "size": {"value": 1}
+        }
+      }, {
+        "mark": {
+          "type": "text",
+          "align": "left",
+          "baseline": "top",
+          "dx": 0
         }
       }]
     }
