@@ -745,6 +745,48 @@ def plot_elbow_curve(clf, X, cluster_ranges=None, n_jobs=1,
         )
     wandb.log({'elbow_curve': elbow_curve(cluster_ranges, clfs, times)})
     return
+    '''
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "description": "A dual axis chart, created by setting y's scale resolution to `\"independent\"`",
+      "width": 400, "height": 300,
+      "data": {
+        "name": "${history-table:rows:x-axis,key}"
+      },
+      "encoding": {
+        "x": {
+            "field": "cluster_ranges",
+            "bin": true,
+            "axis": {"title": "Cluster Ranges"},
+            "type": "quantitative"
+        }
+      },
+      "layer": [
+        {
+          "mark": {"opacity": 0.5, "type": "line", "color": "#AB47BC"},
+          "encoding": {
+            "y": {
+              "field": "errors",
+              "type": "quantitative",
+              "axis": {"title": "Sum of Squared Errors", "titleColor": "#AB47BC"}
+            }
+          }
+        },
+        {
+          "mark": {"opacity": 0.3, "stroke": "#3498DB", "strokeDash": [6, 4], "type": "line"},
+          "encoding": {
+            "y": {
+              "field": "clustering_time",
+              "type": "quantitative",
+              "axis": {"title": "Clustering Time", "titleColor":"#3498DB"}
+            }
+          }
+        }
+      ],
+      "resolve": {"scale": {"y": "independent"}}
+    }
+
+    '''
 
 def plot_silhouette(X, cluster_labels, metric='euclidean'):
     cluster_labels = np.asarray(cluster_labels)
