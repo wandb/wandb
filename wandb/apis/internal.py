@@ -1015,6 +1015,55 @@ class Api(object):
         return response['createArtifactVersion']['artifact']
 
     @normalize_exceptions
+    def prepare_files(self, file_specs, entity=None, project=None, run=None):
+        """TODO
+
+        file_specs: [{name, artifact_id, fingerprint}]
+        """
+        mutation = gql('''
+        mutation PrepareFiles(
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!,
+            $fileSpecs: [JSONString!]!
+        ) {
+            prepareFiles(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                fileSpecs: $fileSpecs
+            }) {
+                files {
+                    edges {
+                        node {
+                            id
+                            name
+                            fingerprint
+                            url(upload: true)
+                        }
+                    }
+                }
+            }
+        }
+        ''')
+        entity_name = entity or self.settings('entity')
+        project_name = project or self.settings('project')
+        run_name = run or self.current_run_id
+
+        response = self.gql(mutation, variable_values={
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+            'fileSpecs': [json.dumps(fs) for fs in file_specs]})
+
+        result = {}
+        for edge in response['prepareFiles']['files']['edges']:
+            node = edge['node']
+            result[node['name']] = node
+
+        return result
+
+    @normalize_exceptions
     def register_agent(self, host, sweep_id=None, project_name=None):
         """Register a new agent
 

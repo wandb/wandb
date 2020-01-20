@@ -352,7 +352,6 @@ class Run(object):
         pusher = FilePusher(api)
         for k in paths:
             path = os.path.abspath(os.path.join(directory, k))
-            pusher.update_file(k, path)
             pusher.file_changed(k, path)
         pusher.finish()
         pusher.print_status()

@@ -1,3 +1,7 @@
+# Potential improvements:
+#   - when add to pending_jobs, we should look and see if we already have a job
+#     for this file, if so, don't bother adding it. We don't need more than
+#     one pending
 import collections
 import os
 import shutil
@@ -6,6 +10,7 @@ import time
 from six.moves import queue
 import warnings
 import tarfile
+import multiprocessing
 
 import wandb
 import wandb.util
@@ -31,16 +36,19 @@ warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'wan
 TMP_DIR = tempfile.TemporaryDirectory('wandb')
 
 
-EventFileBatch = collections.namedtuple(
-    'EventFileBatch', ('batch_id', 'file_changed_events',))
-EventFileChanged = collections.namedtuple(
-    'EventFileChanged', ('path', 'save_name', 'artifact_id', 'copy'))
+# This is handled by the batching thread
+UploadRequest = collections.namedtuple(
+    'EventUploadRequest', ('path', 'save_name', 'artifact_id', 'copy'))
+
+# These are handled by the event thread
+EventStartUploadJob = collections.namedtuple(
+    'EventStartUploadJob', ('path', 'save_name', 'url', 'copy'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
 
 class UploadJob(threading.Thread):
-    def __init__(self, done_queue, progress, api, save_name, path, artifact_id, copy=True):
+    def __init__(self, done_queue, progress, api, save_name, path, upload_url, copy=False):
         """A file upload thread.
 
         Arguments:
@@ -62,10 +70,8 @@ class UploadJob(threading.Thread):
         self._api = api
         self.save_name = save_name
         self.save_path = self.path = path
-        self.artifact_id = artifact_id
+        self._upload_url = upload_url
         self.copy = copy
-        self.needs_restart = False
-        self.label = save_name
         super(UploadJob, self).__init__()
 
     def prepare_file(self):
@@ -94,68 +100,27 @@ class UploadJob(threading.Thread):
         except OSError:
             size = 0
 
-        self._progress[self.label] = {
+        self._progress[self.save_name] = {
+            'deduped': False,
             'total': size,
             'uploaded': 0,
             'failed': False
         }
         try:
             with open(self.save_path, 'rb') as f:
-                self._api.push(
-                    {self.save_name: f},
-                    artifact_id=self.artifact_id,
-                    progress=lambda _, t: self.progress(t))
+                self._api._upload_file_with_progress(
+                    self._upload_url, f, progress=lambda _, t: self.progress(t))
         except Exception as e:
-            self._progress[self.label]['uploaded'] = 0
-            self._progress[self.label]['failed'] = True
+            self._progress[self.save_name]['uploaded'] = 0
+            self._progress[self.save_name]['failed'] = True
             wandb.util.sentry_exc(e)
             wandb.termerror('Error uploading "{}": {}, {}'.format(
                 self.save_name, type(e).__name__, e))
 
     def progress(self, total_bytes):
-        if self.label not in self._progress:
+        if self.save_name not in self._progress:
             return
-        self._progress[self.label]['uploaded'] = total_bytes
-
-    def restart(self):
-        # In the future, this could cancel the current upload and restart it. The logic
-        # should go in FilePusher to avoid raciness (it would call job.cancel(),
-        # and then restart it).
-        self.needs_restart = True
-
-
-class BatchUploadJob(UploadJob):
-    def __init__(self, done_queue, files, api, batch_id, file_changed_events):
-        # Copy all files to a temp dir in the correct structure
-        tgz_path = os.path.join(TMP_DIR.name, 'batch-%s.tgz' % batch_id)
-        # wandb.termlog('Preparing batch: %s' % tgz_path)
-
-        with tarfile.open(tgz_path, 'w:gz') as tar:
-            for event in file_changed_events:
-                try:
-                    tar.add(resolve_path(event.path), arcname=event.save_name)
-                except OSError:
-                    # Retry once, then show an error and continue
-                    time.sleep(0.1)
-                    try:
-                        tar.add(resolve_path(event.path),
-                                arcname=event.save_name)
-                    except OSError:
-                        wandb.termwarn("Failed to add %s to batch archive." %
-                                       event.save_name)
-
-        save_name = '___batch_archive_{}.tgz'.format(batch_id)
-
-        super(BatchUploadJob, self).__init__(done_queue, files, api, save_name,
-                                             tgz_path, None)
-
-        self.label = 'batch_{}'.format(batch_id)
-        self.tgz_path = tgz_path
-
-    def cleanup_file(self):
-        super(BatchUploadJob, self).cleanup_file()
-        # wandb.termlog('Cleaning batch: %s' % self.tgz_path)
-        os.unlink(self.tgz_path)
+        self._progress[self.save_name]['uploaded'] = total_bytes
 
 
 class FileStats(object):
@@ -187,65 +152,40 @@ class FilePusher(object):
     uploads are complete.
     """
 
-    # After 5 seconds of gathering batched uploads, kick off a batch without
+    # After 3 seconds of gathering batched uploads, kick off a batch without
     # waiting any longer.
     BATCH_THRESHOLD_SECS = 3
 
-    # Maximum number of files in any given batch. If there are too many files
-    # it can take too long to unpack -- 500 very small files takes GCP about a
-    # minute.
     BATCH_MAX_FILES = 100
 
-    # If there are fewer than this many files gathered over a batch threshold,
-    # then just upload them individually.
-    BATCH_MIN_FILES = 3
 
-    # If needed you can space out uploads a bit.
-    RATE_LIMIT_SECS = 0.1
-
-    def __init__(self, api, max_jobs=6):
+    def __init__(self, api, max_jobs=16):
         self._file_stats = {}  # stats for all files
         self._progress = {}   # amount uploaded
-        self._batch_num = 1  # incrementing counter for archive filenamess
 
         self._api = api
         self._max_jobs = max_jobs
-        self._batch_queue = queue.Queue()
+        self._checksum_queue = queue.Queue()
         self._event_queue = queue.Queue()
         self._last_job_started_at = 0
         self._finished = False
+
+        # TODO: Bigger is probably better for some workloads
+        self._pool = multiprocessing.Pool(4)
+
+        # Thread for processing events and starting checksum jobs
+        self._checksum_thread = threading.Thread(target=self._checksum_body)
+        self._checksum_thread.daemon = True
+        self._checksum_thread.start()
 
         # Thread for processing events and starting upload jobs
         self._process_thread = threading.Thread(target=self._process_body)
         self._process_thread.daemon = True
         self._process_thread.start()
 
-        # Thread for gathering batches and creating a single upload job.
-        self._batch_thread = threading.Thread(target=self._batch_body)
-        self._batch_thread.daemon = True
-        self._batch_thread.start()
-
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
         self._running_jobs = {}
-        self._pending_events = []
-
-    def update_file(self, save_name, file_path):
-        if save_name not in self._file_stats:
-            self._file_stats[save_name] = FileStats(save_name, file_path)
-        self._file_stats[save_name].update_size()
-
-    def rename_file(self, old_save_name, new_save_name, new_path):
-        """This only updates the name and path we use to track the file's size
-        and upload progress. Doesn't rename it on the back end or make us
-        upload from anywhere else.
-        """
-        if old_save_name in self._file_stats:
-            del self._file_stats[old_save_name]
-        self.update_file(new_save_name, new_path)
-
-    def update_all_files(self):
-        for file_stats in self._file_stats.values():
-            file_stats.update_size()
+        self._pending_jobs = []
 
     def print_status(self):
         step = 0
@@ -255,12 +195,11 @@ class FilePusher(object):
             if not self.is_alive():
                 stop = True
             summary = self.summary()
-            line = ' %.2fMB of %.2fMB uploaded\r' % (
+            line = ' %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r' % (
                 summary['uploaded_bytes'] / 1048576.0,
-                summary['total_bytes'] / 1048576.0)
+                summary['total_bytes'] / 1048576.0,
+                summary['deduped_bytes'] / 1048576.0)
             line = spinner_states[step % 4] + line
-            if summary['failed_batches']:
-                line += ' (%(failed_batches)d failed uploads)'
             step += 1
             wandb.termlog(line, newline=False)
             if stop:
@@ -270,17 +209,14 @@ class FilePusher(object):
         wandb.termlog(' ' * 79)
 
     def files(self):
-        return self._file_stats.keys()
-
-    def stats(self):
-        return self._file_stats
+        return self._progress.keys()
 
     def summary(self):
         progress_values = list(self._progress.values())
         return {
-            'failed_batches': len([f for f in progress_values if f['failed']]),
             'uploaded_bytes': sum(f['uploaded'] for f in progress_values),
-            'total_bytes': sum(f['total'] for f in progress_values)
+            'total_bytes': sum(f['total'] for f in progress_values),
+            'deduped_bytes': sum(f['total'] for f in progress_values if f['deduped'])
         }
 
     def _process_body(self):
@@ -306,11 +242,7 @@ class FilePusher(object):
                 # Queue was empty and no jobs left.
                 break
 
-    def _batch_body(self):
-        # Repeat core loop infinitely until a Finish event is received. Once
-        # we've received a finish event, we can terminate the batch thread
-        # immediately since it's guaranteed no further file change events
-        # will come in.
+    def _checksum_body(self):
         finished = False
         while True:
             batch = []
@@ -320,7 +252,7 @@ class FilePusher(object):
                 # Get the latest event
                 try:
                     wait_secs = batch_end_at - time.time()
-                    event = self._batch_queue.get(timeout=wait_secs)
+                    event = self._checksum_queue.get(timeout=wait_secs)
                 except queue.Empty:
                     # If nothing is available in the batch by the timeout
                     # wrap up and send the current batch immediately.
@@ -334,104 +266,74 @@ class FilePusher(object):
                 batch.append(event)
 
             if batch:
-                if len(batch) <= self.BATCH_MIN_FILES:
-                    # If less than the minimum files are found, just upload
-                    # them individually.
-                    for event in batch:
-                        self._event_queue.put(event)
-                else:
-                    # Otherwise, send all the files as a batch.
-                    new_batch_id = str(self._batch_num)
-                    self._event_queue.put(EventFileBatch(new_batch_id, batch))
-                    self._batch_num += 1
+                paths = [e.path for e in batch]
+                checksums = self._pool.imap(wandb.util.md5_file, paths, chunksize=5)
+
+                file_specs = []
+                for e, checksum in zip(batch, checksums):
+                    file_specs.append({
+                        'name': e.save_name, 'artifact_id': e.artifact_id, 'fingerprint': checksum})
+                result = self._api.prepare_files(file_specs)
+
+                for e, file_spec in zip(batch, file_specs):
+                    response_file = result[e.save_name]
+                    if file_spec['fingerprint'] == response_file['fingerprint']:
+                        try:
+                            size = os.path.getsize(e.path)
+                        except OSError:
+                            size = 0
+                        self._progress[e.save_name] = {
+                            'deduped': True,
+                            'total': size,
+                            'uploaded': size,
+                            'failed': False
+                        }
+                    else:
+                        start_upload_event = EventStartUploadJob(
+                            e.path, e.save_name, response_file['url'], e.copy)
+                        self._event_queue.put(start_upload_event)
+                batch = []
 
             # And stop the infinite loop if we've finished
             if finished:
                 break
 
     def _process_event(self, event):
+        # print('EVENT %s %s' % (len(self._running_jobs), len(self._pending_jobs)))
         if isinstance(event, EventJobDone):
             job = event.job
             job.join()
-            self._running_jobs.pop(job.label)
-            if job.needs_restart:
-                #wandb.termlog('File changed while uploading, restarting: %s' % event.job.save_name)
-                self._start_or_restart_event_job(event)
-            elif self._pending_events:
-                event = self._pending_events.pop()
-                self._start_or_restart_event_job(event)
+            self._running_jobs.pop(job.save_name)
+            # If we have any pending jobs, start one now
+            if self._pending_jobs:
+                event = self._pending_jobs.pop(0)
+                self._start_upload_job(event)
+        elif isinstance(event, EventStartUploadJob):
+            if len(self._running_jobs) == self._max_jobs:
+                self._pending_jobs.append(event)
+            else:
+                self._start_upload_job(event)
+        else:
+            raise Exception('Programming error: unhandled event')
+
+    def _start_upload_job(self, event):
+        if not isinstance(event, EventStartUploadJob):
+            raise Exception('Programming error: invalid event')
+
+        # Operations on a single backend file must be serialized. if
+        # we're already uploading this file, put the event on the
+        # end of the queue
+        if event.save_name in self._running_jobs:
+            self._pending_jobs.append(event)
             return
 
-        # If it gets here, must be a FileChanged or FileBatch event
-        if len(self._running_jobs) == self._max_jobs:
-            self._pending_events.append(event)
-            return
 
-        # Start now if we have capacity
-        self._start_or_restart_event_job(event)
-
-    def _label_for_event(self, event):
-        if isinstance(event, EventFileChanged):
-            return event.save_name
-        if isinstance(event, EventFileBatch):
-            return 'batch_{}'.format(event.batch_id)
-        return None
-
-    def _start_or_restart_event_job(self, event):
-        label = self._label_for_event(event)
-        if not label:
-            return
-
-        # Restart if in running jobs
-        if label in self._running_jobs:
-            self._running_jobs[label].restart()
-            return
-
-        # Rate limit if it's too fast to prevent overloading the server
-        elapsed_since_last = time.time() - self._last_job_started_at
-        if elapsed_since_last < self.RATE_LIMIT_SECS:
-            time.sleep(self.RATE_LIMIT_SECS - elapsed_since_last)
-            self._start_or_restart_event_job(event)
-            return
-
-        # Or start
+        # Start it.
         self._last_job_started_at = time.time()
-        self._running_jobs[label] = self._start_event_job(label, event)
-
-    def _start_event_job(self, label, event):
-        if isinstance(event, EventFileChanged):
-            return self._start_single_job(event.save_name, event.path,
-                                          event.artifact_id, event.copy)
-
-        if isinstance(event, EventFileBatch):
-            return self._start_batch_job(event.batch_id,
-                                         event.file_changed_events)
-
-    def _start_single_job(self, save_name, path, artifact_id, copy):
-        # wandb.termlog("Starting individual upload: %s" % save_name)
-        job = UploadJob(self._event_queue, self._progress, self._api, save_name, path, artifact_id, copy)
+        job = UploadJob(self._event_queue, self._progress, self._api,
+                        event.save_name, event.path, event.url, event.copy)
+        self._running_jobs[event.save_name] = job
         job.start()
-        return job
-
-    def _start_batch_job(self, batch_id, file_changed_events):
-        # wandb.termlog("Starting batch %s (%d files)" % (batch_id,
-        #     len(file_changed_events)))
-        job = BatchUploadJob(self._event_queue, self._progress, self._api,
-                             batch_id, file_changed_events)
-        job.start()
-        return job
-
-    def should_batch(self, file_change_event):
-        """
-        Whether a file gets batched depends on file size. Anything above
-        1MB should be handled individually.
-        """
-        # TODO(artifacts): we disable batching on artifacts for now.
-        # To fix this, it seems the best solution is to store the artifact ID
-        # as a pax key/value attribute in the tar archive. Then when the backend
-        # unpacks it, it can do the artifact association.
-        return False
-        return file_change_event.artifact_id is None and os.path.getsize(file_change_event.path) < 1000000
 
     def file_changed(self, save_name, path, artifact_id, copy=True):
         """Tell the file pusher that a file's changed and should be uploaded.
@@ -447,26 +349,23 @@ class FilePusher(object):
                 so that that won't happen during normal operation.
         """
         # Tests in linux were failing because wandb-events.jsonl didn't exist
-        if not os.path.exists(path):
+        if not os.path.exists(path) or not os.path.isfile(path):
             return
         if os.path.getsize(path) == 0:
             return
 
-        event = EventFileChanged(path, save_name, artifact_id, copy)
+        event = UploadRequest(path, save_name, artifact_id, copy)
+        self._checksum_queue.put(event)
 
-        if self.should_batch(event):
-            self._batch_queue.put(event)
-        else:
-            self._event_queue.put(event)
 
     def finish(self):
+        self._checksum_queue.put(EventFinish())
         self._event_queue.put(EventFinish())
-        self._batch_queue.put(EventFinish())
 
     def shutdown(self):
         self.finish()
-        self._batch_thread.join()
+        self._checksum_thread.join()
         self._process_thread.join()
 
     def is_alive(self):
-        return self._process_thread.is_alive() or self._batch_thread.is_alive()
+        return self._checksum_thread.is_alive() or self._process_thread.is_alive()

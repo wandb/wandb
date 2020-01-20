@@ -604,31 +604,6 @@ class RunManager(object):
         self._unblock_file_observer()
 
     def _end_file_syncing(self, exitcode):
-        try:
-            # avoid hanging if we crashed before the observer was started
-            if self._file_observer.is_alive():
-                # rather unfortunatly we need to manually do a final scan of the dir
-                # with `queue_events`, then iterate through all events before stopping
-                # the observer to catch all files written.  First we need to prevent the
-                # existing thread from consuming our final events, then we process each one.
-                self._file_observer._timeout = 0
-                self._file_observer._stopped_event.set()
-                self._file_observer.join()
-                self.emitter.queue_events(0)
-                while True:
-                    try:
-                        self._file_observer.dispatch_events(self._file_observer.event_queue, 0)
-                    except queue.Empty:
-                        break
-                # Calling stop unschedules any inflight events so we manually handled them above 
-                self._file_observer.stop()
-        # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
-        except TypeError:
-            pass
-        # TODO: py3 SystemError: <built-in function stop> returned a result with an error set
-        except SystemError:
-            pass
-
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
         ignore_globs = self._api.settings("ignore_globs")
@@ -699,7 +674,6 @@ class RunManager(object):
         file_path: the file's actual path
         save_name: its path relative to the run directory (aka the watch directory)
         """
-        self._file_pusher.update_file(save_name, file_path)  # track upload progress
 
         if save_name not in self._file_event_handlers:
             if save_name == 'wandb-history.jsonl':
@@ -1425,7 +1399,6 @@ class RunManager(object):
         else:
             wandb.termlog('Syncing {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
 
-        self._file_pusher.update_all_files()
         self._file_pusher.print_status()
 
         try:
