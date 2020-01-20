@@ -1,11 +1,14 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import wandb
+import time
 import itertools
 import sklearn
 import numpy as np
 import scipy as sp
 import scikitplot
 import matplotlib.pyplot as plt
+from sklearn.base import clone
+from joblib import Parallel, delayed
 from keras.callbacks import LambdaCallback
 from sklearn import model_selection
 from sklearn.model_selection import train_test_split
@@ -131,7 +134,7 @@ def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
                 fig = plt.figure()
                 ax = plt.axes()
                 # Silhouette plot
-                scikitplot.metrics.plot_silhouette(X, cluster_labels, ax=ax)
+                plot_silhouette(X, cluster_labels)
                 wandb.log({prefix("silhouette"): fig}, commit=False)
         counter += 1
 
@@ -171,7 +174,7 @@ def learning_curve(clf, X, y, cv=None,
 def plot_learning_curve(clf, X, y, cv=None,
                         shuffle=False, random_state=None,
                         train_sizes=None, n_jobs=1, scoring=None):
-  wandb.log({'learning_curve': learning_curve(clf, X, y, title, cv, shuffle,
+  wandb.log({'learning_curve': learning_curve(clf, X, y, cv, shuffle,
       random_state, train_sizes, n_jobs, scoring)})
 
 
@@ -636,67 +639,6 @@ def plot_precision_recall(y_true, y_probas,
 #   ]
 # }
 
-
-def plot_silhouette(X, cluster_labels, title='Silhouette Analysis',
-                    metric='euclidean', copy=True, ax=None, figsize=None,
-                    cmap='nipy_spectral', title_fontsize="large",
-                    text_fontsize="medium"):
-    cluster_labels = np.asarray(cluster_labels)
-
-    le = LabelEncoder()
-    cluster_labels_encoded = le.fit_transform(cluster_labels)
-
-    n_clusters = len(np.unique(cluster_labels))
-
-    silhouette_avg = silhouette_score(X, cluster_labels, metric=metric)
-
-    sample_silhouette_values = silhouette_samples(X, cluster_labels,
-                                                  metric=metric)
-
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-    ax.set_title(title, fontsize=title_fontsize)
-    ax.set_xlim([-0.1, 1])
-
-    ax.set_ylim([0, len(X) + (n_clusters + 1) * 10 + 10])
-
-    ax.set_xlabel('Silhouette coefficient values', fontsize=text_fontsize)
-    ax.set_ylabel('Cluster label', fontsize=text_fontsize)
-
-    y_lower = 10
-
-    for i in range(n_clusters):
-        ith_cluster_silhouette_values = sample_silhouette_values[
-            cluster_labels_encoded == i]
-
-        ith_cluster_silhouette_values.sort()
-
-        size_cluster_i = ith_cluster_silhouette_values.shape[0]
-        y_upper = y_lower + size_cluster_i
-
-        color = plt.cm.get_cmap(cmap)(float(i) / n_clusters)
-
-        ax.fill_betweenx(np.arange(y_lower, y_upper),
-                         0, ith_cluster_silhouette_values,
-                         facecolor=color, edgecolor=color, alpha=0.7)
-
-        ax.text(-0.05, y_lower + 0.5 * size_cluster_i, str(le.classes_[i]),
-                fontsize=text_fontsize)
-
-        y_lower = y_upper + 10
-
-    ax.axvline(x=silhouette_avg, color="red", linestyle="--",
-               label='Silhouette score: {0:0.3f}'.format(silhouette_avg))
-
-    ax.set_yticks([])  # Clear the y-axis labels / ticks
-    ax.set_xticks(np.arange(-0.1, 1.0, 0.2))
-
-    ax.tick_params(labelsize=text_fontsize)
-    ax.legend(loc='best', fontsize=text_fontsize)
-
-    return ax
-
 def plot_feature_importances(clf, title='Feature Importance',
                              feature_names=None, max_num_features=20,
                              order='descending', x_tick_rotation=0, ax=None,
@@ -757,9 +699,8 @@ def plot_feature_importances(clf, title='Feature Importance',
     ax.tick_params(labelsize=text_fontsize)
     return ax
 
-def plot_elbow_curve(clf, X, title='Elbow Plot', cluster_ranges=None, n_jobs=1,
-                     show_cluster_time=True, ax=None, figsize=None,
-                     title_fontsize="large", text_fontsize="medium"):
+def plot_elbow_curve(clf, X, cluster_ranges=None, n_jobs=1,
+                    show_cluster_time=True):
     if cluster_ranges is None:
         cluster_ranges = range(1, 12, 2)
     else:
@@ -773,27 +714,94 @@ def plot_elbow_curve(clf, X, title='Elbow Plot', cluster_ranges=None, n_jobs=1,
                                      (clf, X, i) for i in cluster_ranges)
     clfs, times = zip(*tuples)
 
+    clfs = np.absolute(clfs)
+
+    # Elbow curve
+    # ax.plot(cluster_ranges, np.absolute(clfs), 'b*-')
+
+    # Cluster time
+    # ax2.plot(cluster_ranges, times, ':', alpha=0.75, color=ax2_color)
+
+    # format:
+    # cluster_ranges - x axis
+    # errors = clfs - y axis
+    # clustering_time = times - y axis2
+
+    def elbow_curve(cluster_ranges, clfs, times):
+        cluster_ranges_dict = []
+        clfs_dict = []
+        times_dict = []
+        for i in range(len(cluster_ranges)):
+            # add class counts from training set
+            cluster_ranges_dict.append(cluster_ranges[i])
+            clfs_dict.append(clfs[i])
+            times_dict.append(times[i])
+
+        return wandb.Table(
+            columns=['cluster_ranges', 'errors', 'clustering_time'],
+            data=[
+                [cluster_ranges_dict[i], clfs_dict[i], times_dict[i]] for i in range(len(cluster_ranges))
+            ]
+        )
+    wandb.log({'elbow_curve': elbow_curve(cluster_ranges, clfs, times)})
+    return
+
+def plot_silhouette(X, cluster_labels, metric='euclidean'):
+    cluster_labels = np.asarray(cluster_labels)
+
+    le = LabelEncoder()
+    cluster_labels_encoded = le.fit_transform(cluster_labels)
+
+    n_clusters = len(np.unique(cluster_labels))
+
+    silhouette_avg = silhouette_score(X, cluster_labels, metric=metric)
+
+    sample_silhouette_values = silhouette_samples(X, cluster_labels,
+                                                  metric=metric)
+
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=figsize)
 
     ax.set_title(title, fontsize=title_fontsize)
-    ax.plot(cluster_ranges, np.absolute(clfs), 'b*-')
-    ax.grid(True)
-    ax.set_xlabel('Number of clusters', fontsize=text_fontsize)
-    ax.set_ylabel('Sum of Squared Errors', fontsize=text_fontsize)
-    ax.tick_params(labelsize=text_fontsize)
+    ax.set_xlim([-0.1, 1])
 
-    if show_cluster_time:
-        ax2_color = 'green'
-        ax2 = ax.twinx()
-        ax2.plot(cluster_ranges, times, ':', alpha=0.75, color=ax2_color)
-        ax2.set_ylabel('Clustering duration (seconds)',
-                       color=ax2_color, alpha=0.75,
-                       fontsize=text_fontsize)
-        ax2.tick_params(colors=ax2_color, labelsize=text_fontsize)
+    ax.set_ylim([0, len(X) + (n_clusters + 1) * 10 + 10])
+
+    ax.set_xlabel('Silhouette coefficient values', fontsize=text_fontsize)
+    ax.set_ylabel('Cluster label', fontsize=text_fontsize)
+
+    y_lower = 10
+
+    for i in range(n_clusters):
+        ith_cluster_silhouette_values = sample_silhouette_values[
+            cluster_labels_encoded == i]
+
+        ith_cluster_silhouette_values.sort()
+
+        size_cluster_i = ith_cluster_silhouette_values.shape[0]
+        y_upper = y_lower + size_cluster_i
+
+        color = plt.cm.get_cmap(cmap)(float(i) / n_clusters)
+
+        ax.fill_betweenx(np.arange(y_lower, y_upper),
+                         0, ith_cluster_silhouette_values,
+                         facecolor=color, edgecolor=color, alpha=0.7)
+
+        ax.text(-0.05, y_lower + 0.5 * size_cluster_i, str(le.classes_[i]),
+                fontsize=text_fontsize)
+
+        y_lower = y_upper + 10
+
+    ax.axvline(x=silhouette_avg, color="red", linestyle="--",
+               label='Silhouette score: {0:0.3f}'.format(silhouette_avg))
+
+    ax.set_yticks([])  # Clear the y-axis labels / ticks
+    ax.set_xticks(np.arange(-0.1, 1.0, 0.2))
+
+    ax.tick_params(labelsize=text_fontsize)
+    ax.legend(loc='best', fontsize=text_fontsize)
 
     return ax
-
 
 def _clone_and_score_clusterer(clf, X, n_clusters):
     start = time.time()
