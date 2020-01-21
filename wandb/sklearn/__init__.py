@@ -40,113 +40,78 @@ counter = 1
 
 def round_3(n):
     return round(n, 3)
+def round_2(n):
+    return round(n, 2)
 
+def metrics(estimator, X=None, y=None, X_test=None, y_test=None):
+    if X_test is not None and y_test is not None:
+        metric_name=[]
+        metric_value=[]
+        model_name = estimator.__class__.__name__
 
-def log(*estimators, X=None, y=None, X_test=None, y_test=None, labels=None):
-    global counter
-
-    classifier_columns = ["name", "accuracy_score", "precision", "recall", "f1_score"]
-    classifier_table = wandb.Table(classifier_columns)
-
-    regressor_columns = ["mame", "mae", "mse", "r2_score"]
-    regressor_table = wandb.Table(regressor_columns)
-
-    for estimator in estimators:
-        name = estimator.__class__.__name__ + "_" + str(counter)
-
-        def prefix(s):
-            return name + "_" + s
-
-        for v in vars(estimator):
-            if isinstance(getattr(estimator, v), str) \
-                or isinstance(getattr(estimator, v), bool) \
-                    or isinstance(getattr(estimator, v), int) \
-                    or isinstance(getattr(estimator, v), float):
-                wandb.config[prefix(v)] = getattr(estimator, v)
-
+        # Classifier Metrics
         if sklearn.base.is_classifier(estimator):
-            if X is not None and y is not None:
-                fig = plt.figure()
-                ax = plt.axes()
-                # Learning Curve
-                plot_learning_curve(estimator, X, y)
+            y_pred = estimator.predict(X_test)
+            y_probas = estimator.predict_proba(X_test)
 
-                # scores["auc"] = sklearn.metrics.auc(X, y)
-            if X_test is not None and y_test is not None:
-                y_pred = estimator.predict(X_test)
-                y_probas = estimator.predict_proba(X_test)
+            metric_name.append("accuracy_score")
+            metric_value.append(round_2(sklearn.metrics.accuracy_score(y_test, y_pred)))
+            metric_name.append("precision")
+            metric_value.append(round_2(sklearn.metrics.precision_score(y_test, y_pred, average="weighted")))
+            metric_name.append("recall")
+            metric_value.append(round_2(sklearn.metrics.recall_score(y_test, y_pred, average="weighted")))
+            metric_name.append("f1_score")
+            metric_value.append(round_2(sklearn.metrics.f1_score(y_test, y_pred, average="weighted")))
 
-                # ROC Curve
-                fig = plt.figure()
-                ax = plt.axes()
-                plot_roc(y_test, y_probas)
-
-                # Confusion Matrix
-                fig = plt.figure()
-                ax = plt.axes()
-                scikitplot.metrics.plot_confusion_matrix(y_test, y_pred, ax=ax)
-                wandb.log({prefix("confusion_matrix"): fig}, commit=False)
-
-                # Table with precision, recall, f1, accuracy and other scores
-                classifier_table.add_data(
-                    name,
-                    round_3(sklearn.metrics.accuracy_score(y_test, y_pred)),
-                    round_3(sklearn.metrics.precision_score(y_test, y_pred, average="weighted")),
-                    round_3(sklearn.metrics.recall_score(y_test, y_pred, average="weighted")),
-                    round_3(sklearn.metrics.f1_score(y_test, y_pred, average="weighted"))
-                )
-
-                # Class Balance Plot
-                plot_class_balance(y, y_test, labels)
-
-            # Feature Importances
-            if labels is not None:
-                fig = plt.figure()
-                ax = plt.axes()
-                scikitplot.estimators.plot_feature_importances(estimator, feature_names=labels, ax=ax)
-                wandb.log({prefix("feature_importances"): fig}, commit=False)
+        # Regression Metrics
         elif sklearn.base.is_regressor(estimator):
-            if X is not None and y is not None:
-                fig = plt.figure()
-                ax = plt.axes()
-                # Learning Curve
-                plot_learning_curve(estimator, X, y)
+            y_pred = estimator.predict(X_test)
 
-            if X_test is not None and y_test is not None:
-                y_pred = estimator.predict(X_test)
+            metric_name.append("mae")
+            metric_value.append(round_2(sklearn.metrics.mean_absolute_error(y_test, y_pred)))
+            metric_name.append("mse")
+            metric_value.append(round_2(sklearn.metrics.mean_squared_error(y_test, y_pred)))
+            metric_name.append("r2_score")
+            metric_value.append(round_2(sklearn.metrics.r2_score(y_test, y_pred)))
 
-                # Table with MAE, MSE and R2
-                mae = sklearn.metrics.mean_absolute_error(y_test, y_pred)
-                mse = sklearn.metrics.mean_squared_error(y_test, y_pred)
-                r2 = sklearn.metrics.r2_score(y_test, y_pred)
+        return wandb.Table(
+            columns=['metric_name', 'metric_value', 'model_name'],
+            data= [
+                [metric_name[i], metric_value[i], model_name] for i in range(len(metric_name))
+            ]
+        )
+    '''
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "data": {
+        "name": "${history-table:rows:x-axis,key}"
+      },
+      "encoding": {
+        "y": {"field": "metric_name", "type": "nominal"},
+        "x": {"field": "metric_value", "type": "quantitative"},
+        "color": {"field": "metric_name", "type": "nominal",
+        "scale": {
+          "range": ["#AB47BC", "#3498DB", "#5C6BC0", "#FBC02D", "#3F51B5"]
+        }}
+      },
+      "layer": [{
+        "mark": "bar"
+      }, {
+        "mark": {
+          "type": "text",
+          "align": "left",
+          "baseline": "middle",
+          "dx": 3
+        },
+        "encoding": {
+          "text": {"field": "metric_value", "type": "quantitative"}
+        }
+      }]
+    }
+    '''
 
-                regressor_table.add_data(
-                    name,
-                    round_3(mae),
-                    round_3(mse),
-                    round_3(r2)
-                )
-        elif getattr(estimator, "_estimator_type", None) == "clusterer":
-            if X is not None:
-                fig = plt.figure()
-                ax = plt.axes()
-                # Elbow curve
-                scikitplot.cluster.plot_elbow_curve(estimator, X, ax=ax)
-                wandb.log({prefix("elbow_curve"): fig}, commit=False)
-
-                cluster_labels = estimator.fit_predict(X)
-
-                fig = plt.figure()
-                ax = plt.axes()
-                # Silhouette plot
-                plot_silhouette(X, cluster_labels)
-                wandb.log({prefix("silhouette"): fig}, commit=False)
-        counter += 1
-
-    if len(classifier_table.data) > 0:
-        wandb.log({"classifier_scores": classifier_table}, commit=False)
-    if len(regressor_table.data) > 0:
-        wandb.log({"regressor_scores": regressor_table}, commit=False)
+def plot_metrics(estimator, X=None, y=None, X_test=None, y_test=None):
+    wandb.log({'metrics': metrics(estimator, X, y, X_test, y_test)})
 
 def learning_curve(clf, X, y, cv=None,
                         shuffle=False, random_state=None,
