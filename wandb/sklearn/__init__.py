@@ -6,6 +6,7 @@ import sklearn
 import numpy as np
 import scipy as sp
 import scikitplot
+from wandb.sklearn.utils import *
 import matplotlib.pyplot as plt
 from sklearn.base import clone
 from joblib import Parallel, delayed
@@ -23,6 +24,7 @@ from sklearn.metrics import (brier_score_loss, precision_score, recall_score, f1
 from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics import silhouette_score
 from sklearn.metrics import silhouette_samples
+from sklearn.manifold import MDS, TSNE
 from sklearn.calibration import calibration_curve
 from sklearn.utils.multiclass import unique_labels, type_of_target
 from sklearn import datasets
@@ -30,6 +32,9 @@ from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+from warnings import simplefilter
+# ignore all future warnings
+simplefilter(action='ignore', category=FutureWarning)
 
 counter = 1
 
@@ -710,6 +715,12 @@ def plot_elbow_curve(clf, X, cluster_ranges=None, n_jobs=1,
         raise TypeError('"n_clusters" attribute not in classifier. '
                         'Cannot plot elbow method.')
 
+    def _clone_and_score_clusterer(clf, X, n_clusters):
+        start = time.time()
+        clf = clone(clf)
+        setattr(clf, 'n_clusters', n_clusters)
+        return clf.fit(X).score(X), time.time() - start
+
     tuples = Parallel(n_jobs=n_jobs)(delayed(_clone_and_score_clusterer)
                                      (clf, X, i) for i in cluster_ranges)
     clfs, times = zip(*tuples)
@@ -779,81 +790,77 @@ def plot_elbow_curve(clf, X, cluster_ranges=None, n_jobs=1,
     }
     '''
 
-def plot_silhouette(clusterer, X, cluster_labels, cluster_ranges=None,
-                    metric='euclidean'):
-    if cluster_ranges is None:
-        cluster_ranges = range(2, 10, 2)
-    else:
-        cluster_ranges = sorted(cluster_ranges)
-
+def plot_silhouette(clusterer, X, cluster_labels, metric='euclidean'):
     if not hasattr(clusterer, 'n_clusters'):
         raise TypeError('"n_clusters" attribute not in classifier. '
                         'Cannot plot elbow method.')
 
-    for n_clusters in cluster_ranges:
-        # Run clusterer for n_clusters in range(len(cluster_ranges), get cluster labels
-        clusterer.set_params(n_clusters=n_clusters, random_state=42)
-        cluster_labels = clusterer.fit_predict(X)
-        cluster_labels = np.asarray(cluster_labels)
+    # Run clusterer for n_clusters in range(len(cluster_ranges), get cluster labels
+    # TODO - keep/delete once we decide if we should train clusterers
+    # or ask for trained models
+    # clusterer.set_params(n_clusters=n_clusters, random_state=42)
+    # cluster_labels = clusterer.fit_predict(X)
+    cluster_labels = np.asarray(cluster_labels)
 
-        le = LabelEncoder()
-        cluster_labels_encoded = le.fit_transform(cluster_labels)
+    le = LabelEncoder()
+    cluster_labels_encoded = le.fit_transform(cluster_labels)
+    n_clusters = len(np.unique(cluster_labels))
 
-        # The silhouette_score gives the average value for all the samples.
-        # This gives a perspective into the density and separation of the formed
-        # clusters
-        silhouette_avg = silhouette_score(X, cluster_labels, metric=metric)
+    # The silhouette_score gives the average value for all the samples.
+    # This gives a perspective into the density and separation of the formed
+    # clusters
+    silhouette_avg = silhouette_score(X, cluster_labels, metric=metric)
 
-        # Compute the silhouette scores for each sample
-        sample_silhouette_values = silhouette_samples(X, cluster_labels,
-                                                      metric=metric)
+    # Compute the silhouette scores for each sample
+    sample_silhouette_values = silhouette_samples(X, cluster_labels,
+                                                  metric=metric)
 
-        # Plot 1: Scatter Plot showing the actual clusters formed
-        centers = clusterer.cluster_centers_
+    # Plot 1: Scatter Plot showing the actual clusters formed
+    centers = clusterer.cluster_centers_
 
-        # Plot 2: Silhouette Score
-        # y = np.arange(y_lower, y_upper)[]
-        # x1 = 0
-        # x2 = ith_cluster_silhouette_values[]
-        # color = le.classes_[n_clusters]
-        # rule_line = silhouette_avg
+    # Plot 2: Silhouette Score
+    # y = np.arange(y_lower, y_upper)[]
+    # x1 = 0
+    # x2 = ith_cluster_silhouette_values[]
+    # color = le.classes_[n_clusters]
+    # rule_line = silhouette_avg
 
-        y_sil = []
-        x_sil = []
-        color_sil = []
+    y_sil = []
+    x_sil = []
+    color_sil = []
 
-        y_lower = 10
-        for i in range(n_clusters):
-            # Aggregate the silhouette scores for samples belonging to
-            # cluster i, and sort them
-            ith_cluster_silhouette_values = \
-                sample_silhouette_values[cluster_labels == i]
+    y_lower = 10
+    for i in range(n_clusters):
+        # Aggregate the silhouette scores for samples belonging to
+        # cluster i, and sort them
+        ith_cluster_silhouette_values = \
+            sample_silhouette_values[cluster_labels == i]
 
-            ith_cluster_silhouette_values.sort()
+        ith_cluster_silhouette_values.sort()
 
-            size_cluster_i = ith_cluster_silhouette_values.shape[0]
-            y_upper = y_lower + size_cluster_i
+        size_cluster_i = ith_cluster_silhouette_values.shape[0]
+        y_upper = y_lower + size_cluster_i
 
-            y_values = np.arange(y_lower, y_upper)
+        y_values = np.arange(y_lower, y_upper)
 
-            for j in range(len(y_values)):
-                y_sil.append(y_values[j])
-                x_sil.append(ith_cluster_silhouette_values[j])
-                color_sil.append(i)
+        for j in range(len(y_values)):
+            y_sil.append(y_values[j])
+            x_sil.append(ith_cluster_silhouette_values[j])
+            color_sil.append(i)
 
-            # Compute the new y_lower for next plot
-            y_lower = y_upper + 10  # 10 for the 0 samples
-        def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
-            return wandb.Table(
-                columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
-                data=[
-                    [x[i], y[i], colors[i], centerx[colors[i]], centery[colors[i]],
-                    y_sil[i], 0, x_sil[i], color_sil[i], silhouette_avg]
-                    for i in range(len(colors))
-                ]
-            )
-        wandb_key = 'silhouette_'+str(n_clusters)+"_clusters"
-        wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels_encoded, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg)})
+        # Compute the new y_lower for next plot
+        y_lower = y_upper + 10  # 10 for the 0 samples
+    def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
+        return wandb.Table(
+            columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
+            data=[
+                [x[i], y[i], colors[i], centerx[colors[i]], centery[colors[i]],
+                y_sil[i], 0, x_sil[i], color_sil[i], silhouette_avg]
+                for i in range(len(colors))
+            ]
+        )
+    wandb_key = 'silhouette_'+str(n_clusters)+"_clusters"
+    wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels_encoded, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg)})
     return
     '''
     {
@@ -880,7 +887,7 @@ def plot_silhouette(clusterer, X, cluster_labels, cluster_ranges=None,
             "title": "Cluster Label",
             "field": "y_sil",
             "type": "quantitative",
-          "axis": {"title":"Clusters"}
+          "axis": {"title":"Clusters", "labels": false}
           },
           "color": {
             "field": "color_sil",
@@ -935,13 +942,6 @@ def plot_silhouette(clusterer, X, cluster_labels, cluster_ranges=None,
     }
     '''
 
-def _clone_and_score_clusterer(clf, X, n_clusters):
-    start = time.time()
-    clf = clone(clf)
-    setattr(clf, 'n_clusters', n_clusters)
-    return clf.fit(X).score(X), time.time() - start
-
-## -------------- YB Plots Start Here ------------
 def plot_class_balance(y_train, y_test=None):
     # Get the unique values from the dataset
     y_train = np.array(y_train)
@@ -1358,6 +1358,69 @@ def plot_residuals(model, X, y):
             }
           }
         }
+        }
+      ]
+    }
+    '''
+
+def plot_decision_boundaries(model, X, y):
+    # plot high-dimensional decision boundary
+    db = DBPlot(model)
+    db.fit(X, y)
+    decision_boundary_x, decision_boundary_y, decision_boundary_color, train_x, train_y, train_color, test_x, test_y, test_color = db.plot()
+
+    def decision_boundaries(decision_boundary_x, decision_boundary_y,
+                            decision_boundary_color, train_x, train_y,
+                            train_color, test_x, test_y, test_color):
+        x_dict = []
+        y_dict = []
+        color_dict = []
+        shape_dict = []
+        for i in range(min(len(decision_boundary_x),80)):
+            x_dict.append(decision_boundary_x[i])
+            y_dict.append(decision_boundary_y[i])
+            color_dict.append(decision_boundary_color)
+        for i in range(20):
+            x_dict.append(test_x[i])
+            y_dict.append(test_y[i])
+            color_dict.append(test_color[i])
+        for i in range(len(train_x)):
+            x_dict.append(train_x[i])
+            y_dict.append(train_y[i])
+            color_dict.append(train_color[i])
+
+        return wandb.Table(
+            columns=['x', 'y', 'color'],
+            data=[
+                [x_dict[i], y_dict[i], color_dict[i]] for i in range(len(x_dict))
+            ]
+        )
+    wandb.log({'decision_boundaries': decision_boundaries(decision_boundary_x,
+                                decision_boundary_y, decision_boundary_color,
+                                train_x, train_y, train_color, test_x, test_y,
+                                test_color)})
+    '''
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "data": {"name": "${history-table:rows:x-axis,key}"},
+      "title": "Decision Boundary - Projected Into 2D Space",
+      "width": 300,
+      "height": 200,
+      "layer": [
+        {
+          "mark": {"type" :"point", "opacity": 0.5},
+          "encoding": {
+            "x": {"field": "x", "type": "quantitative", "scale": {"zero": false}, "axis": {"title":"Principle Component Dimension 1"}},
+            "y": {"field": "y", "type": "quantitative", "scale": {"zero": false}, "axis": {"title":"Principle Component Dimension 2"}},
+            "color": {
+              "field": "color",
+              "type": "nominal",
+              "axis": {"title":"Cluster Labels"},
+              "scale": {
+                "range": ["#5C6BC0", "#AB47BC", "#4aa3df", "#3498DB", "#55BBBB"]
+              }
+            }
+          }
         }
       ]
     }
