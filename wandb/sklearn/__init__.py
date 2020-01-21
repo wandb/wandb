@@ -86,13 +86,15 @@ def metrics(estimator, X=None, y=None, X_test=None, y_test=None):
       "data": {
         "name": "${history-table:rows:x-axis,key}"
       },
+      "title": "Summary Metrics",
       "encoding": {
         "y": {"field": "metric_name", "type": "nominal"},
         "x": {"field": "metric_value", "type": "quantitative"},
         "color": {"field": "metric_name", "type": "nominal",
         "scale": {
-          "range": ["#AB47BC", "#3498DB", "#5C6BC0", "#FBC02D", "#3F51B5"]
-        }}
+          "range": ["#AB47BC", "#3498DB", "#5C6BC0", "#3F51B5"]
+        }},
+        "opacity": {"value": 0.8}
       },
       "layer": [{
         "mark": "bar"
@@ -610,39 +612,13 @@ def plot_precision_recall(y_true, y_probas,
 # }
 
 def plot_feature_importances(clf, title='Feature Importance',
-                             feature_names=None, max_num_features=20,
-                             order='descending', x_tick_rotation=0, ax=None,
-                             figsize=None, title_fontsize="large",
-                             text_fontsize="medium"):
+                             feature_names=None, max_num_features=20):
     if not hasattr(clf, 'feature_importances_'):
         raise TypeError('"feature_importances_" attribute not in classifier. '
                         'Cannot plot feature importances.')
 
     importances = clf.feature_importances_
-
-    if hasattr(clf, 'estimators_')\
-            and isinstance(clf.estimators_, list)\
-            and hasattr(clf.estimators_[0], 'feature_importances_'):
-        std = np.std([tree.feature_importances_ for tree in clf.estimators_],
-                     axis=0)
-
-    else:
-        std = None
-
-    if order == 'descending':
-        indices = np.argsort(importances)[::-1]
-
-    elif order == 'ascending':
-        indices = np.argsort(importances)
-
-    elif order is None:
-        indices = np.array(range(len(importances)))
-
-    else:
-        raise ValueError('Invalid argument {} for "order"'.format(order))
-
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
+    indices = np.argsort(importances)[::-1]
 
     if feature_names is None:
         feature_names = indices
@@ -651,23 +627,34 @@ def plot_feature_importances(clf, title='Feature Importance',
 
     max_num_features = min(max_num_features, len(importances))
 
-    ax.set_title(title, fontsize=title_fontsize)
-
-    if std is not None:
-        ax.bar(range(max_num_features),
-               importances[indices][:max_num_features], color='r',
-               yerr=std[indices][:max_num_features], align='center')
-    else:
-        ax.bar(range(max_num_features),
-               importances[indices][:max_num_features],
-               color='r', align='center')
-
-    ax.set_xticks(range(max_num_features))
-    ax.set_xticklabels(feature_names[:max_num_features],
-                       rotation=x_tick_rotation)
-    ax.set_xlim([-1, max_num_features])
-    ax.tick_params(labelsize=text_fontsize)
-    return ax
+    # Draw a stem plot with the influence for each instance
+    # format:
+    # x = feature_names[:max_num_features]
+    # y = importances[indices][:max_num_features]
+    def feature_importances_table(feature_names, importances):
+        return wandb.Table(
+            columns=['feature_names', 'importances'],
+            data=[
+                [feature_names[i], importances[i]] for i in range(len(feature_names))
+            ]
+        )
+    wandb.log({'feature_importances': feature_importances_table(feature_names, importances)})
+    return
+    '''
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "data": {
+        "name": "${history-table:rows:x-axis,key}"
+      },
+      "title": "Feature Importances",
+      "mark": "bar",
+      "encoding": {
+        "y": {"field": "feature_names", "type": "nominal", "axis": {"title":"Features"},"sort": "-x"},
+        "x": {"field": "importances", "type": "quantitative", "axis": {"title":"Importances"}},
+        "color": {"value": "#3498DB"}
+      }
+    }
+    '''
 
 def plot_elbow_curve(clf, X, cluster_ranges=None, n_jobs=1,
                     show_cluster_time=True):
