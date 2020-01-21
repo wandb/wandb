@@ -702,7 +702,7 @@ def plot_feature_importances(clf, title='Feature Importance',
 def plot_elbow_curve(clf, X, cluster_ranges=None, n_jobs=1,
                     show_cluster_time=True):
     if cluster_ranges is None:
-        cluster_ranges = range(1, 12, 2)
+        cluster_ranges = range(1, 10, 2)
     else:
         cluster_ranges = sorted(cluster_ranges)
 
@@ -728,19 +728,10 @@ def plot_elbow_curve(clf, X, cluster_ranges=None, n_jobs=1,
     # clustering_time = times - y axis2
 
     def elbow_curve(cluster_ranges, clfs, times):
-        cluster_ranges_dict = []
-        clfs_dict = []
-        times_dict = []
-        for i in range(len(cluster_ranges)):
-            # add class counts from training set
-            cluster_ranges_dict.append(cluster_ranges[i])
-            clfs_dict.append(clfs[i])
-            times_dict.append(times[i])
-
         return wandb.Table(
             columns=['cluster_ranges', 'errors', 'clustering_time'],
             data=[
-                [cluster_ranges_dict[i], clfs_dict[i], times_dict[i]] for i in range(len(cluster_ranges))
+                [cluster_ranges[i], clfs[i], times[i]] for i in range(len(cluster_ranges))
             ]
         )
     wandb.log({'elbow_curve': elbow_curve(cluster_ranges, clfs, times)})
@@ -753,11 +744,12 @@ def plot_elbow_curve(clf, X, cluster_ranges=None, n_jobs=1,
       "data": {
         "name": "${history-table:rows:x-axis,key}"
       },
+      "title": "Elbow Plot - Errors vs Cluster Size",
       "encoding": {
         "x": {
             "field": "cluster_ranges",
             "bin": true,
-            "axis": {"title": "Cluster Ranges"},
+            "axis": {"title": "Number of Clusters"},
             "type": "quantitative"
         }
       },
@@ -785,65 +777,163 @@ def plot_elbow_curve(clf, X, cluster_ranges=None, n_jobs=1,
       ],
       "resolve": {"scale": {"y": "independent"}}
     }
-
     '''
 
-def plot_silhouette(X, cluster_labels, metric='euclidean'):
-    cluster_labels = np.asarray(cluster_labels)
+def plot_silhouette(clusterer, X, cluster_labels, cluster_ranges=None,
+                    metric='euclidean'):
+    if cluster_ranges is None:
+        cluster_ranges = range(2, 10, 2)
+    else:
+        cluster_ranges = sorted(cluster_ranges)
 
-    le = LabelEncoder()
-    cluster_labels_encoded = le.fit_transform(cluster_labels)
+    if not hasattr(clusterer, 'n_clusters'):
+        raise TypeError('"n_clusters" attribute not in classifier. '
+                        'Cannot plot elbow method.')
 
-    n_clusters = len(np.unique(cluster_labels))
+    for n_clusters in cluster_ranges:
+        # Run clusterer for n_clusters in range(len(cluster_ranges), get cluster labels
+        clusterer.set_params(n_clusters=n_clusters, random_state=42)
+        cluster_labels = clusterer.fit_predict(X)
+        cluster_labels = np.asarray(cluster_labels)
 
-    silhouette_avg = silhouette_score(X, cluster_labels, metric=metric)
+        le = LabelEncoder()
+        cluster_labels_encoded = le.fit_transform(cluster_labels)
 
-    sample_silhouette_values = silhouette_samples(X, cluster_labels,
-                                                  metric=metric)
+        # The silhouette_score gives the average value for all the samples.
+        # This gives a perspective into the density and separation of the formed
+        # clusters
+        silhouette_avg = silhouette_score(X, cluster_labels, metric=metric)
 
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        # Compute the silhouette scores for each sample
+        sample_silhouette_values = silhouette_samples(X, cluster_labels,
+                                                      metric=metric)
 
-    ax.set_title(title, fontsize=title_fontsize)
-    ax.set_xlim([-0.1, 1])
+        # Plot 1: Scatter Plot showing the actual clusters formed
+        centers = clusterer.cluster_centers_
 
-    ax.set_ylim([0, len(X) + (n_clusters + 1) * 10 + 10])
+        # Plot 2: Silhouette Score
+        # y = np.arange(y_lower, y_upper)[]
+        # x1 = 0
+        # x2 = ith_cluster_silhouette_values[]
+        # color = le.classes_[n_clusters]
+        # rule_line = silhouette_avg
 
-    ax.set_xlabel('Silhouette coefficient values', fontsize=text_fontsize)
-    ax.set_ylabel('Cluster label', fontsize=text_fontsize)
+        y_sil = []
+        x_sil = []
+        color_sil = []
 
-    y_lower = 10
+        y_lower = 10
+        for i in range(n_clusters):
+            # Aggregate the silhouette scores for samples belonging to
+            # cluster i, and sort them
+            ith_cluster_silhouette_values = \
+                sample_silhouette_values[cluster_labels == i]
 
-    for i in range(n_clusters):
-        ith_cluster_silhouette_values = sample_silhouette_values[
-            cluster_labels_encoded == i]
+            ith_cluster_silhouette_values.sort()
 
-        ith_cluster_silhouette_values.sort()
+            size_cluster_i = ith_cluster_silhouette_values.shape[0]
+            y_upper = y_lower + size_cluster_i
 
-        size_cluster_i = ith_cluster_silhouette_values.shape[0]
-        y_upper = y_lower + size_cluster_i
+            y_values = np.arange(y_lower, y_upper)
 
-        color = plt.cm.get_cmap(cmap)(float(i) / n_clusters)
+            for j in range(len(y_values)):
+                y_sil.append(y_values[j])
+                x_sil.append(ith_cluster_silhouette_values[j])
+                color_sil.append(i)
 
-        ax.fill_betweenx(np.arange(y_lower, y_upper),
-                         0, ith_cluster_silhouette_values,
-                         facecolor=color, edgecolor=color, alpha=0.7)
+            # Compute the new y_lower for next plot
+            y_lower = y_upper + 10  # 10 for the 0 samples
+        def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
+            return wandb.Table(
+                columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
+                data=[
+                    [x[i], y[i], colors[i], centerx[colors[i]], centery[colors[i]],
+                    y_sil[i], 0, x_sil[i], color_sil[i], silhouette_avg]
+                    for i in range(len(colors))
+                ]
+            )
+        wandb_key = 'silhouette_'+str(n_clusters)+"_clusters"
+        wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels_encoded, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg)})
+    return
+    '''
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "data": {"name": "${history-table:rows:x-axis,key}"},
+      "title": "Silhouette analysis of cluster centers",
+      "hconcat": [
+      {
+        "width": 400,
+        "height": 200,
+        "layer": [
+        {
+        "mark": "area",
+        "encoding": {
+          "x": {
+          "field": "x1",
+          "type": "quantitative",
+          "axis": {"title":"Silhouette Coefficients"}
+          },
+          "x2": {
+          "field": "x2"
+          },
+          "y": {
+            "title": "Cluster Label",
+            "field": "y_sil",
+            "type": "quantitative",
+          "axis": {"title":"Clusters"}
+          },
+          "color": {
+            "field": "color_sil",
+            "type": "nominal",
+            "axis": {"title":"Cluster Labels"},
+            "scale": {
+              "range": ["#AB47BC", "#3498DB", "#55BBBB", "#5C6BC0", "#FBC02D", "#3F51B5"]}
+        },
+          "opacity": { "value": 0.7 }
+        }},
+        {
 
-        ax.text(-0.05, y_lower + 0.5 * size_cluster_i, str(le.classes_[i]),
-                fontsize=text_fontsize)
-
-        y_lower = y_upper + 10
-
-    ax.axvline(x=silhouette_avg, color="red", linestyle="--",
-               label='Silhouette score: {0:0.3f}'.format(silhouette_avg))
-
-    ax.set_yticks([])  # Clear the y-axis labels / ticks
-    ax.set_xticks(np.arange(-0.1, 1.0, 0.2))
-
-    ax.tick_params(labelsize=text_fontsize)
-    ax.legend(loc='best', fontsize=text_fontsize)
-
-    return ax
+          "mark": {
+            "type":"rule",
+          "strokeDash": [6, 4],
+          "stroke":"#f88c99"},
+          "encoding": {
+            "x": {
+              "field": "silhouette_avg",
+              "type": "quantitative"
+            },
+            "color": {"value": "red"},
+            "size": {"value": 1},
+          "opacity": { "value": 0.5 }
+          }
+        }]
+      },
+      {
+        "width": 300,
+        "height": 200,
+        "layer": [
+          {
+            "mark": "circle",
+            "encoding": {
+              "x": {"field": "x", "type": "quantitative", "scale": {"zero": false}, "axis": {"title":"Feature Space for 1st Feature"}},
+              "y": {"field": "y", "type": "quantitative", "scale": {"zero": false}}, "axis": {"title":"Feature Space for 2nd Feature"},
+              "color": {"field": "colors", "type": "nominal", "axis": {"title":"Cluster Labels"}}
+            }
+          },
+          {
+            "mark": "point",
+            "encoding": {
+              "x": {"field": "centerx", "type": "quantitative", "scale": {"zero": false}, "axis": {"title":"Feature Space for 1st Feature"}},
+              "y": {"field": "centery", "type": "quantitative", "scale": {"zero": false}, "axis": {"title":"Feature Space for 2nd Feature"}},
+              "color": {"field": "colors", "type": "nominal", "axis": {"title":"Cluster Labels"}},
+              "size": {"value": 80}
+            }
+          }
+        ]
+      }
+      ]
+    }
+    '''
 
 def _clone_and_score_clusterer(clf, X, n_clusters):
     start = time.time()
