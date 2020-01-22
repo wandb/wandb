@@ -43,7 +43,7 @@ def round_3(n):
 def round_2(n):
     return round(n, 2)
 
-def metrics(estimator, X=None, y=None, X_test=None, y_test=None):
+def summary_metrics(estimator, X=None, y=None, X_test=None, y_test=None):
     if X_test is not None and y_test is not None:
         metric_name=[]
         metric_value=[]
@@ -112,8 +112,8 @@ def metrics(estimator, X=None, y=None, X_test=None, y_test=None):
     }
     '''
 
-def plot_metrics(estimator, X=None, y=None, X_test=None, y_test=None):
-    wandb.log({'metrics': metrics(estimator, X, y, X_test, y_test)})
+def plot_summary_metrics(estimator, X=None, y=None, X_test=None, y_test=None):
+    wandb.log({'metrics': summary_metrics(estimator, X, y, X_test, y_test)})
 
 def learning_curve(clf, X, y, cv=None,
                         shuffle=False, random_state=None,
@@ -154,91 +154,93 @@ def plot_learning_curve(clf, X, y, cv=None,
     l2k2/sklearn_learningcurve
 
     {
-  "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-  "padding": 5,
-  "width": "500",
-  "height": "500",
-  "data":
-    {
-      "name": "${history-table:rows:x-axis,key}"
-    },
-  "title": {
-    "text": "Learning Curve"
-  },"layer": [
-    {
-      "encoding": {
-        "x": {"field": "train_size", "type": "quantitative"},
-        "y": {"field": "score", "type": "quantitative"},
-        "color": {"field": "dataset", "type": "nominal"}
-      },
-      "layer": [
-        {"mark": "line"},
+      "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+      "padding": 5,
+      "width": "500",
+      "height": "500",
+      "data":
         {
-          "selection": {
-            "label": {
-              "type": "single",
-              "nearest": true,
-              "on": "mouseover",
-              "encodings": ["x"],
-              "empty": "none"
-            }
-          },
-          "mark": "point",
-          "encoding": {
-            "opacity": {
-              "condition": {"selection": "label", "value": 1},
-              "value": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "transform": [{"filter": {"selection": "label"}}],
-      "layer": [
-        {
-          "mark": {"type": "rule", "color": "gray"},
-          "encoding": {
-            "x": {"type": "quantitative", "field": "train_size"}
-          }
+          "name": "${history-table:rows:x-axis,key}"
         },
+        "title": {
+          "text": "Learning Curve"
+        },
+      "layer": [
         {
           "encoding": {
-            "text": {"type": "quantitative", "field": "score"},
-            "x": {"type": "quantitative", "field": "train_size"},
-            "y": {"type": "quantitative", "field": "score"}
+            "x": {"field": "train_size", "type": "quantitative"},
+            "y": {"field": "score", "type": "quantitative"},
+            "color": {"field": "dataset", "type": "nominal"},
+            "opacity": {"value": 0.7}
           },
           "layer": [
+            {"mark": "line"},
             {
-              "mark": {
-                "type": "text",
-                "stroke": "white",
-                "strokeWidth": 2,
-                "align": "left",
-                "dx": 5,
-                "dy": -5
+              "selection": {
+                "label": {
+                  "type": "single",
+                  "nearest": true,
+                  "on": "mouseover",
+                  "encodings": ["x"],
+                  "empty": "none"
+                }
+              },
+              "mark": "point",
+              "encoding": {
+                "opacity": {
+                  "condition": {"selection": "label", "value": 1},
+                  "value": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "transform": [{"filter": {"selection": "label"}}],
+          "layer": [
+            {
+              "mark": {"type": "rule", "color": "gray"},
+              "encoding": {
+                "x": {"type": "quantitative", "field": "train_size"}
               }
             },
             {
-              "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
               "encoding": {
-                "color": {
-                  "type": "nominal", "field": "dataset", "scale": {
-                  "domain": ["train", "test"],
-                  "range": ["#3498DB", "#AB47BC"]
-                  },
-                  "legend": {
-                  "title": " "
+                "text": {"type": "quantitative", "field": "score"},
+                "x": {"type": "quantitative", "field": "train_size"},
+                "y": {"type": "quantitative", "field": "score"}
+              },
+              "layer": [
+                {
+                  "mark": {
+                    "type": "text",
+                    "stroke": "white",
+                    "strokeWidth": 2,
+                    "align": "left",
+                    "dx": 5,
+                    "dy": -5
+                  }
+                },
+                {
+                  "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
+                  "encoding": {
+                    "color": {
+                      "type": "nominal", "field": "dataset", "scale": {
+                      "domain": ["train", "test"],
+                      "range": ["#3498DB", "#AB47BC"]
+                      },
+                      "legend": {
+                      "title": " "
+                      }
+                    }
                   }
                 }
-              }
+              ]
             }
           ]
         }
       ]
     }
-  ]
-}
 '''
 
 def roc(y_true, y_probas,
@@ -281,92 +283,93 @@ def plot_roc(y_true, y_probas,
   wandb.log({'roc': roc(y_true, y_probas,
                    plot_micro, plot_macro, classes_to_plot)})
 
-
-#    {
-#   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-#   "padding": 5,
-#   "width": "500",
-#   "height": "500",
-#   "data":
-#     {
-#       "name": "${history-table:rows:x-axis,key}"
-#     },
-#   "title": {
-#     "text": "Learning Curve"
-#   },"layer": [
-#     {
-#       "encoding": {
-#         "x": {"field": "fpr", "type": "quantitative"},
-#         "y": {"field": "tpr", "type": "quantitative"},
-#         "color": {"field": "class", "type": "nominal"}
-#       },
-#       "layer": [
-#         {"mark": "line"},
-#         {
-#           "selection": {
-#             "label": {
-#               "type": "single",
-#               "nearest": true,
-#               "on": "mouseover",
-#               "encodings": ["x"],
-#               "empty": "none"
-#             }
-#           },
-#           "mark": "point",
-#           "encoding": {
-#             "opacity": {
-#               "condition": {"selection": "label", "value": 1},
-#               "value": 0
-#             }
-#           }
-#         }
-#       ]
-#     },
-#     {
-#       "transform": [{"filter": {"selection": "label"}}],
-#       "layer": [
-#         {
-#           "mark": {"type": "rule", "color": "gray"},
-#           "encoding": {
-#             "x": {"type": "quantitative", "field": "train_size"}
-#           }
-#         },
-#         {
-#           "encoding": {
-#             "text": {"type": "quantitative", "field": "score"},
-#             "x": {"type": "quantitative", "field": "train_size"},
-#             "y": {"type": "quantitative", "field": "score"}
-#           },
-#           "layer": [
-#             {
-#               "mark": {
-#                 "type": "text",
-#                 "stroke": "white",
-#                 "strokeWidth": 2,
-#                 "align": "left",
-#                 "dx": 5,
-#                 "dy": -5
-#               }
-#             },
-#             {
-#               "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
-#               "encoding": {
-#                 "color": {
-#                   "type": "nominal", "field": "dataset", "scale": {
-#                   "range": ["#3498DB", "#AB47BC"]
-#                   },
-#                   "legend": {
-#                   "title": " "
-#                   }
-#                 }
-#               }
-#             }
-#           ]
-#         }
-#       ]
-#     }
-#   ]
-# }
+'''
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+    "padding": 5,
+    "width": "500",
+    "height": "500",
+    "data":
+      {
+        "name": "${history-table:rows:x-axis,key}"
+      },
+    "title": {
+      "text": "ROC Curve"
+    },"layer": [
+      {
+        "encoding": {
+          "x": {"field": "fpr", "type": "quantitative", "axis": {"title": "False Positive Rate"}},
+          "y": {"field": "tpr", "type": "quantitative", "axis": {"title": "True Positive Rate"}},
+          "color": {"field": "class", "type": "nominal"},
+          "opacity": {"value": 0.7}
+        },
+        "layer": [
+          {"mark": "line"},
+          {
+            "selection": {
+              "label": {
+                "type": "single",
+                "nearest": true,
+                "on": "mouseover",
+                "encodings": ["x"],
+                "empty": "none"
+              }
+            },
+            "mark": "point",
+            "encoding": {
+              "opacity": {
+                "condition": {"selection": "label", "value": 1},
+                "value": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "transform": [{"filter": {"selection": "label"}}],
+        "layer": [
+          {
+            "mark": {"type": "rule", "color": "gray"},
+            "encoding": {
+              "x": {"type": "quantitative", "field": "train_size"}
+            }
+          },
+          {
+            "encoding": {
+              "text": {"type": "quantitative", "field": "fpr"},
+              "x": {"type": "quantitative", "field": "fpr"}
+            },
+            "layer": [
+              {
+                "mark": {
+                  "type": "text",
+                  "stroke": "white",
+                  "strokeWidth": 2,
+                  "align": "left",
+                  "dx": 5,
+                  "dy": -5
+                }
+              },
+              {
+                "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
+                "encoding": {
+                  "color": {
+                    "type": "nominal", "field": "class", "scale": {
+                    "range": ["#3498DB", "#AB47BC"]
+                    },
+                    "legend": {
+                    "title": " "
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+}
+'''
 
 def confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
                           pred_labels=None, title=None, normalize=False,
@@ -424,41 +427,45 @@ def plot_confusion_matrix(y_true, y_pred, labels=None, true_labels=None,
                           pred_labels, title, normalize,
                           hide_zeros, hide_counts)})
 
+'''
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+    "padding": 5,
+    "width": 500,
+    "height": 500,
+    "data":
+      {
+        "name": "${history-table:rows:x-axis,key}"
+      },
+    "title": {
+      "text": "Confusion Matrix"
+    },
+      "mark": "circle",
+    "encoding": {
+      "x": {
+        "field": "Predicted",
+        "type": "nominal",
+        "axis": {
+          "maxExtent": 50,
+          "labelLimit": 40,
+          "labelAngle": -45
+        }
+      },
+      "y": {
+        "field": "Actual",
+        "type": "nominal"
 
-# {
-#   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-#   "padding": 5,
-#   "width": 500,
-#   "height": 500,
-#   "data":
-#     {
-#       "name": "${history-table:rows:x-axis,key}"
-#     },
-#   "title": {
-#     "text": "Confusion Matrix"
-#   },
-#     "mark": "circle",
-#   "encoding": {
-#     "x": {
-#       "field": "Predicted",
-#       "type": "nominal",
-#       "axis": {
-#         "maxExtent": 50,
-#         "labelLimit": 40,
-#         "labelAngle": -45
-#       }
-#     },
-#     "y": {
-#       "field": "Actual",
-#       "type": "nominal"
-
-#     },
-#     "size": {
-#       "field": "Count",
-#       "type": "quantitative"
-#     }
-#   }
-# }
+      },
+      "size": {
+        "field": "Count",
+        "type": "quantitative"
+      },
+      "color": {
+        "value": "#3498DB"
+      }
+    }
+}
+'''
 
 def precision_recall(y_true, y_probas,
                           plot_micro=True,
@@ -532,84 +539,88 @@ def plot_precision_recall(y_true, y_probas,
   wandb.log({'pr':precision_recall(y_true, y_probas,
                           plot_micro,
                           classes_to_plot)})
-# { "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-#   "padding": 5,
-#   "width": 500,
-#   "height": 500,
-#   "data":
-#     {
-#       "name": "${history-table:rows:x-axis,key}"
-#     },
-#   "title": {
-#     "text": "Precision Recall"
-#   },"layer": [
-#     {
-#       "encoding": {
-#         "x": {"field": "precision", "type": "quantitative"},
-#         "y": {"field": "recall", "type": "quantitative"},
-#         "color": {"field": "class", "type": "nominal"}
-#       },
-#       "layer": [
-#         {"mark": "line"},
-#         {
-#           "selection": {
-#             "label": {
-#               "type": "single",
-#               "nearest": true,
-#               "on": "mouseover",
-#               "encodings": ["x"],
-#               "empty": "none"
-#             }
-#           },
-#           "mark": "point",
-#           "encoding": {
-#             "opacity": {
-#               "condition": {"selection": "label", "value": 1},
-#               "value": 0
-#             }
-#           }
-#         }
-#       ]
-#     },
-#     {
-#       "transform": [{"filter": {"selection": "label"}}],
-#       "layer": [
-#         {
-#           "encoding": {
-#             "text": {"type": "quantitative", "field": "class"},
-#             "x": {"type": "quantitative", "field": "precision"},
-#             "y": {"type": "quantitative", "field": "recall"}
-#           },
-#           "layer": [
-#             {
-#               "mark": {
-#                 "type": "text",
-#                 "stroke": "white",
-#                 "strokeWidth": 2,
-#                 "align": "left",
-#                 "dx": 5,
-#                 "dy": -5
-#               }
-#             },
-#             {
-#               "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
-#               "encoding": {
-#                 "color": {
-#                   "type": "nominal", "field": "dataset", "scale": {
-#                   "range": ["#3498DB", "#AB47BC", "#55BBBB", "#BB9955"]
-#                   },
-#                   "legend": {
-#                   "title": " "
-#                   }
-#                 }
-#               }
-#             }
-#           ]
-#         }
-#       ]
-#     }
-#   ]
-# }
+'''
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+    "padding": 5,
+    "width": 500,
+    "height": 500,
+    "data":
+      {
+        "name": "${history-table:rows:x-axis,key}"
+      },
+    "title": {
+      "text": "Precision Recall"
+    },"layer": [
+      {
+        "encoding": {
+          "x": {"field": "precision", "type": "quantitative"},
+          "y": {"field": "recall", "type": "quantitative"},
+          "color": {"field": "class", "type": "nominal"},
+          "opacity": {"value": 0.7}
+        },
+        "layer": [
+          {"mark": "line"},
+          {
+            "selection": {
+              "label": {
+                "type": "single",
+                "nearest": true,
+                "on": "mouseover",
+                "encodings": ["x"],
+                "empty": "none"
+              }
+            },
+            "mark": "point",
+            "encoding": {
+              "opacity": {
+                "condition": {"selection": "label", "value": 1},
+                "value": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "transform": [{"filter": {"selection": "label"}}],
+        "layer": [
+          {
+            "encoding": {
+              "text": {"type": "nominal", "field": "class"},
+              "x": {"type": "quantitative", "field": "precision"},
+              "y": {"type": "quantitative", "field": "recall"}
+            },
+            "layer": [
+              {
+                "mark": {
+                  "type": "text",
+                  "stroke": "white",
+                  "strokeWidth": 2,
+                  "align": "left",
+                  "dx": 5,
+                  "dy": -5
+                }
+              },
+              {
+                "mark": {"type": "text", "align": "left", "dx": 5, "dy": -5},
+                "encoding": {
+                  "color": {
+                    "type": "nominal", "field": "class", "scale": {
+                    "range": ["#3498DB", "#AB47BC", "#55BBBB", "#BB9955"]
+                    },
+                    "legend": {
+                    "title": " "
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+}
+'''
 
 def plot_feature_importances(clf, title='Feature Importance',
                              feature_names=None, max_num_features=20):
@@ -651,7 +662,8 @@ def plot_feature_importances(clf, title='Feature Importance',
       "encoding": {
         "y": {"field": "feature_names", "type": "nominal", "axis": {"title":"Features"},"sort": "-x"},
         "x": {"field": "importances", "type": "quantitative", "axis": {"title":"Importances"}},
-        "color": {"value": "#3498DB"}
+        "color": {"value": "#3498DB"},
+        "opacity": {"value": 0.9}
       }
     }
     '''
@@ -822,7 +834,7 @@ def plot_silhouette(clusterer, X, cluster_labels, metric='euclidean'):
       "hconcat": [
       {
         "width": 400,
-        "height": 200,
+        "height": 400,
         "layer": [
         {
         "mark": "area",
@@ -868,8 +880,8 @@ def plot_silhouette(clusterer, X, cluster_labels, metric='euclidean'):
         }]
       },
       {
-        "width": 300,
-        "height": 200,
+        "width": 400,
+        "height": 400,
         "layer": [
           {
             "mark": "circle",
@@ -945,12 +957,13 @@ def plot_class_balance(y_train, y_test=None):
         "cursor": "pointer"
       },
       "encoding": {
-        "x": {"field": "class", "type": "ordinal"},
+        "x": {"field": "class", "type": "ordinal", "axis": {"title": "Class"}},
         "y": {"field": "count", "type": "quantitative", "axis": {"title": "Number of instances"}},
         "fillOpacity": {
           "condition": {"selection": "select", "value": 1},
           "value": 0.3
         },
+        "opacity": {"value": 0.9},
         "color": {
           "field": "dataset",
           "type": "nominal",
