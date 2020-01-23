@@ -1,5 +1,6 @@
 import pytest
 import os
+import sys
 import click
 from click.testing import CliRunner
 import git
@@ -25,6 +26,9 @@ if torch:
 
 @pytest.fixture
 def runner(monkeypatch):
+    # TODO: GET RID OF whaaaaat and agent prompt_toolkit
+    if sys.modules.get("prompt_toolkit"):
+        del sys.modules["prompt_toolkit"]
     whaaaaat = util.vendor_import("whaaaaat")
     monkeypatch.setattr('wandb.cli.api', InternalApi(
         default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
