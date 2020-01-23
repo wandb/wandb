@@ -290,10 +290,10 @@ def json_friendly(obj):
     converted = True
     typename = get_full_typename(obj)
 
-    if is_tf_tensor_typename(typename):
-        obj = obj.eval()
-    elif is_tf_eager_tensor_typename(typename):
+    if is_tf_eager_tensor_typename(typename):
         obj = obj.numpy()
+    elif is_tf_tensor_typename(typename):
+        obj = obj.eval()
     elif is_pytorch_tensor_typename(typename):
         try:
             if obj.requires_grad:
