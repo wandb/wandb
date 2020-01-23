@@ -9,6 +9,7 @@ import weakref
 from six.moves import reduce
 from distutils.version import LooseVersion
 from operator import mul
+import numpy as np
 
 
 from wandb import util
@@ -139,6 +140,18 @@ class TorchHistory(object):
         if isinstance(tensor, torch.HalfTensor):
             tensor = tensor.clone().type(torch.FloatTensor).detach()
 
+        # Sparse tensors have a bunch of implicit zeros. In order to histo them correctly,
+        # we have to count them up and add them to the histo ourselves.
+        sparse_zeros = None
+        if isinstance(tensor, torch.sparse.FloatTensor):
+            # Have to call this on a sparse tensor before most other ops.
+            tensor = tensor.coalesce()
+
+            non_zero_values = tensor._values().numel()
+            all_values = tensor.numel()
+            sparse_zeros = all_values - non_zero_values
+            tensor = tensor._values()
+
         flat = tensor.view(-1)
 
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
@@ -180,6 +193,33 @@ class TorchHistory(object):
         tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
         tensor = tensor.cpu().clone().detach()
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
+
+        # Add back zeroes from a sparse tensor.
+        if sparse_zeros:
+            bins_np = bins.numpy()
+            tensor_np = tensor.numpy()
+            bin_idx = -1
+            if tmin > 0:
+                bin_idx = 0
+                bins_np = np.concatenate(([0], bins_np))
+                tensor_np = np.concatenate(([0], tensor_np))
+            elif tmax < 0:
+                bin_idx = len(bins_np)
+                bins_np = np.concatenate((bins_np, [0]))
+                tensor_np = np.concatenate((tensor_np, [0]))
+            elif tmax == 0:
+                bin_idx = len(bins_np) - 1
+            else:
+                for i in range(len(bins_np) - 1):
+                    start = bins_np[i]
+                    end = bins_np[i+1]
+                    if start <= 0 and end > 0:
+                        bin_idx = i
+                        break
+
+            tensor_np[bin_idx] += sparse_zeros
+            tensor = torch.Tensor(tensor_np)
+            bins = torch.Tensor(bins_np)
 
         history.row.update({
             name: wandb.Histogram(np_histogram=(
