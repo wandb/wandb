@@ -230,14 +230,14 @@ Edge used in [`Graph`](#graph)
 
 
 ## data_types.plot_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1284)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1289)
 ```python
 plot_to_json(obj)
 ```
 Converts a matplotlib or plotly object to json so that we can pass it the the wandb server and display it nicely there
 
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1299)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1304)
 ```python
 data_frame_to_json(df, run, key, step)
 ```
