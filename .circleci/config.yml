@@ -24,8 +24,8 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
-                      - v3.3-dependencies-{{ .Environment.CIRCLE_JOB }}
+                      - v3.4-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
+                      - v3.4-dependencies-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Install python dependencies
                   command: |
@@ -36,7 +36,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
+                  key: v3.4-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Run tests
                   command: |
