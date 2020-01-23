@@ -1232,7 +1232,7 @@ def numpy_arrays_to_lists(payload):
         for key,val in six.iteritems(payload):
             if isinstance(val, dict):
                 payload[key] = numpy_arrays_to_lists(val)
-            elif isinstance(val, collections.Sequence):
+            elif isinstance(val, collections.Sequence) and not isinstance(val, six.string_types):
                 payload[key] = [numpy_arrays_to_lists(v) for v in val]
             elif util.is_numpy_array(val):
                 payload[key] = val.tolist()
