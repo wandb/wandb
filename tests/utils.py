@@ -26,18 +26,7 @@ if torch:
 
 @pytest.fixture
 def runner(monkeypatch, mocker):
-    # TODO: GET RID OF whaaaaat and agent prompt_toolkit
-    if sys.modules.get("prompt_toolkit"):
-        del sys.modules["prompt_toolkit"]
-    ptk = util.vendor_import("prompt_toolkit")
-    try:
-        whaaaaat = util.vendor_import("whaaaaat")
-    except ImportError as e:
-        # CI was blowing up, this is for debugging
-        print("ImportError: %s", e)
-        print(sys.path)
-        print("prompt_toolkit version: ", ptk.__version__)
-        whaaaaat = mocker.MagicMock()
+    whaaaaat = util.vendor_import("whaaaaat")
     monkeypatch.setattr('wandb.cli.api', InternalApi(
         default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
