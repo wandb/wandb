@@ -24,12 +24,13 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
-                      - v3.3-dependencies-{{ .Environment.CIRCLE_JOB }}
+                      - v3.4-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
+                      - v3.4-dependencies-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Install python dependencies
                   command: |
                       . venv/bin/activate
+                      pip --version
                       pip install -U pip
                       pip install -r requirements_dev.txt --upgrade
                       pip install torch==1.4.0+cpu torchvision==0.5.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
@@ -37,7 +38,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
+                  key: v3.4-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Run tests
                   command: |
