@@ -139,9 +139,12 @@ class WandbCallback(TrackerCallback):
         if self.validation_data:
             try:
                 self._wandb_log_predictions()
-            except:
-                wandb.termwarn("Unable to log prediction samples.")
+            except FastaiError as e:
+                wandb.termwarn(e.message)
                 self.validation_data = None  # prevent from trying again on next loop
+            except Exception as e:
+                wandb.termwarn("Unable to log prediction samples.\n{}".format(e))
+                self.validation_data=None  # prevent from trying again on next loop
 
         # Log losses & metrics
         # Adapted from fast.ai "CSVLogger"
@@ -170,7 +173,10 @@ class WandbCallback(TrackerCallback):
         pred_log = []
 
         for x, y in self.validation_data:
-            pred = self.learn.predict(x)
+            try:
+                pred=self.learn.predict(x)
+            except:
+                raise FastaiError('Unable to run "predict" method from Learner to log prediction samples.')
 
             # scalar -> likely to be a category
             if not pred[1].shape:
@@ -220,3 +226,7 @@ class WandbCallback(TrackerCallback):
                 pred_log.append(wandb.Image(x.data, caption='Input data'))
 
             wandb.log({"Prediction Samples": pred_log}, commit=False)
+
+
+class FastaiError(wandb.Error):
+    pass
