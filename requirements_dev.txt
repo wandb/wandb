@@ -1,5 +1,6 @@
-fastparquet==0.2.1
 pip>=20.0.1
+numpy==1.16.0
+fastparquet==0.2.1
 bumpversion==0.5.3
 wheel==0.31.1
 watchdog==0.8.3
@@ -25,7 +26,6 @@ sh==1.12.14
 pillow==6.2.0
 mock==2.0.0
 twine==1.11.0
-numpy==1.16.0
 h5py==2.8.0
 pandas==0.23.4
 soundfile==0.10.2
