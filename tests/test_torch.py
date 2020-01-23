@@ -351,8 +351,6 @@ def test_sparse_embedding(wandb_init_run):
                      torch.ones((1, 4, 3, 20)))
         output.backward(torch.ones(1, 4, 300))
         wandb.log({"loss": 1})
-    print(wandb_init_run.history.rows)
-    assert False
     assert len(wandb_init_run.history.rows[0]) == 82
 
 def test_categorical(wandb_init_run):
