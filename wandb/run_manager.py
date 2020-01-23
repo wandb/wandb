@@ -216,7 +216,7 @@ class FileEventHandlerOverwriteDeferred(FileEventHandlerWithFilePusher):
     def finish(self):
         # We use copy=False to avoid possibly expensive copies, and because
         # user files shouldn't still be changing at the end of the run.
-        self.file_pusher_file_changed(copy=False)
+        self.file_pusher_file_changed()
 
 
 class FileEventHandlerConfig(FileEventHandlerWithFilePusher):
@@ -726,7 +726,9 @@ class RunManager(object):
                         Handler = FileEventHandlerThrottledOverwriteMinWait
                 artifact_id = None
                 for g, artifact in self._artifacts.items():
-                    if fnmatch.fnmatch(save_name, g):
+                    # TODO: This logic is not correct. wandb.save() is magical. Might need
+                    # to rethink.
+                    if fnmatch.fnmatch(save_name, g) or save_name.startswith(g):
                         # Use the first one. Overlapping globs would certainly cause trouble...
                         artifact_id = artifact['id']
                         break

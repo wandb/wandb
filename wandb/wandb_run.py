@@ -399,6 +399,11 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
+    def log_input(self, input, api=None):
+        # input must be an ArtifactVersion from public API
+        api = api or self.api
+        api.create_run_input_artifact_ref(self.entity, self.project, self.id, input.entity, input.project, input.id)
+
     def publish_artifact(self, fname, name=None, description=None, api=None):
         api = api or self.api
         api.publish_artifact(fname, self.entity, self.project, run=self.id, name=name, description=description, progress=sys.stdout)

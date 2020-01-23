@@ -155,10 +155,11 @@ class FilePusher(object):
             if not self.is_alive():
                 stop = True
             summary = self.summary()
-            line = ' %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r' % (
+            line = ' %.2fMB of %.2fMB uploaded (%.2fMB deduped). %s files\r' % (
                 summary['uploaded_bytes'] / 1048576.0,
                 summary['total_bytes'] / 1048576.0,
-                summary['deduped_bytes'] / 1048576.0)
+                summary['deduped_bytes'] / 1048576.0,
+                summary['nfiles'])
             line = spinner_states[step % 4] + line
             step += 1
             wandb.termlog(line, newline=False)
@@ -174,6 +175,7 @@ class FilePusher(object):
     def summary(self):
         progress_values = list(self._progress.values())
         return {
+            'nfiles': len(progress_values),
             'uploaded_bytes': sum(f['uploaded'] for f in progress_values),
             'total_bytes': sum(f['total'] for f in progress_values),
             'deduped_bytes': sum(f['total'] for f in progress_values if f['deduped'])

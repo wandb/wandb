@@ -1755,12 +1755,19 @@ class ArtifactVersion(object):
     def files(self, names=[], per_page=50):
         return ArtifactVersionFiles(self.client, self, names, per_page)
 
-    def pull(self):
+    def download(self):
+        # TODO: not production
+        dirpath = os.path.join('wandb', 'artifacts', self.id)
+        try:
+            os.makedirs(dirpath)
+        except FileExistsError:
+            pass
         for f in self.files():
-            f.download()
+            f.download(root=dirpath, replace=True)
+        return dirpath
 
     def __repr__(self):
-        return "<Artifact {} ({})>".format(self.name, self.id)
+        return "<Artifact version {}>".format(self.id)
 
 class ArtifactVersionFiles(Paginator):
     QUERY = gql('''
@@ -1793,10 +1800,8 @@ class ArtifactVersionFiles(Paginator):
 
     @property
     def length(self):
-        if self.last_response:
-            return self.last_response['project']['artifactVersion']['fileCount']
-        else:
-            return None
+        # TODO
+        return None
 
     @property
     def more(self):

@@ -1014,6 +1014,42 @@ class Api(object):
             'description': description})
         return response['createArtifactVersion']['artifact']
 
+    def create_run_input_artifact_ref(self, run_entity_name, run_project_name, run_name, artifact_entity_name, artifact_project_name, artifact_id):
+        mutation = gql('''
+        mutation CreateRunInputArtifactRef(
+            $runEntityName: String!
+            $runProjectName: String!,
+            $runName: String!,
+            $artifactEntityName: String!
+            $artifactProjectName: String!
+            $artifactID: String!
+        ) {
+            createRunInputArtifactRef(input: {
+                runEntityName: $runEntityName,
+                runProjectName: $runProjectName,
+                runName: $runName,
+                artifactEntityName: $artifactEntityName,
+                artifactProjectName: $artifactProjectName,
+                artifactID: $artifactID
+            }) {
+                artifact {
+                    id
+                }
+                run {
+                    id
+                }
+            }
+        }
+        ''')
+        print('STUFF', locals())
+        response = self.gql(mutation, variable_values={
+            'runEntityName': run_entity_name,
+            'runProjectName': run_project_name,
+            'runName': run_name,
+            'artifactEntityName': artifact_entity_name,
+            'artifactProjectName': artifact_project_name,
+            'artifactID': artifact_id})
+
     @normalize_exceptions
     def prepare_files(self, file_specs, entity=None, project=None, run=None):
         """TODO
