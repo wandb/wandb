@@ -119,6 +119,14 @@ def test_plotly_plot(summary):
     assert plot["_type"] == "plotly"
     assert plot["plot"]['type'] == 'scatter'
 
+def test_plotly_big_numpy(summary):
+    N = 200
+    x = np.arange(N)
+    y = np.arange(0, N) / N
+    summary["plot"] = go.Figure(data=go.Scatter(x=x, y=y, mode='markers'))
+    plot = disk_summary(summary)["plot"]
+    assert len(plot["plot"]["data"][0]["x"]) == 200
+
 
 def test_newline(summary):
     summary["rad \n"] = 1
