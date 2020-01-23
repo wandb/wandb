@@ -43,21 +43,18 @@ class DynamicModule(nn.Module):
         return x
 
 class Discrete(nn.Module):
-    def __init__(self, num_outputs):
+    def __init__(self):
         super(Discrete, self).__init__()
 
     def forward(self, x):
-        probs = nn.functional.softmax(x, dim=0)
-        dist = torch.distributions.Categorical(probs=probs)
-        # TODO: if we don't call entropy here, PyTorch blows up with because we added hooks...
-        return dist.entropy()
+        return nn.functional.softmax(x, dim=0)
 
 class DiscreteModel(nn.Module):
     def __init__(self, num_outputs=2):
         super(DiscreteModel, self).__init__()
         self.linear1 = nn.Linear(1, 10)
         self.linear2 = nn.Linear(10, num_outputs)
-        self.dist = Discrete(num_outputs)
+        self.dist = Discrete()
 
     def forward(self, x):
         x = self.linear1(x)

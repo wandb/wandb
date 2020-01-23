@@ -97,6 +97,12 @@ def vendor_import(name):
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, 'vendor')
 
+    # TODO: this really needs to go, was added for CI
+    if sys.modules.get("prompt_toolkit"):
+        for k in list(sys.modules.keys()):
+            if k.startswith("prompt_toolkit"):
+                del sys.modules[k]
+
     sys.path.insert(1, vendor_dir)
     return import_module(name)
 
