@@ -207,9 +207,9 @@ class TorchHistory(object):
         # Add back zeroes from a sparse tensor.
         if sparse_zeros:
             np = util.get_module("numpy", "Could not import numpy")
-            bins_np = bins.numpy()
-            tensor_np = tensor.numpy()
-            bin_idx = 0
+            # bins_np = bins.numpy()
+            # tensor_np = tensor.numpy()
+            # bin_idx = 0
             # if tmin > 0:
             #     bin_idx = 0
             #     bins_np = np.concatenate(([0], bins_np))
@@ -229,9 +229,9 @@ class TorchHistory(object):
                 #         bin_idx = i
                 #         break
 
-            tensor_np[bin_idx] += sparse_zeros
-            tensor = torch.Tensor(tensor_np)
-            bins = torch.Tensor(bins_np)
+            # tensor_np[bin_idx] += sparse_zeros
+            # tensor = torch.Tensor(tensor_np)
+            # bins = torch.Tensor(bins_np)
 
         history.row.update({
             name: wandb.Histogram(np_histogram=(
