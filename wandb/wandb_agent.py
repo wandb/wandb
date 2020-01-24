@@ -314,7 +314,7 @@ class Agent(object):
             if platform.system() == "Windows":
                 del sweep_vars["env"]
             command_list = []
-            sweep_command = self._sweep_command or ["{env}", "{interpretter}", "{program}", "{args}"]
+            sweep_command = self._sweep_command or ["${env}", "${interpretter}", "${program}", "${args}"]
             for c in sweep_command:
                 if c.startswith("${") and c.endswith("}"):
                     replace_list = sweep_vars.get(c[2:-1])
