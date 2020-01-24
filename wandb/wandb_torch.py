@@ -221,17 +221,17 @@ class TorchHistory(object):
             elif tmax == 0:
                 bin_idx = len(bins_np) - 1
             else:
-                for i in range(len(bins_np) - 1):
-                    start = bins_np[i]
-                    end = bins_np[i+1]
-                    if start <= 0 and end > 0:
-                        bin_idx = i
-                        break
+                bin_idx = 0
+                # for i in range(len(bins_np) - 1):
+                #     start = bins_np[i]
+                #     end = bins_np[i+1]
+                #     if start <= 0 and end > 0:
+                #         bin_idx = i
+                #         break
 
-            if False:
-                tensor_np[bin_idx] += sparse_zeros
-                tensor = torch.Tensor(tensor_np)
-                bins = torch.Tensor(bins_np)
+            tensor_np[bin_idx] += sparse_zeros
+            tensor = torch.Tensor(tensor_np)
+            bins = torch.Tensor(bins_np)
 
         history.row.update({
             name: wandb.Histogram(np_histogram=(
