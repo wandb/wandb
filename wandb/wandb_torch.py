@@ -205,11 +205,12 @@ class TorchHistory(object):
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
         # Add back zeroes from a sparse tensor.
-        if sparse_zeros and False:
-            assert False
+        if sparse_zeros:
             np = util.get_module("numpy", "Could not import numpy")
             bins_np = bins.numpy()
             tensor_np = tensor.numpy()
+            print("bins_np: {}".format(bins_np))
+            print("tensor_np: {}".format(tensor_np))
             bin_idx = -1
             if tmin > 0:
                 bin_idx = 0
