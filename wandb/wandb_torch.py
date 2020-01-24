@@ -209,8 +209,6 @@ class TorchHistory(object):
             np = util.get_module("numpy", "Could not import numpy")
             bins_np = bins.numpy()
             tensor_np = tensor.numpy()
-            print("bins_np: {}".format(bins_np))
-            print("tensor_np: {}".format(tensor_np))
             bin_idx = -1
             if tmin > 0:
                 bin_idx = 0
@@ -230,9 +228,10 @@ class TorchHistory(object):
                         bin_idx = i
                         break
 
-            tensor_np[bin_idx] += sparse_zeros
-            tensor = torch.Tensor(tensor_np)
-            bins = torch.Tensor(bins_np)
+            if False:
+                tensor_np[bin_idx] += sparse_zeros
+                tensor = torch.Tensor(tensor_np)
+                bins = torch.Tensor(bins_np)
 
         history.row.update({
             name: wandb.Histogram(np_histogram=(
