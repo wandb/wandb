@@ -126,6 +126,8 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
         raise ValueError(
             "You must call `wandb.init` before calling watch")
 
+    in_jupyter = _get_python_type() != "python"
+
     log_parameters = False
     log_gradients = True
     if log == "all":
@@ -150,7 +152,8 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
             prefix = "graph_%i" % global_idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
-            model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
+            model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq,
+            jupyter_run=run if in_jupyter else None)
 
         graph = wandb_torch.TorchGraph.hook_torch(
             model, criterion, graph_idx=global_idx)
