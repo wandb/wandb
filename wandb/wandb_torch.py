@@ -154,12 +154,13 @@ class TorchHistory(object):
         sparse_zeros = None
         if isinstance(tensor, torch.sparse.FloatTensor):
             # Have to call this on a sparse tensor before most other ops.
-            tensor = tensor.coalesce()
+            tensor = tensor.cpu().coalesce().clone().detach()
 
-            non_zero_values = tensor._values().numel()
+            backing_values = tensor._values()
+            non_zero_values = backing_values.numel()
             all_values = tensor.numel()
             sparse_zeros = all_values - non_zero_values
-            tensor = tensor._values()
+            tensor = backing_values()
 
         flat = tensor.view(-1)
 
