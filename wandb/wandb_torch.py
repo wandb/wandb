@@ -206,7 +206,8 @@ class TorchHistory(object):
 
         # Add back zeroes from a sparse tensor.
         if sparse_zeros:
-            np = util.get_module("numpy", "Could not import numpy")
+            pass
+            # np = util.get_module("numpy", "Could not import numpy")
             # bins_np = bins.numpy()
             # tensor_np = tensor.numpy()
             # bin_idx = 0
@@ -222,12 +223,12 @@ class TorchHistory(object):
             #     bin_idx = len(bins_np) - 1
             # else:
             #     bin_idx = 0
-                # for i in range(len(bins_np) - 1):
-                #     start = bins_np[i]
-                #     end = bins_np[i+1]
-                #     if start <= 0 and end > 0:
-                #         bin_idx = i
-                #         break
+            # for i in range(len(bins_np) - 1):
+            #     start = bins_np[i]
+            #     end = bins_np[i+1]
+            #     if start <= 0 and end > 0:
+            #         bin_idx = i
+            #         break
 
             # tensor_np[bin_idx] += sparse_zeros
             # tensor = torch.Tensor(tensor_np)
