@@ -209,19 +209,19 @@ class TorchHistory(object):
             np = util.get_module("numpy", "Could not import numpy")
             bins_np = bins.numpy()
             tensor_np = tensor.numpy()
-            bin_idx = -1
-            if tmin > 0:
-                bin_idx = 0
-                bins_np = np.concatenate(([0], bins_np))
-                tensor_np = np.concatenate(([0], tensor_np))
-            elif tmax < 0:
-                bin_idx = len(bins_np)
-                bins_np = np.concatenate((bins_np, [0]))
-                tensor_np = np.concatenate((tensor_np, [0]))
-            elif tmax == 0:
-                bin_idx = len(bins_np) - 1
-            else:
-                bin_idx = 0
+            bin_idx = 0
+            # if tmin > 0:
+            #     bin_idx = 0
+            #     bins_np = np.concatenate(([0], bins_np))
+            #     tensor_np = np.concatenate(([0], tensor_np))
+            # elif tmax < 0:
+            #     bin_idx = len(bins_np)
+            #     bins_np = np.concatenate((bins_np, [0]))
+            #     tensor_np = np.concatenate((tensor_np, [0]))
+            # elif tmax == 0:
+            #     bin_idx = len(bins_np) - 1
+            # else:
+            #     bin_idx = 0
                 # for i in range(len(bins_np) - 1):
                 #     start = bins_np[i]
                 #     end = bins_np[i+1]
