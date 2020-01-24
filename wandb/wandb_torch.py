@@ -160,7 +160,7 @@ class TorchHistory(object):
             non_zero_values = backing_values.numel()
             all_values = tensor.numel()
             sparse_zeros = all_values - non_zero_values
-            tensor = backing_values()
+            tensor = backing_values
 
         flat = tensor.view(-1)
 
