@@ -1228,11 +1228,16 @@ def history_dict_to_json(run, payload, step=None):
 def numpy_arrays_to_lists(payload):
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
-    for key,val in six.iteritems(payload):
-        if isinstance(val, dict):
-            payload[key] = numpy_arrays_to_lists(val)
-        elif util.is_numpy_array(val):
-            payload[key] = val.tolist()
+    if isinstance(payload, dict):
+        for key,val in six.iteritems(payload):
+            if isinstance(val, dict):
+                payload[key] = numpy_arrays_to_lists(val)
+            elif isinstance(val, collections.Sequence) and not isinstance(val, six.string_types):
+                payload[key] = [numpy_arrays_to_lists(v) for v in val]
+            elif util.is_numpy_array(val):
+                payload[key] = val.tolist()
+    elif util.is_numpy_array(payload):
+        payload = payload.tolist()
 
     return payload
 
