@@ -1,8 +1,8 @@
-# Decision Boundary Utils
-# Modified from https://github.com/tmadl/highdimensional-decision-boundary-plot
 import numpy as np
 import matplotlib.pyplot as mplt
 import os
+import collections
+import sklearn
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA
@@ -14,7 +14,88 @@ from scipy.spatial.distance import euclidean, squareform, pdist
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, f1_score
+from sklearn.exceptions import NotFittedError
+from sklearn.utils.validation import check_is_fitted
+from sklearn.preprocessing import LabelEncoder
 
+def encode_labels(df):
+    le = LabelEncoder()
+    # apply le on categorical feature columns
+    categorical_cols = df.select_dtypes(exclude=['int','float','float64','float32','int32','int64']).columns
+    df[categorical_cols] = df[categorical_cols].apply(lambda col: le.fit_transform(col))
+# Test Asummptions for plotting parameters and datasets
+def test_missing(**kwargs):
+    test_passed = True
+    for k,v in kwargs.items():
+        # Missing/empty params/datapoint arrays
+        if v is None:
+            print("\nError: %s is None. Please try again." % (k))
+            test_passed = False
+    return test_passed
+def test_types(**kwargs):
+    test_passed = True
+    for k,v in kwargs.items():
+        # check for incorrect types
+        if ((k == 'X') or (k == 'X_test') or (k == 'y') or (k == 'y_test')
+            or (k == 'y_true') or (k == 'y_probas')):
+            if not isinstance(v, (collections.Sequence, np.ndarray)):
+                print("\nError: %s is not an array. Please try again." % (k))
+                test_passed = False
+        # check for classifier types
+        if (k=='model'):
+            if (not sklearn.base.is_classifier(v) or sklearn.base.is_regressor(v)):
+                print("\nError: %s is not a classifier or regressor. Please try again." % (k))
+                test_passed = False
+        elif (k=='clf' or k=='binary_clf'):
+            if (not(sklearn.base.is_classifier(v))):
+                print("\nError: %s is not a classifier. Please try again." % (k))
+                test_passed = False
+        elif (k=='regressor'):
+            if (not(sklearn.base.is_regressor(v))):
+                print("\nError: %s is not a regressor. Please try again." % (k))
+                test_passed = False
+        elif (k=='clusterer'):
+            if (not(getattr(estimator, "_estimator_type", None) == "clusterer")):
+                print("\nError: %s is not a clusterer. Please try again." % (k))
+                test_passed = False
+    return test_passed
+def test_fitted(model):
+    try:
+        model.predict(np.zeros((7, 3)))
+    except NotFittedError:
+        print("\nError: Please fit the model before passing it in.")
+        return False
+    except AttributeError:
+        # Some clustering models (LDA, PCA, Agglomerative) don't implement ``predict``
+        try:
+            check_is_fitted(
+                model,
+                [
+                    "coef_",
+                    "estimator_",
+                    "labels_",
+                    "n_clusters_",
+                    "children_",
+                    "components_",
+                    "n_components_",
+                    "n_iter_",
+                    "n_batch_iter_",
+                    "explained_variance_",
+                    "singular_values_",
+                    "mean_",
+                ],
+                all_or_any=any,
+            )
+            return True
+        except sklearn.exceptions.NotFittedError:
+            print("\nError: Please fit the model before passing it in.")
+            return False
+    except Exception:
+        # Assume it's fitted, since ``NotFittedError`` wasn't raised
+        return True
+
+# Decision Boundary Utils
+# Modified from https://github.com/tmadl/highdimensional-decision-boundary-plot
 class DBPlot(BaseEstimator):
     def __init__(
         self,
