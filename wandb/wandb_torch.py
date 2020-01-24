@@ -205,34 +205,33 @@ class TorchHistory(object):
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
         # Add back zeroes from a sparse tensor.
-        if sparse_zeros:
-            pass
-            # np = util.get_module("numpy", "Could not import numpy")
-            # bins_np = bins.numpy()
-            # tensor_np = tensor.numpy()
-            # bin_idx = 0
-            # if tmin > 0:
-            #     bin_idx = 0
-            #     bins_np = np.concatenate(([0], bins_np))
-            #     tensor_np = np.concatenate(([0], tensor_np))
-            # elif tmax < 0:
-            #     bin_idx = len(bins_np)
-            #     bins_np = np.concatenate((bins_np, [0]))
-            #     tensor_np = np.concatenate((tensor_np, [0]))
-            # elif tmax == 0:
-            #     bin_idx = len(bins_np) - 1
-            # else:
-            #     bin_idx = 0
-            # for i in range(len(bins_np) - 1):
-            #     start = bins_np[i]
-            #     end = bins_np[i+1]
-            #     if start <= 0 and end > 0:
-            #         bin_idx = i
-            #         break
+        if sparse_zeros and False:
+            np = util.get_module("numpy", "Could not import numpy")
+            bins_np = bins.numpy()
+            tensor_np = tensor.numpy()
+            bin_idx = 0
+            if tmin > 0:
+                bin_idx = 0
+                bins_np = np.concatenate(([0], bins_np))
+                tensor_np = np.concatenate(([0], tensor_np))
+            elif tmax < 0:
+                bin_idx = len(bins_np)
+                bins_np = np.concatenate((bins_np, [0]))
+                tensor_np = np.concatenate((tensor_np, [0]))
+            elif tmax == 0:
+                bin_idx = len(bins_np) - 1
+            else:
+                bin_idx = 0
+            for i in range(len(bins_np) - 1):
+                start = bins_np[i]
+                end = bins_np[i+1]
+                if start <= 0 and end > 0:
+                    bin_idx = i
+                    break
 
-            # tensor_np[bin_idx] += sparse_zeros
-            # tensor = torch.Tensor(tensor_np)
-            # bins = torch.Tensor(bins_np)
+            tensor_np[bin_idx] += sparse_zeros
+            tensor = torch.Tensor(tensor_np)
+            bins = torch.Tensor(bins_np)
 
         history.row.update({
             name: wandb.Histogram(np_histogram=(
