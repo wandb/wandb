@@ -9,8 +9,6 @@ import weakref
 from six.moves import reduce
 from distutils.version import LooseVersion
 from operator import mul
-import numpy as np
-
 
 from wandb import util
 from wandb.data_types import Node, Edge
@@ -207,6 +205,7 @@ class TorchHistory(object):
 
         # Add back zeroes from a sparse tensor.
         if sparse_zeros:
+            np = util.get_module("numpy", "Could not import numpy")
             bins_np = bins.numpy()
             tensor_np = tensor.numpy()
             bin_idx = -1
