@@ -129,6 +129,10 @@ class History(object):
         if self._start_time > self._current_timestamp:
             self._start_time = timestamp
 
+        for k in row.keys():
+            if not k:
+                wandb.termwarn("Logging keys with empty names is not supported")
+
         if step is None:
             self.update(row)
             if not self.batched:
