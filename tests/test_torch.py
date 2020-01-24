@@ -341,7 +341,7 @@ def test_embedding(wandb_init_run):
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_sparse_embedding(wandb_init_run):
     net = Embedding(d_embedding=300, d_word=300,
-                    d_hidden=300, word_dim=100, dropout=0, sparse=False)
+                    d_hidden=300, word_dim=100, dropout=0, sparse=True)
     wandb.watch(net, log="all", log_freq=1)
     for i in range(2):
         output = net(torch.ones((1, 4, 3, 224, 224)),
