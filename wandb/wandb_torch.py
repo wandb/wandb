@@ -78,8 +78,9 @@ class TorchHistory(object):
         self._hook_handles = {}
         self._num_bins = 64
         self._is_cuda_histc_supported = None
+        self._jupyter_run = None
 
-    def add_log_hooks_to_pytorch_module(self, module, name=None, prefix='', log_parameters=True, log_gradients=True, log_freq=0):
+    def add_log_hooks_to_pytorch_module(self, module, name=None, prefix='', log_parameters=True, log_gradients=True, log_freq=0, jupyter_run=None):
         """ This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
@@ -87,6 +88,9 @@ class TorchHistory(object):
         """
         if name is not None:
             prefix = prefix + name
+
+        if jupyter_run:
+            self._jupyter_run = weakref.ref(jupyter_run)
 
         module._wandb_hook_names = []
 
@@ -132,6 +136,13 @@ class TorchHistory(object):
             raise TypeError('Expected Tensor, not {}.{}'.format(
                 cls.__module__, cls.__name__))
         history = self._history()
+
+        # recover history from run if using jupyter
+        if history is None and self._jupyter_run:
+            jupyter_run = self._jupyter_run()
+            if jupyter_run:
+                history = jupyter_run.history
+
         if history is None or not history.compute:
             return
 
