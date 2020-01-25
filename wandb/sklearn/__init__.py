@@ -426,9 +426,9 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
 
-    if (test_missing(y_true=y_true, y_probas=y_probas) and
-        test_types(y_true=y_true, y_probas=y_probas)):
-        cm = metrics.confusion_matrix(y_true, y_pred, labels=labels)
+    if (test_missing(y_true=y_true, y_pred=y_pred) and
+        test_types(y_true=y_true, y_pred=y_pred)):
+        cm = metrics.confusion_matrix(y_true, y_pred)
         if labels is None:
             classes = unique_labels(y_true, y_pred)
         else:
@@ -717,8 +717,7 @@ def plot_feature_importances(model=None, title='Feature Importance',
 
 def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
                     show_cluster_time=True):
-    if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer)
-        and test_fitted(clusterer=clusterer)):
+    if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer)):
         if cluster_ranges is None:
             cluster_ranges = range(1, 10, 2)
         else:
@@ -807,8 +806,9 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, metric='euclide
     if not hasattr(clusterer, 'n_clusters'):
         raise TypeError('"n_clusters" attribute not in classifier. '
                         'Cannot plot elbow method.')
-    if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer)
-        and test_fitted(clusterer=clusterer)):
+    if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer)):
+        if isinstance(X, (pd.DataFrame)):
+            X = X.values
         # Run clusterer for n_clusters in range(len(cluster_ranges), get cluster labels
         # TODO - keep/delete once we decide if we should train clusterers
         # or ask for trained models
@@ -873,7 +873,7 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, metric='euclide
                     for i in range(len(colors))
                 ]
             )
-        wandb_key = 'silhouette_'+str(n_clusters)+"_clusters"
+        wandb_key = 'silhouette_plot'
         wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels_encoded, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg)})
         return
     '''

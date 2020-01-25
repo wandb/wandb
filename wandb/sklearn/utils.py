@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as mplt
 import os
 import collections
@@ -38,7 +39,7 @@ def test_types(**kwargs):
         # check for incorrect types
         if ((k == 'X') or (k == 'X_test') or (k == 'y') or (k == 'y_test')
             or (k == 'y_true') or (k == 'y_probas')):
-            if not isinstance(v, (collections.Sequence, np.ndarray)):
+            if not isinstance(v, (collections.Sequence, np.ndarray, pd.DataFrame, pd.Series)):
                 print("\nError: %s is not an array. Please try again." % (k))
                 test_passed = False
         # check for classifier types
@@ -55,7 +56,7 @@ def test_types(**kwargs):
                 print("\nError: %s is not a regressor. Please try again." % (k))
                 test_passed = False
         elif (k=='clusterer'):
-            if (not(getattr(estimator, "_estimator_type", None) == "clusterer")):
+            if (not(getattr(v, "_estimator_type", None) == "clusterer")):
                 print("\nError: %s is not a clusterer. Please try again." % (k))
                 test_passed = False
     return test_passed
