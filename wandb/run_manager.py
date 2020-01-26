@@ -1285,13 +1285,9 @@ class RunManager(object):
                         break
                     elif parsed.get("save_policy"):
                         self.update_user_file_policy(parsed["save_policy"])
-                        payload = b''
-                        parse = False
                     elif parsed.get("tensorboard"):
                         if parsed["tensorboard"].get("logdir"):
                             self.start_tensorboard_watcher(parsed["tensorboard"]["logdir"], parsed["tensorboard"]["save"])
-                        payload = b''
-                        parse = False
                     elif parsed.get("log_artifact"):
                         self.log_artifact(parsed["log_artifact"])
                     else:
@@ -1300,6 +1296,8 @@ class RunManager(object):
                         wandb.termerror(message)
                         util.sentry_exc(message)
                         break
+                    payload = b''
+                    parse = False
                     new_start = term + 1
                     # There's more to parse, add the remaining bytes
                     if len(res) > new_start:
