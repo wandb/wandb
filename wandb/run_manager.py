@@ -1158,6 +1158,27 @@ class RunManager(object):
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy_name].append(glob_str)
 
+    def log_artifact(self, message):
+        name = message['name']
+        path = message['path']
+        metadata = message['metadata']
+        tags = message['tags']
+
+        # TODO: Split alias off name and set alias if passed ('name:alias')
+        artifact = self._api.create_artifact_version(self.run.entity, self.run.project, self.run.id, name)
+
+        # TODO: If there is more than one artifact in that have common file
+        #   names, we have a problem.
+        # TODO: let user override path within artifact
+        if os.path.isdir(path):
+            # TODO: is os.walk better / faster? Isn't there an even faster thing
+            # in python3?
+            for root, _, files in os.walk(path):
+                for f in files:
+                    self._file_pusher.file_changed(f, os.path.join(root, f), artifact['id'])
+        else:
+            self._file_pusher.file_changed(path, path, artifact.id)
+
     def start_tensorboard_watcher(self, logdir, save=True):
         try:
             from wandb.tensorboard.watcher import Watcher, Consumer
@@ -1271,6 +1292,8 @@ class RunManager(object):
                             self.start_tensorboard_watcher(parsed["tensorboard"]["logdir"], parsed["tensorboard"]["save"])
                         payload = b''
                         parse = False
+                    elif parsed.get("log_artifact"):
+                        self.log_artifact(parsed["log_artifact"])
                     else:
                         message = "Invalid message received from child process: %s" % str(
                             payload)

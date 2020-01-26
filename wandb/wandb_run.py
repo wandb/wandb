@@ -180,9 +180,9 @@ class Run(object):
         """ Sends a message to the wandb process changing the policy
         of saved files.  This is primarily used internally by wandb.save
         """
-        if not options.get("save_policy") and not options.get("tensorboard"):
+        if not options.get("save_policy") and not options.get("tensorboard") and not options.get("log_artifact"):
             raise ValueError(
-                "Only configuring save_policy and tensorboard is supported")
+                "Only configuring save_policy, tensorboard  and log_artifact is supported")
         if self.socket:
             # In the user process
             self.socket.send(options)
@@ -403,6 +403,10 @@ class Run(object):
         # input must be an ArtifactVersion from public API
         api = api or self.api
         api.create_run_input_artifact_ref(self.entity, self.project, self.id, input.entity, input.project, input.id)
+
+    def log_artifact(self, name, path, metadata=None, tags=None):
+        self.send_message({'log_artifact': {
+            'name': name, 'path': path, 'metadata': metadata, 'tags': tags}})
 
     def publish_artifact(self, fname, name=None, description=None, api=None):
         api = api or self.api

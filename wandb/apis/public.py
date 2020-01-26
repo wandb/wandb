@@ -78,7 +78,7 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
 }'''
 
 ARTIFACTS_FRAGMENT = '''
-fragment ArtifactsFragment on ArtifactConnection {
+fragment ArtifactsFragment on ArtifactVersionConnection {
     edges {
          node {
              id
@@ -96,7 +96,7 @@ fragment ArtifactsFragment on ArtifactConnection {
 '''
 
 # TODO, factor out common file fragment
-ARTIFACT_VERSION_FILES_FRAGMENT = '''fragment ArtifactVersionFilesFragment on Artifact {
+ARTIFACT_VERSION_FILES_FRAGMENT = '''fragment ArtifactVersionFilesFragment on ArtifactVersion {
     files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
         edges {
             node {

@@ -1041,7 +1041,6 @@ class Api(object):
             }
         }
         ''')
-        print('STUFF', locals())
         response = self.gql(mutation, variable_values={
             'runEntityName': run_entity_name,
             'runProjectName': run_project_name,
