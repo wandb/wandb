@@ -40,6 +40,8 @@ def round_3(n):
     return round(n, 3)
 def round_2(n):
     return round(n, 2)
+def get_named_labels(labels, numeric_labels):
+        return np.array([labels[num_label] for num_label in numeric_labels])
 
 def plot_classifier(model, X_train, X_test,
                     y_train, y_test, y_pred, y_probas,
@@ -47,19 +49,19 @@ def plot_classifier(model, X_train, X_test,
     print('\nPlotting %s.'%model_name)
     plot_learning_curve(model, X_test, y_test)
     print('Logged learning curve.')
-    plot_confusion_matrix(y_test, y_pred, labels=labels)
+    plot_confusion_matrix(y_test, y_pred, labels)
     print('Logged confusion matrix.')
     plot_summary_metrics(model, X=X_train, y=y_train, X_test=X_test, y_test=y_test)
     print('Logged summary metrics.')
-    plot_class_balance(y_train, y_test)
+    plot_class_balance(y_train, y_test, labels)
     print('Logged class balances.')
     plot_calibration_curve(model, X_train, y_train, model_name)
     print('Logged calibration curve.')
     plot_feature_importances(model)
     print('Logged feature importances.')
-    plot_roc(y_test, y_probas)
+    plot_roc(y_test, y_probas, labels)
     print('Logged roc curve.')
-    plot_precision_recall(y_test, y_probas)
+    plot_precision_recall(y_test, y_probas, labels)
     print('Logged precision recall curve.')
     if is_binary:
         plot_decision_boundaries(model, X_train, y_train)
@@ -76,13 +78,12 @@ def plot_regressor(model, X_train, X_test, y_train, y_test,  model_name='Regress
     plot_residuals(model, X_train, y_train)
     print('Logged residuals.')
 
-def plot_clusterer(model, X_train, cluster_labels, model_name='Clusterer'):
+def plot_clusterer(model, X_train, cluster_labels, named_labels=None, model_name='Clusterer'):
     print('\nPlotting %s.'%model_name)
     if isinstance(model, sklearn.cluster.KMeans):
         plot_elbow_curve(model, X_train)
         print('Logged elbow curve.')
-        print('is instance KMeans',isinstance(model, sklearn.cluster.KMeans))
-        plot_silhouette(model, X_train, cluster_labels, kmeans=True)
+        plot_silhouette(model, X_train, cluster_labels, named_labels=named_labels, kmeans=True)
     plot_silhouette(model, X_train, cluster_labels, kmeans=False)
     print('Logged silhouette plot.')
 """
@@ -337,7 +338,7 @@ def plot_learning_curve(model=None, X=None, y=None, cv=None,
     }
 '''
 
-def roc(y_true=None, y_probas=None,
+def roc(y_true=None, y_probas=None, labels=None,
         plot_micro=True, plot_macro=True, classes_to_plot=None):
         if (test_missing(y_true=y_true, y_probas=y_probas) and
             test_types(y_true=y_true, y_probas=y_probas)):
@@ -363,7 +364,11 @@ def roc(y_true=None, y_probas=None,
                     if to_plot:
                         roc_auc = auc(fpr_dict[i], tpr_dict[i])
                         for j in range(len(fpr_dict[i])):
-                            fpr = [classes[i], fpr_dict[i][j], tpr_dict[i][j]]
+                            if labels is not None and not isinstance(classes[i], str):
+                                class_dict = labels[classes[i]]
+                            else:
+                                class_dict = classes[i]
+                            fpr = [class_dict, fpr_dict[i][j], tpr_dict[i][j]]
                             data.append(fpr)
                 return wandb.Table(
                     columns=['class', 'fpr', 'tpr'],
@@ -371,10 +376,9 @@ def roc(y_true=None, y_probas=None,
                 )
             return roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)
 
-def plot_roc(y_true=None, y_probas=None,
+def plot_roc(y_true=None, y_probas=None, labels=None,
              plot_micro=True, plot_macro=True, classes_to_plot=None):
-  wandb.log({'roc': roc(y_true, y_probas,
-                   plot_micro, plot_macro, classes_to_plot)})
+  wandb.log({'roc': roc(y_true, y_probas, labels, plot_micro, plot_macro, classes_to_plot)})
 
 '''
 {
@@ -507,7 +511,13 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
             data=[]
 
             for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-                data.append([pred_classes[i], true_classes[j], cm[i,j]])
+                if labels is not None and not isinstance(pred_classes[i], str):
+                    pred_dict = labels[pred_classes[i]]
+                    true_dict = labels[true_classes[i]]
+                else:
+                    pred_dict = pred_classes[i]
+                    true_dict = true_classes[j]
+                data.append([pred_dict, true_dict, cm[i,j]])
             return wandb.Table(
                 columns=['Predicted', 'Actual', 'Count'],
                 data=data
@@ -562,9 +572,8 @@ def plot_confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=Non
 }
 '''
 
-def precision_recall(y_true=None, y_probas=None,
-                          plot_micro=True,
-                          classes_to_plot=None):
+def precision_recall(y_true=None, y_probas=None, labels=None,
+                          plot_micro=True, classes_to_plot=None):
     y_true = np.array(y_true)
     y_probas = np.array(y_probas)
 
@@ -599,7 +608,7 @@ def precision_recall(y_true=None, y_probas=None,
                     sample_recall.append(recall[int(len(recall)*k/samples)])
 
                 pr_curves[classes[i]] = (sample_precision, sample_recall)
-
+        print('labels', labels)
         # if plot_micro:
         #     precision, recall, _ = precision_recall_curve(
         #         binarized_y_true.ravel(), probas.ravel())
@@ -610,13 +619,14 @@ def precision_recall(y_true=None, y_probas=None,
         #             label='micro-average Precision-recall curve '
         #                   '(area = {0:0.3f})'.format(average_precision),
         #             color='navy', linestyle=':', linewidth=4)
-
         def pr_table(pr_curves):
             data=[]
 
             for i, class_name in enumerate(pr_curves.keys()):
                 precision, recall = pr_curves[class_name]
                 for p, r in zip(precision, recall):
+                    if labels is not None and not isinstance(class_name, str):
+                        class_name = labels[class_name]
                     data.append([class_name, p, r])
             return wandb.Table(
                 columns=['class', 'precision', 'recall'],
@@ -624,12 +634,10 @@ def precision_recall(y_true=None, y_probas=None,
             )
         return pr_table(pr_curves)
 
-def plot_precision_recall(y_true=None, y_probas=None,
-                          plot_micro=True,
-                          classes_to_plot=None):
+def plot_precision_recall(y_true=None, y_probas=None, labels=None,
+                          plot_micro=True, classes_to_plot=None):
   wandb.log({'precision_recall':precision_recall(y_true, y_probas,
-                          plot_micro,
-                          classes_to_plot)})
+                          labels, plot_micro, classes_to_plot)})
 '''
 {
     "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
@@ -851,7 +859,7 @@ def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
     }
     '''
 
-def plot_silhouette(clusterer=None, X=None, cluster_labels=None,
+def plot_silhouette(clusterer=None, X=None, cluster_labels=None, named_labels=None,
                     metric='euclidean', kmeans=True):
     if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
         test_fitted(clusterer)):
@@ -863,12 +871,11 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None,
         # clusterer.set_params(n_clusters=n_clusters, random_state=42)
         # cluster_labels = clusterer.fit_predict(X)
         cluster_labels = np.asarray(cluster_labels)
+        named_labels = np.asarray(named_labels)
 
         le = LabelEncoder()
         cluster_labels_encoded = le.fit_transform(cluster_labels)
         n_clusters = len(np.unique(cluster_labels))
-        print('np.unique(cluster_labels)', np.unique(cluster_labels))
-        print('cluster_labels', cluster_labels[:20])
 
         # The silhouette_score gives the average value for all the samples.
         # This gives a perspective into the density and separation of the formed
@@ -915,17 +922,17 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None,
         # Plot 2: Scatter Plot showing the actual clusters formed
         if kmeans:
             centers = clusterer.cluster_centers_
-            def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
+            def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg, color_by):
                 return wandb.Table(
                     columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
                     data=[
                         [x[i], y[i], colors[i], centerx[colors[i]], centery[colors[i]],
                         y_sil[i], 0, x_sil[i], color_sil[i], silhouette_avg]
-                        for i in range(len(colors))
+                        for i in range(len(color_sil))
                     ]
                 )
             wandb_key = 'silhouette_plot'
-            wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels_encoded, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg)})
+            wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg, color_by)})
         else:
             centerx = [None] * len(color_sil)
             centery = [None] * len(color_sil)
@@ -939,7 +946,7 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None,
                     ]
                 )
             wandb_key = 'silhouette_plot'
-            wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels_encoded, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg)})
+            wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg)})
         return
     '''
     {
@@ -1021,7 +1028,7 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None,
     }
     '''
 
-def plot_class_balance(y_train=None, y_test=None):
+def plot_class_balance(y_train=None, y_test=None, labels=None):
     if (test_missing(y_train=y_train, y_test=y_test) and
         test_types(y_train=y_train, y_test=y_test)):
         # Get the unique values from the dataset
@@ -1048,6 +1055,8 @@ def plot_class_balance(y_train=None, y_test=None):
                 dataset_dict.append("test")
                 count_dict.append(class_counts_test[i])
 
+            if not isinstance(class_dict[0], str):
+                class_dict = get_named_labels(labels, class_dict)
             return wandb.Table(
                 columns=['class', 'dataset', 'count'],
                 data=[
