@@ -57,7 +57,7 @@ Returns:
 def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
     if (test_missing(model=model, X=X, y=y, X_test=X_test, y_test=y_test) and
         test_types(model=model, X=X, y=y, X_test=X_test, y_test=y_test) and
-        test_fitted(model=model)):
+        test_fitted(model)):
         metric_name=[]
         metric_value=[]
         model_name = model.__class__.__name__
@@ -674,7 +674,7 @@ def plot_feature_importances(model=None, title='Feature Importance',
     if not hasattr(model, 'feature_importances_'):
         print("\nfeature_importances_ attribute not in classifier. Cannot plot feature importances.")
     if (test_missing(model=model) and test_types(model=model) and
-        test_fitted(model=model)):
+        test_fitted(model)):
         importances = model.feature_importances_
         indices = np.argsort(importances)[::-1]
 
@@ -717,7 +717,8 @@ def plot_feature_importances(model=None, title='Feature Importance',
 
 def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
                     show_cluster_time=True):
-    if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer)):
+    if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
+        test_fitted(clusterer)):
         if cluster_ranges is None:
             cluster_ranges = range(1, 10, 2)
         else:
@@ -806,7 +807,8 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, metric='euclide
     if not hasattr(clusterer, 'n_clusters'):
         raise TypeError('"n_clusters" attribute not in classifier. '
                         'Cannot plot elbow method.')
-    if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer)):
+    if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
+        test_fitted(clusterer)):
         if isinstance(X, (pd.DataFrame)):
             X = X.values
         # Run clusterer for n_clusters in range(len(cluster_ranges), get cluster labels
@@ -1052,7 +1054,8 @@ def plot_class_balance(y_train=None, y_test=None):
 def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
     """Plot calibration curve for clf w/o and with calibration. """
     if (test_missing(clf=clf, X=X, y=y) and
-        test_types(clf=clf, X=X, y=y)):
+        test_types(clf=clf, X=X, y=y) and
+        test_fitted(clf)):
         # Create dataset of classification task with many redundant and few
         # informative features
         X, y = datasets.make_classification(n_samples=100000, n_features=20,
@@ -1194,7 +1197,7 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
 def plot_outlier_candidates(regressor=None, X=None, y=None):
     if (test_missing(regressor=regressor, X=X, y=y) and
         test_types(regressor=regressor, X=X, y=y) and
-        test_fitted(regressor=regressor)):
+        test_fitted(regressor)):
         # Fit a linear model to X and y to compute MSE
         regressor.fit(X, y)
 
@@ -1224,6 +1227,10 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
         )
         outlier_percentage_ *= 100.0
 
+        distance_dict = []
+        for d in distance_:
+            distance_dict.append(d)
+
         # Draw a stem plot with the influence for each instance
         # format: distance_, len(distance_), influence_threshold_, round_3(outlier_percentage_)
         def outlier_candidates(distance, outlier_percentage, influence_threshold):
@@ -1233,7 +1240,7 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
                     [distance[i], i, round_3(outlier_percentage_), influence_threshold_] for i in range(len(distance))
                 ]
             )
-        wandb.log({'outlier_candidates': outlier_candidates(distance_, outlier_percentage_, influence_threshold_)})
+        wandb.log({'outlier_candidates': outlier_candidates(distance_dict, outlier_percentage_, influence_threshold_)})
         return
     '''
     {
@@ -1289,7 +1296,7 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
 def plot_residuals(regressor=None, X=None, y=None):
     if (test_missing(regressor=regressor, X=X, y=y) and
         test_types(regressor=regressor, X=X, y=y) and
-        test_fitted(regressor=regressor)):
+        test_fitted(regressor)):
         # Create the train and test splits
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
@@ -1313,16 +1320,26 @@ def plot_residuals(regressor=None, X=None, y=None):
             y_pred_dict = []
             dataset_dict = []
             residuals_dict = []
-            for i in range(280):
+            datapoints = 0
+            max_datapoints_train = 280
+            max_datapoints_train = 20
+            for pred, residual in zip(y_pred_train, residuals_train):
                 # add class counts from training set
-                y_pred_dict.append(y_pred_train[i])
+                y_pred_dict.append(pred)
                 dataset_dict.append("train")
-                residuals_dict.append(residuals_train[i])
-            for i in range(20):
-                # add class counts from test set
-                y_pred_dict.append(y_pred_test[i])
+                residuals_dict.append(residual)
+                datapoints += 1
+                if(datapoints >= max_datapoints_train):
+                    break
+            datapoints = 0
+            for pred, residual in zip(y_pred_test, residuals_test):
+                # add class counts from training set
+                y_pred_dict.append(pred)
                 dataset_dict.append("test")
-                residuals_dict.append(residuals_test[i])
+                residuals_dict.append(residual)
+                datapoints += 1
+                if(datapoints >= max_datapoints_train):
+                    break
 
             return wandb.Table(
                 columns=['dataset', 'y_pred', 'residuals', 'train_score', 'test_score'],
@@ -1390,7 +1407,8 @@ def plot_residuals(regressor=None, X=None, y=None):
 
 def plot_decision_boundaries(binary_clf=None, X=None, y=None):
     if (test_missing(binary_clf=binary_clf, X=X, y=y) and
-        test_types(binary_clf=binary_clf, X=X, y=y)):
+        test_types(binary_clf=binary_clf, X=X, y=y) and
+        test_fitted(binary_clf)):
         # plot high-dimensional decision boundary
         db = DBPlot(binary_clf)
         db.fit(X, y)

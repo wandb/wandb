@@ -44,15 +44,16 @@ def test_types(**kwargs):
                 test_passed = False
         # check for classifier types
         if (k=='model'):
-            if (not sklearn.base.is_classifier(v) or sklearn.base.is_regressor(v)):
+            if ((not sklearn.base.is_classifier(v)) and (not sklearn.base.is_regressor(v))):
                 print("\nError: %s is not a classifier or regressor. Please try again." % (k))
+                print("Is regressor ", sklearn.base.is_regressor(v))
                 test_passed = False
         elif (k=='clf' or k=='binary_clf'):
             if (not(sklearn.base.is_classifier(v))):
                 print("\nError: %s is not a classifier. Please try again." % (k))
                 test_passed = False
         elif (k=='regressor'):
-            if (not(sklearn.base.is_regressor(v))):
+            if (not sklearn.base.is_regressor(v)):
                 print("\nError: %s is not a regressor. Please try again." % (k))
                 test_passed = False
         elif (k=='clusterer'):
