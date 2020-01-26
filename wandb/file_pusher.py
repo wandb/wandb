@@ -42,13 +42,13 @@ UploadRequest = collections.namedtuple(
 
 # These are handled by the event thread
 EventStartUploadJob = collections.namedtuple(
-    'EventStartUploadJob', ('path', 'save_name', 'url'))
+    'EventStartUploadJob', ('path', 'save_name'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
 
 class UploadJob(threading.Thread):
-    def __init__(self, done_queue, progress, api, save_name, path, upload_url):
+    def __init__(self, done_queue, progress, api, save_name, path):
         """A file upload thread.
 
         Arguments:
@@ -65,7 +65,6 @@ class UploadJob(threading.Thread):
         self._api = api
         self.save_name = save_name
         self.save_path = self.path = path
-        self._upload_url = upload_url
         super(UploadJob, self).__init__()
 
     def run(self):
@@ -88,8 +87,9 @@ class UploadJob(threading.Thread):
         }
         try:
             with open(self.save_path, 'rb') as f:
-                self._api._upload_file_with_progress(
-                    self._upload_url, f, progress=lambda _, t: self.progress(t))
+                self._api.push(
+                    {self.save_name: f},
+                    progress=lambda _, t: self.progress(t))
         except Exception as e:
             self._progress[self.save_name]['uploaded'] = 0
             self._progress[self.save_name]['failed'] = True
@@ -254,7 +254,7 @@ class FilePusher(object):
                         }
                     else:
                         start_upload_event = EventStartUploadJob(
-                            e.path, e.save_name, response_file['url'])
+                            e.path, e.save_name)
                         self._event_queue.put(start_upload_event)
                 batch = []
 
@@ -296,7 +296,7 @@ class FilePusher(object):
         # Start it.
         self._last_job_started_at = time.time()
         job = UploadJob(self._event_queue, self._progress, self._api,
-                        event.save_name, event.path, event.url)
+                        event.save_name, event.path)
         self._running_jobs[event.save_name] = job
         job.start()
 

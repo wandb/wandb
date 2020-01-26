@@ -777,7 +777,7 @@ class Api(object):
         return response['upsertBucket']['bucket']
 
     @normalize_exceptions
-    def upload_urls(self, project, files, run=None, entity=None, description=None, artifact_id=None):
+    def upload_urls(self, project, files, run=None, entity=None, description=None):
         """Generate temporary resumeable upload urls
 
         Args:
@@ -796,12 +796,11 @@ class Api(object):
                 }
         """
         query = gql('''
-        query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String, $artifactID: String) {
+        query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run, desc: $description) {
                     id
-                    files(names: $files, addToArtifactID: $artifactID) {
-                        uploadHeaders
+                    files(names: $files) {
                         edges {
                             node {
                                 name
@@ -821,13 +820,12 @@ class Api(object):
             'entity': entity,
             'description': description,
             'files': [file for file in files],
-            'artifactID': artifact_id
         })
 
         run = query_result['model']['bucket']
         if run:
             result = {file['name']: file for file in self._flatten_edges(run['files'])}
-            return run['id'], run['files']['uploadHeaders'], result
+            return run['id'], result
         else:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run_id))
 
@@ -1074,7 +1072,6 @@ class Api(object):
                             id
                             name
                             fingerprint
-                            url(upload: true)
                         }
                     }
                 }
@@ -1380,7 +1377,7 @@ class Api(object):
         return self.settings('project')
 
     @normalize_exceptions
-    def push(self, files, run=None, entity=None, project=None, description=None, force=True, artifact_id=None, progress=False):
+    def push(self, files, run=None, entity=None, project=None, description=None, force=True, progress=False):
         """Uploads multiple files to W&B
 
         Args:
@@ -1406,12 +1403,8 @@ class Api(object):
         # TODO(adrian): we use a retriable version of self.upload_file() so
         # will never retry self.upload_urls() here. Instead, maybe we should
         # make push itself retriable.
-        run_id, upload_headers, result = self.upload_urls(
-            project, files, run, entity, description, artifact_id)
-        extra_headers = {}
-        for upload_header in upload_headers:
-            key, val = upload_header.split(':', 1)
-            extra_headers[key] = val
+        run_id, result = self.upload_urls(
+            project, files, run, entity, description)
         responses = []
         for file_name, file_info in result.items():
             file_url = file_info['url']
@@ -1432,7 +1425,7 @@ class Api(object):
                 continue
 
             responses.append(self._upload_file_with_progress(
-                file_url, open_file, progress, extra_headers=extra_headers))
+                file_url, open_file, progress))
             open_file.close()
         return responses
 
