@@ -44,6 +44,7 @@ def round_2(n):
 def plot_classifier(model, X_train, X_test,
                     y_train, y_test, y_pred, y_probas,
                     labels, is_binary=False, model_name='Classifier'):
+    print('\nPlotting %s.'%model_name)
     plot_learning_curve(model, X_test, y_test)
     print('Logged learning curve.')
     plot_confusion_matrix(y_test, y_pred, labels=labels)
@@ -65,6 +66,7 @@ def plot_classifier(model, X_train, X_test,
         print('Logged decision boundary plot.')
 
 def plot_regressor(model, X_train, X_test, y_train, y_test,  model_name='Regressor'):
+    print('\nPlotting %s.'%model_name)
     plot_summary_metrics(model, X_train, y_train, X_test, y_test)
     print('Logged summary metrics.')
     plot_learning_curve(model, X_test, y_test)
@@ -75,9 +77,13 @@ def plot_regressor(model, X_train, X_test, y_train, y_test,  model_name='Regress
     print('Logged residuals.')
 
 def plot_clusterer(model, X_train, cluster_labels, model_name='Clusterer'):
-    plot_elbow_curve(model, X_train)
-    print('Logged elbow curve.')
-    plot_silhouette(model, X_train, cluster_labels)
+    print('\nPlotting %s.'%model_name)
+    if isinstance(model, sklearn.cluster.KMeans):
+        plot_elbow_curve(model, X_train)
+        print('Logged elbow curve.')
+        print('is instance KMeans',isinstance(model, sklearn.cluster.KMeans))
+        plot_silhouette(model, X_train, cluster_labels, kmeans=True)
+    plot_silhouette(model, X_train, cluster_labels, kmeans=False)
     print('Logged silhouette plot.')
 """
 Generates a table of metrics summarizing the peformance of a classifier or regressor.
@@ -710,7 +716,8 @@ def plot_precision_recall(y_true=None, y_probas=None,
 def plot_feature_importances(model=None, title='Feature Importance',
                              feature_names=None, max_num_features=20):
     if not hasattr(model, 'feature_importances_'):
-        print("\nfeature_importances_ attribute not in classifier. Cannot plot feature importances.")
+        print("\nError: feature_importances_ attribute not in classifier. Cannot plot feature importances.")
+        return
     if (test_missing(model=model) and test_types(model=model) and
         test_fitted(model)):
         importances = model.feature_importances_
@@ -755,6 +762,9 @@ def plot_feature_importances(model=None, title='Feature Importance',
 
 def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
                     show_cluster_time=True):
+    if not hasattr(clusterer, 'n_clusters'):
+        print('n_clusters attribute not in classifier. Cannot plot elbow method.')
+        return
     if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
         test_fitted(clusterer)):
         if cluster_ranges is None:
@@ -841,10 +851,8 @@ def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
     }
     '''
 
-def plot_silhouette(clusterer=None, X=None, cluster_labels=None, metric='euclidean'):
-    if not hasattr(clusterer, 'n_clusters'):
-        raise TypeError('"n_clusters" attribute not in classifier. '
-                        'Cannot plot elbow method.')
+def plot_silhouette(clusterer=None, X=None, cluster_labels=None,
+                    metric='euclidean', kmeans=True):
     if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
         test_fitted(clusterer)):
         if isinstance(X, (pd.DataFrame)):
@@ -859,6 +867,8 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, metric='euclide
         le = LabelEncoder()
         cluster_labels_encoded = le.fit_transform(cluster_labels)
         n_clusters = len(np.unique(cluster_labels))
+        print('np.unique(cluster_labels)', np.unique(cluster_labels))
+        print('cluster_labels', cluster_labels[:20])
 
         # The silhouette_score gives the average value for all the samples.
         # This gives a perspective into the density and separation of the formed
@@ -869,10 +879,7 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, metric='euclide
         sample_silhouette_values = silhouette_samples(X, cluster_labels,
                                                       metric=metric)
 
-        # Plot 1: Scatter Plot showing the actual clusters formed
-        centers = clusterer.cluster_centers_
-
-        # Plot 2: Silhouette Score
+        # Plot 1: Silhouette Score
         # y = np.arange(y_lower, y_upper)[]
         # x1 = 0
         # x2 = ith_cluster_silhouette_values[]
@@ -904,17 +911,35 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, metric='euclide
 
             # Compute the new y_lower for next plot
             y_lower = y_upper + 10  # 10 for the 0 samples
-        def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
-            return wandb.Table(
-                columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
-                data=[
-                    [x[i], y[i], colors[i], centerx[colors[i]], centery[colors[i]],
-                    y_sil[i], 0, x_sil[i], color_sil[i], silhouette_avg]
-                    for i in range(len(colors))
-                ]
-            )
-        wandb_key = 'silhouette_plot'
-        wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels_encoded, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg)})
+
+        # Plot 2: Scatter Plot showing the actual clusters formed
+        if kmeans:
+            centers = clusterer.cluster_centers_
+            def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
+                return wandb.Table(
+                    columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
+                    data=[
+                        [x[i], y[i], colors[i], centerx[colors[i]], centery[colors[i]],
+                        y_sil[i], 0, x_sil[i], color_sil[i], silhouette_avg]
+                        for i in range(len(colors))
+                    ]
+                )
+            wandb_key = 'silhouette_plot'
+            wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels_encoded, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg)})
+        else:
+            centerx = [None] * len(color_sil)
+            centery = [None] * len(color_sil)
+            def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
+                return wandb.Table(
+                    columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
+                    data=[
+                        [x[i], y[i], colors[i], None, None,
+                        y_sil[i], 0, x_sil[i], color_sil[i], silhouette_avg]
+                        for i in range(len(color_sil))
+                    ]
+                )
+            wandb_key = 'silhouette_plot'
+            wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels_encoded, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg)})
         return
     '''
     {
