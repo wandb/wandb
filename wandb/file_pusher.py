@@ -166,6 +166,8 @@ class FilePusher(object):
             if stop:
                 break
             time.sleep(0.25)
+        if summary['deduped_bytes'] != 0:
+            wandb.termlog('✨ W&B magic sync reduced upload amount by %.1f%%             ' % (summary['deduped_bytes'] / float(summary['total_bytes']) * 100))
         # clear progress line.
         wandb.termlog(' ' * 79)
 
