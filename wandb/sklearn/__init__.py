@@ -41,6 +41,44 @@ def round_3(n):
 def round_2(n):
     return round(n, 2)
 
+def plot_classifier(model, X_train, X_test,
+                    y_train, y_test, y_pred, y_probas,
+                    labels, is_binary=False, model_name='Classifier'):
+    plot_learning_curve(model, X_test, y_test)
+    print('Logged learning curve.')
+    plot_confusion_matrix(y_test, y_pred, labels=labels)
+    print('Logged confusion matrix.')
+    plot_summary_metrics(model, X=X_train, y=y_train, X_test=X_test, y_test=y_test)
+    print('Logged summary metrics.')
+    plot_class_balance(y_train, y_test)
+    print('Logged class balances.')
+    plot_calibration_curve(model, X_train, y_train, model_name)
+    print('Logged calibration curve.')
+    plot_feature_importances(model)
+    print('Logged feature importances.')
+    plot_roc(y_test, y_probas)
+    print('Logged roc curve.')
+    plot_precision_recall(y_test, y_probas)
+    print('Logged precision recall curve.')
+    if is_binary:
+        plot_decision_boundaries(model, X_train, y_train)
+        print('Logged decision boundary plot.')
+
+def plot_regressor(model, X_train, X_test, y_train, y_test,  model_name='Regressor'):
+    plot_summary_metrics(model, X_train, y_train, X_test, y_test)
+    print('Logged summary metrics.')
+    plot_learning_curve(model, X_test, y_test)
+    print('Logged learning curve.')
+    plot_outlier_candidates(model, X_train, y_train)
+    print('Logged outlier candidates.')
+    plot_residuals(model, X_train, y_train)
+    print('Logged residuals.')
+
+def plot_clusterer(model, X_train, cluster_labels, model_name='Clusterer'):
+    plot_elbow_curve(model, X_train)
+    print('Logged elbow curve.')
+    plot_silhouette(model, X_train, cluster_labels)
+    print('Logged silhouette plot.')
 """
 Generates a table of metrics summarizing the peformance of a classifier or regressor.
 
