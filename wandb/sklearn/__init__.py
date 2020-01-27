@@ -45,7 +45,8 @@ def get_named_labels(labels, numeric_labels):
 
 def plot_classifier(model, X_train, X_test,
                     y_train, y_test, y_pred, y_probas,
-                    labels, is_binary=False, model_name='Classifier'):
+                    labels, is_binary=False, model_name='Classifier',
+                    feature_names=None):
     print('\nPlotting %s.'%model_name)
     plot_learning_curve(model, X_test, y_test)
     print('Logged learning curve.')
@@ -57,7 +58,7 @@ def plot_classifier(model, X_train, X_test,
     print('Logged class balances.')
     plot_calibration_curve(model, X_train, y_train, model_name)
     print('Logged calibration curve.')
-    plot_feature_importances(model)
+    plot_feature_importances(model,feature_names)
     print('Logged feature importances.')
     plot_roc(y_test, y_probas, labels)
     print('Logged roc curve.')
@@ -78,13 +79,14 @@ def plot_regressor(model, X_train, X_test, y_train, y_test,  model_name='Regress
     plot_residuals(model, X_train, y_train)
     print('Logged residuals.')
 
-def plot_clusterer(model, X_train, cluster_labels, named_labels=None, model_name='Clusterer'):
+def plot_clusterer(model, X_train, cluster_labels, labels=None, model_name='Clusterer'):
     print('\nPlotting %s.'%model_name)
     if isinstance(model, sklearn.cluster.KMeans):
         plot_elbow_curve(model, X_train)
         print('Logged elbow curve.')
-        plot_silhouette(model, X_train, cluster_labels, named_labels=named_labels, kmeans=True)
-    plot_silhouette(model, X_train, cluster_labels, kmeans=False)
+        plot_silhouette(model, X_train, cluster_labels, labels=labels, kmeans=True)
+    else:
+        plot_silhouette(model, X_train, cluster_labels, kmeans=False)
     print('Logged silhouette plot.')
 """
 Generates a table of metrics summarizing the peformance of a classifier or regressor.
@@ -106,6 +108,14 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
         metric_name=[]
         metric_value=[]
         model_name = model.__class__.__name__
+
+        # Log model params to wandb.config
+        for v in vars(model):
+            if isinstance(getattr(model, v), str) \
+                or isinstance(getattr(model, v), bool) \
+                    or isinstance(getattr(model, v), int) \
+                    or isinstance(getattr(model, v), float):
+                wandb.config[v] = getattr(model, v)
 
         # Classifier Metrics
         if sklearn.base.is_classifier(model):
@@ -364,7 +374,9 @@ def roc(y_true=None, y_probas=None, labels=None,
                     if to_plot:
                         roc_auc = auc(fpr_dict[i], tpr_dict[i])
                         for j in range(len(fpr_dict[i])):
-                            if labels is not None and not isinstance(classes[i], str):
+                            print('type: ',type(classes[i]))
+                            if labels is not None and (isinstance(classes[i], int)
+                                    or np.issubdtype(classes[i], np.integer)):
                                 class_dict = labels[classes[i]]
                             else:
                                 class_dict = classes[i]
@@ -511,7 +523,7 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
             data=[]
 
             for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-                if labels is not None and not isinstance(pred_classes[i], str):
+                if labels is not None and isinstance(pred_classes[i], int):
                     pred_dict = labels[pred_classes[i]]
                     true_dict = labels[true_classes[i]]
                 else:
@@ -608,7 +620,6 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
                     sample_recall.append(recall[int(len(recall)*k/samples)])
 
                 pr_curves[classes[i]] = (sample_precision, sample_recall)
-        print('labels', labels)
         # if plot_micro:
         #     precision, recall, _ = precision_recall_curve(
         #         binarized_y_true.ravel(), probas.ravel())
@@ -625,7 +636,8 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
             for i, class_name in enumerate(pr_curves.keys()):
                 precision, recall = pr_curves[class_name]
                 for p, r in zip(precision, recall):
-                    if labels is not None and not isinstance(class_name, str):
+                    if labels is not None and (isinstance(class_name, int)
+                            or np.issubdtype(classes[i], np.integer)):
                         class_name = labels[class_name]
                     data.append([class_name, p, r])
             return wandb.Table(
@@ -721,14 +733,15 @@ def plot_precision_recall(y_true=None, y_probas=None, labels=None,
 }
 '''
 
-def plot_feature_importances(model=None, title='Feature Importance',
-                             feature_names=None, max_num_features=20):
+def plot_feature_importances(model=None, feature_names=None,
+                            title='Feature Importance', max_num_features=20):
     if not hasattr(model, 'feature_importances_'):
         print("\nError: feature_importances_ attribute not in classifier. Cannot plot feature importances.")
         return
     if (test_missing(model=model) and test_types(model=model) and
         test_fitted(model)):
         importances = model.feature_importances_
+
         indices = np.argsort(importances)[::-1]
 
         if feature_names is None:
@@ -859,7 +872,7 @@ def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
     }
     '''
 
-def plot_silhouette(clusterer=None, X=None, cluster_labels=None, named_labels=None,
+def plot_silhouette(clusterer=None, X=None, cluster_labels=None, labels=None,
                     metric='euclidean', kmeans=True):
     if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
         test_fitted(clusterer)):
@@ -871,7 +884,7 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, named_labels=No
         # clusterer.set_params(n_clusters=n_clusters, random_state=42)
         # cluster_labels = clusterer.fit_predict(X)
         cluster_labels = np.asarray(cluster_labels)
-        named_labels = np.asarray(named_labels)
+        labels = np.asarray(labels)
 
         le = LabelEncoder()
         cluster_labels_encoded = le.fit_transform(cluster_labels)
@@ -922,7 +935,7 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, named_labels=No
         # Plot 2: Scatter Plot showing the actual clusters formed
         if kmeans:
             centers = clusterer.cluster_centers_
-            def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg, color_by):
+            def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
                 return wandb.Table(
                     columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
                     data=[
@@ -932,7 +945,7 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, named_labels=No
                     ]
                 )
             wandb_key = 'silhouette_plot'
-            wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg, color_by)})
+            wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg)})
         else:
             centerx = [None] * len(color_sil)
             centery = [None] * len(color_sil)
@@ -1227,7 +1240,7 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
                 "type": "nominal",
                 "axis": {"title": "Models"},
                 "scale": {
-                  "range": ["#3498DB", "#AB47BC", "#55BBBB", "#BB9955"]
+                  "range": ["#3498DB", "#AB47BC", "#55BBBB", "#BB9955", "#FBC02D"]
                 }
               }
             },
@@ -1485,7 +1498,6 @@ def plot_decision_boundaries(binary_clf=None, X=None, y=None):
         db = DBPlot(binary_clf)
         db.fit(X, y)
         decision_boundary_x, decision_boundary_y, decision_boundary_color, train_x, train_y, train_color, test_x, test_y, test_color = db.plot()
-
         def decision_boundaries(decision_boundary_x, decision_boundary_y,
                                 decision_boundary_color, train_x, train_y,
                                 train_color, test_x, test_y, test_color):
