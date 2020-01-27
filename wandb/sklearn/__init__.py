@@ -375,8 +375,7 @@ def roc(y_true=None, y_probas=None, labels=None,
                         roc_auc = auc(fpr_dict[i], tpr_dict[i])
                         for j in range(len(fpr_dict[i])):
                             print('type: ',type(classes[i]))
-                            if labels is not None and (isinstance(classes[i], int)
-                                    or np.issubdtype(classes[i], np.integer)):
+                            if labels is not None and (isinstance(classes[i], int)):
                                 class_dict = labels[classes[i]]
                             else:
                                 class_dict = classes[i]
@@ -636,9 +635,12 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
             for i, class_name in enumerate(pr_curves.keys()):
                 precision, recall = pr_curves[class_name]
                 for p, r in zip(precision, recall):
-                    if labels is not None and (isinstance(class_name, int)
-                            or np.issubdtype(classes[i], np.integer)):
+                    # if class_names are ints and labels are set
+                    if labels is not None and (isinstance(class_name, int)):
                         class_name = labels[class_name]
+                    # if class_names are ints and labels are not set
+                    # or, if class_names have something other than ints
+                    # (string, float, date) - user class_names
                     data.append([class_name, p, r])
             return wandb.Table(
                 columns=['class', 'precision', 'recall'],
@@ -1068,7 +1070,7 @@ def plot_class_balance(y_train=None, y_test=None, labels=None):
                 dataset_dict.append("test")
                 count_dict.append(class_counts_test[i])
 
-            if not isinstance(class_dict[0], str):
+            if labels is not None and (isinstance(class_dict[0], int)):
                 class_dict = get_named_labels(labels, class_dict)
             return wandb.Table(
                 columns=['class', 'dataset', 'count'],
