@@ -11,6 +11,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.neighbors import KNeighborsClassifier
 import nlopt
 import random
+import wandb
 from scipy.spatial.distance import euclidean, squareform, pdist
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
@@ -30,7 +31,7 @@ def test_missing(**kwargs):
     for k,v in kwargs.items():
         # Missing/empty params/datapoint arrays
         if v is None:
-            print("\nError: %s is None. Please try again." % (k))
+            wandb.termerror("\nError: %s is None. Please try again." % (k))
             test_passed = False
     return test_passed
 def test_types(**kwargs):
@@ -40,32 +41,31 @@ def test_types(**kwargs):
         if ((k == 'X') or (k == 'X_test') or (k == 'y') or (k == 'y_test')
             or (k == 'y_true') or (k == 'y_probas')):
             if not isinstance(v, (collections.Sequence, np.ndarray, pd.DataFrame, pd.Series)):
-                print("\nError: %s is not an array. Please try again." % (k))
+                wandb.termerror("\nError: %s is not an array. Please try again." % (k))
                 test_passed = False
         # check for classifier types
         if (k=='model'):
-            if ((not sklearn.base.is_classifier(v)) and (not sklearn.base.is_regressor(v))):
-                print("\nError: %s is not a classifier or regressor. Please try again." % (k))
-                print("Is regressor ", sklearn.base.is_regressor(v))
+            if ((not sklearn.base.is_classifier(v)) or (not sklearn.base.is_regressor(v))):
+                wandb.termerror("\nError: %s is not a classifier or regressor. Please try again." % (k))
                 test_passed = False
         elif (k=='clf' or k=='binary_clf'):
             if (not(sklearn.base.is_classifier(v))):
-                print("\nError: %s is not a classifier. Please try again." % (k))
+                wandb.termerror("\nError: %s is not a classifier. Please try again." % (k))
                 test_passed = False
         elif (k=='regressor'):
             if (not sklearn.base.is_regressor(v)):
-                print("\nError: %s is not a regressor. Please try again." % (k))
+                wandb.termerror("\nError: %s is not a regressor. Please try again." % (k))
                 test_passed = False
         elif (k=='clusterer'):
             if (not(getattr(v, "_estimator_type", None) == "clusterer")):
-                print("\nError: %s is not a clusterer. Please try again." % (k))
+                wandb.termerror("\nError: %s is not a clusterer. Please try again." % (k))
                 test_passed = False
     return test_passed
 def test_fitted(model):
     try:
         model.predict(np.zeros((7, 3)))
     except NotFittedError:
-        print("\nError: Please fit the model before passing it in.")
+        wandb.termerror("\nError: Please fit the model before passing it in.")
         return False
     except AttributeError:
         # Some clustering models (LDA, PCA, Agglomerative) don't implement ``predict``
@@ -90,7 +90,7 @@ def test_fitted(model):
             )
             return True
         except sklearn.exceptions.NotFittedError:
-            print("\nError: Please fit the model before passing it in.")
+            wandb.termerror("\nError: Please fit the model before passing it in.")
             return False
     except Exception:
         # Assume it's fitted, since ``NotFittedError`` wasn't raised
@@ -259,7 +259,7 @@ class DBPlot(BaseEstimator):
         )
 
         if len(self.decision_boundary_points_2d) < 2:
-            print(
+            wandb.termerror(
                 "Failed to find initial decision boundary. Retrying... If this keeps happening, increasing the acceptance threshold might help. Also, make sure the classifier is able to find a point with 0.5 prediction probability (usually requires an even number of estimators/neighbors/etc)."
             )
             return self.fit(X, y, training_indices)
@@ -295,7 +295,7 @@ class DBPlot(BaseEstimator):
 
             if self.decision_boundary_distance(db_point) > self.acceptance_threshold:
                 if self.verbose:
-                    print(
+                    wandb.termerror(
                         "No good solution along straight line - trying to find decision boundary on hypersphere surface around known decision boundary point"
                     )
 
@@ -323,10 +323,10 @@ class DBPlot(BaseEstimator):
                         i += 1
                         dist = self.decision_boundary_distance(db_point)
                         msg = "Found point is too distant from decision boundary ({}), but retry budget exceeded ({})"
-                        print(msg.format(dist, self.hypersphere_max_retry_budget))
+                        wandb.termerror(msg.format(dist, self.hypersphere_max_retry_budget))
                     elif self.verbose:
                         dist = self.decision_boundary_distance(db_point)
-                        print(
+                        wandb.termerror(
                             "Found point is too distant from decision boundary ({}) retrying...".format(
                                 dist
                             )
@@ -540,7 +540,7 @@ class DBPlot(BaseEstimator):
                     )
                 return error
             except (Exception, ex):
-                print("Error in objective function:", ex)
+                wandb.termerror("Error in objective function:", ex)
                 return np.infty
 
         optimizer = self._get_optimizer(

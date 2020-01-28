@@ -47,47 +47,47 @@ def plot_classifier(model, X_train, X_test,
                     y_train, y_test, y_pred, y_probas,
                     labels, is_binary=False, model_name='Classifier',
                     feature_names=None):
-    print('\nPlotting %s.'%model_name)
+    wandb.termlog('\nPlotting %s.'%model_name)
     plot_feature_importances(model, feature_names)
-    print('Logged feature importances.')
+    wandb.termlog('Logged feature importances.')
     plot_learning_curve(model, X_test, y_test)
-    print('Logged learning curve.')
+    wandb.termlog('Logged learning curve.')
     plot_confusion_matrix(y_test, y_pred, labels)
-    print('Logged confusion matrix.')
+    wandb.termlog('Logged confusion matrix.')
     plot_summary_metrics(model, X=X_train, y=y_train, X_test=X_test, y_test=y_test)
-    print('Logged summary metrics.')
+    wandb.termlog('Logged summary metrics.')
     plot_class_balance(y_train, y_test, labels)
-    print('Logged class balances.')
+    wandb.termlog('Logged class balances.')
     plot_calibration_curve(model, X_train, y_train, model_name)
-    print('Logged calibration curve.')
+    wandb.termlog('Logged calibration curve.')
     plot_roc(y_test, y_probas, labels)
-    print('Logged roc curve.')
+    wandb.termlog('Logged roc curve.')
     plot_precision_recall(y_test, y_probas, labels)
-    print('Logged precision recall curve.')
+    wandb.termlog('Logged precision recall curve.')
     if is_binary:
         plot_decision_boundaries(model, X_train, y_train)
-        print('Logged decision boundary plot.')
+        wandb.termlog('Logged decision boundary plot.')
 
 def plot_regressor(model, X_train, X_test, y_train, y_test,  model_name='Regressor'):
-    print('\nPlotting %s.'%model_name)
+    wandb.termlog('\nPlotting %s.'%model_name)
     plot_summary_metrics(model, X_train, y_train, X_test, y_test)
-    print('Logged summary metrics.')
+    wandb.termlog('Logged summary metrics.')
     plot_learning_curve(model, X_test, y_test)
-    print('Logged learning curve.')
+    wandb.termlog('Logged learning curve.')
     plot_outlier_candidates(model, X_train, y_train)
-    print('Logged outlier candidates.')
+    wandb.termlog('Logged outlier candidates.')
     plot_residuals(model, X_train, y_train)
-    print('Logged residuals.')
+    wandb.termlog('Logged residuals.')
 
 def plot_clusterer(model, X_train, cluster_labels, labels=None, model_name='Clusterer'):
-    print('\nPlotting %s.'%model_name)
+    wandb.termlog('\nPlotting %s.'%model_name)
     if isinstance(model, sklearn.cluster.KMeans):
         plot_elbow_curve(model, X_train)
-        print('Logged elbow curve.')
+        wandb.termlog('Logged elbow curve.')
         plot_silhouette(model, X_train, cluster_labels, labels=labels, kmeans=True)
     else:
         plot_silhouette(model, X_train, cluster_labels, kmeans=False)
-    print('Logged silhouette plot.')
+    wandb.termlog('Logged silhouette plot.')
 """
 Generates a table of metrics summarizing the peformance of a classifier or regressor.
 
@@ -740,7 +740,7 @@ def plot_precision_recall(y_true=None, y_probas=None, labels=None,
 def plot_feature_importances(model=None, feature_names=None,
                             title='Feature Importance', max_num_features=20):
     if not hasattr(model, 'feature_importances_'):
-        print("\nError: feature_importances_ attribute not in classifier. Cannot plot feature importances.")
+        wandb.termlog("\nError: feature_importances_ attribute not in classifier. Cannot plot feature importances.")
         return
     if (test_missing(model=model) and test_types(model=model) and
         test_fitted(model)):
@@ -788,7 +788,7 @@ def plot_feature_importances(model=None, feature_names=None,
 def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
                     show_cluster_time=True):
     if not hasattr(clusterer, 'n_clusters'):
-        print('n_clusters attribute not in classifier. Cannot plot elbow method.')
+        wandb.termlog('n_clusters attribute not in classifier. Cannot plot elbow method.')
         return
     if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
         test_fitted(clusterer)):
