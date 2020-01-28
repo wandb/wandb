@@ -31,7 +31,7 @@ def test_missing(**kwargs):
     for k,v in kwargs.items():
         # Missing/empty params/datapoint arrays
         if v is None:
-            wandb.termerror("\nError: %s is None. Please try again." % (k))
+            wandb.termerror("%s is None. Please try again." % (k))
             test_passed = False
     return test_passed
 def test_types(**kwargs):
@@ -41,31 +41,31 @@ def test_types(**kwargs):
         if ((k == 'X') or (k == 'X_test') or (k == 'y') or (k == 'y_test')
             or (k == 'y_true') or (k == 'y_probas')):
             if not isinstance(v, (collections.Sequence, np.ndarray, pd.DataFrame, pd.Series)):
-                wandb.termerror("\nError: %s is not an array. Please try again." % (k))
+                wandb.termerror("%s is not an array. Please try again." % (k))
                 test_passed = False
         # check for classifier types
         if (k=='model'):
-            if ((not sklearn.base.is_classifier(v)) or (not sklearn.base.is_regressor(v))):
-                wandb.termerror("\nError: %s is not a classifier or regressor. Please try again." % (k))
+            if ((not sklearn.base.is_classifier(v)) and (not sklearn.base.is_regressor(v))):
+                wandb.termerror("%s is not a classifier or regressor. Please try again." % (k))
                 test_passed = False
         elif (k=='clf' or k=='binary_clf'):
             if (not(sklearn.base.is_classifier(v))):
-                wandb.termerror("\nError: %s is not a classifier. Please try again." % (k))
+                wandb.termerror("%s is not a classifier. Please try again." % (k))
                 test_passed = False
         elif (k=='regressor'):
             if (not sklearn.base.is_regressor(v)):
-                wandb.termerror("\nError: %s is not a regressor. Please try again." % (k))
+                wandb.termerror("%s is not a regressor. Please try again." % (k))
                 test_passed = False
         elif (k=='clusterer'):
             if (not(getattr(v, "_estimator_type", None) == "clusterer")):
-                wandb.termerror("\nError: %s is not a clusterer. Please try again." % (k))
+                wandb.termerror("%s is not a clusterer. Please try again." % (k))
                 test_passed = False
     return test_passed
 def test_fitted(model):
     try:
         model.predict(np.zeros((7, 3)))
     except NotFittedError:
-        wandb.termerror("\nError: Please fit the model before passing it in.")
+        wandb.termerror("Please fit the model before passing it in.")
         return False
     except AttributeError:
         # Some clustering models (LDA, PCA, Agglomerative) don't implement ``predict``
@@ -90,7 +90,7 @@ def test_fitted(model):
             )
             return True
         except sklearn.exceptions.NotFittedError:
-            wandb.termerror("\nError: Please fit the model before passing it in.")
+            wandb.termerror("Please fit the model before passing it in.")
             return False
     except Exception:
         # Assume it's fitted, since ``NotFittedError`` wasn't raised
