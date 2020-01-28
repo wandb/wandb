@@ -48,6 +48,8 @@ def plot_classifier(model, X_train, X_test,
                     labels, is_binary=False, model_name='Classifier',
                     feature_names=None):
     print('\nPlotting %s.'%model_name)
+    plot_feature_importances(model, feature_names)
+    print('Logged feature importances.')
     plot_learning_curve(model, X_test, y_test)
     print('Logged learning curve.')
     plot_confusion_matrix(y_test, y_pred, labels)
@@ -58,8 +60,6 @@ def plot_classifier(model, X_train, X_test,
     print('Logged class balances.')
     plot_calibration_curve(model, X_train, y_train, model_name)
     print('Logged calibration curve.')
-    plot_feature_importances(model,feature_names)
-    print('Logged feature importances.')
     plot_roc(y_test, y_probas, labels)
     print('Logged roc curve.')
     plot_precision_recall(y_test, y_probas, labels)
@@ -374,8 +374,8 @@ def roc(y_true=None, y_probas=None, labels=None,
                     if to_plot:
                         roc_auc = auc(fpr_dict[i], tpr_dict[i])
                         for j in range(len(fpr_dict[i])):
-                            print('type: ',type(classes[i]))
-                            if labels is not None and (isinstance(classes[i], int)):
+                            if labels is not None and (isinstance(classes[i], int)
+                                        or isinstance(classes[0], np.integer)):
                                 class_dict = labels[classes[i]]
                             else:
                                 class_dict = classes[i]
@@ -522,7 +522,8 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
             data=[]
 
             for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-                if labels is not None and isinstance(pred_classes[i], int):
+                if labels is not None and (isinstance(pred_classes[i], int)
+                                    or isinstance(pred_classes[0], np.integer)):
                     pred_dict = labels[pred_classes[i]]
                     true_dict = labels[true_classes[i]]
                 else:
@@ -636,7 +637,8 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
                 precision, recall = pr_curves[class_name]
                 for p, r in zip(precision, recall):
                     # if class_names are ints and labels are set
-                    if labels is not None and (isinstance(class_name, int)):
+                    if labels is not None and (isinstance(class_name, int)
+                                    or isinstance(class_name, np.integer)):
                         class_name = labels[class_name]
                     # if class_names are ints and labels are not set
                     # or, if class_names have something other than ints
@@ -1070,7 +1072,8 @@ def plot_class_balance(y_train=None, y_test=None, labels=None):
                 dataset_dict.append("test")
                 count_dict.append(class_counts_test[i])
 
-            if labels is not None and (isinstance(class_dict[0], int)):
+            if labels is not None and (isinstance(class_dict[0], int)
+                                or isinstance(class_dict[0], np.integer)):
                 class_dict = get_named_labels(labels, class_dict)
             return wandb.Table(
                 columns=['class', 'dataset', 'count'],
