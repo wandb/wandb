@@ -982,23 +982,56 @@ class Api(object):
 
     upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
 
-    def create_artifact_version(self, entity_name, project_name, run_name, artifact_name, description=None):
+    def create_artifact(self, entity_name, project_name, artifact_name, description=None):
         mutation = gql('''
         mutation CreateArtifact(
             $entityName: String!,
             $projectName: String!,
-            $runName: String!,
             $name: String!,
             $description: String
         ) {
+            createArtifact(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                name: $name,
+                description: $description
+            }) {
+                artifact {
+                    id
+            }
+        }
+        ''')
+        response = self.gql(mutation, variable_values={
+            'entityName': entity_name,
+            'projectName': project_name,
+            'name': artifact_name,
+            'description': description,
+        })
+        return response['createArtifact']['artifact']
+
+    def create_artifact_version(self, entity_name, project_name, run_name, artifact_id, name=None, description=None, tags=None, metadata=None):
+        mutation = gql('''
+        mutation CreateArtifactVersion(
+            $artifactID: ID!,
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!,
+            $name: String,
+            $description: String
+            $tags: [String!]
+            $metadata: String
+        ) {
             createArtifactVersion(input: {
+                artifactID: $artifactID,
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
                 name: $name,
                 description: $description
+                tags: $tags
+                metadata: $metadata
             }) {
-                artifact {
+                artifactVersion {
                     id
                 }
             }
@@ -1008,9 +1041,41 @@ class Api(object):
             'entityName': entity_name,
             'projectName': project_name,
             'runName': run_name,
-            'name': artifact_name,
-            'description': description})
-        return response['createArtifactVersion']['artifact']
+            'artifactID': artifact_id,
+            'name': name,
+            'description': description,
+            'tags': tags,
+            'metadata': metadata,
+        })
+        return response['createArtifactVersion']['artifactVersion']
+
+    def use_artifact_version(self, entity_name, project_name, run_name, artifact_version_id):
+        mutation = gql('''
+        mutation UseArtifactVersion(
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!,
+            $artifactVersionID: ID!
+        ) {
+            useArtifactVersion(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                artifactVersionID: $artifactVersionID
+            }) {
+                artifactVersion {
+                    id
+                }
+            }
+        }
+        ''')
+        response = self.gql(mutation, variable_values={
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+            'artifactVersionID': artifact_version_id,
+        })
+        return response['useArtifactVersion']['artifactVersion']
 
     def create_run_input_artifact_ref(self, run_entity_name, run_project_name, run_name, artifact_entity_name, artifact_project_name, artifact_id):
         mutation = gql('''

@@ -405,8 +405,14 @@ class Run(object):
         api.create_run_input_artifact_ref(self.entity, self.project, self.id, input.entity, input.project, input.id)
 
     def log_artifact(self, name, path, metadata=None, tags=None):
-        self.send_message({'log_artifact': {
-            'name': name, 'path': path, 'metadata': metadata, 'tags': tags}})
+        self.send_message({
+            'log_artifact': {
+                'name': name,
+                'path': path,
+                'metadata': metadata,
+                'tags': tags,
+            }
+        })
 
     def publish_artifact(self, fname, name=None, description=None, api=None):
         api = api or self.api
