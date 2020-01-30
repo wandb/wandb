@@ -13,6 +13,7 @@ import platform
 
 import six
 from six.moves import queue
+import yaml
 
 import wandb
 from wandb.apis import InternalApi
@@ -147,6 +148,7 @@ class Agent(object):
         self._finished = 0
         self._failed = 0
         self._count = count
+        self._sweep_command = []
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
@@ -161,6 +163,18 @@ class Agent(object):
             return self._failed >= self.FLAPPING_MAX_FAILURES
 
     def run(self):
+
+        # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
+        sweep_obj = self._api.sweep(self._sweep_id, "{}")
+        if sweep_obj:
+            sweep_yaml = sweep_obj.get('config')
+            if sweep_yaml:
+                sweep_config = yaml.safe_load(sweep_yaml)
+                if sweep_config:
+                    sweep_command = sweep_config.get('command')
+                    if sweep_command and isinstance(sweep_command, list):
+                        self._sweep_command = sweep_command
+
         # TODO: include sweep ID
         agent = self._api.register_agent(
             socket.gethostname(), sweep_id=self._sweep_id)
@@ -296,8 +310,18 @@ class Agent(object):
             proc = AgentProcess(function=self._function, env=env,
                     run_id=command.get('run_id'), in_jupyter=self._in_jupyter)
         else:
-            command_list = ['/usr/bin/env'] if platform.system() != "Windows" else []
-            command_list += ['python', command['program']] + flags
+            sweep_vars = dict(interpretter=["python"], program=[command['program']], args=flags, env=["/usr/bin/env"])
+            if platform.system() == "Windows":
+                del sweep_vars["env"]
+            command_list = []
+            sweep_command = self._sweep_command or ["${env}", "${interpretter}", "${program}", "${args}"]
+            for c in sweep_command:
+                if c.startswith("${") and c.endswith("}"):
+                    replace_list = sweep_vars.get(c[2:-1])
+                    command_list += replace_list or []
+                else:
+                    command_list += [c]
+            logger.info('About to run command: {}'.format(' '.join(command_list)))
             proc = AgentProcess(command=command_list, env=env)
         self._run_processes[run.id] = proc
 

@@ -1,3 +1,15 @@
+## 0.8.22 (Jan 24, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added ability to configure agent commandline from sweep config
+
+#### :bug: Bug Fix
+
+-   Fix fast.ai prediction logging
+-   Fix logging of eager tensorflow tensors
+-   Fix jupyter issues with logging notebook name and wandb.watch()
+
 ## 0.8.21 (Jan 15, 2020)
 
 #### :nail_care: Enhancement

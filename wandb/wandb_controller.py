@@ -236,7 +236,7 @@ class _WandbController():
         if entity:
             env.set_entity(entity, env=environ)
         if project:
-            env.set_project(entity, env=environ)
+            env.set_project(project, env=environ)
         self._api = InternalApi(environ=environ)
 
         if isinstance(sweep_id_or_config, str):
