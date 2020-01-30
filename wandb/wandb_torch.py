@@ -200,32 +200,28 @@ class TorchHistory(object):
 
         tmin = flat.min().item()
         tmax = flat.max().item()
+        if sparse_zeros:
+            # If we've got zeros to add in, make sure zero is in the hist range.
+            tmin = 0 if tmin > 0 else tmin
+            tmax = 0 if tmax < 0 else tmax
         tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
         tensor = tensor.cpu().clone().detach()
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
         # Add back zeroes from a sparse tensor.
         if sparse_zeros:
-            np = util.get_module("numpy", "Could not import numpy")
             bins_np = bins.numpy()
             tensor_np = tensor.numpy()
             bin_idx = 0
-            if tmin > 0:
-                bin_idx = 0
-                bins_np = np.concatenate(([0], bins_np))
-                tensor_np = np.concatenate(([0], tensor_np))
-            elif tmax < 0:
-                bin_idx = len(bins_np)
-                bins_np = np.concatenate((bins_np, [0]))
-                tensor_np = np.concatenate((tensor_np, [0]))
-            elif tmax == 0:
-                bin_idx = len(bins_np) - 1
-            else:
-                bin_idx = 0
-            for i in range(len(bins_np) - 1):
+            num_buckets = len(bins_np) - 1
+            for i in range(num_buckets):
                 start = bins_np[i]
                 end = bins_np[i+1]
-                if start <= 0 and end > 0:
+                # There are 3 cases to consider here, all of which mean we've found the right bucket
+                # 1. The bucket range contains zero.
+                # 2. The bucket range lower bound *is* zero.
+                # 3. This is the last bucket and the bucket range upper bound is zero.
+                if (start <= 0 and end > 0) or (i == num_buckets - 1 and end == 0):
                     bin_idx = i
                     break
 
