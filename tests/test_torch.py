@@ -268,7 +268,7 @@ class VGGConcator(nn.Module):
 
 
 class Embedding(nn.Module):
-    def __init__(self, d_embedding, d_word, d_hidden, word_dim, dropout):
+    def __init__(self, d_embedding, d_word, d_hidden, word_dim, dropout, sparse=False):
         super(Embedding, self).__init__()
 
         glove = torch.ones((10, 300))
@@ -278,7 +278,7 @@ class Embedding(nn.Module):
         glove = glove[:self.word_dim]
 
         self.d_word = d_word
-        self.emb = nn.Embedding(word_dim, 300, padding_idx=0)
+        self.emb = nn.Embedding(word_dim, 300, padding_idx=0, sparse=sparse)
         self.emb.weight.data = glove
 
         # consts
@@ -329,6 +329,19 @@ class Embedding(nn.Module):
 def test_embedding(wandb_init_run):
     net = Embedding(d_embedding=300, d_word=300,
                     d_hidden=300, word_dim=100, dropout=0)
+    wandb.watch(net, log="all", log_freq=1)
+    for i in range(2):
+        output = net(torch.ones((1, 4, 3, 224, 224)),
+                     torch.ones((1, 4, 3, 20)))
+        output.backward(torch.ones(1, 4, 300))
+        wandb.log({"loss": 1})
+    assert len(wandb_init_run.history.rows[0]) == 82
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
+def test_sparse_embedding(wandb_init_run):
+    net = Embedding(d_embedding=300, d_word=300,
+                    d_hidden=300, word_dim=100, dropout=0, sparse=True)
     wandb.watch(net, log="all", log_freq=1)
     for i in range(2):
         output = net(torch.ones((1, 4, 3, 224, 224)),
