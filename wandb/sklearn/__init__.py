@@ -142,12 +142,13 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
             metric_name.append("r2_score")
             metric_value.append(round_2(sklearn.metrics.r2_score(y_test, y_pred)))
 
-        return wandb.Table(
+        return wandb.visualize(
+            'wandb/metrics', wandb.Table(
             columns=['metric_name', 'metric_value', 'model_name'],
             data= [
                 [metric_name[i], metric_value[i], model_name] for i in range(len(metric_name))
             ]
-        )
+        ))
     '''
     {
       "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
@@ -230,10 +231,11 @@ def learning_curve(model, X, y, cv=None,
                 test_set = ["test", round(test[i],2), trainsize[i]]
                 data.append(train_set)
                 data.append(test_set)
-            return wandb.Table(
+            return wandb.visualize(
+                'wandb/learning_curve', wandb.Table(
                 columns=['dataset', 'score', 'train_size'],
                 data=data
-            )
+            ))
 
         return learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)
 
@@ -381,10 +383,11 @@ def roc(y_true=None, y_probas=None, labels=None,
                                 class_dict = classes[i]
                             fpr = [class_dict, fpr_dict[i][j], tpr_dict[i][j]]
                             data.append(fpr)
-                return wandb.Table(
+                return wandb.visualize(
+                    'wandb/roc', wandb.Table(
                     columns=['class', 'fpr', 'tpr'],
                     data=data
-                )
+                ))
             return roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)
 
 def plot_roc(y_true=None, y_probas=None, labels=None,
@@ -530,10 +533,11 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
                     pred_dict = pred_classes[i]
                     true_dict = true_classes[j]
                 data.append([pred_dict, true_dict, cm[i,j]])
-            return wandb.Table(
+            return wandb.visualize(
+                'wandb/confusion_matrix', wandb.Table(
                 columns=['Predicted', 'Actual', 'Count'],
                 data=data
-            )
+            ))
 
         return confusion_matrix_table(cm, pred_classes, true_classes)
 
@@ -644,10 +648,11 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
                     # or, if class_names have something other than ints
                     # (string, float, date) - user class_names
                     data.append([class_name, p, r])
-            return wandb.Table(
+            return wandb.visualize(
+                'wandb/pr_curve', wandb.Table(
                 columns=['class', 'precision', 'recall'],
                 data=data
-            )
+            ))
         return pr_table(pr_curves)
 
 def plot_precision_recall(y_true=None, y_probas=None, labels=None,
@@ -760,12 +765,13 @@ def plot_feature_importances(model=None, feature_names=None,
         # x = feature_names[:max_num_features]
         # y = importances[indices][:max_num_features]
         def feature_importances_table(feature_names, importances):
-            return wandb.Table(
+            return wandb.visualize(
+                'wandb/feature_importances', wandb.Table(
                 columns=['feature_names', 'importances'],
                 data=[
                     [feature_names[i], importances[i]] for i in range(len(feature_names))
                 ]
-            )
+            ))
         wandb.log({'feature_importances': feature_importances_table(feature_names, importances)})
         return
     '''
@@ -942,28 +948,30 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, labels=None,
         if kmeans:
             centers = clusterer.cluster_centers_
             def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
-                return wandb.Table(
+                return wandb.visualize(
+                    'wandb/silhouette', wandb.Table(
                     columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
                     data=[
                         [x[i], y[i], colors[i], centerx[colors[i]], centery[colors[i]],
                         y_sil[i], 0, x_sil[i], color_sil[i], silhouette_avg]
                         for i in range(len(color_sil))
                     ]
-                )
+                ))
             wandb_key = 'silhouette_plot'
             wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels, centers[:, 0], centers[:, 1], y_sil, x_sil, color_sil, silhouette_avg)})
         else:
             centerx = [None] * len(color_sil)
             centery = [None] * len(color_sil)
             def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
-                return wandb.Table(
+                return wandb.visualize(
+                    'wandb/silhouette', wandb.Table(
                     columns=['x', 'y', 'colors', 'centerx', 'centery', 'y_sil', 'x1', 'x2', 'color_sil', 'silhouette_avg'],
                     data=[
                         [x[i], y[i], colors[i], None, None,
                         y_sil[i], 0, x_sil[i], color_sil[i], silhouette_avg]
                         for i in range(len(color_sil))
                     ]
-                )
+                ))
             wandb_key = 'silhouette_plot'
             wandb.log({wandb_key: silhouette(X[:, 0], X[:, 1], cluster_labels, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg)})
         return
@@ -1077,12 +1085,13 @@ def plot_class_balance(y_train=None, y_test=None, labels=None):
             if labels is not None and (isinstance(class_dict[0], int)
                                 or isinstance(class_dict[0], np.integer)):
                 class_dict = get_named_labels(labels, class_dict)
-            return wandb.Table(
+            return wandb.visualize(
+                'wandb/class_balance', wandb.Table(
                 columns=['class', 'dataset', 'count'],
                 data=[
                     [class_dict[i], dataset_dict[i], count_dict[i]] for i in range(len(class_dict))
                 ]
-            )
+            ))
         wandb.log({'class_balance': class_balance(classes_, class_counts_train, class_counts_test)})
     '''
     {
@@ -1219,12 +1228,13 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
                 mean_pred_value_dict.append(round_3(mean_predicted_value[i]))
 
             def calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict, hist_dict, edge_dict):
-                return wandb.Table(
+                return wandb.visualize(
+                    'wandb/calibration', wandb.Table(
                     columns=['model', 'fraction_of_positives', 'mean_predicted_value', 'hist_dict', 'edge_dict'],
                     data=[
                         [model_dict[i], frac_positives_dict[i], mean_pred_value_dict[i], hist_dict[i], edge_dict[i]] for i in range(len(model_dict))
                     ]
-                )
+                ))
         wandb.log({'calibration_curve': calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict, hist_dict, edge_dict)})
     '''
     {
@@ -1326,12 +1336,13 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
         # Draw a stem plot with the influence for each instance
         # format: distance_, len(distance_), influence_threshold_, round_3(outlier_percentage_)
         def outlier_candidates(distance, outlier_percentage, influence_threshold):
-            return wandb.Table(
+            return wandb.visualize(
+                'wandb/outliers', wandb.Table(
                 columns=['distance', 'instance_indicies', 'outlier_percentage', 'influence_threshold'],
                 data=[
                     [distance[i], i, round_3(outlier_percentage_), influence_threshold_] for i in range(len(distance))
                 ]
-            )
+            ))
         wandb.log({'outlier_candidates': outlier_candidates(distance_dict, outlier_percentage_, influence_threshold_)})
         return
     '''
@@ -1433,12 +1444,13 @@ def plot_residuals(regressor=None, X=None, y=None):
                 if(datapoints >= max_datapoints_train):
                     break
 
-            return wandb.Table(
+            return wandb.visualize(
+                'wandb/residuals', wandb.Table(
                 columns=['dataset', 'y_pred', 'residuals', 'train_score', 'test_score'],
                 data=[
                     [dataset_dict[i], y_pred_dict[i], residuals_dict[i], train_score_, test_score_] for i in range(len(y_pred_dict))
                 ]
-            )
+            ))
         wandb.log({'residuals': residuals(y_pred_train, residuals_train, y_pred_test, residuals_test, train_score_, test_score_)})
     '''
     {
@@ -1525,12 +1537,13 @@ def plot_decision_boundaries(binary_clf=None, X=None, y=None):
                 y_dict.append(train_y[i])
                 color_dict.append(train_color[i])
 
-            return wandb.Table(
+            return wandb.visualize(
+                'wandb/decision_boundaries', wandb.Table(
                 columns=['x', 'y', 'color'],
                 data=[
                     [x_dict[i], y_dict[i], color_dict[i]] for i in range(len(x_dict))
                 ]
-            )
+            ))
         wandb.log({'decision_boundaries': decision_boundaries(decision_boundary_x,
                                     decision_boundary_y, decision_boundary_color,
                                     train_x, train_y, train_color, test_x, test_y,
