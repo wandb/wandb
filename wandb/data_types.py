@@ -1,7 +1,7 @@
-"""Wandb has special data types for logging rich visualizations.  
+"""Wandb has special data types for logging rich visualizations.
 
-All of the special data types are subclasses of WBValue. All of the data types 
-    serialize to JSON, since that is what wandb uses to save the objects locally 
+All of the special data types are subclasses of WBValue. All of the data types
+    serialize to JSON, since that is what wandb uses to save the objects locally
     and upload them to the W&B server.
 """
 
@@ -38,10 +38,10 @@ MEDIA_TMP = tempfile.TemporaryDirectory('wandb-media')
 DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
 
 class WBValue(object):
-    """Abstract parent class for things that can be logged by wandb.log() and 
-        visualized by wandb. 
+    """Abstract parent class for things that can be logged by wandb.log() and
+        visualized by wandb.
 
-    The objects will be serialized as JSON and always have a _type attribute 
+    The objects will be serialized as JSON and always have a _type attribute
         that indicates how to interpret the other fields.
 
     Returns:
@@ -60,7 +60,7 @@ class Histogram(WBValue):
     """
     wandb class for histograms
 
-    This object works just like numpy's histogram function 
+    This object works just like numpy's histogram function
     https://docs.scipy.org/doc/numpy/reference/generated/numpy.histogram.html
 
     Examples:
@@ -118,11 +118,11 @@ class Table(WBValue):
     """This is a table designed to display small sets of records.
 
     Arguments:
-        columns ([str]): Names of the columns in the table.  
+        columns ([str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data (array): 2D Array of values that will be displayed as strings.
     """
-    MAX_ROWS = 300
+    MAX_ROWS = 1000
 
     def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
@@ -261,10 +261,10 @@ class Audio(BatchableMedia):
                 or a numpy array of audio data.
             sample_rate (int): Sample rate, required when passing in raw
                 numpy array of audio data.
-            caption (string): Caption to display with audio. 
+            caption (string): Caption to display with audio.
     """
     def __init__(self, data_or_path, sample_rate=None, caption=None):
-        """Accepts a path to an audio file or a numpy array of audio data. 
+        """Accepts a path to an audio file or a numpy array of audio data.
         """
         self._duration = None
         self._sample_rate = sample_rate
@@ -357,7 +357,7 @@ class Object3D(BatchableMedia):
             data_or_path (numpy array | string | io ):
                 Object3D can be initialized from a file or a numpy array.
 
-                The file types supported are obj, gltf, babylon, stl.  You can pass a path to 
+                The file types supported are obj, gltf, babylon, stl.  You can pass a path to
                     a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
 
                 The shape of the numpy array must be one of either:
@@ -365,8 +365,8 @@ class Object3D(BatchableMedia):
                 [[x y z],       ...] nx3
                 [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
                 [x y z r g b], ...] nx4 where is rgb is color
-                ```                 
-         
+                ```
+
     """
 
 
@@ -533,7 +533,7 @@ class Video(BatchableMedia):
                     The format must be specified with the format argument.
                 Video can be initialized with a numpy tensor.
                     The numpy tensor must be either 4 dimensional or 5 dimensional.
-                    Channels should be (time, channel, height, width) or 
+                    Channels should be (time, channel, height, width) or
                         (batch, time, channel, height width)
             caption (string): caption associated with the video for display
             fps (int): frames per second for video. Default is 4.
@@ -670,7 +670,7 @@ class Image(BatchableMedia):
         Wandb class for images.
 
         Args:
-            data_or_path (numpy array | string | io): Accepts numpy array of 
+            data_or_path (numpy array | string | io): Accepts numpy array of
                 image data, or a PIL image. The class attempts to infer
                 the data format and converts it.
             mode (string): The PIL mode for an image. Most common are "L", "RGB",
@@ -837,7 +837,7 @@ class Image(BatchableMedia):
 
 class Graph(WBValue):
     """Wandb class for graphs
-    
+
     This class is typically used for saving and diplaying neural net models.  It
     represents the graph as an array of nodes and edges.  The nodes can have
     labels that can be visualized by wandb.
@@ -863,7 +863,7 @@ class Graph(WBValue):
         self.nodes_by_id = {}
         self.edges = []
         self.loaded = False
-        self.criterion = None 
+        self.criterion = None
         self.criterion_passed = False
         self.root = None  # optional root Node if applicable
 
@@ -1138,7 +1138,7 @@ class Edge(WBValue):
     """
     Edge used in :obj:`Graph`
     """
-    
+
     def __init__(self, from_node, to_node):
         self._attributes = {}
         self.from_node = from_node
@@ -1185,7 +1185,7 @@ class Edge(WBValue):
 
 def nest(thing):
     # Use tensorflows nest function if available, otherwise just wrap object in an array"""
-    
+
     tfutil = util.get_module('tensorflow.python.util')
     if tfutil:
         return tfutil.nest.flatten(thing)
@@ -1224,7 +1224,7 @@ def numpy_arrays_to_lists(payload):
 
 def val_to_json(run, key, val, step='summary'):
     # Converts a wandb datatype to its JSON representation.
-   
+
     converted = val
     typename = util.get_full_typename(val)
 
