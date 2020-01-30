@@ -50,7 +50,7 @@ def plot_classifier(model, X_train, X_test,
     wandb.termlog('\nPlotting %s.'%model_name)
     plot_feature_importances(model, feature_names)
     wandb.termlog('Logged feature importances.')
-    plot_learning_curve(model, X_test, y_test)
+    plot_learning_curve(model, X_train, y_train)
     wandb.termlog('Logged learning curve.')
     plot_confusion_matrix(y_test, y_pred, labels)
     wandb.termlog('Logged confusion matrix.')
@@ -64,15 +64,15 @@ def plot_classifier(model, X_train, X_test,
     wandb.termlog('Logged roc curve.')
     plot_precision_recall(y_test, y_probas, labels)
     wandb.termlog('Logged precision recall curve.')
-    if is_binary:
-        plot_decision_boundaries(model, X_train, y_train)
-        wandb.termlog('Logged decision boundary plot.')
+    # if is_binary:
+        # plot_decision_boundaries(model, X_train, y_train)
+        # wandb.termlog('Logged decision boundary plot.')
 
 def plot_regressor(model, X_train, X_test, y_train, y_test,  model_name='Regressor'):
     wandb.termlog('\nPlotting %s.'%model_name)
     plot_summary_metrics(model, X_train, y_train, X_test, y_test)
     wandb.termlog('Logged summary metrics.')
-    plot_learning_curve(model, X_test, y_test)
+    plot_learning_curve(model, X_train, y_train)
     wandb.termlog('Logged learning curve.')
     plot_outlier_candidates(model, X_train, y_train)
     wandb.termlog('Logged outlier candidates.')
@@ -740,7 +740,7 @@ def plot_precision_recall(y_true=None, y_probas=None, labels=None,
 def plot_feature_importances(model=None, feature_names=None,
                             title='Feature Importance', max_num_features=20):
     if not hasattr(model, 'feature_importances_'):
-        wandb.termlog("\nError: feature_importances_ attribute not in classifier. Cannot plot feature importances.")
+        wandb.termwarn("feature_importances_ attribute not in classifier. Cannot plot feature importances.")
         return
     if (test_missing(model=model) and test_types(model=model) and
         test_fitted(model)):
@@ -825,12 +825,14 @@ def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
         # clustering_time = times - y axis2
 
         def elbow_curve(cluster_ranges, clfs, times):
-            return wandb.Table(
-                columns=['cluster_ranges', 'errors', 'clustering_time'],
-                data=[
-                    [cluster_ranges[i], clfs[i], times[i]] for i in range(len(cluster_ranges))
-                ]
-            )
+            return wandb.visualize(
+                'wandb/elbow',
+                wandb.Table(
+                        columns=['cluster_ranges', 'errors', 'clustering_time'],
+                        data=[
+                            [cluster_ranges[i], clfs[i], times[i]] for i in range(len(cluster_ranges))
+                        ]
+            ))
         wandb.log({'elbow_curve': elbow_curve(cluster_ranges, clfs, times)})
         return
     '''
@@ -1497,9 +1499,9 @@ def plot_residuals(regressor=None, X=None, y=None):
 
 def plot_decision_boundaries(binary_clf=None, X=None, y=None):
     if (test_missing(binary_clf=binary_clf, X=X, y=y) and
-        test_types(binary_clf=binary_clf, X=X, y=y) and
-        test_fitted(binary_clf)):
+        test_types(binary_clf=binary_clf, X=X, y=y)):
         # plot high-dimensional decision boundary
+        print("Shapes", X.shape, y.shape)
         db = DBPlot(binary_clf)
         db.fit(X, y)
         decision_boundary_x, decision_boundary_y, decision_boundary_color, train_x, train_y, train_color, test_x, test_y, test_color = db.plot()

@@ -120,7 +120,6 @@ class DBPlot(BaseEstimator):
             raise Exception("Invalid iteration budget")
 
         self.classifier = estimator
-        self.dimensionality_reduction = dimensionality_reduction
         self.acceptance_threshold = acceptance_threshold
 
         if (
@@ -166,7 +165,7 @@ class DBPlot(BaseEstimator):
     def setclassifier(self, estimator=KNeighborsClassifier(n_neighbors=10)):
         self.classifier = estimator
 
-    def fit(self, X, y, training_indices=0.2):
+    def fit(self, X, y, training_indices=None):
         if set(np.array(y, dtype=int).tolist()) != set([0, 1]):
             raise Exception(
                 "Currently only implemented for binary classification. Make sure you pass in two classes (0 and 1)"
@@ -174,14 +173,13 @@ class DBPlot(BaseEstimator):
 
         if training_indices == None:
             train_idx = range(len(y))
-        elif type(training_indices) == float:
-            train_idx, test_idx = train_test_split(range(len(y)), test_size=0.2)
         else:
             train_idx = training_indices
 
         self.X = X
         self.y = y
         self.train_idx = train_idx
+        print('\n---------------\ntrain_idx',train_idx)
         # self.test_idx = np.setdiff1d(np.arange(len(y)), self.train_idx, assume_unique=False)
         self.test_idx = list(set(range(len(y))).difference(set(self.train_idx)))
 
@@ -189,25 +187,20 @@ class DBPlot(BaseEstimator):
         try:
             self.classifier.predict([X[0]])
         except:
-            self.classifier.fit(X[train_idx, :], y[train_idx])
+            self.classifier.fit(X, y)
 
         self.y_pred = self.classifier.predict(self.X)
 
         # fit DR method if necessary
         try:
-            self.dimensionality_reduction.transform([X[0]])
-        except:
-            self.dimensionality_reduction.fit(X, y)
-
-        try:
-            self.dimensionality_reduction.transform([X[0]])
+            PCA(n_components=2).transform([X[0]])
         except:
             raise Exception(
                 "Please make sure your dimensionality reduction method has an exposed transform() method! If in doubt, use PCA or Isomap"
             )
 
         # transform data
-        self.X2d = self.dimensionality_reduction.transform(self.X)
+        self.X2d = PCA(n_components=2).transform(self.X)
         self.mean_2d_dist = np.mean(pdist(self.X2d))
         self.X2d_xmin, self.X2d_xmax = np.min(self.X2d[:, 0]), np.max(self.X2d[:, 0])
         self.X2d_ymin, self.X2d_ymax = np.min(self.X2d[:, 1]), np.max(self.X2d[:, 1])
@@ -312,7 +305,7 @@ class DBPlot(BaseEstimator):
                     self.decision_boundary_distance(db_point)
                     <= self.acceptance_threshold
                 ):
-                    db_point2d = self.dimensionality_reduction.transform([db_point])[0]
+                    db_point2d = PCA(n_components=2).transform([db_point])[0]
                     self.decision_boundary_points.append(db_point)
                     self.decision_boundary_points_2d.append(db_point2d)
                     i += 1
@@ -333,7 +326,7 @@ class DBPlot(BaseEstimator):
                         )
 
             else:
-                db_point2d = self.dimensionality_reduction.transform([db_point])[0]
+                db_point2d = PCA(n_components=2).transform([db_point])[0]
                 self.decision_boundary_points.append(db_point)
                 self.decision_boundary_points_2d.append(db_point2d)
                 i += 1
@@ -465,7 +458,7 @@ class DBPlot(BaseEstimator):
                         self.decision_boundary_distance(db_point)
                         <= self.acceptance_threshold
                     ):
-                        db_point2d = self.dimensionality_reduction.transform(
+                        db_point2d = PCA(n_components=2).transform(
                             [db_point]
                         )[0]
                         if (
@@ -496,9 +489,9 @@ class DBPlot(BaseEstimator):
 
             if penalize_tangent_distance:
                 # distance from tangent between class1 and class0 point in 2d space
-                x0, y0 = self.dimensionality_reduction.transform([X])[0]
-                x1, y1 = self.dimensionality_reduction.transform([from_point])[0]
-                x2, y2 = self.dimensionality_reduction.transform([to_point])[0]
+                x0, y0 = PCA(n_components=2).transform([X])[0]
+                x1, y1 = PCA(n_components=2).transform([from_point])[0]
+                x2, y2 = PCA(n_components=2).transform([to_point])[0]
                 error += (
                     1e-12
                     * np.abs((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1)
@@ -521,7 +514,7 @@ class DBPlot(BaseEstimator):
             # search on hypersphere surface in polar coordinates - map back to cartesian
             cx = centroid + polar_to_cartesian(phi, R)
             try:
-                cx2d = self.dimensionality_reduction.transform([cx])[0]
+                cx2d = PCA(n_components=2).transform([cx])[0]
                 error = self.decision_boundary_distance(cx)
                 if penalize_known:
                     # slight penalty for being too close to already known decision boundary
