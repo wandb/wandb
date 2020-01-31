@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+service InternalService {
+  rpc Log(LogData) returns (LogResult) {}
+  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
+  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
+  rpc RunGet(RunGetRequest) returns (RunGetResult) {}
+  rpc RunUpdate(RunUpdateRequest) returns (RunUpdateResult) {}
+}
+
+message LogValue {
+  double value = 1;
+  sint64 integer = 2;
+  string str = 3;
+  bool   boolean = 4;
+  bytes  data = 5;
+
+  string json = 16;
+}
+
+message LogItem {
+  string key = 1;
+  LogValue value = 2;
+}
+
+message LogData {
+  repeated LogItem item = 1;
+
+  string json = 16;
+}
+
+message LogResult {
+  int32  code = 1;
+  string status = 2;
+}
+
+message ServerShutdownRequest {
+}
+
+message ServerShutdownResult {
+  int32  code = 1;
+  string status = 2;
+}
+
+message ServerStatusRequest {
+}
+
+message ServerStatusResult {
+  int32  code = 1;
+  string status = 2;
+}
+
+message Run {
+  string id = 1;
+  string name = 2;
+  // config
+  // summary
+}
+
+message Error {
+  int32  code = 1;
+  string status = 2;
+}
+
+message RunGetRequest {
+  string id = 1;
+}
+
+message RunGetResult {
+  Run   run = 1;
+  Error error = 16;
+}
+
+message RunUpdateRequest {
+  Run   run = 1;
+  // TODO(jhr): Mask of fields to clear?
+}
+
+message RunUpdateResult {
+  Run   run = 1;
+  Error error = 16;
+}

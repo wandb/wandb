@@ -1,0 +1,13 @@
+README.md
+setup.py
+wandb/__init__.py
+wandb/wandb_config.py
+wandb/wandb_init.py
+wandb/wandb_run.py
+wandb.egg-info/PKG-INFO
+wandb.egg-info/SOURCES.txt
+wandb.egg-info/dependency_links.txt
+wandb.egg-info/entry_points.txt
+wandb.egg-info/not-zip-safe
+wandb.egg-info/requires.txt
+wandb.egg-info/top_level.txt
