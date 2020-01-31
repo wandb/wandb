@@ -5,33 +5,21 @@ import itertools
 import sklearn
 import numpy as np
 import scipy as sp
-import scikitplot
 from wandb.sklearn.utils import *
-import matplotlib.pyplot as plt
 from sklearn.base import clone
 from joblib import Parallel, delayed
-from keras.callbacks import LambdaCallback
 from sklearn import model_selection
-from sklearn.model_selection import train_test_split
+from sklearn import datasets
 from sklearn import metrics
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
+from sklearn.metrics import (brier_score_loss, precision_score, recall_score, f1_score)
+from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.preprocessing import label_binarize
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import roc_curve
-from sklearn.metrics import auc
-from sklearn.metrics import precision_recall_curve
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import (brier_score_loss, precision_score, recall_score, f1_score)
-from sklearn.utils.multiclass import unique_labels
-from sklearn.metrics import silhouette_score
-from sklearn.metrics import silhouette_samples
-from sklearn.manifold import MDS, TSNE
 from sklearn.calibration import calibration_curve
 from sklearn.utils.multiclass import unique_labels, type_of_target
-from sklearn import datasets
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
-from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
-from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from warnings import simplefilter
 # ignore all future warnings
 simplefilter(action='ignore', category=FutureWarning)
@@ -1163,7 +1151,7 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
                                             n_informative=2, n_redundant=10,
                                             random_state=42)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.99,
+        X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, test_size=0.99,
                                                             random_state=42)
         # Calibrated with isotonic calibration
         isotonic = CalibratedClassifierCV(clf, cv=2, method='isotonic')
@@ -1193,7 +1181,7 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
         frac_positives_dict.append(1)
         mean_pred_value_dict.append(1)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.98,
+        X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, test_size=0.98,
                                                             random_state=42)
 
         # Add curve for LogisticRegression baseline and other models
@@ -1401,7 +1389,7 @@ def plot_residuals(regressor=None, X=None, y=None):
         test_types(regressor=regressor, X=X, y=y) and
         test_fitted(regressor)):
         # Create the train and test splits
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+        X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, test_size=0.2)
 
         # Store labels and colors for the legend ordered by call
         _labels, _colors = [], []
@@ -1424,8 +1412,8 @@ def plot_residuals(regressor=None, X=None, y=None):
             dataset_dict = []
             residuals_dict = []
             datapoints = 0
-            max_datapoints_train = 280
-            max_datapoints_train = 20
+            max_datapoints_train = 900
+            max_datapoints_train = 100
             for pred, residual in zip(y_pred_train, residuals_train):
                 # add class counts from training set
                 y_pred_dict.append(pred)
