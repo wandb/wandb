@@ -28,6 +28,7 @@ def round_3(n):
     return round(n, 3)
 def round_2(n):
     return round(n, 2)
+chart_limit = 1000
 def get_named_labels(labels, numeric_labels):
         return np.array([labels[num_label] for num_label in numeric_labels])
 
@@ -215,6 +216,8 @@ def learning_curve(model, X, y, cv=None,
         def learning_curve_table(train, test, trainsize):
             data=[]
             for i in range(len(train)):
+                if i >= chart_limit/2:
+                    break
                 train_set = ["train", round(train[i],2), trainsize[i]]
                 test_set = ["test", round(test[i],2), trainsize[i]]
                 data.append(train_set)
@@ -354,9 +357,9 @@ def roc(y_true=None, y_probas=None, labels=None,
             tpr_dict = dict()
 
             indices_to_plot = np.in1d(classes, classes_to_plot)
-
             def roc_table(fpr_dict, tpr_dict, classes, indices_to_plot):
                 data=[]
+                count = 0
 
                 for i, to_plot in enumerate(indices_to_plot):
                     fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true, probas[:, i],
@@ -371,6 +374,9 @@ def roc(y_true=None, y_probas=None, labels=None,
                                 class_dict = classes[i]
                             fpr = [class_dict, fpr_dict[i][j], tpr_dict[i][j]]
                             data.append(fpr)
+                            count+=1
+                            if count >= chart_limit:
+                                break
                 return wandb.visualize(
                     'wandb/roc', wandb.Table(
                     columns=['class', 'fpr', 'tpr'],
@@ -511,7 +517,7 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
 
         def confusion_matrix_table(cm, pred_classes, true_classes):
             data=[]
-
+            count = 0
             for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
                 if labels is not None and (isinstance(pred_classes[i], int)
                                     or isinstance(pred_classes[0], np.integer)):
@@ -521,6 +527,9 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
                     pred_dict = pred_classes[i]
                     true_dict = true_classes[j]
                 data.append([pred_dict, true_dict, cm[i,j]])
+                count+=1
+                if count >= chart_limit:
+                    break
             return wandb.visualize(
                 'wandb/confusion_matrix', wandb.Table(
                 columns=['Predicted', 'Actual', 'Count'],
@@ -611,6 +620,7 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
                     sample_precision.append(precision[int(len(precision)*k/samples)])
                     sample_recall.append(recall[int(len(recall)*k/samples)])
 
+
                 pr_curves[classes[i]] = (sample_precision, sample_recall)
         # if plot_micro:
         #     precision, recall, _ = precision_recall_curve(
@@ -624,7 +634,7 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
         #             color='navy', linestyle=':', linewidth=4)
         def pr_table(pr_curves):
             data=[]
-
+            count=0
             for i, class_name in enumerate(pr_curves.keys()):
                 precision, recall = pr_curves[class_name]
                 for p, r in zip(precision, recall):
@@ -636,6 +646,9 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
                     # or, if class_names have something other than ints
                     # (string, float, date) - user class_names
                     data.append([class_name, p, r])
+                    count+=1
+                    if count >= chart_limit:
+                        break
             return wandb.visualize(
                 'wandb/pr_curve', wandb.Table(
                 columns=['class', 'precision', 'recall'],
@@ -731,7 +744,7 @@ def plot_precision_recall(y_true=None, y_probas=None, labels=None,
 '''
 
 def plot_feature_importances(model=None, feature_names=None,
-                            title='Feature Importance', max_num_features=20):
+                            title='Feature Importance', max_num_features=50):
     if not hasattr(model, 'feature_importances_'):
         wandb.termwarn("feature_importances_ attribute not in classifier. Cannot plot feature importances.")
         return
@@ -911,6 +924,7 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, labels=None,
         color_sil = []
 
         y_lower = 10
+        count = 0
         for i in range(n_clusters):
             # Aggregate the silhouette scores for samples belonging to
             # cluster i, and sort them
@@ -928,6 +942,9 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, labels=None,
                 y_sil.append(y_values[j])
                 x_sil.append(ith_cluster_silhouette_values[j])
                 color_sil.append(i)
+                count+=1
+                if count >= chart_limit:
+                    break
 
             # Compute the new y_lower for next plot
             y_lower = y_upper + 10  # 10 for the 0 samples
@@ -1069,6 +1086,8 @@ def plot_class_balance(y_train=None, y_test=None, labels=None):
                 class_dict.append(classes_[i])
                 dataset_dict.append("test")
                 count_dict.append(class_counts_test[i])
+                if i >= chart_limit:
+                    break
 
             if labels is not None and (isinstance(class_dict[0], int)
                                 or isinstance(class_dict[0], np.integer)):
@@ -1214,6 +1233,8 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
                 model_dict.append(name)
                 frac_positives_dict.append(round_3(fraction_of_positives[i]))
                 mean_pred_value_dict.append(round_3(mean_predicted_value[i]))
+                if i >= (chart_limit-2):
+                    break
 
             def calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict, hist_dict, edge_dict):
                 return wandb.visualize(
@@ -1313,13 +1334,17 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
         # Compute the influence threshold rule of thumb
         influence_threshold_ = 4 / X.shape[0]
         outlier_percentage_ = (
-            sum(distance_ > influence_threshold_) / X.shape[0]
+            sum(distance_ >= influence_threshold_) / X.shape[0]
         )
         outlier_percentage_ *= 100.0
 
         distance_dict = []
+        count = 0
         for d in distance_:
             distance_dict.append(d)
+            count+=1
+            if count >= chart_limit:
+                break
 
         # Draw a stem plot with the influence for each instance
         # format: distance_, len(distance_), influence_threshold_, round_3(outlier_percentage_)
@@ -1512,15 +1537,15 @@ def plot_decision_boundaries(binary_clf=None, X=None, y=None):
             y_dict = []
             color_dict = []
             shape_dict = []
-            for i in range(min(len(decision_boundary_x),80)):
+            for i in range(min(len(decision_boundary_x),100)):
                 x_dict.append(decision_boundary_x[i])
                 y_dict.append(decision_boundary_y[i])
                 color_dict.append(decision_boundary_color)
-            for i in range(20):
+            for i in range(300):
                 x_dict.append(test_x[i])
                 y_dict.append(test_y[i])
                 color_dict.append(test_color[i])
-            for i in range(len(train_x)):
+            for i in range(min(len(train_x),600)):
                 x_dict.append(train_x[i])
                 y_dict.append(train_y[i])
                 color_dict.append(train_color[i])
