@@ -32,6 +32,40 @@ chart_limit = 1000
 def get_named_labels(labels, numeric_labels):
         return np.array([labels[num_label] for num_label in numeric_labels])
 
+"""
+Generates all sklearn classifier plots supported by W&B.
+    The following plots are generated:
+    feature importances, learning curve, confusion matrix, summary metrics,
+    class balance plot, calibration curve, roc curve & precision recall curve.
+
+Should only be called with a fitted classifer (otherwise an error in thrown).
+
+Arguments:
+    model (clf): Takes in a fitted classifier.
+    X_train (arr): Training set features.
+    y_train (arr): Training set labels.
+    X_test (arr): Test set features.
+    y_test (arr): Test set labels.
+    y_pred (arr): Test set predictions by the model passed.
+    y_probas (arr): Test set predicted probabilities by the model passed.
+    labels (list): Named labels for target varible (y). Makes plots easier to
+                    read by replacing target values with corresponding index.
+                    For example labels= ['dog', 'cat', 'owl'] all 0s are
+                    replaced by 'dog', 1s by 'cat'.
+    is_binary (bool): Is the model passed a binary classifier? Defaults to False
+    model_name (str): Model name. Defaults to 'Classifier'
+    feature_names (list): Names for features. Makes plots easier to read by
+                            replacing feature indexes with corresponding names.
+
+Returns:
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_classifier(model, X_train, X_test, y_train, y_test,
+                    y_pred, y_probas, ['cat', 'dog'], False,
+                    'RandomForest', ['barks', 'drools, 'plays_fetch', 'breed'])
+"""
 def plot_classifier(model, X_train, X_test,
                     y_train, y_test, y_pred, y_probas,
                     labels, is_binary=False, model_name='Classifier',
@@ -57,6 +91,28 @@ def plot_classifier(model, X_train, X_test,
         # plot_decision_boundaries(model, X_train, y_train)
         # wandb.termlog('Logged decision boundary plot.')
 
+"""
+Generates all sklearn regressor plots supported by W&B.
+    The following plots are generated:
+    learning curve, summary metrics, residuals plot, outlier candidates.
+
+Should only be called with a fitted regressor (otherwise an error in thrown).
+
+Arguments:
+    model (clf): Takes in a fitted classifier.
+    X_train (arr): Training set features.
+    y_train (arr): Training set labels.
+    X_test (arr): Test set features.
+    y_test (arr): Test set labels.
+    model_name (str): Model name. Defaults to 'Regressor'
+
+Returns:
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_regressor(reg, X_train, X_test, y_train, y_test, 'Ridge')
+"""
 def plot_regressor(model, X_train, X_test, y_train, y_test,  model_name='Regressor'):
     wandb.termlog('\nPlotting %s.'%model_name)
     plot_summary_metrics(model, X_train, y_train, X_test, y_test)
@@ -68,6 +124,31 @@ def plot_regressor(model, X_train, X_test, y_train, y_test,  model_name='Regress
     plot_residuals(model, X_train, y_train)
     wandb.termlog('Logged residuals.')
 
+"""
+Generates all sklearn clusterer plots supported by W&B.
+    The following plots are generated:
+    elbow curve, silhouette plot.
+
+Should only be called with a fitted clusterer (otherwise an error in thrown).
+
+Arguments:
+    model (clf): Takes in a fitted classifier.
+    X_train (arr): Training set features.
+    cluster_labels (list): Names for cluster labels. Makes plots easier to read
+                        by replacing cluster indexes with corresponding names.
+    labels (list): Named labels for target varible (y). Makes plots easier to
+                    read by replacing target values with corresponding index.
+                    For example labels= ['dog', 'cat', 'owl'] all 0s are
+                    replaced by 'dog', 1s by 'cat'.
+    model_name (str): Model name. Defaults to 'Clusterer'
+
+Returns:
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+          under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_clusterer(kmeans, X, cluster_labels, labels, 'KMeans')
+"""
 def plot_clusterer(model, X_train, cluster_labels, labels=None, model_name='Clusterer'):
     wandb.termlog('\nPlotting %s.'%model_name)
     if isinstance(model, sklearn.cluster.KMeans):
@@ -77,18 +158,13 @@ def plot_clusterer(model, X_train, cluster_labels, labels=None, model_name='Clus
     else:
         plot_silhouette(model, X_train, cluster_labels, kmeans=False)
     wandb.termlog('Logged silhouette plot.')
+
 """
-Generates a table of metrics summarizing the peformance of a classifier or regressor.
+Calculates summary metrics (like mse, mae, r2 score) for both regression and
+classification algorithms.
 
-Args:
-    model (clf): Takes in a fitted regressor or classifier.
-    X (arr): Training set features.
-    y (arr): Training set labels.
-    X_test (arr): Test set features.
-    y_test (arr): Test set labels.
-
-Returns:
-    wandb.Table: Table of summary metrics.
+Called by plot_summary_metrics to visualize metrics. Please use the function
+plot_summary_metric() if you wish to visualize your summary metrics.
 """
 def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
     if (test_missing(model=model, X=X, y=y, X_test=X_test, y_test=y_test) and
@@ -172,9 +248,11 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
     '''
 
 """
-Logs the table generated by summary_metrics to wandb.
+Logs the charts generated by summary_metrics in wandb.
 
-Args:
+Should only be called with a fitted model (otherwise an error in thrown).
+
+Arguments:
     model (clf): Takes in a fitted regressor or classifier.
     X (arr): Training set features.
     y (arr): Training set labels.
@@ -182,22 +260,23 @@ Args:
     y_test (arr): Test set labels.
 
 Returns:
-    Nothing
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+          under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_summary_metrics(model, X_train, X_test, y_train, y_test)
 """
 def plot_summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
     wandb.log({'summary_metrics': summary_metrics(model, X, y, X_test, y_test)})
 
+
 """
-Trains model on datasets of varying lengths and generates a table of
+Trains model on datasets of varying lengths and generates a plot of
 scores vs training sizes for both training and test sets.
 
-Args:
-    model (clf): Takes in a fitted regressor or classifier.
-    X (arr): Dataset features.
-    y (arr): Dataset labels.
+Called by plot_learning_curve to visualize learning curve. Please use the function
+plot_learning_curve() if you wish to visualize your learning curves.
 
-Returns:
-    wandb.Table: Table used to plot the learning curve.
 """
 def learning_curve(model, X, y, cv=None,
                     shuffle=False, random_state=None,
@@ -232,15 +311,20 @@ def learning_curve(model, X, y, cv=None,
         return learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)
 
 """
-Logs the table of values generated by learning_curve to wandb.
+Logs the plots generated by learning_curve() to wandb.
+Please note this function fits the model to datasets of varying sizes.
 
-Args:
+Arguments:
     model (model): Takes in a fitted regressor or classifier.
     X (arr): Dataset features.
     y (arr): Dataset labels.
 
 Returns:
-    Nothing
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+          under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_learning_curve(model, X, y)
 """
 def plot_learning_curve(model=None, X=None, y=None, cv=None,
                         shuffle=False, random_state=None,
@@ -342,6 +426,13 @@ def plot_learning_curve(model=None, X=None, y=None, cv=None,
     }
 '''
 
+"""
+Calculates receiver operating characteristic scores and visualizes them as the
+    ROC curve.
+
+Called by plot_roc to visualize roc curves. Please use the function plot_roc()
+if you wish to visualize your roc curves.
+"""
 def roc(y_true=None, y_probas=None, labels=None,
         plot_micro=True, plot_macro=True, classes_to_plot=None):
         if (test_missing(y_true=y_true, y_probas=y_probas) and
@@ -385,6 +476,24 @@ def roc(y_true=None, y_probas=None, labels=None,
                 ))
             return roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)
 
+"""
+Logs the plots generated by roc() to wandb.
+
+Arguments:
+    y_true (arr): Test set labels.
+    y_probas (arr): Test set predicted probabilities.
+    labels (list): Named labels for target varible (y). Makes plots easier to
+                    read by replacing target values with corresponding index.
+                    For example labels= ['dog', 'cat', 'owl'] all 0s are
+                    replaced by 'dog', 1s by 'cat'.
+
+Returns:
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+          under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_roc(y_true, y_probas, labels)
+"""
 def plot_roc(y_true=None, y_probas=None, labels=None,
              plot_micro=True, plot_macro=True, classes_to_plot=None):
   wandb.log({'roc': roc(y_true, y_probas, labels, plot_micro, plot_macro, classes_to_plot)})
@@ -477,6 +586,12 @@ def plot_roc(y_true=None, y_probas=None, labels=None,
 }
 '''
 
+"""
+Computes the confusion matrix to evaluate the accuracy of a classification.
+
+Called by plot_confusion_matrix to visualize roc curves. Please use the function
+plot_confusion_matrix() if you wish to visualize your confusion matrix.
+"""
 def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
                           pred_labels=None, title=None, normalize=False,
                           hide_zeros=False, hide_counts=False):
@@ -539,6 +654,24 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
 
         return confusion_matrix_table(cm, pred_classes, true_classes)
 
+"""
+Logs the plots generated by confusion_matrix() to wandb.
+
+Arguments:
+    y_true (arr): Test set labels.
+    y_probas (arr): Test set predicted probabilities.
+    labels (list): Named labels for target varible (y). Makes plots easier to
+                    read by replacing target values with corresponding index.
+                    For example labels= ['dog', 'cat', 'owl'] all 0s are
+                    replaced by 'dog', 1s by 'cat'.
+
+Returns:
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+          under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_confusion_matrix(y_true, y_probas, labels)
+"""
 def plot_confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
                           pred_labels=None, title=None, normalize=False,
                           hide_zeros=False, hide_counts=False):
@@ -586,6 +719,18 @@ def plot_confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=Non
 }
 '''
 
+"""
+Computes the tradeoff between precision and recall for different thresholds.
+    A high area under the curve represents both high recall and high precision,
+    where high precision relates to a low false positive rate, and high recall
+    relates to a low false negative rate. High scores for both show that the
+    classifier is returning accurate results (high precision), as well as
+    returning a majority of all positive results (high recall).
+    PR curve is useful when the classes are very imbalanced.
+
+Called by plot_precision_recall to visualize PR curves. Please use the function
+plot_precision_recall() if you wish to visualize your PR curves.
+"""
 def precision_recall(y_true=None, y_probas=None, labels=None,
                           plot_micro=True, classes_to_plot=None):
     y_true = np.array(y_true)
@@ -657,6 +802,24 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
             ))
         return pr_table(pr_curves)
 
+"""
+Logs the plots generated by precision_recall() to wandb.
+
+Arguments:
+    y_true (arr): Test set labels.
+    y_probas (arr): Test set predicted probabilities.
+    labels (list): Named labels for target varible (y). Makes plots easier to
+                    read by replacing target values with corresponding index.
+                    For example labels= ['dog', 'cat', 'owl'] all 0s are
+                    replaced by 'dog', 1s by 'cat'.
+
+Returns:
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+          under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_precision_recall(y_true, y_probas, labels)
+"""
 def plot_precision_recall(y_true=None, y_probas=None, labels=None,
                           plot_micro=True, classes_to_plot=None):
   wandb.log({'precision_recall':precision_recall(y_true, y_probas,
