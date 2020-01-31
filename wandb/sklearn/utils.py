@@ -98,6 +98,7 @@ def test_fitted(model):
 
 # Decision Boundary Utils
 # Modified from https://github.com/tmadl/highdimensional-decision-boundary-plot
+# and released under Apache license, see Apache.txt
 class DBPlot(BaseEstimator):
     def __init__(
         self,
