@@ -5,9 +5,11 @@ import platform
 import multiprocessing
 import pynvml
 import threading
+import signal
 import time
 import socket
 import getpass
+import logging
 from shutil import copyfile
 from datetime import datetime
 
@@ -16,6 +18,8 @@ from wandb import env
 import wandb
 
 METADATA_FNAME = 'wandb-metadata.json'
+
+logger = logging.getLogger(__name__)
 
 
 class Meta(object):
@@ -40,7 +44,33 @@ class Meta(object):
     def start(self):
         self._thread.start()
 
+    def _setup_code_git(self):
+        if self._api.git.enabled:
+            logger.debug("probe for git information")
+            self.data["git"] = {
+                "remote": self._api.git.remote_url,
+                "commit": self._api.git.last_commit
+            }
+            self.data["email"] = self._api.git.email
+            self.data["root"] = self._api.git.root or self.data["root"]
+
+    def _setup_code_program(self):
+        logger.debug("scan for untracked program")
+        program = os.path.join(self.data["root"], self.data["program"])
+        if os.path.exists(program) and self._api.git.is_untracked(self.data["program"]):
+            util.mkdir_exists_ok(os.path.join(self.out_dir, "code", os.path.dirname(self.data["program"])))
+            saved_program = os.path.join(self.out_dir, "code", self.data["program"])
+            if not os.path.exists(saved_program):
+                logger.debug("save untracked program")
+                copyfile(program, saved_program)
+                self.data["codeSaved"] = True
+
     def setup(self):
+        class TimeOutException(Exception):
+            pass
+        def alarm_handler(signum, frame):
+            raise TimeOutException()
+
         self.data["root"] = os.getcwd()
         try:
             import __main__
@@ -60,26 +90,26 @@ class Meta(object):
                             self.data["program"] = meta["path"]
                             self.data["root"] = meta["root"]
 
-        program = os.path.join(self.data["root"], self.data["program"])
         if not os.getenv(env.DISABLE_CODE):
-            if self._api.git.enabled:
-                self.data["git"] = {
-                    "remote": self._api.git.remote_url,
-                    "commit": self._api.git.last_commit
-                }
+            logger.debug("code probe starting")
+            if platform.system() == "Windows":
+                logger.debug("unsafe probe of windows code")
+                self._setup_code_git()
+                self._setup_code_program()
+            else:
+                signal.signal(signal.SIGALRM, alarm_handler)
+                signal.alarm(25)
+                try:
+                    self._setup_code_git()
+                    self._setup_code_program()
+                except TimeOutException as e:
+                    logger.debug("timeout waiting for setup_code")
+                finally:
+                    signal.signal(signal.SIGALRM, signal.SIG_DFL)
+                    signal.alarm(0)
+            logger.debug("code probe done")
 
-                self.data["email"] = self._api.git.email
-                self.data["root"] = self._api.git.root or self.data["root"]
-
-            if os.path.exists(program) and self._api.git.is_untracked(self.data["program"]):
-                util.mkdir_exists_ok(os.path.join(self.out_dir, "code", os.path.dirname(self.data["program"])))
-                saved_program = os.path.join(self.out_dir, "code", self.data["program"])
-                if not os.path.exists(saved_program):
-                    self.data["codeSaved"] = True
-                    copyfile(program, saved_program)
-
-        self.data["startedAt"] = datetime.utcfromtimestamp(
-            wandb.START_TIME).isoformat()
+        self.data["startedAt"] = datetime.utcfromtimestamp(wandb.START_TIME).isoformat()
         try:
             username = getpass.getuser()
         except KeyError:
