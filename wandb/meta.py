@@ -104,8 +104,6 @@ class Meta(object):
                         signal.alarm(25)
                         self._setup_code_git()
                         self._setup_code_program()
-                    except TimeOutException:
-                        pass
                     finally:
                         signal.alarm(0)
                 except TimeOutException:
