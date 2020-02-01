@@ -459,6 +459,9 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
             return obj
         return json.JSONEncoder.default(self, obj)
 
+def json_dump_safer(obj, fp, **kwargs):
+    """Convert obj to json, with some extra encodable types."""
+    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
 
 def json_dumps_safer(obj, **kwargs):
     """Convert obj to json, with some extra encodable types."""

@@ -262,8 +262,8 @@ class Table(Media):
     def bind_to_run(self, *args, **kwargs):
         data = self._to_table_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.table.json')
-        json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
-                    separators=(',', ':'), sort_keys=True, indent=4)
+        data = numpy_arrays_to_lists(data)
+        util.json_dump_safer(data, codecs.open(tmp_path, 'w', encoding='utf-8'))
         self._set_file(tmp_path, is_tmp=True, extension='.table.json')
         super(Table, self).bind_to_run(*args, **kwargs)
 
@@ -908,11 +908,10 @@ class Plotly(Media):
         if not util.is_plotly_figure_typename(util.get_full_typename(val)):
             raise ValueError('Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly')
 
-        val = numpy_arrays_to_lists(val.to_plotly_json())
 
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.plotly.json')
-        json.dump(val, codecs.open(tmp_path, 'w', encoding='utf-8'),
-                    separators=(',', ':'), sort_keys=True, indent=4)
+        val = numpy_arrays_to_lists(val.to_plotly_json())
+        util.json_dump_safer(val, codecs.open(tmp_path, 'w', encoding='utf-8'))
         self._set_file(tmp_path, is_tmp=True, extension='.plotly.json')
 
     def get_media_subdir(self):
@@ -966,9 +965,8 @@ class Graph(Media):
     def bind_to_run(self, *args, **kwargs):
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.graph.json')
-        s = util.json_dumps_safer(data)
-        with open(tmp_path, "w") as f:
-            f.write(s)
+        data = numpy_arrays_to_lists(data)
+        util.json_dump_safer(data, codecs.open(tmp_path, 'w', encoding='utf-8'))
         self._set_file(tmp_path, is_tmp=True, extension='.graph.json')
         super(Graph, self).bind_to_run(*args, **kwargs)
 
