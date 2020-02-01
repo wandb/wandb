@@ -18,25 +18,25 @@ def dummy_classifier(request):
 def test_learning_curve(dummy_classifier):
     (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
     lc_table = learning_curve(nb, x_train, y_train)
-    assert(len(lc_table.data) == 10)
-    assert(lc_table.data[0][0] == 'train')
-    assert(lc_table.data[1][0] == 'test')
+    assert(len(lc_table.value.value.data) == 10)
+    assert(lc_table.value.value.data[0][0] == 'train')
+    assert(lc_table.value.value.data[1][0] == 'test')
 
 def test_roc(dummy_classifier):
     (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
     lc_table = learning_curve(nb, x_train, y_train)
     r = roc(y_test, y_probas)
-    
-    assert(r.data[0] == [0, 0.0, 1.0])
+
+    assert(r.value.data[0] == [0, 0.0, 1.0])
 
 def test_confusion_matrix(dummy_classifier):
     (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
     cm = confusion_matrix(y_test, y_pred)
-    assert(len(cm.data)==4)
-    assert(cm.data[0]== [0,0,0])
+    assert(len(cm.value.data)==4)
+    assert(cm.value.data[0]== [0,0,0])
 
 def test_precision_recall(dummy_classifier):
     (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
     pr = precision_recall(y_test, y_probas)
-   
-    assert(pr.data[0]== [0, 1.0, 1.0])
+
+    assert(pr.value.data[0]== [0, 1.0, 1.0])
