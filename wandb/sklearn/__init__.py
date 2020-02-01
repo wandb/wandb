@@ -79,8 +79,8 @@ def plot_classifier(model, X_train, X_test,
     wandb.termlog('Logged confusion matrix.')
     plot_summary_metrics(model, X=X_train, y=y_train, X_test=X_test, y_test=y_test)
     wandb.termlog('Logged summary metrics.')
-    plot_class_balance(y_train, y_test, labels)
-    wandb.termlog('Logged class balances.')
+    plot_class_proportions(y_train, y_test, labels)
+    wandb.termlog('Logged class proportions.')
     plot_calibration_curve(model, X_train, y_train, model_name)
     wandb.termlog('Logged calibration curve.')
     plot_roc(y_test, y_probas, labels)
@@ -832,9 +832,9 @@ Returns:
           under 'auto visualizations'.
 
 Example:
-    wandb.sklearn.plot_class_balance(y_train, y_test, ['dog', 'cat', 'owl'])
+    wandb.sklearn.plot_class_proportions(y_train, y_test, ['dog', 'cat', 'owl'])
 """
-def plot_class_balance(y_train=None, y_test=None, labels=None):
+def plot_class_proportions(y_train=None, y_test=None, labels=None):
     if (test_missing(y_train=y_train, y_test=y_test) and
         test_types(y_train=y_train, y_test=y_test)):
         # Get the unique values from the dataset
@@ -847,7 +847,7 @@ def plot_class_balance(y_train=None, y_test=None, labels=None):
         class_counts_train = np.array([(y_train == c).sum() for c in classes_])
         class_counts_test = np.array([(y_test == c).sum() for c in classes_])
 
-        def class_balance(classes_, class_counts_train, class_counts_test):
+        def class_proportions(classes_, class_counts_train, class_counts_test):
             class_dict = []
             dataset_dict = []
             count_dict = []
@@ -867,13 +867,13 @@ def plot_class_balance(y_train=None, y_test=None, labels=None):
                                 or isinstance(class_dict[0], np.integer)):
                 class_dict = get_named_labels(labels, class_dict)
             return wandb.visualize(
-                'wandb/class_balance/v1', wandb.Table(
+                'wandb/class_proportions/v1', wandb.Table(
                 columns=['class', 'dataset', 'count'],
                 data=[
                     [class_dict[i], dataset_dict[i], count_dict[i]] for i in range(len(class_dict))
                 ]
             ))
-        wandb.log({'class_balance': class_balance(classes_, class_counts_train, class_counts_test)})
+        wandb.log({'class_proportions': class_proportions(classes_, class_counts_train, class_counts_test)})
 
 """
 Plots how well calibrated the predicted probabilities of a classifier are and
@@ -1066,12 +1066,9 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
         return
 
 """
-Residuals are the difference between the actual value of the target variable (y)
-and the predicted value (ŷ), i.e. the error of the prediction.
-
 Measures and plots the predicted target values (y-axis) vs the difference
     between actual and predicted target values (x-axis), as well as the
-    distribution of the reidual error.
+    distribution of the residual error.
 
 Should only be called with a fitted regressor (otherwise an error is thrown).
 Please note this function fits variations of the model on the training set when called.
