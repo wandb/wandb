@@ -1328,7 +1328,7 @@ def numpy_arrays_to_lists(payload):
     elif isinstance(payload, collections.Sequence) and not isinstance(payload, six.string_types):
         return [numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
-        return payload.tolist()
+        return [numpy_arrays_to_lists(v) for v in payload.tolist()]
 
     return payload
 

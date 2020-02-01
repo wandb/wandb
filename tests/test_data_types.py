@@ -386,3 +386,9 @@ def test_graph():
         'format': 'keras',
         'nodes': [{'id': 'a', 'name': 'Node A', 'size': (4,)},
                   {'id': 'b', 'name': 'Node B', 'size': (16,)}]}
+
+def test_numpy_arrays_to_list():
+    conv = data_types.numpy_arrays_to_lists
+    assert conv(np.array((1,2,))) == [1, 2]
+    assert conv([np.array((1,2,))]) == [[1, 2]]
+    assert conv(np.array(({'a': [np.array((1,2,))]}, 3))) == [{'a': [[1, 2]]}, 3]
