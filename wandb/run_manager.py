@@ -492,6 +492,9 @@ class RunManager(object):
         self._output = output
         self._port = port
 
+        # Connect to the server early to let it know we are starting up
+        self._socket = wandb_socket.Client(self._port)
+
         self._api = run.api
         self._project = self._resolve_project_name(project)
 
@@ -500,7 +503,6 @@ class RunManager(object):
         self._file_count = 0
         self._init_file_observer()
 
-        self._socket = wandb_socket.Client(self._port)
         # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
         self._system_stats = stats.SystemStats(run, self._api)
         self._meta = meta.Meta(self._api, self._run.dir)
