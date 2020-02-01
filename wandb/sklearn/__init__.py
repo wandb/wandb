@@ -581,18 +581,6 @@ Should only be called with a fitted classifer (otherwise an error in thrown).
 
 Arguments:
     model (clf): Takes in a fitted classifier.
-    X_train (arr): Training set features.
-    y_train (arr): Training set labels.
-    X_test (arr): Test set features.
-    y_test (arr): Test set labels.
-    y_pred (arr): Test set predictions by the model passed.
-    y_probas (arr): Test set predicted probabilities by the model passed.
-    labels (list): Named labels for target varible (y). Makes plots easier to
-                    read by replacing target values with corresponding index.
-                    For example labels= ['dog', 'cat', 'owl'] all 0s are
-                    replaced by 'dog', 1s by 'cat'.
-    is_binary (bool): Is the model passed a binary classifier? Defaults to False
-    model_name (str): Model name. Defaults to 'Classifier'
     feature_names (list): Names for features. Makes plots easier to read by
                             replacing feature indexes with corresponding names.
 
@@ -601,9 +589,7 @@ Returns:
           under 'auto visualizations'.
 
 Example:
-    wandb.sklearn.plot_classifier(model, X_train, X_test, y_train, y_test,
-                    y_pred, y_probas, ['cat', 'dog'], False,
-                    'RandomForest', ['barks', 'drools, 'plays_fetch', 'breed'])
+    wandb.sklearn.plot_feature_importances(model, ['width', 'height, 'length'])
 """
 def plot_feature_importances(model=None, feature_names=None,
                             title='Feature Importance', max_num_features=50):
@@ -638,6 +624,24 @@ def plot_feature_importances(model=None, feature_names=None,
         wandb.log({'feature_importances': feature_importances_table(feature_names, importances)})
         return
 
+"""
+Measures and plots the percentage of variance explained as a function of the
+    number of clusters, along with training times. Useful in picking the
+    optimal number of clusters.
+
+Should only be called with a fitted clusterer (otherwise an error in thrown).
+
+Arguments:
+    model (clusterer): Takes in a fitted clusterer.
+    X (arr): Training set features.
+
+Returns:
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+          under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_elbow_curve(model, X_train)
+"""
 def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
                     show_cluster_time=True):
     if not hasattr(clusterer, 'n_clusters'):
@@ -689,6 +693,29 @@ def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
         wandb.log({'elbow_curve': elbow_curve(cluster_ranges, clfs, times)})
         return
 
+"""
+Measures & plots a measure of how close each point in one cluster is to points
+    in the neighboring clusters. Silhouette coefficients near +1 indicate that
+    the sample is far away from the neighboring clusters. A value of 0 indicates
+     that the sample is on or very close to the decision boundary between two
+     neighboring clusters and negative values indicate that those samples might
+     have been assigned to the wrong cluster.
+
+Should only be called with a fitted clusterer (otherwise an error in thrown).
+
+Arguments:
+    model (clusterer): Takes in a fitted clusterer.
+    X (arr): Training set features.
+    cluster_labels (list): Names for cluster labels. Makes plots easier to read
+                        by replacing cluster indexes with corresponding names.
+
+Returns:
+    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+          under 'auto visualizations'.
+
+Example:
+    wandb.sklearn.plot_silhouette(model, X_train, ['spam', 'not spam'])
+"""
 def plot_silhouette(clusterer=None, X=None, cluster_labels=None, labels=None,
                     metric='euclidean', kmeans=True):
     if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
