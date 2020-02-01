@@ -1000,8 +1000,8 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
 
 """
 Measures a datapoint's influence on regression model via cook's distance.
-    Instances with heavily skewed influences could potentially be outliers.
-    Useful for outlier detection.
+    Instances with heavily skewed influences could potentially be
+    outliers. Useful for outlier detection.
 
 Should only be called with a fitted regressor (otherwise an error is thrown).
 Please note this function fits the model on the training set when called.
