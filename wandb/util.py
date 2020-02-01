@@ -256,6 +256,10 @@ def is_plotly_typename(typename):
     return typename.startswith("plotly.")
 
 
+def is_plotly_figure_typename(typename):
+    return typename.startswith("plotly.") and typename.endswith('.Figure')
+
+
 def is_numpy_array(obj):
     return np and isinstance(obj, np.ndarray)
 

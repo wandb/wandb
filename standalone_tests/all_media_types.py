@@ -10,7 +10,7 @@ import numpy
 import pandas
 import PIL
 from pkg_resources import parse_version
-import plotly.graph_objs
+import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 import tensorflow
 import torch
@@ -35,7 +35,10 @@ def main():
     data_frame = pandas.DataFrame(data=numpy.random.rand(1000), columns=['col'])
     tensorflow_variable_single = tensorflow.Variable(543.01, tensorflow.float32)
     tensorflow_variable_multi = tensorflow.Variable([[2, 3], [7, 11]], tensorflow.int32)
-    plot_scatter = plotly.graph_objs.Scatter(x=[0, 1, 2])
+    scatter = go.Figure(  # plotly
+        data=go.Scatter(x=[0, 1, 2]),
+        layout=go.Layout(
+            title=go.layout.Title(text="A Bar Chart")))
 
     image_data = numpy.zeros((28, 28))
     image_cool = wandb.Image(image_data, caption="Cool zeros")

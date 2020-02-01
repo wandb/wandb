@@ -850,6 +850,55 @@ class Image(BatchableMedia):
         else:
             return False
 
+
+class Plotly(Media):
+    """
+        Wandb class for 3D point clouds.
+
+        Args:
+            val: matplotlib or plotly figure
+    """
+
+    def __init__(self, val, **kwargs):
+        self._image = None
+        if util.is_matplotlib_typename(util.get_full_typename(val)):
+            val = util.ensure_matplotlib_figure(val)
+            if any(len(ax.images) > 0 for ax in val.axes):
+                # plots with images aren't supported by plotly, so convert to an image
+                PILImage = util.get_module(
+                    "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
+                buf = six.BytesIO()
+                val.savefig(buf)
+                self._image = Image(PILImage.open(buf))
+                return
+            # otherwise, convert to plotly figure
+            tools = util.get_module(
+                "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+            val = tools.mpl_to_plotly(val)
+
+        if not util.is_plotly_figure_typename(util.get_full_typename(val)):
+            raise ValueError('Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly')
+
+        val = numpy_arrays_to_lists(val.to_plotly_json())
+
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.plotly')
+        json.dump(val, codecs.open(tmp_path, 'w', encoding='utf-8'),
+                    separators=(',', ':'), sort_keys=True, indent=4)
+        super(Plotly, self).__init__(tmp_path, is_tmp=True)
+
+    def get_media_subdir(self):
+        if self._image:
+            return self._image.get_media_subdir()
+        return os.path.join('media', 'plotly')
+
+    def to_json(self, run):
+        if self._image:
+            return self._image.to_json(run)
+        json_dict = super(Plotly, self).to_json(run)
+        json_dict['_type'] = 'plotly-file'
+        return json_dict
+
+
 class Graph(WBValue):
     """Wandb class for graphs
     
@@ -1229,15 +1278,14 @@ def numpy_arrays_to_lists(payload):
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
     if isinstance(payload, dict):
-        for key,val in six.iteritems(payload):
-            if isinstance(val, dict):
-                payload[key] = numpy_arrays_to_lists(val)
-            elif isinstance(val, collections.Sequence) and not isinstance(val, six.string_types):
-                payload[key] = [numpy_arrays_to_lists(v) for v in val]
-            elif util.is_numpy_array(val):
-                payload[key] = val.tolist()
+        res = {}
+        for key, val in six.iteritems(payload):
+            res[key] = numpy_arrays_to_lists(val)
+        return res
+    elif isinstance(payload, collections.Sequence) and not isinstance(payload, six.string_types):
+        return [numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
-        payload = payload.tolist()
+        return payload.tolist()
 
     return payload
 
@@ -1251,20 +1299,8 @@ def val_to_json(run, key, val, step='summary'):
     if util.is_pandas_data_frame(val):
         assert step == 'summary', "We don't yet support DataFrames in History."
         return data_frame_to_json(val, run, key, step)
-    elif util.is_matplotlib_typename(typename):
-        # This handles plots with images in it because plotly doesn't support it
-        # TODO: should we handle a list of plots?
-        val = util.ensure_matplotlib_figure(val)
-        if any(len(ax.images) > 0 for ax in val.axes):
-            PILImage = util.get_module(
-                "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
-            buf = six.BytesIO()
-            val.savefig(buf)
-            val = Image(PILImage.open(buf))
-        else:
-            converted = plot_to_json(val)
-    elif util.is_plotly_typename(typename):
-        converted = plot_to_json(val)
+    elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
+        val = Plotly(val)
     elif isinstance(val, collections.Sequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if len(val) and isinstance(val[0], BatchableMedia) and all(isinstance(v, type(val[0])) for v in val):
@@ -1285,20 +1321,6 @@ def val_to_json(run, key, val, step='summary'):
         return val.to_json(run)
 
     return converted
-
-def plot_to_json(obj):
-    """Converts a matplotlib or plotly object to json so that we can pass
-        it the the wandb server and display it nicely there"""
-
-    if util.is_matplotlib_typename(util.get_full_typename(obj)):
-        tools = util.get_module(
-            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
-        obj = tools.mpl_to_plotly(obj)
-
-    if util.is_plotly_typename(util.get_full_typename(obj)):
-        return {"_type": "plotly", "plot": numpy_arrays_to_lists(obj.to_plotly_json())}
-    else:
-        return obj
 
 
 def data_frame_to_json(df, run, key, step):
