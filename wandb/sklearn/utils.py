@@ -532,7 +532,7 @@ class DBPlot(BaseEstimator):
                         ** 2
                     )
                 return error
-            except (Exception, ex):
+            except Exception as ex:
                 wandb.termerror("Error in objective function:", ex)
                 return np.infty
 
@@ -552,14 +552,16 @@ class DBPlot(BaseEstimator):
         if iteration_budget == None:
             iteration_budget = self.linear_iteration_budget
 
-        # opt = nlopt.opt(nlopt.GN_DIRECT_L_RAND, D)
-        # opt.set_stopval(self.acceptance_threshold/10.0)
+        '''
+        opt = nlopt.opt(nlopt.GN_DIRECT_L_RAND, D)
+        opt.set_stopval(self.acceptance_threshold/10.0)
         opt.set_ftol_rel(1e-5)
         opt.set_maxeval(iteration_budget)
         opt.set_lower_bounds(0)
         opt.set_upper_bounds(upper_bound)
 
         return opt
+        '''
 
 def minimum_spanning_tree(X, copy_X=True):
     if copy_X:
