@@ -999,7 +999,7 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
         wandb.log({'calibration_curve': calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict, hist_dict, edge_dict)})
 
 """
-Measures a datapoint's influence on regression model via cook’s distance.
+Measures a datapoint's influence on regression model via cook's distance.
     Instances with heavily skewed influences could potentially be outliers.
     Useful for outlier detection.
 
