@@ -76,7 +76,7 @@ This is a table designed to display small sets of records.
 ## Media
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L150)
 ```python
-Media(self, path, is_tmp=False, extension=None)
+Media(self)
 ```
 A WBValue that we store as a file outside JSON and show in a media panel on the front end.
 
@@ -84,9 +84,9 @@ If necessary, we move or copy the file into the Run's media directory so that it
 
 
 ## BatchableMedia
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L243)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L248)
 ```python
-BatchableMedia(self, path, is_tmp=False, extension=None)
+BatchableMedia(self)
 ```
 Parent class for Media we treat specially in batches, like images and thumbnails.
 
@@ -94,7 +94,7 @@ Apart from images, we just use these batches to help organize files by name in t
 
 
 ## Audio
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L255)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L260)
 ```python
 Audio(self, data_or_path, sample_rate=None, caption=None)
 ```
@@ -109,7 +109,7 @@ Wandb class for audio clips.
  
 
 ## Object3D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L352)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L357)
 ```python
 Object3D(self, data_or_path, **kwargs)
 ```
@@ -132,7 +132,7 @@ Wandb class for 3D point clouds.
  
 
 ## Html
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L473)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L478)
 ```python
 Html(self, data, inject=True)
 ```
@@ -146,7 +146,7 @@ Wandb class for arbitrary html
  
 
 ## Video
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L539)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L544)
 ```python
 Video(self, data_or_path, caption=None, fps=4, format=None)
 ```
@@ -162,7 +162,7 @@ Wandb representation of video.
  
 
 ## Image
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L683)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L688)
 ```python
 Image(self, data_or_path, mode=None, caption=None, grouping=None)
 ```
@@ -177,12 +177,12 @@ Wandb class for images.
  
 
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L854)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L859)
 ```python
 Plotly(self, val, **kwargs)
 ```
 
-Wandb class for 3D point clouds.
+Wandb class for plotly plots.
 
 **Arguments**:
 
@@ -190,7 +190,7 @@ Wandb class for 3D point clouds.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L895)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L900)
 ```python
 Graph(self, format='keras')
 ```
@@ -216,7 +216,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1029)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1034)
 ```python
 Node(self,
      id=None,
@@ -234,7 +234,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1194)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1199)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -243,7 +243,7 @@ Edge used in [`Graph`](#graph)
 
 
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1319)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1324)
 ```python
 data_frame_to_json(df, run, key, step)
 ```
