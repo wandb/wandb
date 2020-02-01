@@ -264,8 +264,7 @@ def test_html_file():
 def test_table_default():
     table = wandb.Table()
     table.add_data("Some awesome text", "Positive", "Negative")
-    assert table.to_json() == {
-        "_type": "table",
+    assert table._to_table_json() == {
         "data": [["Some awesome text", "Positive", "Negative"]],
         "columns": ["Input", "Output", "Expected"]
     }
@@ -275,8 +274,7 @@ def test_table_custom():
     table = wandb.Table(["Foo", "Bar"])
     table.add_data("So", "Cool")
     table.add_row("&", "Rad")
-    assert table.to_json() == {
-        "_type": "table",
+    assert table._to_table_json() == {
         "data": [["So", "Cool"], ["&", "Rad"]],
         "columns": ["Foo", "Bar"]
     }
@@ -371,6 +369,6 @@ def test_object3d_seq_to_json():
 
 def test_table_init():
     table = wandb.Table(data=[["Some awesome text", "Positive", "Negative"]])
-    assert table.to_json() == {"_type": "table",
-                                "data": [["Some awesome text", "Positive", "Negative"]],
-                                "columns": ["Input", "Output", "Expected"]}
+    assert table._to_table_json() == {
+        "data": [["Some awesome text", "Positive", "Negative"]],
+        "columns": ["Input", "Output", "Expected"]}

@@ -176,10 +176,14 @@ def test_matplotlib(history):
 def test_table(history):
     history.add({"tbl": data_types.Table(
         rows=[["a", "b", "c"], ["d", "e", "f"]])})
-    h = disk_history(history)
-    assert h[0]["tbl"] == {'_type': 'table',
-                           'columns': [u'Input', u'Output', u'Expected'],
-                           'data': [[u'a', u'b', u'c'], [u'd', u'e', u'f']]}
+    h = disk_history(history)[0]["tbl"]
+    assert h["_type"] == "table-file"
+    path = h["path"]
+    data = open(os.path.join(history._run.dir, path)).read()
+    table_data = json.loads(data)
+    assert table_data == {
+        'columns': [u'Input', u'Output', u'Expected'],
+        'data': [[u'a', u'b', u'c'], [u'd', u'e', u'f']]}
 
 
 def test_plotly(history):

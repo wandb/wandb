@@ -114,39 +114,6 @@ class Histogram(WBValue):
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
 
 
-class Table(WBValue):
-    """This is a table designed to display small sets of records.
-
-    Arguments:
-        columns ([str]): Names of the columns in the table.  
-            Defaults to ["Input", "Output", "Expected"].
-        data (array): 2D Array of values that will be displayed as strings.
-    """
-    MAX_ROWS = 300
-
-    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
-        """rows is kept for legacy reasons, we use data to mimic the Pandas api
-        """
-        self.columns = columns
-        self.data = list(rows or data or [])
-
-    def add_row(self, *row):
-        logging.warning("add_row is deprecated, use add_data")
-        self.add_data(*row)
-
-    def add_data(self, *data):
-        if len(data) != len(self.columns):
-            raise ValueError("This table expects {} columns: {}".format(
-                len(self.columns), self.columns))
-        self.data.append(list(data))
-
-    def to_json(self, run=None):
-        if len(self.data) > Table.MAX_ROWS:
-            logging.warn(
-                "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
-        return {"_type": "table", "columns": self.columns, "data": self.data[:Table.MAX_ROWS]}
-
-
 class Media(WBValue):
     """A WBValue that we store as a file outside JSON and show in a media panel
     on the front end.
@@ -154,6 +121,11 @@ class Media(WBValue):
     If necessary, we move or copy the file into the Run's media directory so that it gets
     uploaded.
     """
+
+    def __init__(self):
+        self._path = None
+        # The run under which this object is bound, if any.
+        self._run = None
 
     def _set_file(self, path, is_tmp=False, extension=None):
         self._path = path
@@ -165,9 +137,6 @@ class Media(WBValue):
         self._sha256 = hashlib.sha256(open(self._path, 'rb').read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
-        # The run under which this object is bound, if any.
-        self._run = None
-
     @classmethod
     def get_media_subdir(cls):
         raise NotImplementedError
@@ -176,7 +145,7 @@ class Media(WBValue):
         return self._run is not None
 
     def file_is_set(self):
-        return hasattr(self, '_path')
+        return self._path is not None
 
     def bind_to_run(self, run, key, step, id_=None):
         """Bind this object to a particular Run.
@@ -257,6 +226,57 @@ class BatchableMedia(Media):
         raise NotImplementedError
 
 
+class Table(Media):
+    """This is a table designed to display small sets of records.
+
+    Arguments:
+        columns ([str]): Names of the columns in the table.  
+            Defaults to ["Input", "Output", "Expected"].
+        data (array): 2D Array of values that will be displayed as strings.
+    """
+    MAX_ROWS = 1000
+
+    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
+        """rows is kept for legacy reasons, we use data to mimic the Pandas api
+        """
+        super(Table, self).__init__()
+        self.columns = columns
+        self.data = list(rows or data or [])
+
+    def add_row(self, *row):
+        logging.warning("add_row is deprecated, use add_data")
+        self.add_data(*row)
+
+    def add_data(self, *data):
+        if len(data) != len(self.columns):
+            raise ValueError("This table expects {} columns: {}".format(
+                len(self.columns), self.columns))
+        self.data.append(list(data))
+
+    def _to_table_json(self):
+        # seperate method for testing
+        if len(self.data) > Table.MAX_ROWS:
+            logging.warn("Truncating wandb.Table object to %i rows." % Table.MAX_ROWS)
+        return {"columns": self.columns, "data": self.data[:Table.MAX_ROWS]}
+
+    def bind_to_run(self, *args, **kwargs):
+        data = self._to_table_json()
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.table.json')
+        json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
+                    separators=(',', ':'), sort_keys=True, indent=4)
+        self._set_file(tmp_path, is_tmp=True, extension='.table.json')
+        super(Table, self).bind_to_run(*args, **kwargs)
+
+    @classmethod
+    def get_media_subdir(cls):
+        return os.path.join('media', 'table')
+
+    def to_json(self, run):
+        json_dict = super(Table, self).to_json(run)
+        json_dict['_type'] = 'table-file'
+        return json_dict
+
+
 class Audio(BatchableMedia):
     """
         Wandb class for audio clips.
@@ -271,6 +291,7 @@ class Audio(BatchableMedia):
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data. 
         """
+        super(Audio, self).__init__()
         self._duration = None
         self._sample_rate = sample_rate
         self._caption = caption
@@ -378,6 +399,7 @@ class Object3D(BatchableMedia):
     SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', 'stl'])
 
     def __init__(self, data_or_path, **kwargs):
+        super(Object3D, self).__init__()
 
         if hasattr(data_or_path, 'name'):
             # if the file has a path, we just detect the type and copy it from there
@@ -485,6 +507,7 @@ class Html(BatchableMedia):
                 to False the HTML will pass through unchanged.
     """
     def __init__(self, data, inject=True):
+        super(Html, self).__init__()
 
         if isinstance(data, str):
             self.html = data
@@ -563,6 +586,8 @@ class Video(BatchableMedia):
     EXTS = ("gif", "mp4", "webm", "ogg")
 
     def __init__(self, data_or_path, caption=None, fps=4, format=None):
+        super(Video, self).__init__()
+
         self._fps = fps
         self._format = format or "gif"
         self._width = None
@@ -704,6 +729,7 @@ class Image(BatchableMedia):
     MAX_DIMENSION = 65500
 
     def __init__(self, data_or_path, mode=None, caption=None, grouping=None):
+        super(Image, self).__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
@@ -878,6 +904,7 @@ class Plotly(Media):
         return cls(val)
 
     def __init__(self, val, **kwargs):
+        super(Plotly, self).__init__()
         if not util.is_plotly_figure_typename(util.get_full_typename(val)):
             raise ValueError('Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly')
 
