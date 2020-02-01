@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.20'
+__version__ = '0.8.22'
 
 import atexit
 import click
@@ -127,6 +127,8 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
         raise ValueError(
             "You must call `wandb.init` before calling watch")
 
+    in_jupyter = _get_python_type() != "python"
+
     log_parameters = False
     log_gradients = True
     if log == "all":
@@ -151,7 +153,8 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
             prefix = "graph_%i" % global_idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
-            model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
+            model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq,
+            jupyter_run=run if in_jupyter else None)
 
         graph = wandb_torch.TorchGraph.hook_torch(
             model, criterion, graph_idx=global_idx)
@@ -834,7 +837,7 @@ def sagemaker_auth(overrides={}, path="."):
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
-         anonymous=None):
+         anonymous=None, config_exclude_keys=None, config_include_keys=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -844,6 +847,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     Args:
         job_type (str, optional): The type of job running, defaults to 'train'
         config (dict, argparse, or tf.FLAGS, optional): The hyper parameters to store with the run
+        config_exclude_keys (list, optional): string keys to exclude storing in W&B when specifying config
+        config_include_keys (list, optional): string keys to include storing in W&B when specifying config
         project (str, optional): The project to push metrics to
         entity (str, optional): The entity to push metrics to
         dir (str, optional): An absolute path to a directory where metadata will be stored
@@ -927,10 +932,18 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     image = util.image_id_from_k8s()
     if image:
         os.environ[env.DOCKER] = image
-    if project:
-        os.environ[env.PROJECT] = project
-    if entity:
-        os.environ[env.ENTITY] = entity
+
+    if not os.environ.get(env.SWEEP_ID):
+        if project:
+            os.environ[env.PROJECT] = project
+        if entity:
+            os.environ[env.ENTITY] = entity
+    else:
+        if entity and entity != os.environ.get(env.ENTITY):
+            termwarn("Ignoring entity='{}' passed to wandb.init when running a sweep".format(entity))
+        if project and project != os.environ.get(env.PROJECT):
+            termwarn("Ignoring project='{}' passed to wandb.init when running a sweep".format(project))
+
     if group:
         os.environ[env.RUN_GROUP] = group
     if job_type:
@@ -1084,7 +1097,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         run.config._update(sagemaker_config)
         allow_val_change = True
     if config or telemetry_updated:
-        run.config._update(config, allow_val_change=allow_val_change, as_defaults=not allow_val_change)
+        run.config._update(config,
+                exclude_keys=config_exclude_keys,
+                include_keys=config_include_keys,
+                allow_val_change=allow_val_change,
+                as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
     run.history

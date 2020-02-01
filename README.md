@@ -73,3 +73,9 @@ Framework specific and detailed usage can be found in our [documentation](http:/
 To run the tests we use `pytest tests`. If you want a simple mock of the wandb backend and cloud storage you can use the mock_server fixture, see tests/test_cli.py for examples.
 
 We use [circleci](https://circleci.com) and [appveyor](https://appveyor.com) for CI.
+
+# Academic Researchers
+If you'd like a free academic account for your research group, [reach out to us →](https://www.wandb.com/academic)
+
+We make it easy to cite W&B in your published paper. [Learn more →](https://www.wandb.com/academic)
+[![](https://i.imgur.com/loKLiez.png)](https://www.wandb.com/academic)

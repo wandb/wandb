@@ -195,7 +195,7 @@ class Api(object):
             project = parts[0]
         return (entity, project, run)
 
-    def projects(self, entity=None, per_page=None):
+    def projects(self, entity=None, per_page=200):
         """Get projects for a given entity.
         Args:
             entity (str): Name of the entity requested.  If None will fallback to
@@ -215,7 +215,7 @@ class Api(object):
             self._projects[entity] = Projects(self.client, entity, per_page=per_page)
         return self._projects[entity]
 
-    def reports(self, path="", name=None, per_page=None):
+    def reports(self, path="", name=None, per_page=50):
         """Get reports for a given project path.
 
         WARNING: This api is in beta and will likely change in a future release
@@ -241,7 +241,7 @@ class Api(object):
             self._reports[key] = Reports(self.client, Project(entity, project, {}), name=name, per_page=per_page)
         return self._reports[key]
 
-    def runs(self, path="", filters={}, order="-created_at", per_page=None):
+    def runs(self, path="", filters={}, order="-created_at", per_page=50):
         """Return a set of runs from a project that match the filters provided.
         You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
 
@@ -346,10 +346,13 @@ class Attrs(object):
 class Paginator(object):
     QUERY = None
 
-    def __init__(self, client, variables, per_page=50):
+    def __init__(self, client, variables, per_page=None):
         self.client = client
         self.variables = variables
+        # We don't allow unbounded paging
         self.per_page = per_page
+        if self.per_page is None:
+            self.per_page = 50
         self.objects = []
         self.index = -1
         self.last_response = None
@@ -1444,6 +1447,8 @@ class HistoryScan(object):
                 raise StopIteration()
             self._load_next()
 
+    next = __next__
+
     @normalize_exceptions
     @retriable(
         check_retry_fn=util.no_retry_auth,
@@ -1504,6 +1509,8 @@ class SampledHistoryScan(object):
             if self.page_offset >= self.max_step:
                 raise StopIteration()
             self._load_next()
+
+    next = __next__
 
     @normalize_exceptions
     @retriable(
