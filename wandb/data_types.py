@@ -858,7 +858,7 @@ class Image(BatchableMedia):
 
 class Plotly(Media):
     """
-        Wandb class for 3D point clouds.
+        Wandb class for plotly plots.
 
         Args:
             val: matplotlib or plotly figure
