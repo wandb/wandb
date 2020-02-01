@@ -846,8 +846,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     Args:
         job_type (str, optional): The type of job running, defaults to 'train'
         config (dict, argparse, or tf.FLAGS, optional): The hyper parameters to store with the run
-        config_exclude_keys (list, optional): List of keys to exclude when specifying config
-        config_include_keys (list, optional): List of keys to include when specifying config
+        config_exclude_keys (list, optional): string keys to exclude storing in W&B when specifying config
+        config_include_keys (list, optional): string keys to include storing in W&B when specifying config
         project (str, optional): The project to push metrics to
         entity (str, optional): The entity to push metrics to
         dir (str, optional): An absolute path to a directory where metadata will be stored
