@@ -155,7 +155,7 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self, path, is_tmp=False, extension=None):
+    def _set_file(self, path, is_tmp=False, extension=None):
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
@@ -175,6 +175,9 @@ class Media(WBValue):
     def is_bound(self):
         return self._run is not None
 
+    def file_is_set(self):
+        return hasattr(self, '_path')
+
     def bind_to_run(self, run, key, step, id_=None):
         """Bind this object to a particular Run.
 
@@ -182,6 +185,8 @@ class Media(WBValue):
         put the file associated with this object, from which other Runs can
         refer to it.
         """
+        if not self.file_is_set():
+            raise AssertionError('bind_to_run called before _set_file')
         if run is None:
             raise TypeError('Argument "run" must not be None.')
         if self.is_bound():
@@ -271,7 +276,7 @@ class Audio(BatchableMedia):
         self._caption = caption
 
         if isinstance(data_or_path, six.string_types):
-            super(Audio, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
         else:
             if sample_rate == None:
                 raise ValueError('Argument "sample_rate" is required when instantiating wandb.Audio with raw data.')
@@ -283,7 +288,7 @@ class Audio(BatchableMedia):
             soundfile.write(tmp_path, data_or_path, sample_rate)
             self._duration = len(data_or_path) / float(sample_rate)
 
-            super(Audio, self).__init__(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
     def get_media_subdir(cls):
@@ -395,7 +400,7 @@ class Object3D(BatchableMedia):
             with open(tmp_path, "w") as f:
                 f.write(object3D)
 
-            super(Object3D, self).__init__(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
             path = data_or_path
             try:
@@ -407,7 +412,7 @@ class Object3D(BatchableMedia):
                 raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
                                  ", ".join(Object3D.SUPPORTED_TYPES))
 
-            super(Object3D, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
         # Supported different types and scene for 3D scenes
         elif 'type' in data_or_path:
             if data_or_path['type'] == 'lidar/beta':
@@ -422,7 +427,7 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
             json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
                       separators=(',', ':'), sort_keys=True, indent=4)
-            super(Object3D, self).__init__(tmp_path, is_tmp=True, extension='.pts.json')
+            self._set_file(tmp_path, is_tmp=True, extension='.pts.json')
         elif is_numpy_array(data_or_path):
             data = data_or_path
 
@@ -436,7 +441,7 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
             json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
                       separators=(',', ':'), sort_keys=True, indent=4)
-            super(Object3D, self).__init__(tmp_path, is_tmp=True, extension='.pts.json')
+            self._set_file(tmp_path, is_tmp=True, extension='.pts.json')
         else:
             raise ValueError("data must be a numpy or a file object")
 
@@ -496,7 +501,7 @@ class Html(BatchableMedia):
         with open(tmp_path, 'w') as out:
             print(self.html, file=out)
 
-        super(Html, self).__init__(tmp_path, is_tmp=True)
+        self._set_file(tmp_path, is_tmp=True)
 
     def inject_head(self):
         join = ""
@@ -571,13 +576,13 @@ class Video(BatchableMedia):
             filename = os.path.join(MEDIA_TMP.name, util.generate_id() + '.'+ self._format)
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
-            super(Video, self).__init__(filename, is_tmp=True)
+            self._set_file(filename, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:
                 raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
-            super(Video, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
             #ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
             if hasattr(data_or_path, "numpy"): # TF data eager tensors
@@ -607,7 +612,7 @@ class Video(BatchableMedia):
                 clip.write_gif(filename, verbose=False)
             else:
                 clip.write_videofile(filename, verbose=False)
-        super(Video, self).__init__(filename, is_tmp=True)
+        self._set_file(filename, is_tmp=True)
 
     @classmethod
     def get_media_subdir(cls):
@@ -709,7 +714,7 @@ class Image(BatchableMedia):
         self._image = None
 
         if isinstance(data_or_path, six.string_types):
-            super(Image, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
         else:
             data = data_or_path
 
@@ -741,7 +746,7 @@ class Image(BatchableMedia):
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.png')
             self._image.save(tmp_path, transparency=None)
-            super(Image, self).__init__(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
     def get_media_subdir(cls):
@@ -881,7 +886,7 @@ class Plotly(Media):
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.plotly')
         json.dump(val, codecs.open(tmp_path, 'w', encoding='utf-8'),
                     separators=(',', ':'), sort_keys=True, indent=4)
-        super(Plotly, self).__init__(tmp_path, is_tmp=True)
+        self._set_file(tmp_path, is_tmp=True)
 
     def get_media_subdir(self):
         return os.path.join('media', 'plotly')
