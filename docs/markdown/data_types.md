@@ -216,7 +216,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1061)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1079)
 ```python
 Node(self,
      id=None,
@@ -234,7 +234,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1226)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1244)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -243,7 +243,7 @@ Edge used in [`Graph`](#graph)
 
 
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1351)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1369)
 ```python
 data_frame_to_json(df, run, key, step)
 ```
