@@ -10,7 +10,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
 from sklearn.neighbors import KNeighborsClassifier
-import nlopt
 import random
 import wandb
 from scipy.spatial.distance import euclidean, squareform, pdist
@@ -553,7 +552,7 @@ class DBPlot(BaseEstimator):
         if iteration_budget == None:
             iteration_budget = self.linear_iteration_budget
 
-        opt = nlopt.opt(nlopt.GN_DIRECT_L_RAND, D)
+        # opt = nlopt.opt(nlopt.GN_DIRECT_L_RAND, D)
         # opt.set_stopval(self.acceptance_threshold/10.0)
         opt.set_ftol_rel(1e-5)
         opt.set_maxeval(iteration_budget)
