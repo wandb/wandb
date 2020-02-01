@@ -110,23 +110,36 @@ def test_matplot_plotly(summary):
     summary["plot"] = plt
     plt.close()
     plot = disk_summary(summary)["plot"]
-    assert plot["_type"] == "plotly"
+    assert plot["_type"] == "plotly-file"
 
 
 def test_plotly_plot(summary):
-    summary["plot"] = go.Scatter(x=[0, 1, 2])
+    scatter = go.Figure(  # plotly
+        data=go.Scatter(x=[0, 1, 2]),
+        layout=go.Layout(
+            title=go.layout.Title(text="A Bar Chart")))
+    summary["plot"] = scatter
     plot = disk_summary(summary)["plot"]
-    assert plot["_type"] == "plotly"
-    assert plot["plot"]['type'] == 'scatter'
+    assert plot["_type"] == "plotly-file"
+    path = plot["path"]
+    data = open(os.path.join(summary._run.dir, path)).read()
+    plot_data = json.loads(data)
+    assert plot_data["data"][0]['type'] == 'scatter'
 
 def test_plotly_big_numpy(summary):
     N = 200
     x = np.arange(N)
     y = np.arange(0, N) / N
-    summary["plot"] = go.Figure(data=go.Scatter(x=x, y=y, mode='markers'))
+    scatter = go.Figure(  # plotly
+        data=go.Scatter(x=[0, 1, 2]),
+        layout=go.Layout(
+            title=go.layout.Title(text="A Bar Chart")))
+    summary["plot"] = scatter
     plot = disk_summary(summary)["plot"]
-    assert len(plot["plot"]["data"][0]["x"]) == 200
-
+    path = plot["path"]
+    data = open(os.path.join(summary._run.dir, path)).read()
+    plot_data = json.loads(data)
+    assert plot_data["data"][0]['type'] == 'scatter'
 
 def test_newline(summary):
     summary["rad \n"] = 1
