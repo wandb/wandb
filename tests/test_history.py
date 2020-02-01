@@ -183,15 +183,30 @@ def test_table(history):
 
 
 def test_plotly(history):
-    history.add({"plot": go.Scatter(x=[0, 1, 2])})
+    scatter = go.Figure(  # plotly
+        data=go.Scatter(x=[0, 1, 2]),
+        layout=go.Layout(
+            title=go.layout.Title(text="A Bar Chart")))
+    history.add({"plot": scatter})
     plot = disk_history(history)[0]["plot"]
-    assert plot["_type"] == "plotly"
-    assert plot["plot"]['type'] == 'scatter'
+    assert plot["_type"] == "plotly-file"
+    path = plot["path"]
+    data = open(os.path.join(history._run.dir, path)).read()
+    plot_data = json.loads(data)
+    assert plot_data["data"][0]['type'] == 'scatter'
 
 def test_plotly_big_numpy(history):
-    history.add({"plot": go.Scatter(x=np.random.normal(size=(100,)))})
+    scatter = go.Figure(  # plotly
+        data=go.Scatter(x=np.random.normal(size=(100,))),
+        layout=go.Layout(
+            title=go.layout.Title(text="A Bar Chart")))
+    history.add({"plot": scatter})
     plot = disk_history(history)[0]["plot"]
-    assert len(plot["plot"]["x"]) == 100
+    assert plot["_type"] == "plotly-file"
+    path = plot["path"]
+    data = open(os.path.join(history._run.dir, path)).read()
+    plot_data = json.loads(data)
+    assert len(plot_data["data"][0]['x']) == 100
 
 
 def test_stream(history):

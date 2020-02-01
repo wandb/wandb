@@ -859,23 +859,20 @@ class Plotly(Media):
             val: matplotlib or plotly figure
     """
 
-    def __init__(self, val, **kwargs):
-        self._image = None
+    @classmethod
+    def make_plot_media(cls, val):
         if util.is_matplotlib_typename(util.get_full_typename(val)):
             val = util.ensure_matplotlib_figure(val)
             if any(len(ax.images) > 0 for ax in val.axes):
-                # plots with images aren't supported by plotly, so convert to an image
-                PILImage = util.get_module(
-                    "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
-                buf = six.BytesIO()
-                val.savefig(buf)
-                self._image = Image(PILImage.open(buf))
-                return
+                return Image(val)
+            val = util.ensure_matplotlib_figure(val)
             # otherwise, convert to plotly figure
             tools = util.get_module(
                 "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
             val = tools.mpl_to_plotly(val)
+        return cls(val)
 
+    def __init__(self, val, **kwargs):
         if not util.is_plotly_figure_typename(util.get_full_typename(val)):
             raise ValueError('Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly')
 
@@ -887,13 +884,9 @@ class Plotly(Media):
         super(Plotly, self).__init__(tmp_path, is_tmp=True)
 
     def get_media_subdir(self):
-        if self._image:
-            return self._image.get_media_subdir()
         return os.path.join('media', 'plotly')
 
     def to_json(self, run):
-        if self._image:
-            return self._image.to_json(run)
         json_dict = super(Plotly, self).to_json(run)
         json_dict['_type'] = 'plotly-file'
         return json_dict
@@ -1300,7 +1293,7 @@ def val_to_json(run, key, val, step='summary'):
         assert step == 'summary', "We don't yet support DataFrames in History."
         return data_frame_to_json(val, run, key, step)
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
-        val = Plotly(val)
+        val = Plotly.make_plot_media(val)
     elif isinstance(val, collections.Sequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if len(val) and isinstance(val[0], BatchableMedia) and all(isinstance(v, type(val[0])) for v in val):
