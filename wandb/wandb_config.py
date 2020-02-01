@@ -240,7 +240,9 @@ class Config(object):
                 val = str(val)
             return val
 
-    def _update(self, params, allow_val_change=False, as_defaults=False):
+    def _update(self, params, allow_val_change=False, as_defaults=False, exclude_keys=None, include_keys=None):
+        exclude_keys = exclude_keys or []
+        include_keys = include_keys or []
         params = params or {}
         if not isinstance(params, dict):
             # Handle some cases where params is not a dictionary
@@ -271,18 +273,30 @@ class Config(object):
 
         if not isinstance(params, dict):
             raise ConfigError('Expected dict but received %s' % params)
+        if exclude_keys and include_keys:
+            raise ConfigError('Expected at most only one of exclude_keys or include_keys')
         for key, val in params.items():
+            if key in exclude_keys:
+                continue
+            if include_keys and key not in include_keys:
+                continue
             key, val = self._sanitize(key, val, allow_val_change=allow_val_change or as_defaults)
             if as_defaults and key in self._items:
                 continue
             self._items[key] = val
         self.persist()
 
-    def update(self, params, allow_val_change=False):
-        self._update(params, allow_val_change=allow_val_change)
+    def update(self, params, allow_val_change=False, exclude_keys=None, include_keys=None):
+        self._update(params,
+                exclude_keys=exclude_keys,
+                include_keys=include_keys,
+                allow_val_change=allow_val_change)
 
-    def setdefaults(self, params):
-        self._update(params, as_defaults=True)
+    def setdefaults(self, params, exclude_keys=None, include_keys=None):
+        self._update(params,
+                exclude_keys=exclude_keys,
+                include_keys=include_keys,
+                as_defaults=True)
         return dict(self)
 
     def setdefault(self, key, default=None):

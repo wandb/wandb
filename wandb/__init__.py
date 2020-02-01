@@ -836,7 +836,7 @@ def sagemaker_auth(overrides={}, path="."):
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
-         anonymous=None):
+         anonymous=None, config_exclude_keys=None, config_include_keys=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -846,6 +846,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     Args:
         job_type (str, optional): The type of job running, defaults to 'train'
         config (dict, argparse, or tf.FLAGS, optional): The hyper parameters to store with the run
+        config_exclude_keys (list, optional): string keys to exclude storing in W&B when specifying config
+        config_include_keys (list, optional): string keys to include storing in W&B when specifying config
         project (str, optional): The project to push metrics to
         entity (str, optional): The entity to push metrics to
         dir (str, optional): An absolute path to a directory where metadata will be stored
@@ -1094,7 +1096,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         run.config._update(sagemaker_config)
         allow_val_change = True
     if config or telemetry_updated:
-        run.config._update(config, allow_val_change=allow_val_change, as_defaults=not allow_val_change)
+        run.config._update(config,
+                exclude_keys=config_exclude_keys,
+                include_keys=config_include_keys,
+                allow_val_change=allow_val_change,
+                as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
     run.history
