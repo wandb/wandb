@@ -910,10 +910,10 @@ class Plotly(Media):
 
         val = numpy_arrays_to_lists(val.to_plotly_json())
 
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.plotly')
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.plotly.json')
         json.dump(val, codecs.open(tmp_path, 'w', encoding='utf-8'),
                     separators=(',', ':'), sort_keys=True, indent=4)
-        self._set_file(tmp_path, is_tmp=True)
+        self._set_file(tmp_path, is_tmp=True, extension='.plotly.json')
 
     def get_media_subdir(self):
         return os.path.join('media', 'plotly')
@@ -924,7 +924,7 @@ class Plotly(Media):
         return json_dict
 
 
-class Graph(WBValue):
+class Graph(Media):
     """Wandb class for graphs
     
     This class is typically used for saving and diplaying neural net models.  It
@@ -946,6 +946,7 @@ class Graph(WBValue):
         root (wandb.Node): root node of the graph
     """
     def __init__(self, format="keras"):
+        super(Graph, self).__init__()
         # LB: TODO: I think we should factor criterion and criterion_passed out
         self.format = format
         self.nodes = []
@@ -956,10 +957,27 @@ class Graph(WBValue):
         self.criterion_passed = False
         self.root = None  # optional root Node if applicable
 
-    def to_json(self, run=None):
-        return {"_type": "graph", "format": self.format,
+    def _to_graph_json(self, run=None):
+        return {"format": self.format,
                 "nodes": [node.to_json() for node in self.nodes],
                 "edges": [edge.to_json() for edge in self.edges]}
+
+    def bind_to_run(self, *args, **kwargs):
+        data = self._to_graph_json()
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.graph.json')
+        json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
+                    separators=(',', ':'), sort_keys=True, indent=4)
+        self._set_file(tmp_path, is_tmp=True, extension='.graph.json')
+        super(Graph, self).bind_to_run(*args, **kwargs)
+
+    @classmethod
+    def get_media_subdir(cls):
+        return os.path.join('media', 'graph')
+
+    def to_json(self, run):
+        json_dict = super(Graph, self).to_json(run)
+        json_dict['_type'] = 'graph-file'
+        return json_dict
 
     def __getitem__(self, nid):
         return self.nodes_by_id[nid]

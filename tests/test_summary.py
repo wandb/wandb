@@ -16,6 +16,7 @@ import tempfile
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 from wandb import Histogram, Image, Graph, Table
+from wandb.data_types import Node
 from click.testing import CliRunner
 import pytest
 
@@ -140,6 +141,24 @@ def test_plotly_big_numpy(summary):
     data = open(os.path.join(summary._run.dir, path)).read()
     plot_data = json.loads(data)
     assert plot_data["data"][0]['type'] == 'scatter'
+
+def test_graph(summary):
+    graph = Graph()
+    node_a = Node('a', 'Node A', size=(4,))
+    node_b = Node('b', 'Node B', size=(16,))
+    graph.add_node(node_a)
+    graph.add_node(node_b)
+    graph.add_edge(node_a, node_b)
+    summary["graph"] = graph
+    graph = disk_summary(summary)["graph"]
+    path = graph["path"]
+    data = open(os.path.join(summary._run.dir, path)).read()
+    graph_data = json.loads(data)
+    assert graph_data == {
+        'edges': [['a', 'b']],
+        'format': 'keras',
+        'nodes': [{'id': 'a', 'name': 'Node A', 'size': [4]},
+                  {'id': 'b', 'name': 'Node B', 'size': [16]}]}
 
 def test_newline(summary):
     summary["rad \n"] = 1

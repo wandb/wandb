@@ -1,4 +1,5 @@
 import wandb
+from wandb import data_types
 import numpy as np
 import pytest
 import PIL
@@ -372,3 +373,16 @@ def test_table_init():
     assert table._to_table_json() == {
         "data": [["Some awesome text", "Positive", "Negative"]],
         "columns": ["Input", "Output", "Expected"]}
+
+def test_graph():
+    graph = wandb.Graph()
+    node_a = data_types.Node('a', 'Node A', size=(4,))
+    node_b = data_types.Node('b', 'Node B', size=(16,))
+    graph.add_node(node_a)
+    graph.add_node(node_b)
+    graph.add_edge(node_a, node_b)
+    assert graph._to_graph_json() == {
+        'edges': [['a', 'b']],
+        'format': 'keras',
+        'nodes': [{'id': 'a', 'name': 'Node A', 'size': (4,)},
+                  {'id': 'b', 'name': 'Node B', 'size': (16,)}]}
