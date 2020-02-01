@@ -611,7 +611,8 @@ def restore(name, run_path=None, replace=False, root=None):
             "You must call `wandb.init` before calling restore or specify a run_path")
     api = Api()
     api_run = api.run(run_path or run.path)
-    root = root or run.dir if run else "."
+    if root is None:
+        root = run.dir if run else '.'
     path = os.path.join(root, name)
     if os.path.exists(path) and replace == False:
         return open(path, "r")
