@@ -55,13 +55,16 @@ class Meta(object):
             self.data["root"] = self._api.git.root or self.data["root"]
 
     def _setup_code_program(self):
-        logger.debug("scan for untracked program")
+        logger.debug("save program starting")
         program = os.path.join(self.data["root"], self.data["program"])
-        if os.path.exists(program) and self._api.git.is_untracked(self.data["program"]):
+        logger.debug("save program starting: {}".format(program))
+        if os.path.exists(program):
+            # and self._api.git.is_untracked(self.data["program"])
             util.mkdir_exists_ok(os.path.join(self.out_dir, "code", os.path.dirname(self.data["program"])))
             saved_program = os.path.join(self.out_dir, "code", self.data["program"])
+            logger.debug("save program saved: {}".format(saved_program))
             if not os.path.exists(saved_program):
-                logger.debug("save untracked program")
+                logger.debug("save program")
                 copyfile(program, saved_program)
                 self.data["codeSaved"] = True
 
