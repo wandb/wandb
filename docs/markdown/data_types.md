@@ -176,8 +176,21 @@ Wandb class for images.
 - `caption` _string_ - Label for display of image.
  
 
+## Plotly
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L854)
+```python
+Plotly(self, val, **kwargs)
+```
+
+Wandb class for 3D point clouds.
+
+**Arguments**:
+
+- `val` - matplotlib or plotly figure
+ 
+
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L853)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L895)
 ```python
 Graph(self, format='keras')
 ```
@@ -203,7 +216,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L987)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1029)
 ```python
 Node(self,
      id=None,
@@ -221,7 +234,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1152)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1194)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -229,15 +242,8 @@ Edge(self, from_node, to_node)
 Edge used in [`Graph`](#graph)
 
 
-## data_types.plot_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1289)
-```python
-plot_to_json(obj)
-```
-Converts a matplotlib or plotly object to json so that we can pass it the the wandb server and display it nicely there
-
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1304)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1319)
 ```python
 data_frame_to_json(df, run, key, step)
 ```
