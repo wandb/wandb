@@ -1,7 +1,12 @@
 import numbers
 import wandb
 from ray import tune
-from ray.tune.util import flatten_dict
+
+# ray 0.8.1 reorganized ray.tune.util -> ray.tune.utils
+try:
+    from ray.tune.utils import flatten_dict
+except ImportError:
+    from ray.tune.util import flatten_dict
 
 
 class WandbLogger(tune.logger.Logger):
