@@ -958,6 +958,7 @@ class Graph(Media):
         self.root = None  # optional root Node if applicable
 
     def _to_graph_json(self, run=None):
+        # Needs to be it's own function for tests
         return {"format": self.format,
                 "nodes": [node.to_json() for node in self.nodes],
                 "edges": [edge.to_json() for edge in self.edges]}
@@ -965,8 +966,9 @@ class Graph(Media):
     def bind_to_run(self, *args, **kwargs):
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.graph.json')
-        json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
-                    separators=(',', ':'), sort_keys=True, indent=4)
+        s = util.json_dumps_safer(data)
+        with open(tmp_path, "w") as f:
+            f.write(s)
         self._set_file(tmp_path, is_tmp=True, extension='.graph.json')
         super(Graph, self).bind_to_run(*args, **kwargs)
 
