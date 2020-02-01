@@ -127,7 +127,7 @@ class AgentProcess(object):
 
 class Agent(object):
     POLL_INTERVAL = 5
-    REPORT_INTERVAL = 5
+    REPORT_INTERVAL = 0
     KILL_DELAY = 30
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
