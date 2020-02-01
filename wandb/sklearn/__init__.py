@@ -17,6 +17,7 @@ from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.preprocessing import label_binarize
 from sklearn.preprocessing import LabelEncoder
 from sklearn.calibration import calibration_curve
+from sklearn import naive_bayes
 from sklearn.utils.multiclass import unique_labels, type_of_target
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from sklearn.linear_model import LogisticRegression
@@ -81,7 +82,8 @@ def plot_classifier(model, X_train, X_test,
     wandb.termlog('Logged summary metrics.')
     plot_class_proportions(y_train, y_test, labels)
     wandb.termlog('Logged class proportions.')
-    plot_calibration_curve(model, X_train, y_train, model_name)
+    if(not isinstance(model, naive_bayes.MultinomialNB)):
+        plot_calibration_curve(model, X_train, y_train, model_name)
     wandb.termlog('Logged calibration curve.')
     plot_roc(y_test, y_probas, labels)
     wandb.termlog('Logged roc curve.')
@@ -170,6 +172,8 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
     if (test_missing(model=model, X=X, y=y, X_test=X_test, y_test=y_test) and
         test_types(model=model, X=X, y=y, X_test=X_test, y_test=y_test) and
         test_fitted(model)):
+        y = np.asarray(y)
+        y_test = np.asarray(y_test)
         metric_name=[]
         metric_value=[]
         model_name = model.__class__.__name__
@@ -254,6 +258,7 @@ def learning_curve(model, X, y, cv=None,
         train_sizes = np.linspace(.1, 1.0, 5)
     if (test_missing(model=model, X=X, y=y) and
         test_types(model=model, X=X, y=y)):
+        y = np.asarray(y)
         train_sizes, train_scores, test_scores = model_selection.learning_curve(
             model, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes,
             scoring=scoring, shuffle=shuffle, random_state=random_state)
@@ -599,6 +604,7 @@ def plot_feature_importances(model=None, feature_names=None,
         return
     if (test_missing(model=model) and test_types(model=model) and
         test_fitted(model)):
+        feature_names = np.asarray(feature_names)
         importances = model.feature_importances_
 
         indices = np.argsort(importances)[::-1]
@@ -909,6 +915,7 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
     if (test_missing(clf=clf, X=X, y=y) and
         test_types(clf=clf, X=X, y=y) and
         test_fitted(clf)):
+        y = np.asarray(y)
         # Create dataset of classification task with many redundant and few
         # informative features
         X, y = datasets.make_classification(n_samples=100000, n_features=20,
@@ -1015,6 +1022,7 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
     if (test_missing(regressor=regressor, X=X, y=y) and
         test_types(regressor=regressor, X=X, y=y) and
         test_fitted(regressor)):
+        y = np.asarray(y)
         # Fit a linear model to X and y to compute MSE
         regressor.fit(X, y)
 
@@ -1089,6 +1097,7 @@ def plot_residuals(regressor=None, X=None, y=None):
     if (test_missing(regressor=regressor, X=X, y=y) and
         test_types(regressor=regressor, X=X, y=y) and
         test_fitted(regressor)):
+        y = np.asarray(y)
         # Create the train and test splits
         X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, test_size=0.2)
 
@@ -1168,8 +1177,8 @@ Example:
 def plot_decision_boundaries(binary_clf=None, X=None, y=None):
     if (test_missing(binary_clf=binary_clf, X=X, y=y) and
         test_types(binary_clf=binary_clf, X=X, y=y)):
+        y = np.asarray(y)
         # plot high-dimensional decision boundary
-        print("Shapes", X.shape, y.shape)
         db = DBPlot(binary_clf)
         db.fit(X, y)
         decision_boundary_x, decision_boundary_y, decision_boundary_color, train_x, train_y, train_color, test_x, test_y, test_color = db.plot()
