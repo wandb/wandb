@@ -287,7 +287,6 @@ def learning_curve(model, X, y, cv=None,
                 columns=['dataset', 'score', 'train_size'],
                 data=data
             ))
-
         return learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)
 
 
