@@ -94,7 +94,7 @@ This is a table designed to display small sets of records.
  
 
 ## Audio
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L280)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L282)
 ```python
 Audio(self, data_or_path, sample_rate=None, caption=None)
 ```
@@ -109,7 +109,7 @@ Wandb class for audio clips.
  
 
 ## Object3D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L378)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L380)
 ```python
 Object3D(self, data_or_path, **kwargs)
 ```
@@ -132,7 +132,7 @@ Wandb class for 3D point clouds.
  
 
 ## Html
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L500)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L502)
 ```python
 Html(self, data, inject=True)
 ```
@@ -146,7 +146,7 @@ Wandb class for arbitrary html
  
 
 ## Video
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L567)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L569)
 ```python
 Video(self, data_or_path, caption=None, fps=4, format=None)
 ```
@@ -162,7 +162,7 @@ Wandb representation of video.
  
 
 ## Image
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L713)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L715)
 ```python
 Image(self, data_or_path, mode=None, caption=None, grouping=None)
 ```
@@ -177,7 +177,7 @@ Wandb class for images.
  
 
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L885)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L887)
 ```python
 Plotly(self, val, **kwargs)
 ```
@@ -190,7 +190,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L926)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L928)
 ```python
 Graph(self, format='keras')
 ```
@@ -216,7 +216,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1079)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1081)
 ```python
 Node(self,
      id=None,
@@ -234,7 +234,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1244)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1246)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -243,7 +243,7 @@ Edge used in [`Graph`](#graph)
 
 
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1369)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1371)
 ```python
 data_frame_to_json(df, run, key, step)
 ```
