@@ -274,6 +274,8 @@ class Table(Media):
     def to_json(self, run):
         json_dict = super(Table, self).to_json(run)
         json_dict['_type'] = 'table-file'
+        json_dict['ncols'] = len(self.columns)
+        json_dict['nrows'] = len(self.data)
         return json_dict
 
 
