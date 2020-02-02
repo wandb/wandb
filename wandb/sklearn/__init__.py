@@ -265,7 +265,6 @@ def learning_curve(model, X, y, cv=None,
     if (test_missing(model=model, X=X, y=y) and
         test_types(model=model, X=X, y=y)):
         y = np.asarray(y)
-        
         train_sizes, train_scores, test_scores = model_selection.learning_curve(
             model, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes,
             scoring=scoring, shuffle=shuffle, random_state=random_state)

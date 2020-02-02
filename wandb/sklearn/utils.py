@@ -34,6 +34,35 @@ def test_missing(**kwargs):
         if v is None:
             wandb.termerror("%s is None. Please try again." % (k))
             test_passed = False
+        if ((k == 'X') or (k == 'X_test')):
+            # Ensure the dataset contains only integers
+            non_nums = 0
+            if isinstance(v, scipy.sparse.csr.csr_matrix):
+                v = v.toarray()
+            if v.ndim == 1:
+                non_nums = sum(1 for val in v if (not isinstance(val, (int, float, complex)) and not isinstance(val,np.number)))
+                for val in v:
+                    print('a', type(val))
+                    if (not isinstance(val, (int, float, complex)) and not (val,np.number)):
+                        print('not a number')
+            else:
+                non_nums = sum(1 for sl in v for val in sl if (not isinstance(val, (int, float, complex)) and not isinstance(val,np.number)))
+                for sl in v:
+                    for val in sl:
+                        print('val: %s', (val))
+                        if (not isinstance(val, (int, float, complex)) and not isinstance(val,np.number)):
+                            print('not a number')
+            print('non_nums',non_nums)
+            if non_nums>0:
+                wandb.termerror("%s contains values that are not numbers. Please vectorize, label encode or one hot encode %s and call the plotting function again." % (k,k))
+                test_passed = False
+            else:
+                # Warn the user about missing values
+                missing = 0
+                missing = np.count_nonzero(pd.isnull(v))
+                if missing>0:
+                    wandb.termwarn("%s contains %d missing values. " % (k,missing))
+                test_passed = False
     return test_passed
 def test_types(**kwargs):
     test_passed = True
@@ -43,14 +72,6 @@ def test_types(**kwargs):
             or (k == 'y_true') or (k == 'y_probas')):
             if not isinstance(v, (collections.Sequence, collections.Iterable, np.ndarray, np.generic, pd.DataFrame, pd.Series, list)):
                 wandb.termerror("%s is not an array. Please try again." % (k))
-                test_passed = False
-            non_ints = 0
-            if v.ndim == 1:
-                non_ints = sum(1 for val in v if not isinstance(val,int))
-            else:
-                non_ints = sum(1 for sl in v for val in sl if not isinstance(val,int))
-            if non_ints>0:
-                wandb.termerror("%s contains values that are not integers. Please vectorize, label encode or one hot encode %s and call the plotting function again." % (k,k))
                 test_passed = False
         # check for classifier types
         if (k=='model'):
