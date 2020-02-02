@@ -35,15 +35,6 @@ def test_missing(**kwargs):
             wandb.termerror("%s is None. Please try again." % (k))
             test_passed = False
         if ((k == 'X') or (k == 'X_test')):
-            # Warn the user about missing values
-            missing = 0
-            missing = np.count_nonzero(pd.isnull(v))
-            if missing>0:
-                wandb.termwarn("%s contains %d missing values. " % (k,missing))
-            test_passed = False
-
-            # Ensure the dataset contains only integers
-            non_nums = 0
             if isinstance(v, scipy.sparse.csr.csr_matrix):
                 v = v.toarray()
             elif isinstance(v, (pd.DataFrame, pd.Series)):
@@ -51,6 +42,14 @@ def test_missing(**kwargs):
             elif isinstance(v, list):
                 v = np.asarray(v)
 
+            # Warn the user about missing values
+            missing = 0
+            missing = np.count_nonzero(pd.isnull(v))
+            if missing>0:
+                wandb.termwarn("%s contains %d missing values. " % (k,missing))
+                test_passed = False
+            # Ensure the dataset contains only integers
+            non_nums = 0
             if v.ndim == 1:
                 non_nums = sum(1 for val in v if (not isinstance(val, (int, float, complex)) and not isinstance(val,np.number)))
             else:
