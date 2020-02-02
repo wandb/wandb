@@ -44,6 +44,14 @@ def test_types(**kwargs):
             if not isinstance(v, (collections.Sequence, collections.Iterable, np.ndarray, np.generic, pd.DataFrame, pd.Series, list)):
                 wandb.termerror("%s is not an array. Please try again." % (k))
                 test_passed = False
+            non_ints = 0
+            if v.ndim == 1:
+                non_ints = sum(1 for val in v if not isinstance(val,int))
+            else:
+                non_ints = sum(1 for sl in v for val in sl if not isinstance(val,int))
+            if non_ints>0:
+                wandb.termerror("%s contains values that are not integers. Please vectorize, label encode or one hot encode %s and call the plotting function again." % (k,k))
+                test_passed = False
         # check for classifier types
         if (k=='model'):
             if ((not sklearn.base.is_classifier(v)) and (not sklearn.base.is_regressor(v))):
