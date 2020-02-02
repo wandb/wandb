@@ -277,6 +277,7 @@ def learning_curve(model, X, y, cv=None,
             data=[]
             for i in range(len(train)):
                 if i >= chart_limit/2:
+                    wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                     break
                 train_set = ["train", round(train[i],2), trainsize[i]]
                 test_set = ["test", round(test[i],2), trainsize[i]]
@@ -287,6 +288,7 @@ def learning_curve(model, X, y, cv=None,
                 columns=['dataset', 'score', 'train_size'],
                 data=data
             ))
+
         return learning_curve_table(train_scores_mean, test_scores_mean, train_sizes)
 
 
@@ -355,6 +357,7 @@ def roc(y_true=None, y_probas=None, labels=None,
                             data.append(fpr)
                             count+=1
                             if count >= chart_limit:
+                                wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                                 break
                 return wandb.visualize(
                     'wandb/roc/v1', wandb.Table(
@@ -447,6 +450,7 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
                 data.append([pred_dict, true_dict, cm[i,j]])
                 count+=1
                 if count >= chart_limit:
+                    wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                     break
             return wandb.visualize(
                 'wandb/confusion_matrix/v1', wandb.Table(
@@ -558,6 +562,7 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
                     data.append([class_name, p, r])
                     count+=1
                     if count >= chart_limit:
+                        wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                         break
             return wandb.visualize(
                 'wandb/pr_curve/v1', wandb.Table(
@@ -798,6 +803,7 @@ def plot_silhouette(clusterer=None, X=None, cluster_labels=None, labels=None,
                 color_sil.append(i)
                 count+=1
                 if count >= chart_limit:
+                    wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                     break
 
             # Compute the new y_lower for next plot
@@ -882,6 +888,7 @@ def plot_class_proportions(y_train=None, y_test=None, labels=None):
                 dataset_dict.append("test")
                 count_dict.append(class_counts_test[i])
                 if i >= chart_limit:
+                    wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                     break
 
             if labels is not None and (isinstance(class_dict[0], int)
@@ -1001,6 +1008,7 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name='Classifier'):
                 frac_positives_dict.append(round_3(fraction_of_positives[i]))
                 mean_pred_value_dict.append(round_3(mean_predicted_value[i]))
                 if i >= (chart_limit-2):
+                    wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                     break
 
             def calibration_curves(model_dict, frac_positives_dict, mean_pred_value_dict, hist_dict, edge_dict):
@@ -1074,6 +1082,7 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
             distance_dict.append(d)
             count+=1
             if count >= chart_limit:
+                wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                 break
 
         # Draw a stem plot with the influence for each instance
@@ -1148,6 +1157,7 @@ def plot_residuals(regressor=None, X=None, y=None):
                 residuals_dict.append(residual)
                 datapoints += 1
                 if(datapoints >= max_datapoints_train):
+                    wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                     break
             datapoints = 0
             for pred, residual in zip(y_pred_test, residuals_test):
@@ -1157,6 +1167,7 @@ def plot_residuals(regressor=None, X=None, y=None):
                 residuals_dict.append(residual)
                 datapoints += 1
                 if(datapoints >= max_datapoints_train):
+                    wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                     break
 
             return wandb.visualize(
