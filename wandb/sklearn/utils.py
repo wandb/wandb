@@ -35,33 +35,25 @@ def test_missing(**kwargs):
             wandb.termerror("%s is None. Please try again." % (k))
             test_passed = False
         if ((k == 'X') or (k == 'X_test')):
+            # Warn the user about missing values
+            missing = 0
+            missing = np.count_nonzero(pd.isnull(v))
+            if missing>0:
+                wandb.termwarn("%s contains %d missing values. " % (k,missing))
+            test_passed = False
+            
             # Ensure the dataset contains only integers
             non_nums = 0
             if isinstance(v, scipy.sparse.csr.csr_matrix):
                 v = v.toarray()
+            if isinstance(v, (pd.DataFrame, pd.Series)):
+                v = v.to_numpy()
             if v.ndim == 1:
                 non_nums = sum(1 for val in v if (not isinstance(val, (int, float, complex)) and not isinstance(val,np.number)))
-                for val in v:
-                    print('a', type(val))
-                    if (not isinstance(val, (int, float, complex)) and not (val,np.number)):
-                        print('not a number')
             else:
                 non_nums = sum(1 for sl in v for val in sl if (not isinstance(val, (int, float, complex)) and not isinstance(val,np.number)))
-                for sl in v:
-                    for val in sl:
-                        print('val: %s', (val))
-                        if (not isinstance(val, (int, float, complex)) and not isinstance(val,np.number)):
-                            print('not a number')
-            print('non_nums',non_nums)
             if non_nums>0:
                 wandb.termerror("%s contains values that are not numbers. Please vectorize, label encode or one hot encode %s and call the plotting function again." % (k,k))
-                test_passed = False
-            else:
-                # Warn the user about missing values
-                missing = 0
-                missing = np.count_nonzero(pd.isnull(v))
-                if missing>0:
-                    wandb.termwarn("%s contains %d missing values. " % (k,missing))
                 test_passed = False
     return test_passed
 def test_types(**kwargs):
