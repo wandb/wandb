@@ -35,7 +35,7 @@ def main():
     data_frame = pandas.DataFrame(data=numpy.random.rand(1000), columns=['col'])
     tensorflow_variable_single = tensorflow.Variable(543.01, tensorflow.float32)
     tensorflow_variable_multi = tensorflow.Variable([[2, 3], [7, 11]], tensorflow.int32)
-    scatter = go.Figure(  # plotly
+    plot_scatter = go.Figure(  # plotly
         data=go.Scatter(x=[0, 1, 2]),
         layout=go.Layout(
             title=go.layout.Title(text="A Bar Chart")))
