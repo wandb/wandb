@@ -1,4 +1,5 @@
 import wandb
+from wandb import data_types
 import numpy as np
 import pytest
 import PIL
@@ -264,8 +265,7 @@ def test_html_file():
 def test_table_default():
     table = wandb.Table()
     table.add_data("Some awesome text", "Positive", "Negative")
-    assert table.to_json() == {
-        "_type": "table",
+    assert table._to_table_json() == {
         "data": [["Some awesome text", "Positive", "Negative"]],
         "columns": ["Input", "Output", "Expected"]
     }
@@ -275,8 +275,7 @@ def test_table_custom():
     table = wandb.Table(["Foo", "Bar"])
     table.add_data("So", "Cool")
     table.add_row("&", "Rad")
-    assert table.to_json() == {
-        "_type": "table",
+    assert table._to_table_json() == {
         "data": [["So", "Cool"], ["&", "Rad"]],
         "columns": ["Foo", "Bar"]
     }
@@ -371,6 +370,25 @@ def test_object3d_seq_to_json():
 
 def test_table_init():
     table = wandb.Table(data=[["Some awesome text", "Positive", "Negative"]])
-    assert table.to_json() == {"_type": "table",
-                                "data": [["Some awesome text", "Positive", "Negative"]],
-                                "columns": ["Input", "Output", "Expected"]}
+    assert table._to_table_json() == {
+        "data": [["Some awesome text", "Positive", "Negative"]],
+        "columns": ["Input", "Output", "Expected"]}
+
+def test_graph():
+    graph = wandb.Graph()
+    node_a = data_types.Node('a', 'Node A', size=(4,))
+    node_b = data_types.Node('b', 'Node B', size=(16,))
+    graph.add_node(node_a)
+    graph.add_node(node_b)
+    graph.add_edge(node_a, node_b)
+    assert graph._to_graph_json() == {
+        'edges': [['a', 'b']],
+        'format': 'keras',
+        'nodes': [{'id': 'a', 'name': 'Node A', 'size': (4,)},
+                  {'id': 'b', 'name': 'Node B', 'size': (16,)}]}
+
+def test_numpy_arrays_to_list():
+    conv = data_types.numpy_arrays_to_lists
+    assert conv(np.array((1,2,))) == [1, 2]
+    assert conv([np.array((1,2,))]) == [[1, 2]]
+    assert conv(np.array(({'a': [np.array((1,2,))]}, 3))) == [{'a': [[1, 2]]}, 3]

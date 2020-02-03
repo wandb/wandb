@@ -114,39 +114,6 @@ class Histogram(WBValue):
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
 
 
-class Table(WBValue):
-    """This is a table designed to display small sets of records.
-
-    Arguments:
-        columns ([str]): Names of the columns in the table.
-            Defaults to ["Input", "Output", "Expected"].
-        data (array): 2D Array of values that will be displayed as strings.
-    """
-    MAX_ROWS = 1000
-
-    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
-        """rows is kept for legacy reasons, we use data to mimic the Pandas api
-        """
-        self.columns = columns
-        self.data = list(rows or data or [])
-
-    def add_row(self, *row):
-        logging.warning("add_row is deprecated, use add_data")
-        self.add_data(*row)
-
-    def add_data(self, *data):
-        if len(data) != len(self.columns):
-            raise ValueError("This table expects {} columns: {}".format(
-                len(self.columns), self.columns))
-        self.data.append(list(data))
-
-    def to_json(self, run=None):
-        if len(self.data) > Table.MAX_ROWS:
-            logging.warn(
-                "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
-        return {"_type": "table", "columns": self.columns, "data": self.data[:Table.MAX_ROWS]}
-
-
 class Media(WBValue):
     """A WBValue that we store as a file outside JSON and show in a media panel
     on the front end.
@@ -155,7 +122,12 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self, path, is_tmp=False, extension=None):
+    def __init__(self):
+        self._path = None
+        # The run under which this object is bound, if any.
+        self._run = None
+
+    def _set_file(self, path, is_tmp=False, extension=None):
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
@@ -165,15 +137,15 @@ class Media(WBValue):
         self._sha256 = hashlib.sha256(open(self._path, 'rb').read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
-        # The run under which this object is bound, if any.
-        self._run = None
-
     @classmethod
     def get_media_subdir(cls):
         raise NotImplementedError
 
     def is_bound(self):
         return self._run is not None
+
+    def file_is_set(self):
+        return self._path is not None
 
     def bind_to_run(self, run, key, step, id_=None):
         """Bind this object to a particular Run.
@@ -182,6 +154,8 @@ class Media(WBValue):
         put the file associated with this object, from which other Runs can
         refer to it.
         """
+        if not self.file_is_set():
+            raise AssertionError('bind_to_run called before _set_file')
         if run is None:
             raise TypeError('Argument "run" must not be None.')
         if self.is_bound():
@@ -252,6 +226,59 @@ class BatchableMedia(Media):
         raise NotImplementedError
 
 
+class Table(Media):
+    """This is a table designed to display small sets of records.
+
+    Arguments:
+        columns ([str]): Names of the columns in the table.  
+            Defaults to ["Input", "Output", "Expected"].
+        data (array): 2D Array of values that will be displayed as strings.
+    """
+    MAX_ROWS = 1000
+
+    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
+        """rows is kept for legacy reasons, we use data to mimic the Pandas api
+        """
+        super(Table, self).__init__()
+        self.columns = columns
+        self.data = list(rows or data or [])
+
+    def add_row(self, *row):
+        logging.warning("add_row is deprecated, use add_data")
+        self.add_data(*row)
+
+    def add_data(self, *data):
+        if len(data) != len(self.columns):
+            raise ValueError("This table expects {} columns: {}".format(
+                len(self.columns), self.columns))
+        self.data.append(list(data))
+
+    def _to_table_json(self):
+        # seperate method for testing
+        if len(self.data) > Table.MAX_ROWS:
+            logging.warn("Truncating wandb.Table object to %i rows." % Table.MAX_ROWS)
+        return {"columns": self.columns, "data": self.data[:Table.MAX_ROWS]}
+
+    def bind_to_run(self, *args, **kwargs):
+        data = self._to_table_json()
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.table.json')
+        data = numpy_arrays_to_lists(data)
+        util.json_dump_safer(data, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension='.table.json')
+        super(Table, self).bind_to_run(*args, **kwargs)
+
+    @classmethod
+    def get_media_subdir(cls):
+        return os.path.join('media', 'table')
+
+    def to_json(self, run):
+        json_dict = super(Table, self).to_json(run)
+        json_dict['_type'] = 'table-file'
+        json_dict['ncols'] = len(self.columns)
+        json_dict['nrows'] = len(self.data)
+        return json_dict
+
+
 class Audio(BatchableMedia):
     """
         Wandb class for audio clips.
@@ -266,12 +293,13 @@ class Audio(BatchableMedia):
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data.
         """
+        super(Audio, self).__init__()
         self._duration = None
         self._sample_rate = sample_rate
         self._caption = caption
 
         if isinstance(data_or_path, six.string_types):
-            super(Audio, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
         else:
             if sample_rate == None:
                 raise ValueError('Argument "sample_rate" is required when instantiating wandb.Audio with raw data.')
@@ -283,7 +311,7 @@ class Audio(BatchableMedia):
             soundfile.write(tmp_path, data_or_path, sample_rate)
             self._duration = len(data_or_path) / float(sample_rate)
 
-            super(Audio, self).__init__(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
     def get_media_subdir(cls):
@@ -373,6 +401,7 @@ class Object3D(BatchableMedia):
     SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', 'stl'])
 
     def __init__(self, data_or_path, **kwargs):
+        super(Object3D, self).__init__()
 
         if hasattr(data_or_path, 'name'):
             # if the file has a path, we just detect the type and copy it from there
@@ -395,7 +424,7 @@ class Object3D(BatchableMedia):
             with open(tmp_path, "w") as f:
                 f.write(object3D)
 
-            super(Object3D, self).__init__(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
             path = data_or_path
             try:
@@ -407,7 +436,7 @@ class Object3D(BatchableMedia):
                 raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
                                  ", ".join(Object3D.SUPPORTED_TYPES))
 
-            super(Object3D, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
         # Supported different types and scene for 3D scenes
         elif 'type' in data_or_path:
             if data_or_path['type'] == 'lidar/beta':
@@ -422,7 +451,7 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
             json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
                       separators=(',', ':'), sort_keys=True, indent=4)
-            super(Object3D, self).__init__(tmp_path, is_tmp=True, extension='.pts.json')
+            self._set_file(tmp_path, is_tmp=True, extension='.pts.json')
         elif is_numpy_array(data_or_path):
             data = data_or_path
 
@@ -436,7 +465,7 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
             json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
                       separators=(',', ':'), sort_keys=True, indent=4)
-            super(Object3D, self).__init__(tmp_path, is_tmp=True, extension='.pts.json')
+            self._set_file(tmp_path, is_tmp=True, extension='.pts.json')
         else:
             raise ValueError("data must be a numpy or a file object")
 
@@ -480,6 +509,7 @@ class Html(BatchableMedia):
                 to False the HTML will pass through unchanged.
     """
     def __init__(self, data, inject=True):
+        super(Html, self).__init__()
 
         if isinstance(data, str):
             self.html = data
@@ -496,7 +526,7 @@ class Html(BatchableMedia):
         with open(tmp_path, 'w') as out:
             print(self.html, file=out)
 
-        super(Html, self).__init__(tmp_path, is_tmp=True)
+        self._set_file(tmp_path, is_tmp=True)
 
     def inject_head(self):
         join = ""
@@ -558,6 +588,8 @@ class Video(BatchableMedia):
     EXTS = ("gif", "mp4", "webm", "ogg")
 
     def __init__(self, data_or_path, caption=None, fps=4, format=None):
+        super(Video, self).__init__()
+
         self._fps = fps
         self._format = format or "gif"
         self._width = None
@@ -571,13 +603,13 @@ class Video(BatchableMedia):
             filename = os.path.join(MEDIA_TMP.name, util.generate_id() + '.'+ self._format)
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
-            super(Video, self).__init__(filename, is_tmp=True)
+            self._set_file(filename, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:
                 raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
-            super(Video, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
             #ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
             if hasattr(data_or_path, "numpy"): # TF data eager tensors
@@ -607,7 +639,7 @@ class Video(BatchableMedia):
                 clip.write_gif(filename, verbose=False)
             else:
                 clip.write_videofile(filename, verbose=False)
-        super(Video, self).__init__(filename, is_tmp=True)
+        self._set_file(filename, is_tmp=True)
 
     @classmethod
     def get_media_subdir(cls):
@@ -699,6 +731,7 @@ class Image(BatchableMedia):
     MAX_DIMENSION = 65500
 
     def __init__(self, data_or_path, mode=None, caption=None, grouping=None):
+        super(Image, self).__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
@@ -709,7 +742,7 @@ class Image(BatchableMedia):
         self._image = None
 
         if isinstance(data_or_path, six.string_types):
-            super(Image, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
         else:
             data = data_or_path
 
@@ -741,7 +774,7 @@ class Image(BatchableMedia):
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.png')
             self._image.save(tmp_path, transparency=None)
-            super(Image, self).__init__(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
     def get_media_subdir(cls):
@@ -850,7 +883,49 @@ class Image(BatchableMedia):
         else:
             return False
 
-class Graph(WBValue):
+
+class Plotly(Media):
+    """
+        Wandb class for plotly plots.
+
+        Args:
+            val: matplotlib or plotly figure
+    """
+
+    @classmethod
+    def make_plot_media(cls, val):
+        if util.is_matplotlib_typename(util.get_full_typename(val)):
+            val = util.ensure_matplotlib_figure(val)
+            if any(len(ax.images) > 0 for ax in val.axes):
+                return Image(val)
+            val = util.ensure_matplotlib_figure(val)
+            # otherwise, convert to plotly figure
+            tools = util.get_module(
+                "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+            val = tools.mpl_to_plotly(val)
+        return cls(val)
+
+    def __init__(self, val, **kwargs):
+        super(Plotly, self).__init__()
+        if not util.is_plotly_figure_typename(util.get_full_typename(val)):
+            raise ValueError('Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly')
+
+
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.plotly.json')
+        val = numpy_arrays_to_lists(val.to_plotly_json())
+        util.json_dump_safer(val, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension='.plotly.json')
+
+    def get_media_subdir(self):
+        return os.path.join('media', 'plotly')
+
+    def to_json(self, run):
+        json_dict = super(Plotly, self).to_json(run)
+        json_dict['_type'] = 'plotly-file'
+        return json_dict
+
+
+class Graph(Media):
     """Wandb class for graphs
 
     This class is typically used for saving and diplaying neural net models.  It
@@ -872,6 +947,7 @@ class Graph(WBValue):
         root (wandb.Node): root node of the graph
     """
     def __init__(self, format="keras"):
+        super(Graph, self).__init__()
         # LB: TODO: I think we should factor criterion and criterion_passed out
         self.format = format
         self.nodes = []
@@ -882,10 +958,28 @@ class Graph(WBValue):
         self.criterion_passed = False
         self.root = None  # optional root Node if applicable
 
-    def to_json(self, run=None):
-        return {"_type": "graph", "format": self.format,
+    def _to_graph_json(self, run=None):
+        # Needs to be it's own function for tests
+        return {"format": self.format,
                 "nodes": [node.to_json() for node in self.nodes],
                 "edges": [edge.to_json() for edge in self.edges]}
+
+    def bind_to_run(self, *args, **kwargs):
+        data = self._to_graph_json()
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.graph.json')
+        data = numpy_arrays_to_lists(data)
+        util.json_dump_safer(data, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension='.graph.json')
+        super(Graph, self).bind_to_run(*args, **kwargs)
+
+    @classmethod
+    def get_media_subdir(cls):
+        return os.path.join('media', 'graph')
+
+    def to_json(self, run):
+        json_dict = super(Graph, self).to_json(run)
+        json_dict['_type'] = 'graph-file'
+        return json_dict
 
     def __getitem__(self, nid):
         return self.nodes_by_id[nid]
@@ -1229,15 +1323,14 @@ def numpy_arrays_to_lists(payload):
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
     if isinstance(payload, dict):
-        for key,val in six.iteritems(payload):
-            if isinstance(val, dict):
-                payload[key] = numpy_arrays_to_lists(val)
-            elif isinstance(val, collections.Sequence) and not isinstance(val, six.string_types):
-                payload[key] = [numpy_arrays_to_lists(v) for v in val]
-            elif util.is_numpy_array(val):
-                payload[key] = val.tolist()
+        res = {}
+        for key, val in six.iteritems(payload):
+            res[key] = numpy_arrays_to_lists(val)
+        return res
+    elif isinstance(payload, collections.Sequence) and not isinstance(payload, six.string_types):
+        return [numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
-        payload = payload.tolist()
+        return [numpy_arrays_to_lists(v) for v in payload.tolist()]
 
     return payload
 
@@ -1251,20 +1344,8 @@ def val_to_json(run, key, val, step='summary'):
     if util.is_pandas_data_frame(val):
         assert step == 'summary', "We don't yet support DataFrames in History."
         return data_frame_to_json(val, run, key, step)
-    elif util.is_matplotlib_typename(typename):
-        # This handles plots with images in it because plotly doesn't support it
-        # TODO: should we handle a list of plots?
-        val = util.ensure_matplotlib_figure(val)
-        if any(len(ax.images) > 0 for ax in val.axes):
-            PILImage = util.get_module(
-                "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
-            buf = six.BytesIO()
-            val.savefig(buf)
-            val = Image(PILImage.open(buf))
-        else:
-            converted = plot_to_json(val)
-    elif util.is_plotly_typename(typename):
-        converted = plot_to_json(val)
+    elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
+        val = Plotly.make_plot_media(val)
     elif isinstance(val, collections.Sequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if len(val) and isinstance(val[0], BatchableMedia) and all(isinstance(v, type(val[0])) for v in val):
@@ -1285,20 +1366,6 @@ def val_to_json(run, key, val, step='summary'):
         return val.to_json(run)
 
     return converted
-
-def plot_to_json(obj):
-    """Converts a matplotlib or plotly object to json so that we can pass
-        it the the wandb server and display it nicely there"""
-
-    if util.is_matplotlib_typename(util.get_full_typename(obj)):
-        tools = util.get_module(
-            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
-        obj = tools.mpl_to_plotly(obj)
-
-    if util.is_plotly_typename(util.get_full_typename(obj)):
-        return {"_type": "plotly", "plot": numpy_arrays_to_lists(obj.to_plotly_json())}
-    else:
-        return obj
 
 
 def data_frame_to_json(df, run, key, step):

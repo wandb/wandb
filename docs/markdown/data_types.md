@@ -60,8 +60,28 @@ wandb.Histogram(np_histogram=hist)
 - `histogram` _[int]_ - number of elements falling in each bin
  
 
-## Table
+## Media
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L117)
+```python
+Media(self)
+```
+A WBValue that we store as a file outside JSON and show in a media panel on the front end.
+
+If necessary, we move or copy the file into the Run's media directory so that it gets uploaded.
+
+
+## BatchableMedia
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L217)
+```python
+BatchableMedia(self)
+```
+Parent class for Media we treat specially in batches, like images and thumbnails.
+
+Apart from images, we just use these batches to help organize files by name in the media directory.
+
+
+## Table
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L229)
 ```python
 Table(self, columns=['Input', 'Output', 'Expected'], data=None, rows=None)
 ```
@@ -73,28 +93,8 @@ This is a table designed to display small sets of records.
 - `data` _array_ - 2D Array of values that will be displayed as strings.
  
 
-## Media
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L150)
-```python
-Media(self, path, is_tmp=False, extension=None)
-```
-A WBValue that we store as a file outside JSON and show in a media panel on the front end.
-
-If necessary, we move or copy the file into the Run's media directory so that it gets uploaded.
-
-
-## BatchableMedia
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L243)
-```python
-BatchableMedia(self, path, is_tmp=False, extension=None)
-```
-Parent class for Media we treat specially in batches, like images and thumbnails.
-
-Apart from images, we just use these batches to help organize files by name in the media directory.
-
-
 ## Audio
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L255)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L282)
 ```python
 Audio(self, data_or_path, sample_rate=None, caption=None)
 ```
@@ -109,7 +109,7 @@ Wandb class for audio clips.
  
 
 ## Object3D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L352)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L380)
 ```python
 Object3D(self, data_or_path, **kwargs)
 ```
@@ -132,7 +132,7 @@ Wandb class for 3D point clouds.
  
 
 ## Html
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L473)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L502)
 ```python
 Html(self, data, inject=True)
 ```
@@ -146,7 +146,7 @@ Wandb class for arbitrary html
  
 
 ## Video
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L539)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L569)
 ```python
 Video(self, data_or_path, caption=None, fps=4, format=None)
 ```
@@ -162,7 +162,7 @@ Wandb representation of video.
  
 
 ## Image
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L683)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L715)
 ```python
 Image(self, data_or_path, mode=None, caption=None, grouping=None)
 ```
@@ -176,8 +176,21 @@ Wandb class for images.
 - `caption` _string_ - Label for display of image.
  
 
+## Plotly
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L887)
+```python
+Plotly(self, val, **kwargs)
+```
+
+Wandb class for plotly plots.
+
+**Arguments**:
+
+- `val` - matplotlib or plotly figure
+ 
+
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L853)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L928)
 ```python
 Graph(self, format='keras')
 ```
@@ -203,7 +216,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L987)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1081)
 ```python
 Node(self,
      id=None,
@@ -221,7 +234,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1152)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1246)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -229,15 +242,8 @@ Edge(self, from_node, to_node)
 Edge used in [`Graph`](#graph)
 
 
-## data_types.plot_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1289)
-```python
-plot_to_json(obj)
-```
-Converts a matplotlib or plotly object to json so that we can pass it the the wandb server and display it nicely there
-
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1304)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1371)
 ```python
 data_frame_to_json(df, run, key, step)
 ```

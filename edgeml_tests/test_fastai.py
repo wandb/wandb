@@ -55,7 +55,7 @@ def test_fastai_callback_in_model(wandb_init_run, dummy_model_with_callback):
     wandb.run.summary.load()
     assert wandb.run.history.rows[0]["epoch"] == 0
     assert wandb.run.summary["accuracy"] > 0
-    assert wandb.run.summary['graph_0'].to_json()
+    assert wandb.run.summary['graph_0']._to_graph_json()
     assert len(glob.glob(wandb.run.dir + "/bestmodel.pth")) == 1
 
 
@@ -65,7 +65,7 @@ def test_fastai_callback_in_training(wandb_init_run, dummy_model_no_callback):
     wandb.run.summary.load()
     assert wandb.run.history.rows[0]["epoch"] == 0
     assert wandb.run.summary["accuracy"] > 0
-    assert wandb.run.summary['graph_0'].to_json()
+    assert wandb.run.summary['graph_0']._to_graph_json()
     assert len(glob.glob(wandb.run.dir + "/bestmodel.pth")) == 1
 
 
