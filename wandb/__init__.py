@@ -63,6 +63,7 @@ from wandb.dataframes import image_categorizer_dataframe
 from wandb.dataframes import image_segmentation_dataframe
 from wandb.dataframes import image_segmentation_binary_dataframe
 from wandb.dataframes import image_segmentation_multiclass_dataframe
+from wandb.viz import visualize
 
 from wandb import wandb_torch
 from wandb.wandb_agent import agent
@@ -611,7 +612,8 @@ def restore(name, run_path=None, replace=False, root=None):
             "You must call `wandb.init` before calling restore or specify a run_path")
     api = Api()
     api_run = api.run(run_path or run.path)
-    root = root or run.dir if run else "."
+    if root is None:
+        root = run.dir if run else '.'
     path = os.path.join(root, name)
     if os.path.exists(path) and replace == False:
         return open(path, "r")
@@ -1120,6 +1122,7 @@ xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
 lightgbm = util.LazyLoader('lightgbm', globals(), 'wandb.lightgbm')
 gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
+sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 
 
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
