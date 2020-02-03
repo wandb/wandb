@@ -1,3 +1,18 @@
+## 0.8.23 (Feb 3, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added scikit-learn support
+-   Added ability to specify/exclude specific keys when building wandb.config
+
+#### :bug: Bug Fix
+
+-   Fix wandb.watch() on sparse tensors
+-   Fix incompatibilty with ray 0.8.1
+-   Fix missing pyyaml requirement
+-   Fix "W&B process failed to launch" problems
+-   Improved ability to log large model graphs and plots
+
 ## 0.8.22 (Jan 24, 2020)
 
 #### :nail_care: Enhancement
