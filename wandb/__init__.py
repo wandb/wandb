@@ -63,6 +63,7 @@ from wandb.dataframes import image_categorizer_dataframe
 from wandb.dataframes import image_segmentation_dataframe
 from wandb.dataframes import image_segmentation_binary_dataframe
 from wandb.dataframes import image_segmentation_multiclass_dataframe
+from wandb.viz import visualize
 
 from wandb import wandb_torch
 from wandb.wandb_agent import agent
@@ -1121,6 +1122,7 @@ xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
 lightgbm = util.LazyLoader('lightgbm', globals(), 'wandb.lightgbm')
 gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
+sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 
 
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
