@@ -41,6 +41,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     sweepName
     state
     config
+    commit
     readOnly
     createdAt
     heartbeatAt

@@ -815,6 +815,7 @@ class Api(object):
                 bucket(name: $run, desc: $description) {
                     id
                     files(names: $files) {
+                        uploadHeaders
                         edges {
                             node {
                                 name
@@ -839,7 +840,7 @@ class Api(object):
         run = query_result['model']['bucket']
         if run:
             result = {file['name']: file for file in self._flatten_edges(run['files'])}
-            return run['id'], result
+            return run['id'], run['files']['uploadHeaders'], result
         else:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run_id))
 
@@ -1251,8 +1252,12 @@ class Api(object):
         # TODO(adrian): we use a retriable version of self.upload_file() so
         # will never retry self.upload_urls() here. Instead, maybe we should
         # make push itself retriable.
-        run_id, result = self.upload_urls(
+        run_id, upload_headers, result = self.upload_urls(
             project, files, run, entity, description)
+        extra_headers = {}
+        for upload_header in upload_headers:
+            key, val = upload_header.split(':', 1)
+            extra_headers[key] = val
         responses = []
         for file_name, file_info in result.items():
             file_url = file_info['url']
@@ -1274,15 +1279,15 @@ class Api(object):
             if progress:
                 if hasattr(progress, '__call__'):
                     responses.append(self.upload_file_retry(
-                        file_url, open_file, progress))
+                        file_url, open_file, progress, extra_headers=extra_headers))
                 else:
                     length = os.fstat(open_file.fileno()).st_size
                     with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
                                            fill_char=click.style('&', fg='green')) as bar:
                         responses.append(self.upload_file_retry(
-                            file_url, open_file, lambda bites, _: bar.update(bites)))
+                            file_url, open_file, lambda bites, _: bar.update(bites), extra_headers=extra_headers))
             else:
-                responses.append(self.upload_file_retry(file_info['url'], open_file))
+                responses.append(self.upload_file_retry(file_info['url'], open_file, extra_headers=extra_headers))
             open_file.close()
         return responses
 
