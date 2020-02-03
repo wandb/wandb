@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from collections.abc import Sequence
+from six.moves.collections_abc import Sequence
 import inspect
 import logging
 import os
