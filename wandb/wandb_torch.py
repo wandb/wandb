@@ -152,7 +152,7 @@ class TorchHistory(object):
         # Sparse tensors have a bunch of implicit zeros. In order to histo them correctly,
         # we have to count them up and add them to the histo ourselves.
         sparse_zeros = None
-        if isinstance(tensor, torch.sparse.FloatTensor):
+        if tensor.is_sparse:
             # Have to call this on a sparse tensor before most other ops.
             tensor = tensor.cpu().coalesce().clone().detach()
 
