@@ -15,10 +15,12 @@ class Run(object):
         if commit:
             if self._data:
                 self._data.update(data)
-            self._backend.log(self._data)
-            self._data = dict()
+                self._backend.log(self._data)
+                self._data = dict()
+            else:
+                self._backend.log(data)
         else:
             self._data.update(data)
 
     def join(self):
-        pass
+        self._backend.join()

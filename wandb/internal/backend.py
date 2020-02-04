@@ -22,6 +22,7 @@ class Backend(object):
 
         process = subprocess.Popen([sys.executable, internal_server_path])
         self._process = process
+        #print("started", self._process.pid)
         atexit.register(lambda: self._atexit_cleanup())
 
     def server_connect(self):
@@ -51,12 +52,22 @@ class Backend(object):
         pass
 
     def _atexit_cleanup(self):
+        proc = self._process
+        self._process = None
+        if not proc:
+            return
         try:
             self._client.shutdown()
         except grpc.RpcError as e:
             print("shutdown error")
-        self._process.kill()
-        wandb.termlog("Cleanup: done")
+        #print("trykill", proc.pid)
+        proc.kill()
+        # TODO(jhr): make sure process was killed
+        #wandb.termlog("Cleanup: done")
+
+    def join(self):
+        self._atexit_cleanup()
+
 
     def log(self, data):
         self._client.log(data)

@@ -22,11 +22,9 @@ class InternalServiceServicer(wandb_internal_pb2_grpc.InternalServiceServicer):
         self._server = server
 
     def Log(self, request, context):
-        result = log(request)
-        if result is None:
-            return wandb_internal_pb2.LogResult(code=0, status="")
-        else:
-            return result
+        d = json.loads(request.json)
+        result = wandb_internal_pb2.LogResult()
+        return result
 
     def ServerShutdown(self, request, context):
         result = wandb_internal_pb2.ServerShutdownResult()
