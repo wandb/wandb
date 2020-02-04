@@ -92,8 +92,10 @@ class Meta(object):
 
         if not os.getenv(env.DISABLE_CODE):
             logger.debug("code probe starting")
-            if platform.system() == "Windows" or not hasattr(signal, 'SIGALRM'):
-                logger.debug("unsafe probe of windows code")
+            in_jupyter = wandb._get_python_type() != "python"
+            # windows doesn't support alarm() and jupyter could call this in a thread context
+            if platform.system() == "Windows" or not hasattr(signal, 'SIGALRM') or in_jupyter:
+                logger.debug("non time limited probe of code")
                 self._setup_code_git()
                 self._setup_code_program()
             else:
