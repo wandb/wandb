@@ -1,3 +1,9 @@
+## 0.8.24 (Feb 3, 2020)
+
+#### :bug: Bug Fix
+
+-   Relax version dependancy for PyYAML for users with old environments
+
 ## 0.8.23 (Feb 3, 2020)
 
 #### :nail_care: Enhancement
