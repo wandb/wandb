@@ -6,7 +6,7 @@ import torch.optim as optim
 
 import wandb
 
-wandb.init(project="sparse-tensors-test")
+wandb.init()
 
 CONTEXT_SIZE = 2
 EMBEDDING_DIM = 10
