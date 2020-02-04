@@ -1139,6 +1139,12 @@ class RunManager(object):
         wandb.termlog(
             "Wandb version %s is available!  To upgrade, please run:\n $ pip install wandb --upgrade" % latest_version)
 
+    def _get_or_create_artifact(self, artifact_name):
+        artifact_id = self._api.get_artifact(self.run.entity, self.run.project, artifact_name)
+        if artifact_id is None:
+            artifact_id = self._api.create_artifact(self.run.entity, self.run.project, artifact_name)
+        return artifact_id
+
     def update_user_file_policy(self, policy):
         artifact_name = policy['artifact']
         policy_name = policy['policy']
@@ -1147,7 +1153,8 @@ class RunManager(object):
             if artifact_name is not None and self._artifacts.get(glob_str) is None:
                 # TODO: we probably want to do this in the user process so they can
                 # modify the artifact after creating it (add tags etc)
-                artifact = self._api.create_artifact_version(self.run.entity, self.run.project, self.run.id, artifact_name)
+                artifact_id = self._get_or_create_artifact(artifact_name)
+                artifact = self._api.create_artifact_version(self.run.entity, self.run.project, self.run.id, artifact_id)
                 self._artifacts[glob_str] = artifact
             for path in glob.glob(glob_str):
                 save_name = os.path.relpath(path, self._run.dir)
@@ -1161,11 +1168,15 @@ class RunManager(object):
     def log_artifact(self, message):
         name = message['name']
         path = message['path']
+        description = message['description']
         metadata = message['metadata']
         tags = message['tags']
 
+        artifact_id = self._get_or_create_artifact(name)
         # TODO: Split alias off name and set alias if passed ('name:alias')
-        artifact = self._api.create_artifact_version(self.run.entity, self.run.project, self.run.id, name)
+        artifact_version = self._api.create_artifact_version(self.run.entity, self.run.project, self.run.id,
+                                                             artifact_id, description=description,
+                                                             metadata=metadata, labels=tags)
 
         # TODO: If there is more than one artifact in that have common file
         #   names, we have a problem.
@@ -1175,9 +1186,9 @@ class RunManager(object):
             # in python3?
             for root, _, files in os.walk(path):
                 for f in files:
-                    self._file_pusher.file_changed(f, os.path.join(root, f), artifact['id'])
+                    self._file_pusher.file_changed(f, os.path.join(root, f), artifact_version['id'])
         else:
-            self._file_pusher.file_changed(path, path, artifact.id)
+            self._file_pusher.file_changed(path, path, artifact_version.id)
 
     def start_tensorboard_watcher(self, logdir, save=True):
         try:

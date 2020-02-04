@@ -402,13 +402,15 @@ class Run(object):
     def log_input(self, input, api=None):
         # input must be an ArtifactVersion from public API
         api = api or self.api
-        api.create_run_input_artifact_ref(self.entity, self.project, self.id, input.entity, input.project, input.id)
+        api.use_artifact_version(self.entity, self.project, self.id, input.id)
 
-    def log_artifact(self, name, path, metadata=None, tags=None):
+    def log_artifact(self, name, path, version=None, description=None, metadata=None, tags=None):
         self.send_message({
             'log_artifact': {
                 'name': name,
                 'path': path,
+                'version': version,
+                'description': description,
                 'metadata': metadata,
                 'tags': tags,
             }

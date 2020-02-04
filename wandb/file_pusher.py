@@ -236,7 +236,7 @@ class FilePusher(object):
                 file_specs = []
                 for e, checksum in zip(batch, checksums):
                     file_specs.append({
-                        'name': e.save_name, 'artifact_id': e.artifact_id, 'fingerprint': checksum})
+                        'name': e.save_name, 'artifact_version_id': e.artifact_id, 'fingerprint': checksum})
                 result = self._api.prepare_files(file_specs)
 
                 for e, file_spec in zip(batch, file_specs):
