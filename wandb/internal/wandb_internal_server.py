@@ -8,6 +8,7 @@ import json
 
 import wandb_internal_pb2
 import wandb_internal_pb2_grpc
+import datastore
 
 
 def log(data):
@@ -18,8 +19,9 @@ def log(data):
 class InternalServiceServicer(wandb_internal_pb2_grpc.InternalServiceServicer):
     """Provides methods that implement functionality of route guide server."""
 
-    def __init__(self, server):
+    def __init__(self, server, ds):
         self._server = server
+        self._ds = ds
 
     def Log(self, request, context):
         d = json.loads(request.json)
@@ -46,12 +48,15 @@ class InternalServiceServicer(wandb_internal_pb2_grpc.InternalServiceServicer):
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    ds = datastore.DataStore()
+    ds.open("out.dat")
     wandb_internal_pb2_grpc.add_InternalServiceServicer_to_server(
-        InternalServiceServicer(server), server)
+        InternalServiceServicer(server, ds), server)
     server.add_insecure_port('[::]:50051')
     server.start()
     server.wait_for_termination()
     print("server shutting down")
+    ds.close()
 
 
 if __name__ == '__main__':
