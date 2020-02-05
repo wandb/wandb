@@ -24,6 +24,7 @@ class InternalServiceServicer(wandb_internal_pb2_grpc.InternalServiceServicer):
         self._ds = ds
 
     def Log(self, request, context):
+        self._ds.write(request)
         d = json.loads(request.json)
         result = wandb_internal_pb2.LogResult()
         return result
@@ -42,6 +43,7 @@ class InternalServiceServicer(wandb_internal_pb2_grpc.InternalServiceServicer):
         return result
 
     def RunUpdate(self, request, context):
+        self._ds.write(request.run)
         result = wandb_internal_pb2.RunUpdateResult()
         return result
 
@@ -57,6 +59,7 @@ def serve():
     server.wait_for_termination()
     print("server shutting down")
     ds.close()
+    print("shutdown")
 
 
 if __name__ == '__main__':
