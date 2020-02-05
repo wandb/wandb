@@ -1,3 +1,10 @@
+## 0.8.25 (Feb 4, 2020)
+
+#### :bug: Bug Fix
+
+-   Fix exception when using wandb.watch() in a notebook
+-   Improve support for sparse tensor gradient logging on GPUs
+
 ## 0.8.24 (Feb 3, 2020)
 
 #### :bug: Bug Fix
