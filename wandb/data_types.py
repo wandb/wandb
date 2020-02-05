@@ -730,13 +730,14 @@ class Image(BatchableMedia):
     # PIL limit
     MAX_DIMENSION = 65500
 
-    def __init__(self, data_or_path, mode=None, caption=None, grouping=None):
+    def __init__(self, data_or_path, mode=None, caption=None, grouping=None, metadata=None):
         super(Image, self).__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
         self._grouping = grouping
         self._caption = caption
+        self._metadata = metadata
         self._width = None
         self._height = None
         self._image = None
@@ -780,6 +781,11 @@ class Image(BatchableMedia):
     def get_media_subdir(cls):
         return os.path.join('media', 'images')
 
+    def bind_to_run(self, *args, **kwargs):
+        super(Image, self).bind_to_run(*args, **kwargs)
+        if self._metadata is not None:
+            self._metadata.bind_to_run(*args, **kwargs)
+
     def to_json(self, run):
         json_dict = super(Image, self).to_json(run)
         json_dict['_type'] = 'image-file'
@@ -793,6 +799,8 @@ class Image(BatchableMedia):
             json_dict['grouping'] = self._grouping
         if self._caption:
             json_dict['caption'] = self._caption
+        if self._metadata:
+            json_dict['metadata'] = self._metadata.to_json(run)
 
         return json_dict
 
@@ -882,6 +890,26 @@ class Image(BatchableMedia):
             return [i._caption for i in images]
         else:
             return False
+
+class Metadata(Media):
+    """
+        Boxes
+    """
+
+    def __init__(self, val, **kwargs):
+        super(Metadata, self).__init__()
+
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.metadata.json')
+        util.json_dump_safer(val, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension='.metadata.json')
+
+    def get_media_subdir(self):
+        return os.path.join('media', 'metadata')
+
+    def to_json(self, run):
+        json_dict = super(Metadata, self).to_json(run)
+        json_dict['_type'] = 'metadata'
+        return json_dict
 
 
 class Plotly(Media):
