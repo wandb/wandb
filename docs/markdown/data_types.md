@@ -164,7 +164,7 @@ Wandb representation of video.
 ## Image
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L715)
 ```python
-Image(self, data_or_path, mode=None, caption=None, grouping=None)
+Image(self, data_or_path, mode=None, caption=None, grouping=None, metadata=None)
 ```
 
 Wandb class for images.
@@ -176,8 +176,17 @@ Wandb class for images.
 - `caption` _string_ - Label for display of image.
  
 
+## Metadata
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L894)
+```python
+Metadata(self, val, **kwargs)
+```
+
+Boxes
+
+
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L887)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L915)
 ```python
 Plotly(self, val, **kwargs)
 ```
@@ -190,7 +199,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L928)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L956)
 ```python
 Graph(self, format='keras')
 ```
@@ -216,7 +225,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1081)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1109)
 ```python
 Node(self,
      id=None,
@@ -234,7 +243,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1246)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1274)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -243,7 +252,7 @@ Edge used in [`Graph`](#graph)
 
 
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1371)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1399)
 ```python
 data_frame_to_json(df, run, key, step)
 ```
