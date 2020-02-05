@@ -1169,14 +1169,14 @@ class RunManager(object):
         name = message['name']
         path = message['path']
         description = message['description']
-        metadata = message['metadata']
-        tags = message['tags']
+        labels = json.dumps(message['labels']) if 'labels' in message else None
+        metadata = json.dumps(message['metadata']) if 'metadata' in message else None
 
         artifact_id = self._get_or_create_artifact(name)
         # TODO: Split alias off name and set alias if passed ('name:alias')
         artifact_version = self._api.create_artifact_version(self.run.entity, self.run.project, self.run.id,
                                                              artifact_id, description=description,
-                                                             metadata=metadata, labels=tags)
+                                                             metadata=metadata, labels=labels)
 
         # TODO: If there is more than one artifact in that have common file
         #   names, we have a problem.
@@ -1188,7 +1188,7 @@ class RunManager(object):
                 for f in files:
                     self._file_pusher.file_changed(f, os.path.join(root, f), artifact_version['id'])
         else:
-            self._file_pusher.file_changed(path, path, artifact_version.id)
+            self._file_pusher.file_changed(path, path, artifact_version['id'])
 
     def start_tensorboard_watcher(self, logdir, save=True):
         try:

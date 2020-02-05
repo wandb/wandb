@@ -404,15 +404,14 @@ class Run(object):
         api = api or self.api
         api.use_artifact_version(self.entity, self.project, self.id, input.id)
 
-    def log_artifact(self, name, path, version=None, description=None, metadata=None, tags=None):
+    def log_artifact(self, name, path, description=None, metadata=None, labels=None):
         self.send_message({
             'log_artifact': {
                 'name': name,
                 'path': path,
-                'version': version,
                 'description': description,
                 'metadata': metadata,
-                'tags': tags,
+                'labels': labels,
             }
         })
 
