@@ -301,7 +301,7 @@ class Api(object):
             name = urllib.parse.unquote(name)
         key = "/".join([entity, project, str(name)])
         if key not in self._reports:
-            self._reports[key] = Reports(self.client, Project(entity, project, {}), name=name, per_page=per_page)
+            self._reports[key] = Reports(self.client, Project(self.client, entity, project, {}), name=name, per_page=per_page)
         return self._reports[key]
 
     def runs(self, path="", filters={}, order="-created_at", per_page=None):
@@ -514,6 +514,7 @@ class Projects(Paginator):
         ''' % PROJECT_FRAGMENT)
 
     def __init__(self, client, entity, per_page=50):
+        self.client = client
         self.entity = entity
         variables = {
             'entity': self.entity,
@@ -539,7 +540,7 @@ class Projects(Paginator):
             return None
 
     def convert_objects(self):
-        return [Project(self.entity, p["node"]["name"], p["node"])
+        return [Project(self.client, self.entity, p["node"]["name"], p["node"])
                 for p in self.last_response['models']['edges']]
 
     def __repr__(self):
@@ -549,8 +550,9 @@ class Projects(Paginator):
 class Project(Attrs):
     """A project is a namespace for runs"""
 
-    def __init__(self, entity, project, attrs):
+    def __init__(self, client, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
+        self.client = client
         self.name = project
         self.entity = entity
 
@@ -560,6 +562,18 @@ class Project(Attrs):
 
     def __repr__(self):
         return "<Project {}>".format("/".join(self.path))
+
+    @normalize_exceptions
+    def artifacts(self, per_page=50):
+        """
+        Args:
+            names (list): names of the requested files, if empty returns all files
+            per_page (int): number of results per page
+
+        Returns:
+            A :obj:`Files` object, which is an iterator over :obj:`File` obejcts.
+        """
+        return ProjectArtifacts(self.client, self.entity, self.name)
 
 
 class Runs(Paginator):
@@ -1651,7 +1665,7 @@ class ProjectArtifacts(Paginator):
         self.variables.update({'cursor': self.cursor})
 
     def convert_objects(self):
-        return [Artifact(self.client, self.entity, self.project, r["node"]["id"], r["node"])
+        return [Artifact(self.client, self.entity, self.project, r["node"])
                 for r in self.last_response['project']['artifacts']['edges']]
 
 
@@ -1718,12 +1732,20 @@ class Artifact(object):
         self.client = client
         self.entity = entity
         self.project = project
+        self._attrs = attrs
         if self._attrs is None:
             self.load()
 
     @property
     def id(self):
         return self._attrs["id"]
+
+    @property
+    def name(self):
+        return self._attrs["name"]
+
+    def __repr__(self):
+        return "<Artifact {}>".format(self.name)
 
 
 class ArtifactVersion(object):

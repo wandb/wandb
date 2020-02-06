@@ -1032,7 +1032,7 @@ class Api(object):
             'artifactName': artifact_name,
             'description': description,
         })
-        return response['createArtifact']['artifact']
+        return response['createArtifact']['artifact']['id']
 
     def create_artifact_version(self, entity_name, project_name, run_name, artifact_id, description=None, labels=None, metadata=None):
         mutation = gql('''
@@ -1040,7 +1040,7 @@ class Api(object):
             $artifactID: ID!,
             $entityName: String!,
             $projectName: String!,
-            $runName: String!,
+            $runName: String,
             $description: String
             $tags: JSONString
             $metadata: JSONString
@@ -1056,6 +1056,7 @@ class Api(object):
             }) {
                 artifactVersion {
                     id
+                    name
                 }
             }
         }
