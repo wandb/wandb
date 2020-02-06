@@ -182,7 +182,7 @@ Wandb class for images.
 Metadata(self, val, **kwargs)
 ```
 
-Boxes
+Metadata
 
 
 ## Plotly
