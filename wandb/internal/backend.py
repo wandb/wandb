@@ -44,6 +44,17 @@ class Backend(object):
         if not connected:
             print("not connected, bad")
             # TODO(jhr): handle this
+            return
+
+        # block signals since we will let the server handle them?
+        # Dont think this is right
+        #import signal
+        #try:
+        #    signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+        #    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        #    signal.signal(signal.SIGINT, signal.SIG_IGN)
+        #except (AttributeError, ValueError):  # SIGQUIT doesn't exist on windows, we can't use signal.signal in threads for tests
+        #    pass
 
         self._client = client
 
@@ -62,6 +73,7 @@ class Backend(object):
         self._process = None
         if not proc:
             return
+        #print("cleanup")
 
         # Give each attempt ~8 seconds 
         for stop_func in (self._grpc_shutdown, proc.terminate, proc.kill):

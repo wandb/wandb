@@ -6,6 +6,11 @@ from wandb.wandb_run import Run
 from wandb.util.globals import set_global
 from wandb.internal.backend import Backend
 
+import typing
+if typing.TYPE_CHECKING:
+    from typing import Dict, List, Optional
+
+
 # priority order (highest to lowest):
 # WANDB_FORCE_MODE
 # settings.force_mode
@@ -13,11 +18,23 @@ from wandb.internal.backend import Backend
 # WANDB_MODE
 # settings.mode
 
-def init(settings=None, mode=None, entity=None, team=None, project=None, magic=None, config=None, reinit=None, name=None, group=None):
+def init(
+        settings=None,
+        mode=None,      # type: int
+        entity=None,
+        team=None,
+        project=None,
+        magic=None,
+        config=None,
+        reinit=None,
+        name=None,
+        group=None
+        ):
+    # type: (...) -> Optional[Run]
     if mode == "noop":
-        return
+        return None
     if mode == "test":
-        return
+        return None
 
     backend = Backend(mode=mode)
     backend.ensure_launched()

@@ -1,6 +1,7 @@
 README.md
 setup.py
 wandb/__init__.py
+wandb/py.typed
 wandb/wandb_config.py
 wandb/wandb_init.py
 wandb/wandb_run.py

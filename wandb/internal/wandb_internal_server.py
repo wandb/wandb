@@ -49,19 +49,25 @@ class InternalServiceServicer(wandb_internal_pb2_grpc.InternalServiceServicer):
 
 
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    ds = datastore.DataStore()
-    ds.open("out.dat")
-    wandb_internal_pb2_grpc.add_InternalServiceServicer_to_server(
-        InternalServiceServicer(server, ds), server)
-    server.add_insecure_port('[::]:50051')
-    server.start()
-    server.wait_for_termination()
-    print("server shutting down")
-    ds.close()
-    print("shutdown")
+    try:
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        ds = datastore.DataStore()
+        ds.open("out.dat")
+        wandb_internal_pb2_grpc.add_InternalServiceServicer_to_server(
+            InternalServiceServicer(server, ds), server)
+        server.add_insecure_port('[::]:50051')
+        server.start()
+        server.wait_for_termination()
+        print("server shutting down")
+        ds.close()
+        print("shutdown")
+    except KeyboardInterrupt:
+        print("control-c")
 
 
 if __name__ == '__main__':
-    logging.basicConfig()
-    serve()
+    try:
+        logging.basicConfig()
+        serve()
+    except KeyboardInterrupt:
+        print("outer control-c")

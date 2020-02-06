@@ -37,13 +37,17 @@ setup(
         'wandb'
     ],
     package_dir={'wandb': 'wandb'},
+    package_data={
+        'wandb': [
+            'py.typed',
+        ]
+    },
     entry_points={
         'console_scripts': [
             'wandb=wandb.cli.cli:cli',
             'wb=wandb.cli.cli:cli',
         ]
     },
-    include_package_data=True,
     install_requires=requirements,
     license="MIT license",
     zip_safe=False,
