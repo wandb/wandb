@@ -893,7 +893,7 @@ class Image(BatchableMedia):
 
 class Metadata(Media):
     """
-        Boxes
+        Metadata
     """
 
     def __init__(self, val, **kwargs):
