@@ -51,19 +51,33 @@ class Backend(object):
         """Report server status."""
         pass
 
+    def _grpc_shutdown(self):
+        try:
+            self._client.shutdown()
+        except grpc.RpcError as e:
+            print("shutdown error")
+
     def _atexit_cleanup(self):
         proc = self._process
         self._process = None
         if not proc:
             return
-        try:
-            self._client.shutdown()
-        except grpc.RpcError as e:
-            print("shutdown error")
-        #print("trykill", proc.pid)
-        proc.kill()
-        # TODO(jhr): make sure process was killed
-        #wandb.termlog("Cleanup: done")
+
+        # Give each attempt ~8 seconds 
+        for stop_func in (self._grpc_shutdown, proc.terminate, proc.kill):
+            stop_func()
+            running = True
+            for _ in range(80):
+                r = proc.poll()
+                if r is not None:
+                    running = False
+                    break
+                time.sleep(0.1)
+            if not running:
+                break
+        if running:
+            wandb.termwarn("Cleanup: problem killing")
+            # TODO(jhr): anything else to do here?
 
     def join(self):
         self._atexit_cleanup()
