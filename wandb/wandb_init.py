@@ -5,6 +5,8 @@ init.
 from wandb.wandb_run import Run
 from wandb.util.globals import set_global
 from wandb.internal.backend import Backend
+import wandb
+import click
 
 import typing
 if typing.TYPE_CHECKING:
@@ -43,6 +45,17 @@ def init(
     # resuming needs access to the server, check server_status()?
 
     run = Run(config=config, _backend=backend)
+
+    settings=dict(entity="jeff", project="uncategorized")
+
+    emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+    url = "https://app.wandb.test/{}/{}/runs/{}".format(
+        settings.get("entity"),
+        settings.get("project"),
+        run.run_id)
+    wandb.termlog("{} View run at {}".format(
+        emojis.get("rocket", ""),
+        click.style(url, underline=True, fg='blue')))
 
     backend.run_update(dict(run_id=run.run_id, config=run.config._as_dict()))
     set_global(run=run, config=run.config, log=run.log, join=run.join)
