@@ -43,5 +43,7 @@ def init(
     # resuming needs access to the server, check server_status()?
 
     run = Run(config=config, _backend=backend)
+
+    backend.run_update(dict(run_id=run.run_id, config=run.config._as_dict()))
     set_global(run=run, config=run.config, log=run.log, join=run.join)
     return run

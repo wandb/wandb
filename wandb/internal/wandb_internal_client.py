@@ -48,7 +48,11 @@ class WandbInternalClient(object):
         result = self._stub.RunGet(req)
         return result
 
-    def run_update(self, run):
+    def run_update(self, run_dict):
+
+        run = wandb_internal_pb2.Run()
+        run.run_id = run_dict['run_id']
+        run.config_json = json.dumps(run_dict.get('config', {}))
         req = wandb_internal_pb2.RunUpdateRequest(run=run)
         result = self._stub.RunUpdate(req)
         return result

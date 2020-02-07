@@ -7,6 +7,8 @@ from wandb.util import preinit as _preinit
 from wandb.errors import Error
 from wandb.errors.term import termlog, termerror, termwarn
 
+#from wandb.core import *
+
 __version__ = '0.0.1'
 
 
@@ -25,5 +27,6 @@ log = _preinit.PreInitCallable("wandb.log")
 join = _preinit.PreInitCallable("wandb.join")
 
 __all__ = [
+    "__version__",
     "init",
 ]

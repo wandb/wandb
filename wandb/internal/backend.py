@@ -94,6 +94,9 @@ class Backend(object):
     def join(self):
         self._atexit_cleanup()
 
-
     def log(self, data):
         self._client.log(data)
+
+    def run_update(self, data):
+        self._client.run_update(data)
+

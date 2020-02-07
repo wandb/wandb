@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='wandb_internal',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n#wandb/internal/wandb_internal.proto\x12\x0ewandb_internal\"d\n\x08LogValue\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0f\n\x07integer\x18\x02 \x01(\x12\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0f\n\x07\x62oolean\x18\x04 \x01(\x08\x12\x0c\n\x04\x64\x61ta\x18\x05 \x01(\x0c\x12\x0c\n\x04json\x18\x10 \x01(\t\"?\n\x07LogItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\'\n\x05value\x18\x02 \x01(\x0b\x32\x18.wandb_internal.LogValue\">\n\x07LogData\x12%\n\x04item\x18\x01 \x03(\x0b\x32\x17.wandb_internal.LogItem\x12\x0c\n\x04json\x18\x10 \x01(\t\")\n\tLogResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x17\n\x15ServerShutdownRequest\"4\n\x14ServerShutdownResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x15\n\x13ServerStatusRequest\"2\n\x12ServerStatusResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x1f\n\x03Run\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\"%\n\x05\x45rror\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x1b\n\rRunGetRequest\x12\n\n\x02id\x18\x01 \x01(\t\"V\n\x0cRunGetResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"4\n\x10RunUpdateRequest\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\"Y\n\x0fRunUpdateResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"]\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12$\n\x03log\x18\x02 \x01(\x0b\x32\x17.wandb_internal.LogData\x12 \n\x03run\x18\x03 \x01(\x0b\x32\x13.wandb_internal.Run2\xa5\x03\n\x0fInternalService\x12;\n\x03Log\x12\x17.wandb_internal.LogData\x1a\x19.wandb_internal.LogResult\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x12G\n\x06RunGet\x12\x1d.wandb_internal.RunGetRequest\x1a\x1c.wandb_internal.RunGetResult\"\x00\x12P\n\tRunUpdate\x12 .wandb_internal.RunUpdateRequest\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n#wandb/internal/wandb_internal.proto\x12\x0ewandb_internal\"d\n\x08LogValue\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0f\n\x07integer\x18\x02 \x01(\x12\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0f\n\x07\x62oolean\x18\x04 \x01(\x08\x12\x0c\n\x04\x64\x61ta\x18\x05 \x01(\x0c\x12\x0c\n\x04json\x18\x10 \x01(\t\"?\n\x07LogItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\'\n\x05value\x18\x02 \x01(\x0b\x32\x18.wandb_internal.LogValue\">\n\x07LogData\x12%\n\x04item\x18\x01 \x03(\x0b\x32\x17.wandb_internal.LogItem\x12\x0c\n\x04json\x18\x10 \x01(\t\")\n\tLogResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x17\n\x15ServerShutdownRequest\"4\n\x14ServerShutdownResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x15\n\x13ServerStatusRequest\"2\n\x12ServerStatusResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"N\n\x03Run\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0b\x63onfig_json\x18\x03 \x01(\t\x12\x14\n\x0csummary_json\x18\x04 \x01(\t\"%\n\x05\x45rror\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x1b\n\rRunGetRequest\x12\n\n\x02id\x18\x01 \x01(\t\"V\n\x0cRunGetResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"4\n\x10RunUpdateRequest\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\"Y\n\x0fRunUpdateResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"]\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12$\n\x03log\x18\x02 \x01(\x0b\x32\x17.wandb_internal.LogData\x12 \n\x03run\x18\x03 \x01(\x0b\x32\x13.wandb_internal.Run2\xa5\x03\n\x0fInternalService\x12;\n\x03Log\x12\x17.wandb_internal.LogData\x1a\x19.wandb_internal.LogResult\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x12G\n\x06RunGet\x12\x1d.wandb_internal.RunGetRequest\x1a\x1c.wandb_internal.RunGetResult\"\x00\x12P\n\tRunUpdate\x12 .wandb_internal.RunUpdateRequest\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x62\x06proto3')
 )
 
 
@@ -338,7 +338,7 @@ _RUN = _descriptor.Descriptor(
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='id', full_name='wandb_internal.Run.id', index=0,
+      name='run_id', full_name='wandb_internal.Run.run_id', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -347,6 +347,20 @@ _RUN = _descriptor.Descriptor(
     _descriptor.FieldDescriptor(
       name='name', full_name='wandb_internal.Run.name', index=1,
       number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='config_json', full_name='wandb_internal.Run.config_json', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='summary_json', full_name='wandb_internal.Run.summary_json', index=3,
+      number=4, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -364,7 +378,7 @@ _RUN = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=483,
-  serialized_end=514,
+  serialized_end=561,
 )
 
 
@@ -401,8 +415,8 @@ _ERROR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=516,
-  serialized_end=553,
+  serialized_start=563,
+  serialized_end=600,
 )
 
 
@@ -432,8 +446,8 @@ _RUNGETREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=555,
-  serialized_end=582,
+  serialized_start=602,
+  serialized_end=629,
 )
 
 
@@ -470,8 +484,8 @@ _RUNGETRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=584,
-  serialized_end=670,
+  serialized_start=631,
+  serialized_end=717,
 )
 
 
@@ -501,8 +515,8 @@ _RUNUPDATEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=672,
-  serialized_end=724,
+  serialized_start=719,
+  serialized_end=771,
 )
 
 
@@ -539,8 +553,8 @@ _RUNUPDATERESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=726,
-  serialized_end=815,
+  serialized_start=773,
+  serialized_end=862,
 )
 
 
@@ -584,8 +598,8 @@ _RECORD = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=817,
-  serialized_end=910,
+  serialized_start=864,
+  serialized_end=957,
 )
 
 _LOGITEM.fields_by_name['value'].message_type = _LOGVALUE
@@ -727,8 +741,8 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=913,
-  serialized_end=1334,
+  serialized_start=960,
+  serialized_end=1381,
   methods=[
   _descriptor.MethodDescriptor(
     name='Log',

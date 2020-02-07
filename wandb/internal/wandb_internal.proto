@@ -53,10 +53,12 @@ message ServerStatusResult {
 }
 
 message Run {
-  string id = 1;
+  string run_id = 1;
   string name = 2;
   // config
+  string config_json = 3;
   // summary
+  string summary_json = 4;
 }
 
 message Error {

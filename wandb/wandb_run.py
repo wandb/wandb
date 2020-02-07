@@ -1,4 +1,13 @@
 from wandb import wandb_config
+from wandb import util
+import shortuuid
+
+
+def generate_id():
+    # ~3t run ids (36**8)
+    run_gen = shortuuid.ShortUUID(alphabet=list(
+        "0123456789abcdefghijklmnopqrstuvwxyz"))
+    return run_gen.random(8)
 
 
 class Run(object):
@@ -6,6 +15,7 @@ class Run(object):
         self.config = wandb_config.Config()
         self._backend = _backend
         self._data = dict()
+        self.run_id = generate_id()
 
         if config:
             for k, v in config.items():

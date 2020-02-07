@@ -26,7 +26,7 @@ class DataStore(object):
         fields = struct.unpack('<IHHii', header)
         magic, ver, extl, l, rsv = fields
         if extl:
-            ext_data = self._fp.read(extl)
+            ext_data = self._fp.read(extl * 4)
             # check len
         data = self._fp.read(l)
         # check len
