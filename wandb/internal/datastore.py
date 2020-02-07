@@ -1,4 +1,5 @@
 import wandb_internal_pb2
+import struct
 
 
 class DataStore(object):
@@ -12,6 +13,24 @@ class DataStore(object):
         self._fname = fname
         print("open", fname)
         self._fp = open(fname, "wb")
+
+    def open_for_scan(self, fname):
+        self._fname = fname
+        print("open", fname)
+        self._fp = open(fname, "rb")
+
+    def scan(self):
+        header = self._fp.read(4*4)
+        if len(header) != 4*4:
+            return None
+        fields = struct.unpack('<IHHii', header)
+        magic, ver, extl, l, rsv = fields
+        if extl:
+            ext_data = self._fp.read(extl)
+            # check len
+        data = self._fp.read(l)
+        # check len
+        return data
 
 
     def write(self, obj):
@@ -28,11 +47,31 @@ class DataStore(object):
         else:
             print("unknown proto", otype, self._log_type)
         s = r.SerializeToString()
+        # magic, ver, extralen, len, crc
+        self._fp.write(struct.pack('<IHHII', 0xBBD3AD, 1, 0, len(s), 0))
         self._fp.write(s)
         # FIXME(jhr): we dont want this
-        self._fp.flush()
+        #self._fp.flush()
 
     def close(self):
         if self._fp is not None:
             print("close", self._fname)
             self._fp.close()
+
+
+def main():
+    import sys
+    for f in sys.argv[1:]:
+        print("file", f)
+        ds = DataStore()
+        fp = ds.open_for_scan(f)
+        while True:
+            d = ds.scan()
+            if not d:
+                break
+            print("got", d)
+
+
+if __name__ == "__main__":
+    main()
+
