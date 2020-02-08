@@ -197,6 +197,9 @@ class WandbCallback(keras.callbacks.Callback):
         log_batch_frequency (integer): if None, callback will log every epoch.
             If set to integer, callback will log training metrics every log_batch_frequency 
             batches.
+        log_best_prefix (string): if None, no extra summary metrics will be saved.
+            If set to a string, the monitored metric and epoch will be prepended with this value
+            and stored as summary metrics.
     """
 
     def __init__(self, monitor='val_loss', verbose=0, mode='auto',
@@ -204,8 +207,8 @@ class WandbCallback(keras.callbacks.Callback):
                  save_model=True, training_data=None, validation_data=None,
                  labels=[], data_type=None, predictions=36, generator=None,
                  input_type=None, output_type=None, log_evaluation=False,
-                 validation_steps=None, class_colors=None, log_batch_frequency=None
-                 ):
+                 validation_steps=None, class_colors=None, log_batch_frequency=None,
+                 log_best_prefix="best_"):
         if wandb.run is None:
             raise wandb.Error(
                 'You must call wandb.init() before WandbCallback()')
@@ -240,6 +243,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.validation_steps = validation_steps
         self.class_colors = np.array(class_colors) if class_colors is not None else None
         self.log_batch_frequency = log_batch_frequency
+        self.log_best_prefix = log_best_prefix
 
         if self.training_data:
             if len(self.training_data) != 2:
@@ -296,8 +300,16 @@ class WandbCallback(keras.callbacks.Callback):
         wandb.log(logs, commit=True)
 
         self.current = logs.get(self.monitor)
-        if self.current and self.monitor_op(self.current, self.best) and self.save_model:
-            self._save_model(epoch)
+        if self.current and self.monitor_op(self.current, self.best):
+            if self.log_best_prefix:
+                wandb.run.summary["%s%s" % (self.log_best_prefix, self.monitor)] = self.current
+                wandb.run.summary["%s%s" % (self.log_best_prefix, "epoch")] = epoch
+                if self.verbose and not self.save_model:
+                    print('Epoch %05d: %s improved from %0.5f to %0.5f' % (
+                        epoch, self.monitor, self.best, self.current))
+            if self.save_model:
+                self._save_model(epoch)
+            self.best = self.current
 
     # This is what keras used pre tensorflow.keras
     def on_batch_begin(self, batch, logs=None):
@@ -567,7 +579,6 @@ class WandbCallback(keras.callbacks.Callback):
                   ' saving model to %s'
                   % (epoch, self.monitor, self.best,
                      self.current, self.filepath))
-        self.best = self.current
 
         try:
             if self.save_weights_only:

@@ -28,7 +28,8 @@ WandbCallback(self,
               log_evaluation=False,
               validation_steps=None,
               class_colors=None,
-              log_batch_frequency=None)
+              log_batch_frequency=None,
+              log_best_prefix='best_')
 ```
 WandbCallback automatically integrates keras with wandb.
 
@@ -66,4 +67,5 @@ callbacks=[WandbCallback()])
 - `log_evaluation` _boolean_ - if True save a dataframe containing the full validation results at the end of training.
 - `class_colors` _[float, float, float]_ - if the input or output is a segmentation mask, an array containing an rgb tuple (range 0-1) for each class.
 - `log_batch_frequency` _integer_ - if None, callback will log every epoch. If set to integer, callback will log training metrics every log_batch_frequency batches.
+- `log_best_prefix` _string_ - if None, no extra summary metrics will be saved. If set to a string, the monitored metric and epoch will be prepended with this value and stored as summary metrics.
  
