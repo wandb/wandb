@@ -970,6 +970,8 @@ class Graph(Media):
         data = numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, 'w', encoding='utf-8'))
         self._set_file(tmp_path, is_tmp=True, extension='.graph.json')
+        if self.is_bound():
+            return
         super(Graph, self).bind_to_run(*args, **kwargs)
 
     @classmethod
