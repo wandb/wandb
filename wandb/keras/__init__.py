@@ -292,14 +292,16 @@ class WandbCallback(keras.callbacks.Callback):
                 wandb.log({"examples": self._log_images(
                     num_images=self.predictions)}, commit=False)
 
-        wandb.log({'epoch': epoch}, commit=False)
-        wandb.log(logs, commit=True)
-
         self.current = logs.get(self.monitor)
         if self.current and self.monitor_op(self.current, self.best) and self.save_model:
             self._save_model(epoch)
+            self._log_best(logs)
+        wandb.log({'epoch': epoch}, commit=False)
+        wandb.log(logs, commit=True)
+        print("logs", logs)
 
     # This is what keras used pre tensorflow.keras
+
     def on_batch_begin(self, batch, logs=None):
         pass
 
@@ -368,6 +370,10 @@ class WandbCallback(keras.callbacks.Callback):
 
     def on_predict_batch_end(self, batch, logs=None):
         pass
+
+    def _log_best(self, logs):
+        best_logs = {"best_" + k: v for (k, v) in logs.items() }
+        wandb.log(best_logs, commit=False)
 
     def _logits_to_captions(self, logits):
         if logits[0].shape[-1] == 1:
