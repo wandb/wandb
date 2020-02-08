@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.22'
+__version__ = '0.8.25'
 
 import atexit
 import click
@@ -63,6 +63,7 @@ from wandb.dataframes import image_categorizer_dataframe
 from wandb.dataframes import image_segmentation_dataframe
 from wandb.dataframes import image_segmentation_binary_dataframe
 from wandb.dataframes import image_segmentation_multiclass_dataframe
+from wandb.viz import visualize
 
 from wandb import wandb_torch
 from wandb.wandb_agent import agent
@@ -611,7 +612,8 @@ def restore(name, run_path=None, replace=False, root=None):
             "You must call `wandb.init` before calling restore or specify a run_path")
     api = Api()
     api_run = api.run(run_path or run.path)
-    root = root or run.dir if run else "."
+    if root is None:
+        root = run.dir if run else '.'
     path = os.path.join(root, name)
     if os.path.exists(path) and replace == False:
         return open(path, "r")
@@ -836,7 +838,7 @@ def sagemaker_auth(overrides={}, path="."):
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
-         anonymous=None):
+         anonymous=None, config_exclude_keys=None, config_include_keys=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -846,6 +848,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     Args:
         job_type (str, optional): The type of job running, defaults to 'train'
         config (dict, argparse, or tf.FLAGS, optional): The hyper parameters to store with the run
+        config_exclude_keys (list, optional): string keys to exclude storing in W&B when specifying config
+        config_include_keys (list, optional): string keys to include storing in W&B when specifying config
         project (str, optional): The project to push metrics to
         entity (str, optional): The entity to push metrics to
         dir (str, optional): An absolute path to a directory where metadata will be stored
@@ -1094,7 +1098,11 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         run.config._update(sagemaker_config)
         allow_val_change = True
     if config or telemetry_updated:
-        run.config._update(config, allow_val_change=allow_val_change, as_defaults=not allow_val_change)
+        run.config._update(config,
+                exclude_keys=config_exclude_keys,
+                include_keys=config_include_keys,
+                allow_val_change=allow_val_change,
+                as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
     run.history
@@ -1114,6 +1122,7 @@ xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
 lightgbm = util.LazyLoader('lightgbm', globals(), 'wandb.lightgbm')
 gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
+sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 
 
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',

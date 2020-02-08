@@ -9,6 +9,7 @@ coverage==4.5.2
 Sphinx==1.5.3
 PyYAML==4.2b4
 attrs==19.1.0
+werkzeug==0.16.1
 pytest==4.6.9
 pytest-watch==4.1.0
 pytest-mock==1.10.0
@@ -41,8 +42,11 @@ xgboost
 lightgbm
 ray[tune]
 gym
+scikit-plot
 configparser
 tensorflow==1.14.0
 protobuf>=3.6.0
 vcrpy>=2.0.0
 pytest-vcr>=1.0.0
+scikit-learn
+scipy

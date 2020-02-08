@@ -256,6 +256,10 @@ def is_plotly_typename(typename):
     return typename.startswith("plotly.")
 
 
+def is_plotly_figure_typename(typename):
+    return typename.startswith("plotly.") and typename.endswith('.Figure')
+
+
 def is_numpy_array(obj):
     return np and isinstance(obj, np.ndarray)
 
@@ -455,6 +459,9 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
             return obj
         return json.JSONEncoder.default(self, obj)
 
+def json_dump_safer(obj, fp, **kwargs):
+    """Convert obj to json, with some extra encodable types."""
+    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
 
 def json_dumps_safer(obj, **kwargs):
     """Convert obj to json, with some extra encodable types."""

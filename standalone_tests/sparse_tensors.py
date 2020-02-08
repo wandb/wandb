@@ -6,7 +6,7 @@ import torch.optim as optim
 
 import wandb
 
-wandb.init(project="sparse-tensors-test")
+wandb.init()
 
 CONTEXT_SIZE = 2
 EMBEDDING_DIM = 10
@@ -80,7 +80,9 @@ for epoch in range(100):
 
         # Step 4. Compute your loss function. (Again, Torch wants the target
         # word wrapped in a tensor)
-        loss = loss_function(log_probs, torch.tensor([word_to_ix[target]], dtype=torch.long))
+        target = torch.tensor([word_to_ix[target]], dtype=torch.long)
+        target = target.cuda() if has_cuda else target
+        loss = loss_function(log_probs, target)
 
         # Step 5. Do the backward pass and update the gradient
         loss.backward()

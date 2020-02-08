@@ -49,7 +49,7 @@ def test_project_download_urls(request_mocker, query_project):
 
 def test_project_upload_urls(request_mocker, query_project):
     query_project(request_mocker)
-    bucket_id, res = api.upload_urls(
+    bucket_id, headers, res = api.upload_urls(
         "test", files=["weights.h5", "model.json"])
     assert bucket_id == 'test1234'
     assert res == {

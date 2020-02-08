@@ -1,3 +1,31 @@
+## 0.8.25 (Feb 4, 2020)
+
+#### :bug: Bug Fix
+
+-   Fix exception when using wandb.watch() in a notebook
+-   Improve support for sparse tensor gradient logging on GPUs
+
+## 0.8.24 (Feb 3, 2020)
+
+#### :bug: Bug Fix
+
+-   Relax version dependancy for PyYAML for users with old environments
+
+## 0.8.23 (Feb 3, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added scikit-learn support
+-   Added ability to specify/exclude specific keys when building wandb.config
+
+#### :bug: Bug Fix
+
+-   Fix wandb.watch() on sparse tensors
+-   Fix incompatibilty with ray 0.8.1
+-   Fix missing pyyaml requirement
+-   Fix "W&B process failed to launch" problems
+-   Improved ability to log large model graphs and plots
+
 ## 0.8.22 (Jan 24, 2020)
 
 #### :nail_care: Enhancement
