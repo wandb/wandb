@@ -76,8 +76,12 @@ class Meta(object):
 
         self.data["root"] = os.getcwd()
         try:
-            import __main__
-            self.data["program"] = __main__.__file__
+            program = os.getenv(env.PROGRAM)
+            if program:
+                self.data["program"] = program
+            else:
+                import __main__
+                self.data["program"] = __main__.__file__
         except (ImportError, AttributeError):
             self.data["program"] = '<python with no main file>'
             if wandb._get_python_type() != "python":

@@ -220,6 +220,10 @@ def _init_headless(run, cloud=True):
     global join
     global _user_process_finished_called
 
+    import __main__
+    program = __main__.__file__
+    os.environ[env.PROGRAM] = program
+
     environ = dict(os.environ)
     run.set_environment(environ)
 
