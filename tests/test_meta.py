@@ -97,6 +97,7 @@ def test_git_untracked_notebook_env_subdir(monkeypatch, git_repo, mocker):
     os.environ[env.NOTEBOOK_NAME]
 
 
+# We save code whether it is tracked or not tracked
 def test_git_tracked_notebook_env(monkeypatch, git_repo, mocker):
     mocker.patch('wandb._get_python_type', lambda: "jupyter")
     with open("test.ipynb", "w") as f:
@@ -105,8 +106,8 @@ def test_git_tracked_notebook_env(monkeypatch, git_repo, mocker):
     os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
     meta = Meta(InternalApi())
     assert meta.data["program"] == "test.ipynb"
-    assert not meta.data.get("codeSaved")
-    assert not os.path.exists("code/test.ipynb")
+    assert meta.data.get("codeSaved")
+    assert os.path.exists("code/test.ipynb")
     os.environ[env.NOTEBOOK_NAME]
 
 
