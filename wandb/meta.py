@@ -75,14 +75,10 @@ class Meta(object):
             raise TimeOutException()
 
         self.data["root"] = os.getcwd()
-        try:
-            program = os.getenv(env.PROGRAM)
-            if program:
-                self.data["program"] = program
-            else:
-                import __main__
-                self.data["program"] = __main__.__file__
-        except (ImportError, AttributeError):
+        program = os.getenv(env.PROGRAM) or util.get_program()
+        if program:
+            self.data["program"] = program
+        else:
             self.data["program"] = '<python with no main file>'
             if wandb._get_python_type() != "python":
                 if os.getenv(env.NOTEBOOK_NAME):

@@ -968,3 +968,12 @@ def parse_sweep_id(parts_dict):
     else:
         return 'Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep'
     parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
+
+
+def get_program():
+    try:
+        import __main__
+        program = __main__.__file__
+    except (ImportError, AttributeError):
+        program = None
+    return program
