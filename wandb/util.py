@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 import random
+import platform
 import stat
 import shortuuid
 import importlib
@@ -968,3 +969,8 @@ def parse_sweep_id(parts_dict):
     else:
         return 'Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep'
     parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
+
+def to_forward_slash_path(path):
+    if platform.system() == "Windows":
+        path = path.replace("\\", "/")
+    return path

@@ -205,7 +205,7 @@ class Media(WBValue):
 
         return {
             '_type': 'file',  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-            'path': os.path.relpath(self._path, self._run.dir),  # TODO(adrian): Convert this to a path with forward slashes.
+            'path': util.to_forward_slash_path(os.path.relpath(self._path, self._run.dir)),
             'sha256': self._sha256,
             'size': self._size,
             #'entity': self._run.entity,
