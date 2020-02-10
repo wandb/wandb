@@ -1,3 +1,16 @@
+## 0.8.26 (Feb 10, 2020)
+
+#### :nail_care: Enhancement
+
+-   Add best metric and epoch to run summary with Keras callback
+-   Added wandb.run.config_static for environments required pickled config
+
+#### :bug: Bug Fix
+
+-   Fixed regression causing failures with wandb.watch() and DataParallel
+-   Improved compatibility with python 3.8
+-   Fix model logging under windows
+
 ## 0.8.25 (Feb 4, 2020)
 
 #### :bug: Bug Fix
