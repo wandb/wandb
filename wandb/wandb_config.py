@@ -1,5 +1,12 @@
 from collections import OrderedDict
-from six.moves.collections_abc import Sequence
+
+# six >=1.13.0 not available in all environmnents yet
+#from six.moves.collections_abc import Sequence
+try:
+    from collections.abc import Sequence
+except ImportError:
+    from collections import Sequence
+
 import inspect
 import logging
 import os

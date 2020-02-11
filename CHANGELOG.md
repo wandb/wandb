@@ -1,3 +1,9 @@
+## 0.8.27 (Feb 11, 2020)
+
+#### :bug: Bug Fix
+
+-   Fix dependency conflict with new versions of six package
+
 ## 0.8.26 (Feb 10, 2020)
 
 #### :nail_care: Enhancement
