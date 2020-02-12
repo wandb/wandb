@@ -13,6 +13,8 @@ from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
 from six.moves import urllib
+import hashlib
+import base64
 
 import wandb
 from wandb import Error, __version__
@@ -21,6 +23,7 @@ from wandb.retry import retriable
 from wandb.summary import HTTPSummary
 from wandb import env
 from wandb.apis import normalize_exceptions
+from wandb import artifact_util
 
 logger = logging.getLogger(__name__)
 
@@ -394,6 +397,10 @@ class Api(object):
         # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
         entity, project, artifact_name, artifact_version_name = self._parse_artifact_path(path)
         return ArtifactVersion(self.client, entity, project, artifact_name, artifact_version_name)
+
+    def local_artifact(self, name, filepaths=None, metadata=None):
+        signature = artifact_util.local_artifact_signature(filepaths, metadata)
+        return artifact_util.create_signature_artifact_version(name, metadata, signature)
 
 
 class Attrs(object):
@@ -1813,7 +1820,7 @@ class ArtifactVersion(object):
             or response.get('project') is None \
                 or response['project'].get('artifact') is None \
                 or response['project']['artifact'].get('artifactVersion') is None:
-            raise ValueError("Could not find artifact version %s:%s" % self.artifact_name, self.artifact_version_name)
+            raise ValueError("Could not find artifact version %s:%s" % (self.artifact_name, self.artifact_version_name))
         self._attrs = response['project']['artifact']['artifactVersion']
         return self._attrs
 
