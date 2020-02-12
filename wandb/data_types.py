@@ -235,8 +235,7 @@ class Table(Media):
             Defaults to ["Input", "Output", "Expected"].
         data (array): 2D Array of values that will be displayed as strings.
     """
-    MAX_ROWS = 1000
-
+    MAX_ROWS = 1000 
     def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
@@ -941,11 +940,15 @@ class JSONMetadata(Media):
         super(JSONMetadata, self).__init__()
 
         self.validate(val)
+        self._val = val
 
         ext = "." + self.type_name() + ".json"
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
-        util.json_dump_uncompressed(val, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        util.json_dump_safer(self._val, codecs.open(tmp_path, 'w', encoding='utf-8'))
         self._set_file(tmp_path, is_tmp=True, extension=ext)
+        print("===+ ALERT +===")
+        print(tmp_path)
+
 
     def get_media_subdir(self):
         return os.path.join('media', 'metadata', self.type_name())
@@ -953,6 +956,7 @@ class JSONMetadata(Media):
     def to_json(self, run):
         json_dict = super(JSONMetadata, self).to_json(run)
         json_dict['_type'] = self.type_name()
+
         return json_dict
 
     # These methods should be overridden in the child class
