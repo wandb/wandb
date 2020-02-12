@@ -77,3 +77,4 @@ venv/
 wandb-metadata.json
 wandb/run-*
 edgeml_tests/mnist_tiny
+.pytest_cache
