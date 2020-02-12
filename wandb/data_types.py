@@ -896,12 +896,12 @@ class Image(BatchableMedia):
 
         masks = Image.all_masks(images)
 
-        if captions:
+        if masks:
             meta["all_masks"] = masks
 
         boxes = Image.all_boxes(images)
 
-        if captions:
+        if boxes:
             meta["all_boxes"] = boxes
 
         return meta
