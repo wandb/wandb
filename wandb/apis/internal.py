@@ -1034,7 +1034,7 @@ class Api(object):
         })
         return response['createArtifact']['artifact']['id']
 
-    def create_artifact_version(self, entity_name, project_name, run_name, artifact_id, description=None, labels=None, metadata=None):
+    def create_artifact_version(self, entity_name, project_name, run_name, artifact_id, description=None, labels=None, metadata=None, aliases=None):
         mutation = gql('''
         mutation CreateArtifactVersion(
             $artifactID: ID!,
@@ -1070,7 +1070,31 @@ class Api(object):
             'tags': labels,
             'metadata': metadata,
         })
-        return response['createArtifactVersion']['artifactVersion']
+        av = response['createArtifactVersion']['artifactVersion']
+        if aliases is not None:
+            # add aliases
+            mutation = gql('''
+            mutation UpdateArtifactVersion(
+                $artifactVersionID: ID!
+                $aliases: [String!]
+            ) {
+                updateArtifactVersion(input: {
+                    artifactVersionID: $artifactVersionID,
+                    aliases: $aliases
+                }) {
+                    artifactVersion {
+                        id
+                        name
+                    }
+                }
+            }
+            ''')
+            response = self.gql(mutation, variable_values={
+                'artifactVersionID': av['id'],
+                'aliases': aliases,
+            })
+        return av
+
 
     def use_artifact_version(self, entity_name, project_name, run_name, artifact_version_id):
         mutation = gql('''
