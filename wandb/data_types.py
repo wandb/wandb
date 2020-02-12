@@ -742,7 +742,7 @@ class Image(BatchableMedia):
         self._image = None
 
         self._boxes = boxes and BoundingBoxes2D(boxes)
-        self._masks = [ImageMask(m) for m in masks]
+        self._masks = masks and [ImageMask(m) for m in masks]
 
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
@@ -995,7 +995,9 @@ class BoundingBoxes2D(JSONMetadata):
                 raise TypeError("each")
             else:
                 for k,v in list(box["scores"].items()):
-                    if isinstance(v, numbers.Number):
+                    if not isinstance(k, six.string_types):
+                        raise TypeError("A score key must be a string")
+                    if not isinstance(v, numbers.Number):
                         raise TypeError("A score value must be a number")
 
             if ("class_label" in box) and not isinstance(box["class_label"], six.string_types):
