@@ -991,8 +991,12 @@ class BoundingBoxes2D(JSONMetadata):
                     raise TypeError("Each box position must contain height of type number")
 
             # Optional arguments
-            if ("scores" in box) and not isinstance(box["scores"], numbers.Number):
-                raise TypeError("A box's score must be a number")
+            if ("scores" in box) and not isinstance(box["scores"], dict):
+                raise TypeError("each")
+            else:
+                for k,v in list(box["scores"].items()):
+                    if isinstance(v, numbers.Number):
+                        raise TypeError("A score value must be a number")
 
             if ("class_label" in box) and not isinstance(box["class_label"], six.string_types):
                 raise TypeError("A box's class label must be of type must be of type string")

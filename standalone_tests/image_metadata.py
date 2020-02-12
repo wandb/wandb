@@ -17,23 +17,27 @@ mask_img = wandb.Image(image, masks=[{
     }
 }])
 
-wandb.log({"mask_img_single": mask_img})
-wandb.log({"mask_img_single": [mask_img]})
 
 # 2D Bounding Boxes
 
-# box_img = wandb.Image(image, boxes={[
-#     {
-#         "position": {
-#             "middle": [100, 100],
-#             "width": 200,
-#             "height": 100
-#         },
-#          "class_label" : "car",
-#          "box_caption": "car conf 0.7",
-#          "scores" : {
-#              "acc": 0.7
-#          },
-#     }
-# ]})
+box_img = wandb.Image(image, boxes=[
+    {
+        "position": {
+            "middle": [100, 100],
+            "width": 200,
+            "height": 100
+        },
+         "class_label" : "car",
+         "box_caption": "car conf 0.7",
+         "scores" : {
+             "acc": 0.7
+         },
+    }
+])
 
+wandb.log({
+    "mask_img_single": mask_img,
+    "mask_img_list": [mask_img],
+    "box_img_list": [box_img],
+    "box_img_single": box_img,
+})
