@@ -8,6 +8,9 @@ import matplotlib
 import six
 import sys
 
+from data_types import ImageMask, BoundingBoxes2D
+from helpers import dissoc 
+
 matplotlib.use("Agg")
 from click.testing import CliRunner
 import matplotlib.pyplot as plt
@@ -38,15 +41,7 @@ def test_invalid_histogram():
         wbhist = wandb.Histogram(np_histogram=([1, 2, 3], [1]))
 
 
-def test_histogram_to_json():
-    wbhist = wandb.Histogram(data)
-    json = wbhist.to_json()
-    assert json["_type"] == "histogram"
-    assert len(json["values"]) == 64
-
-
 image = np.zeros((28, 28))
-
 
 def test_captions():
     wbone = wandb.Image(image, caption="Cool")
@@ -64,6 +59,58 @@ def test_bind_image():
         with pytest.raises(RuntimeError):
             wb_image.bind_to_run(run, 'stuff', 10)
 
+full_box = {
+    "position": {
+        "middle" : (100,100), "width" : 40, "height": 20 
+        },
+    "class_label": "car",
+    "box_caption": "This is a big car",
+    "scores": {
+    "acc": 0.3
+    }
+}
+
+
+optional_keys = ["class_label", "box_caption", "scores"]
+boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
+
+def test_bounding_box_to_json():
+    box = BoundingBoxes2D(data)
+    json = box.to_json()
+    assert json["_type"] == "boxes2D"
+    # TODO: Test filename
+
+def test_boxes_to_json():
+    boxes = [BoundingBoxes2D(b) for b in boxes_with_removed_optional_args]
+    json = boxes.to_json()
+    for box in boxes: 
+        assert box["_type"] == "boxes2D"
+
+def test_image_accepts_boxes():
+    img = wandb.Image(image, boxes=[full_box])
+    # TODO: Test that file is dumped
+
+standard_mask = {
+    "mask_data": np.array([[1,2,2,2], [2,3,3,4], [4,4,4,4], [4,4,4,2]]),
+    "class_labels": { 
+        1: "car",
+        2: "pedestrian", 
+        3: "tractor", 
+        4: "cthululu" 
+    }
+}
+
+
+def test_masks_to_json():
+    mask = ImageMask(standard_mask)
+    json = mask.to_json()
+    assert json["_type"] == "boxes2D"
+    assert len(json["values"]) ==64
+
+def test_image_accepts_masks():
+    img = wandb.Image(image, masks=[standard_mask])
+    # TODO: Fill out test
+    assert img != False
 
 def test_cant_serialize_to_other_run():
     """This isn't implemented yet. Should work eventually.
@@ -392,3 +439,11 @@ def test_numpy_arrays_to_list():
     assert conv(np.array((1,2,))) == [1, 2]
     assert conv([np.array((1,2,))]) == [[1, 2]]
     assert conv(np.array(({'a': [np.array((1,2,))]}, 3))) == [{'a': [[1, 2]]}, 3]
+
+
+def test_boxes_to_json():
+    box = wandb.BoundingBoxes2D(data)
+    json = box.to_json()
+    assert json["_type"] == "histogram"
+    assert len(json["values"]) == 64
+

@@ -51,7 +51,6 @@ from wandb import streaming_log
 from wandb import util
 from wandb.run_manager import LaunchError, Process
 from wandb.data_types import Image
-from wandb.data_types import Metadata
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
@@ -1129,4 +1128,4 @@ sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
     'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
     'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
-    'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Metadata', 'Api']
+    'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']

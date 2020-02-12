@@ -15,6 +15,7 @@ import shutil
 from six.moves import queue
 import warnings
 
+import numbers
 import collections
 import os
 import io
@@ -730,17 +731,19 @@ class Image(BatchableMedia):
     # PIL limit
     MAX_DIMENSION = 65500
 
-    def __init__(self, data_or_path, mode=None, caption=None, grouping=None, metadata=None):
+    def __init__(self, data_or_path, mode=None, caption=None, grouping=None, metadata=None, boxes=None, masks=None):
         super(Image, self).__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
         self._grouping = grouping
         self._caption = caption
-        self._metadata = metadata
         self._width = None
         self._height = None
         self._image = None
+
+        self._boxes = boxes and BoundingBoxes2D(boxes)
+        self._masks = [ImageMask(m) for m in masks]
 
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
@@ -783,8 +786,12 @@ class Image(BatchableMedia):
 
     def bind_to_run(self, *args, **kwargs):
         super(Image, self).bind_to_run(*args, **kwargs)
-        if self._metadata is not None:
-            self._metadata.bind_to_run(*args, **kwargs)
+        if self._boxes is not None:
+            self._boxes.bind_to_run(*args, **kwargs)
+
+        if self._masks is not None:
+            for mask in self._masks:
+                mask.bind_to_run(*args, **kwargs)
 
     def to_json(self, run):
         json_dict = super(Image, self).to_json(run)
@@ -799,8 +806,10 @@ class Image(BatchableMedia):
             json_dict['grouping'] = self._grouping
         if self._caption:
             json_dict['caption'] = self._caption
-        if self._metadata:
-            json_dict['metadata'] = self._metadata.to_json(run)
+        if self._boxes:
+            json_dict['boxes'] = self._boxes.to_json(run)
+        if self._masks:
+            json_dict['masks'] = [mask.to_json(run) for mask in self._masks]
 
         return json_dict
 
@@ -855,6 +864,7 @@ class Image(BatchableMedia):
             logging.warning(
                 "Only %i images will be uploaded." % Image.MAX_THUMBNAILS)
             num_images_to_log = Image.MAX_THUMBNAILS
+            images = images[:num_images_to_log]
 
         if width * num_images_to_log > Image.MAX_DIMENSION:
             max_images_by_dimension = Image.MAX_DIMENSION // width
@@ -879,37 +889,137 @@ class Image(BatchableMedia):
         grouping = images[0]._grouping
         if grouping:
             meta["grouping"] = grouping
-        captions = Image.captions(images[:num_images_to_log])
+
+        captions = Image.all_captions(images)
+
         if captions:
             meta["captions"] = captions
+
+        masks = Image.all_masks(images)
+
+        if captions:
+            meta["all_masks"] = masks
+
+        boxes = Image.all_boxes(images)
+
+        if captions:
+            meta["all_boxes"] = boxes
+
         return meta
 
     @classmethod
-    def captions(cls, images):
+    def all_masks(cls, images):
+        if images[0]._masks != None:
+            return [i._masks for i in images]
+        else:
+            return False
+    @classmethod
+    def all_boxes(cls, images):
+        if images[0]._boxes != None:
+            return [i._boxes for i in images]
+        else:
+            return False
+
+    @classmethod
+    def all_captions(cls, images):
         if images[0]._caption != None:
             return [i._caption for i in images]
         else:
             return False
 
-class Metadata(Media):
+# Allows encoding of arbitrary JSON structures
+# as a file
+#
+# This class should be used as an abstract class
+# extended to have validation methods
+class JSONMetadata(Media):
     """
-        Metadata
+        JSONMetadata is a type for encoding arbitrary metadata as files.
     """
 
     def __init__(self, val, **kwargs):
-        super(Metadata, self).__init__()
+        super(JSONMetadata, self).__init__()
 
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.metadata.json')
-        util.json_dump_safer(val, codecs.open(tmp_path, 'w', encoding='utf-8'))
-        self._set_file(tmp_path, is_tmp=True, extension='.metadata.json')
+        self.validate(val)
+
+        ext = "." + self.type_name() + ".json"
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+        util.json_dump_uncompressed(val, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     def get_media_subdir(self):
-        return os.path.join('media', 'metadata')
+        return os.path.join('media', 'metadata', self.type_name())
 
     def to_json(self, run):
-        json_dict = super(Metadata, self).to_json(run)
-        json_dict['_type'] = 'metadata'
+        json_dict = super(JSONMetadata, self).to_json(run)
+        json_dict['_type'] = self.type_name()
         return json_dict
+
+    # These methods should be overridden in the child class
+    def type_name(self): 
+        return "metadata"
+
+    def validate(self, val):
+        return True
+
+class BoundingBoxes2D(JSONMetadata):
+    """
+    Wandb class for 2D bounding Boxes
+    """
+
+    def type_name(self):
+        return "boxes2D"
+
+    def validate(self , boxes):
+        if not isinstance(boxes, collections.Sequence):
+            raise TypeError("Boxes must be a list")
+
+        for box in boxes:
+            # Required arguments
+            if not "position" in box:
+                raise TypeError("Each box must contain a position with: middle, width, and height")
+            else:
+                if not ("middle" in box["position"] and box["position"]["middle"]):
+                    raise TypeError("Each box position must contain middle of type number")
+                if not ("width" in box["position"] and box["position"]["width"]):
+                    raise TypeError("Each box position must contain width of type number")
+                if not ("height" in box["position"] and box["position"]["height"]):
+                    raise TypeError("Each box position must contain height of type number")
+
+            # Optional arguments
+            if ("scores" in box) and not isinstance(box["scores"], numbers.Number):
+                raise TypeError("A box's score must be a number")
+
+            if ("class_label" in box) and not isinstance(box["class_label"], six.string_types):
+                raise TypeError("A box's class label must be of type must be of type string")
+
+            # Optional
+            if ("box_caption" in box) and not isinstance(box["box_caption"], six.string_types):
+                raise TypeError("A box's caption must be a string")
+
+class ImageMask(JSONMetadata):
+    """
+    Wandb class for image masks, useful for segmentation tasks
+    """
+    def type_name(self):
+        return "mask"
+
+    def validate(self , mask):
+        # 2D Make this work with all tensor(like) types
+        if not "mask_data" in mask:
+            raise TypeError("A mask requires mask data(A 2D array representing the predctions")
+        else:
+            error_str = "mask_data must be a 2d array" 
+            shape = mask["mask_data"].shape
+            if len(shape) != 2:
+                raise TypeError(error_str)
+
+
+        # Optional argument
+        if ("class_labels" in mask):
+            for k, v in list(mask["class_labels"].items()):
+                if (not isinstance(k, numbers.Number)) or (not isinstance(v, six.string_types)):
+                    raise TypeError("Class labels must be a dictionary of numbers to string")
 
 
 class Plotly(Media):

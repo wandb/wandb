@@ -2,7 +2,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
 
-import base64
+import base64 
 import colorsys
 import errno
 import hashlib
@@ -436,6 +436,21 @@ def parse_sm_config():
         return False
 
 
+class JSONEncoderUncompressed(json.JSONEncoder):
+    """
+        A JSON Encoder that handles the compelx types
+        e.g. Tensors, numpy, etc...
+        
+        Unlike our deafult encoders it doesn't compress arrays 
+        into histograms.
+    """
+
+    def default(self, obj):
+        tmp_obj, converted = json_friendly(obj)
+        if converted:
+            return tmp_obj
+        return json.JSONEncoder.default(self, tmp_obj)
+
 class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
@@ -467,6 +482,10 @@ def json_dumps_safer(obj, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
+# This is used for dumping raw json into files
+def json_dump_uncompressed(obj, fp, **kwargs):
+    """Convert obj to json, with some extra encodable types."""
+    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
 
 def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
