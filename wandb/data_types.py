@@ -894,28 +894,28 @@ class Image(BatchableMedia):
         if captions:
             meta["captions"] = captions
 
-        masks = Image.all_masks(images)
+        all_masks = Image.all_masks(images)
 
-        if masks:
-            meta["all_masks"] = masks
+        if all_masks:
+            meta["all_masks"] = all_masks
 
-        boxes = Image.all_boxes(images)
+        all_boxes = Image.all_boxes(images)
 
-        if boxes:
-            meta["all_boxes"] = boxes
+        if all_boxes:
+            meta["all_boxes"] = all_boxes
 
         return meta
 
     @classmethod
     def all_masks(cls, images):
         if images[0]._masks != None:
-            return [i._masks for i in images]
+            return [[m.to_json() for m in  i._masks] for i in images]
         else:
             return False
     @classmethod
     def all_boxes(cls, images):
         if images[0]._boxes != None:
-            return [i._boxes for i in images]
+            return [i._boxes.to_json() for i in images]
         else:
             return False
 

@@ -9,13 +9,13 @@ wandb.init()
 image = np.random.randint(255, size=(28, 28, 3))
 mask_data = np.random.randint(10, size=(28, 28))
 
-mask_img = wandb.Image(image, masks=[{
-    "mask_data": mask_data,
-    "class_labels": {
-        0 : "car", 
-        1 : "pedestrian",
-    }
-}])
+# mask_img = wandb.Image(image, masks=[{
+#     "mask_data": mask_data,
+#     "class_labels": {
+#         0 : "car", 
+#         1 : "pedestrian",
+#     }
+# }])
 
 
 # 2D Bounding Boxes
@@ -36,8 +36,8 @@ box_img = wandb.Image(image, boxes=[
 ])
 
 wandb.log({
-    "mask_img_single": mask_img,
-    "mask_img_list": [mask_img],
+    # "mask_img_single": mask_img,
+    # "mask_img_list": [mask_img],
     "box_img_list": [box_img],
     "box_img_single": box_img,
 })
