@@ -740,9 +740,13 @@ class Image(BatchableMedia):
         self._width = None
         self._height = None
         self._image = None
-
-        self._boxes = boxes and BoundingBoxes2D(boxes)
-        self._masks = masks and [ImageMask(m) for m in masks]
+        
+        self._boxes = None 
+        if boxes: 
+            self._boxes = BoundingBoxes2D(boxes)
+        self._masks = None
+        if masks:
+            self._masks = [ImageMask(m) for m in masks]
 
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
@@ -908,27 +912,33 @@ class Image(BatchableMedia):
 
     @classmethod
     def all_masks(cls, images, run, key, step):
-        if images[0]._masks != None:
-            mask_groups = []
-            for i in images:
+        all_mask_groups = []
+        for i in images:
+            if i._masks:
                 mask_group = []
                 for mask in i._masks:
                     mask.bind_to_run(run, key, step)
                     mask_group.append(mask.to_json(run))
-                mask_groups.append(mask_group)
-            return mask_groups
+                all_mask_groups.append(mask_group)
+            else:
+               all_mask_groups.append(None)
+        if all_mask_groups:
+            return all_mask_groups
         else:
             return False
+
     @classmethod
     def all_boxes(cls, images, run, key, step):
-        if images[0]._boxes != None:
-            boxes = []
-            for i in images:
+        boxes = []
+        for i in images:
+            if i._boxes:
                 i._boxes.bind_to_run(run,key,step)
                 boxes.append(i._boxes.to_json(run))
+            else:
+                boxes.append(None)
+        if boxes:
             return boxes
-        
-        else:
+        else: 
             return False
 
     @classmethod
