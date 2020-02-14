@@ -982,6 +982,9 @@ class BoundingBoxes2D(JSONMetadata):
     Wandb class for 2D bounding Boxes
     """
 
+    def __init__(self, val, **kwargs):
+        super(BoundingBoxes2D, self).__init__()
+
     def type_name(self):
         return "boxes2D"
 
