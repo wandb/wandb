@@ -925,7 +925,7 @@ class Image(BatchableMedia):
             boxes = []
             for i in images:
                 i._boxes.bind_to_run(run,key,step)
-                i._boxes.to_json(run)
+                boxes.append(i._boxes.to_json(run))
             return boxes
         
         else:
