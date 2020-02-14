@@ -741,7 +741,7 @@ class Image(BatchableMedia):
         self._height = None
         self._image = None
 
-        self._boxes = boxes.extend([b for b in BoundingBoxes2D(boxes)])
+        self._boxes = boxes and BoundingBoxes2D(boxes)
         self._masks = masks and [ImageMask(m) for m in masks]
 
         if isinstance(data_or_path, six.string_types):
