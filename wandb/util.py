@@ -320,6 +320,8 @@ def json_friendly(obj):
             obj = obj.flatten()[0]
         elif obj.size <= 32:
             obj = obj.tolist()
+        else:
+            obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
         obj = obj.item()
     elif isinstance(obj, bytes):
@@ -436,21 +438,6 @@ def parse_sm_config():
         return False
 
 
-class JSONEncoderUncompressed(json.JSONEncoder):
-    """
-        A JSON Encoder that handles the compelx types
-        e.g. Tensors, numpy, etc...
-        
-        Unlike our deafult encoders it doesn't compress arrays 
-        into histograms.
-    """
-
-    def default(self, obj):
-        tmp_obj, converted = json_friendly(obj)
-        if converted:
-            return tmp_obj
-        return json.JSONEncoder.default(self, tmp_obj)
-
 class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
@@ -470,6 +457,16 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         obj, converted = json_friendly(obj)
         obj, compressed = maybe_compress_history(obj)
+        if converted:
+            return obj
+        return json.JSONEncoder.default(self, obj)
+
+class JSONEncoderUncompressed(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types.
+    This encoder turns numpy like objects with a size > 32 into histograms"""
+
+    def default(self, obj):
+        obj, converted = json_friendly(obj)
         if converted:
             return obj
         return json.JSONEncoder.default(self, obj)

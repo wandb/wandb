@@ -730,7 +730,7 @@ class Image(BatchableMedia):
     # PIL limit
     MAX_DIMENSION = 65500
 
-    def __init__(self, data_or_path, mode=None, caption=None, grouping=None, metadata=None, boxes=None, masks=None):
+    def __init__(self, data_or_path, mode=None, caption=None, grouping=None, boxes=None, masks=None):
         super(Image, self).__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
@@ -894,12 +894,12 @@ class Image(BatchableMedia):
         if captions:
             meta["captions"] = captions
 
-        all_masks = Image.all_masks(images)
+        all_masks = Image.all_masks(images, run, key, step)
 
         if all_masks:
             meta["all_masks"] = all_masks
 
-        all_boxes = Image.all_boxes(images)
+        all_boxes = Image.all_boxes(images, run, key, step)
 
         if all_boxes:
             meta["all_boxes"] = all_boxes
@@ -907,20 +907,32 @@ class Image(BatchableMedia):
         return meta
 
     @classmethod
-    def all_masks(cls, images):
+    def all_masks(cls, images, run, key, step):
         if images[0]._masks != None:
-            return [[m.to_json() for m in  i._masks] for i in images]
+            mask_groups = []
+            for i in images:
+                mask_group = []
+                for mask in i._masks:
+                    mask.bind_to_run(run, key, step)
+                    mask_group.append(mask.to_json(run))
+                mask_groups.append(mask_group)
+            return mask_groups
         else:
             return False
     @classmethod
-    def all_boxes(cls, images):
+    def all_boxes(cls, images, run, key, step):
         if images[0]._boxes != None:
-            return [i._boxes.to_json() for i in images]
+            boxes = []
+            for i in images:
+                i._boxes.bind_to_run(run,key,step)
+                i._boxes.to_json(run)
+            return boxes
+        
         else:
             return False
 
     @classmethod
-    def all_captions(cls, images):
+    def all_captions(cls, images ):
         if images[0]._caption != None:
             return [i._caption for i in images]
         else:
@@ -944,10 +956,8 @@ class JSONMetadata(Media):
 
         ext = "." + self.type_name() + ".json"
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
-        util.json_dump_safer(self._val, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        util.json_dump_uncompressed(self._val, codecs.open(tmp_path, 'w', encoding='utf-8'))
         self._set_file(tmp_path, is_tmp=True, extension=ext)
-        print("===+ ALERT +===")
-        print(tmp_path)
 
 
     def get_media_subdir(self):
