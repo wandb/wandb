@@ -983,7 +983,7 @@ class BoundingBoxes2D(JSONMetadata):
     """
 
     def __init__(self, val, **kwargs):
-        super(BoundingBoxes2D, self).__init__()
+        super(BoundingBoxes2D, self).__init__(val)
 
     def type_name(self):
         return "boxes2D"
