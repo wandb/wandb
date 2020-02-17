@@ -28,6 +28,7 @@ import random
 import platform
 import datetime
 import shutil
+import getpass
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
 
@@ -777,7 +778,8 @@ def local(ctx, port, daemon, upgrade, edge):
             wandb.termerror("A container named wandb-local is already running, run `docker kill wandb-local` if you want to start a new instance")
             exit(1)
     image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
-    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port+':8080', '--name', 'wandb-local']
+    username = getpass.getuser()
+    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port+':8080', '-e', 'LOCAL_USERNAME=%s' % username, '--name', 'wandb-local']
     host = "http://localhost:%s" % port
     api.set_setting("base_url", host, globally=True)
     if daemon:
