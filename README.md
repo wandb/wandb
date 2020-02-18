@@ -1,6 +1,34 @@
 # Experimental wandb client
 ---
 
+Progress
+
+API:
+ - [ ] wandb.init() basic
+ - [ ] wandb.log() basic
+ - [ ] wandb.join() basic
+ - [ ] wandb.run basic
+ - [ ] wandb.config basic
+ - [ ] wandb.save()
+ - [ ] wandb.restore()
+ - [ ] wandb.init() full
+ - [ ] wandb.log() full
+ - [ ] wandb.join() full
+ - [ ] wandb.run full
+ - [ ] wandb.config full
+ - [ ] wandb.sweep()
+ - [ ] wandb.agent()
+ - [ ] wandb.controller()
+ 
+CLI:
+ - [ ] wandb login
+ - [ ] wandb sync
+
+Functionality:
+- [ ] system metrics
+- [ ] console log
+- [ ] offline
+
 Goals:
  - [ ] standardize all CLI->backend updates
  - [ ] reorganize code to avoid different contexts (run_manager)
