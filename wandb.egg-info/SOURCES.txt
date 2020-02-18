@@ -5,6 +5,7 @@ wandb/py.typed
 wandb/wandb_config.py
 wandb/wandb_init.py
 wandb/wandb_run.py
+wandb/wandb_setup.py
 wandb.egg-info/PKG-INFO
 wandb.egg-info/SOURCES.txt
 wandb.egg-info/dependency_links.txt

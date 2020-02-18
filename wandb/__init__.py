@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 from wandb.wandb_init import init
+from wandb.wandb_setup import setup
 from wandb.util import preinit as _preinit
 from wandb.errors import Error
 from wandb.errors.term import termlog, termerror, termwarn
@@ -29,4 +30,5 @@ join = _preinit.PreInitCallable("wandb.join")
 __all__ = [
     "__version__",
     "init",
+    "setup",
 ]

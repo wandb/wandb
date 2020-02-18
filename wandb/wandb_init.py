@@ -2,6 +2,7 @@
 init.
 """
 
+import wandb
 from wandb.wandb_run import Run
 from wandb.util.globals import set_global
 from wandb.internal.backend import Backend
@@ -33,6 +34,8 @@ def init(
         group=None
         ):
     # type: (...) -> Optional[Run]
+    wl = wandb.setup()
+
     if mode == "noop":
         return None
     if mode == "test":
