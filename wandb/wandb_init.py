@@ -5,7 +5,8 @@ init.
 import wandb
 from wandb.wandb_run import Run
 from wandb.util.globals import set_global
-from wandb.internal.backend_grpc import Backend
+#from wandb.internal.backend_grpc import Backend
+from wandb.internal.backend_mp import Backend
 import wandb
 import click
 
