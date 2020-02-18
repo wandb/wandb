@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 from wandb.errors import Error
 from wandb.wandb_init import init

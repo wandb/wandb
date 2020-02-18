@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: wandb
-Version: 0.0.1
+Version: 0.0.2
 Summary: A CLI and library for interacting with the Weights and Biases API.
 Home-page: https://github.com/wandb/client
 Author: Weights & Biases
@@ -62,6 +62,8 @@ Description: # Experimental wandb client
         - RPC
         - multiprocessing queue
         
+        Install with:
+        `pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb`
         
 Keywords: wandb
 Platform: UNKNOWN
