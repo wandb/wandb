@@ -13,6 +13,9 @@ wandb.egg-info/entry_points.txt
 wandb.egg-info/not-zip-safe
 wandb.egg-info/requires.txt
 wandb.egg-info/top_level.txt
+wandb/apis/__init__.py
+wandb/apis/file_stream.py
+wandb/apis/internal.py
 wandb/cli/__init__.py
 wandb/cli/cli.py
 wandb/errors/__init__.py
