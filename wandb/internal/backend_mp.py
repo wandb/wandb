@@ -4,7 +4,9 @@ import json
 import atexit
 import queue
 
+
 from wandb.internal import wandb_internal_pb2
+from wandb.internal import datastore
 
 from wandb.apis import internal
 from wandb.apis import file_stream
@@ -13,12 +15,16 @@ api = internal.Api()
 settings=dict(entity="jeff", project="uncategorized")
 
 def wandb_write(q, stopped):
+    ds = datastore.DataStore()
+    ds.open("out.dat")
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)
         except queue.Empty:
             continue
+        ds.write(i)
         #print("write", i)
+    ds.close()
 
 
 def wandb_send(q, stopped):

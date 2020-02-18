@@ -1,4 +1,4 @@
-import wandb_internal_pb2
+from wandb.internal import wandb_internal_pb2
 import struct
 
 
@@ -34,6 +34,11 @@ class DataStore(object):
 
 
     def write(self, obj):
+        s = obj.SerializeToString()
+        self._fp.write(struct.pack('<IHHII', 0xBBD3AD, 1, 0, len(s), 0))
+        self._fp.write(s)
+
+    def write_old(self, obj):
         # TODO(jhr): use https://developers.google.com/protocol-buffers/docs/techniques?csw=1#self-description ?
         r = wandb_internal_pb2.Record()
         r.num = 1
