@@ -5,7 +5,7 @@ init.
 import wandb
 from wandb.wandb_run import Run
 from wandb.util.globals import set_global
-from wandb.internal.backend import Backend
+from wandb.internal.backend_grpc import Backend
 import wandb
 import click
 
@@ -47,7 +47,8 @@ def init(
 
     # resuming needs access to the server, check server_status()?
 
-    run = Run(config=config, _backend=backend)
+    run = Run(config=config)
+    run._set_backend(backend)
 
     settings=dict(entity="jeff", project="uncategorized")
 
