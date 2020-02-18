@@ -28,6 +28,8 @@ def wandb_write(q, stopped):
 
 
 def wandb_send(q, stopped):
+    fs = None
+    run_id = None
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)
@@ -46,10 +48,20 @@ def wandb_send(q, stopped):
             #fs.start()
             #self._fs['rfs'] = fs
             #self._fs['run_id'] = run.run_id
+            fs = file_stream.FileStreamApi(api, run.run_id, settings=settings)
+            fs.start()
+            run_id = run.run_id
         elif t == "log":
-            continue
+            log = i.log
+            d = json.loads(log.json)
+            if fs:
+                #print("about to send", d)
+                x = fs.push("wandb-history.jsonl", json.dumps(d))
+                #print("got", x)
         else:
             print("what", t)
+    if fs:
+        fs.finish(0)
 
 
 def wandb_internal(notify_queue, process_queue, child_pipe):

@@ -16,6 +16,7 @@ class Run(object):
         self._backend = None
         self._data = dict()
         self.run_id = generate_id()
+        self._step = 0
 
         if config:
             for k, v in config.items():
@@ -24,14 +25,17 @@ class Run(object):
     def _set_backend(self, backend):
         self._backend = backend
 
-    def log(self, data, commit=True):
+    def log(self, data, step=None, commit=True):
         if commit:
+            self._data["_step"] = self._step
+            self._step += 1
             if self._data:
                 self._data.update(data)
                 self._backend.log(self._data)
-                self._data = dict()
             else:
-                self._backend.log(data)
+                self._data.update(data)
+                self._backend.log(self._data)
+            self._data = dict()
         else:
             self._data.update(data)
 
