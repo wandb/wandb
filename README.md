@@ -54,3 +54,5 @@ Alternatives:
 - RPC
 - multiprocessing queue
 
+Install with:
+`pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb`
