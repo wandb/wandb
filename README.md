@@ -4,11 +4,11 @@
 Progress
 
 API:
- - [ ] wandb.init() basic
- - [ ] wandb.log() basic
- - [ ] wandb.join() basic
- - [ ] wandb.run basic
- - [ ] wandb.config basic
+ - [x] wandb.init() basic
+ - [x] wandb.log() basic
+ - [x] wandb.join() basic
+ - [x] wandb.run basic
+ - [x] wandb.config basic
  - [ ] wandb.save()
  - [ ] wandb.restore()
  - [ ] wandb.init() full
@@ -42,6 +42,8 @@ Bonus:
 - [ ] multi-language synchronizer
 - [ ] schema'ed binary? cloud? log for offline run data
 - [ ] less (no) dependance on local filesytem
+- [ ] type annotations
+- [ ] cleaned up logger
 
 
 ## Features
