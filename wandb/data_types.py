@@ -27,6 +27,7 @@ import json
 import codecs
 import tempfile
 from wandb import util
+from wandb.util import has_num
 from wandb.compat import tempfile
 
 # Get rid of cleanup warnings in Python 2.7.
@@ -746,6 +747,8 @@ class Image(BatchableMedia):
             self._boxes = BoundingBoxes2D(boxes)
         self._masks = None
         if masks:
+            if not isinstance(masks, list):
+                raise ValueError("Masks must be a list")
             self._masks = [ImageMask(m) for m in masks]
 
         if isinstance(data_or_path, six.string_types):
@@ -1000,15 +1003,26 @@ class BoundingBoxes2D(JSONMetadata):
 
         for box in boxes:
             # Required arguments
+            error_str = "Each box must contain a position with: middle, width, and height or \
+                    \nminX, maxX, minY, maxY."
             if not "position" in box:
-                raise TypeError("Each box must contain a position with: middle, width, and height")
+                raise TypeError(error_str)
             else:
-                if not ("middle" in box["position"] and box["position"]["middle"]):
-                    raise TypeError("Each box position must contain middle of type number")
-                if not ("width" in box["position"] and box["position"]["width"]):
-                    raise TypeError("Each box position must contain width of type number")
-                if not ("height" in box["position"] and box["position"]["height"]):
-                    raise TypeError("Each box position must contain height of type number")
+                # import ipdb; ipdb.set_trace()
+                valid = False
+                if "middle" in box["position"] and len(box["position"]["middle"]) == 2 and \
+                   has_num(box["position"], "width") and \
+                   has_num(box["position"], "height"): 
+                   valid = True
+                elif has_num(box["position"], "minX") and \
+                     has_num(box["position"], "maxX") and \
+                     has_num(box["position"], "minY") and \
+                     has_num(box["position"], "maxY"):
+                   valid = True
+                
+                if not valid:
+                    raise TypeError(error_str)
+
 
             # Optional arguments
             if ("scores" in box) and not isinstance(box["scores"], dict):
