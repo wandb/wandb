@@ -322,8 +322,6 @@ def json_friendly(obj):
             obj = obj.flatten()[0]
         elif obj.size <= 32:
             obj = obj.tolist()
-        else:
-            obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
         obj = obj.item()
     elif isinstance(obj, bytes):
