@@ -21,7 +21,7 @@ requirements = [
     'subprocess32>=3.5.3',
     'docker-pycreds>=0.4.0',
     'configparser>=3.8.1',
-    'prompt-toolkit',
+    'prompt-toolkit>=2.0.0',
     'typing',
     'grpcio-tools',
 ]
