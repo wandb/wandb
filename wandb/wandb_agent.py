@@ -310,11 +310,11 @@ class Agent(object):
             proc = AgentProcess(function=self._function, env=env,
                     run_id=command.get('run_id'), in_jupyter=self._in_jupyter)
         else:
-            sweep_vars = dict(interpretter=["python"], program=[command['program']], args=flags, env=["/usr/bin/env"])
+            sweep_vars = dict(interpreter=["python"], program=[command['program']], args=flags, env=["/usr/bin/env"])
             if platform.system() == "Windows":
                 del sweep_vars["env"]
             command_list = []
-            sweep_command = self._sweep_command or ["${env}", "${interpretter}", "${program}", "${args}"]
+            sweep_command = self._sweep_command or ["${env}", "${interpreter}", "${program}", "${args}"]
             for c in sweep_command:
                 if c.startswith("${") and c.endswith("}"):
                     replace_list = sweep_vars.get(c[2:-1])

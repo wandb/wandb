@@ -207,7 +207,7 @@ class Media(WBValue):
 
         return {
             '_type': 'file',  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-            'path': os.path.relpath(self._path, self._run.dir),  # TODO(adrian): Convert this to a path with forward slashes.
+            'path': util.to_forward_slash_path(os.path.relpath(self._path, self._run.dir)),
             'sha256': self._sha256,
             'size': self._size,
             #'entity': self._run.entity,
@@ -1178,6 +1178,8 @@ class Graph(Media):
         data = numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, 'w', encoding='utf-8'))
         self._set_file(tmp_path, is_tmp=True, extension='.graph.json')
+        if self.is_bound():
+            return
         super(Graph, self).bind_to_run(*args, **kwargs)
 
     @classmethod

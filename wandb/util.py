@@ -2,7 +2,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
 
-import base64 
+import base64
 import colorsys
 import errno
 import hashlib
@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 import random
+import platform
 import stat
 import shortuuid
 import importlib
@@ -988,3 +989,7 @@ def parse_sweep_id(parts_dict):
 def has_num(dictionary, key):
      return (key in dictionary and isinstance(dictionary[key], numbers.Number))
 
+def to_forward_slash_path(path):
+    if platform.system() == "Windows":
+        path = path.replace("\\", "/")
+    return path

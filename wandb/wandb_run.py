@@ -24,7 +24,7 @@ from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi, CommError
-from wandb.wandb_config import Config
+from wandb.wandb_config import Config, ConfigStatic
 from wandb.viz import Visualize
 import six
 from six.moves import input
@@ -149,6 +149,10 @@ class Run(object):
         self._meta = None
         self._run_manager = None
         self._jupyter_agent = None
+
+    @property
+    def config_static(self):
+        return ConfigStatic(self.config)
 
     @property
     def api(self):
