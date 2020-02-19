@@ -488,7 +488,6 @@ def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
-
 def make_json_if_not_number(v):
     """If v is not a basic type convert it to json."""
     if isinstance(v, (float, int)):

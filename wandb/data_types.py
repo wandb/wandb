@@ -1027,10 +1027,36 @@ class BoundingBoxes2D(JSONMetadata):
             if ("box_caption" in box) and not isinstance(box["box_caption"], six.string_types):
                 raise TypeError("A box's caption must be a string")
 
-class ImageMask(JSONMetadata):
+class ImageMask(Media):
     """
     Wandb class for image masks, useful for segmentation tasks
     """
+
+    def __init__(self, val, **kwargs):
+        super(ImageMask, self).__init__()
+
+        self.validate(val)
+        self._val = val
+
+        ext = "." + self.type_name() + ".png"
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+
+        PILImage = util.get_module(
+            "PIL.Image", required='wandb.Image needs the PIL package. To get it, run "pip install pillow".')
+        image = PILImage.fromarray(Image.to_uint8(val["mask_data"]), mode="L")
+        
+        image.save(tmp_path, transparency=None)
+        self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+    def get_media_subdir(self):
+        return os.path.join('media', 'metadata', self.type_name())
+
+    def to_json(self, run):
+        json_dict = super(ImageMask, self).to_json(run)
+        json_dict['_type'] = self.type_name()
+
+        return json_dict
+
     def type_name(self):
         return "mask"
 
