@@ -2,6 +2,7 @@ import threading
 import json
 import atexit
 import queue
+import sys
 
 
 import wandb
@@ -150,7 +151,24 @@ class Backend(object):
                     fd_pipe_child,
                     ))
         wandb_process.name = "wandb_internal"
+
+        # http://trac.mystic.cacr.caltech.edu/project/pathos/browser/multiprocess/py3.4/multiprocess/spawn.html
+        main_module = sys.modules['__main__']
+        main_mod_name = getattr(main_module.__spec__, "name", None)
+        print("debug1", main_module, main_mod_name)
+        save_file = None
+        if main_mod_name is not None:
+            main_module.__spec__.name = None
+        else: # and not w32
+            main_path = getattr(main_module, '__file__', None)
+            if main_path is not None:
+                print("debug2", main_module, main_path)
+                save_file = main_module.__file__
+                main_module.__file__ = "blah.py"
+
         wandb_process.start()
+        if save_file:
+            main_module.__file__ = save_file
 
         self.wandb_process = wandb_process
         self.fd_pipe_parent = fd_pipe_parent
