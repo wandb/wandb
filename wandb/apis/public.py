@@ -23,6 +23,7 @@ from wandb.retry import retriable
 from wandb.summary import HTTPSummary
 from wandb import env
 from wandb.apis import normalize_exceptions
+from wandb.apis import artifact_manifest
 from wandb import artifact_util
 
 logger = logging.getLogger(__name__)
@@ -393,10 +394,10 @@ class Api(object):
         return ProjectArtifactVersions(self.client, entity, project, artifact_name)
 
     @normalize_exceptions
-    def artifact_version(self, path=None):
+    def artifact_version(self, path=None, expected_digest=None):
         # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
         entity, project, artifact_name, artifact_version_name = self._parse_artifact_path(path)
-        return ArtifactVersion(self.client, entity, project, artifact_name, artifact_version_name)
+        return ArtifactVersion(self.client, entity, project, artifact_name, artifact_version_name, expected_digest=expected_digest)
 
     def local_artifact(self, name, filepaths=None, metadata=None):
         signature = artifact_util.local_artifact_signature(filepaths, metadata)
@@ -1757,12 +1758,14 @@ class Artifact(object):
 
 class ArtifactVersion(object):
 
-    def __init__(self, client, entity, project, artifact_name, artifact_version_name, attrs=None):
+    def __init__(self, client, entity, project, artifact_name, artifact_version_name, attrs=None, expected_digest=None):
         self.client = client
         self.entity = entity
         self.project = project
         self.artifact_name = artifact_name
         self.artifact_version_name = artifact_version_name
+        # TODO(artifacts) We can get rid of this when we have server side state tracking
+        self._expected_digest = expected_digest
         self._attrs = attrs
         if self._attrs is None:
             self.load()
@@ -1838,6 +1841,26 @@ class ArtifactVersion(object):
         for f in self.files():
             f.download(root=dirpath, replace=True)
         return dirpath
+
+    @property
+    def manifest(self):
+        # TODO(artifacts): don't keep recalculating this
+        entries = []
+        for f in self.files():
+            entries.append(artifact_manifest.ArtifactManifestEntry(f.name, f.md5))
+        print("ENTRIES", entries)
+        return artifact_manifest.ArtifactManifestV1(entries)
+
+    @property
+    def digest(self):
+        return self.manifest.digest
+
+    @property
+    def state(self):
+        print("DIGEST", self.digest, self._expected_digest)
+        if self.digest == self._expected_digest:
+            return 'READY'
+        return 'INIT'
 
     def __repr__(self):
         return "<Artifact version {}>".format(self.id)

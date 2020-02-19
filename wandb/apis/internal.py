@@ -1149,6 +1149,10 @@ class Api(object):
                             id
                             name
                             fingerprint
+                            artifactVersion {
+                                id
+                                name
+                            }
                         }
                     }
                 }
@@ -1158,6 +1162,7 @@ class Api(object):
         entity_name = entity or self.settings('entity')
         project_name = project or self.settings('project')
         run_name = run or self.current_run_id
+        print('FILESPEC', file_specs)
 
         response = self.gql(mutation, variable_values={
             'entityName': entity_name,
@@ -1169,6 +1174,7 @@ class Api(object):
         for edge in response['prepareFiles']['files']['edges']:
             node = edge['node']
             result[node['name']] = node
+        print('PREP FILES RESULT', result)
 
         return result
 
