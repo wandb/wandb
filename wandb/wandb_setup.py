@@ -3,12 +3,17 @@ setup.
 """
 
 import threading
+import multiprocessing
+import sys
 
 
 class _WandbLibrary__WandbLibrary(object):
     """Inner class of _WandbLibrary."""
     def __init__(self):
+        #print("setup")
+        self._multiprocessing = None
         self.check()
+        self.setup()
 
     def check(self):
         if hasattr(threading, "main_thread"):
@@ -16,6 +21,21 @@ class _WandbLibrary__WandbLibrary(object):
                 print("bad thread")
         elif threading.current_thread().name != 'MainThread':
             print("bad thread2", threading.current_thread().name)
+        if getattr(sys, 'frozen', False):
+            print("frozen, could be trouble")
+        #print("t2", multiprocessing.get_start_method(allow_none=True))
+        #print("t3", multiprocessing.get_start_method())
+
+    def setup(self):
+        #TODO: use fork context if unix and frozen?
+        # if py34+, else fall back
+        if hasattr(multiprocessing, "get_context"):
+            ctx = multiprocessing.get_context('spawn')
+        else:
+            print("warning, likely using fork on unix")
+            ctx = multiprocessing
+        self._multiprocessing = ctx
+        #print("t3b", self._multiprocessing.get_start_method())
 
 
 class _WandbLibrary(object):

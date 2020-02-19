@@ -1,10 +1,10 @@
-import multiprocessing
 import threading
 import json
 import atexit
 import queue
 
 
+import wandb
 from wandb.internal import wandb_internal_pb2
 from wandb.internal import datastore
 
@@ -82,19 +82,33 @@ def wandb_internal(notify_queue, process_queue, child_pipe):
     write_thread.start()
     send_thread.start()
     
-    while True:
-        i = notify_queue.get()
-        #print("got", i)
-        if i == Backend.NOTIFY_PROCESS:
-            rec = process_queue.get()
-            send_queue.put(rec)
-            write_queue.put(rec)
-        elif i == Backend.NOTIFY_SHUTDOWN:
-            # make sure queue is empty?
-            stopped.set()
-            break
-        else:
-            print("unknown", i)
+    done = False
+    while not done:
+        count = 0
+        try:
+            while True:
+                i = notify_queue.get()
+                #print("got", i)
+                if i == Backend.NOTIFY_PROCESS:
+                    rec = process_queue.get()
+                    send_queue.put(rec)
+                    write_queue.put(rec)
+                elif i == Backend.NOTIFY_SHUTDOWN:
+                    # make sure queue is empty?
+                    stopped.set()
+                    done = True
+                    break
+                else:
+                    print("unknown", i)
+        except KeyboardInterrupt as e:
+            print("\nInterrupt: {}\n".format(count))
+            count += 1
+        finally:
+            if count >= 2:
+                done = True
+            if done:
+                break
+
 
     write_thread.join()
     send_thread.join()
@@ -116,19 +130,20 @@ class Backend(object):
         self.notify_queue = None  # notify activity on ...
 
         self._done = False
+        self._wl = wandb.setup()
 
     def ensure_launched(self):
         """Launch backend worker if not running."""
-        fd_pipe_child, fd_pipe_parent = multiprocessing.Pipe()
-        process_queue = multiprocessing.Queue()
-        async_queue = multiprocessing.Queue()
-        fd_request_queue = multiprocessing.Queue()
-        fd_response_queue = multiprocessing.Queue()
-        request_queue = multiprocessing.Queue()
-        response_queue = multiprocessing.Queue()
-        notify_queue = multiprocessing.Queue()
+        fd_pipe_child, fd_pipe_parent = self._wl._multiprocessing.Pipe()
+        process_queue = self._wl._multiprocessing.Queue()
+        async_queue = self._wl._multiprocessing.Queue()
+        fd_request_queue = self._wl._multiprocessing.Queue()
+        fd_response_queue = self._wl._multiprocessing.Queue()
+        request_queue = self._wl._multiprocessing.Queue()
+        response_queue = self._wl._multiprocessing.Queue()
+        notify_queue = self._wl._multiprocessing.Queue()
 
-        wandb_process = multiprocessing.Process(target=wandb_internal,
+        wandb_process = self._wl._multiprocessing.Process(target=wandb_internal,
                 args=(
                     notify_queue,
                     process_queue,

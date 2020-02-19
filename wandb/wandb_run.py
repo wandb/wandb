@@ -22,6 +22,19 @@ class Run(object):
             for k, v in config.items():
                 self.config[k] = v
 
+    #def _repr_html_(self):
+    #    url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(self.run_id)
+    #    style = "border:none;width:100%;height:400px"
+    #    s = "<h1>Run({})</h1><iframe src=\"{}\" style=\"{}\"></iframe>".format(self.run_id, url, style)
+    #    return s
+
+    def _repr_mimebundle_(self, include=None, exclude=None):
+        url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(self.run_id)
+        style = "border:none;width:100%;height:400px"
+        note = "(include={}, exclude={})".format(include, exclude)
+        s = "<h1>Run({})</h1><p>{}</p><iframe src=\"{}\" style=\"{}\"></iframe>".format(self.run_id, note, url, style)
+        return {"text/html": s}
+
     def _set_backend(self, backend):
         self._backend = backend
 
