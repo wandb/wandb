@@ -7,7 +7,7 @@ import os
 from gql.client import RetryError
 import six
 from wandb import Error
-import wandb.stuff.env
+import wandb.stuff.env as env
 
 
 class Progress(object):
@@ -70,7 +70,7 @@ def normalize_exceptions(func):
             else:
                 message = err.last_exception
 
-            if wandb.env.is_debug():
+            if env.is_debug():
                 six.reraise(type(err.last_exception), err.last_exception, sys.exc_info()[2])
             else:
                 six.reraise(CommError, CommError(
@@ -85,7 +85,7 @@ def normalize_exceptions(func):
                 message = ast.literal_eval(str(payload))["message"]
             else:
                 message = str(err)
-            if wandb.env.is_debug():
+            if env.is_debug():
                 six.reraise(*sys.exc_info())
             else:
                 six.reraise(CommError, CommError(

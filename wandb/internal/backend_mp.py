@@ -11,8 +11,6 @@ from wandb.internal import datastore
 from wandb.apis import internal
 from wandb.apis import file_stream
 
-api = internal.Api()
-settings=dict(entity="jeff", project="uncategorized")
 
 def wandb_write(q, stopped):
     ds = datastore.DataStore()
@@ -30,6 +28,9 @@ def wandb_write(q, stopped):
 def wandb_send(q, stopped):
     fs = None
     run_id = None
+    api = internal.Api()
+    #settings=dict(entity="jeff", project="uncategorized")
+    settings=dict(project="uncategorized")
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)

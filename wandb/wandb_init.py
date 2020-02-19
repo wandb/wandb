@@ -10,9 +10,16 @@ from wandb.internal.backend_mp import Backend
 import wandb
 import click
 
+from wandb.apis import internal
+
 import typing
 if typing.TYPE_CHECKING:
     from typing import Dict, List, Optional
+
+
+from prompt_toolkit import prompt
+from wandb.stuff import util2
+
 
 
 # priority order (highest to lowest):
@@ -41,6 +48,11 @@ def init(
         return None
     if mode == "test":
         return None
+
+    api = internal.Api()
+    if not api.api_key:
+        key = prompt('Enter api key: ', is_password=True)
+        util2.set_api_key(api, key)
 
     backend = Backend(mode=mode)
     backend.ensure_launched()
