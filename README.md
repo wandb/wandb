@@ -1,7 +1,23 @@
 # Experimental wandb client
----
 
-Progress
+## Tasks
+
+Week of 2020-02-17 
+ - [ ] Force all but linux python2 users to use multiprocessing spawn
+ - [ ] Make non-`__main__` users happy
+ - [ ] Make python logging clean (handle early logging somehow)
+ - [ ] Support online and offline modes (and hybrid mode), decide default later.
+ - [ ] Extend settings to control hundreds? of tunables?
+ - [ ] Add metadata sync
+ - [ ] Add system metrics
+ 
+Week of 2020-02-04
+ - [ ] Add file sync
+ - [ ] Add media logging
+ - [ ] Add frameworks (keras, pytorch)
+ - [ ] Basic CLI functionality
+
+## Progress
 
 API:
  - [x] wandb.init() basic
