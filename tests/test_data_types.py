@@ -8,8 +8,8 @@ import matplotlib
 import six
 import sys
 
-from data_types import ImageMask, BoundingBoxes2D
-from helpers import dissoc 
+from wandb.data_types import ImageMask, BoundingBoxes2D
+from wandb.helpers import dissoc
 
 matplotlib.use("Agg")
 from click.testing import CliRunner
@@ -75,20 +75,19 @@ optional_keys = ["class_label", "box_caption", "scores"]
 boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 
 def test_bounding_box_to_json():
-    box = BoundingBoxes2D(data)
-    json = box.to_json()
-    assert json["_type"] == "boxes2D"
-    # TODO: Test filename
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        box = BoundingBoxes2D(data)
+        json = box.to_json(run)
+        path = box._path
+        assert json["_type"] == "boxes2D"
+        assert os.path.exists(os.path.join(run.dir, path))
 
 def test_boxes_to_json():
-    boxes = [BoundingBoxes2D(b) for b in boxes_with_removed_optional_args]
-    json = boxes.to_json()
-    for box in boxes: 
-        assert box["_type"] == "boxes2D"
-
-def test_image_accepts_boxes():
-    img = wandb.Image(image, boxes=[full_box])
-    # TODO: Test that file is dumped
+    all_boxes = [BoundingBoxes2D(b) for b in boxes_with_removed_optional_args]
+    for boxes in all_boxes:
+        json = boxes.to_json()
+        assert json["_type"] == "boxes2D"
 
 standard_mask = {
     "mask_data": np.array([[1,2,2,2], [2,3,3,4], [4,4,4,4], [4,4,4,2]]),
@@ -101,11 +100,11 @@ standard_mask = {
 }
 
 
-def test_masks_to_json():
+def test_image_accepts_boxes():
     mask = ImageMask(standard_mask)
     json = mask.to_json()
     assert json["_type"] == "boxes2D"
-    assert len(json["values"]) ==64
+    assert len(json["values"]) == 64
 
 def test_image_accepts_masks():
     img = wandb.Image(image, masks=[standard_mask])

@@ -466,9 +466,8 @@ class JSONEncoderUncompressed(json.JSONEncoder):
     This encoder turns numpy like objects with a size > 32 into histograms"""
 
     def default(self, obj):
-        obj, converted = json_friendly(obj)
-        if converted:
-            return obj
+        if is_numpy_array(obj):
+            return obj.tolist()
         return json.JSONEncoder.default(self, obj)
 
 def json_dump_safer(obj, fp, **kwargs):

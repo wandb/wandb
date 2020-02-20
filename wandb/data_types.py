@@ -1026,7 +1026,7 @@ class BoundingBoxes2D(JSONMetadata):
 
             # Optional arguments
             if ("scores" in box) and not isinstance(box["scores"], dict):
-                raise TypeError("each")
+                raise TypeError("Box scores must be a dictionary")
             else:
                 for k,v in list(box["scores"].items()):
                     if not isinstance(k, six.string_types):
@@ -1063,7 +1063,7 @@ class ImageMask(Media):
         self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     def get_media_subdir(self):
-        return os.path.join('media', 'metadata', self.type_name())
+        return os.path.join('media', 'images', self.type_name())
 
     def to_json(self, run):
         json_dict = super(ImageMask, self).to_json(run)
@@ -1083,7 +1083,9 @@ class ImageMask(Media):
             shape = mask["mask_data"].shape
             if len(shape) != 2:
                 raise TypeError(error_str)
-
+            if not ((mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()) and \
+                    mask["mask_data"].dtype('int8').kind == "i":
+                raise TypeError("Mask data must be integers between 0 and 255")
 
         # Optional argument
         if ("class_labels" in mask):
