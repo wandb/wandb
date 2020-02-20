@@ -56,7 +56,7 @@ class Meta(object):
 
     def _setup_code_program(self):
         logger.debug("save program starting")
-        program = os.path.join(self.data["root"], self.data["program"])
+        program = os.path.join(self.data["root"], os.path.relpath(os.curdir, start=self.data["root"]), self.data["program"])
         logger.debug("save program starting: {}".format(program))
         if os.path.exists(program):
             # and self._api.git.is_untracked(self.data["program"])
@@ -66,6 +66,8 @@ class Meta(object):
             if not os.path.exists(saved_program):
                 logger.debug("save program")
                 copyfile(program, saved_program)
+                # TODO: do we want this?
+                self.data["codePath"] = os.path.relpath(os.curdir, start=self.data["root"])
                 self.data["codeSaved"] = True
 
     def setup(self):
