@@ -3,6 +3,7 @@ import json
 import atexit
 import queue
 import sys
+import os
 
 
 import wandb
@@ -155,22 +156,22 @@ class Backend(object):
         # http://trac.mystic.cacr.caltech.edu/project/pathos/browser/multiprocess/py3.4/multiprocess/spawn.html
         main_module = sys.modules['__main__']
         main_mod_name = getattr(main_module.__spec__, "name", None)
-        print("debug1", main_module, main_mod_name)
+        print("debug0", main_module, main_mod_name)
         save_file = None
         save_mod = None
         if main_mod_name is not None:
             save_mod = main_mod_name
             main_module.__spec__.name = "wandb.internal.mpmain"
+            print("debug1", save_mod)
         else: # and not w32
             main_path = getattr(main_module, '__file__', None)
             print("debug1.5", main_module, main_path)
             if main_path is not None:
                 print("debug2", main_module, main_path)
                 save_file = main_module.__file__
-                main_module.__file__ = "blah.py"
-            else:
-                main_module.__file__ = "ipython.py"
-                print("debug changed")
+                fname = os.path.join(os.path.dirname(wandb.__file__), "internal", "mpmain", "__main__.py")
+                main_module.__file__ = fname
+                print("debug2", fname)
 
         wandb_process.start()
         if save_file:
