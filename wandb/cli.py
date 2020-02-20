@@ -799,7 +799,7 @@ def local(ctx, port, daemon, upgrade, edge):
             wandb.termlog("You can stop the server by running `docker kill wandb-local`")
             if not api.api_key:
                 # Let the server start before potentially launching a browser
-                sleep(2)
+                time.sleep(2)
                 ctx.invoke(login, host=host)
 
 @cli.command(context_settings=RUN_CONTEXT)
