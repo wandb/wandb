@@ -157,18 +157,26 @@ class Backend(object):
         main_mod_name = getattr(main_module.__spec__, "name", None)
         print("debug1", main_module, main_mod_name)
         save_file = None
+        save_mod = None
         if main_mod_name is not None:
-            main_module.__spec__.name = None
+            save_mod = main_mod_name
+            main_module.__spec__.name = "wandb.internal.mpmain"
         else: # and not w32
             main_path = getattr(main_module, '__file__', None)
+            print("debug1.5", main_module, main_path)
             if main_path is not None:
                 print("debug2", main_module, main_path)
                 save_file = main_module.__file__
                 main_module.__file__ = "blah.py"
+            else:
+                main_module.__file__ = "ipython.py"
+                print("debug changed")
 
         wandb_process.start()
         if save_file:
             main_module.__file__ = save_file
+        if save_mod:
+            main_module.__spec__.name = save_mod
 
         self.wandb_process = wandb_process
         self.fd_pipe_parent = fd_pipe_parent

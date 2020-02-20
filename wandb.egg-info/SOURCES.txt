@@ -26,6 +26,8 @@ wandb/internal/backend.py
 wandb/internal/backend_mp.py
 wandb/internal/datastore.py
 wandb/internal/wandb_internal_pb2.py
+wandb/internal/mpmain/__init__.py
+wandb/internal/mpmain/__main__.py
 wandb/stuff/core.py
 wandb/stuff/env.py
 wandb/stuff/retry.py
