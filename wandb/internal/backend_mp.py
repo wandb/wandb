@@ -153,31 +153,28 @@ class Backend(object):
                     ))
         wandb_process.name = "wandb_internal"
 
-        # http://trac.mystic.cacr.caltech.edu/project/pathos/browser/multiprocess/py3.4/multiprocess/spawn.html
+        # Support running code without a: __name__ == "__main__"
+        save_mod_name = None
+        save_mod_path = None
         main_module = sys.modules['__main__']
         main_mod_name = getattr(main_module.__spec__, "name", None)
-        print("debug0", main_module, main_mod_name)
-        save_file = None
-        save_mod = None
+        main_mod_path = getattr(main_module, '__file__', None)
         if main_mod_name is not None:
-            save_mod = main_mod_name
+            save_mod_name = main_mod_name
             main_module.__spec__.name = "wandb.internal.mpmain"
-            print("debug1", save_mod)
-        else: # and not w32
-            main_path = getattr(main_module, '__file__', None)
-            print("debug1.5", main_module, main_path)
-            if main_path is not None:
-                print("debug2", main_module, main_path)
-                save_file = main_module.__file__
-                fname = os.path.join(os.path.dirname(wandb.__file__), "internal", "mpmain", "__main__.py")
-                main_module.__file__ = fname
-                print("debug2", fname)
+        elif main_mod_path is not None:
+            save_mod_path = main_module.__file__
+            fname = os.path.join(os.path.dirname(wandb.__file__), "internal", "mpmain", "__main__.py")
+            main_module.__file__ = fname
 
+        # Start the process with __name__ == "__main__" workarounds
         wandb_process.start()
-        if save_file:
-            main_module.__file__ = save_file
-        if save_mod:
-            main_module.__spec__.name = save_mod
+
+        # Undo temporary changes from: __name__ == "__main__"
+        if save_mod_name:
+            main_module.__spec__.name = save_mod_name
+        elif save_mod_path:
+            main_module.__file__ = save_mod_path
 
         self.wandb_process = wandb_process
         self.fd_pipe_parent = fd_pipe_parent

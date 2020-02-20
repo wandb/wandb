@@ -1,1 +1,1 @@
-print("utilmain")
+# This module is initialized after multiprocessing spawn
