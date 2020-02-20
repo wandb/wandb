@@ -56,19 +56,17 @@ class Meta(object):
 
     def _setup_code_program(self):
         logger.debug("save program starting")
-        program = os.path.join(self.data["root"], os.path.relpath(os.curdir, start=self.data["root"]), self.data["program"])
+        program = os.path.join(self.data["root"], os.path.relpath(os.getcwd(), start=self.data["root"]), self.data["program"])
         logger.debug("save program starting: {}".format(program))
         if os.path.exists(program):
-            # and self._api.git.is_untracked(self.data["program"])
-            util.mkdir_exists_ok(os.path.join(self.out_dir, "code", os.path.dirname(self.data["program"])))
-            saved_program = os.path.join(self.out_dir, "code", self.data["program"])
+            relative_path = os.path.relpath(program, start=self.data["root"])
+            util.mkdir_exists_ok(os.path.join(self.out_dir, "code", os.path.dirname(relative_path)))
+            saved_program = os.path.join(self.out_dir, "code", relative_path)
             logger.debug("save program saved: {}".format(saved_program))
             if not os.path.exists(saved_program):
                 logger.debug("save program")
                 copyfile(program, saved_program)
-                # TODO: do we want this?
-                self.data["codePath"] = os.path.relpath(os.curdir, start=self.data["root"])
-                self.data["codeSaved"] = True
+                self.data["codePath"] = os.path.relpath(saved_program, start=os.path.join(self.out_dir, "code"))
 
     def setup(self):
         class TimeOutException(Exception):
