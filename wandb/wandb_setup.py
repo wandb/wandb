@@ -30,6 +30,8 @@ class _WandbLibrary__WandbLibrary(object):
         #TODO: use fork context if unix and frozen?
         # if py34+, else fall back
         if hasattr(multiprocessing, "get_context"):
+            all_methods = multiprocessing.get_all_start_methods()
+            print("DEBUG: start_methods=", ','.join(all_methods))
             ctx = multiprocessing.get_context('spawn')
         else:
             print("warning, likely using fork on unix")
