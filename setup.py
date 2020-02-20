@@ -14,7 +14,7 @@ requirements = [
     'python-dateutil>=2.6.1',
     'requests>=2.0.0',
     'shortuuid>=0.5.0',
-    'six>=1.13.0',
+    'six>=1.10.0',
     'watchdog>=0.8.3',
     'PyYAML>=3.10',
     'psutil>=5.0.0',
@@ -33,7 +33,7 @@ kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
     name='wandb',
-    version='0.8.25',
+    version='0.8.27',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 import random
+import platform
 import stat
 import shortuuid
 import importlib
@@ -977,3 +978,8 @@ def get_program():
     except (ImportError, AttributeError):
         program = None
     return program
+    
+def to_forward_slash_path(path):
+    if platform.system() == "Windows":
+        path = path.replace("\\", "/")
+    return path
