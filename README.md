@@ -15,7 +15,7 @@ Week of 2020-02-17
  - [ ] Add metadata sync
  - [ ] Add system metrics
  
-Week of 2020-02-04
+Week of 2020-02-24
  - [ ] Add file sync
  - [ ] Add media logging
  - [ ] Add frameworks (keras, pytorch)
