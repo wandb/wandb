@@ -958,7 +958,7 @@ class Image(BatchableMedia):
 # extended to have validation methods
 class JSONMetadata(Media):
     """
-        JSONMetadata is a type for encoding arbitrary metadata as files.
+    JSONMetadata is a type for encoding arbitrary metadata as files.
     """
 
     def __init__(self, val, **kwargs):

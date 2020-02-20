@@ -46,7 +46,7 @@ image = np.zeros((28, 28))
 def test_captions():
     wbone = wandb.Image(image, caption="Cool")
     wbtwo = wandb.Image(image, caption="Nice")
-    assert wandb.Image.captions([wbone, wbtwo]) == ["Cool", "Nice"]
+    assert wandb.Image.all_captions([wbone, wbtwo]) == ["Cool", "Nice"]
 
 
 def test_bind_image():
@@ -74,20 +74,21 @@ full_box = {
 optional_keys = ["class_label", "box_caption", "scores"]
 boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 
-def test_bounding_box_to_json():
+def test_image_accepts_bounding_boxes():
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
-        box = BoundingBoxes2D(data)
-        json = box.to_json(run)
-        path = box._path
-        assert json["_type"] == "boxes2D"
+        img = data_types.Image(image, boxes=BoundingBoxes2D([full_box]))
+        boxes = img._boxes
+        assert boxes["_type"] == "boxes2D"
         assert os.path.exists(os.path.join(run.dir, path))
 
-def test_boxes_to_json():
-    all_boxes = [BoundingBoxes2D(b) for b in boxes_with_removed_optional_args]
-    for boxes in all_boxes:
-        json = boxes.to_json()
-        assert json["_type"] == "boxes2D"
+def test_image_accepts_bounding_boxes_optional_args():
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        img = data_types.Image(image, boxes=BoundingBoxes2D(boxes_with_removed_optional_args))
+        boxes = img._boxes
+        assert boxes["_type"] == "boxes2D"
+        assert os.path.exists(os.path.join(run.dir, path))
 
 standard_mask = {
     "mask_data": np.array([[1,2,2,2], [2,3,3,4], [4,4,4,4], [4,4,4,2]]),
@@ -99,17 +100,14 @@ standard_mask = {
     }
 }
 
-
-def test_image_accepts_boxes():
-    mask = ImageMask(standard_mask)
-    json = mask.to_json()
-    assert json["_type"] == "boxes2D"
-    assert len(json["values"]) == 64
-
 def test_image_accepts_masks():
-    img = wandb.Image(image, masks=[standard_mask])
-    # TODO: Fill out test
-    assert img != False
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        img = wandb.Image(image, masks=[standard_mask])
+        masks = img._masks
+        path = masks[0]["_path"]
+        assert masks[0]["_type"] == "mask"
+        assert os.path.exists(os.path.join(run.dir, path))
 
 def test_cant_serialize_to_other_run():
     """This isn't implemented yet. Should work eventually.
@@ -438,11 +436,4 @@ def test_numpy_arrays_to_list():
     assert conv(np.array((1,2,))) == [1, 2]
     assert conv([np.array((1,2,))]) == [[1, 2]]
     assert conv(np.array(({'a': [np.array((1,2,))]}, 3))) == [{'a': [[1, 2]]}, 3]
-
-
-def test_boxes_to_json():
-    box = wandb.BoundingBoxes2D(data)
-    json = box.to_json()
-    assert json["_type"] == "histogram"
-    assert len(json["values"]) == 64
 
