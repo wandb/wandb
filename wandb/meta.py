@@ -66,7 +66,7 @@ class Meta(object):
             if not os.path.exists(saved_program):
                 logger.debug("save program")
                 copyfile(program, saved_program)
-                self.data["codePath"] = os.path.relpath(saved_program, start=os.path.join(self.out_dir, "code"))
+                self.data["codePath"] = relative_path
 
     def setup(self):
         class TimeOutException(Exception):
