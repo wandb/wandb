@@ -1,10 +1,14 @@
 # Experimental wandb client
 
+## Play along
+
+`pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb`
+
 ## Tasks
 
 Week of 2020-02-17 
- - [ ] Force all but linux python2 users to use multiprocessing spawn
- - [ ] Make non-`__main__` users happy
+ - [x] Force all but linux python2 users to use multiprocessing spawn
+ - [x] Make non-`__main__` users happy
  - [ ] Make python logging clean (handle early logging somehow)
  - [ ] Support online and offline modes (and hybrid mode), decide default later.
  - [ ] Extend settings to control hundreds? of tunables?
