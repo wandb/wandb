@@ -11,7 +11,7 @@ import errno
 import logging
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("wandb")
 
 class _WandbLibrary__WandbLibrary(object):
     """Inner class of _WandbLibrary."""
@@ -49,9 +49,8 @@ class _WandbLibrary__WandbLibrary(object):
         handler.setFormatter(formatter)
         if run_id:
             handler.addFilter(WBFilter())
-        root = logging.getLogger()
-        root.setLevel(logging.DEBUG)
-        root.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
 
     def log_setup(self):
         # log dir - where python logs go
