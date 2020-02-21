@@ -625,7 +625,7 @@ class Run(object):
     def _history_added(self, row):
         self.summary.update(row, overwrite=False)
 
-    def log(self, row=None, commit=True, step=None, sync=True, *args, **kwargs):
+    def log(self, row=None, commit=None, step=None, sync=True, *args, **kwargs):
         if sync == False:
             wandb._ensure_async_log_thread_started()
             return wandb._async_log_queue.put({"row": row, "commit": commit, "step": step})
@@ -644,8 +644,8 @@ class Run(object):
         if any(not isinstance(key, six.string_types) for key in row.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
-        if commit or step is not None:
-            self.history.add(row, *args, step=step, **kwargs)
+        if commit is not False or step is not None:
+            self.history.add(row, *args, step=step, commit=commit, **kwargs)
         else:
             self.history.update(row, *args, **kwargs)
 

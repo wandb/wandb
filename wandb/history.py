@@ -106,7 +106,7 @@ class History(object):
             if key in row:
                 yield row[key]
 
-    def add(self, row={}, step=None, timestamp=None):
+    def add(self, row={}, step=None, timestamp=None, commit=None):
         """Adds or updates a history step.
 
         If row isn't specified, will write the current state of row.
@@ -163,6 +163,9 @@ class History(object):
                     self._steps = step
 
             self.update(row)
+            if commit:
+                self._steps = step
+                self._write()
 
     def update(self, new_vals):
         """Add a dictionary of values to the current step without writing it to disk.
