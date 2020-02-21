@@ -516,6 +516,11 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
+        # Set code path in config
+        if self._meta.data.get("codePath"):
+            self._config._set_wandb("code_path", util.to_forward_slash_path(
+                os.path.join("code", self._meta.data["codePath"])))
+            self._config.persist()
         # Write our initial metadata after overriding the defaults
         self._meta.write()
         self._tensorboard_watchers = []

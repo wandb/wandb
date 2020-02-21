@@ -492,7 +492,7 @@ def login(key, host, anonymously, server=LocalServer(), browser=True, no_offline
     elif host:
         if not host.startswith("http"):
             raise ClickException("host must start with http(s)://")
-        api.set_setting("base_url", host, globally=True)
+        api.set_setting("base_url", host.strip("/"), globally=True)
 
     key = key[0] if len(key) > 0 else None
 
@@ -800,6 +800,8 @@ def local(ctx, port, daemon, upgrade, edge):
             wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
             wandb.termlog("You can stop the server by running `docker kill wandb-local`")
             if not api.api_key:
+                # Let the server start before potentially launching a browser
+                time.sleep(2)
                 ctx.invoke(login, host=host)
 
 @cli.command(context_settings=RUN_CONTEXT)
