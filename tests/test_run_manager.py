@@ -3,12 +3,16 @@ import io
 import os
 import time
 import json
+import yaml
+import glob
 import pytest
 import threading
 
 import wandb.run_manager
 from wandb.apis import internal
 import wandb
+from .utils import git_repo
+from wandb import env
 from wandb import wandb_socket
 from wandb.wandb_run import Run, RESUME_FNAME
 from wandb.run_manager import FileEventHandlerThrottledOverwriteMinWait, FileEventHandlerOverwriteDeferred, FileEventHandlerOverwrite, FileEventHandlerOverwriteOnce
@@ -176,6 +180,19 @@ def test_remove_auto_resume(mocker, run_manager):
         f.write("{}")
     run_manager.test_shutdown()
     assert not os.path.exists(resume_path)
+
+def test_code_path_in_config(mocker, git_repo):
+    mocker.patch('wandb._get_python_type', lambda: "jupyter")
+    os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
+    with open("test.ipynb", "w") as f:
+        f.write("{}")
+    run = Run()
+    run.config.set_run_dir(run.dir)
+    run_manager = wandb.run_manager.RunManager(run)
+    config_path = os.path.join(run.dir, "config.yaml")
+    assert run.config["_wandb"]['code_path'] == "code/test.ipynb"
+    print(glob.glob(run.dir + "/*"))
+    assert yaml.load(open(config_path))["_wandb"]["value"]["code_path"] == "code/test.ipynb"
 
 
 def test_sync_etc_multiple_messages(mocker, run_manager):

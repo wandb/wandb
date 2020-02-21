@@ -986,6 +986,14 @@ def parse_sweep_id(parts_dict):
 def has_num(dictionary, key):
      return (key in dictionary and isinstance(dictionary[key], numbers.Number))
 
+def get_program():
+    try:
+        import __main__
+        program = __main__.__file__
+    except (ImportError, AttributeError):
+        program = None
+    return program
+    
 def to_forward_slash_path(path):
     if platform.system() == "Windows":
         path = path.replace("\\", "/")

@@ -516,6 +516,11 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
+        # Set code path in config
+        if self._meta.data.get("codePath"):
+            self._config._set_wandb("code_path", util.to_forward_slash_path(
+                os.path.join("code", self._meta.data["codePath"])))
+            self._config.persist()
         # Write our initial metadata after overriding the defaults
         self._meta.write()
         self._tensorboard_watchers = []
@@ -926,6 +931,11 @@ class RunManager(object):
                 # Currently we assume we're not resuming in the case of resume = auto,
                 # and we throw an error in the case of resume = must.
                 logger.info("checking resume status, waiting at most %d seconds" % InternalApi.HTTP_TIMEOUT)
+
+                if not self._project:
+                    raise LaunchError(
+                        "resume='must' but no project is specified. Pass project to init: wandb.init(project=\"...\")")
+
                 async_resume_status = util.async_call(self._api.run_resume_status, InternalApi.HTTP_TIMEOUT)
                 resume_status, thread = async_resume_status(self._api.settings("entity"), self._project, self._run.id)
 

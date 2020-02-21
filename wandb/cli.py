@@ -28,6 +28,7 @@ import random
 import platform
 import datetime
 import shutil
+import getpass
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
 
@@ -491,7 +492,7 @@ def login(key, host, anonymously, server=LocalServer(), browser=True, no_offline
     elif host:
         if not host.startswith("http"):
             raise ClickException("host must start with http(s)://")
-        api.set_setting("base_url", host, globally=True)
+        api.set_setting("base_url", host.strip("/"), globally=True)
 
     key = key[0] if len(key) > 0 else None
 
@@ -777,7 +778,8 @@ def local(ctx, port, daemon, upgrade, edge):
             wandb.termerror("A container named wandb-local is already running, run `docker kill wandb-local` if you want to start a new instance")
             exit(1)
     image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
-    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port+':8080', '--name', 'wandb-local']
+    username = getpass.getuser()
+    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port+':8080', '-e', 'LOCAL_USERNAME=%s' % username, '--name', 'wandb-local']
     host = "http://localhost:%s" % port
     api.set_setting("base_url", host, globally=True)
     if daemon:
@@ -798,6 +800,8 @@ def local(ctx, port, daemon, upgrade, edge):
             wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
             wandb.termlog("You can stop the server by running `docker kill wandb-local`")
             if not api.api_key:
+                # Let the server start before potentially launching a browser
+                time.sleep(2)
                 ctx.invoke(login, host=host)
 
 @cli.command(context_settings=RUN_CONTEXT)
