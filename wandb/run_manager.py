@@ -926,6 +926,11 @@ class RunManager(object):
                 # Currently we assume we're not resuming in the case of resume = auto,
                 # and we throw an error in the case of resume = must.
                 logger.info("checking resume status, waiting at most %d seconds" % InternalApi.HTTP_TIMEOUT)
+
+                if not self._project:
+                    raise LaunchError(
+                        "resume='must' but no project is specified. Pass project to init: wandb.init(project=\"...\")")
+
                 async_resume_status = util.async_call(self._api.run_resume_status, InternalApi.HTTP_TIMEOUT)
                 resume_status, thread = async_resume_status(self._api.settings("entity"), self._project, self._run.id)
 
