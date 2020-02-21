@@ -1,3 +1,14 @@
+## 0.8.28 (Feb 21, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added code saving of main python module
+-   Added ability to specify metadata for bounding boxes and segmentation masks
+
+#### :bug: Bug Fix
+
+-   Fix situations where uncommited data from wandb.log() is not persisted
+
 ## 0.8.27 (Feb 11, 2020)
 
 #### :bug: Bug Fix
