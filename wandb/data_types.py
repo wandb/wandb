@@ -925,7 +925,7 @@ class Image(BatchableMedia):
                 all_mask_groups.append(mask_group)
             else:
                all_mask_groups.append(None)
-        if all_mask_groups:
+        if all_mask_groups and not all(x is None for x in all_mask_groups):
             return all_mask_groups
         else:
             return False
@@ -939,7 +939,7 @@ class Image(BatchableMedia):
                 boxes.append(i._boxes.to_json(run))
             else:
                 boxes.append(None)
-        if boxes:
+        if boxes and not all(x is None for x in boxes):
             return boxes
         else: 
             return False
