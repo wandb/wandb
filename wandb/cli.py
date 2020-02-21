@@ -492,7 +492,7 @@ def login(key, host, anonymously, server=LocalServer(), browser=True, no_offline
     elif host:
         if not host.startswith("http"):
             raise ClickException("host must start with http(s)://")
-        api.set_setting("base_url", host, globally=True)
+        api.set_setting("base_url", host.strip("/"), globally=True)
 
     key = key[0] if len(key) > 0 else None
 

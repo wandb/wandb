@@ -285,6 +285,10 @@ class Api(object):
                 self._settings.get(Settings.DEFAULT_SECTION, "ignore_globs", fallback=result.get('ignore_globs')),
                 env=self._environ),
         })
+        # Remove trailing slash and ensure protocol
+        result['base_url'] = result['base_url'].strip("/")
+        if not result['base_url'].startswith("http"):
+            result['base_url'] = "https://"+result['base_url']
 
         return result if key is None else result[key]
 

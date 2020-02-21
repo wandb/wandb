@@ -85,6 +85,11 @@ def test_app_url():
     api.set_setting("base_url", "https://api.foo.bar.baz")
     assert api.app_url == "https://app.foo.bar.baz"
 
+def test_base_url():
+    api.set_setting("base_url", "foo.com/")
+    assert api.settings("base_url") == "https://foo.com"
+    api.set_setting("base_url", "http://foo.com")
+    assert api.settings("base_url") == "http://foo.com"
 
 def test_pull_success(request_mocker, download_url, query_project):
     query_project(request_mocker)
