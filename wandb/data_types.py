@@ -15,6 +15,7 @@ import shutil
 from six.moves import queue
 import warnings
 
+import numbers
 import collections
 import os
 import io
@@ -26,6 +27,7 @@ import json
 import codecs
 import tempfile
 from wandb import util
+from wandb.util import has_num
 from wandb.compat import tempfile
 
 # Get rid of cleanup warnings in Python 2.7.
@@ -234,8 +236,7 @@ class Table(Media):
             Defaults to ["Input", "Output", "Expected"].
         data (array): 2D Array of values that will be displayed as strings.
     """
-    MAX_ROWS = 1000
-
+    MAX_ROWS = 1000 
     def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
@@ -730,7 +731,7 @@ class Image(BatchableMedia):
     # PIL limit
     MAX_DIMENSION = 65500
 
-    def __init__(self, data_or_path, mode=None, caption=None, grouping=None):
+    def __init__(self, data_or_path, mode=None, caption=None, grouping=None, boxes=None, masks=None):
         super(Image, self).__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
@@ -740,6 +741,15 @@ class Image(BatchableMedia):
         self._width = None
         self._height = None
         self._image = None
+        
+        self._boxes = None 
+        if boxes: 
+            self._boxes = BoundingBoxes2D(boxes)
+        self._masks = None
+        if masks:
+            if not isinstance(masks, list):
+                raise ValueError("Masks must be a list")
+            self._masks = [ImageMask(m) for m in masks]
 
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
@@ -780,6 +790,15 @@ class Image(BatchableMedia):
     def get_media_subdir(cls):
         return os.path.join('media', 'images')
 
+    def bind_to_run(self, *args, **kwargs):
+        super(Image, self).bind_to_run(*args, **kwargs)
+        if self._boxes is not None:
+            self._boxes.bind_to_run(*args, **kwargs)
+
+        if self._masks is not None:
+            for mask in self._masks:
+                mask.bind_to_run(*args, **kwargs)
+
     def to_json(self, run):
         json_dict = super(Image, self).to_json(run)
         json_dict['_type'] = 'image-file'
@@ -793,6 +812,10 @@ class Image(BatchableMedia):
             json_dict['grouping'] = self._grouping
         if self._caption:
             json_dict['caption'] = self._caption
+        if self._boxes:
+            json_dict['boxes'] = self._boxes.to_json(run)
+        if self._masks:
+            json_dict['masks'] = [mask.to_json(run) for mask in self._masks]
 
         return json_dict
 
@@ -847,6 +870,7 @@ class Image(BatchableMedia):
             logging.warning(
                 "Only %i images will be uploaded." % Image.MAX_THUMBNAILS)
             num_images_to_log = Image.MAX_THUMBNAILS
+            images = images[:num_images_to_log]
 
         if width * num_images_to_log > Image.MAX_DIMENSION:
             max_images_by_dimension = Image.MAX_DIMENSION // width
@@ -871,17 +895,203 @@ class Image(BatchableMedia):
         grouping = images[0]._grouping
         if grouping:
             meta["grouping"] = grouping
-        captions = Image.captions(images[:num_images_to_log])
+
+        captions = Image.all_captions(images)
+
         if captions:
             meta["captions"] = captions
+
+        all_masks = Image.all_masks(images, run, key, step)
+
+        if all_masks:
+            meta["all_masks"] = all_masks
+
+        all_boxes = Image.all_boxes(images, run, key, step)
+
+        if all_boxes:
+            meta["all_boxes"] = all_boxes
+
         return meta
 
     @classmethod
-    def captions(cls, images):
+    def all_masks(cls, images, run, key, step):
+        all_mask_groups = []
+        for i in images:
+            if i._masks:
+                mask_group = []
+                for mask in i._masks:
+                    mask.bind_to_run(run, key, step)
+                    mask_group.append(mask.to_json(run))
+                all_mask_groups.append(mask_group)
+            else:
+               all_mask_groups.append(None)
+        if all_mask_groups and not all(x is None for x in all_mask_groups):
+            return all_mask_groups
+        else:
+            return False
+
+    @classmethod
+    def all_boxes(cls, images, run, key, step):
+        boxes = []
+        for i in images:
+            if i._boxes:
+                i._boxes.bind_to_run(run,key,step)
+                boxes.append(i._boxes.to_json(run))
+            else:
+                boxes.append(None)
+        if boxes and not all(x is None for x in boxes):
+            return boxes
+        else: 
+            return False
+
+    @classmethod
+    def all_captions(cls, images ):
         if images[0]._caption != None:
             return [i._caption for i in images]
         else:
             return False
+
+# Allows encoding of arbitrary JSON structures
+# as a file
+#
+# This class should be used as an abstract class
+# extended to have validation methods
+class JSONMetadata(Media):
+    """
+    JSONMetadata is a type for encoding arbitrary metadata as files.
+    """
+
+    def __init__(self, val, **kwargs):
+        super(JSONMetadata, self).__init__()
+
+        self.validate(val)
+        self._val = val
+
+        ext = "." + self.type_name() + ".json"
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+        util.json_dump_uncompressed(self._val, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+
+    def get_media_subdir(self):
+        return os.path.join('media', 'metadata', self.type_name())
+
+    def to_json(self, run):
+        json_dict = super(JSONMetadata, self).to_json(run)
+        json_dict['_type'] = self.type_name()
+
+        return json_dict
+
+    # These methods should be overridden in the child class
+    def type_name(self): 
+        return "metadata"
+
+    def validate(self, val):
+        return True
+
+class BoundingBoxes2D(JSONMetadata):
+    """
+    Wandb class for 2D bounding Boxes
+    """
+
+    def type_name(self):
+        return "boxes2D"
+
+    def validate(self , boxes):
+        if not isinstance(boxes, collections.Sequence):
+            raise TypeError("Boxes must be a list")
+
+        for box in boxes:
+            # Required arguments
+            error_str = "Each box must contain a position with: middle, width, and height or \
+                    \nminX, maxX, minY, maxY."
+            if not "position" in box:
+                raise TypeError(error_str)
+            else:
+                # import ipdb; ipdb.set_trace()
+                valid = False
+                if "middle" in box["position"] and len(box["position"]["middle"]) == 2 and \
+                   has_num(box["position"], "width") and \
+                   has_num(box["position"], "height"): 
+                   valid = True
+                elif has_num(box["position"], "minX") and \
+                     has_num(box["position"], "maxX") and \
+                     has_num(box["position"], "minY") and \
+                     has_num(box["position"], "maxY"):
+                   valid = True
+                
+                if not valid:
+                    raise TypeError(error_str)
+
+
+            # Optional arguments
+            if ("scores" in box) and not isinstance(box["scores"], dict):
+                raise TypeError("Box scores must be a dictionary")
+            elif ("scores" in box):
+                for k,v in list(box["scores"].items()):
+                    if not isinstance(k, six.string_types):
+                        raise TypeError("A score key must be a string")
+                    if not isinstance(v, numbers.Number):
+                        raise TypeError("A score value must be a number")
+
+            if ("class_label" in box) and not isinstance(box["class_label"], six.string_types):
+                raise TypeError("A box's class label must be of type must be of type string")
+
+            # Optional
+            if ("box_caption" in box) and not isinstance(box["box_caption"], six.string_types):
+                raise TypeError("A box's caption must be a string")
+
+class ImageMask(Media):
+    """
+    Wandb class for image masks, useful for segmentation tasks
+    """
+
+    def __init__(self, val, **kwargs):
+        super(ImageMask, self).__init__()
+
+        self.validate(val)
+        self._val = val
+
+        ext = "." + self.type_name() + ".png"
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+
+        PILImage = util.get_module(
+            "PIL.Image", required='wandb.Image needs the PIL package. To get it, run "pip install pillow".')
+        image = PILImage.fromarray(Image.to_uint8(val["mask_data"]), mode="L")
+        
+        image.save(tmp_path, transparency=None)
+        self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+    def get_media_subdir(self):
+        return os.path.join('media', 'images', self.type_name())
+
+    def to_json(self, run):
+        json_dict = super(ImageMask, self).to_json(run)
+        json_dict['_type'] = self.type_name()
+
+        return json_dict
+
+    def type_name(self):
+        return "mask"
+
+    def validate(self , mask):
+        # 2D Make this work with all tensor(like) types
+        if not "mask_data" in mask:
+            raise TypeError("A mask requires mask data(A 2D array representing the predctions")
+        else:
+            error_str = "mask_data must be a 2d array" 
+            shape = mask["mask_data"].shape
+            if len(shape) != 2:
+                raise TypeError(error_str)
+            if not ((mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()) and \
+                    mask["mask_data"].dtype('int8').kind == "i":
+                raise TypeError("Mask data must be integers between 0 and 255")
+
+        # Optional argument
+        if ("class_labels" in mask):
+            for k, v in list(mask["class_labels"].items()):
+                if (not isinstance(k, numbers.Number)) or (not isinstance(v, six.string_types)):
+                    raise TypeError("Class labels must be a dictionary of numbers to string")
 
 
 class Plotly(Media):

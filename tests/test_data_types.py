@@ -8,6 +8,8 @@ import matplotlib
 import six
 import sys
 
+from wandb.data_types import ImageMask, BoundingBoxes2D
+
 matplotlib.use("Agg")
 from click.testing import CliRunner
 import matplotlib.pyplot as plt
@@ -38,20 +40,12 @@ def test_invalid_histogram():
         wbhist = wandb.Histogram(np_histogram=([1, 2, 3], [1]))
 
 
-def test_histogram_to_json():
-    wbhist = wandb.Histogram(data)
-    json = wbhist.to_json()
-    assert json["_type"] == "histogram"
-    assert len(json["values"]) == 64
-
-
 image = np.zeros((28, 28))
-
 
 def test_captions():
     wbone = wandb.Image(image, caption="Cool")
     wbtwo = wandb.Image(image, caption="Nice")
-    assert wandb.Image.captions([wbone, wbtwo]) == ["Cool", "Nice"]
+    assert wandb.Image.all_captions([wbone, wbtwo]) == ["Cool", "Nice"]
 
 
 def test_bind_image():
@@ -64,6 +58,62 @@ def test_bind_image():
         with pytest.raises(RuntimeError):
             wb_image.bind_to_run(run, 'stuff', 10)
 
+full_box = {
+    "position": {
+        "middle" : (100,100), "width" : 40, "height": 20 
+        },
+    "class_label": "car",
+    "box_caption": "This is a big car",
+    "scores": {
+    "acc": 0.3
+    }
+}
+
+# Helper function return a new dictionary with the key removed
+def dissoc(d, key):
+    new_d = d.copy()
+    new_d.pop(key)
+    return new_d
+
+optional_keys = ["class_label", "box_caption", "scores"]
+boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
+
+def test_image_accepts_bounding_boxes():
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        img = wandb.Image(image, boxes=[full_box])
+        img.bind_to_run(run, "images", 0)
+        img_json = img.to_json(run)
+        path = img_json["boxes"]["path"]
+        assert os.path.exists(os.path.join(run.dir, path))
+
+def test_image_accepts_bounding_boxes_optional_args():
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        img = data_types.Image(image, boxes=boxes_with_removed_optional_args)
+        img.bind_to_run(run, "images", 0)
+        img_json = img.to_json(run)
+        path = img_json["boxes"]["path"]
+        assert os.path.exists(os.path.join(run.dir, path))
+
+standard_mask = {
+    "mask_data": np.array([[1,2,2,2], [2,3,3,4], [4,4,4,4], [4,4,4,2]]),
+    "class_labels": { 
+        1: "car",
+        2: "pedestrian", 
+        3: "tractor", 
+        4: "cthululu" 
+    }
+}
+
+def test_image_accepts_masks():
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        img = wandb.Image(image, masks=[standard_mask])
+        img.bind_to_run(run, "images", 0)
+        img_json = img.to_json(run)
+        path = img_json["masks"][0]["path"]
+        assert os.path.exists(os.path.join(run.dir, path))
 
 def test_cant_serialize_to_other_run():
     """This isn't implemented yet. Should work eventually.
@@ -392,3 +442,4 @@ def test_numpy_arrays_to_list():
     assert conv(np.array((1,2,))) == [1, 2]
     assert conv([np.array((1,2,))]) == [[1, 2]]
     assert conv(np.array(({'a': [np.array((1,2,))]}, 3))) == [{'a': [[1, 2]]}, 3]
+

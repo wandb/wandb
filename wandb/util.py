@@ -23,6 +23,7 @@ import shortuuid
 import importlib
 import types
 import yaml
+import numbers
 from datetime import date, datetime
 
 import click
@@ -460,6 +461,15 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
             return obj
         return json.JSONEncoder.default(self, obj)
 
+class JSONEncoderUncompressed(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types.
+    This encoder turns numpy like objects with a size > 32 into histograms"""
+
+    def default(self, obj):
+        if is_numpy_array(obj):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
 def json_dump_safer(obj, fp, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
@@ -468,11 +478,14 @@ def json_dumps_safer(obj, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
+# This is used for dumping raw json into files
+def json_dump_uncompressed(obj, fp, **kwargs):
+    """Convert obj to json, with some extra encodable types."""
+    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
 
 def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
-
 
 def make_json_if_not_number(v):
     """If v is not a basic type convert it to json."""
@@ -970,6 +983,8 @@ def parse_sweep_id(parts_dict):
         return 'Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep'
     parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
 
+def has_num(dictionary, key):
+     return (key in dictionary and isinstance(dictionary[key], numbers.Number))
 
 def get_program():
     try:
