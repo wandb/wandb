@@ -77,17 +77,19 @@ boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 def test_image_accepts_bounding_boxes():
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
-        img = data_types.Image(image, boxes=BoundingBoxes2D([full_box]))
-        boxes = img._boxes
-        assert boxes["_type"] == "boxes2D"
+        img = wandb.Image(image, boxes=[full_box])
+        img.bind_to_run(run, "images", 0)
+        img_json = img.to_json(run)
+        path = img_json["boxes"]["path"]
         assert os.path.exists(os.path.join(run.dir, path))
 
 def test_image_accepts_bounding_boxes_optional_args():
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
-        img = data_types.Image(image, boxes=BoundingBoxes2D(boxes_with_removed_optional_args))
-        boxes = img._boxes
-        assert boxes["_type"] == "boxes2D"
+        img = data_types.Image(image, boxes=boxes_with_removed_optional_args)
+        img.bind_to_run(run, "images", 0)
+        img_json = img.to_json(run)
+        path = img_json["boxes"]["path"]
         assert os.path.exists(os.path.join(run.dir, path))
 
 standard_mask = {
@@ -104,9 +106,9 @@ def test_image_accepts_masks():
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
         img = wandb.Image(image, masks=[standard_mask])
-        masks = img._masks
-        path = masks[0]["_path"]
-        assert masks[0]["_type"] == "mask"
+        img.bind_to_run(run, "images", 0)
+        img_json = img.to_json(run)
+        path = img_json["masks"][0]["path"]
         assert os.path.exists(os.path.join(run.dir, path))
 
 def test_cant_serialize_to_other_run():

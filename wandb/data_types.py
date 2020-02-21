@@ -1027,7 +1027,7 @@ class BoundingBoxes2D(JSONMetadata):
             # Optional arguments
             if ("scores" in box) and not isinstance(box["scores"], dict):
                 raise TypeError("Box scores must be a dictionary")
-            else:
+            elif ("scores" in box):
                 for k,v in list(box["scores"].items()):
                     if not isinstance(k, six.string_types):
                         raise TypeError("A score key must be a string")
