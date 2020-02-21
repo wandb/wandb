@@ -496,6 +496,8 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         return
     _user_process_finished_called = True
     trigger.call('on_finished')
+    if run:
+        run.close_files()
 
     stdout_redirector.restore()
     if not env.is_debug():
@@ -723,15 +725,15 @@ def shutdown_async_log_thread():
         # FIXME: py 2.7 will return None here so we dont know if we dropped data
 
 
-def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
+def log(row=None, commit=None, step=None, sync=True, *args, **kwargs):
     """Log a dict to the global run's history.
 
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
 
     Args:
         row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types
-        commit (boolean, optional): Persist a set of metrics, if false just update the existing dict
-        step (integer, optional): The global step in processing. This sets commit=True any time step increases
+        commit (boolean, optional): Persist a set of metrics, if false just update the existing dict (defaults to true if step is not specified)
+        step (integer, optional): The global step in processing. This persists any non-committed earlier steps but defaults to not committing the specified step
         sync (boolean, True): If set to False, process calls to log in a seperate thread
     """
 
