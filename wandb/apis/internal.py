@@ -1110,7 +1110,7 @@ class Api(object):
             $entityName: String!,
             $projectName: String!,
             $runName: String!,
-            $fileSpecs: [JSONString!]!
+            $fileSpecs: [PrepareFileSpecInput!]!
         ) {
             prepareFiles(input: {
                 entityName: $entityName,
