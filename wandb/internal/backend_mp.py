@@ -4,6 +4,7 @@ import atexit
 import queue
 import sys
 import os
+import logging
 
 
 import wandb
@@ -12,6 +13,33 @@ from wandb.internal import datastore
 
 from wandb.apis import internal
 from wandb.apis import file_stream
+
+
+logger = logging.getLogger(__name__)
+
+
+def setup_logging(log_fname, log_level, run_id=None):
+    handler = logging.FileHandler(log_fname)
+    handler.setLevel(log_level)
+
+    class WBFilter(logging.Filter):
+        def filter(self, record):
+            record.run_id = run_id
+            return True
+
+    if run_id:
+        formatter = logging.Formatter(
+            '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+    else:
+        formatter = logging.Formatter(
+            '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+
+    handler.setFormatter(formatter)
+    if run_id:
+        handler.addFilter(WBFilter())
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    root.addHandler(handler)
 
 
 def wandb_write(q, stopped):
@@ -67,12 +95,15 @@ def wandb_send(q, stopped):
         fs.finish(0)
 
 
-def wandb_internal(notify_queue, process_queue, child_pipe):
+def wandb_internal(notify_queue, process_queue, child_pipe, log_fname, log_level):
     #fd = multiprocessing.reduction.recv_handle(child_pipe)
     #if msvcrt:
     #    fd = msvcrt.open_osfhandle(fd, os.O_WRONLY)
     #os.write(fd, "this is a test".encode())
     #os.close(fd)
+
+    if log_fname:
+        setup_logging(log_fname, log_level)
 
     stopped = threading.Event()
    
@@ -134,8 +165,11 @@ class Backend(object):
         self._done = False
         self._wl = wandb.setup()
 
-    def ensure_launched(self):
+    def ensure_launched(self, log_fname=None, log_level=None):
         """Launch backend worker if not running."""
+        log_fname = log_fname or ""
+        log_level = log_level or logging.DEBUG
+
         fd_pipe_child, fd_pipe_parent = self._wl._multiprocessing.Pipe()
         process_queue = self._wl._multiprocessing.Queue()
         async_queue = self._wl._multiprocessing.Queue()
@@ -150,6 +184,8 @@ class Backend(object):
                     notify_queue,
                     process_queue,
                     fd_pipe_child,
+                    log_fname,
+                    log_level,
                     ))
         wandb_process.name = "wandb_internal"
 

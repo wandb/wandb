@@ -7,9 +7,29 @@ Author: Weights & Biases
 Author-email: support@wandb.com
 License: MIT license
 Description: # Experimental wandb client
-        ---
         
-        Progress
+        ## Play along
+        
+        `pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb`
+        
+        ## Tasks
+        
+        Week of 2020-02-17 
+         - [x] Force all but linux python2 users to use multiprocessing spawn
+         - [x] Make non-`__main__` users happy
+         - [ ] Make python logging clean (handle early logging somehow)
+         - [ ] Support online and offline modes (and hybrid mode), decide default later.
+         - [ ] Extend settings to control hundreds? of tunables?
+         - [ ] Add metadata sync
+         - [ ] Add system metrics
+         
+        Week of 2020-02-24
+         - [ ] Add file sync
+         - [ ] Add media logging
+         - [ ] Add frameworks (keras, pytorch)
+         - [ ] Basic CLI functionality
+        
+        ## Progress
         
         API:
          - [x] wandb.init() basic

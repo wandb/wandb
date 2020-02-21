@@ -55,7 +55,7 @@ def init(
         util2.set_api_key(api, key)
 
     backend = Backend(mode=mode)
-    backend.ensure_launched()
+    backend.ensure_launched(log_fname=wl._log_internal_filename)
     backend.server_connect()
 
     # resuming needs access to the server, check server_status()?
