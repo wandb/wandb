@@ -9,7 +9,6 @@ import six
 import sys
 
 from wandb.data_types import ImageMask, BoundingBoxes2D
-from wandb.helpers import dissoc
 
 matplotlib.use("Agg")
 from click.testing import CliRunner
@@ -70,6 +69,11 @@ full_box = {
     }
 }
 
+# Helper function return a new dictionary with the key removed
+def dissoc(d, key):
+    new_d = d.copy()
+    new_d.pop(key)
+    return new_d
 
 optional_keys = ["class_label", "box_caption", "scores"]
 boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
