@@ -9,7 +9,7 @@
 Week of 2020-02-17 
  - [x] Force all but linux python2 users to use multiprocessing spawn
  - [x] Make non-`__main__` users happy
- - [ ] Make python logging clean (handle early logging somehow)
+ - [x] Make python logging clean (handle early logging somehow)
  - [ ] Support console log
  - [ ] Support online and offline modes (and hybrid mode), decide default later.
  - [ ] Extend settings to control hundreds? of tunables?
