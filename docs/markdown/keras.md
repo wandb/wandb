@@ -29,7 +29,8 @@ WandbCallback(self,
               validation_steps=None,
               class_colors=None,
               log_batch_frequency=None,
-              log_best_prefix='best_')
+              log_best_prefix='best_',
+              save_graph=True)
 ```
 WandbCallback automatically integrates keras with wandb.
 
@@ -53,6 +54,7 @@ callbacks=[WandbCallback()])
 
 - `monitor` _str_ - name of metric to monitor.  Defaults to val_loss.
 - `mode` _str_ - one of {"auto", "min", "max"}. "min" - save model when monitor is minimized "max" - save model when monitor is maximized "auto" - try to guess when to save the model (default). save_model: True - save a model when monitor beats all previous epochs False - don't save models
+- `save_graph` - (boolean): if True save model graph to wandb (default: True).
 - `save_weights_only` _boolean_ - if True, then only the model's weights will be saved (`model.save_weights(filepath)`), else the full model is saved (`model.save(filepath)`).
 - `log_weights` - (boolean) if True save histograms of the model's layer's weights.
 - `log_gradients` - (boolean) if True log histograms of the training gradients
