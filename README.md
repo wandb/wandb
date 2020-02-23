@@ -46,9 +46,11 @@ CLI:
  - [ ] wandb sync
 
 Functionality:
-- [ ] system metrics
-- [ ] console log
-- [ ] offline
+ - [ ] system metrics
+ - [ ] console log
+ - [ ] offline
+ - [ ] Unit tests
+ - [ ] code coverage
 
 Goals:
  - [ ] standardize all CLI->backend updates
