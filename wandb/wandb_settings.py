@@ -17,19 +17,19 @@ defaults = dict(
         system_samples=15,
         heartbeat_seconds=30,
 
-        log_base_dir = "wandb",
-        log_dir = "",
-        log_user_spec = "wandb-debug-{timespec}-{pid}-user.txt",
-        log_internal_spec = "wandb-debug-{timespec}-{pid}-internal.txt",
-        log_user = False,
-        log_internal = True,
+        log_base_dir="wandb",
+        log_dir="",
+        log_user_spec="wandb-debug-{timespec}-{pid}-user.txt",
+        log_internal_spec="wandb-debug-{timespec}-{pid}-internal.txt",
+        log_user=False,
+        log_internal=True,
 
-        data_base_dir = "wandb",
-        data_dir = "",
-        data_spec = "data-{timespec}-{pid}.dat",
+        data_base_dir="wandb",
+        data_dir="",
+        data_spec="data-{timespec}-{pid}.dat",
 
-        run_base_dir = "wandb",
-        run_dir_spec = "run-{timespec}-{pid}",
+        run_base_dir="wandb",
+        run_dir_spec="run-{timespec}-{pid}",
         )
 
 move_mapping = dict(
@@ -59,7 +59,7 @@ class Settings(object):
         except KeyError:
             raise AttributeError(k)
         return v
-        
+
     def __setattr__(self, k, v):
         if k not in self._settings_dict:
             raise AttributeError(k)
