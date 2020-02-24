@@ -14,8 +14,81 @@ from wandb.internal import datastore
 from wandb.apis import internal
 from wandb.apis import file_stream
 
+import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+def is_numpy_array(obj):
+    return np and isinstance(obj, np.ndarray)
+
+
+def get_full_typename(o):
+    """We determine types based on type names so we don't have to import
+    (and therefore depend on) PyTorch, TensorFlow, etc.
+    """
+    instance_name = o.__class__.__module__ + "." + o.__class__.__name__
+    if instance_name in ["builtins.module", "__builtin__.module"]:
+        return o.__name__
+    else:
+        return instance_name
+
+
+def json_friendly(obj):
+    """Convert an object into something that's more becoming of JSON"""
+    converted = True
+    typename = get_full_typename(obj)
+
+    #if is_tf_eager_tensor_typename(typename):
+    #    obj = obj.numpy()
+    #elif is_tf_tensor_typename(typename):
+    #    obj = obj.eval()
+    #elif is_pytorch_tensor_typename(typename):
+    #    try:
+    #        if obj.requires_grad:
+    #            obj = obj.detach()
+    #    except AttributeError:
+    #        pass  # before 0.4 is only present on variables
+#
+#        try:
+#            obj = obj.data
+#        except RuntimeError:
+#            pass  # happens for Tensors before 0.4
+#
+#        if obj.size():
+#            obj = obj.numpy()
+#        else:
+#            return obj.item(), True
+
+    if is_numpy_array(obj):
+        if obj.size == 1:
+            obj = obj.flatten()[0]
+        elif obj.size <= 32:
+            obj = obj.tolist()
+    elif np and isinstance(obj, np.generic):
+        obj = obj.item()
+    elif isinstance(obj, bytes):
+        obj = obj.decode('utf-8')
+    elif isinstance(obj, (datetime, date)):
+        obj = obj.isoformat()
+    else:
+        converted = False
+    #if getsizeof(obj) > VALUE_BYTES_LIMIT:
+    #    wandb.termwarn("Serializing object of type {} that is {} bytes".format(type(obj).__name__, getsizeof(obj)))
+
+    return obj, converted
+
+
+class WandBJSONEncoder(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types."""
+
+    def default(self, obj):
+        if hasattr(obj, 'json_encode'):
+            return obj.json_encode()
+        tmp_obj, converted = json_friendly(obj)
+        if converted:
+            return tmp_obj
+        return json.JSONEncoder.default(self, obj)
 
 
 def setup_logging(log_fname, log_level, run_id=None):
@@ -236,7 +309,8 @@ class Backend(object):
         self._atexit_cleanup()
 
     def log(self, data):
-        json_data = json.dumps(data)
+        json_data = json.dumps(data, cls=WandBJSONEncoder)
+        #json_data = json.dumps(data)
         l = wandb_internal_pb2.LogData(json=json_data)
         rec = wandb_internal_pb2.Record()
         rec.log.CopyFrom(l)

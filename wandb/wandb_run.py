@@ -54,3 +54,11 @@ class Run(object):
 
     def join(self):
         self._backend.join()
+
+    @property
+    def dir(self):
+        return "run_dir"
+
+    @property
+    def summary(self):
+        return dict()
