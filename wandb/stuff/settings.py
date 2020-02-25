@@ -2,7 +2,7 @@ import os
 
 import configparser
 
-import wandb.stuff.util2 as util
+from wandb.stuff import util2 as util
 from wandb.stuff import core, env
 from wandb.stuff.util2 import wandb_dir
 

@@ -1,0 +1,27 @@
+{
+  "python.pythonPath": "~/.pyenv/shims/python",
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/*.pyc": true,
+    "docs/_build": true,
+    "build": true
+  },
+  "git.ignoreLimitWarning": true,
+
+  "python.linting.enabled": true,
+  "python.linting.flake8Enabled": true,
+  "python.linting.mypyEnabled": true,
+
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "python.testing.nosetestsEnabled": false,
+
+  "python.formatting.provider": "yapf",
+  "python.formatting.autopep8Args": [
+      "--max-line-length",
+      "120"
+  ],
+  "python.testing.pytestArgs": [
+    "."
+  ]
+}
