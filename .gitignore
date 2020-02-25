@@ -4,3 +4,4 @@ htmlcov/
 .tox/
 .mypy_cache/
 .pytest_cache/
+*.pyc

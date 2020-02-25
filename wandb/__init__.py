@@ -12,8 +12,8 @@ from wandb.util import preinit as _preinit
 from wandb.errors.term import termlog, termerror, termwarn
 
 # Move this (keras.__init__ expects it at top level)
-from wandb.types.graph import Graph
-from wandb.types.image import Image
+from wandb.wandb_types.graph import Graph
+from wandb.wandb_types.image import Image
 #from wandb.core import *
 
 
