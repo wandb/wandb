@@ -5,6 +5,8 @@ import tempfile
 # Like md5_file in util but not b64 encoded.
 # TODO(artifacts): decide what we actually want
 # TODO(artifacts): duplicated from artifacts.py
+
+
 def hash_file(path):
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
@@ -12,13 +14,17 @@ def hash_file(path):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
+
 # TODO(artifacts): define has format (b64 encode or not?)
 ArtifactManifestEntry = collections.namedtuple('ArtifactManifestEntry', ('path', 'hash'))
 
 # This MUST match the server implementation!
 # TODO(artifacts): limit to X entries with error
+
+
 class ArtifactManifestV1(object):
     """This is the actual thing we checksum to get a digest."""
+
     def __init__(self, entries):
         # TODO(artifacts): define sort order
         #   I like something that we can do with low memory when os.walk'ing.
@@ -26,9 +32,10 @@ class ArtifactManifestV1(object):
 
     def dump(self, fp):
         # TODO(artifacts): what encoding?
-        fp.write('version: 1\n')
+        # TODO(artifacts): finalize format of this.
+        # fp.write('wandb-artifact-manifest v1\n')
         for entry in self._entries:
-            fp.write('%s %s\n' % (entry.path, entry.hash))
+            fp.write('%s:%s\n' % (entry.path, entry.hash))
 
     @property
     def digest(self):

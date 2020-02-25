@@ -3,6 +3,7 @@ import json
 
 import wandb
 
+
 def get_artifact_with_digest(artifact_name, digest):
     api = wandb.Api()
     internal_api = wandb.apis.InternalApi()
@@ -27,9 +28,9 @@ def create_artifact(artifact_name, metadata, digest):
     project_name = internal_api.settings('project')
     if entity_name is None or project_name is None:
         raise ValueError('need entity_name and project_name')
-    av = get_artifact_with_digest(artifact_name, digest)
-    if av is not None:
-        return av
+    # av = get_artifact_with_digest(artifact_name, digest)
+    # if av is not None:
+    #     return av
     projects = api.projects(entity_name)
     project = None
     for p in projects:
@@ -47,7 +48,7 @@ def create_artifact(artifact_name, metadata, digest):
         artifact_id = internal_api.create_artifact(entity_name, project_name, artifact_name)
 
     internal_api.create_artifact_version(
-        entity_name, project_name, None, artifact_id,
-        metadata=json.dumps(metadata), aliases=[digest])
+        entity_name, project_name, internal_api.current_run_id, artifact_id, digest,
+        metadata=json.dumps(metadata))
     av = api.artifact_version(entity_name + '/' + project_name + '/' + artifact_name + ':' + digest)
     return av

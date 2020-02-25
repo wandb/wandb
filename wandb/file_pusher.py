@@ -39,6 +39,8 @@ TMP_DIR = tempfile.TemporaryDirectory('wandb')
 # This is handled by the batching thread
 UploadRequest = collections.namedtuple(
     'EventUploadRequest', ('path', 'save_name', 'artifact_id'))
+CommitArtifactRequest = collections.namedtuple('EventCommitArtifactRequest',
+                                               ('artifact_id', ))
 
 # These are handled by the event thread
 EventStartUploadJob = collections.namedtuple(
@@ -118,7 +120,6 @@ class FilePusher(object):
 
     BATCH_MAX_FILES = 1000
 
-
     def __init__(self, api, max_jobs=64):
         self._file_stats = {}  # stats for all files
         self._progress = {}   # amount uploaded
@@ -167,7 +168,8 @@ class FilePusher(object):
                 break
             time.sleep(0.25)
         if summary['deduped_bytes'] != 0:
-            wandb.termlog('✨ W&B magic sync reduced upload amount by %.1f%%             ' % (summary['deduped_bytes'] / float(summary['total_bytes']) * 100))
+            wandb.termlog('✨ W&B magic sync reduced upload amount by %.1f%%             ' %
+                          (summary['deduped_bytes'] / float(summary['total_bytes']) * 100))
         # clear progress line.
         wandb.termlog(' ' * 79)
 
@@ -209,6 +211,7 @@ class FilePusher(object):
     def _checksum_body(self):
         finished = False
         while True:
+            artifact_commits = []
             batch = []
             batch_started_at = time.time()
             batch_end_at = batch_started_at + self.BATCH_THRESHOLD_SECS
@@ -223,11 +226,16 @@ class FilePusher(object):
                     break
                 # If it's a finish, stop waiting and send the current batch
                 # immediately.
-                if isinstance(event, EventFinish):
+                if isinstance(event, CommitArtifactRequest):
+                    artifact_commits.append(event.artifact_id)
+                elif isinstance(event, EventFinish):
                     finished = True
                     break
-                # Otherwise, it's file changed, so add it to the pending batch.
-                batch.append(event)
+                elif isinstance(event, UploadRequest):
+                    # Otherwise, it's file changed, so add it to the pending batch.
+                    batch.append(event)
+                else:
+                    raise Exception('invalid event %s' % event)
 
             if batch:
                 paths = [e.path for e in batch]
@@ -236,7 +244,7 @@ class FilePusher(object):
                 file_specs = []
                 for e, checksum in zip(batch, checksums):
                     file_specs.append({
-                        'name': e.save_name, 'artifact_version_id': e.artifact_id, 'fingerprint': checksum})
+                        'name': e.save_name, 'artifactVersionID': e.artifact_id, 'fingerprint': checksum})
                 result = self._api.prepare_files(file_specs)
 
                 for e, file_spec in zip(batch, file_specs):
@@ -257,6 +265,9 @@ class FilePusher(object):
                             e.path, e.save_name)
                         self._event_queue.put(start_upload_event)
                 batch = []
+
+            for artifact_id in artifact_commits:
+                self._api.commit_artifact_version(artifact_id)
 
             # And stop the infinite loop if we've finished
             if finished:
@@ -292,7 +303,6 @@ class FilePusher(object):
             self._pending_jobs.append(event)
             return
 
-
         # Start it.
         self._last_job_started_at = time.time()
         job = UploadJob(self._event_queue, self._progress, self._api,
@@ -317,6 +327,9 @@ class FilePusher(object):
         event = UploadRequest(path, save_name, artifact_id)
         self._checksum_queue.put(event)
 
+    def commit_artifact(self, artifact_id):
+        event = CommitArtifactRequest(artifact_id)
+        self._checksum_queue.put(event)
 
     def finish(self):
         self._checksum_queue.put(EventFinish())

@@ -305,7 +305,8 @@ class Api(object):
             name = urllib.parse.unquote(name)
         key = "/".join([entity, project, str(name)])
         if key not in self._reports:
-            self._reports[key] = Reports(self.client, Project(self.client, entity, project, {}), name=name, per_page=per_page)
+            self._reports[key] = Reports(self.client, Project(
+                self.client, entity, project, {}), name=name, per_page=per_page)
         return self._reports[key]
 
     def runs(self, path="", filters={}, order="-created_at", per_page=None):
@@ -350,7 +351,7 @@ class Api(object):
         key = path + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(self.client, entity, project,
-                    filters=filters, order=order, per_page=per_page)
+                                   filters=filters, order=order, per_page=per_page)
         return self._runs[key]
 
     @normalize_exceptions
@@ -655,7 +656,7 @@ class Runs(Paginator):
                     sweep = self._sweeps[run.sweep_name]
                 else:
                     sweep = Sweep.get(self.client, self.entity, self.project,
-                            run.sweep_name, withRuns=False)
+                                      run.sweep_name, withRuns=False)
                     self._sweeps[run.sweep_name] = sweep
 
                 run.sweep = sweep
@@ -775,7 +776,7 @@ class Run(Attrs):
                      'project': project, 'name': run_id}
         res = api.client.execute(mutation, variable_values=variables)
         res = res['upsertBucket']['bucket']
-        return Run(api.client, res["project"]["entity"]["name"],  res["project"]["name"], res["name"], {
+        return Run(api.client, res["project"]["entity"]["name"], res["project"]["name"], res["name"], {
             "id": res["id"],
             "config": "{}",
             "systemMetrics": "{}",
@@ -809,7 +810,7 @@ class Run(Attrs):
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
                 self.sweep = Sweep.get(self.client, self.entity, self.project,
-                        self.sweep_name, withRuns=False)
+                                       self.sweep_name, withRuns=False)
                 # TODO: Older runs don't always have sweeps when sweep_name is set
                 if self.sweep:
                     self.sweep.runs.append(self)
@@ -1514,9 +1515,9 @@ class HistoryScan(object):
         self.page_size = page_size
         self.min_step = min_step
         self.max_step = max_step
-        self.page_offset = min_step # minStep for next page
-        self.scan_offset = 0 # index within current page of rows
-        self.rows = [] # current page of rows
+        self.page_offset = min_step  # minStep for next page
+        self.scan_offset = 0  # index within current page of rows
+        self.rows = []  # current page of rows
 
     def __iter__(self):
         self.page_offset = self.min_step
@@ -1576,9 +1577,9 @@ class SampledHistoryScan(object):
         self.page_size = page_size
         self.min_step = min_step
         self.max_step = max_step
-        self.page_offset = min_step # minStep for next page
-        self.scan_offset = 0 # index within current page of rows
-        self.rows = [] # current page of rows
+        self.page_offset = min_step  # minStep for next page
+        self.scan_offset = 0  # index within current page of rows
+        self.rows = []  # current page of rows
 
     def __iter__(self):
         self.page_offset = self.min_step
@@ -1782,8 +1783,12 @@ class ArtifactVersion(object):
         return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_name, self.name())
 
     @property
-    def name(self):
-        return self._attrs["name"]
+    def digest(self):
+        return self._attrs["digest"]
+
+    @property
+    def state(self):
+        return self._attrs["state"]
 
     @property
     def description(self):
@@ -1801,8 +1806,9 @@ class ArtifactVersion(object):
                 artifact(name: $artifactName) {
                     artifactVersion(name: $name) {
                         id
-                        name
+                        digest
                         description
+                        state
                         createdAt
                         aliases
                         tags
@@ -1841,26 +1847,6 @@ class ArtifactVersion(object):
         for f in self.files():
             f.download(root=dirpath, replace=True)
         return dirpath
-
-    @property
-    def manifest(self):
-        # TODO(artifacts): don't keep recalculating this
-        entries = []
-        for f in self.files():
-            entries.append(artifact_manifest.ArtifactManifestEntry(f.name, f.md5))
-        print("ENTRIES", entries)
-        return artifact_manifest.ArtifactManifestV1(entries)
-
-    @property
-    def digest(self):
-        return self.manifest.digest
-
-    @property
-    def state(self):
-        print("DIGEST", self.digest, self._expected_digest)
-        if self.digest == self._expected_digest:
-            return 'READY'
-        return 'INIT'
 
     def __repr__(self):
         return "<Artifact version {}>".format(self.id)

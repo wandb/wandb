@@ -1006,7 +1006,7 @@ class Api(object):
             return response['project']['artifact']['id']
         return None
 
-    def create_artifact(self, entity_name, project_name, artifact_name, description=None):
+    def create_artifact(self, artifact_name, entity_name=None, project_name=None, description=None):
         mutation = gql('''
         mutation CreateArtifact(
             $entityName: String!,
@@ -1026,6 +1026,8 @@ class Api(object):
             }
         }
         ''')
+        entity_name = entity_name or self.settings('entity')
+        project_name = project_name or self.settings('project')
         response = self.gql(mutation, variable_values={
             'entityName': entity_name,
             'projectName': project_name,
@@ -1034,7 +1036,7 @@ class Api(object):
         })
         return response['createArtifact']['artifact']['id']
 
-    def create_artifact_version(self, entity_name, project_name, run_name, artifact_id, description=None, labels=None, metadata=None, aliases=None):
+    def create_artifact_version(self, artifact_id, digest, entity_name=None, project_name=None, run_name=None, description=None, labels=None, metadata=None, aliases=None):
         mutation = gql('''
         mutation CreateArtifactVersion(
             $artifactID: ID!,
@@ -1042,6 +1044,7 @@ class Api(object):
             $projectName: String!,
             $runName: String,
             $description: String
+            $digest: String!,
             $tags: JSONString
             $metadata: JSONString
         ) {
@@ -1050,22 +1053,29 @@ class Api(object):
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
-                description: $description
+                description: $description,
+                digest: $digest,
+                digestAlgorithm: MANIFEST_MD5,
                 tags: $tags
                 metadata: $metadata
             }) {
                 artifactVersion {
                     id
-                    name
+                    digest
+                    state
                 }
             }
         }
         ''')
+        entity_name = entity_name or self.settings('entity')
+        project_name = project_name or self.settings('project')
+        run_name = run_name or self.current_run_id
         response = self.gql(mutation, variable_values={
             'entityName': entity_name,
             'projectName': project_name,
             'runName': run_name,
             'artifactID': artifact_id,
+            'digest': digest,
             'description': description,
             'tags': labels,
             'metadata': metadata,
@@ -1084,7 +1094,7 @@ class Api(object):
                 }) {
                     artifactVersion {
                         id
-                        name
+                        digest
                     }
                 }
             }
@@ -1095,6 +1105,25 @@ class Api(object):
             })
         return av
 
+    def commit_artifact_version(self, artifact_version_id):
+        mutation = gql('''
+        mutation CommitArtifactVersion(
+            $artifactVersionID: ID!,
+        ) {
+            commitArtifactVersion(input: {
+                artifactVersionID: $artifactVersionID,
+            }) {
+                artifactVersion {
+                    id
+                    digest
+                }
+            }
+        }
+        ''')
+        response = self.gql(mutation, variable_values={
+            'artifactVersionID': artifact_version_id
+        })
+        return response
 
     def use_artifact_version(self, entity_name, project_name, run_name, artifact_version_id):
         mutation = gql('''
@@ -1135,7 +1164,7 @@ class Api(object):
             $entityName: String!,
             $projectName: String!,
             $runName: String!,
-            $fileSpecs: [JSONString!]!
+            $fileSpecs: [PrepareFileSpecInput!]!
         ) {
             prepareFiles(input: {
                 entityName: $entityName,
@@ -1151,7 +1180,7 @@ class Api(object):
                             fingerprint
                             artifactVersion {
                                 id
-                                name
+                                digest
                             }
                         }
                     }
@@ -1162,19 +1191,17 @@ class Api(object):
         entity_name = entity or self.settings('entity')
         project_name = project or self.settings('project')
         run_name = run or self.current_run_id
-        print('FILESPEC', file_specs)
 
         response = self.gql(mutation, variable_values={
             'entityName': entity_name,
             'projectName': project_name,
             'runName': run_name,
-            'fileSpecs': [json.dumps(fs) for fs in file_specs]})
+            'fileSpecs': [fs for fs in file_specs]})
 
         result = {}
         for edge in response['prepareFiles']['files']['edges']:
             node = edge['node']
             result[node['name']] = node
-        print('PREP FILES RESULT', result)
 
         return result
 

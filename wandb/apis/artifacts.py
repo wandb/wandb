@@ -18,8 +18,11 @@ ARTIFACT_METADATA_FILENAME = 'wandb-artifact-metadata.json'
 
 # Like md5_file in util but not b64 encoded.
 # TODO(artifacts): decide what we actually want
+
+
 def hash_file(path):
     return util.md5_file(path)
+
 
 class Artifact(object):
     @classmethod
@@ -46,7 +49,6 @@ class Artifact(object):
     def dir(self):
         pass
 
-
     # in public api
     #   download artifact, query artifacts, create artifact (user)
     # in run api
@@ -54,6 +56,7 @@ class Artifact(object):
     #     create an artifact from local files, set metadata, sync if we need to, log
     #         as input, use the files
     #     or load an artifact from the server, download, use the files, log as input
+
 
 class ArtifactMetadata(object):
     @classmethod
@@ -114,6 +117,7 @@ def user_paths_to_path_specs(paths):
 
 LocalArtifactEntry = collections.namedtuple('LocalArtifactEntry', ('path', 'hash', 'local_path'))
 
+
 class LocalArtifactManifestV1(object):
     def __init__(self, paths, metadata=None):
         self._path_specs = user_paths_to_path_specs(paths)
@@ -132,8 +136,8 @@ class LocalArtifactManifestV1(object):
         if self._metadata is not None:
             self._local_entries.append(
                 LocalArtifactEntry(ARTIFACT_METADATA_FILENAME,
-                self._metadata.digest(),
-                None))  # use none for local path, this file gets directly encoded in the LocalArtifact file
+                                   self._metadata.digest(),
+                                   None))  # use none for local path, this file gets directly encoded in the LocalArtifact file
         for artifact_path, local_path in self._path_specs.items():
             self._local_entries.append(
                 LocalArtifactEntry(artifact_path, hash_file(local_path), os.path.abspath(local_path)))
@@ -144,7 +148,7 @@ class LocalArtifactManifestV1(object):
     @property
     def entries(self):
         return self._local_entries
-    
+
     @property
     def digest(self):
         return self._digest
@@ -154,7 +158,7 @@ class LocalArtifactManifestV1(object):
         if self._metadata is None:
             return None
         return self._metadata.value
-    
+
     def dump(self, fp):
         fp.write('version: 1\n')
         fp.write('digest: %s\n' % self._digest)
@@ -168,12 +172,12 @@ class LocalArtifactManifestV1(object):
             # TODO(artifacts): Filenames can have nasty chars, maybe each line is json
             fp.write('%s %s %s\n' % (entry.path, entry.local_path, entry.hash))
 
-    
+
 class LocalArtifact(object):
     # TODO: entity, project, file_pusher, api. Can we use some kind of context
     # thing?
-    def __init__(self, paths, metadata=None, file_pusher=None):
-        self._api = InternalApi()
+    def __init__(self, api, paths, metadata=None, file_pusher=None):
+        self._api = api
         # TODO(artifacts): move file_pusher inside API.
         self._file_pusher = file_pusher
         if self._file_pusher is None:
@@ -183,20 +187,27 @@ class LocalArtifact(object):
 
     def save(self, name, description=None, aliases=None, labels=None):
         """Returns the server artifact."""
-        # If the server already has this artifact, just set the other fields?
+        artifact_id = self._api.create_artifact(name)
         # TODO(artifacts), send aliases, labels, description
-        self._server_artifact = fakeapi.create_artifact(
-            name, self._local_manifest.metadata, self._local_manifest.digest)
-        print('A', self._server_artifact, self._local_manifest.entries)
-        if self._server_artifact.state == 'READY':
+        self._server_artifact = self._api.create_artifact_version(
+            artifact_id, self._local_manifest.digest,
+            metadata=json.dumps(self._local_manifest.metadata))
+        if self._server_artifact['state'] == 'COMMITTED':
             # TODO: update aliases, labels, description etc?
             return self._server_artifact
+        elif self._server_artifact['state'] != 'PENDING':
+            # TODO: what to do in this case?
+            raise Exception('Server artifact not in PENDING state')
         for entry in self._local_manifest.entries:
             # Sync files. Because of hacking this on the client-side we may have multiple runs
             # pushing to the same artifact version. We could fix this on the server (or maybe it's not
             # the worst thing?)
-            self._file_pusher.file_changed(entry.path, entry.local_path, self._server_artifact.id)
+            self._file_pusher.file_changed(entry.path, entry.local_path, self._server_artifact['id'])
+        self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact
+
+    def commit(self):
+        self._api.commit_artifact_version(self._server_artifact.id)
 
     def wait(self):
         if self._server_artifact is None:

@@ -404,11 +404,11 @@ class Run(object):
         api = api or self.api
         api.use_artifact_version(self.entity, self.project, self.id, input.id)
 
-    def log_artifact(self, name, path, description=None, metadata=None, labels=None, aliases=None):
+    def log_artifact(self, name, paths, description=None, metadata=None, labels=None, aliases=None):
         self.send_message({
             'log_artifact': {
                 'name': name,
-                'path': path,
+                'paths': paths,
                 'description': description,
                 'metadata': metadata,
                 'labels': labels,
@@ -418,7 +418,8 @@ class Run(object):
 
     def publish_artifact(self, fname, name=None, description=None, api=None):
         api = api or self.api
-        api.publish_artifact(fname, self.entity, self.project, run=self.id, name=name, description=description, progress=sys.stdout)
+        api.publish_artifact(fname, self.entity, self.project, run=self.id,
+                             name=name, description=description, progress=sys.stdout)
 
     def publish_external_artifact(self, url, name=None, description=None, api=None):
         api = api or self.api
@@ -465,7 +466,7 @@ class Run(object):
     def project_name(self, api=None):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
-        
+
     def _generate_query_string(self, api, params=None):
         """URL encodes dictionary of params"""
 
@@ -488,9 +489,9 @@ class Run(object):
                 viewer = api.viewer()
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])
-        
+
             entity = api.settings('entity')
-        
+
         if not entity:
             # This can happen on network failure
             raise CommError("Can't connect to network to query entity from API key")
@@ -499,7 +500,7 @@ class Run(object):
 
     def get_project_url(self, api=None, network=True, params=None):
         """Generate a url for a project.
-        
+
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
         """
         params = params or {}
@@ -540,7 +541,7 @@ class Run(object):
 
     def get_url(self, api=None, network=True, params=None):
         """Generate a url for a run.
-        
+
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
         """
         params = params or {}
@@ -554,7 +555,6 @@ class Run(object):
             run=urllib.parse.quote_plus(self.id),
             query_string=self._generate_query_string(api, params)
         )
-         
 
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
@@ -731,7 +731,8 @@ class Run(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         exit_code = 0 if exc_type is None else 1
         wandb.join(exit_code)
-        return exc_type is None 
+        return exc_type is None
+
 
 def run_dir_path(run_id, dry=False):
     if dry:
