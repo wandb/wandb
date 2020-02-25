@@ -16,3 +16,5 @@ prompt-toolkit
 typing
 grpcio-tools
 prompt-toolkit
+PyYAML
+numpy

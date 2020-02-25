@@ -25,6 +25,8 @@ requirements = [
     'typing',
     'grpcio-tools',
     'prompt-toolkit',
+    'PyYAML',
+    'numpy',
 ]
 
 setup(
