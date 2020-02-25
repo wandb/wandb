@@ -118,7 +118,7 @@ class _WandbLibrary__WandbLibrary(object):
             logger.info("multiprocessing start_methods={}".format(','.join(all_methods)))
             ctx = multiprocessing.get_context('spawn')
         else:
-            print("warning, likely using fork on unix")
+            logger.info("multiprocessing fallback, likely fork on unix")
             ctx = multiprocessing
         self._multiprocessing = ctx
         #print("t3b", self._multiprocessing.get_start_method())

@@ -3,7 +3,7 @@
 init.
 """
 
-from prompt_toolkit import prompt
+from prompt_toolkit import prompt  # type: ignore
 import wandb
 from wandb.wandb_run import Run
 from wandb.util.globals import set_global
