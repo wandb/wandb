@@ -42,6 +42,14 @@ def test_update_kwargs():
     s.update(base_url="something")
     assert s.base_url == "something"
 
+
+def test_update_both():
+    s = wandb_settings.Settings()
+    s.update(dict(base_url="somethingb"), project="nothing")
+    assert s.base_url == "somethingb"
+    assert s.project == "nothing"
+
+
 def test_copy():
     s = wandb_settings.Settings()
     s.update(base_url="changed")
@@ -50,3 +58,26 @@ def test_copy():
     s.update(base_url="notchanged")
     assert s.base_url == "notchanged"
     assert s2.base_url == "changed"
+
+
+def test_invalid_dict():
+    s = wandb_settings.Settings()
+    with pytest.raises(KeyError):
+        s.update(dict(invalid="new"))
+
+
+def test_invalid_kwargs():
+    s = wandb_settings.Settings()
+    with pytest.raises(KeyError):
+        s.update(invalid="new")
+
+
+def test_invalid_both():
+    s = wandb_settings.Settings()
+    with pytest.raises(KeyError):
+        s.update(dict(project="ok"), invalid="new")
+    assert s.project != "ok"
+    with pytest.raises(KeyError):
+        s.update(dict(wrong="bad", team="nope"), project="okbutnotset")
+    assert s.team != "nope"
+    assert s.project != "okbutnotset"

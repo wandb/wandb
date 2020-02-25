@@ -68,12 +68,13 @@ def init(
         The return value
     """
     wl = wandb.setup()
-    s = wl.settings(settings=settings,
-                    mode=mode,
-                    entity=entity,
-                    team=team,
-                    project=project,
-                    group=group)
+    settings = settings or dict()
+    s = wl.settings(**settings)
+    s.update(mode=mode,
+             entity=entity,
+             team=team,
+             project=project,
+             group=group)
 
     if s.mode == "noop":
         return None

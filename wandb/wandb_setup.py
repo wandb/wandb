@@ -37,9 +37,7 @@ class _WandbLibrary__WandbLibrary(object):
 
     def settings(self, __d=None, **kwargs):
         s = copy.copy(self._settings)
-        if __d:
-            s.update(__d)
-        s.update(kwargs)
+        s.update(__d, **kwargs)
         return s
 
     def _enable_logging(self, log_fname, run_id=None):
