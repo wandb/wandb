@@ -25,6 +25,8 @@ from warnings import simplefilter
 # ignore all future warnings
 simplefilter(action='ignore', category=FutureWarning)
 
+from wandb.plots.roc import roc
+
 def round_3(n):
     return round(n, 3)
 def round_2(n):
@@ -313,58 +315,6 @@ def plot_learning_curve(model=None, X=None, y=None, cv=None,
     """
     wandb.log({'learning_curve': learning_curve(model, X, y, cv, shuffle,
         random_state, train_sizes, n_jobs, scoring)})
-
-
-def roc(y_true=None, y_probas=None, labels=None,
-        plot_micro=True, plot_macro=True, classes_to_plot=None):
-        """
-        Calculates receiver operating characteristic scores and visualizes them as the
-            ROC curve.
-
-        Called by plot_roc to visualize roc curves. Please use the function plot_roc()
-        if you wish to visualize your roc curves.
-        """
-        if (test_missing(y_true=y_true, y_probas=y_probas) and
-            test_types(y_true=y_true, y_probas=y_probas)):
-            y_true = np.array(y_true)
-            y_probas = np.array(y_probas)
-            classes = np.unique(y_true)
-            probas = y_probas
-
-            if classes_to_plot is None:
-                classes_to_plot = classes
-
-            fpr_dict = dict()
-            tpr_dict = dict()
-
-            indices_to_plot = np.in1d(classes, classes_to_plot)
-            def roc_table(fpr_dict, tpr_dict, classes, indices_to_plot):
-                data=[]
-                count = 0
-
-                for i, to_plot in enumerate(indices_to_plot):
-                    fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true, probas[:, i],
-                                                            pos_label=classes[i])
-                    if to_plot:
-                        roc_auc = auc(fpr_dict[i], tpr_dict[i])
-                        for j in range(len(fpr_dict[i])):
-                            if labels is not None and (isinstance(classes[i], int)
-                                        or isinstance(classes[0], np.integer)):
-                                class_dict = labels[classes[i]]
-                            else:
-                                class_dict = classes[i]
-                            fpr = [class_dict, fpr_dict[i][j], tpr_dict[i][j]]
-                            data.append(fpr)
-                            count+=1
-                            if count >= chart_limit:
-                                wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
-                                break
-                return wandb.visualize(
-                    'wandb/roc/v1', wandb.Table(
-                    columns=['class', 'fpr', 'tpr'],
-                    data=data
-                ))
-            return roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)
 
 
 def plot_roc(y_true=None, y_probas=None, labels=None,
