@@ -24,6 +24,7 @@ requirements = [
     'prompt-toolkit',
     'typing',
     'grpcio-tools',
+    'prompt-toolkit',
 ]
 
 setup(

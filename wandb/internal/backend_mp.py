@@ -1,7 +1,7 @@
 import threading
 import json
 import atexit
-import queue
+from six.moves import queue
 import sys
 import os
 import logging
