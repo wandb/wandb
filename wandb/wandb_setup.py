@@ -9,6 +9,9 @@ import os
 import datetime
 import errno
 import logging
+import copy
+
+from wandb import wandb_settings
 
 
 logger = logging.getLogger("wandb")
@@ -16,16 +19,30 @@ logger = logging.getLogger("wandb")
 class _WandbLibrary__WandbLibrary(object):
     """Inner class of _WandbLibrary."""
     def __init__(self, settings=None):
-        #print("setup")
         self._multiprocessing = None
-        self._settings = settings
+        self._settings = None
         self._log_user_filename = None
         self._log_internal_filename = None
-        self.log_setup()
-        self.check()
-        self.setup()
 
-    def enable_logging(self, log_fname, run_id=None):
+        self._settings_setup(settings)
+        self._log_setup()
+        self._check()
+        self._setup()
+
+    def _settings_setup(self, settings=None):
+        s = wandb_settings.Settings()
+        if settings:
+            s.update(settings)
+        self._settings = s
+
+    def settings(self, __d=None, **kwargs):
+        s = copy.copy(self._settings)
+        if __d:
+            s.update(__d)
+        s.update(kwargs)
+        return s
+
+    def _enable_logging(self, log_fname, run_id=None):
         """Enable logging to the global debug log.  This adds a run_id to the log,
         in case of muliple processes on the same machine.
 
@@ -52,7 +69,7 @@ class _WandbLibrary__WandbLibrary(object):
         logger.setLevel(logging.DEBUG)
         logger.addHandler(handler)
 
-    def log_setup(self):
+    def _log_setup(self):
         # log dir - where python logs go
         log_dir = "wandb"
         # log spec
@@ -76,13 +93,13 @@ class _WandbLibrary__WandbLibrary(object):
             raise Exception("cant write: {}".format(log_dir))
         #print("loguser", log_user)
         #print("loginternal", log_internal)
-        self.enable_logging(log_user)
+        self._enable_logging(log_user)
 
         logger.info("Logging to {}".format(log_user))
         self._log_user_filename = log_user
         self._log_internal_filename = log_internal
 
-    def check(self):
+    def _check(self):
         if hasattr(threading, "main_thread"):
             if threading.current_thread() is not threading.main_thread():
                 print("bad thread")
@@ -93,12 +110,12 @@ class _WandbLibrary__WandbLibrary(object):
         #print("t2", multiprocessing.get_start_method(allow_none=True))
         #print("t3", multiprocessing.get_start_method())
 
-    def setup(self):
+    def _setup(self):
         #TODO: use fork context if unix and frozen?
         # if py34+, else fall back
         if hasattr(multiprocessing, "get_context"):
             all_methods = multiprocessing.get_all_start_methods()
-            print("DEBUG: start_methods=", ','.join(all_methods))
+            logger.info("multiprocessing start_methods={}".format(','.join(all_methods)))
             ctx = multiprocessing.get_context('spawn')
         else:
             print("warning, likely using fork on unix")

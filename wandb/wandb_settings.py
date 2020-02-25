@@ -47,11 +47,23 @@ env_mapping = dict(
 
 
 class Settings(object):
-    def __init__(self):
+    def __init__(self, settings=None):
         _settings_dict = defaults.copy()
         _forced_dict = dict()
         object.__setattr__(self, "_settings_dict", _settings_dict)
         object.__setattr__(self, "_forced_dict", _forced_dict)
+        if settings:
+            self.update(settings)
+
+    def __copy__(self):
+        s = Settings()
+        s.update(dict(self))
+        return s
+
+    def update(self, __d=None, **kwargs):
+        if __d:
+            self._settings_dict.update(__d)
+        self._settings_dict.update(kwargs)
 
     def __getattr__(self, k):
         try:
@@ -64,3 +76,9 @@ class Settings(object):
         if k not in self._settings_dict:
             raise AttributeError(k)
         self._settings_dict[k] = v
+
+    def keys(self):
+        return self._settings_dict.keys()
+
+    def __getitem__(self, k):
+        return self._settings_dict[k]

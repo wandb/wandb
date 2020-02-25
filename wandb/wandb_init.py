@@ -1,4 +1,4 @@
-# -*- coding: latin-1 -*-
+# -*- coding: utf-8 -*-
 """
 init.
 """
@@ -28,31 +28,45 @@ from typing import Optional, Dict
 # ) -> Optional[Run]:
 
 
-def init(settings: Dict = None,
-         mode: int = None,
+#def init(settings: Dict = None,
+#         mode: int = None,
+#         entity=None,
+#         team=None,
+#         project=None,
+#         group=None,
+#         magic=None,
+#         config=None,
+#         reinit=None,
+#         name=None,
+#         ) -> Optional[Run]:
+
+def init(settings = None,  # type: Dict
+         mode = None,
          entity=None,
          team=None,
          project=None,
+         group=None,
          magic=None,
          config=None,
          reinit=None,
          name=None,
-         group=None) -> Optional[Run]:
+         ):
+    # type: (...) -> Optional[int]
     """This is my comment.
 
     Intialize stuff.
 
     Args:
         settings: This is my setting.
+        mode: set my mode.
 
     Returns:
         The return value
     """
     wl = wandb.setup()
+    s = wl.settings(settings=settings, mode=mode, entity=entity, team=team, project=project, group=group)
 
-    if mode == "noop":
-        return None
-    if mode == "test":
+    if s.mode == "noop":
         return None
 
     api = internal.Api()
