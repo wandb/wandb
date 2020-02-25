@@ -56,6 +56,7 @@ class Settings(object):
         _forced_dict = dict()
         object.__setattr__(self, "_settings_dict", _settings_dict)
         object.__setattr__(self, "_forced_dict", _forced_dict)
+        object.__setattr__(self, "_frozen", False)
         if settings:
             self.update(settings)
 
@@ -65,6 +66,8 @@ class Settings(object):
         return s
 
     def update(self, __d=None, **kwargs):
+        if self._frozen and (__d or kwargs):
+            raise TypeError('Settings object is frozen')
         d = __d or dict()
         for check in d, kwargs:
             for k in six.viewkeys(check):
@@ -81,6 +84,8 @@ class Settings(object):
         return v
 
     def __setattr__(self, k, v):
+        if self._frozen:
+            raise TypeError('Settings object is frozen')
         if k not in self._settings_dict:
             raise AttributeError(k)
         self._settings_dict[k] = v
@@ -90,3 +95,6 @@ class Settings(object):
 
     def __getitem__(self, k):
         return self._settings_dict[k]
+
+    def freeze(self):
+        object.__setattr__(self, "_frozen", True)

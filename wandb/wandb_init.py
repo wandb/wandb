@@ -75,6 +75,7 @@ def init(
              team=team,
              project=project,
              group=group)
+    s.freeze()
 
     if s.mode == "noop":
         return None

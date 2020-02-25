@@ -33,6 +33,7 @@ class _WandbLibrary__WandbLibrary(object):
         s = wandb_settings.Settings()
         if settings:
             s.update(settings)
+        s.freeze()
         self._settings = s
 
     def settings(self, __d=None, **kwargs):

@@ -81,3 +81,21 @@ def test_invalid_both():
         s.update(dict(wrong="bad", team="nope"), project="okbutnotset")
     assert s.team != "nope"
     assert s.project != "okbutnotset"
+
+
+def test_freeze():
+    s = wandb_settings.Settings()
+    s.project = "goodprojo"
+    assert s.project == "goodprojo"
+    s.freeze()
+    with pytest.raises(TypeError):
+        s.project = "badprojo"
+    assert s.project == "goodprojo"
+    with pytest.raises(TypeError):
+        s.update(project = "badprojo2")
+    assert s.project == "goodprojo"
+    c = copy.copy(s)
+    assert c.project == "goodprojo"
+    c.project = "changed"
+    assert c.project == "changed"
+
