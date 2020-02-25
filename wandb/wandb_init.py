@@ -17,7 +17,10 @@ from wandb.apis import internal
 # import typing
 # if typing.TYPE_CHECKING:
 #   from typing import Dict, List, Optional
-from typing import Optional, Dict
+# from typing import Optional, Dict
+import typing
+if typing.TYPE_CHECKING:
+    from typing import Optional, Dict  # noqa: F401
 
 # priority order (highest to lowest):
 # WANDB_FORCE_MODE
@@ -27,31 +30,32 @@ from typing import Optional, Dict
 # settings.mode
 # ) -> Optional[Run]:
 
+# def init(settings: Dict = None,
+#          mode: int = None,
+#          entity=None,
+#          team=None,
+#          project=None,
+#          group=None,
+#          magic=None,
+#          config=None,
+#          reinit=None,
+#          name=None,
+#          ) -> Optional[Run]:
 
-#def init(settings: Dict = None,
-#         mode: int = None,
-#         entity=None,
-#         team=None,
-#         project=None,
-#         group=None,
-#         magic=None,
-#         config=None,
-#         reinit=None,
-#         name=None,
-#         ) -> Optional[Run]:
 
-def init(settings = None,  # type: Dict
-         mode = None,
-         entity=None,
-         team=None,
-         project=None,
-         group=None,
-         magic=None,
-         config=None,
-         reinit=None,
-         name=None,
-         ):
-    # type: (...) -> Optional[int]
+def init(
+    settings=None,  # type: Dict
+    mode=None,
+    entity=None,
+    team=None,
+    project=None,
+    group=None,
+    magic=None,
+    config=None,
+    reinit=None,
+    name=None,
+):
+    # type: (...) -> Optional[Run]
     """This is my comment.
 
     Intialize stuff.
@@ -64,7 +68,12 @@ def init(settings = None,  # type: Dict
         The return value
     """
     wl = wandb.setup()
-    s = wl.settings(settings=settings, mode=mode, entity=entity, team=team, project=project, group=group)
+    s = wl.settings(settings=settings,
+                    mode=mode,
+                    entity=entity,
+                    team=team,
+                    project=project,
+                    group=group)
 
     if s.mode == "noop":
         return None
