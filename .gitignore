@@ -5,3 +5,4 @@ htmlcov/
 .mypy_cache/
 .pytest_cache/
 *.pyc
+.python-version

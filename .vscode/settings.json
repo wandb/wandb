@@ -1,5 +1,5 @@
 {
-  "python.pythonPath": "~/.pyenv/shims/python",
+  "python.pythonPath": "/Users/davidjackson/.pyenv/versions/3.6.8/bin/python",
   "editor.formatOnSave": true,
   "files.exclude": {
     "**/*.pyc": true,
