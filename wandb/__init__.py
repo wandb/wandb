@@ -1,11 +1,19 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from __future__ import unicode_literals
 
 __version__ = '0.0.2'
 
 from wandb.errors import Error
-from wandb.wandb_init import init
+
+import sys
+if sys.version_info < (3, 0):
+    #from wandb.wandb_init_py2gen import init
+    from wandb.compat_gen_py2.wandb_init import init
+else:
+    from wandb.wandb_init import init
+
 from wandb.wandb_setup import setup
 from wandb.wandb_save import save
 from wandb.util import preinit as _preinit

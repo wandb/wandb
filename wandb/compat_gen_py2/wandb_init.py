@@ -17,7 +17,7 @@ from wandb.apis import internal
 # import typing
 # if typing.TYPE_CHECKING:
 #   from typing import Dict, List, Optional
-from typing import Optional, Dict
+#from typing import Optional, Dict
 
 # priority order (highest to lowest):
 # WANDB_FORCE_MODE
@@ -28,8 +28,8 @@ from typing import Optional, Dict
 # ) -> Optional[Run]:
 
 
-def init(settings: Dict = None,
-         mode: int = None,
+def init(settings = None,
+         mode = None,
          entity=None,
          team=None,
          project=None,
@@ -37,7 +37,7 @@ def init(settings: Dict = None,
          config=None,
          reinit=None,
          name=None,
-         group=None) -> Optional[Run]:
+         group=None):
     """This is my comment.
 
     Intialize stuff.

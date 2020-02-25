@@ -266,8 +266,11 @@ class Backend(object):
         save_mod_name = None
         save_mod_path = None
         main_module = sys.modules['__main__']
-        main_mod_name = getattr(main_module.__spec__, "name", None)
+        main_mod_spec = getattr(main_module, "__spec__", None)
         main_mod_path = getattr(main_module, '__file__', None)
+        main_mod_name = None
+        if main_mod_spec:
+            main_mod_name = getattr(main_mod_spec, "name", None)
         if main_mod_name is not None:
             save_mod_name = main_mod_name
             main_module.__spec__.name = "wandb.internal.mpmain"
