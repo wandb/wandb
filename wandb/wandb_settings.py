@@ -1,8 +1,10 @@
 """
 settings.
 """
+import six
 
-order = ("org", "team", "project", "env", "sysdir", "dir", "settings", "code")
+
+order = ("org", "team", "project", "env", "sysdir", "dir", "setup", "settings", "args")
 
 defaults = dict(
         team=None,
@@ -12,6 +14,8 @@ defaults = dict(
         api_key=None,
         anonymous=None,
         mode=None,
+        group=None,
+
         # dynamic settings
         system_sample_seconds=2,
         system_samples=15,
@@ -61,8 +65,12 @@ class Settings(object):
         return s
 
     def update(self, __d=None, **kwargs):
-        if __d:
-            self._settings_dict.update(__d)
+        d = __d or dict()
+        for check in d, kwargs:
+            for k in six.viewkeys(check):
+                if k not in self._settings_dict:
+                    raise KeyError(k)
+        self._settings_dict.update(d)
         self._settings_dict.update(kwargs)
 
     def __getattr__(self, k):
