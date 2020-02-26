@@ -1172,6 +1172,13 @@ class RunManager(object):
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy_name].append(glob_str)
 
+    def use_artifact(self, message):
+        name = message['name']
+        path = message['path']
+        la = artifacts.LocalArtifact(self._api, path, file_pusher=self._file_pusher, is_user_created=True)
+        server_artifact = la.save(name)
+        self._api.use_artifact(server_artifact['id'])
+
     def log_artifact(self, message):
         name = message['name']
         paths = message['paths']
@@ -1180,7 +1187,7 @@ class RunManager(object):
         metadata = message['metadata'] if 'metadata' in message else None
         aliases = message['aliases'] if 'aliases' in message else None
 
-        la = artifacts.LocalArtifact(self._api, paths, metadata, self._file_pusher)
+        la = artifacts.LocalArtifact(self._api, paths, metadata, file_pusher=self._file_pusher)
         la.save(name, description=description, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):
@@ -1292,6 +1299,8 @@ class RunManager(object):
                         if parsed["tensorboard"].get("logdir"):
                             self.start_tensorboard_watcher(
                                 parsed["tensorboard"]["logdir"], parsed["tensorboard"]["save"])
+                    elif parsed.get("use_artifact"):
+                        self.use_artifact(parsed["use_artifact"])
                     elif parsed.get("log_artifact"):
                         self.log_artifact(parsed["log_artifact"])
                     else:

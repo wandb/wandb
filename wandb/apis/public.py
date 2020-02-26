@@ -1837,9 +1837,9 @@ class ArtifactVersion(object):
     def files(self, names=[], per_page=50):
         return ArtifactVersionFiles(self.client, self, names, per_page)
 
-    def download(self):
+    def download(self, rootdir='./artifacts'):
         # TODO: not production
-        dirpath = os.path.join('wandb', 'artifacts', self.id)
+        dirpath = os.path.join(rootdir, self.artifact_name, self.digest)
         try:
             os.makedirs(dirpath)
         except FileExistsError:
@@ -1881,7 +1881,7 @@ class ArtifactVersionFiles(Paginator):
             'entityName': artifact_version.entity,
             'projectName': artifact_version.project,
             'artifactName': artifact_version.artifact_name,
-            'artifactVersionName': artifact_version.name,
+            'artifactVersionName': artifact_version.digest,
             'fileNames': names,
         }
         super(ArtifactVersionFiles, self).__init__(client, variables, per_page)

@@ -5,6 +5,7 @@ import collections
 import hashlib
 import json
 import os
+from six import string_types
 import tempfile
 import time
 
@@ -104,7 +105,7 @@ def user_paths_to_path_specs(paths):
                 for fname in filenames:
                     local_path = os.path.join(dirpath, fname)
                     artifact_path = os.path.relpath(local_path, path)
-                    path_specs[artifact_path] = file_path
+                    path_specs[artifact_path] = local_path
         elif os.path.isfile(path):
             basename = os.path.basename(path)
             path_specs[basename] = path
@@ -176,12 +177,13 @@ class LocalArtifactManifestV1(object):
 class LocalArtifact(object):
     # TODO: entity, project, file_pusher, api. Can we use some kind of context
     # thing?
-    def __init__(self, api, paths, metadata=None, file_pusher=None):
+    def __init__(self, api, paths, metadata=None, file_pusher=None, is_user_created=False):
         self._api = api
         # TODO(artifacts): move file_pusher inside API.
         self._file_pusher = file_pusher
         if self._file_pusher is None:
             self._file_pusher = FilePusher(self._api)
+        self._is_user_created = is_user_created
         self._local_manifest = LocalArtifactManifestV1(paths, metadata=metadata)
         self._server_artifact = None
 
@@ -191,7 +193,8 @@ class LocalArtifact(object):
         # TODO(artifacts), send aliases, labels, description
         self._server_artifact = self._api.create_artifact_version(
             artifact_id, self._local_manifest.digest,
-            metadata=json.dumps(self._local_manifest.metadata))
+            metadata=json.dumps(self._local_manifest.metadata),
+            is_user_created=self._is_user_created)
         if self._server_artifact['state'] == 'COMMITTED':
             # TODO: update aliases, labels, description etc?
             return self._server_artifact
@@ -214,3 +217,25 @@ class LocalArtifact(object):
             raise ValueError('Must call save first')
         while self._server_artifact.state != 'READY':
             time.sleep(2)
+
+
+class LocalArtifactRead(object):
+    def __init__(self, name, path):
+        if not isinstance(path, string_types):
+            raise ValueError("path must be a local file or directory")
+        if os.path.isdir(path):
+            self._artifact_dir = path
+        elif os.path.isfile(path):
+            self._artifact_dir = os.path.dirname(path)
+        else:
+            raise ValueError("path must be a local file or directory")
+        self._local_manifest = LocalArtifactManifestV1(path)
+
+    # TODO: give some way for the user to check if we have this on the server?
+
+    @property
+    def digest(self):
+        return self._local_manifest.digest()
+
+    def download(self, *args, **kwargs):
+        return self._artifact_dir

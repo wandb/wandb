@@ -23,7 +23,8 @@ from wandb import util
 from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
-from wandb.apis import InternalApi, CommError
+from wandb.apis import InternalApi, PublicApi, CommError
+from wandb.apis import artifacts
 from wandb.wandb_config import Config
 import six
 from six.moves import input
@@ -180,7 +181,7 @@ class Run(object):
         """ Sends a message to the wandb process changing the policy
         of saved files.  This is primarily used internally by wandb.save
         """
-        if not options.get("save_policy") and not options.get("tensorboard") and not options.get("log_artifact"):
+        if not options.get("save_policy") and not options.get("tensorboard") and not options.get("log_artifact") and not options.get("use_artifact"):
             raise ValueError(
                 "Only configuring save_policy, tensorboard  and log_artifact is supported")
         if self.socket:
@@ -404,6 +405,31 @@ class Run(object):
         api = api or self.api
         api.use_artifact_version(self.entity, self.project, self.id, input.id)
 
+    def use_artifact(self, name=None, artifact=None, path=None, api=None):
+        # One of artifact, name, paths must be passed in
+        api = api or self.api
+        entity_name = self.api.settings('entity')
+        project_name = self.api.settings('project')
+        if name is not None and path is None:
+            public_api = PublicApi(self.api.settings())
+            artifact = public_api.artifact_version('%s/%s/%s' % (entity_name, project_name, name))
+        if artifact is not None:
+            # TODO: assert artifact has correct entity_name, project_name
+            # TODO: This should throw if not available
+            api.use_artifact(artifact.id)
+            return artifact
+        elif name is not None and path is not None:
+            user_artifact = artifacts.LocalArtifactRead(name, path)
+            self.send_message({
+                'use_artifact': {
+                    'name': name,
+                    'path': path,
+                }
+            })
+            return user_artifact
+        # TODO
+        raise ValueError('Invalid use artifact call')
+
     def log_artifact(self, name, paths, description=None, metadata=None, labels=None, aliases=None):
         self.send_message({
             'log_artifact': {
@@ -415,15 +441,6 @@ class Run(object):
                 'aliases': aliases
             }
         })
-
-    def publish_artifact(self, fname, name=None, description=None, api=None):
-        api = api or self.api
-        api.publish_artifact(fname, self.entity, self.project, run=self.id,
-                             name=name, description=description, progress=sys.stdout)
-
-    def publish_external_artifact(self, url, name=None, description=None, api=None):
-        api = api or self.api
-        api.publish_external_artifact(url, self.entity, self.project, run=self.id, name=name, description=description)
 
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside

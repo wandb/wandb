@@ -1006,6 +1006,48 @@ class Api(object):
             return response['project']['artifact']['id']
         return None
 
+    def use_artifact(self, artifact_id, entity_name=None, project_name=None, run_name=None):
+        query = gql('''
+        mutation UseArtifact(
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!,
+            $artifactVersionID: ID!
+        ) {
+            useArtifactVersion(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                artifactVersionID: $artifactVersionID
+            }) {
+                artifactVersion {
+                    id
+                    digest
+                    description
+                    state
+                    createdAt
+                    aliases
+                    tags
+                    metadata
+                }
+            }
+        }
+        ''')
+        entity_name = entity_name or self.settings('entity')
+        project_name = project_name or self.settings('project')
+        run_name = run_name or self.current_run_id
+
+        response = self.gql(query, variable_values={
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+            'artifactVersionID': artifact_id,
+        })
+
+        if response['useArtifactVersion']['artifactVersion']:
+            return response['useArtifactVersion']['artifactVersion']
+        return None
+
     def create_artifact(self, artifact_name, entity_name=None, project_name=None, description=None):
         mutation = gql('''
         mutation CreateArtifact(
@@ -1036,7 +1078,7 @@ class Api(object):
         })
         return response['createArtifact']['artifact']['id']
 
-    def create_artifact_version(self, artifact_id, digest, entity_name=None, project_name=None, run_name=None, description=None, labels=None, metadata=None, aliases=None):
+    def create_artifact_version(self, artifact_id, digest, entity_name=None, project_name=None, run_name=None, description=None, labels=None, metadata=None, aliases=None, is_user_created=False):
         mutation = gql('''
         mutation CreateArtifactVersion(
             $artifactID: ID!,
@@ -1069,7 +1111,8 @@ class Api(object):
         ''')
         entity_name = entity_name or self.settings('entity')
         project_name = project_name or self.settings('project')
-        run_name = run_name or self.current_run_id
+        if not is_user_created:
+            run_name = run_name or self.current_run_id
         response = self.gql(mutation, variable_values={
             'entityName': entity_name,
             'projectName': project_name,
@@ -1124,34 +1167,6 @@ class Api(object):
             'artifactVersionID': artifact_version_id
         })
         return response
-
-    def use_artifact_version(self, entity_name, project_name, run_name, artifact_version_id):
-        mutation = gql('''
-        mutation UseArtifactVersion(
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String!,
-            $artifactVersionID: ID!
-        ) {
-            useArtifactVersion(input: {
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                artifactVersionID: $artifactVersionID
-            }) {
-                artifactVersion {
-                    id
-                }
-            }
-        }
-        ''')
-        response = self.gql(mutation, variable_values={
-            'entityName': entity_name,
-            'projectName': project_name,
-            'runName': run_name,
-            'artifactVersionID': artifact_version_id,
-        })
-        return response['useArtifactVersion']['artifactVersion']
 
     @normalize_exceptions
     def prepare_files(self, file_specs, entity=None, project=None, run=None):
