@@ -15,7 +15,7 @@ from wandb.apis import artifact_manifest
 from wandb.file_pusher import FilePusher
 from wandb import util
 
-ARTIFACT_METADATA_FILENAME = 'wandb-artifact-metadata.json'
+ARTIFACT_METADATA_FILENAME = 'artifact-metadata.json'
 
 # Like md5_file in util but not b64 encoded.
 # TODO(artifacts): decide what we actually want
@@ -72,11 +72,12 @@ class ArtifactMetadata(object):
         return self._metadata
 
     def dump(self, fp):
-        json.dump(self._metadata, fp, sort_keys=True)
+        json.dump(self._metadata, fp, sort_keys=True, allow_nan=False, indent=4)
 
     def digest(self):
-        with tempfile.NamedTemporaryFile('w') as fp:
+        with tempfile.NamedTemporaryFile('w', delete=False) as fp:
             self.dump(fp)
+            fp.close()
             # TODO: what format for md5
             return hash_file(fp.name)
 
@@ -128,7 +129,7 @@ class LocalArtifactManifestV1(object):
             self._metadata = ArtifactMetadata(metadata)
         if ARTIFACT_METADATA_FILENAME in self._path_specs:
             if self._metadata is not None:
-                raise ValueError('may not specify metadata argument if paths containes artifact-metadata.json')
+                raise ValueError('may not specify metadata argument if paths contains %s' % ARTIFACT_METADATA_FILENAME)
             # pop it out of path specs
             local_path = self._path_specs.pop(ARTIFACT_METADATA_FILENAME)
             self._metadata = ArtifactMetadata.from_file(local_path)
@@ -205,7 +206,13 @@ class LocalArtifact(object):
             # Sync files. Because of hacking this on the client-side we may have multiple runs
             # pushing to the same artifact version. We could fix this on the server (or maybe it's not
             # the worst thing?)
-            self._file_pusher.file_changed(entry.path, entry.local_path, self._server_artifact['id'])
+            if entry.path == ARTIFACT_METADATA_FILENAME:
+                metadata_file = self._file_pusher.named_temp_file(mode='w+')
+                self._local_manifest._metadata.dump(metadata_file)
+                metadata_file.close()
+                self._file_pusher.file_changed(entry.path, metadata_file.name, self._server_artifact['id'])
+            else:
+                self._file_pusher.file_changed(entry.path, entry.local_path, self._server_artifact['id'])
         self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact
 

@@ -5,6 +5,7 @@
 import collections
 import os
 import shutil
+import tempfile as builtin_tempfile
 import threading
 import time
 from six.moves import queue
@@ -147,6 +148,11 @@ class FilePusher(object):
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
         self._running_jobs = {}
         self._pending_jobs = []
+
+        # Holds refs to tempfiles if users need to make a temporary file that
+        # stays around long enough for file pusher to sync
+        # TODO(artifacts): maybe don't do this
+        self._temp_file_refs = []
 
     def print_status(self):
         step = 0
@@ -326,6 +332,14 @@ class FilePusher(object):
 
         event = UploadRequest(path, save_name, artifact_id)
         self._checksum_queue.put(event)
+
+    def named_temp_file(self, mode='w+b'):
+        # get a named temp file that the file pusher with hold a reference to so it
+        # doesn't get gc'd. Obviously, we should do this very much :). It's currently
+        # used for artifact metadata.
+        f = builtin_tempfile.NamedTemporaryFile(mode=mode, delete=False)
+        self._temp_file_refs.append(f)
+        return f
 
     def commit_artifact(self, artifact_id):
         event = CommitArtifactRequest(artifact_id)

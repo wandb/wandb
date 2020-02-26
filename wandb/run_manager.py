@@ -1187,7 +1187,7 @@ class RunManager(object):
         metadata = message['metadata'] if 'metadata' in message else None
         aliases = message['aliases'] if 'aliases' in message else None
 
-        la = artifacts.LocalArtifact(self._api, paths, metadata, file_pusher=self._file_pusher)
+        la = artifacts.LocalArtifact(self._api, paths, metadata=metadata, file_pusher=self._file_pusher)
         la.save(name, description=description, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):

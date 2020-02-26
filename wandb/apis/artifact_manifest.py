@@ -33,7 +33,6 @@ class ArtifactManifestV1(object):
     def dump(self, fp):
         # TODO(artifacts): what encoding?
         # TODO(artifacts): finalize format of this.
-        # fp.write('wandb-artifact-manifest v1\n')
         for entry in self._entries:
             fp.write('%s:%s\n' % (entry.path, entry.hash))
 
