@@ -92,12 +92,13 @@ def test_freeze():
         s.project = "badprojo"
     assert s.project == "goodprojo"
     with pytest.raises(TypeError):
-        s.update(project = "badprojo2")
+        s.update(project="badprojo2")
     assert s.project == "goodprojo"
     c = copy.copy(s)
     assert c.project == "goodprojo"
     c.project = "changed"
     assert c.project == "changed"
+
 
 def test_bad_choice():
     s = wandb_settings.Settings()
@@ -105,4 +106,3 @@ def test_bad_choice():
         s.mode = "goodprojo"
     with pytest.raises(TypeError):
         s.update(mode="badpro")
-

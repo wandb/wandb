@@ -72,6 +72,7 @@ def init(
     r = _init(locals())
     return r
 
+
 def _init(self, **kwargs):
     settings = kwargs.pop("settings", None)
     config = kwargs.pop("config", None)
@@ -103,8 +104,7 @@ def _init(self, **kwargs):
     run._set_backend(backend)
 
     emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
-    url = "{}/{}/{}/runs/{}".format(
-        s.base_url, s.team, s.project, run.run_id)
+    url = "{}/{}/{}/runs/{}".format(s.base_url, s.team, s.project, run.run_id)
     wandb.termlog("{} View run at {}".format(
         emojis.get("rocket", ""), click.style(url, underline=True, fg='blue')))
 

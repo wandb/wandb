@@ -14,8 +14,8 @@ import os
 
 from wandb import wandb_settings
 
-
 logger = logging.getLogger("wandb")
+
 
 class _EarlyLogger(object):
     def __init__(self):
@@ -33,7 +33,7 @@ class _EarlyLogger(object):
 
     def error(self, msg, *args, **kwargs):
         self._log.append((logging.ERROR, msg, args, kwargs))
-    
+
     def critical(self, msg, *args, **kwargs):
         self._log.append((logging.CRITICAL, msg, args, kwargs))
 
@@ -70,7 +70,8 @@ class _WandbLibrary__WandbLibrary(object):
         self._setup()
 
     def _settings_setup(self, settings=None, early_logging=None):
-        s = wandb_settings.Settings(environ=self._environ, early_logging=early_logging)
+        s = wandb_settings.Settings(environ=self._environ,
+                                    early_logging=early_logging)
         if settings:
             s.update(settings)
         s.freeze()
@@ -102,10 +103,12 @@ class _WandbLibrary__WandbLibrary(object):
 
         if run_id:
             formatter = logging.Formatter(
-                '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+                '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s'
+            )
         else:
             formatter = logging.Formatter(
-                '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+                '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s'
+            )
 
         handler.setFormatter(formatter)
         if run_id:
@@ -159,7 +162,8 @@ class _WandbLibrary__WandbLibrary(object):
         # if py34+, else fall back
         if hasattr(multiprocessing, "get_context"):
             all_methods = multiprocessing.get_all_start_methods()
-            logger.info("multiprocessing start_methods={}".format(','.join(all_methods)))
+            logger.info("multiprocessing start_methods={}".format(
+                ','.join(all_methods)))
             ctx = multiprocessing.get_context('spawn')
         else:
             logger.info("multiprocessing fallback, likely fork on unix")

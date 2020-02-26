@@ -11,9 +11,6 @@ wandb/wandb_save.py
 wandb/wandb_settings.py
 wandb/wandb_settings_test.py
 wandb/wandb_setup.py
-wandb/wandb_types/__init__.py
-wandb/wandb_types/graph.py
-wandb/wandb_types/image.py
 wandb.egg-info/PKG-INFO
 wandb.egg-info/SOURCES.txt
 wandb.egg-info/dependency_links.txt
@@ -44,3 +41,6 @@ wandb/stuff/util2.py
 wandb/util/__init__.py
 wandb/util/globals.py
 wandb/util/preinit.py
+wandb/wandb_types/__init__.py
+wandb/wandb_types/graph.py
+wandb/wandb_types/image.py

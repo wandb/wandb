@@ -23,7 +23,6 @@ defaults = dict(
 
     # how do we annotate that: dryrun==offline?
     mode=Field(None, str, ('noop', 'online', 'offline', 'dryrun', 'async')),
-
     group=None,
     job_type=None,
 
@@ -121,7 +120,6 @@ class Settings(object):
             if v is not None and f.choices and v not in f.choices:
                 raise TypeError('Settings field {} set to {} not in {}'.format(
                     k, v, ','.join(f.choices)))
-
 
     def update(self, __d=None, **kwargs):
         if self._frozen and (__d or kwargs):
