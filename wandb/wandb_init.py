@@ -12,6 +12,8 @@ from wandb.internal.backend_mp import Backend
 import click
 from wandb.stuff import util2
 
+import six
+
 from wandb.apis import internal
 
 # import typing
@@ -70,17 +72,16 @@ def init(
     wl = wandb.setup()
     settings = settings or dict()
     s = wl.settings(**settings)
-    s.update(mode=mode,
-             entity=entity,
-             team=team,
-             project=project,
-             group=group)
+    d = dict(mode=mode, entity=entity, team=team, project=project, group=group)
+    # strip out items where value is None
+    d = {k: v for k, v in six.iteritems(d) if v is not None}
+    s.update(d)
     s.freeze()
 
     if s.mode == "noop":
         return None
 
-    api = internal.Api()
+    api = internal.Api(default_settings=dict(s))
     if not api.api_key:
         key = prompt('Enter api key: ', is_password=True)
         util2.set_api_key(api, key)
@@ -94,11 +95,9 @@ def init(
     run = Run(config=config)
     run._set_backend(backend)
 
-    settings = dict(entity="jeff", project="uncategorized")
-
     emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
-    url = "https://app.wandb.test/{}/{}/runs/{}".format(
-        settings.get("entity"), settings.get("project"), run.run_id)
+    url = "{}/{}/{}/runs/{}".format(
+        s.base_url, s.team, s.project, run.run_id)
     wandb.termlog("{} View run at {}".format(
         emojis.get("rocket", ""), click.style(url, underline=True, fg='blue')))
 

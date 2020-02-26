@@ -10,31 +10,75 @@ import datetime
 import errno
 import logging
 import copy
+import os
 
 from wandb import wandb_settings
 
 
 logger = logging.getLogger("wandb")
 
+class _EarlyLogger(object):
+    def __init__(self):
+        self._log = []
+        self._exception = []
+
+    def debug(self, msg, *args, **kwargs):
+        self._log.append((logging.DEBUG, msg, args, kwargs))
+
+    def info(self, msg, *args, **kwargs):
+        self._log.append((logging.INFO, msg, args, kwargs))
+
+    def warning(self, msg, *args, **kwargs):
+        self._log.append((logging.WARNING, msg, args, kwargs))
+
+    def error(self, msg, *args, **kwargs):
+        self._log.append((logging.ERROR, msg, args, kwargs))
+    
+    def critical(self, msg, *args, **kwargs):
+        self._log.append((logging.CRITICAL, msg, args, kwargs))
+
+    def exception(self, msg, *args, **kwargs):
+        self._exception.append(msg, args, kwargs)
+
+    def log(self, level, msg, *args, **kwargs):
+        self._log.append(level, msg, args, kwargs)
+
+    def _flush(self):
+        for level, msg, args, kwargs in self._log:
+            logger.log(level, msg, *args, **kwargs)
+        for msg, args, kwargs in self._exception:
+            logger.exception(msg, *args, **kwargs)
+
+
 class _WandbLibrary__WandbLibrary(object):
     """Inner class of _WandbLibrary."""
-    def __init__(self, settings=None):
+    def __init__(self, settings=None, environ=None):
         self._multiprocessing = None
         self._settings = None
+        self._environ = environ or os.environ
         self._log_user_filename = None
         self._log_internal_filename = None
 
-        self._settings_setup(settings)
+        early_logging = _EarlyLogger()
+        self._settings_setup(settings, early_logging)
         self._log_setup()
+        self._settings_early_flush(early_logging)
+        early_logging = None
+
         self._check()
         self._setup()
 
-    def _settings_setup(self, settings=None):
-        s = wandb_settings.Settings()
+    def _settings_setup(self, settings=None, early_logging=None):
+        s = wandb_settings.Settings(environ=self._environ, early_logging=early_logging)
         if settings:
             s.update(settings)
         s.freeze()
         self._settings = s
+
+    def _settings_early_flush(self, early_logging):
+        if early_logging:
+            self._settings._clear_early_logging()
+            early_logging._flush()
 
     def settings(self, __d=None, **kwargs):
         s = copy.copy(self._settings)
