@@ -1,6 +1,9 @@
 import six
 
 
+# TODO(jhr): consider a callback for persisting changes?
+# if this is done right we might make sure this is pickle-able
+# we might be able to do this on other objects like Run?
 class Config(object):
     def __init__(self):
         object.__setattr__(self, '_items', dict())
