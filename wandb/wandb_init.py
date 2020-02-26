@@ -69,10 +69,17 @@ def init(
     Returns:
         The return value
     """
+    r = _init(locals())
+    return r
+
+def _init(self, **kwargs):
+    settings = kwargs.pop("settings", None)
+    config = kwargs.pop("config", None)
+
     wl = wandb.setup()
     settings = settings or dict()
     s = wl.settings(**settings)
-    d = dict(mode=mode, entity=entity, team=team, project=project, group=group)
+    d = dict(**kwargs)
     # strip out items where value is None
     d = {k: v for k, v in six.iteritems(d) if v is not None}
     s.update(d)
@@ -86,7 +93,7 @@ def init(
         key = prompt('Enter api key: ', is_password=True)
         util2.set_api_key(api, key)
 
-    backend = Backend(mode=mode)
+    backend = Backend(mode=s.mode)
     backend.ensure_launched(log_fname=wl._log_internal_filename)
     backend.server_connect()
 
