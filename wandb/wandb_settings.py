@@ -3,11 +3,14 @@ settings.
 """
 import six
 import logging
+import collections
 
 logger = logging.getLogger("wandb")
 
 source = ("org", "team", "project", "env", "sysdir", "dir", "setup",
           "settings", "args")
+
+Field = collections.namedtuple('TypedField', ['value', 'type', 'choices'])
 
 defaults = dict(
     team=None,
@@ -17,7 +20,8 @@ defaults = dict(
     app_url="https://app.wandb.ai",
     api_key=None,
     anonymous=None,
-    mode=None,
+    mode=Field(None, str, ('noop', 'online', 'offline', 'dryrun')),
+
     group=None,
     job_type=None,
 
@@ -69,7 +73,12 @@ def _build_inverse_map(prefix, d):
 
 class Settings(object):
     def __init__(self, settings=None, environ=None, early_logging=None):
-        _settings_dict = defaults.copy()
+        _settings_dict = dict()
+        for k, v in six.iteritems(defaults):
+            if isinstance(v, Field):
+                _settings_dict[k] = v.value
+            else:
+                _settings_dict[k] = v
         # _forced_dict = dict()
         object.__setattr__(self, "_early_logging", early_logging)
         object.__setattr__(self, "_settings_dict", _settings_dict)
