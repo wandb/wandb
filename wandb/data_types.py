@@ -1031,7 +1031,7 @@ class BoundingBoxes2D(JSONMetadata):
                            box["position"]["minY"],
                            box["position"]["maxY"]]
                    if not all([(0 <= v <= 1) for v in vals]) and box.get("domain") != "actual":
-                       raise TypeError("A bounding box middle, width, and height must be between 0,1 \
+                       raise TypeError("A bounding box [minX, maxX] and [minY, maxY] must be between 0,1 \
                                with the default domain. To provide values in the domain of real pixel values \
                                set box \"domain\" to \"actual\"")
                    valid = True
