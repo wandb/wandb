@@ -748,10 +748,11 @@ class Image(BatchableMedia):
         self._masks = None
         if masks:
             if not isinstance(masks, dict):
-                raise ValueError("Masks must be a list")
+                raise ValueError("Images \"masks\" argument must be a dictionary")
             masks_final = {}
             for key in masks:
-                self._masks = ImageMask(masks_final[key])
+                masks_final[key] = ImageMask(masks[key])
+            self._masks = masks_final
 
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
@@ -798,8 +799,8 @@ class Image(BatchableMedia):
             self._boxes.bind_to_run(*args, **kwargs)
 
         if self._masks is not None:
-            for mask in self._masks:
-                mask.bind_to_run(*args, **kwargs)
+            for k in self._masks:
+                self._masks[k].bind_to_run(*args, **kwargs)
 
     def to_json(self, run):
         json_dict = super(Image, self).to_json(run)
@@ -817,7 +818,8 @@ class Image(BatchableMedia):
         if self._boxes:
             json_dict['boxes'] = self._boxes.to_json(run)
         if self._masks:
-            json_dict['masks'] = [mask.to_json(run) for mask in self._masks]
+            json_dict['masks'] = {
+                    k: mask.to_json(run) for (k, mask) in self._masks.items()}
 
         return json_dict
 
@@ -918,12 +920,13 @@ class Image(BatchableMedia):
     @classmethod
     def all_masks(cls, images, run, key, step):
         all_mask_groups = []
-        for i in images:
-            if i._masks:
-                mask_group = []
-                for mask in i._masks:
+        for image in images:
+            if image._masks:
+                mask_group = {}
+                for k in image._masks:
+                    mask = image._masks[k]
                     mask.bind_to_run(run, key, step)
-                    mask_group.append(mask.to_json(run))
+                    mask_group[key] = mask.to_json(run)
                 all_mask_groups.append(mask_group)
             else:
                all_mask_groups.append(None)
@@ -1069,7 +1072,12 @@ class ImageMask(Media):
 
     def to_json(self, run):
         json_dict = super(ImageMask, self).to_json(run)
+        class_labels_key = "_class_labels"+ run.id + "_" + util.generate_id()
+        # @slewis approved commit hacking
+        run.config["_wandb"][class_labels_key] = self._val["class_labels"]
+        run.config.persist()
         json_dict['_type'] = self.type_name()
+        json_dict['class_labels_key'] = class_labels_key
 
         return json_dict
 

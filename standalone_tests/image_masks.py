@@ -11,13 +11,14 @@ image = np.random.randint(255, size=(400, 400, 3))
 mask_data = np.random.randint(10, size=(400, 400))
 
 def gen_mask_img():
-    mask_img = wandb.Image(np.array(image), masks=[{
-        "mask_data": mask_data,
-        "class_labels": {
-            0 : "car", 
-            1 : "pedestrian",
-        }
-    }])
+    mask_img = wandb.Image(np.array(image), masks={
+        "predictions":
+        {"mask_data": mask_data,
+            "class_labels": {
+                0 : "car",
+                1 : "pedestrian",
+                }
+            }})
     return mask_img
 
 wandb.log({
