@@ -69,11 +69,12 @@ def init(
     Returns:
         The return value
     """
-    r = _init(locals())
+    kwargs = locals()
+    r = _init(**kwargs)
     return r
 
 
-def _init(self, **kwargs):
+def _init(**kwargs):
     settings = kwargs.pop("settings", None)
     config = kwargs.pop("config", None)
 
