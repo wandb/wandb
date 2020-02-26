@@ -747,9 +747,11 @@ class Image(BatchableMedia):
             self._boxes = BoundingBoxes2D(boxes)
         self._masks = None
         if masks:
-            if not isinstance(masks, list):
+            if not isinstance(masks, dict):
                 raise ValueError("Masks must be a list")
-            self._masks = [ImageMask(m) for m in masks]
+            masks_final = {}
+            for key in masks:
+                self._masks = ImageMask(masks_final[key])
 
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
