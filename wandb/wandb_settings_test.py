@@ -2,7 +2,7 @@
 settings test.
 """
 
-import pytest
+import pytest  # type: ignore
 
 from wandb import wandb_settings
 import copy

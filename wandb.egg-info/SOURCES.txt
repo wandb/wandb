@@ -1,5 +1,6 @@
 README.md
 package_readme.md
+setup.cfg
 setup.py
 wandb/__init__.py
 wandb/py.typed
