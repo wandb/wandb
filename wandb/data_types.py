@@ -1008,20 +1008,37 @@ class BoundingBoxes2D(JSONMetadata):
             if not "position" in box:
                 raise TypeError(error_str)
             else:
-                # import ipdb; ipdb.set_trace()
                 valid = False
                 if "middle" in box["position"] and len(box["position"]["middle"]) == 2 and \
                    has_num(box["position"], "width") and \
                    has_num(box["position"], "height"): 
+                   vals = [box["position"]["middle"][0],
+                           box["position"]["middle"][1],
+                           box["position"]["width"],
+                           box["position"]["height"]
+                           ]
+                   if not all([(0 <= v <= 1) for v in vals]) and box.get("domain") != "actual":
+                       raise TypeError("A bounding box middle, width, and height must be between 0,1 \
+                               with the default domain. To provide values in the domain of real pixel values \
+                               set box \"domain\" to \"actual\"")
                    valid = True
                 elif has_num(box["position"], "minX") and \
                      has_num(box["position"], "maxX") and \
                      has_num(box["position"], "minY") and \
                      has_num(box["position"], "maxY"):
+                   vals = [box["position"]["minX"],
+                           box["position"]["maxX"],
+                           box["position"]["minY"],
+                           box["position"]["maxY"]]
+                   if not all([(0 <= v <= 1) for v in vals]) and box.get("domain") != "actual":
+                       raise TypeError("A bounding box middle, width, and height must be between 0,1 \
+                               with the default domain. To provide values in the domain of real pixel values \
+                               set box \"domain\" to \"actual\"")
                    valid = True
                 
                 if not valid:
                     raise TypeError(error_str)
+
 
 
             # Optional arguments
@@ -1035,7 +1052,7 @@ class BoundingBoxes2D(JSONMetadata):
                         raise TypeError("A score value must be a number")
 
             if ("class_label" in box) and not isinstance(box["class_label"], six.string_types):
-                raise TypeError("A box's class label must be of type must be of type string")
+                raise TypeError("A box's class label must be of type string")
 
             # Optional
             if ("box_caption" in box) and not isinstance(box["box_caption"], six.string_types):
