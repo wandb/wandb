@@ -59,6 +59,7 @@ class _WandbLibrary__WandbLibrary(object):
         self._log_user_filename = None
         self._log_internal_filename = None
 
+        # TODO(jhr): defer strict checks until settings is fully initialized and logging is ready
         early_logging = _EarlyLogger()
         self._settings_setup(settings, early_logging)
         self._log_setup()
