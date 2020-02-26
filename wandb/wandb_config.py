@@ -1,3 +1,6 @@
+import six
+
+
 class Config(object):
     def __init__(self):
         object.__setattr__(self, '_items', dict())
@@ -18,3 +21,14 @@ class Config(object):
 
     def __getattr__(self, key):
         return self.__getitem__(key)
+
+    def update(self, d):
+        if isinstance(d, dict):
+            self._items.update(d)
+        else:
+            # assume argparse Namespace
+            self._items.update(vars(d))
+
+    def setdefaults(self, d):
+        for k, v in six.iteritems(d):
+            self._items.setdefault(k, v)
