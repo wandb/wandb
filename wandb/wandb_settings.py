@@ -20,7 +20,9 @@ defaults = dict(
     app_url="https://app.wandb.ai",
     api_key=None,
     anonymous=None,
-    mode=Field(None, str, ('noop', 'online', 'offline', 'dryrun')),
+
+    # how do we annotate that: dryrun==offline?
+    mode=Field(None, str, ('noop', 'online', 'offline', 'dryrun', 'async')),
 
     group=None,
     job_type=None,
@@ -112,6 +114,15 @@ class Settings(object):
     def _clear_early_logging(self):
         object.__setattr__(self, "_early_logging", None)
 
+    def _check_invalid(self, k, v):
+        # Check to see if matches choice
+        f = defaults.get(k)
+        if f and isinstance(f, Field):
+            if v is not None and f.choices and v not in f.choices:
+                raise TypeError('Settings field {} set to {} not in {}'.format(
+                    k, v, ','.join(f.choices)))
+
+
     def update(self, __d=None, **kwargs):
         if self._frozen and (__d or kwargs):
             raise TypeError('Settings object is frozen')
@@ -120,6 +131,8 @@ class Settings(object):
             for k in six.viewkeys(check):
                 if k not in self._settings_dict:
                     raise KeyError(k)
+                self._check_invalid(k, check[k])
+
         self._settings_dict.update(d)
         self._settings_dict.update(kwargs)
 
@@ -135,6 +148,7 @@ class Settings(object):
             raise TypeError('Settings object is frozen')
         if k not in self._settings_dict:
             raise AttributeError(k)
+        self._check_invalid(k, v)
         self._settings_dict[k] = v
 
     def keys(self):

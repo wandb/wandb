@@ -99,3 +99,10 @@ def test_freeze():
     c.project = "changed"
     assert c.project == "changed"
 
+def test_bad_choice():
+    s = wandb_settings.Settings()
+    with pytest.raises(TypeError):
+        s.mode = "goodprojo"
+    with pytest.raises(TypeError):
+        s.update(mode="badpro")
+
