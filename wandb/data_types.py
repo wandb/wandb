@@ -751,7 +751,7 @@ class Image(BatchableMedia):
                 raise ValueError("Images \"masks\" argument must be a dictionary")
             masks_final = {}
             for key in masks:
-                masks_final[key] = ImageMask(masks[key])
+                masks_final[key] = ImageMask(masks[key], key)
             self._masks = masks_final
 
         if isinstance(data_or_path, six.string_types):
@@ -1051,11 +1051,12 @@ class ImageMask(Media):
     Wandb class for image masks, useful for segmentation tasks
     """
 
-    def __init__(self, val, **kwargs):
+    def __init__(self, val, key, **kwargs):
         super(ImageMask, self).__init__()
 
         self.validate(val)
         self._val = val
+        self._key = key
 
         ext = "." + self.type_name() + ".png"
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
@@ -1067,17 +1068,18 @@ class ImageMask(Media):
         image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
 
+    def bind_to_run(self, run, key, step):
+        # bind_to_run key argument is the Image parent key
+        # the self._key value is the mask's sub key
+        super(ImageMask, self).bind_to_run(run, key, step)
+        run._add_singleton("mask/class_labels", key + "__" + self._key , self._val["class_labels"])
+
     def get_media_subdir(self):
         return os.path.join('media', 'images', self.type_name())
 
     def to_json(self, run):
         json_dict = super(ImageMask, self).to_json(run)
-        class_labels_key = "_class_labels"+ run.id + "_" + util.generate_id()
-        # @slewis approved commit hacking
-        run.config["_wandb"][class_labels_key] = self._val["class_labels"]
-        run.config.persist()
         json_dict['_type'] = self.type_name()
-        json_dict['class_labels_key'] = class_labels_key
 
         return json_dict
 
@@ -1087,7 +1089,7 @@ class ImageMask(Media):
     def validate(self , mask):
         # 2D Make this work with all tensor(like) types
         if not "mask_data" in mask:
-            raise TypeError("A mask requires mask data(A 2D array representing the predctions")
+            raise TypeError("Missing key mask_dat: A mask requires mask data(A 2D array representing the predctions)")
         else:
             error_str = "mask_data must be a 2d array" 
             shape = mask["mask_data"].shape
