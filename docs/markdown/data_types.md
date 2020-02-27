@@ -203,14 +203,14 @@ Wandb class for 2D bounding Boxes
 ## ImageMask
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1049)
 ```python
-ImageMask(self, val, **kwargs)
+ImageMask(self, val, key, **kwargs)
 ```
 
 Wandb class for image masks, useful for segmentation tasks
 
 
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1107)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1109)
 ```python
 Plotly(self, val, **kwargs)
 ```
@@ -223,7 +223,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1148)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1150)
 ```python
 Graph(self, format='keras')
 ```
@@ -249,7 +249,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1303)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1305)
 ```python
 Node(self,
      id=None,
@@ -267,7 +267,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1468)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1470)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -276,7 +276,7 @@ Edge used in [`Graph`](#graph)
 
 
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1593)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1595)
 ```python
 data_frame_to_json(df, run, key, step)
 ```
