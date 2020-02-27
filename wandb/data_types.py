@@ -1051,8 +1051,8 @@ class BoundingBoxes2D(JSONMetadata):
                     if not isinstance(v, numbers.Number):
                         raise TypeError("A score value must be a number")
 
-            if ("class_label" in box) and not isinstance(box["class_label"], six.string_types):
-                raise TypeError("A box's class label must be of type string")
+            if ("class_id" in box) and not isinstance(box["class_id"], six.integer_types):
+                raise TypeError("A box's class_id must be an integer")
 
             # Optional
             if ("box_caption" in box) and not isinstance(box["box_caption"], six.string_types):

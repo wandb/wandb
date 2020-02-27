@@ -21,7 +21,7 @@ def gen_box_type_1(point_range, pixel=None):
                 "width":  (random.random() - 0.5) * half,
                 "height":  (random.random() - 0.5) * half,
                 },
-            "class_label" : "car",
+            "class_id" : random.randint(0,10),
             "box_caption": "car conf 0.7",
             "scores" : {
                 "acc": 0.7
@@ -49,7 +49,7 @@ def gen_box_type_2(point_range, pixel=None):
                 "minY": y,
                 "maxY": y + height,
                 },
-            "class_label" : "car",
+            "class_id" : random.randint(0,10),
             "box_caption": "car conf 0.7",
             "scores" : {
                 "acc": 0.7
@@ -93,7 +93,7 @@ def balanced_corners_portrait():
             "width":  box_w,
             "height":  box_h,
             },
-        "class_label" : "car",
+        "class_id" : random.randint(0,10),
         "box_caption": "car conf 0.7",
         "scores" : {
             "acc": 0.7
@@ -109,7 +109,7 @@ def balanced_corners_portrait():
             "width":  float(box_w) / img_width,
             "height":  float(box_h) / img_height,
             },
-        "class_label" : "car",
+        "class_id" : random.randint(0,10),
         "box_caption": "car conf 0.7",
         "scores" : {
             "acc": 0.7
@@ -125,7 +125,7 @@ def balanced_corners_portrait():
             "minY": y,
             "maxY": y + box_h,
             },
-        "class_label" : "car",
+        "class_id" : random.randint(0,10),
         "box_caption": "car conf 0.7",
         "scores" : {
             "acc": 0.7
@@ -142,7 +142,7 @@ def balanced_corners_portrait():
             "minY": float(y)/img_height,
             "maxY": float(y + box_h)/img_height,
             },
-        "class_label" : "car",
+        "class_id" : random.randint(0,10),
         "box_caption": "car conf 0.7",
         "scores" : {
             "acc": 0.7
