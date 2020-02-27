@@ -688,8 +688,8 @@ class Run(object):
 
         if value_extra != old_value:
             self.config['_wandb'][key][type] = value_extra
+            self.config.persist()
 
-        self.config.persist()
 
     @property
     def history(self):
