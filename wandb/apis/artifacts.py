@@ -85,7 +85,9 @@ class ArtifactMetadata(object):
 def user_paths_to_path_specs(paths):
     # path_specs maps from internal artifact path to local path on disk
     path_specs = {}
-    if isinstance(paths, list):
+    if paths is None:
+        pass
+    elif isinstance(paths, list):
         # every entry must be a file, and duplicate basenames are not allowed.
         # we don't check if they're valid files here. We'll do that later when we
         # checksum (so that we only have to do a big parallel operation in one place)
@@ -112,8 +114,6 @@ def user_paths_to_path_specs(paths):
             path_specs[basename] = path
         else:
             raise ValueError('paths must be a list, dictionary, or valid file or directory path.')
-    if len(path_specs) == 0:
-        raise ValueError('At least one valid path must be specified.')
     return path_specs
 
 
@@ -133,6 +133,9 @@ class LocalArtifactManifestV1(object):
             # pop it out of path specs
             local_path = self._path_specs.pop(ARTIFACT_METADATA_FILENAME)
             self._metadata = ArtifactMetadata.from_file(local_path)
+
+        if len(self._path_specs) == 0 and self._metadata is None:
+            raise ValueError('Artifact must contain at least one file or have metadata')
 
         self._local_entries = []
         if self._metadata is not None:
@@ -191,17 +194,26 @@ class LocalArtifact(object):
     def save(self, name, description=None, aliases=None, labels=None):
         """Returns the server artifact."""
         artifact_id = self._api.create_artifact(name)
-        # TODO(artifacts), send aliases, labels, description
         self._server_artifact = self._api.create_artifact_version(
             artifact_id, self._local_manifest.digest,
             metadata=json.dumps(self._local_manifest.metadata),
+            aliases=aliases, labels=labels, description=description,
             is_user_created=self._is_user_created)
-        if self._server_artifact['state'] == 'COMMITTED':
+        # TODO(artifacts):
+        #   if it's committed, all is good. If it's committing, we just moving ahead isn't necessarily
+        #   correct. It may be better to poll until it's committed or failed, and then decided what to
+        #   do
+        # if it's committing we go ahead and
+        if self._server_artifact['state'] == 'COMMITTED' or self._server_artifact['state'] == 'COMMITTING':
             # TODO: update aliases, labels, description etc?
             return self._server_artifact
         elif self._server_artifact['state'] != 'PENDING':
             # TODO: what to do in this case?
-            raise Exception('Server artifact not in PENDING state')
+            raise Exception('Server artifact not in PENDING state', self._server_artifact)
+        # TODO(artifacts)
+        # if it is in PENDING but not created by us, we also have a problem (two parallel runs)
+        # creating the same artifact. In theory this could be ok but the backend doesn't handle
+        # it right now.
         for entry in self._local_manifest.entries:
             # Sync files. Because of hacking this on the client-side we may have multiple runs
             # pushing to the same artifact version. We could fix this on the server (or maybe it's not
@@ -227,16 +239,18 @@ class LocalArtifact(object):
 
 
 class LocalArtifactRead(object):
-    def __init__(self, name, path):
-        if not isinstance(path, string_types):
-            raise ValueError("path must be a local file or directory")
-        if os.path.isdir(path):
-            self._artifact_dir = path
-        elif os.path.isfile(path):
-            self._artifact_dir = os.path.dirname(path)
-        else:
-            raise ValueError("path must be a local file or directory")
-        self._local_manifest = LocalArtifactManifestV1(path)
+    def __init__(self, name, path, metadata):
+        self._artifact_dir = None
+        if path is not None:
+            if not isinstance(path, string_types):
+                raise ValueError("path must be a local file or directory")
+            if os.path.isdir(path):
+                self._artifact_dir = path
+            elif os.path.isfile(path):
+                self._artifact_dir = os.path.dirname(path)
+            else:
+                raise ValueError("path must be a local file or directory")
+        self._local_manifest = LocalArtifactManifestV1(path, metadata=metadata)
 
     # TODO: give some way for the user to check if we have this on the server?
 

@@ -1088,6 +1088,7 @@ class Api(object):
             $description: String
             $digest: String!,
             $tags: JSONString
+            $aliases: [String!]
             $metadata: JSONString
         ) {
             createArtifactVersion(input: {
@@ -1099,6 +1100,7 @@ class Api(object):
                 digest: $digest,
                 digestAlgorithm: MANIFEST_MD5,
                 tags: $tags
+                aliases: $aliases
                 metadata: $metadata
             }) {
                 artifactVersion {
@@ -1121,31 +1123,10 @@ class Api(object):
             'digest': digest,
             'description': description,
             'tags': labels,
+            'aliases': aliases,
             'metadata': metadata,
         })
         av = response['createArtifactVersion']['artifactVersion']
-        if aliases is not None:
-            # add aliases
-            mutation = gql('''
-            mutation UpdateArtifactVersion(
-                $artifactVersionID: ID!
-                $aliases: [String!]
-            ) {
-                updateArtifactVersion(input: {
-                    artifactVersionID: $artifactVersionID,
-                    aliases: $aliases
-                }) {
-                    artifactVersion {
-                        id
-                        digest
-                    }
-                }
-            }
-            ''')
-            response = self.gql(mutation, variable_values={
-                'artifactVersionID': av['id'],
-                'aliases': aliases,
-            })
         return av
 
     def commit_artifact_version(self, artifact_version_id):

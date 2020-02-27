@@ -405,12 +405,12 @@ class Run(object):
         api = api or self.api
         api.use_artifact_version(self.entity, self.project, self.id, input.id)
 
-    def use_artifact(self, name=None, artifact=None, path=None, api=None):
+    def use_artifact(self, name=None, artifact=None, path=None, metadata=None, api=None):
         # One of artifact, name, paths must be passed in
         api = api or self.api
         entity_name = self.api.settings('entity')
         project_name = self.api.settings('project')
-        if name is not None and path is None:
+        if name is not None and path is None and metadata is None:
             public_api = PublicApi(self.api.settings())
             artifact = public_api.artifact_version('%s/%s/%s' % (entity_name, project_name, name))
         if artifact is not None:
@@ -418,19 +418,20 @@ class Run(object):
             # TODO: This should throw if not available
             api.use_artifact(artifact.id)
             return artifact
-        elif name is not None and path is not None:
-            user_artifact = artifacts.LocalArtifactRead(name, path)
+        elif name is not None and (path is not None or metadata is not None):
+            user_artifact = artifacts.LocalArtifactRead(name, path, metadata)
             self.send_message({
                 'use_artifact': {
                     'name': name,
                     'path': path,
+                    'metadata': metadata
                 }
             })
             return user_artifact
         # TODO
         raise ValueError('Invalid use artifact call')
 
-    def log_artifact(self, name, paths, description=None, metadata=None, labels=None, aliases=None):
+    def log_artifact(self, name, paths=None, description=None, metadata=None, labels=None, aliases=None):
         self.send_message({
             'log_artifact': {
                 'name': name,
