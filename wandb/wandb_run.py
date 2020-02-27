@@ -669,9 +669,7 @@ class Run(object):
     #
     # We do this to avoid filling up history with a lot of repeated uneccessary data
     #
-    # Add singleton can be called be called many times in one run
-    # and it will only be updated when the value changes. The last value
-    # logged will be the one persisted to the server
+    # Add singleton can be called many times in one run and it will only be updated when the value changes. The last value logged will be the one persisted to the server
     def _add_singleton(self, type, key, value):
         # Wrap te value with information
         value_extra = {
@@ -680,19 +678,16 @@ class Run(object):
             'value': value
         }
 
-        if not 'singletons' in self.config['_wandb']:
-            self.config._set_wandb('singletons', {})
+        if not key in self.config['_wandb']:
+            self.config['_wandb'][key] = {}
 
-        if not key in self.config['_wandb']['singletons']:
-            self.config['_wandb']['singletons'][key] = {}
-
-        if type in self.config['_wandb']['singletons'][key]:
-            old_value = self.config['_wandb']['singletons'][key][type]
+        if type in self.config['_wandb'][key]:
+            old_value = self.config['_wandb'][key][type]
         else:
             old_value = None
 
         if value_extra != old_value:
-            self.config['_wandb']['singletons'][key][type] = value_extra
+            self.config['_wandb'][key][type] = value_extra
 
         self.config.persist()
 
