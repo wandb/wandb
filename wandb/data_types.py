@@ -1089,7 +1089,7 @@ class ImageMask(Media):
     def validate(self , mask):
         # 2D Make this work with all tensor(like) types
         if not "mask_data" in mask:
-            raise TypeError("Missing key mask_dat: A mask requires mask data(A 2D array representing the predctions)")
+            raise TypeError("Missing key \"mask_data\": A mask requires mask data(A 2D array representing the predctions)")
         else:
             error_str = "mask_data must be a 2d array" 
             shape = mask["mask_data"].shape
