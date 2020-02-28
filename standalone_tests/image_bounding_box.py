@@ -73,7 +73,7 @@ class_id_to_label = {
     0: "car",
     1: "truck",
     2: "boat",
-    3: "cthululu",
+    3: "cthulhu",
     4: "tree",
     5: "store",
     6: "person",
