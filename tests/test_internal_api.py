@@ -78,6 +78,11 @@ def test_parse_slug():
     assert project == "bar"
     assert run == "foo"
 
+def test_base_url_env(git_repo):
+    api.set_setting("base_url", "https://api.wandb.ai", persist=True)
+    os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
+    api.settings("base_url") == "http://localhost:8080"
+    del os.environ["WANDB_BASE_URL"]
 
 def test_app_url():
     api.set_setting("base_url", "https://api.test")

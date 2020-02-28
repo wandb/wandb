@@ -131,7 +131,7 @@ encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
 ### cli
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L226)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L227)
 ```python
 cli(ctx)
 ```
@@ -141,7 +141,7 @@ Run "wandb docs" for full documentation.
 
 
 ## CallbackHandler
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L76)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L77)
 ```python
 CallbackHandler(self, request, client_address, server)
 ```
@@ -149,7 +149,7 @@ Simple callback handler that stores query string parameters and shuts down the s
 
 
 ## LocalServer
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L93)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L94)
 ```python
 LocalServer(self)
 ```
@@ -157,14 +157,14 @@ A local HTTP server that finds an open port and listens for a callback. The urle
 
 
 ## cli.display_error
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L148)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L149)
 ```python
 display_error(func)
 ```
 Function decorator for catching common errors and re-raising as wandb.Error
 
 ## cli.prompt_for_project
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L165)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L166)
 ```python
 prompt_for_project(ctx, entity)
 ```

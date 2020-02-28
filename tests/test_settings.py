@@ -33,7 +33,7 @@ def test_read_local_setting(global_wandb_settings, local_wandb_settings):
 
 def test_write_setting_globally(global_wandb_settings):
     settings = Settings()
-    settings.set(Settings.DEFAULT_SECTION, 'foo', 'bar', globally=True)
+    settings.set(Settings.DEFAULT_SECTION, 'foo', 'bar', globally=True, persist=True)
 
     with open(global_wandb_settings.name, "r") as f:
         data = f.read()
@@ -43,7 +43,7 @@ def test_write_setting_globally(global_wandb_settings):
 
 def test_write_setting_locally(local_wandb_settings):
     settings = Settings()
-    settings.set(Settings.DEFAULT_SECTION, 'foo', 'bar')
+    settings.set(Settings.DEFAULT_SECTION, 'foo', 'bar', persist=True)
 
     with open(local_wandb_settings.name, "r") as f:
         data = f.read()
