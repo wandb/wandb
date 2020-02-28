@@ -664,7 +664,7 @@ class Run(object):
     # Stores a singleton item to wandb config.
     #
     # A singleton in this context is a piece of data that is continually
-    # logged with the same value in each history step, but representing
+    # logged with the same value in each history step, but represented
     # as a single item in the config.
     #
     # We do this to avoid filling up history with a lot of repeated uneccessary data
@@ -678,16 +678,16 @@ class Run(object):
             'value': value
         }
 
-        if not key in self.config['_wandb']:
-            self.config['_wandb'][key] = {}
+        if not type in self.config['_wandb']:
+            self.config['_wandb'][type] = {}
 
-        if type in self.config['_wandb'][key]:
-            old_value = self.config['_wandb'][key][type]
+        if type in self.config['_wandb'][type]:
+            old_value = self.config['_wandb'][type][key]
         else:
             old_value = None
 
         if value_extra != old_value:
-            self.config['_wandb'][key][type] = value_extra
+            self.config['_wandb'][type][key] = value_extra
             self.config.persist()
 
 
