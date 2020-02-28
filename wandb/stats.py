@@ -11,8 +11,16 @@ psutil = util.get_module("psutil")
 def gpu_in_use_by_this_process(gpu_handle):
     our_pid = os.getpid()
 
-    compute_pids = pynvml.nvmlDeviceGetComputeRunningProcesses(gpu_handle)
-    graphics_pids = pynvml.nvmlDeviceGetGraphicsRunningProcesses(gpu_handle)
+    compute_pids = [
+        process.pid
+        for process
+        in pynvml.nvmlDeviceGetComputeRunningProcesses(gpu_handle)
+    ]
+    graphics_pids = [
+        process.pid
+        for process
+        in pynvml.nvmlDeviceGetGraphicsRunningProcesses(gpu_handle)
+    ]
 
     return our_pid in compute_pids or our_pid in graphics_pids
 
