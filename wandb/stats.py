@@ -9,20 +9,23 @@ from wandb import termlog
 psutil = util.get_module("psutil")
 
 def gpu_in_use_by_this_process(gpu_handle):
-    our_pid = os.getpid()
+    our_pids = os.getpid()
+    our_parent_pid = os.getppid()
 
-    compute_pids = [
+    compute_pids = set([
         process.pid
         for process
         in pynvml.nvmlDeviceGetComputeRunningProcesses(gpu_handle)
-    ]
-    graphics_pids = [
+    ])
+    graphics_pids = set([
         process.pid
         for process
         in pynvml.nvmlDeviceGetGraphicsRunningProcesses(gpu_handle)
-    ]
+    ])
 
-    return our_pid in compute_pids or our_pid in graphics_pids
+    pids_using_device = compute_pids | graphics_pids
+
+    return our_pids in pids_using_device or our_parent_pid in pids_using_device
 
 
 class SystemStats(object):
