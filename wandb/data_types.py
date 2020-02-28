@@ -1012,34 +1012,15 @@ class BoundingBoxes2D(JSONMetadata):
                 if "middle" in box["position"] and len(box["position"]["middle"]) == 2 and \
                    has_num(box["position"], "width") and \
                    has_num(box["position"], "height"): 
-                   vals = [box["position"]["middle"][0],
-                           box["position"]["middle"][1],
-                           box["position"]["width"],
-                           box["position"]["height"]
-                           ]
-                   if not all([(0 <= v <= 1) for v in vals]) and box.get("domain") != "actual":
-                       raise TypeError("A bounding box middle, width, and height must be between 0,1 \
-                               with the default domain. To provide values in the domain of real pixel values \
-                               set box \"domain\" to \"pixel\"")
                    valid = True
                 elif has_num(box["position"], "minX") and \
                      has_num(box["position"], "maxX") and \
                      has_num(box["position"], "minY") and \
                      has_num(box["position"], "maxY"):
-                   vals = [box["position"]["minX"],
-                           box["position"]["maxX"],
-                           box["position"]["minY"],
-                           box["position"]["maxY"]]
-                   if not all([(0 <= v <= 1) for v in vals]) and box.get("domain") != "actual":
-                       raise TypeError("A bounding box [minX, maxX] and [minY, maxY] must be between 0,1 \
-                               with the default domain. To provide values in the domain of real pixel values \
-                               set box \"domain\" to \"pixel\"")
                    valid = True
                 
                 if not valid:
                     raise TypeError(error_str)
-
-
 
             # Optional arguments
             if ("scores" in box) and not isinstance(box["scores"], dict):
