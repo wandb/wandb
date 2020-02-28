@@ -60,7 +60,7 @@ def test_bind_image():
 
 full_box = {
     "position": {
-        "middle" : (100,100), "width" : 40, "height": 20 
+        "middle" : (0.5,0.5), "width" : 0.1, "height": 0.2
         },
     "class_label": "car",
     "box_caption": "This is a big car",
