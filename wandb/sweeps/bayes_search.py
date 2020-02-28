@@ -1,7 +1,7 @@
 """
 Bayesian Search
 
-Check out https://www.iro.umontreal.ca/~bengioy/cifar/NCAP2014-summerschool/slides/Ryan_adams_140814_bayesopt_ncap.pdf
+Check out https://arxiv.org/pdf/1206.2944.pdf
  for explanation of bayesian optimization
 
 We do bayesian optimization and handle the cases where some X values are integers
@@ -184,7 +184,7 @@ def next_sample(
     """
         Calculates the best next sample to look at via bayesian optimization.
 
-        Check out https://www.iro.umontreal.ca/~bengioy/cifar/NCAP2014-summerschool/slides/Ryan_adams_140814_bayesopt_ncap.pdf
+        Check out https://arxiv.org/pdf/1206.2944.pdf
          for explanation of bayesian optimization
 
         Arguments:

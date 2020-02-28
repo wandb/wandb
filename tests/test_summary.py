@@ -16,6 +16,7 @@ import tempfile
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 from wandb import Histogram, Image, Graph, Table
+from wandb.data_types import Node
 from click.testing import CliRunner
 import pytest
 
@@ -110,15 +111,54 @@ def test_matplot_plotly(summary):
     summary["plot"] = plt
     plt.close()
     plot = disk_summary(summary)["plot"]
-    assert plot["_type"] == "plotly"
+    assert plot["_type"] == "plotly-file"
 
 
 def test_plotly_plot(summary):
-    summary["plot"] = go.Scatter(x=[0, 1, 2])
+    scatter = go.Figure(  # plotly
+        data=go.Scatter(x=[0, 1, 2]),
+        layout=go.Layout(
+            title=go.layout.Title(text="A Bar Chart")))
+    summary["plot"] = scatter
     plot = disk_summary(summary)["plot"]
-    assert plot["_type"] == "plotly"
-    assert plot["plot"]['type'] == 'scatter'
+    assert plot["_type"] == "plotly-file"
+    path = plot["path"]
+    data = open(os.path.join(summary._run.dir, path)).read()
+    plot_data = json.loads(data)
+    assert plot_data["data"][0]['type'] == 'scatter'
 
+def test_plotly_big_numpy(summary):
+    N = 200
+    x = np.arange(N)
+    y = np.arange(0, N) / N
+    scatter = go.Figure(  # plotly
+        data=go.Scatter(x=[0, 1, 2]),
+        layout=go.Layout(
+            title=go.layout.Title(text="A Bar Chart")))
+    summary["plot"] = scatter
+    plot = disk_summary(summary)["plot"]
+    path = plot["path"]
+    data = open(os.path.join(summary._run.dir, path)).read()
+    plot_data = json.loads(data)
+    assert plot_data["data"][0]['type'] == 'scatter'
+
+def test_graph(summary):
+    graph = Graph()
+    node_a = Node('a', 'Node A', size=(4,))
+    node_b = Node('b', 'Node B', size=(16,))
+    graph.add_node(node_a)
+    graph.add_node(node_b)
+    graph.add_edge(node_a, node_b)
+    summary["graph"] = graph
+    graph = disk_summary(summary)["graph"]
+    path = graph["path"]
+    data = open(os.path.join(summary._run.dir, path)).read()
+    graph_data = json.loads(data)
+    assert graph_data == {
+        'edges': [['a', 'b']],
+        'format': 'keras',
+        'nodes': [{'id': 'a', 'name': 'Node A', 'size': [4]},
+                  {'id': 'b', 'name': 'Node B', 'size': [16]}]}
 
 def test_newline(summary):
     summary["rad \n"] = 1

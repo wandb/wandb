@@ -68,6 +68,37 @@ def test_async_log(wandb_init_run):
     assert len(wandb.run.history.rows) == 101
 
 
+def test_log_step_uncommited(wandb_init_run):
+    wandb.log(dict(cool=2), step=2)
+    wandb.log(dict(cool=2), step=4)
+    assert len(wandb.run.history.rows) == 1
+
+
+def test_log_step_committed(wandb_init_run):
+    wandb.log(dict(cool=2), step=2)
+    wandb.log(dict(cool=2), step=4, commit=True)
+    assert len(wandb.run.history.rows) == 2
+
+
+def test_log_step_committed_same(wandb_init_run):
+    wandb.log(dict(cool=2), step=1)
+    wandb.log(dict(cool=2), step=4)
+    wandb.log(dict(bad=3), step=4, commit=True)
+    assert len(wandb.run.history.rows) == 2
+    assert len([x for x in wandb.run.history.rows[-1].keys() if not x.startswith("_")]) == 2
+    assert wandb.run.history.rows[-1]["cool"] == 2
+    assert wandb.run.history.rows[-1]["bad"] == 3
+
+
+def test_log_step_committed_same_dropped(wandb_init_run):
+    wandb.log(dict(cool=2), step=1)
+    wandb.log(dict(cool=2), step=4, commit=True)
+    wandb.log(dict(bad=3), step=4, commit=True)
+    assert len(wandb.run.history.rows) == 2
+    assert len([x for x in wandb.run.history.rows[-1].keys() if not x.startswith("_")]) == 1
+    assert wandb.run.history.rows[-1]["cool"] == 2
+
+
 def test_nice_log_error():
     with pytest.raises(ValueError):
         wandb.log({"no": "init"})

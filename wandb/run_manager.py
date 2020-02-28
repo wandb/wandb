@@ -96,8 +96,7 @@ class FileEventHandler(object):
     def __init__(self, file_path, save_name, api, *args, **kwargs):
         self.file_path = file_path
         # Convert windows paths to unix paths
-        if platform.system() == "Windows":
-            save_name = save_name.replace("\\", "/")
+        save_name = util.to_forward_slash_path(save_name)
         self.save_name = save_name
         self._api = api
 
@@ -487,6 +486,9 @@ class RunManager(object):
         self._output = output
         self._port = port
 
+        # Connect to the server early to let it know we are starting up
+        self._socket = wandb_socket.Client(self._port)
+
         self._api = run.api
         self._project = self._resolve_project_name(project)
 
@@ -495,7 +497,6 @@ class RunManager(object):
         self._file_count = 0
         self._init_file_observer()
 
-        self._socket = wandb_socket.Client(self._port)
         # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
         self._system_stats = stats.SystemStats(run, self._api)
         self._meta = meta.Meta(self._api, self._run.dir)
@@ -510,6 +511,11 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
+        # Set code path in config
+        if self._meta.data.get("codePath"):
+            self._config._set_wandb("code_path", util.to_forward_slash_path(
+                os.path.join("code", self._meta.data["codePath"])))
+            self._config.persist()
         # Write our initial metadata after overriding the defaults
         self._meta.write()
         self._tensorboard_watchers = []
@@ -900,11 +906,16 @@ class RunManager(object):
                 # Currently we assume we're not resuming in the case of resume = auto,
                 # and we throw an error in the case of resume = must.
                 logger.info("checking resume status, waiting at most %d seconds" % InternalApi.HTTP_TIMEOUT)
+
+                if not self._project:
+                    raise LaunchError(
+                        "resume='must' but no project is specified. Pass project to init: wandb.init(project=\"...\")")
+
                 async_resume_status = util.async_call(self._api.run_resume_status, InternalApi.HTTP_TIMEOUT)
                 resume_status, thread = async_resume_status(self._api.settings("entity"), self._project, self._run.id)
 
                 if resume_status == None and self._run.resume == 'must':
-                    if thread.isAlive():
+                    if thread.is_alive():
                         raise LaunchError(
                             "resume='must' but we were unable to connect to the W&B service after %i seconds" % InternalApi.HTTP_TIMEOUT)
                     else:
@@ -927,7 +938,7 @@ class RunManager(object):
             logger.info("upserting run before process can begin, waiting at most %d seconds" % InternalApi.HTTP_TIMEOUT)
             async_upsert = util.async_call(self._upsert_run, timeout=InternalApi.HTTP_TIMEOUT)
             _, self._upsert_run_thread = async_upsert(True, storage_id, env)
-            if self._upsert_run_thread.isAlive():
+            if self._upsert_run_thread.is_alive():
                 logger.error("Failed to connect to W&B servers after %i seconds.\
                     Letting user process proceed while attempting to reconnect." % InternalApi.HTTP_TIMEOUT)
 

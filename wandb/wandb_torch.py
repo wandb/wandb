@@ -10,7 +10,6 @@ from six.moves import reduce
 from distutils.version import LooseVersion
 from operator import mul
 
-
 from wandb import util
 from wandb.data_types import Node, Edge
 import wandb
@@ -78,8 +77,9 @@ class TorchHistory(object):
         self._hook_handles = {}
         self._num_bins = 64
         self._is_cuda_histc_supported = None
+        self._jupyter_run = None
 
-    def add_log_hooks_to_pytorch_module(self, module, name=None, prefix='', log_parameters=True, log_gradients=True, log_freq=0):
+    def add_log_hooks_to_pytorch_module(self, module, name=None, prefix='', log_parameters=True, log_gradients=True, log_freq=0, jupyter_run=None):
         """ This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
@@ -87,6 +87,9 @@ class TorchHistory(object):
         """
         if name is not None:
             prefix = prefix + name
+
+        if jupyter_run:
+            self._jupyter_run = weakref.ref(jupyter_run)
 
         module._wandb_hook_names = []
 
@@ -132,12 +135,32 @@ class TorchHistory(object):
             raise TypeError('Expected Tensor, not {}.{}'.format(
                 cls.__module__, cls.__name__))
         history = self._history()
+
+        # recover history from run if using jupyter
+        if history is None and self._jupyter_run:
+            jupyter_run = self._jupyter_run()
+            if jupyter_run:
+                history = jupyter_run.history
+
         if history is None or not history.compute:
             return
 
         # HalfTensors on cpu do not support view(), upconvert to 32bit
         if isinstance(tensor, torch.HalfTensor):
             tensor = tensor.clone().type(torch.FloatTensor).detach()
+
+        # Sparse tensors have a bunch of implicit zeros. In order to histo them correctly,
+        # we have to count them up and add them to the histo ourselves.
+        sparse_zeros = None
+        if tensor.is_sparse:
+            # Have to call this on a sparse tensor before most other ops.
+            tensor = tensor.cpu().coalesce().clone().detach()
+
+            backing_values = tensor._values()
+            non_zero_values = backing_values.numel()
+            all_values = tensor.numel()
+            sparse_zeros = all_values - non_zero_values
+            tensor = backing_values
 
         flat = tensor.view(-1)
 
@@ -177,9 +200,34 @@ class TorchHistory(object):
 
         tmin = flat.min().item()
         tmax = flat.max().item()
+        if sparse_zeros:
+            # If we've got zeros to add in, make sure zero is in the hist range.
+            tmin = 0 if tmin > 0 else tmin
+            tmax = 0 if tmax < 0 else tmax
         tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
         tensor = tensor.cpu().clone().detach()
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
+
+        # Add back zeroes from a sparse tensor.
+        if sparse_zeros:
+            bins_np = bins.numpy()
+            tensor_np = tensor.numpy()
+            bin_idx = 0
+            num_buckets = len(bins_np) - 1
+            for i in range(num_buckets):
+                start = bins_np[i]
+                end = bins_np[i+1]
+                # There are 3 cases to consider here, all of which mean we've found the right bucket
+                # 1. The bucket range contains zero.
+                # 2. The bucket range lower bound *is* zero.
+                # 3. This is the last bucket and the bucket range upper bound is zero.
+                if (start <= 0 and end > 0) or (i == num_buckets - 1 and end == 0):
+                    bin_idx = i
+                    break
+
+            tensor_np[bin_idx] += sparse_zeros
+            tensor = torch.Tensor(tensor_np)
+            bins = torch.Tensor(bins_np)
 
         history.row.update({
             name: wandb.Histogram(np_histogram=(

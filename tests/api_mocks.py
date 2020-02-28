@@ -15,6 +15,7 @@ import yaml
 
 def _files():
     return {
+        'uploadHeaders': [],
         'edges': [
             {'node': {
                 'name': 'weights.h5',
@@ -37,7 +38,7 @@ def _files():
 
 
 def _download_urls(name='test', empty=False, files=None):
-    files = {'edges': []} if empty else (files or _files())
+    files = {'uploadHeaders': [], 'edges': []} if empty else (files or _files())
     return {
         'name': name,
         'description': 'Test model',
@@ -321,7 +322,7 @@ def query_download_h5():
 def query_upload_h5(mocker):
     def wrapper(mocker, status_code=200, error=None, content=None):
         mocker.register_uri('PUT', "https://h5py.url")
-        return query_mocker('model', _download_urls(files={'edges': [{'node': {
+        return query_mocker('model', _download_urls(files={'uploadHeaders': [], 'edges': [{'node': {
             'name': 'wandb.h5',
             'url': 'https://h5py.url',
             'md5': 'fakemd5'

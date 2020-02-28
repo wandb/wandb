@@ -1,7 +1,7 @@
-"""Wandb has special data types for logging rich visualizations.  
+"""Wandb has special data types for logging rich visualizations.
 
-All of the special data types are subclasses of WBValue. All of the data types 
-    serialize to JSON, since that is what wandb uses to save the objects locally 
+All of the special data types are subclasses of WBValue. All of the data types
+    serialize to JSON, since that is what wandb uses to save the objects locally
     and upload them to the W&B server.
 """
 
@@ -15,6 +15,7 @@ import shutil
 from six.moves import queue
 import warnings
 
+import numbers
 import collections
 import os
 import io
@@ -26,6 +27,7 @@ import json
 import codecs
 import tempfile
 from wandb import util
+from wandb.util import has_num
 from wandb.compat import tempfile
 
 # Get rid of cleanup warnings in Python 2.7.
@@ -38,10 +40,10 @@ MEDIA_TMP = tempfile.TemporaryDirectory('wandb-media')
 DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
 
 class WBValue(object):
-    """Abstract parent class for things that can be logged by wandb.log() and 
-        visualized by wandb. 
+    """Abstract parent class for things that can be logged by wandb.log() and
+        visualized by wandb.
 
-    The objects will be serialized as JSON and always have a _type attribute 
+    The objects will be serialized as JSON and always have a _type attribute
         that indicates how to interpret the other fields.
 
     Returns:
@@ -60,7 +62,7 @@ class Histogram(WBValue):
     """
     wandb class for histograms
 
-    This object works just like numpy's histogram function 
+    This object works just like numpy's histogram function
     https://docs.scipy.org/doc/numpy/reference/generated/numpy.histogram.html
 
     Examples:
@@ -114,39 +116,6 @@ class Histogram(WBValue):
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
 
 
-class Table(WBValue):
-    """This is a table designed to display small sets of records.
-
-    Arguments:
-        columns ([str]): Names of the columns in the table.  
-            Defaults to ["Input", "Output", "Expected"].
-        data (array): 2D Array of values that will be displayed as strings.
-    """
-    MAX_ROWS = 300
-
-    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
-        """rows is kept for legacy reasons, we use data to mimic the Pandas api
-        """
-        self.columns = columns
-        self.data = list(rows or data or [])
-
-    def add_row(self, *row):
-        logging.warning("add_row is deprecated, use add_data")
-        self.add_data(*row)
-
-    def add_data(self, *data):
-        if len(data) != len(self.columns):
-            raise ValueError("This table expects {} columns: {}".format(
-                len(self.columns), self.columns))
-        self.data.append(list(data))
-
-    def to_json(self, run=None):
-        if len(self.data) > Table.MAX_ROWS:
-            logging.warn(
-                "The maximum number of rows to display per step is %i." % Table.MAX_ROWS)
-        return {"_type": "table", "columns": self.columns, "data": self.data[:Table.MAX_ROWS]}
-
-
 class Media(WBValue):
     """A WBValue that we store as a file outside JSON and show in a media panel
     on the front end.
@@ -155,7 +124,12 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self, path, is_tmp=False, extension=None):
+    def __init__(self):
+        self._path = None
+        # The run under which this object is bound, if any.
+        self._run = None
+
+    def _set_file(self, path, is_tmp=False, extension=None):
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
@@ -165,15 +139,15 @@ class Media(WBValue):
         self._sha256 = hashlib.sha256(open(self._path, 'rb').read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
-        # The run under which this object is bound, if any.
-        self._run = None
-
     @classmethod
     def get_media_subdir(cls):
         raise NotImplementedError
 
     def is_bound(self):
         return self._run is not None
+
+    def file_is_set(self):
+        return self._path is not None
 
     def bind_to_run(self, run, key, step, id_=None):
         """Bind this object to a particular Run.
@@ -182,6 +156,8 @@ class Media(WBValue):
         put the file associated with this object, from which other Runs can
         refer to it.
         """
+        if not self.file_is_set():
+            raise AssertionError('bind_to_run called before _set_file')
         if run is None:
             raise TypeError('Argument "run" must not be None.')
         if self.is_bound():
@@ -231,7 +207,7 @@ class Media(WBValue):
 
         return {
             '_type': 'file',  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-            'path': os.path.relpath(self._path, self._run.dir),  # TODO(adrian): Convert this to a path with forward slashes.
+            'path': util.to_forward_slash_path(os.path.relpath(self._path, self._run.dir)),
             'sha256': self._sha256,
             'size': self._size,
             #'entity': self._run.entity,
@@ -252,6 +228,58 @@ class BatchableMedia(Media):
         raise NotImplementedError
 
 
+class Table(Media):
+    """This is a table designed to display small sets of records.
+
+    Arguments:
+        columns ([str]): Names of the columns in the table.  
+            Defaults to ["Input", "Output", "Expected"].
+        data (array): 2D Array of values that will be displayed as strings.
+    """
+    MAX_ROWS = 1000 
+    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
+        """rows is kept for legacy reasons, we use data to mimic the Pandas api
+        """
+        super(Table, self).__init__()
+        self.columns = columns
+        self.data = list(rows or data or [])
+
+    def add_row(self, *row):
+        logging.warning("add_row is deprecated, use add_data")
+        self.add_data(*row)
+
+    def add_data(self, *data):
+        if len(data) != len(self.columns):
+            raise ValueError("This table expects {} columns: {}".format(
+                len(self.columns), self.columns))
+        self.data.append(list(data))
+
+    def _to_table_json(self):
+        # seperate method for testing
+        if len(self.data) > Table.MAX_ROWS:
+            logging.warn("Truncating wandb.Table object to %i rows." % Table.MAX_ROWS)
+        return {"columns": self.columns, "data": self.data[:Table.MAX_ROWS]}
+
+    def bind_to_run(self, *args, **kwargs):
+        data = self._to_table_json()
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.table.json')
+        data = numpy_arrays_to_lists(data)
+        util.json_dump_safer(data, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension='.table.json')
+        super(Table, self).bind_to_run(*args, **kwargs)
+
+    @classmethod
+    def get_media_subdir(cls):
+        return os.path.join('media', 'table')
+
+    def to_json(self, run):
+        json_dict = super(Table, self).to_json(run)
+        json_dict['_type'] = 'table-file'
+        json_dict['ncols'] = len(self.columns)
+        json_dict['nrows'] = len(self.data)
+        return json_dict
+
+
 class Audio(BatchableMedia):
     """
         Wandb class for audio clips.
@@ -261,17 +289,18 @@ class Audio(BatchableMedia):
                 or a numpy array of audio data.
             sample_rate (int): Sample rate, required when passing in raw
                 numpy array of audio data.
-            caption (string): Caption to display with audio. 
+            caption (string): Caption to display with audio.
     """
     def __init__(self, data_or_path, sample_rate=None, caption=None):
-        """Accepts a path to an audio file or a numpy array of audio data. 
+        """Accepts a path to an audio file or a numpy array of audio data.
         """
+        super(Audio, self).__init__()
         self._duration = None
         self._sample_rate = sample_rate
         self._caption = caption
 
         if isinstance(data_or_path, six.string_types):
-            super(Audio, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
         else:
             if sample_rate == None:
                 raise ValueError('Argument "sample_rate" is required when instantiating wandb.Audio with raw data.')
@@ -283,7 +312,7 @@ class Audio(BatchableMedia):
             soundfile.write(tmp_path, data_or_path, sample_rate)
             self._duration = len(data_or_path) / float(sample_rate)
 
-            super(Audio, self).__init__(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
     def get_media_subdir(cls):
@@ -357,7 +386,7 @@ class Object3D(BatchableMedia):
             data_or_path (numpy array | string | io ):
                 Object3D can be initialized from a file or a numpy array.
 
-                The file types supported are obj, gltf, babylon, stl.  You can pass a path to 
+                The file types supported are obj, gltf, babylon, stl.  You can pass a path to
                     a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
 
                 The shape of the numpy array must be one of either:
@@ -365,14 +394,15 @@ class Object3D(BatchableMedia):
                 [[x y z],       ...] nx3
                 [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
                 [x y z r g b], ...] nx4 where is rgb is color
-                ```                 
-         
+                ```
+
     """
 
 
     SUPPORTED_TYPES = set(['obj', 'gltf', 'babylon', 'stl'])
 
     def __init__(self, data_or_path, **kwargs):
+        super(Object3D, self).__init__()
 
         if hasattr(data_or_path, 'name'):
             # if the file has a path, we just detect the type and copy it from there
@@ -395,7 +425,7 @@ class Object3D(BatchableMedia):
             with open(tmp_path, "w") as f:
                 f.write(object3D)
 
-            super(Object3D, self).__init__(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
             path = data_or_path
             try:
@@ -407,7 +437,22 @@ class Object3D(BatchableMedia):
                 raise ValueError("Object 3D only supports numpy arrays or files of the type: " +
                                  ", ".join(Object3D.SUPPORTED_TYPES))
 
-            super(Object3D, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
+        # Supported different types and scene for 3D scenes
+        elif 'type' in data_or_path:
+            if data_or_path['type'] == 'lidar/beta':
+                data = {
+                    'type': data_or_path['type'],
+                    'points': data_or_path['points'].tolist(),
+                    'boxes': data_or_path['boxes'].tolist(),
+                }
+            else:
+                raise ValueError("Type not supported, only 'lidar/beta' is currently supported")
+
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
+            json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
+                      separators=(',', ':'), sort_keys=True, indent=4)
+            self._set_file(tmp_path, is_tmp=True, extension='.pts.json')
         elif is_numpy_array(data_or_path):
             data = data_or_path
 
@@ -421,7 +466,7 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.pts.json')
             json.dump(data, codecs.open(tmp_path, 'w', encoding='utf-8'),
                       separators=(',', ':'), sort_keys=True, indent=4)
-            super(Object3D, self).__init__(tmp_path, is_tmp=True, extension='.pts.json')
+            self._set_file(tmp_path, is_tmp=True, extension='.pts.json')
         else:
             raise ValueError("data must be a numpy or a file object")
 
@@ -465,6 +510,7 @@ class Html(BatchableMedia):
                 to False the HTML will pass through unchanged.
     """
     def __init__(self, data, inject=True):
+        super(Html, self).__init__()
 
         if isinstance(data, str):
             self.html = data
@@ -481,7 +527,7 @@ class Html(BatchableMedia):
         with open(tmp_path, 'w') as out:
             print(self.html, file=out)
 
-        super(Html, self).__init__(tmp_path, is_tmp=True)
+        self._set_file(tmp_path, is_tmp=True)
 
     def inject_head(self):
         join = ""
@@ -533,7 +579,7 @@ class Video(BatchableMedia):
                     The format must be specified with the format argument.
                 Video can be initialized with a numpy tensor.
                     The numpy tensor must be either 4 dimensional or 5 dimensional.
-                    Channels should be (time, channel, height, width) or 
+                    Channels should be (time, channel, height, width) or
                         (batch, time, channel, height width)
             caption (string): caption associated with the video for display
             fps (int): frames per second for video. Default is 4.
@@ -543,6 +589,8 @@ class Video(BatchableMedia):
     EXTS = ("gif", "mp4", "webm", "ogg")
 
     def __init__(self, data_or_path, caption=None, fps=4, format=None):
+        super(Video, self).__init__()
+
         self._fps = fps
         self._format = format or "gif"
         self._width = None
@@ -556,13 +604,13 @@ class Video(BatchableMedia):
             filename = os.path.join(MEDIA_TMP.name, util.generate_id() + '.'+ self._format)
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
-            super(Video, self).__init__(filename, is_tmp=True)
+            self._set_file(filename, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:
                 raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
-            super(Video, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
             #ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
             if hasattr(data_or_path, "numpy"): # TF data eager tensors
@@ -592,7 +640,7 @@ class Video(BatchableMedia):
                 clip.write_gif(filename, verbose=False)
             else:
                 clip.write_videofile(filename, verbose=False)
-        super(Video, self).__init__(filename, is_tmp=True)
+        self._set_file(filename, is_tmp=True)
 
     @classmethod
     def get_media_subdir(cls):
@@ -670,7 +718,7 @@ class Image(BatchableMedia):
         Wandb class for images.
 
         Args:
-            data_or_path (numpy array | string | io): Accepts numpy array of 
+            data_or_path (numpy array | string | io): Accepts numpy array of
                 image data, or a PIL image. The class attempts to infer
                 the data format and converts it.
             mode (string): The PIL mode for an image. Most common are "L", "RGB",
@@ -683,7 +731,8 @@ class Image(BatchableMedia):
     # PIL limit
     MAX_DIMENSION = 65500
 
-    def __init__(self, data_or_path, mode=None, caption=None, grouping=None):
+    def __init__(self, data_or_path, mode=None, caption=None, grouping=None, boxes=None, masks=None):
+        super(Image, self).__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
@@ -692,9 +741,18 @@ class Image(BatchableMedia):
         self._width = None
         self._height = None
         self._image = None
+        
+        self._boxes = None 
+        if boxes: 
+            self._boxes = BoundingBoxes2D(boxes)
+        self._masks = None
+        if masks:
+            if not isinstance(masks, list):
+                raise ValueError("Masks must be a list")
+            self._masks = [ImageMask(m) for m in masks]
 
         if isinstance(data_or_path, six.string_types):
-            super(Image, self).__init__(data_or_path, is_tmp=False)
+            self._set_file(data_or_path, is_tmp=False)
         else:
             data = data_or_path
 
@@ -726,11 +784,20 @@ class Image(BatchableMedia):
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.png')
             self._image.save(tmp_path, transparency=None)
-            super(Image, self).__init__(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
     def get_media_subdir(cls):
         return os.path.join('media', 'images')
+
+    def bind_to_run(self, *args, **kwargs):
+        super(Image, self).bind_to_run(*args, **kwargs)
+        if self._boxes is not None:
+            self._boxes.bind_to_run(*args, **kwargs)
+
+        if self._masks is not None:
+            for mask in self._masks:
+                mask.bind_to_run(*args, **kwargs)
 
     def to_json(self, run):
         json_dict = super(Image, self).to_json(run)
@@ -745,6 +812,10 @@ class Image(BatchableMedia):
             json_dict['grouping'] = self._grouping
         if self._caption:
             json_dict['caption'] = self._caption
+        if self._boxes:
+            json_dict['boxes'] = self._boxes.to_json(run)
+        if self._masks:
+            json_dict['masks'] = [mask.to_json(run) for mask in self._masks]
 
         return json_dict
 
@@ -799,6 +870,7 @@ class Image(BatchableMedia):
             logging.warning(
                 "Only %i images will be uploaded." % Image.MAX_THUMBNAILS)
             num_images_to_log = Image.MAX_THUMBNAILS
+            images = images[:num_images_to_log]
 
         if width * num_images_to_log > Image.MAX_DIMENSION:
             max_images_by_dimension = Image.MAX_DIMENSION // width
@@ -823,21 +895,249 @@ class Image(BatchableMedia):
         grouping = images[0]._grouping
         if grouping:
             meta["grouping"] = grouping
-        captions = Image.captions(images[:num_images_to_log])
+
+        captions = Image.all_captions(images)
+
         if captions:
             meta["captions"] = captions
+
+        all_masks = Image.all_masks(images, run, key, step)
+
+        if all_masks:
+            meta["all_masks"] = all_masks
+
+        all_boxes = Image.all_boxes(images, run, key, step)
+
+        if all_boxes:
+            meta["all_boxes"] = all_boxes
+
         return meta
 
     @classmethod
-    def captions(cls, images):
+    def all_masks(cls, images, run, key, step):
+        all_mask_groups = []
+        for i in images:
+            if i._masks:
+                mask_group = []
+                for mask in i._masks:
+                    mask.bind_to_run(run, key, step)
+                    mask_group.append(mask.to_json(run))
+                all_mask_groups.append(mask_group)
+            else:
+               all_mask_groups.append(None)
+        if all_mask_groups and not all(x is None for x in all_mask_groups):
+            return all_mask_groups
+        else:
+            return False
+
+    @classmethod
+    def all_boxes(cls, images, run, key, step):
+        boxes = []
+        for i in images:
+            if i._boxes:
+                i._boxes.bind_to_run(run,key,step)
+                boxes.append(i._boxes.to_json(run))
+            else:
+                boxes.append(None)
+        if boxes and not all(x is None for x in boxes):
+            return boxes
+        else: 
+            return False
+
+    @classmethod
+    def all_captions(cls, images ):
         if images[0]._caption != None:
             return [i._caption for i in images]
         else:
             return False
 
-class Graph(WBValue):
+# Allows encoding of arbitrary JSON structures
+# as a file
+#
+# This class should be used as an abstract class
+# extended to have validation methods
+class JSONMetadata(Media):
+    """
+    JSONMetadata is a type for encoding arbitrary metadata as files.
+    """
+
+    def __init__(self, val, **kwargs):
+        super(JSONMetadata, self).__init__()
+
+        self.validate(val)
+        self._val = val
+
+        ext = "." + self.type_name() + ".json"
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+        util.json_dump_uncompressed(self._val, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+
+    def get_media_subdir(self):
+        return os.path.join('media', 'metadata', self.type_name())
+
+    def to_json(self, run):
+        json_dict = super(JSONMetadata, self).to_json(run)
+        json_dict['_type'] = self.type_name()
+
+        return json_dict
+
+    # These methods should be overridden in the child class
+    def type_name(self): 
+        return "metadata"
+
+    def validate(self, val):
+        return True
+
+class BoundingBoxes2D(JSONMetadata):
+    """
+    Wandb class for 2D bounding Boxes
+    """
+
+    def type_name(self):
+        return "boxes2D"
+
+    def validate(self , boxes):
+        if not isinstance(boxes, collections.Sequence):
+            raise TypeError("Boxes must be a list")
+
+        for box in boxes:
+            # Required arguments
+            error_str = "Each box must contain a position with: middle, width, and height or \
+                    \nminX, maxX, minY, maxY."
+            if not "position" in box:
+                raise TypeError(error_str)
+            else:
+                # import ipdb; ipdb.set_trace()
+                valid = False
+                if "middle" in box["position"] and len(box["position"]["middle"]) == 2 and \
+                   has_num(box["position"], "width") and \
+                   has_num(box["position"], "height"): 
+                   valid = True
+                elif has_num(box["position"], "minX") and \
+                     has_num(box["position"], "maxX") and \
+                     has_num(box["position"], "minY") and \
+                     has_num(box["position"], "maxY"):
+                   valid = True
+                
+                if not valid:
+                    raise TypeError(error_str)
+
+
+            # Optional arguments
+            if ("scores" in box) and not isinstance(box["scores"], dict):
+                raise TypeError("Box scores must be a dictionary")
+            elif ("scores" in box):
+                for k,v in list(box["scores"].items()):
+                    if not isinstance(k, six.string_types):
+                        raise TypeError("A score key must be a string")
+                    if not isinstance(v, numbers.Number):
+                        raise TypeError("A score value must be a number")
+
+            if ("class_label" in box) and not isinstance(box["class_label"], six.string_types):
+                raise TypeError("A box's class label must be of type must be of type string")
+
+            # Optional
+            if ("box_caption" in box) and not isinstance(box["box_caption"], six.string_types):
+                raise TypeError("A box's caption must be a string")
+
+class ImageMask(Media):
+    """
+    Wandb class for image masks, useful for segmentation tasks
+    """
+
+    def __init__(self, val, **kwargs):
+        super(ImageMask, self).__init__()
+
+        self.validate(val)
+        self._val = val
+
+        ext = "." + self.type_name() + ".png"
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+
+        PILImage = util.get_module(
+            "PIL.Image", required='wandb.Image needs the PIL package. To get it, run "pip install pillow".')
+        image = PILImage.fromarray(Image.to_uint8(val["mask_data"]), mode="L")
+        
+        image.save(tmp_path, transparency=None)
+        self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+    def get_media_subdir(self):
+        return os.path.join('media', 'images', self.type_name())
+
+    def to_json(self, run):
+        json_dict = super(ImageMask, self).to_json(run)
+        json_dict['_type'] = self.type_name()
+
+        return json_dict
+
+    def type_name(self):
+        return "mask"
+
+    def validate(self , mask):
+        # 2D Make this work with all tensor(like) types
+        if not "mask_data" in mask:
+            raise TypeError("A mask requires mask data(A 2D array representing the predctions")
+        else:
+            error_str = "mask_data must be a 2d array" 
+            shape = mask["mask_data"].shape
+            if len(shape) != 2:
+                raise TypeError(error_str)
+            if not ((mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()) and \
+                    mask["mask_data"].dtype('int8').kind == "i":
+                raise TypeError("Mask data must be integers between 0 and 255")
+
+        # Optional argument
+        if ("class_labels" in mask):
+            for k, v in list(mask["class_labels"].items()):
+                if (not isinstance(k, numbers.Number)) or (not isinstance(v, six.string_types)):
+                    raise TypeError("Class labels must be a dictionary of numbers to string")
+
+
+class Plotly(Media):
+    """
+        Wandb class for plotly plots.
+
+        Args:
+            val: matplotlib or plotly figure
+    """
+
+    @classmethod
+    def make_plot_media(cls, val):
+        if util.is_matplotlib_typename(util.get_full_typename(val)):
+            val = util.ensure_matplotlib_figure(val)
+            if any(len(ax.images) > 0 for ax in val.axes):
+                return Image(val)
+            val = util.ensure_matplotlib_figure(val)
+            # otherwise, convert to plotly figure
+            tools = util.get_module(
+                "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+            val = tools.mpl_to_plotly(val)
+        return cls(val)
+
+    def __init__(self, val, **kwargs):
+        super(Plotly, self).__init__()
+        if not util.is_plotly_figure_typename(util.get_full_typename(val)):
+            raise ValueError('Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly')
+
+
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.plotly.json')
+        val = numpy_arrays_to_lists(val.to_plotly_json())
+        util.json_dump_safer(val, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension='.plotly.json')
+
+    def get_media_subdir(self):
+        return os.path.join('media', 'plotly')
+
+    def to_json(self, run):
+        json_dict = super(Plotly, self).to_json(run)
+        json_dict['_type'] = 'plotly-file'
+        return json_dict
+
+
+class Graph(Media):
     """Wandb class for graphs
-    
+
     This class is typically used for saving and diplaying neural net models.  It
     represents the graph as an array of nodes and edges.  The nodes can have
     labels that can be visualized by wandb.
@@ -857,20 +1157,41 @@ class Graph(WBValue):
         root (wandb.Node): root node of the graph
     """
     def __init__(self, format="keras"):
+        super(Graph, self).__init__()
         # LB: TODO: I think we should factor criterion and criterion_passed out
         self.format = format
         self.nodes = []
         self.nodes_by_id = {}
         self.edges = []
         self.loaded = False
-        self.criterion = None 
+        self.criterion = None
         self.criterion_passed = False
         self.root = None  # optional root Node if applicable
 
-    def to_json(self, run=None):
-        return {"_type": "graph", "format": self.format,
+    def _to_graph_json(self, run=None):
+        # Needs to be it's own function for tests
+        return {"format": self.format,
                 "nodes": [node.to_json() for node in self.nodes],
                 "edges": [edge.to_json() for edge in self.edges]}
+
+    def bind_to_run(self, *args, **kwargs):
+        data = self._to_graph_json()
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.graph.json')
+        data = numpy_arrays_to_lists(data)
+        util.json_dump_safer(data, codecs.open(tmp_path, 'w', encoding='utf-8'))
+        self._set_file(tmp_path, is_tmp=True, extension='.graph.json')
+        if self.is_bound():
+            return
+        super(Graph, self).bind_to_run(*args, **kwargs)
+
+    @classmethod
+    def get_media_subdir(cls):
+        return os.path.join('media', 'graph')
+
+    def to_json(self, run):
+        json_dict = super(Graph, self).to_json(run)
+        json_dict['_type'] = 'graph-file'
+        return json_dict
 
     def __getitem__(self, nid):
         return self.nodes_by_id[nid]
@@ -1138,7 +1459,7 @@ class Edge(WBValue):
     """
     Edge used in :obj:`Graph`
     """
-    
+
     def __init__(self, from_node, to_node):
         self._attributes = {}
         self.from_node = from_node
@@ -1185,7 +1506,7 @@ class Edge(WBValue):
 
 def nest(thing):
     # Use tensorflows nest function if available, otherwise just wrap object in an array"""
-    
+
     tfutil = util.get_module('tensorflow.python.util')
     if tfutil:
         return tfutil.nest.flatten(thing)
@@ -1213,38 +1534,30 @@ def history_dict_to_json(run, payload, step=None):
 def numpy_arrays_to_lists(payload):
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
-    for key,val in six.iteritems(payload):
-        if isinstance(val, dict):
-            payload[key] = numpy_arrays_to_lists(val)
-        elif util.is_numpy_array(val):
-            payload[key] = val.tolist()
+    if isinstance(payload, dict):
+        res = {}
+        for key, val in six.iteritems(payload):
+            res[key] = numpy_arrays_to_lists(val)
+        return res
+    elif isinstance(payload, collections.Sequence) and not isinstance(payload, six.string_types):
+        return [numpy_arrays_to_lists(v) for v in payload]
+    elif util.is_numpy_array(payload):
+        return [numpy_arrays_to_lists(v) for v in payload.tolist()]
 
     return payload
 
 
 def val_to_json(run, key, val, step='summary'):
     # Converts a wandb datatype to its JSON representation.
-   
+
     converted = val
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
         assert step == 'summary', "We don't yet support DataFrames in History."
         return data_frame_to_json(val, run, key, step)
-    elif util.is_matplotlib_typename(typename):
-        # This handles plots with images in it because plotly doesn't support it
-        # TODO: should we handle a list of plots?
-        val = util.ensure_matplotlib_figure(val)
-        if any(len(ax.images) > 0 for ax in val.axes):
-            PILImage = util.get_module(
-                "PIL.Image", required="Logging plots with images requires pil: pip install pillow")
-            buf = six.BytesIO()
-            val.savefig(buf)
-            val = Image(PILImage.open(buf))
-        else:
-            converted = plot_to_json(val)
-    elif util.is_plotly_typename(typename):
-        converted = plot_to_json(val)
+    elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
+        val = Plotly.make_plot_media(val)
     elif isinstance(val, collections.Sequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if len(val) and isinstance(val[0], BatchableMedia) and all(isinstance(v, type(val[0])) for v in val):
@@ -1265,20 +1578,6 @@ def val_to_json(run, key, val, step='summary'):
         return val.to_json(run)
 
     return converted
-
-def plot_to_json(obj):
-    """Converts a matplotlib or plotly object to json so that we can pass
-        it the the wandb server and display it nicely there"""
-
-    if util.is_matplotlib_typename(util.get_full_typename(obj)):
-        tools = util.get_module(
-            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
-        obj = tools.mpl_to_plotly(obj)
-
-    if util.is_plotly_typename(util.get_full_typename(obj)):
-        return {"_type": "plotly", "plot": numpy_arrays_to_lists(obj.to_plotly_json())}
-    else:
-        return obj
 
 
 def data_frame_to_json(df, run, key, step):

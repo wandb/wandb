@@ -18,6 +18,7 @@ def create_app():
                         "bucket": {
                             "id": "storageid",
                             "files": {
+                                "uploadHeaders": [],
                                 "edges": [{"node": {"name": file, "url": request.url_root + "/storage?file=%s" % file}}]
                             }
                         }

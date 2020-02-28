@@ -1,4 +1,12 @@
-from collections import OrderedDict, Sequence
+from collections import OrderedDict
+
+# six >=1.13.0 not available in all environmnents yet
+#from six.moves.collections_abc import Sequence
+try:
+    from collections.abc import Sequence
+except ImportError:
+    from collections import Sequence
+
 import inspect
 import logging
 import os
@@ -61,6 +69,7 @@ class Config(object):
 
         # detect framework by checking what is loaded
         loaded = {}
+        loaded['lightgbm'] = sys.modules.get('lightgbm')
         loaded['xgboost'] = sys.modules.get('xgboost')
         loaded['fastai'] = sys.modules.get('fastai')
         loaded['torch'] = sys.modules.get('torch')
@@ -70,7 +79,7 @@ class Config(object):
         # TODO(jhr): tfkeras is always loaded with recent tensorflow
         #loaded['tfkeras'] = sys.modules.get('tensorflow.python.keras')
 
-        priority = ('xgboost', 'fastai', 'torch', 'keras', 'tfkeras', 'tensorflow', 'sklearn')
+        priority = ('lightgbm', 'xgboost', 'fastai', 'torch', 'keras', 'tfkeras', 'tensorflow', 'sklearn')
         framework = next((f for f in priority if loaded.get(f)), None)
         if framework:
             self._set_wandb('framework', framework)
@@ -239,7 +248,9 @@ class Config(object):
                 val = str(val)
             return val
 
-    def _update(self, params, allow_val_change=False, as_defaults=False):
+    def _update(self, params, allow_val_change=False, as_defaults=False, exclude_keys=None, include_keys=None):
+        exclude_keys = exclude_keys or []
+        include_keys = include_keys or []
         params = params or {}
         if not isinstance(params, dict):
             # Handle some cases where params is not a dictionary
@@ -270,18 +281,30 @@ class Config(object):
 
         if not isinstance(params, dict):
             raise ConfigError('Expected dict but received %s' % params)
+        if exclude_keys and include_keys:
+            raise ConfigError('Expected at most only one of exclude_keys or include_keys')
         for key, val in params.items():
+            if key in exclude_keys:
+                continue
+            if include_keys and key not in include_keys:
+                continue
             key, val = self._sanitize(key, val, allow_val_change=allow_val_change or as_defaults)
             if as_defaults and key in self._items:
                 continue
             self._items[key] = val
         self.persist()
 
-    def update(self, params, allow_val_change=False):
-        self._update(params, allow_val_change=allow_val_change)
+    def update(self, params, allow_val_change=False, exclude_keys=None, include_keys=None):
+        self._update(params,
+                exclude_keys=exclude_keys,
+                include_keys=include_keys,
+                allow_val_change=allow_val_change)
 
-    def setdefaults(self, params):
-        self._update(params, as_defaults=True)
+    def setdefaults(self, params, exclude_keys=None, include_keys=None):
+        self._update(params,
+                exclude_keys=exclude_keys,
+                include_keys=include_keys,
+                as_defaults=True)
         return dict(self)
 
     def setdefault(self, key, default=None):
@@ -312,3 +335,23 @@ class Config(object):
             s += b'\n\n' + yaml.dump(as_dict, Dumper=yaml.SafeDumper, default_flow_style=False,
                                      allow_unicode=True, encoding='utf-8')
         return s.decode("utf-8")
+
+
+class ConfigStatic(object):
+    def __init__(self, config):
+        object.__setattr__(self, "__dict__", dict(config))
+
+    def __setattr__(self, name, value):
+        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+
+    def __setitem__(self, key, val):
+        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+
+    def keys(self):
+        return self.__dict__.keys()
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __str__(self):
+        return str(self.__dict__)

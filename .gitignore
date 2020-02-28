@@ -81,3 +81,6 @@ edgeml_tests/mnist_tiny
 
 # a place to put temporary stuff when developing
 devscripts/
+
+# IntelliJ IDEA
+.idea/
