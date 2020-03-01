@@ -9,7 +9,6 @@ from wandb.wandb_run import Run
 from wandb.util.globals import set_global
 # from wandb.internal.backend_grpc import Backend
 from wandb.internal.backend_mp import Backend
-import click
 from wandb.stuff import util2
 
 import six
@@ -59,9 +58,6 @@ class _WandbInit(object):
         self.magic = None
         self.wl = None
 
-        self._run = None
-        self._run_synced = None
-
     def setup(self, kwargs):
         self.kwargs = kwargs
 
@@ -79,25 +75,6 @@ class _WandbInit(object):
         s.freeze()
         self.wl = wl
         self.settings = s
-
-    def _display_run(self):
-        s = self.settings
-        r = self._run_synced
-
-        # TODO: move this after send_run calls, since we may or may not have details needed
-        emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
-        app_url = s.base_url.replace("//api.", "//app.")
-        url = "{}/{}/{}/runs/{}".format(app_url, r.team, r.project, r.run_id)
-        wandb.termlog("{} View run at {}".format(
-            emojis.get("rocket", ""),
-            click.style(url, underline=True, fg='blue')))
-
-    def on_start(self):
-        if self._run_synced:
-            self._display_run()
-
-    def on_finish(self):
-        pass
 
     def init(self):
         s = self.settings
@@ -119,7 +96,7 @@ class _WandbInit(object):
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(config=config)
+        run = Run(config=config, settings=s)
         run._set_backend(backend)
         # TODO: pass mode to backend
         run_synced = None
@@ -128,7 +105,7 @@ class _WandbInit(object):
         if s.mode == 'online':
             ret = backend.send_run_sync(r, timeout=30)
             # TODO: fail on error, check return type
-            run_synced = ret.run
+            run._set_run_obj(ret.run)
         elif s.mode in ('offline', 'dryrun'):
             backend.send_run(r)
         elif s.mode in ('async', 'run'):
@@ -139,11 +116,8 @@ class _WandbInit(object):
             # TODO: on network error, do async run save
             backend.send_run(r)
 
-        self._run = run
-        self._run_synced = run_synced
-
-        self.on_start()
         set_global(run=run, config=run.config, log=run.log, join=run.join)
+        run.on_start()
         return run
 
 

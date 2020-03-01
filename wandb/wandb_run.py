@@ -1,5 +1,9 @@
+# -*- coding: utf-8 -*-
+
+import wandb
 from wandb import wandb_config
 import shortuuid  # type: ignore
+import click
 
 
 def generate_id():
@@ -10,12 +14,14 @@ def generate_id():
 
 
 class Run(object):
-    def __init__(self, config=None):
+    def __init__(self, config=None, settings=None):
         self.config = wandb_config.Config()
+        self._settings = settings
         self._backend = None
         self._data = dict()
         self.run_id = generate_id()
         self._step = 0
+        self._run_obj = None
 
         if config:
             self.config.update(config)
@@ -40,6 +46,9 @@ class Run(object):
     def _set_backend(self, backend):
         self._backend = backend
 
+    def _set_run_obj(self, run_obj):
+        self._run_obj = run_obj
+
     def log(self, data, step=None, commit=True):
         if commit:
             self._data["_step"] = self._step
@@ -60,3 +69,22 @@ class Run(object):
     @property
     def summary(self):
         return dict()
+
+    def _display_run(self):
+        s = self._settings
+        r = self._run_obj
+
+        # TODO: move this after send_run calls, since we may or may not have details needed
+        emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+        app_url = s.base_url.replace("//api.", "//app.")
+        url = "{}/{}/{}/runs/{}".format(app_url, r.team, r.project, r.run_id)
+        wandb.termlog("{} View run at {}".format(
+            emojis.get("rocket", ""),
+            click.style(url, underline=True, fg='blue')))
+
+    def on_start(self):
+        if self._run_obj:
+            self._display_run()
+
+    def on_finish(self):
+        pass
