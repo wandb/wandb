@@ -23,7 +23,7 @@ from wandb import util
 from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
-from wandb.apis import InternalApi, PublicApi, CommError
+from wandb.apis import InternalApi, PublicApi, CommError, artifacts
 from wandb.wandb_config import Config, ConfigStatic
 from wandb.viz import Visualize
 import six
@@ -561,8 +561,7 @@ class Run(object):
             query_string=self._generate_query_string(api, params)
         )
 
-
-   def upload_debug(self):
+    def upload_debug(self):
         """Uploads the debug log to cloud storage"""
         if os.path.exists(self.log_fname):
             pusher = FilePusher(self.api)
