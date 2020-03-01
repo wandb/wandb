@@ -70,8 +70,12 @@ class _WandbSetup__WandbSetup(object):
         self._setup()
 
     def _settings_setup(self, settings=None, early_logging=None):
+        glob_config = os.path.expanduser('~/.config/wandb/settings')
+        loc_config = 'wandb/settings'
+        files = (glob_config, loc_config)
         s = wandb_settings.Settings(environ=self._environ,
-                                    early_logging=early_logging)
+                                    early_logging=early_logging,
+                                    files=files)
         if settings:
             s.update(settings)
         s.freeze()

@@ -4,6 +4,7 @@ settings.
 import six
 import logging
 import collections
+import configparser
 
 logger = logging.getLogger("wandb")
 
@@ -76,7 +77,7 @@ def _build_inverse_map(prefix, d):
 
 
 class Settings(object):
-    def __init__(self, settings=None, environ=None, early_logging=None):
+    def __init__(self, settings=None, environ=None, files=None, early_logging=None):
         _settings_dict = dict()
         for k, v in six.iteritems(defaults):
             if isinstance(v, Field):
@@ -93,6 +94,11 @@ class Settings(object):
         object.__setattr__(self, "_frozen", False)
         if settings:
             self.update(settings)
+        files = files or []
+        if files:
+            for f in files:
+                d = self._load(f)
+                self.update(d)
         if environ:
             inv_map = _build_inverse_map(env_prefix, env_settings)
             env_dict = dict()
@@ -136,6 +142,16 @@ class Settings(object):
 
         self._settings_dict.update(d)
         self._settings_dict.update(kwargs)
+
+    def _load(self, fname):
+        section = 'default'
+        cp = configparser.ConfigParser()
+        cp.add_section(section)
+        cp.read(fname)
+        d = dict()
+        for k in cp[section]:
+            d[k] = cp[section][k]
+        return d
 
     def __getattr__(self, k):
         try:

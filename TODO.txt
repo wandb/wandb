@@ -24,3 +24,5 @@ wandb-debug-20200220_123423-1234-internal.txt
 
 
 https://www.rfk.id.au/blog/entry/testing-better-coverage-tox/
+
+http://python-future.org/automatic_conversion.html#pasteurize-py3-to-py2-3
