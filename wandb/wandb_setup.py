@@ -50,8 +50,8 @@ class _EarlyLogger(object):
             logger.exception(msg, *args, **kwargs)
 
 
-class _WandbLibrary__WandbLibrary(object):
-    """Inner class of _WandbLibrary."""
+class _WandbSetup__WandbSetup(object):
+    """Inner class of _WandbSetup."""
     def __init__(self, settings=None, environ=None):
         self._multiprocessing = None
         self._settings = None
@@ -171,16 +171,19 @@ class _WandbLibrary__WandbLibrary(object):
         self._multiprocessing = ctx
         #print("t3b", self._multiprocessing.get_start_method())
 
+    def on_finish(self):
+        logger.info("done")
 
-class _WandbLibrary(object):
+
+class _WandbSetup(object):
     """Wandb singleton class."""
     _instance = None
 
     def __init__(self, settings=None):
         # TODO(jhr): what do we do if settings changed?
-        if _WandbLibrary._instance is not None:
+        if _WandbSetup._instance is not None:
             return
-        _WandbLibrary._instance = __WandbLibrary(settings=settings)
+        _WandbSetup._instance = __WandbSetup(settings=settings)
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
@@ -188,5 +191,5 @@ class _WandbLibrary(object):
 
 def setup(settings=None):
     """Setup library context."""
-    wl = _WandbLibrary(settings=settings)
+    wl = _WandbSetup(settings=settings)
     return wl

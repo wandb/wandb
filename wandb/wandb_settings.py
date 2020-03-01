@@ -17,18 +17,20 @@ defaults = dict(
     entity=None,
     project=None,
     base_url="https://api.wandb.ai",
-    app_url="https://app.wandb.ai",
+    # base_url="http://api.wandb.test",
     api_key=None,
     anonymous=None,
 
     # how do we annotate that: dryrun==offline?
-    mode=Field(None, str, ('noop', 'online', 'offline', 'dryrun', 'async')),
+    mode=Field('online', str,
+               ('noop', 'online', 'offline', 'dryrun', 'async')),
     group=None,
     job_type=None,
 
-    # compatibility
+    # compatibility / error handling
     compat_version=None,  # set to "0.8" for safer defaults for older users
     strict=None,  # set to "on" to enforce current best practices (also "warn")
+    problem=Field('fatal', str, ('fatal', 'warn', 'silent')),
 
     # dynamic settings
     system_sample_seconds=2,
@@ -61,6 +63,7 @@ env_settings = dict(
     mode=None,
     group="WANDB_RUN_GROUP",
     job_type=None,
+    problem=None,
 )
 
 

@@ -115,7 +115,7 @@ def setup_logging(log_fname, log_level, run_id=None):
     root.addHandler(handler)
 
 
-def wandb_write(q, stopped):
+def wandb_write(settings, q, stopped):
     ds = datastore.DataStore()
     ds.open("out.dat")
     while not stopped.isSet():
@@ -128,10 +128,10 @@ def wandb_write(q, stopped):
     ds.close()
 
 
-def wandb_send(q, stopped):
+def wandb_send(settings, q, resp_q, stopped):
     fs = None
     run_id = None
-    api = internal.Api()
+    api = internal.Api(default_settings=settings)
     #settings=dict(entity="jeff", project="uncategorized")
     settings=dict(project="uncategorized")
     while not stopped.isSet():
@@ -147,7 +147,27 @@ def wandb_send(q, stopped):
         elif t == "run":
             run = i.run
             config = json.loads(run.config_json)
-            r = api.upsert_run(name=run.run_id, config=config, **settings)
+            ups = api.upsert_run(name=run.run_id, config=config, **settings)
+
+            if i.control.req_resp:
+                storage_id = ups.get("id")
+                if storage_id:
+                    i.run.storage_id = storage_id
+                display_name = ups.get("displayName")
+                if display_name:
+                    i.run.name = display_name
+                project = ups.get("project")
+                if project:
+                    project_name = project.get("name")
+                    if project_name:
+                        i.run.project = project_name
+                    entity = project.get("entity")
+                    if entity:
+                        entity_name = entity.get("name")
+                        if entity_name:
+                            i.run.team = entity_name
+                resp_q.put(i)
+
             #fs = file_stream.FileStreamApi(api, run.run_id, settings=settings)
             #fs.start()
             #self._fs['rfs'] = fs
@@ -168,7 +188,7 @@ def wandb_send(q, stopped):
         fs.finish(0)
 
 
-def wandb_internal(notify_queue, process_queue, child_pipe, log_fname, log_level):
+def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level):
     #fd = multiprocessing.reduction.recv_handle(child_pipe)
     #if msvcrt:
     #    fd = msvcrt.open_osfhandle(fd, os.O_WRONLY)
@@ -181,9 +201,9 @@ def wandb_internal(notify_queue, process_queue, child_pipe, log_fname, log_level
     stopped = threading.Event()
    
     write_queue = queue.Queue()
-    write_thread = threading.Thread(name="wandb_write", target=wandb_write, args=(write_queue, stopped))
+    write_thread = threading.Thread(name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped))
     send_queue = queue.Queue()
-    send_thread = threading.Thread(name="wandb_send", target=wandb_send, args=(send_queue, stopped))
+    send_thread = threading.Thread(name="wandb_send", target=wandb_send, args=(settings, send_queue, resp_queue, stopped))
 
     write_thread.start()
     send_thread.start()
@@ -191,6 +211,7 @@ def wandb_internal(notify_queue, process_queue, child_pipe, log_fname, log_level
     done = False
     while not done:
         count = 0
+        # TODO: think about this try/except clause
         try:
             while True:
                 i = notify_queue.get()
@@ -204,6 +225,10 @@ def wandb_internal(notify_queue, process_queue, child_pipe, log_fname, log_level
                     stopped.set()
                     done = True
                     break
+                elif i == Backend.NOTIFY_REQUEST:
+                    rec = req_queue.get()
+                    # check if reqresp set
+                    send_queue.put(rec)
                 else:
                     print("unknown", i)
         except KeyboardInterrupt as e:
@@ -223,39 +248,52 @@ def wandb_internal(notify_queue, process_queue, child_pipe, log_fname, log_level
 class Backend(object):
     NOTIFY_PROCESS = 1
     NOTIFY_SHUTDOWN = 2
+    NOTIFY_REQUEST = 3
+
+    class ExceptionTimeout(Exception):
+        pass
 
     def __init__(self, mode=None):
         self.wandb_process = None
         self.fd_pipe_parent = None
         self.process_queue = None
-        self.async_queue = None
-        self.fd_request_queue = None
-        self.fd_response_queue = None
-        self.request_queue = None
-        self.response_queue = None
+        # self.fd_request_queue = None
+        # self.fd_response_queue = None
+        self.req_queue = None
+        self.resp_queue = None
+        self.cancel_queue = None
         self.notify_queue = None  # notify activity on ...
 
         self._done = False
         self._wl = wandb.setup()
 
-    def ensure_launched(self, log_fname=None, log_level=None):
+    def ensure_launched(self, settings=None, log_fname=None, log_level=None):
         """Launch backend worker if not running."""
         log_fname = log_fname or ""
         log_level = log_level or logging.DEBUG
+        settings = settings or {}
+        settings = dict(settings)
 
         fd_pipe_child, fd_pipe_parent = self._wl._multiprocessing.Pipe()
+
         process_queue = self._wl._multiprocessing.Queue()
-        async_queue = self._wl._multiprocessing.Queue()
-        fd_request_queue = self._wl._multiprocessing.Queue()
-        fd_response_queue = self._wl._multiprocessing.Queue()
-        request_queue = self._wl._multiprocessing.Queue()
-        response_queue = self._wl._multiprocessing.Queue()
+        # async_queue = self._wl._multiprocessing.Queue()
+        # fd_request_queue = self._wl._multiprocessing.Queue()
+        # fd_response_queue = self._wl._multiprocessing.Queue()
+        # TODO: should this be one item just to make sure it stays fully synchronous?
+        req_queue = self._wl._multiprocessing.Queue()
+        resp_queue = self._wl._multiprocessing.Queue()
+        cancel_queue = self._wl._multiprocessing.Queue()
         notify_queue = self._wl._multiprocessing.Queue()
 
         wandb_process = self._wl._multiprocessing.Process(target=wandb_internal,
                 args=(
+                    settings,
                     notify_queue,
                     process_queue,
+                    req_queue,
+                    resp_queue,
+                    cancel_queue,
                     fd_pipe_child,
                     log_fname,
                     log_level,
@@ -288,14 +326,17 @@ class Backend(object):
         elif save_mod_path:
             main_module.__file__ = save_mod_path
 
-        self.wandb_process = wandb_process
         self.fd_pipe_parent = fd_pipe_parent
+
+        self.wandb_process = wandb_process
+
         self.process_queue = process_queue
-        self.async_queue = async_queue
-        self.fd_request_queue = fd_request_queue
-        self.fd_response_queue = fd_response_queue
-        self.request_queue = request_queue
-        self.response_queue = response_queue
+        # self.async_queue = async_queue
+        # self.fd_request_queue = fd_request_queue
+        # self.fd_response_queue = fd_response_queue
+        self.req_queue = req_queue
+        self.resp_queue = resp_queue
+        self.cancel_queue = cancel_queue
         self.notify_queue = notify_queue
 
         atexit.register(lambda: self._atexit_cleanup())
@@ -311,7 +352,7 @@ class Backend(object):
     def join(self):
         self._atexit_cleanup()
 
-    def log(self, data):
+    def send_log(self, data):
         json_data = json.dumps(data, cls=WandBJSONEncoder)
         #json_data = json.dumps(data)
         l = wandb_internal_pb2.LogData(json=json_data)
@@ -320,14 +361,63 @@ class Backend(object):
         self.process_queue.put(rec)
         self.notify_queue.put(self.NOTIFY_PROCESS)
 
-    def run_update(self, run_dict):
+    def _make_run(self, run_dict):
         run = wandb_internal_pb2.Run()
         run.run_id = run_dict['run_id']
         run.config_json = json.dumps(run_dict.get('config', {}))
+        return run
+
+    def _make_record(self, run=None):
         rec = wandb_internal_pb2.Record()
-        rec.run.CopyFrom(run)
+        if run:
+            rec.run.CopyFrom(run)
+        return rec
+
+    def _queue_process(self, rec):
         self.process_queue.put(rec)
         self.notify_queue.put(self.NOTIFY_PROCESS)
+
+    def _request_flush(self):
+        # TODO: make sure request queue is cleared
+        # probably need to send a cancel message and
+        # wait for it to come back
+        pass
+
+    def _request_response(self, rec, timeout=5):
+        # TODO: make sure this is called from main process.
+        # can only be one outstanding
+        # add a cancel queue
+        rec.control.req_resp = True
+        self.req_queue.put(rec)
+        self.notify_queue.put(self.NOTIFY_REQUEST)
+
+        try:
+            rsp = self.resp_queue.get(timeout=timeout)
+        except queue.Empty:
+            self._request_flush()
+            raise Backend.ExceptionTimeout("timeout")
+
+        # returns response, err
+        return rsp
+
+    def send_run(self, run_dict):
+        run = self._make_run(run_dict)
+        rec = self._make_record(run=run)
+
+        self._queue_process(rec)
+
+    def send_run_sync(self, run_dict, timeout=None):
+        run = self._make_run(run_dict)
+        req = self._make_record(run=run)
+
+        resp = self._request_response(req)
+        return resp
+
+    def send_file_save(self, file_info):
+        pass
+
+    def send_exit_code(self, exit_code):
+        pass
 
     def _atexit_cleanup(self):
         # TODO: make _done atomic

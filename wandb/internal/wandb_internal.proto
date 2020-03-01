@@ -59,6 +59,9 @@ message Run {
   string config_json = 3;
   // summary
   string summary_json = 4;
+  string team = 5;
+  string project = 6;
+  string storage_id = 16;
 }
 
 message Error {
@@ -85,12 +88,17 @@ message RunUpdateResult {
   Error error = 16;
 }
 
+message Control {
+  bool req_resp = 1;
+}
+
 message Record {
   int64   num = 1;
   oneof data {
     LogData log = 2;
     Run     run = 3;
   }
+  Control control = 16;
   // config?
   // summary?
   // console

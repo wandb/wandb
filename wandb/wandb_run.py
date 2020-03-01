@@ -18,8 +18,7 @@ class Run(object):
         self._step = 0
 
         if config:
-            for k, v in config.items():
-                self.config[k] = v
+            self.config.update(config)
 
     # def _repr_html_(self):
     #     url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(
@@ -45,12 +44,8 @@ class Run(object):
         if commit:
             self._data["_step"] = self._step
             self._step += 1
-            if self._data:
-                self._data.update(data)
-                self._backend.log(self._data)
-            else:
-                self._data.update(data)
-                self._backend.log(self._data)
+            self._data.update(data)
+            self._backend.send_log(self._data)
             self._data = dict()
         else:
             self._data.update(data)
