@@ -2,6 +2,9 @@ from __future__ import print_function
 
 from wandb.internal import wandb_internal_pb2
 import struct
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class DataStore(object):
@@ -13,12 +16,12 @@ class DataStore(object):
 
     def open(self, fname):
         self._fname = fname
-        print("open", fname)
+        logger.info("open: %s", fname)
         self._fp = open(fname, "wb")
 
     def open_for_scan(self, fname):
         self._fname = fname
-        print("open", fname)
+        logger.info("open for scan: %s", fname)
         self._fp = open(fname, "rb")
 
     def scan(self):
@@ -62,7 +65,7 @@ class DataStore(object):
 
     def close(self):
         if self._fp is not None:
-            print("close", self._fname)
+            logger.info("close: %s", self._fname)
             self._fp.close()
 
 
