@@ -8,9 +8,24 @@ from wandb import util
 from wandb import termlog
 psutil = util.get_module("psutil")
 
+
 def gpu_in_use_by_this_process(gpu_handle):
-    our_pids = os.getpid()
-    our_parent_pid = os.getppid()
+    if not psutil:
+        return False
+
+    # NOTE: this optimizes for the case where wandb was initialized from
+    # iniside the user script (i.e. `wandb.init()`). If we ran using
+    # `wandb run` on the command line, the shell will be detected as the
+    # parent, possible resulting in sibling processes being incorrectly
+    # indentified as part of this process -- still better than not
+    # detecting in-use gpus at all.
+    base_process = psutil.Process().parent() or psutil.Process()
+
+    our_pids = set([
+        child.pid
+        for child
+        in base_process.children(recursive=True)
+    ])
 
     compute_pids = set([
         process.pid
@@ -25,7 +40,7 @@ def gpu_in_use_by_this_process(gpu_handle):
 
     pids_using_device = compute_pids | graphics_pids
 
-    return our_pids in pids_using_device or our_parent_pid in pids_using_device
+    return len(pids_using_device & our_pids) > 0
 
 
 class SystemStats(object):
@@ -131,8 +146,7 @@ class SystemStats(object):
                         i, "memoryAllocated")] = (memory.used / float(memory.total)) * 100
                     stats["gpu.process.{}.{}".format(i, "temp")] = temp
 
-				
-				# Some GPUs don't provide information about power usage
+                    # Some GPUs don't provide information about power usage
                 try:
                     power_watts = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0
                     power_capacity_watts = pynvml.nvmlDeviceGetEnforcedPowerLimit(handle) / 1000.0
@@ -147,7 +161,7 @@ class SystemStats(object):
 
                 except pynvml.NVMLError as err:
                     pass
-				
+
             except pynvml.NVMLError as err:
                 pass
         if psutil:
