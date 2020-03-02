@@ -21,10 +21,13 @@ def gpu_in_use_by_this_process(gpu_handle):
     # detecting in-use gpus at all.
     base_process = psutil.Process().parent() or psutil.Process()
 
+    our_processes = base_process.children(recursive=True)
+    our_processes.append(base_process)
+
     our_pids = set([
         process.pid
         for process
-        in [base_process, *(base_process.children(recursive=True))]
+        in our_processes
     ])
 
     compute_pids = set([
