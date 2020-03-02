@@ -9,9 +9,9 @@ from wandb.errors import Error
 
 import sys
 if sys.version_info < (3, 0):
-    from wandb.sdk_compat27.wandb_init import init
-    from wandb.sdk_compat27.wandb_setup import setup
-    from wandb.sdk_compat27.wandb_save import save
+    from wandb.sdk_py27.wandb_init import init
+    from wandb.sdk_py27.wandb_setup import setup
+    from wandb.sdk_py27.wandb_save import save
 else:
     from wandb.sdk.wandb_init import init
     from wandb.sdk.wandb_setup import setup
