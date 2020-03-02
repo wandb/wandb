@@ -12,7 +12,7 @@ All of the special data types are subclasses of WBValue. All of the data types s
 ## WBValue
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L42)
 ```python
-WBValue(self)
+WBValue()
 ```
 Abstract parent class for things that can be logged by wandb.log() and visualized by wandb.
 
@@ -26,7 +26,7 @@ The objects will be serialized as JSON and always have a _type attribute that in
 ## Histogram
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L61)
 ```python
-Histogram(self, sequence=None, np_histogram=None, num_bins=64)
+Histogram(sequence=None, np_histogram=None, num_bins=64)
 ```
 
 wandb class for histograms
@@ -63,7 +63,7 @@ wandb.Histogram(np_histogram=hist)
 ## Media
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L119)
 ```python
-Media(self)
+Media()
 ```
 A WBValue that we store as a file outside JSON and show in a media panel on the front end.
 
@@ -73,7 +73,7 @@ If necessary, we move or copy the file into the Run's media directory so that it
 ## BatchableMedia
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L219)
 ```python
-BatchableMedia(self)
+BatchableMedia()
 ```
 Parent class for Media we treat specially in batches, like images and thumbnails.
 
@@ -83,7 +83,7 @@ Apart from images, we just use these batches to help organize files by name in t
 ## Table
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L231)
 ```python
-Table(self, columns=['Input', 'Output', 'Expected'], data=None, rows=None)
+Table(columns=['Input', 'Output', 'Expected'], data=None, rows=None)
 ```
 This is a table designed to display small sets of records.
 
@@ -96,7 +96,7 @@ This is a table designed to display small sets of records.
 ## Audio
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L283)
 ```python
-Audio(self, data_or_path, sample_rate=None, caption=None)
+Audio(data_or_path, sample_rate=None, caption=None)
 ```
 
 Wandb class for audio clips.
@@ -111,7 +111,7 @@ Wandb class for audio clips.
 ## Object3D
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L381)
 ```python
-Object3D(self, data_or_path, **kwargs)
+Object3D(data_or_path, **kwargs)
 ```
 
 Wandb class for 3D point clouds.
@@ -134,7 +134,7 @@ Wandb class for 3D point clouds.
 ## Html
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L503)
 ```python
-Html(self, data, inject=True)
+Html(data, inject=True)
 ```
 
 Wandb class for arbitrary html
@@ -148,7 +148,7 @@ Wandb class for arbitrary html
 ## Video
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L570)
 ```python
-Video(self, data_or_path, caption=None, fps=4, format=None)
+Video(data_or_path, caption=None, fps=4, format=None)
 ```
 
 Wandb representation of video.
@@ -164,8 +164,7 @@ Wandb representation of video.
 ## Image
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L716)
 ```python
-Image(self,
-      data_or_path,
+Image(data_or_path,
       mode=None,
       caption=None,
       grouping=None,
@@ -185,7 +184,7 @@ Wandb class for images.
 ## JSONMetadata
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L959)
 ```python
-JSONMetadata(self, val, **kwargs)
+JSONMetadata(val, **kwargs)
 ```
 
 JSONMetadata is a type for encoding arbitrary metadata as files.
@@ -194,7 +193,7 @@ JSONMetadata is a type for encoding arbitrary metadata as files.
 ## BoundingBoxes2D
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L992)
 ```python
-BoundingBoxes2D(self, val, **kwargs)
+BoundingBoxes2D(val, **kwargs)
 ```
 
 Wandb class for 2D bounding Boxes
@@ -203,7 +202,7 @@ Wandb class for 2D bounding Boxes
 ## ImageMask
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1042)
 ```python
-ImageMask(self, val, **kwargs)
+ImageMask(val, **kwargs)
 ```
 
 Wandb class for image masks, useful for segmentation tasks
@@ -212,7 +211,7 @@ Wandb class for image masks, useful for segmentation tasks
 ## Plotly
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1095)
 ```python
-Plotly(self, val, **kwargs)
+Plotly(val, **kwargs)
 ```
 
 Wandb class for plotly plots.
@@ -225,7 +224,7 @@ Wandb class for plotly plots.
 ## Graph
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1136)
 ```python
-Graph(self, format='keras')
+Graph(format='keras')
 ```
 Wandb class for graphs
 
@@ -251,8 +250,7 @@ Graph.from_keras(keras_model)
 ## Node
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1291)
 ```python
-Node(self,
-     id=None,
+Node(id=None,
      name=None,
      class_name=None,
      size=None,
@@ -269,7 +267,7 @@ Node used in [`Graph`](#graph)
 ## Edge
 [source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1456)
 ```python
-Edge(self, from_node, to_node)
+Edge(from_node, to_node)
 ```
 
 Edge used in [`Graph`](#graph)

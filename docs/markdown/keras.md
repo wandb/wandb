@@ -9,8 +9,7 @@ description: wandb.keras
 ## WandbCallback
 [source](https://github.com/wandb/client/blob/master/wandb/keras/__init__.py#L137)
 ```python
-WandbCallback(self,
-              monitor='val_loss',
+WandbCallback(monitor='val_loss',
               verbose=0,
               mode='auto',
               save_weights_only=False,
