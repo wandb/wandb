@@ -77,7 +77,11 @@ def _build_inverse_map(prefix, d):
 
 
 class Settings(object):
-    def __init__(self, settings=None, environ=None, files=None, early_logging=None):
+    def __init__(self,
+                 settings=None,
+                 environ=None,
+                 files=None,
+                 early_logging=None):
         _settings_dict = dict()
         for k, v in six.iteritems(defaults):
             if isinstance(v, Field):
