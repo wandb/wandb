@@ -22,9 +22,9 @@ def gpu_in_use_by_this_process(gpu_handle):
     base_process = psutil.Process().parent() or psutil.Process()
 
     our_pids = set([
-        child.pid
-        for child
-        in base_process.children(recursive=True)
+        process.pid
+        for process
+        in [base_process, *(base_process.children(recursive=True))]
     ])
 
     compute_pids = set([
