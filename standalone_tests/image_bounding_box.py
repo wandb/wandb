@@ -69,6 +69,19 @@ def gen_box_img_type_2(vrange=1, box_count=100):
     box_img = wandb.Image(image, boxes=[gen_box_type_2(vrange) for i in range(1,box_count)] )
     return box_img
 
+class_id_to_label = {
+    0: "car",
+    1: "truck",
+    2: "boat",
+    3: "cthulhu",
+    4: "tree",
+    5: "store",
+    6: "person",
+    7: "bike",
+    8: "motorcycle",
+    9: "train"
+}
+
 
 # Generates an img with each box type that should all render the same
 def balanced_corners_portrait():
@@ -94,7 +107,7 @@ def balanced_corners_portrait():
             "height":  box_h,
             },
         "class_id" : random.randint(0,10),
-        "box_caption": "car conf 0.7",
+        "box_caption":  "m,w,h(pixel)",
         "scores" : {
             "acc": 0.7
             },
@@ -103,6 +116,7 @@ def balanced_corners_portrait():
 
         for [x,y] in box_corners ])
 
+    id = random.randint(0,10)
     img_norm_domain = wandb.Image(image, boxes=[
         {"position": {
             "middle": [(x + box_w/2.0)/img_width, (y + box_h/2.0) / img_height],
@@ -110,7 +124,7 @@ def balanced_corners_portrait():
             "height":  float(box_h) / img_height,
             },
         "class_id" : random.randint(0,10),
-        "box_caption": "car conf 0.7",
+        "box_caption": "m,w,h 0-1",
         "scores" : {
             "acc": 0.7
             }
@@ -118,6 +132,7 @@ def balanced_corners_portrait():
 
         for [x,y] in box_corners])
 
+    id = random.randint(0,10)
     img_min_max_pixel = wandb.Image(image, boxes=[
         {"position": {
             "minX": x,
@@ -126,7 +141,7 @@ def balanced_corners_portrait():
             "maxY": y + box_h,
             },
         "class_id" : random.randint(0,10),
-        "box_caption": "car conf 0.7",
+        "box_caption": "minMax(pixel)" ,
         "scores" : {
             "acc": 0.7
             },
@@ -141,9 +156,9 @@ def balanced_corners_portrait():
             "maxX": float(x + box_w)/img_width,
             "minY": float(y)/img_height,
             "maxY": float(y + box_h)/img_height,
-            },
+        },
         "class_id" : random.randint(0,10),
-        "box_caption": "car conf 0.7",
+        "box_caption": "minmax 0-1",
         "scores" : {
             "acc": 0.7
             }
