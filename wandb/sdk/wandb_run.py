@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import wandb
-from wandb import wandb_config
+from . import wandb_config
 import shortuuid  # type: ignore
 import click
 

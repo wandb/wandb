@@ -7,16 +7,17 @@ __version__ = '0.0.2'
 
 from wandb.errors import Error
 
-#import sys
-#if sys.version_info < (3, 0):
-#    from wandb.compat_gen_py2.wandb_init import init
-#else:
-#    from wandb.wandb_init import init
+import sys
+if sys.version_info < (3, 0):
+    from wandb.sdk_compat27.wandb_init import init
+    from wandb.sdk_compat27.wandb_setup import setup
+    from wandb.sdk_compat27.wandb_save import save
+else:
+    from wandb.sdk.wandb_init import init
+    from wandb.sdk.wandb_setup import setup
+    from wandb.sdk.wandb_save import save
 
-from wandb.wandb_init import init
 
-from wandb.wandb_setup import setup
-from wandb.wandb_save import save
 from wandb.util import preinit as _preinit
 from wandb.errors.term import termlog, termerror, termwarn
 

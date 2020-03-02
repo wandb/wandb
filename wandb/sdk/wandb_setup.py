@@ -12,7 +12,7 @@ import logging
 import copy
 import os
 
-from wandb import wandb_settings
+from . import wandb_settings
 
 logger = logging.getLogger("wandb")
 

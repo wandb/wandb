@@ -41,7 +41,7 @@ import wandb
 import wandb.stuff.core
 from wandb.stuff.core import wandb_dir
 from wandb.apis import CommError
-from wandb import wandb_config
+# from wandb import wandb_config
 from wandb.stuff import env
 
 logger = logging.getLogger(__name__)
@@ -661,7 +661,9 @@ def get_log_file_path():
 
 
 def is_wandb_file(name):
-    return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt" or name == OUTPUT_FNAME or name == DIFF_FNAME
+    #return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt" or name == OUTPUT_FNAME or name == DIFF_FNAME
+    # FIXME(jhr): need fix
+    return None
 
 
 def docker_image_regex(image):

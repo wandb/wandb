@@ -4,7 +4,7 @@ settings test.
 
 import pytest  # type: ignore
 
-from wandb import wandb_settings
+from . import wandb_settings
 import copy
 
 
