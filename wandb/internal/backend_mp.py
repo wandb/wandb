@@ -5,7 +5,7 @@ from six.moves import queue
 import sys
 import os
 import logging
-
+import six
 
 import wandb
 from wandb.internal import wandb_internal_pb2
@@ -132,8 +132,7 @@ def wandb_send(settings, q, resp_q, stopped):
     fs = None
     run_id = None
     api = internal.Api(default_settings=settings)
-    #settings=dict(entity="jeff", project="uncategorized")
-    settings=dict(project="uncategorized")
+    settings = {k: v for k, v in six.iteritems(settings) if k in ('project',)}
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)

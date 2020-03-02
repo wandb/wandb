@@ -8,7 +8,7 @@ import configparser
 
 logger = logging.getLogger("wandb")
 
-source = ("org", "team", "project", "env", "sysdir", "dir", "setup",
+source = ("org", "team", "project", "sysdir", "dir", "env", "setup",
           "settings", "args")
 
 Field = collections.namedtuple('TypedField', ['value', 'type', 'choices'])
@@ -99,10 +99,9 @@ class Settings(object):
         if settings:
             self.update(settings)
         files = files or []
-        if files:
-            for f in files:
-                d = self._load(f)
-                self.update(d)
+        for f in files:
+            d = self._load(f)
+            self.update(d)
         if environ:
             inv_map = _build_inverse_map(env_prefix, env_settings)
             env_dict = dict()

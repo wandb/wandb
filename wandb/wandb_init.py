@@ -101,7 +101,7 @@ class _WandbInit(object):
         # TODO: pass mode to backend
         run_synced = None
 
-        r = dict(run_id=run.run_id, config=run.config._as_dict())
+        r = dict(run_id=run.run_id, config=run.config._as_dict(), project=s.project)
         if s.mode == 'online':
             ret = backend.send_run_sync(r, timeout=30)
             # TODO: fail on error, check return type
