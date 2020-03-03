@@ -34,7 +34,6 @@ class AgentProcess(object):
     """Launch and manage a process."""
 
     def __init__(self, env=None, command=None, function=None, run_id=None, in_jupyter=None, ctx=None):
-        ctx = ctx or multiprocessing
         self._popen = None
         self._proc = None
         self._finished_q = ctx.Queue()
@@ -51,6 +50,7 @@ class AgentProcess(object):
             self._proc = ctx.Process(target=self._start,
                     args=(self._finished_q, env, function, run_id, in_jupyter))
             self._proc.start()
+            print("DEBUG: start")
         else:
             raise AgentError("Agent Process requires command or function")
 
@@ -309,8 +309,10 @@ class Agent(object):
                  for name, config in command['args'].items()]
 
         if self._function:
+            print("DEBUG: starting func")
             proc = AgentProcess(function=self._function, env=env,
                     run_id=command.get('run_id'), in_jupyter=self._in_jupyter, ctx=self._ctx)
+            print("DEBUG: done start")
         else:
             sweep_vars = dict(interpreter=["python"], program=[command['program']], args=flags, env=["/usr/bin/env"])
             if platform.system() == "Windows":
@@ -365,11 +367,13 @@ class Agent(object):
 
 class AgentApi(object):
     def __init__(self, queue):
+        print("NOT SUPPORTED")
         self._queue = queue
         self._command_id = 0
         self._multiproc_manager = multiprocessing.Manager()
 
     def command(self, command):
+        print("NOT SUPPORTED")
         command['origin'] = 'local'
         command['id'] = 'local-%s' % self._command_id
         self._command_id += 1
