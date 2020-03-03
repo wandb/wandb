@@ -115,9 +115,9 @@ def setup_logging(log_fname, log_level, run_id=None):
     root.addHandler(handler)
 
 
-def wandb_write(settings, q, stopped):
+def wandb_write(settings, q, stopped, data_filename):
     ds = datastore.DataStore()
-    ds.open("out.dat")
+    ds.open(data_filename)
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)
@@ -187,7 +187,7 @@ def wandb_send(settings, q, resp_q, stopped):
         fs.finish(0)
 
 
-def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level):
+def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level, data_filename):
     #fd = multiprocessing.reduction.recv_handle(child_pipe)
     #if msvcrt:
     #    fd = msvcrt.open_osfhandle(fd, os.O_WRONLY)
@@ -200,7 +200,7 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
     stopped = threading.Event()
    
     write_queue = queue.Queue()
-    write_thread = threading.Thread(name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped))
+    write_thread = threading.Thread(name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped, data_filename))
     send_queue = queue.Queue()
     send_thread = threading.Thread(name="wandb_send", target=wandb_send, args=(settings, send_queue, resp_queue, stopped))
 
@@ -266,7 +266,7 @@ class Backend(object):
         self._done = False
         self._wl = wandb.setup()
 
-    def ensure_launched(self, settings=None, log_fname=None, log_level=None):
+    def ensure_launched(self, settings=None, log_fname=None, log_level=None, data_fname=None):
         """Launch backend worker if not running."""
         log_fname = log_fname or ""
         log_level = log_level or logging.DEBUG
@@ -296,6 +296,7 @@ class Backend(object):
                     fd_pipe_child,
                     log_fname,
                     log_level,
+                    data_fname,
                     ))
         wandb_process.name = "wandb_internal"
 

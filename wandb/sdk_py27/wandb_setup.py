@@ -58,6 +58,9 @@ class _WandbSetup__WandbSetup(object):
         self._environ = environ or os.environ
         self._log_user_filename = None
         self._log_internal_filename = None
+        self._data_filename = None
+        self._log_dir = None
+        self._filename_template = None
 
         # TODO(jhr): defer strict checks until settings is fully initialized and logging is ready
         early_logging = _EarlyLogger()
@@ -124,8 +127,9 @@ class _WandbSetup__WandbSetup(object):
         # log dir - where python logs go
         log_dir = "wandb"
         # log spec
-        log_user_spec = "wandb-debug-{timespec}-{pid}-user.txt"
-        log_internal_spec = "wandb-debug-{timespec}-{pid}-internal.txt"
+        # TODO: read from settings
+        log_user_spec = "wandb-{timespec}-{pid}-debug-user.txt"
+        log_internal_spec = "wandb-{timespec}-{pid}-debug-internal.txt"
         # TODO(jhr): should we use utc?
         when = datetime.datetime.now()
         pid = os.getpid()
@@ -147,8 +151,10 @@ class _WandbSetup__WandbSetup(object):
         self._enable_logging(log_user)
 
         logger.info("Logging to {}".format(log_user))
+        self._filename_template = d
         self._log_user_filename = log_user
         self._log_internal_filename = log_internal
+        self._log_dir = log_dir
 
     def _check(self):
         if hasattr(threading, "main_thread"):
@@ -174,6 +180,8 @@ class _WandbSetup__WandbSetup(object):
             ctx = multiprocessing
         self._multiprocessing = ctx
         #print("t3b", self._multiprocessing.get_start_method())
+
+        self._data_filename = os.path.join(self._log_dir, self._settings.data_spec.format(**self._filename_template))
 
     def on_finish(self):
         logger.info("done")

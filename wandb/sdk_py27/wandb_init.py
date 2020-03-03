@@ -91,7 +91,9 @@ class _WandbInit(object):
 
         backend = Backend(mode=s.mode)
         backend.ensure_launched(settings=s,
-                                log_fname=wl._log_internal_filename)
+                                log_fname=wl._log_internal_filename,
+                                data_fname=wl._data_filename,
+                                )
         backend.server_connect()
 
         # resuming needs access to the server, check server_status()?
