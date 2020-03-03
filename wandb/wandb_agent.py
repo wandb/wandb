@@ -394,7 +394,7 @@ class AgentApi(object):
 def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None):
     print("DEBUG: all=", multiprocessing.get_all_start_methods())
     print("DEBUG: act=", multiprocessing.get_start_method(allow_none=True))
-    ctx = multiprocessing.get_context('forkserver')
+    ctx = multiprocessing.get_context('fork')
     print("DEBUG: ctx=", ctx.get_start_method(allow_none=True))
     parts = dict(entity=entity, project=project, name=sweep_id)
     err = util.parse_sweep_id(parts)
