@@ -47,6 +47,7 @@ class AgentProcess(object):
             self._popen = subprocess.Popen(command,
                 env=env, **kwargs)
         elif function:
+            print("DEBUG: trystart")
             self._proc = ctx.Process(target=self._start,
                     args=(self._finished_q, env, function, run_id, in_jupyter))
             self._proc.start()
@@ -55,6 +56,7 @@ class AgentProcess(object):
             raise AgentError("Agent Process requires command or function")
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
+        print("DEBUG: instart")
         if env:
             for k, v in env.items():
                 os.environ[k] = v
