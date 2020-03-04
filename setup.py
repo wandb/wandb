@@ -30,7 +30,7 @@ requirements = [
 ]
 
 setup(
-    name='wandb',
+    name='wandb-ng',
     version='0.0.2',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
@@ -39,11 +39,11 @@ setup(
     author_email='support@wandb.com',
     url='https://github.com/wandb/client',
     packages=[
-        'wandb'
+        'wandb-ng'
     ],
-    package_dir={'wandb': 'wandb'},
+    package_dir={'wandb-ng': 'wandb'},
     package_data={
-        'wandb': [
+        'wandb-ng': [
             'py.typed',
         ]
     },
@@ -57,7 +57,7 @@ setup(
     install_requires=requirements,
     license="MIT license",
     zip_safe=False,
-    keywords='wandb',
+    #keywords='wandb',
     python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
