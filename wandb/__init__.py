@@ -1105,10 +1105,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         allow_val_change = True
     if config or telemetry_updated:
         run.config._update(config,
-                           exclude_keys=config_exclude_keys,
-                           include_keys=config_include_keys,
-                           allow_val_change=allow_val_change,
-                           as_defaults=not allow_val_change)
+                exclude_keys=config_exclude_keys,
+                include_keys=config_include_keys,
+                allow_val_change=allow_val_change,
+                as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
     run.history
@@ -1132,6 +1132,6 @@ sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 
 
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
-           'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
-           'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
-           'Audio', 'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']
+    'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
+    'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
+    'Audio', 'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']
