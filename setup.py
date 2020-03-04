@@ -31,7 +31,7 @@ requirements = [
 
 setup(
     name='wandb-ng',
-    version='0.0.2',
+    version='0.0.3',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -41,7 +41,7 @@ setup(
     packages=[
         'wandb'
     ],
-    package_dir={'wandb': 'wandb'},
+    package_dir={'wandb-ng': 'wandb'},
     package_data={
         'wandb': [
             'py.typed',
