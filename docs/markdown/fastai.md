@@ -45,8 +45,7 @@ learn.fit(..., callbacks=WandbCallback(learn, ...))
 ## WandbCallback
 [source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L51)
 ```python
-WandbCallback(self,
-              learn,
+WandbCallback(learn,
               log='gradients',
               save_model=True,
               monitor=None,
@@ -75,20 +74,20 @@ Automatically saves model topology, losses & metrics. Optionally logs weights, g
 ### WandbCallback.on_train_begin
 [source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L109)
 ```python
-WandbCallback.on_train_begin(self, **kwargs)
+WandbCallback.on_train_begin(**kwargs)
 ```
 Call watch method to log model topology, gradients & weights
 
 ### WandbCallback.on_epoch_end
 [source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L122)
 ```python
-WandbCallback.on_epoch_end(self, epoch, smooth_loss, last_metrics, **kwargs)
+WandbCallback.on_epoch_end(epoch, smooth_loss, last_metrics, **kwargs)
 ```
 Logs training loss, validation loss and custom metrics & log prediction samples & save model
 
 ### WandbCallback.on_train_end
 [source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L159)
 ```python
-WandbCallback.on_train_end(self, **kwargs)
+WandbCallback.on_train_end(**kwargs)
 ```
 Load the best model.

@@ -143,7 +143,7 @@ Run "wandb docs" for full documentation.
 ## CallbackHandler
 [source](https://github.com/wandb/client/blob/master/wandb/cli.py#L77)
 ```python
-CallbackHandler(self, request, client_address, server)
+CallbackHandler(request, client_address, server)
 ```
 Simple callback handler that stores query string parameters and shuts down the server.
 
@@ -151,7 +151,7 @@ Simple callback handler that stores query string parameters and shuts down the s
 ## LocalServer
 [source](https://github.com/wandb/client/blob/master/wandb/cli.py#L94)
 ```python
-LocalServer(self)
+LocalServer()
 ```
 A local HTTP server that finds an open port and listens for a callback. The urlencoded callback url is accessed via `.qs` the query parameters passed to the callback are accessed via `.result`
 

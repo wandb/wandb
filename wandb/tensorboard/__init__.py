@@ -80,7 +80,10 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
                 elif hasattr(self, "_ev_writer"):
                     if hasattr(self._ev_writer, "FileName"):
                         # Legacy Tensorflow
-                        name = self._ev_writer.FileName().decode("utf-8")
+                        try:
+                            name = self._ev_writer.FileName().decode("utf-8")
+                        except AttributeError:
+                            name = self._ev_writer.FileName()
                     elif hasattr(self._ev_writer, "_file_name"):
                         # Current TensorboardX
                         name = self._ev_writer._file_name
