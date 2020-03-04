@@ -39,11 +39,11 @@ setup(
     author_email='support@wandb.com',
     url='https://github.com/wandb/client',
     packages=[
-        'wandb-ng'
+        'wandb'
     ],
-    package_dir={'wandb-ng': 'wandb'},
+    package_dir={'wandb': 'wandb'},
     package_data={
-        'wandb-ng': [
+        'wandb': [
             'py.typed',
         ]
     },
