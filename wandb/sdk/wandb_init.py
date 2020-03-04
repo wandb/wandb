@@ -49,6 +49,15 @@ logger = logging.getLogger("wandb")
 def online_status(*args, **kwargs):
     pass
 
+def _get_python_type():
+    try:
+        if 'terminal' in get_ipython().__module__:
+            return 'ipython'
+        else:
+            return 'jupyter'
+    except (NameError, AttributeError):
+        return "python"
+
 
 class _WandbInit(object):
     def __init__(self):
@@ -86,7 +95,13 @@ class _WandbInit(object):
 
         api = internal.Api(default_settings=dict(s))
         if not api.api_key:
-            key = prompt('Enter api key: ', is_password=True)
+            in_jupyter = _get_python_type() != "python"
+            if in_jupyter:
+                app_url = s.base_url.replace("//api.", "//app.")
+                print("Go to this URL in a browser: {}/authorize\n".format(app_url))
+                key = getpass.getpass("Enter your authorization code:\n")
+            else:
+                key = prompt('Enter api key: ', is_password=True)
             util2.set_api_key(api, key)
 
         backend = Backend(mode=s.mode)
