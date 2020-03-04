@@ -1193,10 +1193,8 @@ class Api(object):
                             id
                             name
                             fingerprint
-                            artifactVersion {
-                                id
-                                digest
-                            }
+                            uploadUrl
+                            uploadHeaders
                         }
                     }
                 }

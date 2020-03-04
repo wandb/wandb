@@ -45,13 +45,13 @@ CommitArtifactRequest = collections.namedtuple('EventCommitArtifactRequest',
 
 # These are handled by the event thread
 EventStartUploadJob = collections.namedtuple(
-    'EventStartUploadJob', ('path', 'save_name'))
+    'EventStartUploadJob', ('path', 'save_name', 'upload_url', 'upload_headers'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
 
 class UploadJob(threading.Thread):
-    def __init__(self, done_queue, progress, api, save_name, path):
+    def __init__(self, done_queue, progress, api, save_name, path, upload_url, upload_headers):
         """A file upload thread.
 
         Arguments:
@@ -68,6 +68,8 @@ class UploadJob(threading.Thread):
         self._api = api
         self.save_name = save_name
         self.save_path = self.path = path
+        self.upload_url = upload_url
+        self.upload_headers = upload_headers
         super(UploadJob, self).__init__()
 
     def run(self):
@@ -88,11 +90,26 @@ class UploadJob(threading.Thread):
             'uploaded': 0,
             'failed': False
         }
+        extra_headers = {}
+        for upload_header in self.upload_headers:
+            key, val = upload_header.split(':', 1)
+            extra_headers[key] = val
+        upload_url = self.upload_url
+        # Copied from push TODO(artifacts): clean up
+        # If the upload URL is relative, fill it in with the base URL,
+        # since its a proxied file store like the on-prem VM.
+        if upload_url.startswith('/'):
+            upload_url = '{}{}'.format(self._api.api_url, upload_url)
         try:
             with open(self.save_path, 'rb') as f:
-                self._api.push(
-                    {self.save_name: f},
-                    progress=lambda _, t: self.progress(t))
+                self._api.upload_file_retry(
+                    upload_url,
+                    f,
+                    lambda _, t: self.progress(t),
+                    extra_headers=extra_headers)
+                # self._api.push(
+                #     {self.save_name: f},
+                #     progress=lambda _, t: self.progress(t))
         except Exception as e:
             self._progress[self.save_name]['uploaded'] = 0
             self._progress[self.save_name]['failed'] = True
@@ -255,7 +272,7 @@ class FilePusher(object):
 
                 for e, file_spec in zip(batch, file_specs):
                     response_file = result[e.save_name]
-                    if file_spec['fingerprint'] == response_file['fingerprint']:
+                    if response_file['uploadUrl'] is None:
                         try:
                             size = os.path.getsize(e.path)
                         except OSError:
@@ -268,7 +285,7 @@ class FilePusher(object):
                         }
                     else:
                         start_upload_event = EventStartUploadJob(
-                            e.path, e.save_name)
+                            e.path, e.save_name, response_file['uploadUrl'], response_file['uploadHeaders'])
                         self._event_queue.put(start_upload_event)
                 batch = []
 
@@ -312,7 +329,7 @@ class FilePusher(object):
         # Start it.
         self._last_job_started_at = time.time()
         job = UploadJob(self._event_queue, self._progress, self._api,
-                        event.save_name, event.path)
+                        event.save_name, event.path, event.upload_url, event.upload_headers)
         self._running_jobs[event.save_name] = job
         job.start()
 
