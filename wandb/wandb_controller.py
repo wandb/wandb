@@ -94,9 +94,9 @@ def _get_sweep_url(api, sweep_id):
         if api.settings('entity'):
             return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
                 base=api.app_url,
-                entity=urllib.parse.quote_plus(api.settings('entity')),
-                project=urllib.parse.quote_plus(project),
-                sweepid=urllib.parse.quote_plus(sweep_id)
+                entity=urllib.parse.quote(api.settings('entity')),
+                project=urllib.parse.quote(project),
+                sweepid=urllib.parse.quote(sweep_id)
             )
 
 
