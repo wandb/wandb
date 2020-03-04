@@ -371,7 +371,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag.""" % repo
         if branch and branch_name not in api.git.repo.branches:
             api.git.repo.git.checkout(commit, b=branch_name)
             wandb.termlog("Created branch %s" %
-                       click.style(branch_name, bold=True))
+                          click.style(branch_name, bold=True))
         elif branch:
             wandb.termlog(
                 "Using existing branch, run `git branch -D %s` from master for a clean checkout" % branch_name)
@@ -520,7 +520,7 @@ def login(key, host, anonymously, server=LocalServer(), browser=True, no_offline
         # Don't allow signups or dryrun for local
         local = host != None or host != "https://api.wandb.ai"
         key = util.prompt_api_key(api, input_callback=click.prompt,
-            browser_callback=get_api_key_from_browser, no_offline=no_offline, local=local)
+                                  browser_callback=get_api_key_from_browser, no_offline=no_offline, local=local)
 
     if key:
         api.clear_setting('disabled')
@@ -754,6 +754,7 @@ def run(ctx, program, args, id, resume, dir, configs, message, name, notes, show
         sys.exit(1)
     rm.run_user_process(program, args, environ)
 
+
 @cli.command(context_settings=RUN_CONTEXT, help="Launch local W&B container (Experimental)")
 @click.pass_context
 @click.option('--port', '-p', default="8080", help="The host port to bind W&B local on")
@@ -776,11 +777,13 @@ def local(ctx, port, daemon, upgrade, edge):
             subprocess.call(["docker", "restart", "wandb-local"])
             exit(0)
         else:
-            wandb.termerror("A container named wandb-local is already running, run `docker kill wandb-local` if you want to start a new instance")
+            wandb.termerror(
+                "A container named wandb-local is already running, run `docker kill wandb-local` if you want to start a new instance")
             exit(1)
     image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
     username = getpass.getuser()
-    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port+':8080', '-e', 'LOCAL_USERNAME=%s' % username, '--name', 'wandb-local']
+    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port+
+               ':8080', '-e', 'LOCAL_USERNAME=%s' % username, '--name', 'wandb-local']
     host = "http://localhost:%s" % port
     api.set_setting("base_url", host, globally=True)
     if daemon:
@@ -805,6 +808,7 @@ def local(ctx, port, daemon, upgrade, edge):
                 time.sleep(2)
                 ctx.invoke(login, host=host)
 
+
 @cli.command(context_settings=RUN_CONTEXT)
 @click.pass_context
 @click.option('--keep', '-N', default=24, help="Keep runs created in the last N hours", type=int)
@@ -814,18 +818,19 @@ def gc(ctx, keep):
     if not os.path.exists(directory):
         raise ClickException('No wandb directory found at %s' % directory)
     paths = glob.glob(directory+"/*run*")
-    dates = [datetime.datetime.strptime(p.split("-")[1],'%Y%m%d_%H%M%S') for p in paths]
+    dates = [datetime.datetime.strptime(p.split("-")[1], '%Y%m%d_%H%M%S') for p in paths]
     since = datetime.datetime.utcnow() - datetime.timedelta(hours=keep)
     bad_paths = [paths[i] for i, d, in enumerate(dates) if d < since]
     if len(bad_paths) > 0:
         click.echo("Found {} runs, {} are older than {} hours".format(len(paths), len(bad_paths), keep))
         click.confirm(click.style(
-                "Are you sure you want to remove %i runs?" % len(bad_paths), bold=True), abort=True)
+            "Are you sure you want to remove %i runs?" % len(bad_paths), bold=True), abort=True)
         for path in bad_paths:
             shutil.rmtree(path)
         click.echo(click.style("Success!", fg="green"))
     else:
         click.echo(click.style("No runs older than %i hours found" % keep, fg="red"))
+
 
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
 @click.pass_context
@@ -933,7 +938,7 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
             exit(0)
     cwd = os.getcwd()
     command = ['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=%s' % resolved_image, '--ipc=host',
-                '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh']
+               '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh']
     if nvidia:
         command.extend(['--runtime', 'nvidia'])
     if not no_dir:
@@ -958,10 +963,10 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
     subprocess.call(command)
 
 
-
 MONKEY_CONTEXT = copy.copy(CONTEXT)
 MONKEY_CONTEXT['allow_extra_args'] = True
 MONKEY_CONTEXT['ignore_unknown_options'] = True
+
 
 @cli.command(context_settings=MONKEY_CONTEXT, help="Run any script with wandb", hidden=True)
 @click.pass_context
@@ -986,11 +991,11 @@ def magic(ctx, program, args):
         click.echo(click.style("Could not launch program: %s" % program, fg="red"))
         sys.exit(1)
     globs = {
-            '__file__': program,
-            '__name__': '__main__',
-            '__package__': None,
-            'wandb_magic_install': magic_install,
-        }
+        '__file__': program,
+        '__name__': '__main__',
+        '__package__': None,
+        'wandb_magic_install': magic_install,
+    }
     prep = '''
 import __main__
 __main__.__file__ = "%s"
@@ -1048,8 +1053,8 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, up
         sweep_obj_id = found['id']
 
     wandb.termlog('{} sweep from: {}'.format(
-            'Updating' if sweep_obj_id else 'Creating',
-            config_yaml))
+        'Updating' if sweep_obj_id else 'Creating',
+        config_yaml))
     try:
         yaml_file = open(config_yaml)
     except (OSError, IOError):
@@ -1088,11 +1093,11 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, up
 
     entity = entity or env.get_entity() or config.get('entity')
     project = project or env.get_project() or config.get('project') or util.auto_project_name(
-            config.get("program"), api)
+        config.get("program"), api)
     sweep_id = api.upsert_sweep(config, project=project, entity=entity, obj_id=sweep_obj_id)
     wandb.termlog('{} sweep with ID: {}'.format(
-            'Updated' if sweep_obj_id else 'Created',
-            click.style(sweep_id, fg="yellow")))
+        'Updated' if sweep_obj_id else 'Created',
+        click.style(sweep_id, fg="yellow")))
     sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
     if sweep_url:
         wandb.termlog("View sweep at: {}".format(
@@ -1110,7 +1115,7 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, up
         sweep_path = sweep_id
 
     wandb.termlog("Run sweep agent with: {}".format(
-            click.style("wandb agent %s" % sweep_path, fg="yellow")))
+        click.style("wandb agent %s" % sweep_path, fg="yellow")))
     if controller:
         wandb.termlog('Starting wandb controller...')
         tuner = wandb_controller.controller(sweep_id)
@@ -1145,30 +1150,6 @@ def controller(verbose, sweep_id):
     click.echo('Starting wandb controller...')
     tuner = wandb_controller.controller(sweep_id)
     tuner.run(verbose=verbose)
-
-
-@cli.command(context_settings=CONTEXT, help="Publish an artifact to W&B")
-@click.argument('file_name')
-@click.option('--name', default=None, help="The name under which the artifact is published")
-@click.option('--description', default=None, help="A description of the artifact")
-@display_error
-def publish(file_name, name, description):
-    fail = False
-    try:
-        entity = api.settings('entity')
-        project = api.settings('project')
-
-        if entity is None or project is None:
-            fail = True
-    except KeyError:
-        fail = True
-
-    if fail:
-        wandb.termerror("Please run 'wandb init' before publishing artifacts")
-        return
-
-    url = api.publish_artifact(file_name, entity, project, description=description, progress=sys.stdout, name=name)
-    wandb.termlog("Download link for artifact '{}': {}".format(file_name, url))
 
 
 if __name__ == "__main__":

@@ -10,7 +10,6 @@ import tempfile
 import time
 
 from wandb import InternalApi
-from wandb.apis import fakeapi
 from wandb.apis import artifact_manifest
 from wandb.file_pusher import FilePusher
 from wandb import util

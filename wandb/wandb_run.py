@@ -387,11 +387,6 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    def log_input(self, input, api=None):
-        # input must be an ArtifactVersion from public API
-        api = api or self.api
-        api.use_artifact_version(self.entity, self.project, self.id, input.id)
-
     def use_artifact(self, name=None, artifact=None, path=None, metadata=None, api=None):
         # One of artifact, name, paths must be passed in
         api = api or self.api

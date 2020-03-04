@@ -549,7 +549,7 @@ def join(exit_code=None):
         _global_run_stack.pop()
 
 
-def save(glob_str, base_path=None, policy="live", artifact_name=None):
+def save(glob_str, base_path=None, policy="live"):
     """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
     base_path: the base path to run the glob relative to
@@ -582,7 +582,7 @@ def save(glob_str, base_path=None, policy="live", artifact_name=None):
             "%s is a cloud storage url, can't save file to wandb." % glob_str)
         return []
     run.send_message(
-        {"save_policy": {"glob": wandb_glob_str, "policy": policy, "artifact": artifact_name}})
+        {"save_policy": {"glob": wandb_glob_str, "policy": policy}})
     files = []
     for path in glob.glob(glob_str):
         file_name = os.path.relpath(path, base_path)
@@ -1105,10 +1105,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         allow_val_change = True
     if config or telemetry_updated:
         run.config._update(config,
-                exclude_keys=config_exclude_keys,
-                include_keys=config_include_keys,
-                allow_val_change=allow_val_change,
-                as_defaults=not allow_val_change)
+                           exclude_keys=config_exclude_keys,
+                           include_keys=config_include_keys,
+                           allow_val_change=allow_val_change,
+                           as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
     run.history
@@ -1132,6 +1132,6 @@ sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 
 
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
-    'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
-    'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
-    'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']
+           'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
+           'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
+           'Audio', 'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']

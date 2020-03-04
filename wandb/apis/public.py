@@ -24,7 +24,6 @@ from wandb.summary import HTTPSummary
 from wandb import env
 from wandb.apis import normalize_exceptions
 from wandb.apis import artifact_manifest
-from wandb import artifact_util
 
 logger = logging.getLogger(__name__)
 
@@ -400,10 +399,6 @@ class Api(object):
         # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
         entity, project, artifact_name, artifact_version_name = self._parse_artifact_path(path)
         return ArtifactVersion(self.client, entity, project, artifact_name, artifact_version_name, expected_digest=expected_digest)
-
-    def local_artifact(self, name, filepaths=None, metadata=None):
-        signature = artifact_util.local_artifact_signature(filepaths, metadata)
-        return artifact_util.create_signature_artifact_version(name, metadata, signature)
 
 
 class Attrs(object):
