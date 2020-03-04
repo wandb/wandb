@@ -23,7 +23,8 @@ requirements = [
     'configparser>=3.8.1',
     'prompt-toolkit',
     'typing',
-    'grpcio-tools',
+    # 'grpcio-tools',
+    'protobuf',
     'prompt-toolkit',
     'PyYAML',
     'numpy',
@@ -31,7 +32,7 @@ requirements = [
 
 setup(
     name='wandb-ng',
-    version='0.0.3',
+    version='0.0.3.post2',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
