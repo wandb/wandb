@@ -21,7 +21,7 @@ coverage: ## check code coverage quickly with the default Python
 
 
 release-test: dist ## package and upload test release
-	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+	twine upload --repository testpypi dist/*
 
 dist: clean ## builds source and wheel package
 	python setup.py sdist bdist_wheel

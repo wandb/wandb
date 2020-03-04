@@ -12,6 +12,7 @@ from wandb.internal.backend_mp import Backend
 from wandb.stuff import util2
 
 import six
+import getpass
 import logging
 from six import raise_from
 
