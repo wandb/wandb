@@ -4,6 +4,11 @@
 
 `pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb`
 
+Or from pypi test:
+
+- https://test.pypi.org/project/wandb-ng/
+- `pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple --upgrade wandb-ng`
+
 ## Tasks
 
 Week of 2020-02-17 
