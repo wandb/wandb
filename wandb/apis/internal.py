@@ -1001,30 +1001,6 @@ class Api(object):
 
     upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
 
-    def get_artifact(self, entity_name, project_name, artifact_name):
-        query = gql('''
-        query GetArtifact(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactName: String!
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifact(name: $artifactName) {
-                    id
-                }
-            }
-        }
-        ''')
-        response = self.gql(query, variable_values={
-            'entityName': entity_name,
-            'projectName': project_name,
-            'artifactName': artifact_name,
-        })
-
-        if response['project']['artifact']:
-            return response['project']['artifact']['id']
-        return None
-
     def use_artifact(self, artifact_id, entity_name=None, project_name=None, run_name=None):
         query = gql('''
         mutation UseArtifact(
@@ -1414,98 +1390,6 @@ class Api(object):
 
         response = self.gql(mutation, variable_values={})
         return response['createAnonymousEntity']['apiKey']['name']
-
-    @normalize_exceptions
-    def publish_artifact(self, fname, entity, project, run=None, description=None, progress=None, name=None):
-        """Publishes an artifact."""
-        mutation = gql('''
-        mutation PublishArtifact(
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String,
-            $name: String!,
-            $description: String,
-            $checksum: String!
-        ) {
-            publishArtifact(input: {
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                name: $name,
-                description: $description,
-                checksum: $checksum
-            }) {
-                artifact {
-                    id
-                    url
-                }
-                artifactUploadUrl
-            }
-        }
-        ''')
-
-        md5 = util.md5_file(fname)
-        name = name if name is not None else fname
-
-        response = self.gql(mutation, variable_values={
-            'entityName': entity,
-            'projectName': project,
-            'runName': run,
-            'name': name,
-            'description': description,
-            'checksum': md5
-        })
-
-        upload_url = response['publishArtifact']['artifactUploadUrl']
-
-        if upload_url is not None:
-            with open(fname, "rb") as file:
-                self._upload_file_with_progress(upload_url, file, progress)
-        else:
-            wandb.termlog("Artifact '{}' with md5 {} already uploaded. Skipping upload.".format(name, md5))
-
-        return response['publishArtifact']['artifact']['url']
-
-    @normalize_exceptions
-    def publish_external_artifact(self, url, entity, project, run=None, description=None, name=None):
-        """Publishes an artifact that is stored external to W&B"""
-        mutation = gql('''
-        mutation PublishExternalArtifact(
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String!,
-            $name: String!,
-            $description: String,
-            $url: String!
-        ) {
-            publishExternalArtifact(input: {
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                name: $name,
-                description: $description,
-                url: $url
-            }) {
-                artifact {
-                    id
-                    url
-                }
-            }
-        }
-        ''')
-
-        name = name if name is not None else url
-
-        response = self.gql(mutation, variable_values={
-            'entityName': entity,
-            'projectName': project,
-            'runName': run,
-            'name': name,
-            'description': description,
-            'url': url
-        })
-
-        return response['publishExternalArtifact']['artifact']['url']
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5

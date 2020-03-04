@@ -390,11 +390,6 @@ class Api(object):
         return self._sweeps[path]
 
     @normalize_exceptions
-    def artifact_versions(self, path=None):
-        entity, project, artifact_name = self._parse_path(path)
-        return ProjectArtifactVersions(self.client, entity, project, artifact_name)
-
-    @normalize_exceptions
     def artifact_version(self, path=None, expected_digest=None):
         # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
         entity, project, artifact_name, artifact_version_name = self._parse_artifact_path(path)
@@ -1840,7 +1835,6 @@ class ArtifactVersion(object):
             'artifactName': self.artifact_name,
             'name': self.artifact_version_name,
         })
-        print(response)
         if response is None \
             or response.get('project') is None \
                 or response['project'].get('artifact') is None \
