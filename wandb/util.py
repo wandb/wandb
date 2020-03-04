@@ -518,7 +518,12 @@ def no_retry_auth(e):
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise CommError("Invalid or missing api_key.  Run wandb login")
+        extra = ""
+        if wandb.run and str(wandb.run.api.api_key).startswith("local-"):
+            extra = " --host=http://localhost:8080"
+            if wandb.run.api.api_url == "https://api.wandb.ai":
+                raise CommError("Attempting to authenticate with the cloud using a local API key.  Set WANDB_BASE_URL to your local instance.")
+        raise CommError("Invalid or missing api_key.  Run wandb login" + extra)
     elif wandb.run:
         raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
@@ -857,7 +862,7 @@ def set_api_key(api, key, anonymous=False):
 
     if len(suffix) == 40:
         os.environ[env.API_KEY] = key
-        api.set_setting('anonymous', str(anonymous).lower(), globally=True)
+        api.set_setting('anonymous', str(anonymous).lower(), globally=True, persist=True)
         write_netrc(api.api_url, "user", key)
         api.reauth()
         return

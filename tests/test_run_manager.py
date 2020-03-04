@@ -82,8 +82,8 @@ def test_pip_freeze(mocker, run_manager):
     # installed for the current python differs from the one (eg. from git)
     # that is running this test. Easy fix is to do "pip install -e ."
     reqs = open(os.path.join(wandb.run.dir, "requirements.txt")).read()
-    print([r for r in reqs.split("\n") if "wandb" in r])
-    wbv = "wandb==%s" % wandb.__version__
+    print([r for r in reqs.split("\n") if "pytest" in r])
+    wbv = "pytest==%s" % pytest.__version__
     assert wbv in reqs
 
 

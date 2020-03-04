@@ -76,6 +76,7 @@ def auth_token(registry, repo):
 def image_id_from_registry(image_name):
     """Get the docker id from a public or private registry"""
     registry, repository, tag = parse(image_name)
+    res = None
     try:
         token = auth_token(registry, repository).get("token")
         # dockerhub is crazy
