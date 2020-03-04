@@ -1117,6 +1117,9 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, up
     else:
         sweep_path = sweep_id
 
+    if sweep_path.find(' ') >= 0:
+        sweep_path = '"{}"'.format(sweep_path)
+
     wandb.termlog("Run sweep agent with: {}".format(
             click.style("wandb agent %s" % sweep_path, fg="yellow")))
     if controller:
