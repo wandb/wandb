@@ -333,7 +333,7 @@ class FilePusher(object):
         self._running_jobs[event.save_name] = job
         job.start()
 
-    def file_changed(self, save_name, path, artifact_id):
+    def file_changed(self, save_name, path, artifact_id=None):
         """Tell the file pusher that a file's changed and should be uploaded.
 
         Arguments:
