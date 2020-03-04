@@ -160,6 +160,7 @@ def wandb_send(settings, q, resp_q, stopped):
                     project_name = project.get("name")
                     if project_name:
                         i.run.project = project_name
+                        settings['project'] = project_name
                     entity = project.get("entity")
                     if entity:
                         entity_name = entity.get("name")
