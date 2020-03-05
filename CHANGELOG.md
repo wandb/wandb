@@ -1,3 +1,16 @@
+## 0.8.29 (Mar 5, 2020)
+
+#### :nail_care: Enhancement
+
+-   Improve bounding box annotations
+-   Log active GPU system metrics
+
+#### :bug: Bug Fix
+
+-   Fix GPU logging on some devices without power metrics
+-   Fix sweep config command handling
+-   Fix tensorflow string logging
+
 ## 0.8.28 (Feb 21, 2020)
 
 #### :nail_care: Enhancement
