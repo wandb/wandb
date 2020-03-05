@@ -4,6 +4,8 @@
 
 -   Improve bounding box annotations
 -   Log active GPU system metrics
+-   Only writing wandb/settings file if wandb init is called
+-   Improvements to wandb local command
 
 #### :bug: Bug Fix
 
