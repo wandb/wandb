@@ -7,9 +7,19 @@ import time
 import shutil
 import os
 import argparse
+import requests
 
 L = 10
 PROJECT="standalone-sweep-check"
+POKE_LOCAL = False
+
+URL="http://localhost:9002/admin/early_stop"
+
+def poke():
+    f = requests.get(URL)
+    data = f.text
+    print("GOT:", data)
+
 
 def train(**kwargs):
     print("train", kwargs)
@@ -28,6 +38,8 @@ def train(**kwargs):
             wandb.log(dict(val_acc=val))
             if delay:
                 time.sleep(delay)
+            if POKE_LOCAL:
+                poke()
     shutil.copyfile("wandb/debug.log", "wandb/debug-%s.log" % run_id)
 
 
@@ -49,8 +61,8 @@ def check(sweep_id, num=None, result=None, stopped=None):
         assert tmp is not None
         val_acc = tmp if val_acc is None or tmp > val_acc else val_acc
     if stopped is not None:
-        print("CHECKING: stopped, saw: {}, expecting: {}".format(cnt_stopped, stopped))
-        assert val_acc == result
+        print("NOT CHECKING: stopped, saw: {}, expecting: {}".format(cnt_stopped, stopped))
+        # FIXME: turn on stopped run state
     if result is not None:
         print("CHECKING: metric, saw: {}, expecting: {}".format(val_acc, result))
         assert val_acc == result
@@ -129,7 +141,7 @@ def sweep_grid_hyperband():
             param0=dict(values=[2]),
             param1=dict(values=[4, 1, 0]),
             param2=dict(values=[1.5, 0.5, 0]),
-            delay=dict(value=5),
+            delay=dict(value=1),
             #delay=dict(value=1),
             epochs=dict(value=27),
             ),
@@ -148,11 +160,13 @@ def sweep_grid_hyperband():
 
 
 def main():
+    global POKE_LOCAL
     #os.environ["WANDB_DEBUG"] = "true"
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--test', default='', type=str)
     parser.add_argument('-x', '--exclude', default='', type=str)
     parser.add_argument('--dryrun', dest='dryrun', action='store_true')
+    parser.add_argument('--local', dest='local', action='store_true')
     args = parser.parse_args()
 
     all_tests = dict(
@@ -166,6 +180,7 @@ def main():
     exclude_list = args.exclude.split(',') if args.exclude else []
 
     for t in test_list:
+        POKE_LOCAL = False
         if t in exclude_list:
             continue
         print("Testing: {}".format(t))
@@ -174,6 +189,8 @@ def main():
             raise Exception("Unknown test: %s" % t)
         if args.dryrun:
             continue
+        if args.local and t == 'grid_hyper':
+            POKE_LOCAL = True
         f()
 
 
