@@ -1,7 +1,7 @@
 import collections
-import os
-from pynvml import *
+import pynvml
 import time
+import os
 from numbers import Number
 import threading
 from wandb import util
@@ -9,12 +9,49 @@ from wandb import termlog
 psutil = util.get_module("psutil")
 
 
+def gpu_in_use_by_this_process(gpu_handle):
+    if not psutil:
+        return False
+
+    # NOTE: this optimizes for the case where wandb was initialized from
+    # iniside the user script (i.e. `wandb.init()`). If we ran using
+    # `wandb run` on the command line, the shell will be detected as the
+    # parent, possible resulting in sibling processes being incorrectly
+    # indentified as part of this process -- still better than not
+    # detecting in-use gpus at all.
+    base_process = psutil.Process().parent() or psutil.Process()
+
+    our_processes = base_process.children(recursive=True)
+    our_processes.append(base_process)
+
+    our_pids = set([
+        process.pid
+        for process
+        in our_processes
+    ])
+
+    compute_pids = set([
+        process.pid
+        for process
+        in pynvml.nvmlDeviceGetComputeRunningProcesses(gpu_handle)
+    ])
+    graphics_pids = set([
+        process.pid
+        for process
+        in pynvml.nvmlDeviceGetGraphicsRunningProcesses(gpu_handle)
+    ])
+
+    pids_using_device = compute_pids | graphics_pids
+
+    return len(pids_using_device & our_pids) > 0
+
+
 class SystemStats(object):
     def __init__(self, run, api):
         try:
-            nvmlInit()
-            self.gpu_count = nvmlDeviceGetCount()
-        except NVMLError as err:
+            pynvml.nvmlInit()
+            self.gpu_count = pynvml.nvmlDeviceGetCount()
+        except pynvml.NVMLError as err:
             self.gpu_count = 0
         self.run = run
         self._api = api
@@ -92,17 +129,43 @@ class SystemStats(object):
     def stats(self):
         stats = {}
         for i in range(0, self.gpu_count):
-            handle = nvmlDeviceGetHandleByIndex(i)
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
             try:
-                util = nvmlDeviceGetUtilizationRates(handle)
-                memory = nvmlDeviceGetMemoryInfo(handle)
-                temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                memory = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+                in_use_by_us = gpu_in_use_by_this_process(handle)
+
                 stats["gpu.{}.{}".format(i, "gpu")] = util.gpu
                 stats["gpu.{}.{}".format(i, "memory")] = util.memory
                 stats["gpu.{}.{}".format(
-                    i, "memory_allocated")] = memory.used / memory.total * 100
+                    i, "memoryAllocated")] = (memory.used / float(memory.total)) * 100
                 stats["gpu.{}.{}".format(i, "temp")] = temp
-            except NVMLError as err:
+
+                if in_use_by_us:
+                    stats["gpu.process.{}.{}".format(i, "gpu")] = util.gpu
+                    stats["gpu.process.{}.{}".format(i, "memory")] = util.memory
+                    stats["gpu.process.{}.{}".format(
+                        i, "memoryAllocated")] = (memory.used / float(memory.total)) * 100
+                    stats["gpu.process.{}.{}".format(i, "temp")] = temp
+
+                    # Some GPUs don't provide information about power usage
+                try:
+                    power_watts = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0
+                    power_capacity_watts = pynvml.nvmlDeviceGetEnforcedPowerLimit(handle) / 1000.0
+                    power_usage = (power_watts / power_capacity_watts) * 100
+
+                    stats["gpu.{}.{}".format(i, "powerWatts")] = power_watts
+                    stats["gpu.{}.{}".format(i, "powerPercent")] = power_usage
+
+                    if in_use_by_us:
+                        stats["gpu.process.{}.{}".format(i, "powerWatts")] = power_watts
+                        stats["gpu.process.{}.{}".format(i, "powerPercent")] = power_usage
+
+                except pynvml.NVMLError as err:
+                    pass
+
+            except pynvml.NVMLError as err:
                 pass
         if psutil:
             net = psutil.net_io_counters()

@@ -24,7 +24,8 @@ from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi, CommError
-from wandb.wandb_config import Config
+from wandb.wandb_config import Config, ConfigStatic
+from wandb.viz import Visualize
 import six
 from six.moves import input
 from six.moves import urllib
@@ -148,6 +149,10 @@ class Run(object):
         self._meta = None
         self._run_manager = None
         self._jupyter_agent = None
+
+    @property
+    def config_static(self):
+        return ConfigStatic(self.config)
 
     @property
     def api(self):
@@ -364,24 +369,7 @@ class Run(object):
         return run
 
     def auto_project_name(self, api):
-        # if we're in git, set project name to git repo name + relative path within repo
-        root_dir = api.git.root_dir
-        if root_dir is None:
-            return None
-        repo_name = os.path.basename(root_dir)
-        program = self.program
-        if program is None:
-            return repo_name
-        if not os.path.isabs(program):
-            program = os.path.join(os.curdir, program)
-        prog_dir = os.path.dirname(os.path.abspath(program))
-        if not prog_dir.startswith(root_dir):
-            return repo_name
-        project = repo_name
-        sub_path = os.path.relpath(prog_dir, root_dir)
-        if sub_path != '.':
-            project += '-' + sub_path
-        return project.replace(os.sep, '_')
+        return util.auto_project_name(self.program, api)
 
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
         api = api or self.api
@@ -441,7 +429,7 @@ class Run(object):
     def project_name(self, api=None):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
-        
+
     def _generate_query_string(self, api, params=None):
         """URL encodes dictionary of params"""
 
@@ -464,9 +452,9 @@ class Run(object):
                 viewer = api.viewer()
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])
-        
+
             entity = api.settings('entity')
-        
+
         if not entity:
             # This can happen on network failure
             raise CommError("Can't connect to network to query entity from API key")
@@ -475,7 +463,7 @@ class Run(object):
 
     def get_project_url(self, api=None, network=True, params=None):
         """Generate a url for a project.
-        
+
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
         """
         params = params or {}
@@ -484,8 +472,8 @@ class Run(object):
 
         return "{base}/{entity}/{project}{query_string}".format(
             base=api.app_url,
-            entity=urllib.parse.quote_plus(api.settings('entity')),
-            project=urllib.parse.quote_plus(self.project_name(api)),
+            entity=urllib.parse.quote(api.settings('entity')),
+            project=urllib.parse.quote(self.project_name(api)),
             query_string=self._generate_query_string(api, params)
         )
 
@@ -508,15 +496,15 @@ class Run(object):
 
         return "{base}/{entity}/{project}/sweeps/{sweepid}{query_string}".format(
             base=api.app_url,
-            entity=urllib.parse.quote_plus(api.settings('entity')),
-            project=urllib.parse.quote_plus(self.project_name(api)),
-            sweepid=urllib.parse.quote_plus(sweep_id),
+            entity=urllib.parse.quote(api.settings('entity')),
+            project=urllib.parse.quote(self.project_name(api)),
+            sweepid=urllib.parse.quote(sweep_id),
             query_string=self._generate_query_string(api, params)
         )
 
     def get_url(self, api=None, network=True, params=None):
         """Generate a url for a run.
-        
+
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
         """
         params = params or {}
@@ -525,12 +513,12 @@ class Run(object):
 
         return "{base}/{entity}/{project}/runs/{run}{query_string}".format(
             base=api.app_url,
-            entity=urllib.parse.quote_plus(api.settings('entity')),
-            project=urllib.parse.quote_plus(self.project_name(api)),
-            run=urllib.parse.quote_plus(self.id),
+            entity=urllib.parse.quote(api.settings('entity')),
+            project=urllib.parse.quote(self.project_name(api)),
+            run=urllib.parse.quote(self.id),
             query_string=self._generate_query_string(api, params)
         )
-         
+
 
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
@@ -637,7 +625,11 @@ class Run(object):
     def _history_added(self, row):
         self.summary.update(row, overwrite=False)
 
+<<<<<<< HEAD
     def log(self, row=None, commit=True, step=None, sync=True, *args, **kwargs):
+=======
+    def log(self, row=None, commit=None, step=None, sync=True, *args, **kwargs):
+>>>>>>> master
         if sync == False:
             wandb._ensure_async_log_thread_started()
             return wandb._async_log_queue.put({"row": row, "commit": commit, "step": step})
@@ -645,16 +637,33 @@ class Run(object):
         if row is None:
             row = {}
 
+        for k in row:
+            if isinstance(row[k], Visualize):
+                self._add_viz(k, row[k].viz_id)
+                row[k] = row[k].value
+
         if not isinstance(row, collections.Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, six.string_types) for key in row.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
-        if commit or step is not None:
-            self.history.add(row, *args, step=step, **kwargs)
+        if commit is not False or step is not None:
+            self.history.add(row, *args, step=step, commit=commit, **kwargs)
         else:
             self.history.update(row, *args, **kwargs)
+
+    def _add_viz(self, key, viz_id):
+        if not 'viz' in self.config['_wandb']:
+            self.config._set_wandb('viz', {})
+        self.config['_wandb']['viz'][key] = {
+            'id': viz_id,
+            'historyFieldSettings': {
+                'key': key,
+                'x-axis': '_step'
+            }
+        }
+        self.config.persist()
 
     @property
     def history(self):
@@ -707,7 +716,7 @@ class Run(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         exit_code = 0 if exc_type is None else 1
         wandb.join(exit_code)
-        return exc_type is None 
+        return exc_type is None
 
 def run_dir_path(run_id, dry=False):
     if dry:

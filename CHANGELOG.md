@@ -1,3 +1,136 @@
+## 0.8.29 (Mar 5, 2020)
+
+#### :nail_care: Enhancement
+
+-   Improve bounding box annotations
+-   Log active GPU system metrics
+-   Only writing wandb/settings file if wandb init is called
+-   Improvements to wandb local command
+
+#### :bug: Bug Fix
+
+-   Fix GPU logging on some devices without power metrics
+-   Fix sweep config command handling
+-   Fix tensorflow string logging
+
+## 0.8.28 (Feb 21, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added code saving of main python module
+-   Added ability to specify metadata for bounding boxes and segmentation masks
+
+#### :bug: Bug Fix
+
+-   Fix situations where uncommited data from wandb.log() is not persisted
+
+## 0.8.27 (Feb 11, 2020)
+
+#### :bug: Bug Fix
+
+-   Fix dependency conflict with new versions of six package
+
+## 0.8.26 (Feb 10, 2020)
+
+#### :nail_care: Enhancement
+
+-   Add best metric and epoch to run summary with Keras callback
+-   Added wandb.run.config_static for environments required pickled config
+
+#### :bug: Bug Fix
+
+-   Fixed regression causing failures with wandb.watch() and DataParallel
+-   Improved compatibility with python 3.8
+-   Fix model logging under windows
+
+## 0.8.25 (Feb 4, 2020)
+
+#### :bug: Bug Fix
+
+-   Fix exception when using wandb.watch() in a notebook
+-   Improve support for sparse tensor gradient logging on GPUs
+
+## 0.8.24 (Feb 3, 2020)
+
+#### :bug: Bug Fix
+
+-   Relax version dependancy for PyYAML for users with old environments
+
+## 0.8.23 (Feb 3, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added scikit-learn support
+-   Added ability to specify/exclude specific keys when building wandb.config
+
+#### :bug: Bug Fix
+
+-   Fix wandb.watch() on sparse tensors
+-   Fix incompatibilty with ray 0.8.1
+-   Fix missing pyyaml requirement
+-   Fix "W&B process failed to launch" problems
+-   Improved ability to log large model graphs and plots
+
+## 0.8.22 (Jan 24, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added ability to configure agent commandline from sweep config
+
+#### :bug: Bug Fix
+
+-   Fix fast.ai prediction logging
+-   Fix logging of eager tensorflow tensors
+-   Fix jupyter issues with logging notebook name and wandb.watch()
+
+## 0.8.21 (Jan 15, 2020)
+
+#### :nail_care: Enhancement
+
+-   Ignore wandb.init() specified project and entity when running a sweep 
+
+#### :bug: Bug Fix
+
+-   Fix agent "flapping" detection
+-   Fix local controller not starting when sweep is pending
+
+## 0.8.20 (Jan 10, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added support for LightGBM
+-   Added local board support (Experimental)
+-   Added ability to modify sweep configuration
+-   Added GPU power logging to system metrics
+
+#### :bug: Bug Fix
+
+-   Prevent sweep agent from failing continously when misconfigured
+
+## 0.8.19 (Dec 18, 2019)
+
+#### :nail_care: Enhancement
+
+-   Added beta support for ray/tune hyperopt search strategy
+-   Added ability to specify max runs per agent
+-   Improve experience starting a sweep without a project already created
+
+#### :bug: Bug Fix
+
+-   Fix repeated wandb.Api().Run(id).scan_history() calls get updated data
+-   Fix early_terminate/hyperband in notebook/python environments
+
+## 0.8.18 (Dec 4, 2019)
+
+#### :nail_care: Enhancement
+
+-   Added min_step and max_step to run.scan_history for grabbing sub-sections of metrics
+-   wandb.init(reinit=True) now automatically calls wandb.join() to better support multiple runs per process
+
+#### :bug: Bug Fix
+
+-   wandb.init(sync_tensorboard=True) works again for TensorFlow 2.0
+
 ## 0.8.17 (Dec 2, 2019)
 
 #### :nail_care: Enhancement

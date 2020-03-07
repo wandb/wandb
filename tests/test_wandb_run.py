@@ -37,7 +37,7 @@ def test_url_escape(git_repo):
     environ[env.API_KEY] = "abcdefghijabcdefghijabcdefghijabcdefghij"
     environ[env.RUN_ID] = "my wild run"
     run = wandb_run.Run.from_environment_or_defaults(environ)
-    assert run.get_url() == 'https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run'
+    assert run.get_url() == 'https://app.wandb.ai/%E2%80%A0est/wild%20projo/runs/my%20wild%20run'
 
 
 def test_url_escape_query_string(git_repo):
@@ -50,7 +50,7 @@ def test_url_escape_query_string(git_repo):
     assert run.get_url(params=collections.OrderedDict([
         ('first', 'abc123'),
         ('second', ' '),
-    ])) == 'https://app.wandb.ai/%E2%80%A0est/wild+projo/runs/my+wild+run?first=abc123&second=+'
+    ])) == 'https://app.wandb.ai/%E2%80%A0est/wild%20projo/runs/my%20wild%20run?first=abc123&second=+'
 
 
 def test_wandb_run_args_sys(git_repo, mocker):
@@ -106,6 +106,13 @@ def test_get_url(git_repo, loggedin):
     api.set_setting("entity", "")
     with pytest.raises(CommError):
         run.get_url()
+
+def test_set_setting_no_persist_by_default(git_repo):
+    os.remove("wandb/settings")
+    api = InternalApi({"entity": "cool"})
+    api.set_setting("rad", "true")
+    assert not os.path.exists("wandb/settings")
+    assert api.settings("rad") == "true"
 
 
 def test_history_updates_keys_until_summary_writes(git_repo):

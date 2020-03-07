@@ -73,21 +73,21 @@ Automatically saves model topology, losses & metrics. Optionally logs weights, g
  
 
 ### WandbCallback.on_train_begin
-[source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L110)
+[source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L109)
 ```python
 WandbCallback.on_train_begin(self, **kwargs)
 ```
 Call watch method to log model topology, gradients & weights
 
 ### WandbCallback.on_epoch_end
-[source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L123)
+[source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L122)
 ```python
 WandbCallback.on_epoch_end(self, epoch, smooth_loss, last_metrics, **kwargs)
 ```
 Logs training loss, validation loss and custom metrics & log prediction samples & save model
 
 ### WandbCallback.on_train_end
-[source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L205)
+[source](https://github.com/wandb/client/blob/master/wandb/fastai/__init__.py#L159)
 ```python
 WandbCallback.on_train_end(self, **kwargs)
 ```

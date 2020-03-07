@@ -77,7 +77,10 @@ class Api(object):
         }
         self.client = Client(
             transport=RequestsHTTPTransport(
-                headers={'User-Agent': self.user_agent, 'X-WANDB-USERNAME': env.get_username(env=self._environ)},
+                headers={
+                    'User-Agent': self.user_agent,
+                    'X-WANDB-USERNAME': env.get_username(env=self._environ),
+                    'X-WANDB-USER-EMAIL': env.get_user_email(env=self._environ)},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
@@ -87,15 +90,19 @@ class Api(object):
             )
         )
         self.gql = retry.Retry(self.execute,
-            retry_timedelta=retry_timedelta,
-            check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(RetryError, requests.RequestException))
+                               retry_timedelta=retry_timedelta,
+                               check_retry_fn=util.no_retry_auth,
+                               retryable_exceptions=(RetryError, requests.RequestException))
         self._current_run_id = None
         self._file_stream_api = None
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
         self.client.transport.auth = ("api", self.api_key or "")
+
+    def relocate(self):
+        """Ensures the current api points to the right server"""
+        self.client.transport.url = '%s/graphql' % self.settings('base_url')
 
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
@@ -119,7 +126,6 @@ class Api(object):
                 if not err.get('message'):
                     continue
                 wandb.termerror('Error while calling W&B API: {} ({})'.format(err['message'], res))
-
 
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, 'disabled', fallback=False)
@@ -236,7 +242,7 @@ class Api(object):
         api_url = self.api_url
         # Development
         if api_url.endswith('.test') or self.settings().get("dev_prod"):
-            return 'http://app.test'
+            return 'http://app.wandb.test'
         # On-prem VM
         if api_url.endswith(':11001'):
             return api_url.replace(':11001', ':11000')
@@ -279,18 +285,25 @@ class Api(object):
                 self._settings.get(Settings.DEFAULT_SECTION, "ignore_globs", fallback=result.get('ignore_globs')),
                 env=self._environ),
         })
+        # Remove trailing slash and ensure protocol
+        result['base_url'] = result['base_url'].strip("/")
+        if not result['base_url'].startswith("http"):
+            result['base_url'] = "https://"+result['base_url']
 
         return result if key is None else result[key]
 
-    def clear_setting(self, key):
-        self._settings.clear(Settings.DEFAULT_SECTION, key)
+    def clear_setting(self, key, globally=False, persist=False):
+        self._settings.clear(Settings.DEFAULT_SECTION, key, globally=globally, persist=persist)
 
-    def set_setting(self, key, value, globally=False):
-        self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally)
+    def set_setting(self, key, value, globally=False, persist=False):
+        """Sets setting, optionally globally.  By default we do not persist the setting to disk"""
+        self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist)
         if key == 'entity':
             env.set_entity(value, env=self._environ)
         elif key == 'project':
             env.set_project(value, env=self._environ)
+        elif key == 'base_url':
+            self.relocate()
 
     def parse_slug(self, slug, project=None, run=None):
         if slug and "/" in slug:
@@ -428,8 +441,13 @@ class Api(object):
             }
         }
         ''')
-        data =  self.gql(query, variable_values={
-            'entity': entity or self.settings('entity'), 'project': project or self.settings('project'), 'sweep': sweep, 'specs': specs})['model']['sweep']
+        entity = entity or self.settings('entity')
+        project = project or self.settings('project')
+        response = self.gql(query, variable_values={'entity': entity,
+                                                    'project': project, 'sweep': sweep, 'specs': specs})
+        if response['model'] is None or response['model']['sweep'] is None:
+            raise ValueError("Sweep {}/{}/{} not found".format(entity, project, sweep) )
+        data = response['model']['sweep']
         if data:
             data['runs'] = self._flatten_edges(data['runs'])
         return data
@@ -631,9 +649,8 @@ class Api(object):
         run = project.get('run', None)
         if not run:
             return False
-        
-        return run['stopped']
 
+        return run['stopped']
 
     def format_project(self, project):
         return re.sub(r'\W+', '-', project.lower()).strip("-_")
@@ -803,6 +820,7 @@ class Api(object):
                 bucket(name: $run, desc: $description) {
                     id
                     files(names: $files) {
+                        uploadHeaders
                         edges {
                             node {
                                 name
@@ -827,7 +845,7 @@ class Api(object):
         run = query_result['model']['bucket']
         if run:
             result = {file['name']: file for file in self._flatten_edges(run['files'])}
-            return run['id'], result
+            return run['id'], run['files']['uploadHeaders'], result
         else:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run_id))
 
@@ -986,7 +1004,7 @@ class Api(object):
     upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
 
     @normalize_exceptions
-    def register_agent(self, host, sweep_id=None, project_name=None):
+    def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
         """Register a new agent
 
         Args:
@@ -1014,23 +1032,25 @@ class Api(object):
             }
         }
         ''')
+        if entity is None:
+            entity = self.settings("entity")
         if project_name is None:
             project_name = self.settings('project')
 
-        # don't retry on validation errors
-        def no_retry_400(e):
+        # don't retry on validation or not found errors
+        def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if e.response.status_code != 400:
+            if not(e.response.status_code >= 400 and e.response.status_code < 500):
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
 
         response = self.gql(mutation, variable_values={
             'host': host,
-            'entityName': self.settings("entity"),
+            'entityName': entity,
             'projectName': project_name,
-            'sweep': sweep_id}, check_retry_fn=no_retry_400)
+            'sweep': sweep_id}, check_retry_fn=no_retry_4xx)
         return response['createAgent']['agent']
 
     def agent_heartbeat(self, agent_id, metrics, run_states):
@@ -1075,13 +1095,23 @@ class Api(object):
             return json.loads(response['agentHeartbeat']['commands'])
 
     @normalize_exceptions
-    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None):
+    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None, entity=None):
         """Upsert a sweep object.
 
         Args:
             config (str): sweep config (will be converted to yaml)
         """
-        mutation = gql('''
+        project_query = '''
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
+        '''
+        mutation_str = '''
         mutation UpsertSweep(
             $id: ID,
             $config: String,
@@ -1102,30 +1132,56 @@ class Api(object):
             }) {
                 sweep {
                     name
+                    _PROJECT_QUERY_
                 }
             }
         }
-        ''')
+        '''
+        # FIXME(jhr): we need protocol versioning to know schema is not supported
+        # for now we will just try both new and old query
+        mutation_new = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
+        mutation_old = gql(mutation_str.replace("_PROJECT_QUERY_", ""))
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
-        def no_retry_400_or_404(e):
+        def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if e.response.status_code != 400 and e.response.status_code != 404:
+            if not(e.response.status_code >= 400 and e.response.status_code < 500):
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
 
-        response = self.gql(mutation, variable_values={
-            'id': obj_id,
-            'config': yaml.dump(config),
-            'description': config.get("description"),
-            'entityName': self.settings("entity"),
-            'projectName': self.settings("project"),
-            'controller': controller,
-            'scheduler': scheduler},
-            check_retry_fn=no_retry_400_or_404)
+        for mutation in mutation_new, mutation_old:
+            try:
+                response = self.gql(mutation, variable_values={
+                    'id': obj_id,
+                    'config': yaml.dump(config),
+                    'description': config.get("description"),
+                    'entityName': entity or self.settings("entity"),
+                    'projectName': project or self.settings("project"),
+                    'controller': controller,
+                    'scheduler': scheduler},
+                    check_retry_fn=no_retry_4xx)
+            except UsageError as e:
+                raise(e)
+            except Exception as e:
+                # graphql schema exception is generic
+                err = e
+                continue
+            err = None
+            break
+        if err:
+            raise(err)
+
+        sweep = response['upsertSweep']['sweep']
+        project = sweep.get('project')
+        if project:
+            self.set_setting('project', project['name'])
+            entity = project.get('entity')
+            if entity:
+                self.set_setting('entity', entity['name'])
+
         return response['upsertSweep']['sweep']['name']
 
     @normalize_exceptions
@@ -1201,8 +1257,12 @@ class Api(object):
         # TODO(adrian): we use a retriable version of self.upload_file() so
         # will never retry self.upload_urls() here. Instead, maybe we should
         # make push itself retriable.
-        run_id, result = self.upload_urls(
+        run_id, upload_headers, result = self.upload_urls(
             project, files, run, entity, description)
+        extra_headers = {}
+        for upload_header in upload_headers:
+            key, val = upload_header.split(':', 1)
+            extra_headers[key] = val
         responses = []
         for file_name, file_info in result.items():
             file_url = file_info['url']
@@ -1224,15 +1284,15 @@ class Api(object):
             if progress:
                 if hasattr(progress, '__call__'):
                     responses.append(self.upload_file_retry(
-                        file_url, open_file, progress))
+                        file_url, open_file, progress, extra_headers=extra_headers))
                 else:
                     length = os.fstat(open_file.fileno()).st_size
                     with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
                                            fill_char=click.style('&', fg='green')) as bar:
                         responses.append(self.upload_file_retry(
-                            file_url, open_file, lambda bites, _: bar.update(bites)))
+                            file_url, open_file, lambda bites, _: bar.update(bites), extra_headers=extra_headers))
             else:
-                responses.append(self.upload_file_retry(file_info['url'], open_file))
+                responses.append(self.upload_file_retry(file_info['url'], open_file, extra_headers=extra_headers))
             open_file.close()
         return responses
 

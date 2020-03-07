@@ -1,8 +1,12 @@
 import pytest
 import numpy as np
-import xgboost as xgb
-import wandb
 import sys
+pytestmark = pytest.mark.skipif(sys.version_info < (3, 6), reason="xgboost 1.0.0 uses f strings")
+if sys.version_info < (3, 6):
+    pass
+else:
+    import xgboost as xgb
+import wandb
 from wandb import wandb_run
 from wandb.xgboost import wandb_callback
 

@@ -72,7 +72,7 @@ class UploadJob(threading.Thread):
             shutil.copy2(self.path, self.save_path)
 
     def cleanup_file(self):
-        if self.copy:
+        if self.copy and os.path.isfile(self.save_path):
             os.remove(self.save_path)
 
     def run(self):
@@ -272,7 +272,7 @@ class FilePusher(object):
         return self._file_stats
 
     def summary(self):
-        progress_values = self._progress.values()
+        progress_values = list(self._progress.values())
         return {
             'failed_batches': len([f for f in progress_values if f['failed']]),
             'uploaded_bytes': sum(f['uploaded'] for f in progress_values),

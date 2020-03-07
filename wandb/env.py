@@ -27,6 +27,7 @@ NAME = 'WANDB_NAME'
 NOTEBOOK_NAME = 'WANDB_NOTEBOOK_NAME'
 NOTES = 'WANDB_NOTES'
 USERNAME = 'WANDB_USERNAME'
+USER_EMAIL = 'WANDB_USER_EMAIL'
 PROJECT = 'WANDB_PROJECT'
 ENTITY = 'WANDB_ENTITY'
 BASE_URL = 'WANDB_BASE_URL'
@@ -49,6 +50,7 @@ ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
 DOCKER = 'WANDB_DOCKER'
 AGENT_REPORT_INTERVAL = 'WANDB_AGENT_REPORT_INTERVAL'
 AGENT_KILL_DELAY = 'WANDB_AGENT_KILL_DELAY'
+AGENT_DISABLE_FLAPPING = 'WANDB_AGENT_DISABLE_FLAPPING'
 CRASH_NOSYNC_TIME = 'WANDB_CRASH_NOSYNC_TIME'
 MAGIC = 'WANDB_MAGIC'
 HOST = 'WANDB_HOST'
@@ -56,15 +58,16 @@ ANONYMOUS = 'WANDB_ANONYMOUS'
 JUPYTER = 'WANDB_JUPYTER'
 CONFIG_DIR = 'WANDB_CONFIG_DIR'
 SYNC_MLFLOW = 'WANDB_SYNC_MLFLOW'
+PROGRAM = 'WANDB_PROGRAM'
 
 
 def immutable_keys():
     """These are env keys that shouldn't change within a single process.  We use this to maintain
     certain values between multiple calls to wandb.init within a single process."""
     return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
-            ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, DIR, SILENT, CONFIG_PATHS,
+            ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, USER_EMAIL, DIR, SILENT, CONFIG_PATHS,
             ANONYMOUS, RUN_GROUP, JOB_TYPE, TAGS, RESUME, AGENT_REPORT_INTERVAL, HTTP_TIMEOUT,
-            USERNAME, HOST, SYNC_MLFLOW]
+            HOST, SYNC_MLFLOW]
 
 
 def _env_as_bool(var, default=None, env=None):
@@ -148,6 +151,13 @@ def get_username(default=None, env=None):
         env = os.environ
 
     return env.get(USERNAME, default)
+
+
+def get_user_email(default=None, env=None):
+    if env is None:
+        env = os.environ
+
+    return env.get(USER_EMAIL, default)
 
 
 def get_entity(default=None, env=None):

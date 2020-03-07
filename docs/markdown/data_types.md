@@ -10,7 +10,7 @@ All of the special data types are subclasses of WBValue. All of the data types s
 
 
 ## WBValue
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L40)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L42)
 ```python
 WBValue(self)
 ```
@@ -24,7 +24,7 @@ The objects will be serialized as JSON and always have a _type attribute that in
  
 
 ## Histogram
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L59)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L61)
 ```python
 Histogram(self, sequence=None, np_histogram=None, num_bins=64)
 ```
@@ -60,8 +60,28 @@ wandb.Histogram(np_histogram=hist)
 - `histogram` _[int]_ - number of elements falling in each bin
  
 
+## Media
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L119)
+```python
+Media(self)
+```
+A WBValue that we store as a file outside JSON and show in a media panel on the front end.
+
+If necessary, we move or copy the file into the Run's media directory so that it gets uploaded.
+
+
+## BatchableMedia
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L219)
+```python
+BatchableMedia(self)
+```
+Parent class for Media we treat specially in batches, like images and thumbnails.
+
+Apart from images, we just use these batches to help organize files by name in the media directory.
+
+
 ## Table
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L117)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L231)
 ```python
 Table(self, columns=['Input', 'Output', 'Expected'], data=None, rows=None)
 ```
@@ -73,28 +93,8 @@ This is a table designed to display small sets of records.
 - `data` _array_ - 2D Array of values that will be displayed as strings.
  
 
-## Media
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L150)
-```python
-Media(self, path, is_tmp=False, extension=None)
-```
-A WBValue that we store as a file outside JSON and show in a media panel on the front end.
-
-If necessary, we move or copy the file into the Run's media directory so that it gets uploaded.
-
-
-## BatchableMedia
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L243)
-```python
-BatchableMedia(self, path, is_tmp=False, extension=None)
-```
-Parent class for Media we treat specially in batches, like images and thumbnails.
-
-Apart from images, we just use these batches to help organize files by name in the media directory.
-
-
 ## Audio
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L255)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L283)
 ```python
 Audio(self, data_or_path, sample_rate=None, caption=None)
 ```
@@ -109,7 +109,7 @@ Wandb class for audio clips.
  
 
 ## Object3D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L352)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L381)
 ```python
 Object3D(self, data_or_path, **kwargs)
 ```
@@ -132,7 +132,7 @@ Wandb class for 3D point clouds.
  
 
 ## Html
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L458)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L503)
 ```python
 Html(self, data, inject=True)
 ```
@@ -146,7 +146,7 @@ Wandb class for arbitrary html
  
 
 ## Video
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L524)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L570)
 ```python
 Video(self, data_or_path, caption=None, fps=4, format=None)
 ```
@@ -162,9 +162,15 @@ Wandb representation of video.
  
 
 ## Image
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L668)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L716)
 ```python
-Image(self, data_or_path, mode=None, caption=None, grouping=None)
+Image(self,
+      data_or_path,
+      mode=None,
+      caption=None,
+      grouping=None,
+      boxes=None,
+      masks=None)
 ```
 
 Wandb class for images.
@@ -176,8 +182,48 @@ Wandb class for images.
 - `caption` _string_ - Label for display of image.
  
 
+## JSONMetadata
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L959)
+```python
+JSONMetadata(self, val, **kwargs)
+```
+
+JSONMetadata is a type for encoding arbitrary metadata as files.
+
+
+## BoundingBoxes2D
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L992)
+```python
+BoundingBoxes2D(self, val, **kwargs)
+```
+
+Wandb class for 2D bounding Boxes
+
+
+## ImageMask
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1042)
+```python
+ImageMask(self, val, **kwargs)
+```
+
+Wandb class for image masks, useful for segmentation tasks
+
+
+## Plotly
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1095)
+```python
+Plotly(self, val, **kwargs)
+```
+
+Wandb class for plotly plots.
+
+**Arguments**:
+
+- `val` - matplotlib or plotly figure
+ 
+
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L838)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1136)
 ```python
 Graph(self, format='keras')
 ```
@@ -203,7 +249,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L972)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1291)
 ```python
 Node(self,
      id=None,
@@ -221,7 +267,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1137)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1456)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -229,15 +275,8 @@ Edge(self, from_node, to_node)
 Edge used in [`Graph`](#graph)
 
 
-## data_types.plot_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1269)
-```python
-plot_to_json(obj)
-```
-Converts a matplotlib or plotly object to json so that we can pass it the the wandb server and display it nicely there
-
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1284)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1581)
 ```python
 data_frame_to_json(df, run, key, step)
 ```

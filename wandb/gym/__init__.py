@@ -11,7 +11,7 @@ def monitor():
         vcr.ImageEncoder.orig_close(self)
         m = re.match(r'.+(video\.\d+).+', self.output_path)
         if m:
-            key = m[1]
+            key = m.group(1)
         else:
             key = "videos"
         wandb.log({key: wandb.Video(self.output_path)})

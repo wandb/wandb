@@ -1,5 +1,6 @@
 import pytest
 import os
+import sys
 import click
 from click.testing import CliRunner
 import git
@@ -24,7 +25,7 @@ if torch:
 
 
 @pytest.fixture
-def runner(monkeypatch):
+def runner(monkeypatch, mocker):
     whaaaaat = util.vendor_import("whaaaaat")
     monkeypatch.setattr('wandb.cli.api', InternalApi(
         default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
@@ -120,6 +121,8 @@ class RequestsMock(object):
             del kwargs["auth"]
         if "timeout" in kwargs:
             del kwargs["timeout"]
+        if "cookies" in kwargs:
+            del kwargs["cookies"]
         return kwargs
 
     def _store_request(self, url, body):

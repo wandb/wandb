@@ -7,6 +7,7 @@ import random
 import numpy as np
 import math
 from wandb.sweeps import grid_search, bayes_search, random_search
+from wandb.sweeps import raytune
 from wandb.sweeps import hyperband_stopping, envelope_stopping
 from wandb.sweeps import base
 
@@ -14,6 +15,8 @@ from wandb.sweeps import base
 class Search(base.Search):
     @staticmethod
     def to_class(config):
+        if config.get('tune'):
+            return raytune.RayTuneSearch()
         method = config.get('method')
         if method is None:
             raise ValueError('config missing required "method" field.')
