@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup
+from package import Package
 
 with open('README.md') as readme_file:
     readme = readme_file.read()
@@ -80,5 +81,8 @@ setup(
     tests_require=test_requirements,
     extras_require={
         'kubeflow': kubeflow_requirements
+    },
+    cmdclass={
+        "package": Package
     }
 )

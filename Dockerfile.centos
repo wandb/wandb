@@ -1,0 +1,4 @@
+FROM centos/python-36-centos7
+
+RUN mkdir /opt/app-root/build && chown -R default /opt/app-root/build
+COPY --chown=default:root . /opt/app-root/build
