@@ -625,11 +625,7 @@ class Run(object):
     def _history_added(self, row):
         self.summary.update(row, overwrite=False)
 
-<<<<<<< HEAD
-    def log(self, row=None, commit=True, step=None, sync=True, *args, **kwargs):
-=======
     def log(self, row=None, commit=None, step=None, sync=True, *args, **kwargs):
->>>>>>> master
         if sync == False:
             wandb._ensure_async_log_thread_started()
             return wandb._async_log_queue.put({"row": row, "commit": commit, "step": step})
