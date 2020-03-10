@@ -265,7 +265,14 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
 
 
     if platform.system() == "Windows":
-        pass
+        stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
+        stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
+
+        stdout_read_file = os.fdopen(stdout_fd, 'rb')
+        stderr_read_file = os.fdopen(stderr_fd, 'rb')
+        stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+        stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+        stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
     else:
         stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
         stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
@@ -405,7 +412,9 @@ class Backend(object):
         wandb_process.start()
 
         if platform.system() == "Windows":
-            pass
+            # https://bugs.python.org/issue38188
+            multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
+            multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
         else:
             multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
             multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
