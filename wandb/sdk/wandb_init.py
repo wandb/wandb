@@ -85,7 +85,7 @@ def win32_create_pipe():
     import win32pipe
 
     sa=pywintypes.SECURITY_ATTRIBUTES()
-    sa.bInheritHandle=0
+    sa.bInheritHandle=1
 
     #read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_TEXT)
     read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_BINARY)

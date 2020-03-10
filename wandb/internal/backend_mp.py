@@ -444,10 +444,14 @@ class Backend(object):
         if platform.system() == "Windows":
             # https://bugs.python.org/issue38188
             import msvcrt
-            stdout_handle = msvcrt.get_osfhandle(stdout_fd)
-            stderr_handle = msvcrt.get_osfhandle(stderr_fd)
-            multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_handle,  wandb_process.pid)
-            multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_handle,  wandb_process.pid)
+            #stdout_handle = msvcrt.get_osfhandle(stdout_fd)
+            #stderr_handle = msvcrt.get_osfhandle(stderr_fd)
+            multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
+            multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
+
+            # should we do this?
+            os.close(stdout_fd)
+            os.close(stderr_fd)
         else:
             multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
             multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
