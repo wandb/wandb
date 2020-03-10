@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
-Name: wandb
-Version: 0.0.2
+Name: wandb-ng
+Version: 0.0.5
 Summary: A CLI and library for interacting with the Weights and Biases API.
 Home-page: https://github.com/wandb/client
 Author: Weights & Biases
@@ -8,7 +8,6 @@ Author-email: support@wandb.com
 License: MIT license
 Description: wandb cli the next generation
         
-Keywords: wandb
 Platform: UNKNOWN
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers

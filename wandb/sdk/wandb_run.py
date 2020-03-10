@@ -35,10 +35,11 @@ class Run(object):
     #     return s
 
     def _repr_mimebundle_(self, include=None, exclude=None):
-        url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(
-            self.run_id)
+        url = self._get_run_url()
         style = "border:none;width:100%;height:400px"
-        note = "(include={}, exclude={})".format(include, exclude)
+        note = ""
+        if include or exclude:
+            note = "(DEBUG: include={}, exclude={})".format(include, exclude)
         s = "<h1>Run({})</h1><p>{}</p><iframe src=\"{}\" style=\"{}\"></iframe>".format(
             self.run_id, note, url, style)
         return {"text/html": s}
@@ -70,14 +71,16 @@ class Run(object):
     def summary(self):
         return dict()
 
-    def _display_run(self):
+    def _get_run_url(self):
         s = self._settings
         r = self._run_obj
-
-        # TODO: move this after send_run calls, since we may or may not have details needed
-        emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
         app_url = s.base_url.replace("//api.", "//app.")
         url = "{}/{}/{}/runs/{}".format(app_url, r.team, r.project, r.run_id)
+        return url
+
+    def _display_run(self):
+        emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+        url = self._get_run_url()
         wandb.termlog("{} View run at {}".format(
             emojis.get("rocket", ""),
             click.style(url, underline=True, fg='blue')))

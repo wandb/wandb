@@ -1,0 +1,7 @@
+include wandb/py.typed
+include package_readme.md
+
+recursive-include wandb *.py
+recursive-include wandb *.sh
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]

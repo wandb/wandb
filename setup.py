@@ -23,15 +23,16 @@ requirements = [
     'configparser>=3.8.1',
     'prompt-toolkit',
     'typing',
-    'grpcio-tools',
+    # 'grpcio-tools',
+    'protobuf',
     'prompt-toolkit',
     'PyYAML',
     'numpy',
 ]
 
 setup(
-    name='wandb',
-    version='0.0.2',
+    name='wandb-ng',
+    version='0.0.5',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -41,7 +42,7 @@ setup(
     packages=[
         'wandb'
     ],
-    package_dir={'wandb': 'wandb'},
+    package_dir={'wandb-ng': 'wandb'},
     package_data={
         'wandb': [
             'py.typed',
@@ -57,7 +58,7 @@ setup(
     install_requires=requirements,
     license="MIT license",
     zip_safe=False,
-    keywords='wandb',
+    #keywords='wandb',
     python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
