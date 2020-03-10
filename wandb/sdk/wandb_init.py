@@ -92,6 +92,10 @@ def win32_create_pipe():
     #read_fd, write_fd = os.pipe()
     # http://timgolden.me.uk/pywin32-docs/win32pipe__FdCreatePipe_meth.html
     # https://stackoverflow.com/questions/17942874/stdout-redirection-with-ctypes
+
+    f = open("testing.txt", "rb")
+    read_fd = f.fileno()
+
     return read_fd, write_fd
 
 
