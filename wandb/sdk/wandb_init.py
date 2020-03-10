@@ -88,8 +88,8 @@ def win32_create_pipe():
     sa.bInheritHandle=0
 
     #read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_TEXT)
-    #read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_BINARY)
-    read_fd, write_fd = os.pipe()
+    read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_BINARY)
+    #read_fd, write_fd = os.pipe()
     # http://timgolden.me.uk/pywin32-docs/win32pipe__FdCreatePipe_meth.html
     # https://stackoverflow.com/questions/17942874/stdout-redirection-with-ctypes
     return read_fd, write_fd
