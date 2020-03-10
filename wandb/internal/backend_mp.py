@@ -285,7 +285,7 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
     if platform.system() == "Windows":
         import msvcrt
         stdout_handle = multiprocessing.reduction.recv_handle(child_pipe)
-        stderr_handle = multiprocessing.reduction.recv_handle(child_pipe)
+        #stderr_handle = multiprocessing.reduction.recv_handle(child_pipe)
         stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_RDONLY)
         #stderr_fd = msvcrt.open_osfhandle(stderr_handle, os.O_RDONLY)
 
@@ -445,9 +445,9 @@ class Backend(object):
             # https://bugs.python.org/issue38188
             import msvcrt
             stdout_fd = msvcrt.get_osfhandle(stdout_fd)
-            stderr_fd = msvcrt.get_osfhandle(stderr_fd)
+            # stderr_fd = msvcrt.get_osfhandle(stderr_fd)
             multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
-            multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
+            # multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
 
             # should we do this?
             os.close(stdout_fd)
