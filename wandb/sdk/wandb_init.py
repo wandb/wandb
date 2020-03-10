@@ -120,13 +120,6 @@ class _WandbInit(object):
                                 )
         backend.server_connect()
 
-        stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
-        stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
-        stdout_redirector.redirect()
-        stderr_redirector.redirect()
-
         # resuming needs access to the server, check server_status()?
 
         run = Run(config=config, settings=s)
@@ -151,6 +144,15 @@ class _WandbInit(object):
 
         set_global(run=run, config=run.config, log=run.log, join=run.join)
         run.on_start()
+
+        # redirect stdout
+        stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
+        stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
+        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+        stdout_redirector.redirect()
+        stderr_redirector.redirect()
+
         return run
 
 
