@@ -4,6 +4,7 @@ import wandb
 from . import wandb_config
 import shortuuid  # type: ignore
 import click
+import platform
 
 
 def generate_id():
@@ -79,7 +80,9 @@ class Run(object):
         return url
 
     def _display_run(self):
-        emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+        emojis = dict(star="", broom="", rocket="")
+        if platform.system() != "Windows":
+            emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
         url = self._get_run_url()
         wandb.termlog("{} View run at {}".format(
             emojis.get("rocket", ""),

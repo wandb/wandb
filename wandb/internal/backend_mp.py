@@ -268,9 +268,11 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
         import msvcrt
         stdout_handle = multiprocessing.reduction.recv_handle(child_pipe)
         stderr_handle = multiprocessing.reduction.recv_handle(child_pipe)
-        stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_WRONLY)
-        stderr_fd = msvcrt.open_osfhandle(stderr_handle, os.O_WRONLY)
+        stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_RDONLY)
+        stderr_fd = msvcrt.open_osfhandle(stderr_handle, os.O_RDONLY)
 
+        logger.info("windows stdout: %d", stdout_fd)
+        logger.info("windows stderr: %d", stderr_fd)
         stdout_read_file = os.fdopen(stdout_fd, 'rb')
         stderr_read_file = os.fdopen(stderr_fd, 'rb')
         stdout_streams, stderr_streams = _get_stdout_stderr_streams()
@@ -279,6 +281,8 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
     else:
         stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
         stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
+        logger.info("nonwindows stdout: %d", stdout_fd)
+        logger.info("nonwindows stderr: %d", stderr_fd)
 
         stdout_read_file = os.fdopen(stdout_fd, 'rb')
         stderr_read_file = os.fdopen(stderr_fd, 'rb')
