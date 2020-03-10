@@ -64,6 +64,22 @@ def _get_python_type():
         return "python"
 
 
+def win32_redirect(stdout_slave_fd, stderr_slave_fd):
+    import win32api
+
+    # save for later
+    fd_stdout = os.dup(1)
+    fd_stderr = os.dup(2)
+
+    std_out = win32api.GetStdHandle(win32api.STD_OUTPUT_HANDLE)
+    std_err = win32api.GetStdHandle(win32api.STD_ERROR_HANDLE)
+
+    os.dup2(stdout_slave_fd, 1)
+    os.dup2(stderr_slave_fd, 2)
+
+    # TODO(jhr): do something about current stdout, stderr file handles
+
+
 def win32_create_pipe():
     import pywintypes
     import win32pipe
@@ -166,7 +182,7 @@ class _WandbInit(object):
 
         # redirect stdout
         if platform.system() == "Windows":
-            pass
+            win32_redirect(stdout_slave_fd, stderr_slave_fd)
         else:
             stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
             stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
