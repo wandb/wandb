@@ -265,8 +265,11 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
 
 
     if platform.system() == "Windows":
-        stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
-        stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
+        import msvcrt
+        stdout_handle = multiprocessing.reduction.recv_handle(child_pipe)
+        stderr_handle = multiprocessing.reduction.recv_handle(child_pipe)
+        stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_WRONLY)
+        stderr_fd = msvcrt.open_osfhandle(stderr_handle, os.O_WRONLY)
 
         stdout_read_file = os.fdopen(stdout_fd, 'rb')
         stderr_read_file = os.fdopen(stderr_fd, 'rb')
