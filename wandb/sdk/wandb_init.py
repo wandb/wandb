@@ -65,7 +65,16 @@ def _get_python_type():
 
 
 def win32_create_pipe():
-    return (1, 2)
+    import pywintypes
+    import win32pipe
+
+    sa=pywintypes.SECURITY_ATTRIBUTES()
+    sa.bInheritHandle=0
+
+    read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_TEXT)
+    # http://timgolden.me.uk/pywin32-docs/win32pipe__FdCreatePipe_meth.html
+    # https://stackoverflow.com/questions/17942874/stdout-redirection-with-ctypes
+    return read_fd, write_fd
 
 
 class _WandbInit(object):
