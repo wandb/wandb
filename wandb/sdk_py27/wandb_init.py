@@ -11,6 +11,7 @@ from wandb.util.globals import set_global
 from wandb.internal.backend_mp import Backend
 from wandb.stuff import util2
 
+import platform
 import six
 import getpass
 import logging
@@ -63,6 +64,10 @@ def _get_python_type():
         return "python"
 
 
+def win32_create_pipe():
+    return (1, 2)
+
+
 class _WandbInit(object):
     def __init__(self):
         self.kwargs = None
@@ -108,8 +113,13 @@ class _WandbInit(object):
                 key = prompt('Enter api key: ', is_password=True)
             util2.set_api_key(api, key)
 
-        stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
-        stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
+        if platform.system() == "Windows":
+            # create win32 pipes
+            stdout_master_fd, stdout_slave_fd = win32_create_pipe()
+            stderr_master_fd, stderr_slave_fd = win32_create_pipe()
+        else:
+            stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
+            stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
 
         backend = Backend(mode=s.mode)
         backend.ensure_launched(settings=s,
@@ -146,12 +156,15 @@ class _WandbInit(object):
         run.on_start()
 
         # redirect stdout
-        stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
-        stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
-        stdout_redirector.redirect()
-        stderr_redirector.redirect()
+        if platform.system() == "Windows":
+            pass
+        else:
+            stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
+            stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
+            stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+            stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+            stdout_redirector.redirect()
+            stderr_redirector.redirect()
 
         return run
 

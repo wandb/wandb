@@ -6,6 +6,7 @@ import sys
 import os
 import logging
 import six
+import multiprocessing
 
 import wandb
 from wandb.internal import wandb_internal_pb2
@@ -17,6 +18,7 @@ from wandb.apis import file_stream
 from wandb.stuff import io_wrap
 
 import numpy as np
+import platform
 
 logger = logging.getLogger(__name__)
 
@@ -262,15 +264,17 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
         setup_logging(log_fname, log_level)
 
 
-    import multiprocessing
-    stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
-    stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
+    if platform.system() == "Windows":
+        pass
+    else:
+        stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
+        stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
 
-    stdout_read_file = os.fdopen(stdout_fd, 'rb')
-    stderr_read_file = os.fdopen(stderr_fd, 'rb')
-    stdout_streams, stderr_streams = _get_stdout_stderr_streams()
-    stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
-    stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+        stdout_read_file = os.fdopen(stdout_fd, 'rb')
+        stderr_read_file = os.fdopen(stderr_fd, 'rb')
+        stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+        stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+        stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
 
     stopped = threading.Event()
    
@@ -400,13 +404,15 @@ class Backend(object):
         # Start the process with __name__ == "__main__" workarounds
         wandb_process.start()
 
-        import multiprocessing.reduction
-        multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
-        multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
+        if platform.system() == "Windows":
+            pass
+        else:
+            multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
+            multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
 
-        # should we do this?
-        os.close(stdout_fd)
-        os.close(stderr_fd)
+            # should we do this?
+            os.close(stdout_fd)
+            os.close(stderr_fd)
 
         # Undo temporary changes from: __name__ == "__main__"
         if save_mod_name:
