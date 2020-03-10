@@ -444,7 +444,9 @@ class Backend(object):
         if platform.system() == "Windows":
             # https://bugs.python.org/issue38188
             import msvcrt
+            print("DEBUG1: {}".format(stdout_fd))
             stdout_fd = msvcrt.get_osfhandle(stdout_fd)
+            print("DEBUG2: {}".format(stdout_fd))
             # stderr_fd = msvcrt.get_osfhandle(stderr_fd)
             multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
             # multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
