@@ -14,6 +14,9 @@ from wandb.stuff import util2
 import six
 import logging
 from six import raise_from
+from wandb.stuff import io_wrap
+import sys
+import os
 
 from wandb.apis import internal
 
@@ -89,12 +92,24 @@ class _WandbInit(object):
             key = prompt('Enter api key: ', is_password=True)
             util2.set_api_key(api, key)
 
+        stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
+        stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
+
         backend = Backend(mode=s.mode)
         backend.ensure_launched(settings=s,
                                 log_fname=wl._log_internal_filename,
                                 data_fname=wl._data_filename,
+                                stdout_fd=stdout_master_fd,
+                                stderr_fd=stderr_master_fd,
                                 )
         backend.server_connect()
+
+        stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
+        stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
+        stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+        stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+        stdout_redirector.redirect()
+        stderr_redirector.redirect()
 
         # resuming needs access to the server, check server_status()?
 
@@ -138,6 +153,7 @@ def init(
         magic: bool = None,  # FIXME: type is union
         config: Dict = None,
         reinit: bool = None,
+        anonymous: bool = None,
         name=None,
 ) -> Optional[Run]:
     """This is my comment.

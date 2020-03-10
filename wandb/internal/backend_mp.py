@@ -14,6 +14,8 @@ from wandb.internal import datastore
 from wandb.apis import internal
 from wandb.apis import file_stream
 
+from wandb.stuff import io_wrap
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -132,7 +134,7 @@ def wandb_send(settings, q, resp_q, stopped):
     fs = None
     run_id = None
     api = internal.Api(default_settings=settings)
-    settings = {k: v for k, v in six.iteritems(settings) if k in ('project',)}
+    settings = {k: v for k, v in six.iteritems(settings) if k in ('project',) and v is not None}
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)
@@ -187,6 +189,67 @@ def wandb_send(settings, q, resp_q, stopped):
         fs.finish(0)
 
 
+class WriteSerializingFile(object):
+    """Wrapper for a file object that serializes writes.
+    """
+
+    def __init__(self, f):
+        self.lock = threading.Lock()
+        self.f = f
+
+    def write(self, *args, **kargs):
+        self.lock.acquire()
+        try:
+            self.f.write(*args, **kargs)
+            self.f.flush()
+        finally:
+            self.lock.release()
+
+
+def _get_stdout_stderr_streams():
+        """Sets up STDOUT and STDERR streams. Only call this once."""
+        if six.PY2 or not hasattr(sys.stdout, "buffer"):
+            if hasattr(sys.stdout, "fileno") and sys.stdout.isatty():
+                try:
+                    stdout = os.fdopen(sys.stdout.fileno(), "w+", 0)
+                    stderr = os.fdopen(sys.stderr.fileno(), "w+", 0)
+                # OSError [Errno 22] Invalid argument wandb
+                except OSError:
+                    stdout = sys.stdout
+                    stderr = sys.stderr
+            else:
+                stdout = sys.stdout
+                stderr = sys.stderr
+        else:  # we write binary so grab the raw I/O objects in python 3
+            try:
+                stdout = sys.stdout.buffer.raw
+                stderr = sys.stderr.buffer.raw
+            except AttributeError:
+                # The testing environment and potentially others may have screwed with their
+                # io so we fallback to raw stdout / err
+                stdout = sys.stdout.buffer
+                stderr = sys.stderr.buffer
+
+        output_log_path = "output.txt"
+        output_log = WriteSerializingFile(open(output_log_path, 'wb'))
+
+        stdout_streams = [stdout, output_log]
+        stderr_streams = [stderr, output_log]
+
+#        if self._cloud:
+#            # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
+#            fs_api = self._api.get_file_stream_api()
+#            self._stdout_stream = streaming_log.TextStreamPusher(
+#                fs_api, util.OUTPUT_FNAME, prepend_timestamp=True)
+#            self._stderr_stream = streaming_log.TextStreamPusher(
+#                fs_api, util.OUTPUT_FNAME, line_prepend='ERROR',
+#                prepend_timestamp=True)
+#
+#            stdout_streams.append(self._stdout_stream)
+#            stderr_streams.append(self._stderr_stream)
+
+        return stdout_streams, stderr_streams
+
 def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level, data_filename):
     #fd = multiprocessing.reduction.recv_handle(child_pipe)
     #if msvcrt:
@@ -196,6 +259,17 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
 
     if log_fname:
         setup_logging(log_fname, log_level)
+
+
+    import multiprocessing
+    stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
+    stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
+
+    stdout_read_file = os.fdopen(stdout_fd, 'rb')
+    stderr_read_file = os.fdopen(stderr_fd, 'rb')
+    stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+    stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+    stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
 
     stopped = threading.Event()
    
@@ -266,12 +340,17 @@ class Backend(object):
         self._done = False
         self._wl = wandb.setup()
 
-    def ensure_launched(self, settings=None, log_fname=None, log_level=None, data_fname=None):
+    def ensure_launched(self, settings=None, log_fname=None, log_level=None, data_fname=None, stdout_fd=None, stderr_fd=None):
         """Launch backend worker if not running."""
         log_fname = log_fname or ""
         log_level = log_level or logging.DEBUG
         settings = settings or {}
         settings = dict(settings)
+
+        #os.set_inheritable(stdout_fd, True)
+        #os.set_inheritable(stderr_fd, True)
+        #stdout_read_file = os.fdopen(stdout_fd, 'rb')
+        #stderr_read_file = os.fdopen(stderr_fd, 'rb')
 
         fd_pipe_child, fd_pipe_parent = self._wl._multiprocessing.Pipe()
 
@@ -319,6 +398,14 @@ class Backend(object):
 
         # Start the process with __name__ == "__main__" workarounds
         wandb_process.start()
+
+        import multiprocessing.reduction
+        multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
+        multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
+
+        # should we do this?
+        os.close(stdout_fd)
+        os.close(stderr_fd)
 
         # Undo temporary changes from: __name__ == "__main__"
         if save_mod_name:
