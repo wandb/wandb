@@ -283,35 +283,36 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
 
 
     if platform.system() == "Windows":
-        import msvcrt
-        stdout_handle = multiprocessing.reduction.recv_handle(child_pipe)
+        #import msvcrt
+        #stdout_handle = multiprocessing.reduction.recv_handle(child_pipe)
         #stderr_handle = multiprocessing.reduction.recv_handle(child_pipe)
-        stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_RDONLY)
+        #stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_RDONLY)
         #stderr_fd = msvcrt.open_osfhandle(stderr_handle, os.O_RDONLY)
 
-        logger.info("windows stdout: %d", stdout_fd)
+        #logger.info("windows stdout: %d", stdout_fd)
         #logger.info("windows stderr: %d", stderr_fd)
 
-        read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
-        read_thread.start()
+        #read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
+        #read_thread.start()
         #stdout_read_file = os.fdopen(stdout_fd, 'rb')
         #stderr_read_file = os.fdopen(stderr_fd, 'rb')
         #stdout_streams, stderr_streams = _get_stdout_stderr_streams()
         #stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
         #stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+        pass
     else:
         stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
         stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
         logger.info("nonwindows stdout: %d", stdout_fd)
         logger.info("nonwindows stderr: %d", stderr_fd)
 
-        read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
-        read_thread.start()
-        #stdout_read_file = os.fdopen(stdout_fd, 'rb')
-        #stderr_read_file = os.fdopen(stderr_fd, 'rb')
-        #stdout_streams, stderr_streams = _get_stdout_stderr_streams()
-        #stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
-        #stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+        #read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
+        #read_thread.start()
+        stdout_read_file = os.fdopen(stdout_fd, 'rb')
+        stderr_read_file = os.fdopen(stderr_fd, 'rb')
+        stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+        stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+        stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
 
     stopped = threading.Event()
    
@@ -443,17 +444,18 @@ class Backend(object):
 
         if platform.system() == "Windows":
             # https://bugs.python.org/issue38188
-            import msvcrt
-            print("DEBUG1: {}".format(stdout_fd))
-            stdout_fd = msvcrt.get_osfhandle(stdout_fd)
-            print("DEBUG2: {}".format(stdout_fd))
+            #import msvcrt
+            #print("DEBUG1: {}".format(stdout_fd))
+            #stdout_fd = msvcrt.get_osfhandle(stdout_fd)
+            #print("DEBUG2: {}".format(stdout_fd))
             # stderr_fd = msvcrt.get_osfhandle(stderr_fd)
-            multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
+            #multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
             # multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
 
             # should we do this?
-            os.close(stdout_fd)
+            #os.close(stdout_fd)
             #os.close(stderr_fd)
+            pass
         else:
             multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
             multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
