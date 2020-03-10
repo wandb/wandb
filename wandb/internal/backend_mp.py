@@ -119,6 +119,24 @@ def setup_logging(log_fname, log_level, run_id=None):
     root.addHandler(handler)
 
 
+def wandb_read(fd):
+    logger.info("start reading")
+    print("start reading")
+    while True:
+        logger.info("about to read")
+        try:
+            data = os.read(fd, 200)
+        except OSError as e:
+            print("problem", e)
+            return
+        if len(data) == 0:
+            break
+        logger.info("got data: %s", data)
+        print("got data:", data)
+    logger.info("done reading")
+    print("done reading")
+
+
 def wandb_write(settings, q, stopped, data_filename):
     ds = datastore.DataStore()
     ds.open(data_filename)
@@ -273,22 +291,27 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
 
         logger.info("windows stdout: %d", stdout_fd)
         logger.info("windows stderr: %d", stderr_fd)
-        stdout_read_file = os.fdopen(stdout_fd, 'rb')
-        stderr_read_file = os.fdopen(stderr_fd, 'rb')
-        stdout_streams, stderr_streams = _get_stdout_stderr_streams()
-        stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
-        stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+
+        read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
+        read_thread.start()
+        #stdout_read_file = os.fdopen(stdout_fd, 'rb')
+        #stderr_read_file = os.fdopen(stderr_fd, 'rb')
+        #stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+        #stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+        #stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
     else:
         stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
         stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
         logger.info("nonwindows stdout: %d", stdout_fd)
         logger.info("nonwindows stderr: %d", stderr_fd)
 
-        stdout_read_file = os.fdopen(stdout_fd, 'rb')
-        stderr_read_file = os.fdopen(stderr_fd, 'rb')
-        stdout_streams, stderr_streams = _get_stdout_stderr_streams()
-        stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
-        stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+        read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
+        read_thread.start()
+        #stdout_read_file = os.fdopen(stdout_fd, 'rb')
+        #stderr_read_file = os.fdopen(stderr_fd, 'rb')
+        #stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+        #stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+        #stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
 
     stopped = threading.Event()
    
