@@ -14,6 +14,8 @@ import os
 
 from . import wandb_settings
 
+from wandb.stuff.git_repo import GitRepo
+
 logger = logging.getLogger("wandb")
 
 
@@ -71,7 +73,13 @@ class _WandbSetup__WandbSetup(object):
 
         self._check()
         self._setup()
+        self._gitstuff()
 
+    def _gitstuff(self):
+        #self.git = GitRepo(remote=self.settings("git_remote"))
+        self.git = GitRepo()
+
+        
     def _settings_setup(self, settings=None, early_logging=None):
         glob_config = os.path.expanduser('~/.config/wandb/settings')
         loc_config = 'wandb/settings'

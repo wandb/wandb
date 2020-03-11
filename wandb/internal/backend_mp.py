@@ -1,6 +1,5 @@
 import threading
 import json
-import atexit
 from six.moves import queue
 import sys
 import os
@@ -483,8 +482,6 @@ class Backend(object):
         self.cancel_queue = cancel_queue
         self.notify_queue = notify_queue
 
-        atexit.register(lambda: self._atexit_cleanup())
-
     def server_connect(self):
         """Connect to server."""
         pass
@@ -492,9 +489,6 @@ class Backend(object):
     def server_status(self):
         """Report server status."""
         pass
-
-    def join(self):
-        self._atexit_cleanup()
 
     def send_log(self, data):
         json_data = json.dumps(data, cls=WandBJSONEncoder)
@@ -563,7 +557,7 @@ class Backend(object):
     def send_exit_code(self, exit_code):
         pass
 
-    def _atexit_cleanup(self):
+    def cleanup(self):
         # TODO: make _done atomic
         if self._done:
             return
@@ -573,3 +567,4 @@ class Backend(object):
         # TODO: make sure this is last in the queue?  lock?
         self.notify_queue.close()
         self.wandb_process.join()
+        # No printing allowed from here until redirect restore!!!

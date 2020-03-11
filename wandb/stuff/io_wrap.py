@@ -58,7 +58,8 @@ import six
 from six.moves import queue, shlex_quote
 #import wandb.env
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("wandb")
+#logger = logging.getLogger(__name__)
 
 SIGWINCH_HANDLER = None
 

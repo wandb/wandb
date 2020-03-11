@@ -62,7 +62,7 @@ class Run(object):
             self._data.update(data)
 
     def join(self):
-        self._backend.join()
+        self._backend.cleanup()
 
     @property
     def dir(self):
@@ -93,4 +93,5 @@ class Run(object):
             self._display_run()
 
     def on_finish(self):
-        pass
+        if self._run_obj:
+            self._display_run()

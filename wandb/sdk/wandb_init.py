@@ -11,6 +11,7 @@ from wandb.util.globals import set_global
 from wandb.internal.backend_mp import Backend
 from wandb.stuff import util2
 
+import atexit
 import platform
 import six
 import getpass
@@ -107,6 +108,14 @@ class _WandbInit(object):
         self.config = None
         self.magic = None
         self.wl = None
+        self.run = None
+        self.backend = None
+
+        # move this
+        self.stdout_redirector = None
+        self.stderr_redirector = None
+        self._save_stdout = None
+        self._save_stderr = None
 
     def setup(self, kwargs):
         self.kwargs = kwargs
@@ -125,6 +134,43 @@ class _WandbInit(object):
         s.freeze()
         self.wl = wl
         self.settings = s
+
+    def _atexit_cleanup(self):
+        self.backend.cleanup()
+        # FIXME: no warning allowed
+        self._restore()
+        if self.run:
+            self.run.on_finish()
+
+    def _redirect(self, stdout_slave_fd, stderr_slave_fd):
+        logger.info("redirect")
+        # redirect stdout
+        if platform.system() == "Windows":
+            win32_redirect(stdout_slave_fd, stderr_slave_fd)
+        else:
+            self._save_stdout = sys.stdout
+            self._save_stderr = sys.stderr
+            stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
+            stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
+            stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+            stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+            stdout_redirector.redirect()
+            stderr_redirector.redirect()
+            self.stdout_redirector = stdout_redirector
+            self.stderr_redirector = stderr_redirector
+        logger.info("redirect done")
+
+    def _restore(self):
+        logger.info("restore")
+        if self.stdout_redirector:
+            self.stdout_redirector.restore()
+        if self.stderr_redirector:
+            self.stderr_redirector.restore()
+        if self._save_stdout:
+            sys.stdout = self._save_stdout
+        if self._save_stderr:
+            sys.stderr = self._save_stderr
+        logger.info("restore done")
 
     def init(self):
         s = self.settings
@@ -184,19 +230,14 @@ class _WandbInit(object):
             # TODO: on network error, do async run save
             backend.send_run(r)
 
+        self.run = run
+        self.backend = backend
         set_global(run=run, config=run.config, log=run.log, join=run.join)
         run.on_start()
+        logger.info("atexit reg")
+        atexit.register(lambda: self._atexit_cleanup())
 
-        # redirect stdout
-        if platform.system() == "Windows":
-            win32_redirect(stdout_slave_fd, stderr_slave_fd)
-        else:
-            stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
-            stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-            stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-            stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
-            stdout_redirector.redirect()
-            stderr_redirector.redirect()
+        self._redirect(stdout_slave_fd, stderr_slave_fd)
 
         return run
 
