@@ -1,27 +1,31 @@
 import wandb
+from wandb import util
 from wandb.plots.utils import test_missing, test_types, encode_labels
+np = util.get_module("numpy", required="Logging plots requires numpy")
+scikit = util.get_module("sklearn")
+chart_limit = wandb.Table.MAX_ROWS
 
 def roc(y_true=None, y_probas=None, labels=None,
         plot_micro=True, plot_macro=True, classes_to_plot=None):
-         """
-         Calculates receiver operating characteristic scores and visualizes them as the
-             ROC curve.
+        """
+        Calculates receiver operating characteristic scores and visualizes them as the
+         ROC curve.
 
-         Arguments:
-             y_true (arr): Test set labels.
-             y_probas (arr): Test set predicted probabilities.
-             labels (list): Named labels for target varible (y). Makes plots easier to
-                             read by replacing target values with corresponding index.
-                             For example labels= ['dog', 'cat', 'owl'] all 0s are
-                             replaced by 'dog', 1s by 'cat'.
+        Arguments:
+         y_true (arr): Test set labels.
+         y_probas (arr): Test set predicted probabilities.
+         labels (list): Named labels for target varible (y). Makes plots easier to
+                         read by replacing target values with corresponding index.
+                         For example labels= ['dog', 'cat', 'owl'] all 0s are
+                         replaced by 'dog', 1s by 'cat'.
 
-         Returns:
-             Nothing. To see plots, go to your W&B run page then expand the 'media' tab
-                   under 'auto visualizations'.
+        Returns:
+         Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+               under 'auto visualizations'.
 
-         Example:
-             wandb.log({roc: wandb.plots.ROC()})
-         """
+        Example:
+         wandb.log({'roc': wandb.plots.ROC(y_true, y_probas, labels)})
+        """
         if (test_missing(y_true=y_true, y_probas=y_probas) and
             test_types(y_true=y_true, y_probas=y_probas)):
             y_true = np.array(y_true)
@@ -41,10 +45,10 @@ def roc(y_true=None, y_probas=None, labels=None,
                 count = 0
 
                 for i, to_plot in enumerate(indices_to_plot):
-                    fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true, probas[:, i],
+                    fpr_dict[i], tpr_dict[i], _ = scikit.metrics.roc_curve(y_true, probas[:, i],
                                                             pos_label=classes[i])
                     if to_plot:
-                        roc_auc = auc(fpr_dict[i], tpr_dict[i])
+                        roc_auc = scikit.metrics.auc(fpr_dict[i], tpr_dict[i])
                         for j in range(len(fpr_dict[i])):
                             if labels is not None and (isinstance(classes[i], int)
                                         or isinstance(classes[0], np.integer)):

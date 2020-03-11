@@ -1,5 +1,9 @@
 import wandb
+from wandb import util
 from wandb.plots.utils import test_missing, test_types, encode_labels
+np = util.get_module("numpy", required="Logging plots requires numpy")
+scikit = util.get_module("sklearn")
+chart_limit = wandb.Table.MAX_ROWS
 
 def precision_recall(y_true=None, y_probas=None, labels=None,
                           plot_micro=True, classes_to_plot=None):
@@ -25,7 +29,7 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
     under 'auto visualizations'.
 
     Example:
-    wandb.log({roc: wandb.plots.precision_recall()})
+    wandb.log({'pr': wandb.plots.precision_recall(y_true, y_probas, labels)})
     """
     y_true = np.array(y_true)
     y_probas = np.array(y_probas)
@@ -38,7 +42,7 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
         if classes_to_plot is None:
             classes_to_plot = classes
 
-        binarized_y_true = label_binarize(y_true, classes=classes)
+        binarized_y_true = scikit.preprocessing.label_binarize(y_true, classes=classes)
         if len(classes) == 2:
             binarized_y_true = np.hstack(
                 (1 - binarized_y_true, binarized_y_true))
@@ -47,10 +51,10 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
         indices_to_plot = np.in1d(classes, classes_to_plot)
         for i, to_plot in enumerate(indices_to_plot):
             if to_plot:
-                average_precision = average_precision_score(
+                average_precision = scikit.metrics.average_precision_score(
                     binarized_y_true[:, i],
                     probas[:, i])
-                precision, recall, _ = precision_recall_curve(
+                precision, recall, _ = scikit.metrics.precision_recall_curve(
                     y_true, probas[:, i], pos_label=classes[i])
 
                 samples = 20

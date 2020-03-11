@@ -1,11 +1,15 @@
 import wandb
+from wandb import util
 
 # FIXME: look at wandb.util.is_numpy_array() wandb.util.is_pandas* for examples
 np = util.get_module("numpy", required="Logging plots requires numpy")
 pd = util.get_module("pandas", required="Logging dataframes requires pandas")
 scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
 spacy = util.get_module("spacy", required="Logging NER and POD requires spacy")
-sklearn = util.get_module("sklearn", required="Logging scikit plots requires sklearn")
+sklearn = util.get_module("sklearn")
+collections = util.get_module("collections",
+                    required="Logging python iterables requires collections")
+# sklearn = util.get_module("sklearn", required="Logging scikit plots requires sklearn")
 # eli5
 
 # FIXME: add types test
@@ -84,3 +88,32 @@ def encode_labels(df):
     # apply le on categorical feature columns
     categorical_cols = df.select_dtypes(exclude=['int','float','float64','float32','int32','int64']).columns
     df[categorical_cols] = df[categorical_cols].apply(lambda col: le.fit_transform(col))
+
+def test_types(**kwargs):
+    test_passed = True
+    for k,v in kwargs.items():
+        # check for incorrect types
+        if ((k == 'X') or (k == 'X_test') or (k == 'y') or (k == 'y_test')
+            or (k == 'y_true') or (k == 'y_probas')):
+            # FIXME: do this individually
+            if not isinstance(v, (collections.Sequence, collections.Iterable, np.ndarray, np.generic, pd.DataFrame, pd.Series, list)):
+                wandb.termerror("%s is not an array. Please try again." % (k))
+                test_passed = False
+        # check for classifier types
+        if (k=='model'):
+            if ((not sklearn.base.is_classifier(v)) and (not sklearn.base.is_regressor(v))):
+                wandb.termerror("%s is not a classifier or regressor. Please try again." % (k))
+                test_passed = False
+        elif (k=='clf' or k=='binary_clf'):
+            if (not(sklearn.base.is_classifier(v))):
+                wandb.termerror("%s is not a classifier. Please try again." % (k))
+                test_passed = False
+        elif (k=='regressor'):
+            if (not sklearn.base.is_regressor(v)):
+                wandb.termerror("%s is not a regressor. Please try again." % (k))
+                test_passed = False
+        elif (k=='clusterer'):
+            if (not(getattr(v, "_estimator_type", None) == "clusterer")):
+                wandb.termerror("%s is not a clusterer. Please try again." % (k))
+                test_passed = False
+    return test_passed
