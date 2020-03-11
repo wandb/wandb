@@ -290,11 +290,11 @@ class Api(object):
 
         return result if key is None else result[key]
 
-    def clear_setting(self, key, globally=False):
-        self._settings.clear(Settings.DEFAULT_SECTION, key, globally=globally)
+    def clear_setting(self, key, globally=False, persist=False):
+        self._settings.clear(Settings.DEFAULT_SECTION, key, globally=globally, persist=persist)
 
-    def set_setting(self, key, value, globally=False):
-        self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally)
+    def set_setting(self, key, value, globally=False, persist=False):
+        self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist)
         if key == 'entity':
             env.set_entity(value, env=self._environ)
         elif key == 'project':

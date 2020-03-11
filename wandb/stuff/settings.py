@@ -38,29 +38,32 @@ class Settings(object):
                 else:
                     raise
 
-    def set(self, section, key, value, globally=False):
-        def write_setting(settings, settings_path):
+    def set(self, section, key, value, globally=False, persist=False):
+        """Persists settings to disk if persist = True"""
+        def write_setting(settings, settings_path, persist):
             if not settings.has_section(section):
                 Settings._safe_add_section(settings, Settings.DEFAULT_SECTION)
             settings.set(section, key, str(value))
-            with open(settings_path, "w+") as f:
-                settings.write(f)
+            if persist:
+                with open(settings_path, "w+") as f:
+                    settings.write(f)
 
         if globally:
-            write_setting(self._global_settings, Settings._global_path())
+            write_setting(self._global_settings, Settings._global_path(), persist)
         else:
-            write_setting(self._local_settings, Settings._local_path())
+            write_setting(self._local_settings, Settings._local_path(), persist)
 
-    def clear(self, section, key, globally=False):
-        def clear_setting(settings, settings_path):
+    def clear(self, section, key, globally=False, persist=False):
+        def clear_setting(settings, settings_path, persist):
             settings.remove_option(section, key)
-            with open(settings_path, "w+") as f:
-                settings.write(f)
+            if persist:
+                with open(settings_path, "w+") as f:
+                    settings.write(f)
 
         if globally:
-            clear_setting(self._global_settings, Settings._global_path())
+            clear_setting(self._global_settings, Settings._global_path(), persist)
         else:
-            clear_setting(self._local_settings, Settings._local_path())
+            clear_setting(self._local_settings, Settings._local_path(), persist)
 
     def items(self, section=None):
         section = section if section is not None else Settings.DEFAULT_SECTION
