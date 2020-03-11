@@ -1,15 +1,27 @@
 import wandb
-from wandb.plots.utils import test_missing
+from wandb.plots.utils import test_missing, test_types, encode_labels
 
 def roc(y_true=None, y_probas=None, labels=None,
         plot_micro=True, plot_macro=True, classes_to_plot=None):
-        """
-        Calculates receiver operating characteristic scores and visualizes them as the
-            ROC curve.
+         """
+         Calculates receiver operating characteristic scores and visualizes them as the
+             ROC curve.
 
-        Called by plot_roc to visualize roc curves. Please use the function plot_roc()
-        if you wish to visualize your roc curves.
-        """
+         Arguments:
+             y_true (arr): Test set labels.
+             y_probas (arr): Test set predicted probabilities.
+             labels (list): Named labels for target varible (y). Makes plots easier to
+                             read by replacing target values with corresponding index.
+                             For example labels= ['dog', 'cat', 'owl'] all 0s are
+                             replaced by 'dog', 1s by 'cat'.
+
+         Returns:
+             Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+                   under 'auto visualizations'.
+
+         Example:
+             wandb.log({roc: wandb.plots.ROC()})
+         """
         if (test_missing(y_true=y_true, y_probas=y_probas) and
             test_types(y_true=y_true, y_probas=y_probas)):
             y_true = np.array(y_true)
