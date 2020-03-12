@@ -2,6 +2,7 @@ import pytest
 from sklearn.naive_bayes import MultinomialNB
 import wandb
 from wandb.plots.roc import roc
+from wandb.sklearn import learning_curve
 from wandb.plots.precision_recall import precision_recall
 
 @pytest.fixture
