@@ -152,6 +152,10 @@ def wandb_send(settings, q, resp_q, stopped):
     run_id = None
     api = internal.Api(default_settings=settings)
     settings = {k: v for k, v in six.iteritems(settings) if k in ('project',) and v is not None}
+
+    # TODO(jhr): do something better, why do we need to send full lines?
+    partial_output = dict()
+
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)
@@ -204,17 +208,25 @@ def wandb_send(settings, q, resp_q, stopped):
         elif t == "output":
             out = i.output
             prepend = ""
+            stream = "stdout"
             if out.output_type == wandb_internal_pb2.OutputData.OutputType.STDERR:
+                stream = "stderr"
                 prepend = "ERROR "
             line = out.str
-            # TODO(jhr): use time from timestamp proto
-            # FIXME(jhr): do we need to make sure we write full lines?  seems to be some issues with line breaks
-            cur_time = time.time()
-            timestamp = datetime.datetime.utcfromtimestamp(
-                cur_time).isoformat() + ' '
-            line = u'{}{}{}'.format(prepend, timestamp, line)
-            fs.push("output.log", line)
-
+            if not line.endswith("\n"):
+                partial_output.setdefault(stream, "")
+                partial_output[stream] += line
+                # FIXME(jhr): how do we make sure this gets flushed? we might need this for other stuff like telemetry
+            else:
+                # TODO(jhr): use time from timestamp proto
+                # FIXME(jhr): do we need to make sure we write full lines?  seems to be some issues with line breaks
+                cur_time = time.time()
+                timestamp = datetime.datetime.utcfromtimestamp(
+                    cur_time).isoformat() + ' '
+                prev_str = partial_output.get(stream, "")
+                line = u'{}{}{}{}'.format(prepend, timestamp, prev_str, line)
+                fs.push("output.log", line)
+                partial_output[stream] = ""
         else:
             print("what", t)
     if fs:
