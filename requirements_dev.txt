@@ -51,3 +51,4 @@ pytest-vcr>=1.0.0
 scikit-learn
 scipy
 spacy
+eli5
