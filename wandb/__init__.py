@@ -56,6 +56,7 @@ from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Html
 from wandb.data_types import Object3D
+from wandb.data_types import Molecule
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 from wandb import trigger
@@ -1134,4 +1135,4 @@ sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
     'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
     'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
-    'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']
+    'Audio',  'Table', 'Html', 'Object3D', 'Molecule', 'Histogram', 'Graph', 'Api']
