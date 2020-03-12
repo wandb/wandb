@@ -7,7 +7,7 @@ chart_limit = wandb.Table.MAX_ROWS
 def round_3(n):
     return round(n, 3)
 
-def heatmap(x_labels, y_labels, matrix_values, x_axis_label=None, y_axis_label=None):
+def heatmap(x_labels, y_labels, matrix_values):
         """
         Generates a heatmap.
 
@@ -25,27 +25,23 @@ def heatmap(x_labels, y_labels, matrix_values, x_axis_label=None, y_axis_label=N
 
         Example:
          wandb.log({'roc': wandb.plots.HeatMap(x_labels, y_labels,
-                    matrix_values, x_axis_label=None, y_axis_label=None)})
+                    matrix_values)})
         """
         if (test_missing(x_labels=x_labels, y_labels=y_labels,
             matrix_values=matrix_values) and test_types(x_labels=x_labels,
             y_labels=y_labels, matrix_values=matrix_values)):
             matrix_values = np.array(matrix_values)
 
-            def heatmap_table(x_labels, y_labels, matrix_values, x_axis_label=None, y_axis_label=None):
+            def heatmap_table(x_labels, y_labels, matrix_values):
                 x_axis=[]
                 y_axis=[]
                 values=[]
-                x_label=[]
-                y_label=[]
                 count = 0
                 for i, x in enumerate(x_labels):
                     for j, y in enumerate(y_labels):
                         x_axis.append(x)
                         y_axis.append(y)
                         values.append(round_3(matrix_values[i][j]))
-                        x_label.append(x_axis_label)
-                        y_label.append(y_axis_label)
                         count+=1
                         if count >= chart_limit:
                             wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
@@ -53,9 +49,9 @@ def heatmap(x_labels, y_labels, matrix_values, x_axis_label=None, y_axis_label=N
 
                 return wandb.visualize(
                     'wandb/heatmap/v1', wandb.Table(
-                    columns=['x_axis', 'y_axis', 'values', 'x_label', 'y_label'],
+                    columns=['x_axis', 'y_axis', 'values'],
                     data=[
-                        [x_axis[i], y_axis[i], values[i], x_label[i], y_label[i]] for i in range(len(x_axis))
+                        [x_axis[i], y_axis[i], values[i]] for i in range(len(x_axis))
                     ]
                 ))
-            return heatmap_table(x_labels, y_labels, matrix_values, x_axis_label, y_axis_label)
+            return heatmap_table(x_labels, y_labels, matrix_values)
