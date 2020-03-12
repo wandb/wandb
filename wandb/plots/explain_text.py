@@ -1,10 +1,5 @@
 import wandb
 from wandb import util
-import eli5
-from eli5.lime import TextExplainer
-from eli5 import explain_weights, explain_prediction
-from eli5 import format_as_html, format_as_text, format_html_styles
-from IPython.display import display, HTML
 from wandb.plots.utils import test_missing, test_types, encode_labels
 
 chart_limit = wandb.Table.MAX_ROWS
@@ -26,11 +21,12 @@ def explain_text(text, probas):
         Example:
          wandb.log({'roc': wandb.plots.ExplainText(text, probas)})
         """
+        eli5 = util.import_module("eli5")
         if (test_missing(text, probas)):
             #and test_types(proba=proba)):
             probas = np.array(probas)
 
-            te = TextExplainer(**kwargs)
+            te = eli5.lime.TextExplainer(**kwargs)
             te.fit(doc, probas)
             html = te.show_prediction()
             return wandb.Html(html.data)
