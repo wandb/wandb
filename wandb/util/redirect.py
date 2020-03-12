@@ -7,6 +7,7 @@ import logging
 
 logger = logging.getLogger("wandb")
 
+_LAST_WRITE_TOKEN = "L@stWr!t3T0k3n\n"
 
 class Unbuffered(object):
    def __init__(self, stream):
@@ -22,28 +23,23 @@ class Unbuffered(object):
 
 
 def _pipe_relay(stopped, fd, name, cb, tee):
-    while not stopped.isSet():
-        logger.info("relay read")
+    while True:
         try:
             data = os.read(fd, 1000)
         except OSError as e:
             # TODO(jhr): handle this
-            logger.info("got read error")
             return
         if len(data) == 0:
-            logger.info("got no data")
             break
+        if stopped.isSet():
+            if data == _LAST_WRITE_TOKEN.encode():
+                logger.info("relay done saw last write: %s", name)
+                break
         if tee:
-            logger.info("tee write")
             os.write(tee, data)
-        #print("[%s]" % data, file=sys.stderr)
         if cb:
-            logger.info("callback")
             cb(name, data)
-            logger.info("callback done")
-    logger.info("relay done")
-    os.close(fd)
-    logger.info("relay done done")
+    logger.info("relay done done: %s", name)
 
 
 class Redirect(object):
@@ -85,8 +81,8 @@ class Redirect(object):
 
     def uninstall(self):
         logger.info("uninstall start")
-        self._dest._stop()
         self._redirect(to_fd=self._old_fp.fileno())
+        self._dest._stop()
         logger.info("uninstall done")
 
 
@@ -122,9 +118,19 @@ class Capture(object):
         self._thread = read_thread
 
     def _stop(self):
-        logger.info("_stop")
+        name = self._name
+        logger.info("_stop: %s", name)
+
         self._stopped.set()
+        os.write(self._pipe_wr, _LAST_WRITE_TOKEN.encode())
         os.close(self._pipe_wr)
-        logger.info("_stop closed")
+
+        logger.info("_stop closed: %s", name)
         # FIXME: need to shut this down cleanly since it is a daemon thread
-        # self._thread.join()
+        self._thread.join(timeout=30)
+        if self._thread.isAlive():
+            logger.error("Thread did not join: %s", self._name)
+            # TODO(jhr): do something better
+        logger.info("_stop joined: %s", name)
+        os.close(self._pipe_rd)
+        logger.info("_stop rd closed: %s", name)
