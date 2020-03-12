@@ -17,20 +17,10 @@ def explain_text(text, probas, target_names=None):
          wandb.log({'roc': wandb.plots.ExplainText(text, probas)})
         """
         eli5 = util.import_module("eli5")
-<<<<<<< HEAD
         if (test_missing(text=text, probas=probas)):
             #and test_types(proba=proba)):
             wandb.termlog('Visualizing TextExplainer.')
             te = eli5.lime.TextExplainer(random_state=42)
             te.fit(text, probas)
             html = te.show_prediction(target_names=target_names)
-=======
-        if (test_missing(text, probas)):
-            #and test_types(proba=proba)):
-            probas = np.array(probas)
-
-            te = eli5.lime.TextExplainer(**kwargs)
-            te.fit(doc, probas)
-            html = te.show_prediction()
->>>>>>> 5a4e35612b937d8deac2a3e707e481339c6a85d6
             return wandb.Html(html.data)
