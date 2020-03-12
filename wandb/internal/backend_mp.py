@@ -7,6 +7,7 @@ import logging
 import six
 import multiprocessing
 import datetime
+import time
 
 import wandb
 from wandb.internal import wandb_internal_pb2
@@ -202,7 +203,18 @@ def wandb_send(settings, q, resp_q, stopped):
                 #print("got", x)
         elif t == "output":
             out = i.output
-            #TODO: send this off
+            prepend = ""
+            if out.output_type == wandb_internal_pb2.OutputData.OutputType.STDERR:
+                prepend = "ERROR "
+            line = out.str
+            # TODO(jhr): use time from timestamp proto
+            # FIXME(jhr): do we need to make sure we write full lines?  seems to be some issues with line breaks
+            cur_time = time.time()
+            timestamp = datetime.datetime.utcfromtimestamp(
+                cur_time).isoformat() + ' '
+            line = u'{}{}{}'.format(prepend, timestamp, line)
+            fs.push("output.log", line)
+
         else:
             print("what", t)
     if fs:
@@ -505,7 +517,7 @@ class Backend(object):
         if name == "stdout":
             otype = wandb_internal_pb2.OutputData.OutputType.STDOUT
         elif name == "stderr":
-            otype = wandb_internal_pb2.OutputData.OutputType.STDOUT
+            otype = wandb_internal_pb2.OutputData.OutputType.STDERR
         else:
             # FIXME: throw error?
             print("unknown type")
