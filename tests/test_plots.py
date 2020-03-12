@@ -4,6 +4,7 @@ import wandb
 from wandb.plots.roc import roc
 from wandb.sklearn import learning_curve
 from wandb.plots.precision_recall import precision_recall
+from wandb.plots.heatmap import heatmap
 
 @pytest.fixture
 def dummy_classifier(request):
@@ -29,3 +30,11 @@ def test_precision_recall(dummy_classifier):
     pr = precision_recall(y_test, y_probas)
 
     assert(pr.value.data[0]== [0, 1.0, 1.0])
+
+def test_heatmap():
+    matrix_values = [[1,2],[3,4],[5,6],[7,8],[9,10]]
+    x_labels=['a', 'b']
+    y_labels=['A', 'B', 'C', 'D', 'E']
+    hm = heatmap(x_labels, y_labels, matrix_values)
+
+    assert(hm.value.data[4]== ['a', 'E', 9])

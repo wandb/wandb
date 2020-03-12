@@ -39,9 +39,12 @@ def heatmap(x_labels, y_labels, matrix_values):
                 count = 0
                 for i, x in enumerate(x_labels):
                     for j, y in enumerate(y_labels):
+                        print('i: ', i, ' | x: ', x)
+                        print('j: ', j, ' | y: ', y)
+                        print('matrix value(j,i): ', matrix_values[j][i])
                         x_axis.append(x)
                         y_axis.append(y)
-                        values.append(round_3(matrix_values[i][j]))
+                        values.append(round_3(matrix_values[j][i]))
                         count+=1
                         if count >= chart_limit:
                             wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
