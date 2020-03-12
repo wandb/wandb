@@ -472,8 +472,8 @@ class Run(object):
 
         return "{base}/{entity}/{project}{query_string}".format(
             base=api.app_url,
-            entity=urllib.parse.quote_plus(api.settings('entity')),
-            project=urllib.parse.quote_plus(self.project_name(api)),
+            entity=urllib.parse.quote(api.settings('entity')),
+            project=urllib.parse.quote(self.project_name(api)),
             query_string=self._generate_query_string(api, params)
         )
 
@@ -496,9 +496,9 @@ class Run(object):
 
         return "{base}/{entity}/{project}/sweeps/{sweepid}{query_string}".format(
             base=api.app_url,
-            entity=urllib.parse.quote_plus(api.settings('entity')),
-            project=urllib.parse.quote_plus(self.project_name(api)),
-            sweepid=urllib.parse.quote_plus(sweep_id),
+            entity=urllib.parse.quote(api.settings('entity')),
+            project=urllib.parse.quote(self.project_name(api)),
+            sweepid=urllib.parse.quote(sweep_id),
             query_string=self._generate_query_string(api, params)
         )
 
@@ -513,9 +513,9 @@ class Run(object):
 
         return "{base}/{entity}/{project}/runs/{run}{query_string}".format(
             base=api.app_url,
-            entity=urllib.parse.quote_plus(api.settings('entity')),
-            project=urllib.parse.quote_plus(self.project_name(api)),
-            run=urllib.parse.quote_plus(self.id),
+            entity=urllib.parse.quote(api.settings('entity')),
+            project=urllib.parse.quote(self.project_name(api)),
+            run=urllib.parse.quote(self.id),
             query_string=self._generate_query_string(api, params)
         )
 
