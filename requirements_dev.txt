@@ -50,5 +50,6 @@ vcrpy>=2.0.0
 pytest-vcr>=1.0.0
 scikit-learn
 scipy
-spacy
 eli5
+spacy
+en_core_web_md

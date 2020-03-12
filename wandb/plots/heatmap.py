@@ -31,6 +31,7 @@ def heatmap(x_labels, y_labels, matrix_values):
             matrix_values=matrix_values) and test_types(x_labels=x_labels,
             y_labels=y_labels, matrix_values=matrix_values)):
             matrix_values = np.array(matrix_values)
+            wandb.termlog('Visualizing heatmap.')
 
             def heatmap_table(x_labels, y_labels, matrix_values):
                 x_axis=[]

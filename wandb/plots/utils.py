@@ -5,8 +5,7 @@ from wandb import util
 np = util.get_module("numpy", required="Logging plots requires numpy")
 pd = util.get_module("pandas", required="Logging dataframes requires pandas")
 scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
-spacy = util.get_module("spacy", required="Logging NER and POD requires spacy")
-sklearn = util.get_module("sklearn")
+scikit = util.get_module("sklearn")
 collections = util.get_module("collections",
                     required="Logging python iterables requires collections")
 # sklearn = util.get_module("sklearn", required="Logging scikit plots requires sklearn")
