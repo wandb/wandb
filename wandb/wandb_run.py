@@ -150,6 +150,9 @@ class Run(object):
         self._run_manager = None
         self._jupyter_agent = None
 
+        # give access to watch method
+        self.watch = wandb.watch
+
     @property
     def config_static(self):
         return ConfigStatic(self.config)
