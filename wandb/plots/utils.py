@@ -94,7 +94,8 @@ def test_types(**kwargs):
     for k,v in kwargs.items():
         # check for incorrect types
         if ((k == 'X') or (k == 'X_test') or (k == 'y') or (k == 'y_test')
-            or (k == 'y_true') or (k == 'y_probas')):
+            or (k == 'y_true') or (k == 'y_probas') or (k == 'x_labels')
+             or (k == 'y_labels') or (k == 'matrix_values')):
             # FIXME: do this individually
             if not isinstance(v, (collections.Sequence, collections.Iterable, np.ndarray, np.generic, pd.DataFrame, pd.Series, list)):
                 wandb.termerror("%s is not an array. Please try again." % (k))
