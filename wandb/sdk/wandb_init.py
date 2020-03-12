@@ -20,6 +20,7 @@ from six import raise_from
 from wandb.stuff import io_wrap
 import sys
 import os
+from wandb.util import redirect
 
 from wandb.apis import internal
 
@@ -111,6 +112,11 @@ class _WandbInit(object):
         self.run = None
         self.backend = None
 
+        self._use_redirect = True
+        self._redirect_cb = None
+        self._out_redir = None
+        self._err_redir = None
+
         # move this
         self.stdout_redirector = None
         self.stderr_redirector = None
@@ -136,14 +142,47 @@ class _WandbInit(object):
         self.settings = s
 
     def _atexit_cleanup(self):
+        self._restore()
+
         self.backend.cleanup()
         # FIXME: no warning allowed
-        self._restore()
         if self.run:
             self.run.on_finish()
 
+    def _callback(self, name, data):
+        logger.info("callback: %s, %s", name, data)
+        self.backend.send_output(name, data)
+
     def _redirect(self, stdout_slave_fd, stderr_slave_fd):
         logger.info("redirect")
+
+        if self._use_redirect:
+            out=False
+            err=False
+            out=True
+            err=True
+            if out:
+                out_cap = redirect.Capture(name="stdout", cb=self._redirect_cb)
+                out_redir = redirect.Redirect(src="stdout", dest=out_cap, unbuffered=True, tee=True)
+            if err:
+                err_cap = redirect.Capture(name="stderr", cb=self._redirect_cb)
+                err_redir = redirect.Redirect(src="stderr", dest=err_cap, unbuffered=True, tee=True)
+            if out:
+                out_redir.install()
+            if err:
+                err_redir.install()
+            if out:
+                self._out_redir = out_redir
+            if err:
+                self._err_redir = err_redir
+            logger.info("redirect2")
+
+            print("from Python")
+            os.system("echo non-Python applications are also supported")
+            logger.info("redirect3")
+
+            return
+
         # redirect stdout
         if platform.system() == "Windows":
             win32_redirect(stdout_slave_fd, stderr_slave_fd)
@@ -162,6 +201,14 @@ class _WandbInit(object):
 
     def _restore(self):
         logger.info("restore")
+        # FIXME(jhr): drain and shutdown all threads
+        if self._use_redirect:
+            if self._out_redir:
+                self._out_redir.uninstall()
+            if self._err_redir:
+                self._err_redir.uninstall()
+            return
+
         if self.stdout_redirector:
             self.stdout_redirector.restore()
         if self.stderr_redirector:
@@ -191,13 +238,20 @@ class _WandbInit(object):
                 key = prompt('Enter api key: ', is_password=True)
             util2.set_api_key(api, key)
 
-        if platform.system() == "Windows":
-            # create win32 pipes
-            stdout_master_fd, stdout_slave_fd = win32_create_pipe()
-            stderr_master_fd, stderr_slave_fd = win32_create_pipe()
+        if self._use_redirect:
+            stdout_master_fd = None
+            stderr_master_fd = None
+            stdout_slave_fd = None
+            stderr_slave_fd = None
+            #self._redirect_q = self.wl._multiprocessing.Queue()
         else:
-            stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
-            stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
+            if platform.system() == "Windows":
+                # create win32 pipes
+                stdout_master_fd, stdout_slave_fd = win32_create_pipe()
+                stderr_master_fd, stderr_slave_fd = win32_create_pipe()
+            else:
+                stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
+                stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
 
         backend = Backend(mode=s.mode)
         backend.ensure_launched(settings=s,
@@ -205,6 +259,7 @@ class _WandbInit(object):
                                 data_fname=wl._data_filename,
                                 stdout_fd=stdout_master_fd,
                                 stderr_fd=stderr_master_fd,
+                                use_redirect=self._use_redirect,
                                 )
         backend.server_connect()
 
@@ -236,6 +291,10 @@ class _WandbInit(object):
         run.on_start()
         logger.info("atexit reg")
         atexit.register(lambda: self._atexit_cleanup())
+
+        if self._use_redirect:
+            # setup fake callback
+            self._redirect_cb = self._callback
 
         self._redirect(stdout_slave_fd, stderr_slave_fd)
 

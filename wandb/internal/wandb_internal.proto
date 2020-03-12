@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package wandb_internal;
 
+import "google/protobuf/timestamp.proto";
+
+
 service InternalService {
   rpc Log(LogData) returns (LogResult) {}
   rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
@@ -33,6 +36,22 @@ message LogData {
 
 message LogResult {
   int32  code = 1;
+  string status = 2;
+}
+
+message OutputData {
+  enum OutputType {
+    STDERR = 0;
+    STDOUT = 1;
+  }
+  OutputType output_type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string str = 3;
+  string json = 16;
+}
+
+message OutputResult {
+  int32 code = 1;
   string status = 2;
 }
 
@@ -97,6 +116,7 @@ message Record {
   oneof data {
     LogData log = 2;
     Run     run = 3;
+    OutputData output = 4;
   }
   Control control = 16;
   // config?

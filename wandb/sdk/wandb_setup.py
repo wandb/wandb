@@ -78,6 +78,8 @@ class _WandbSetup__WandbSetup(object):
     def _gitstuff(self):
         #self.git = GitRepo(remote=self.settings("git_remote"))
         self.git = GitRepo()
+        print("remote", self.git.remote_url)
+        print("last", self.git.last_commit)
 
         
     def _settings_setup(self, settings=None, early_logging=None):

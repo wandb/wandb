@@ -6,6 +6,7 @@ import os
 import logging
 import six
 import multiprocessing
+import datetime
 
 import wandb
 from wandb.internal import wandb_internal_pb2
@@ -119,21 +120,17 @@ def setup_logging(log_fname, log_level, run_id=None):
 
 
 def wandb_read(fd):
-    logger.info("start reading")
-    print("start reading")
+    print("start reading", file=sys.stderr)
     while True:
-        logger.info("about to read")
         try:
             data = os.read(fd, 200)
         except OSError as e:
-            print("problem", e)
+            print("problem", e, file=sys.stderr)
             return
         if len(data) == 0:
             break
-        logger.info("got data: %s", data)
-        print("got data:", data)
-    logger.info("done reading")
-    print("done reading")
+        print("got data:", data, file=sys.stderr)
+    print("done reading", file=sys.stderr)
 
 
 def wandb_write(settings, q, stopped, data_filename):
@@ -203,6 +200,9 @@ def wandb_send(settings, q, resp_q, stopped):
                 #print("about to send", d)
                 x = fs.push("wandb-history.jsonl", json.dumps(d))
                 #print("got", x)
+        elif t == "output":
+            out = i.output
+            #TODO: send this off
         else:
             print("what", t)
     if fs:
@@ -270,7 +270,7 @@ def _get_stdout_stderr_streams():
 
         return stdout_streams, stderr_streams
 
-def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level, data_filename):
+def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level, data_filename, use_redirect):
     #fd = multiprocessing.reduction.recv_handle(child_pipe)
     #if msvcrt:
     #    fd = msvcrt.open_osfhandle(fd, os.O_WRONLY)
@@ -281,37 +281,40 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
         setup_logging(log_fname, log_level)
 
 
-    if platform.system() == "Windows":
-        #import msvcrt
-        #stdout_handle = multiprocessing.reduction.recv_handle(child_pipe)
-        #stderr_handle = multiprocessing.reduction.recv_handle(child_pipe)
-        #stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_RDONLY)
-        #stderr_fd = msvcrt.open_osfhandle(stderr_handle, os.O_RDONLY)
-
-        #logger.info("windows stdout: %d", stdout_fd)
-        #logger.info("windows stderr: %d", stderr_fd)
-
-        #read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
-        #read_thread.start()
-        #stdout_read_file = os.fdopen(stdout_fd, 'rb')
-        #stderr_read_file = os.fdopen(stderr_fd, 'rb')
-        #stdout_streams, stderr_streams = _get_stdout_stderr_streams()
-        #stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
-        #stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+    if use_redirect:
         pass
     else:
-        stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
-        stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
-        logger.info("nonwindows stdout: %d", stdout_fd)
-        logger.info("nonwindows stderr: %d", stderr_fd)
+        if platform.system() == "Windows":
+            #import msvcrt
+            #stdout_handle = multiprocessing.reduction.recv_handle(child_pipe)
+            #stderr_handle = multiprocessing.reduction.recv_handle(child_pipe)
+            #stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_RDONLY)
+            #stderr_fd = msvcrt.open_osfhandle(stderr_handle, os.O_RDONLY)
 
-        #read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
-        #read_thread.start()
-        stdout_read_file = os.fdopen(stdout_fd, 'rb')
-        stderr_read_file = os.fdopen(stderr_fd, 'rb')
-        stdout_streams, stderr_streams = _get_stdout_stderr_streams()
-        stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
-        stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+            #logger.info("windows stdout: %d", stdout_fd)
+            #logger.info("windows stderr: %d", stderr_fd)
+
+            #read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
+            #read_thread.start()
+            #stdout_read_file = os.fdopen(stdout_fd, 'rb')
+            #stderr_read_file = os.fdopen(stderr_fd, 'rb')
+            #stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+            #stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+            #stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+            pass
+        else:
+            stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
+            stderr_fd = multiprocessing.reduction.recv_handle(child_pipe)
+            logger.info("nonwindows stdout: %d", stdout_fd)
+            logger.info("nonwindows stderr: %d", stderr_fd)
+
+            #read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
+            #read_thread.start()
+            stdout_read_file = os.fdopen(stdout_fd, 'rb')
+            stderr_read_file = os.fdopen(stderr_fd, 'rb')
+            stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+            stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+            stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
 
     stopped = threading.Event()
    
@@ -382,7 +385,7 @@ class Backend(object):
         self._done = False
         self._wl = wandb.setup()
 
-    def ensure_launched(self, settings=None, log_fname=None, log_level=None, data_fname=None, stdout_fd=None, stderr_fd=None):
+    def ensure_launched(self, settings=None, log_fname=None, log_level=None, data_fname=None, stdout_fd=None, stderr_fd=None, use_redirect=None):
         """Launch backend worker if not running."""
         log_fname = log_fname or ""
         log_level = log_level or logging.DEBUG
@@ -418,6 +421,7 @@ class Backend(object):
                     log_fname,
                     log_level,
                     data_fname,
+                    use_redirect,
                     ))
         wandb_process.name = "wandb_internal"
 
@@ -441,27 +445,30 @@ class Backend(object):
         # Start the process with __name__ == "__main__" workarounds
         wandb_process.start()
 
-        if platform.system() == "Windows":
-            # https://bugs.python.org/issue38188
-            #import msvcrt
-            #print("DEBUG1: {}".format(stdout_fd))
-            #stdout_fd = msvcrt.get_osfhandle(stdout_fd)
-            #print("DEBUG2: {}".format(stdout_fd))
-            # stderr_fd = msvcrt.get_osfhandle(stderr_fd)
-            #multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
-            # multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
-
-            # should we do this?
-            #os.close(stdout_fd)
-            #os.close(stderr_fd)
+        if use_redirect:
             pass
         else:
-            multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
-            multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
+            if platform.system() == "Windows":
+                # https://bugs.python.org/issue38188
+                #import msvcrt
+                #print("DEBUG1: {}".format(stdout_fd))
+                #stdout_fd = msvcrt.get_osfhandle(stdout_fd)
+                #print("DEBUG2: {}".format(stdout_fd))
+                # stderr_fd = msvcrt.get_osfhandle(stderr_fd)
+                #multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
+                # multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
 
-            # should we do this?
-            os.close(stdout_fd)
-            os.close(stderr_fd)
+                # should we do this?
+                #os.close(stdout_fd)
+                #os.close(stderr_fd)
+                pass
+            else:
+                multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
+                multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
+
+                # should we do this?
+                os.close(stdout_fd)
+                os.close(stderr_fd)
 
         # Undo temporary changes from: __name__ == "__main__"
         if save_mod_name:
@@ -489,6 +496,25 @@ class Backend(object):
     def server_status(self):
         """Report server status."""
         pass
+
+    def send_output(self, name, data):
+        # from vendor.protobuf import google3.protobuf.timestamp
+        #ts = timestamp.Timestamp()
+        #ts.GetCurrentTime()
+        #now = datetime.datetime.now()
+        if name == "stdout":
+            otype = wandb_internal_pb2.OutputData.OutputType.STDOUT
+        elif name == "stderr":
+            otype = wandb_internal_pb2.OutputData.OutputType.STDOUT
+        else:
+            # FIXME: throw error?
+            print("unknown type")
+        o = wandb_internal_pb2.OutputData(output_type=otype, str=data)
+        o.timestamp.GetCurrentTime()
+        rec = wandb_internal_pb2.Record()
+        rec.output.CopyFrom(o)
+        self.process_queue.put(rec)
+        self.notify_queue.put(self.NOTIFY_PROCESS)
 
     def send_log(self, data):
         json_data = json.dumps(data, cls=WandBJSONEncoder)
