@@ -51,13 +51,13 @@ def test_fitted(model):
     scikit = util.get_module("sklearn", required="Logging plots matrices requires scikit-learn")
     try:
         model.predict(np.zeros((7, 3)))
-    except sklearn.exceptions.NotFittedError:
+    except scikit.exceptions.NotFittedError:
         wandb.termerror("Please fit the model before passing it in.")
         return False
     except AttributeError:
         # Some clustering models (LDA, PCA, Agglomerative) don't implement ``predict``
         try:
-            sklearn.utils.validation.check_is_fitted(
+            scikit.utils.validation.check_is_fitted(
                 model,
                 [
                     "coef_",
@@ -76,7 +76,7 @@ def test_fitted(model):
                 all_or_any=any,
             )
             return True
-        except sklearn.exceptions.NotFittedError:
+        except scikit.exceptions.NotFittedError:
             wandb.termerror("Please fit the model before passing it in.")
             return False
     except Exception:
@@ -86,7 +86,7 @@ def test_fitted(model):
 def encode_labels(df):
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")
     scikit = util.get_module("sklearn", required="Logging plots matrices requires scikit-learn")
-    le = sklearn.preprocessing.LabelEncoder()
+    le = scikit.preprocessing.LabelEncoder()
     # apply le on categorical feature columns
     categorical_cols = df.select_dtypes(exclude=['int','float','float64','float32','int32','int64']).columns
     df[categorical_cols] = df[categorical_cols].apply(lambda col: le.fit_transform(col))
@@ -108,15 +108,15 @@ def test_types(**kwargs):
                 test_passed = False
         # check for classifier types
         if (k=='model'):
-            if ((not sklearn.base.is_classifier(v)) and (not sklearn.base.is_regressor(v))):
+            if ((not scikit.base.is_classifier(v)) and (not scikit.base.is_regressor(v))):
                 wandb.termerror("%s is not a classifier or regressor. Please try again." % (k))
                 test_passed = False
         elif (k=='clf' or k=='binary_clf'):
-            if (not(sklearn.base.is_classifier(v))):
+            if (not(scikit.base.is_classifier(v))):
                 wandb.termerror("%s is not a classifier. Please try again." % (k))
                 test_passed = False
         elif (k=='regressor'):
-            if (not sklearn.base.is_regressor(v)):
+            if (not scikit.base.is_regressor(v)):
                 wandb.termerror("%s is not a regressor. Please try again." % (k))
                 test_passed = False
         elif (k=='clusterer'):
