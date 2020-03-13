@@ -1,5 +1,9 @@
 import wandb
 from wandb import util
+try:
+    from collections.abc import Sequence, Iterable
+except ImportError:
+    from collections import Sequence, Iterable
 collections = util.get_module("collections",
                     required="Logging python iterables requires collections")
 
@@ -99,7 +103,7 @@ def test_types(**kwargs):
             or (k == 'y_true') or (k == 'y_probas') or (k == 'x_labels')
              or (k == 'y_labels') or (k == 'matrix_values')):
             # FIXME: do this individually
-            if not isinstance(v, (collections.Sequence, collections.Iterable, np.ndarray, np.generic, pd.DataFrame, pd.Series, list)):
+            if not isinstance(v, (Sequence, Iterable, np.ndarray, np.generic, pd.DataFrame, pd.Series, list)):
                 wandb.termerror("%s is not an array. Please try again." % (k))
                 test_passed = False
         # check for classifier types
