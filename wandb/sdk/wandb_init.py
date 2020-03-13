@@ -300,6 +300,9 @@ class _WandbInit(object):
 
         self._redirect(stdout_slave_fd, stderr_slave_fd)
 
+        # for super agent
+        run._save_job_spec()
+
         return run
 
 

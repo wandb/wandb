@@ -8,6 +8,7 @@ import platform
 import shutil
 import logging
 import os
+import json
 
 logger = logging.getLogger("wandb")
 
@@ -106,6 +107,47 @@ class Run(object):
     def on_finish(self):
         if self._run_obj:
             self._display_run()
+
+    def _save_job_spec(self):
+        envdict = dict(
+                python="python3.6",
+                requirements=[],
+                )
+        varsdict = {"WANDB_DISABLE_CODE": "True"}
+        source = dict(
+                git="git@github.com:wandb/examples.git",
+                branch="master",
+                commit="bbd8d23",
+                )
+        execdict = dict(
+                program="train.py",
+                directory="keras-cnn-fashion",
+                envvars=varsdict,
+                args=[],
+                )
+        configdict = dict(lr=0.3)
+        artifactsdict = dict(
+                dataset="v1",
+                )
+        inputdict = dict(
+                config=configdict,
+                artifacts=artifactsdict,
+                )
+        job_spec = dict(
+                kind="WandbJob",
+                version="v0",
+                environment=envdict,
+                source=source,
+                exec=execdict,
+                input=inputdict,
+                )
+
+        s = json.dumps(job_spec, indent=4)
+        spec_filename = "wandb-jobspec.json"
+        with open(spec_filename, "w") as f:
+            print(s, file=f)
+        self.save(spec_filename)
+        
 
     def save(self, path):
         orig_path = path
