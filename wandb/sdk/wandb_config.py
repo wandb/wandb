@@ -14,6 +14,10 @@ def _get_dict(d):
 class Config(object):
     def __init__(self):
         object.__setattr__(self, '_items', dict())
+        object.__setattr__(self, '_locked', dict())
+        object.__setattr__(self, '_users', dict())
+        object.__setattr__(self, '_users_inv', dict())
+        object.__setattr__(self, '_users_cnt', 0)
 
     def keys(self):
         return [k for k in self._items.keys() if k != '_wandb']
@@ -25,6 +29,9 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
+        if key in self._locked:
+            print("config item was locked")
+            return
         self._items[key] = val
 
     __setattr__ = __setitem__
@@ -39,3 +46,17 @@ class Config(object):
         d = _get_dict(d)
         for k, v in six.iteritems(d):
             self._items.setdefault(k, v)
+
+    def update_locked(self, d, user=None):
+        if user not in self._users:
+            self._users[user] = self._users_cnt
+            self._users_inv[self._users_cnt] = user
+            self._users_cnt += 1
+
+        num = self._users[user]
+
+        for k, v in six.iteritems(d):
+            self._locked[k] = num
+            self._items[k] = v
+
+
