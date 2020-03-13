@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 
 from wandb.errors import Error
 
