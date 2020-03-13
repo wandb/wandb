@@ -1,21 +1,14 @@
 import wandb
 from wandb import util
-
-# FIXME: look at wandb.util.is_numpy_array() wandb.util.is_pandas* for examples
-np = util.get_module("numpy", required="Logging plots requires numpy")
-pd = util.get_module("pandas", required="Logging dataframes requires pandas")
-scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
-scikit = util.get_module("sklearn")
 collections = util.get_module("collections",
                     required="Logging python iterables requires collections")
-# sklearn = util.get_module("sklearn", required="Logging scikit plots requires sklearn")
-# eli5
-
-# FIXME: add types test
-# FIXME: add fitted test
 
 # Test Asummptions for plotting parameters and datasets
 def test_missing(**kwargs):
+    np = util.get_module("numpy", required="Logging plots requires numpy")
+    pd = util.get_module("pandas", required="Logging dataframes requires pandas")
+    scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
+    scikit = util.get_module("sklearn", required="Logging plots matrices requires scikit-learn")
     test_passed = True
     for k,v in kwargs.items():
         # Missing/empty params/datapoint arrays
@@ -48,6 +41,10 @@ def test_missing(**kwargs):
     return test_passed
 
 def test_fitted(model):
+    np = util.get_module("numpy", required="Logging plots requires numpy")
+    pd = util.get_module("pandas", required="Logging dataframes requires pandas")
+    scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
+    scikit = util.get_module("sklearn", required="Logging plots matrices requires scikit-learn")
     try:
         model.predict(np.zeros((7, 3)))
     except sklearn.exceptions.NotFittedError:
@@ -83,12 +80,18 @@ def test_fitted(model):
         return True
 
 def encode_labels(df):
+    pd = util.get_module("pandas", required="Logging dataframes requires pandas")
+    scikit = util.get_module("sklearn", required="Logging plots matrices requires scikit-learn")
     le = sklearn.preprocessing.LabelEncoder()
     # apply le on categorical feature columns
     categorical_cols = df.select_dtypes(exclude=['int','float','float64','float32','int32','int64']).columns
     df[categorical_cols] = df[categorical_cols].apply(lambda col: le.fit_transform(col))
 
 def test_types(**kwargs):
+    np = util.get_module("numpy", required="Logging plots requires numpy")
+    pd = util.get_module("pandas", required="Logging dataframes requires pandas")
+    scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
+    scikit = util.get_module("sklearn", required="Logging plots matrices requires scikit-learn")
     test_passed = True
     for k,v in kwargs.items():
         # check for incorrect types
