@@ -133,38 +133,70 @@ class _WandbSetup__WandbSetup(object):
         logger.setLevel(logging.DEBUG)
         logger.addHandler(handler)
 
+    def _safe_makedirs(self, dir_name):
+        try:
+            os.makedirs(dir_name)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+        if not os.path.isdir(dir_name):
+            raise Exception("not dir")
+        if not os.access(dir_name, os.W_OK):
+            raise Exception("cant write: {}".format(dir_name))
+
+    def _safe_symlink(self, base, target, name, pid, delete=False):
+        # TODO(jhr): do this with relpaths, but i cant figure it out on no sleep
+        if not hasattr(os, 'symlink'):
+            return
+        tmp_name = '%s.%d' % (name, pid)
+        owd = os.getcwd()
+        os.chdir(base)
+        if delete:
+            try:
+                os.remove(name)
+            except OSError:
+                pass
+        target = os.path.relpath(target, base)
+        os.symlink(target, tmp_name)
+        os.rename(tmp_name, name)
+        os.chdir(owd)
+
     def _log_setup(self):
         # log dir - where python logs go
-        log_dir = "wandb"
+        log_base_dir = "wandb"
+        log_dir_spec = "wandb-{timespec}-{pid}"
         # log spec
         # TODO: read from settings
-        log_user_spec = "wandb-{timespec}-{pid}-debug-user.txt"
-        log_internal_spec = "wandb-{timespec}-{pid}-debug-internal.txt"
+        log_user_spec = "debug-user.txt"
+        log_internal_spec = "debug-internal.txt"
+        log_files_spec = "files"
+
         # TODO(jhr): should we use utc?
         when = datetime.datetime.now()
         pid = os.getpid()
         datestr = datetime.datetime.strftime(when, "%Y%m%d_%H%M%S")
         d = dict(pid=pid, timespec=datestr)
+        log_dir = os.path.join(log_base_dir, log_dir_spec.format(**d))
         log_user = os.path.join(log_dir, log_user_spec.format(**d))
         log_internal = os.path.join(log_dir, log_internal_spec.format(**d))
-        try:
-            os.makedirs(log_dir)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
-        if not os.path.isdir(log_dir):
-            raise Exception("not dir")
-        if not os.access(log_dir, os.W_OK):
-            raise Exception("cant write: {}".format(log_dir))
+        log_files = os.path.join(log_dir, log_files_spec.format(**d))
+
+        self._safe_makedirs(log_dir)
+        self._safe_makedirs(log_files)
+        self._safe_symlink(log_base_dir, log_dir, "wandb-latest", pid, delete=True)
+        self._safe_symlink(log_base_dir, log_user, "debug-user.log", pid, delete=True)
+        self._safe_symlink(log_base_dir, log_internal, "debug-internal.log", pid)
+
         #print("loguser", log_user)
         #print("loginternal", log_internal)
         self._enable_logging(log_user)
 
         logger.info("Logging to {}".format(log_user))
         self._filename_template = d
+        self._log_dir = log_dir
         self._log_user_filename = log_user
         self._log_internal_filename = log_internal
-        self._log_dir = log_dir
+        self._log_files_dir = log_files
 
     def _check(self):
         if hasattr(threading, "main_thread"):

@@ -10,6 +10,9 @@ wandb/apis/file_stream.py
 wandb/apis/internal.py
 wandb/cli/__init__.py
 wandb/cli/cli.py
+wandb/compat/__init__.py
+wandb/compat/tempfile.py
+wandb/compat/weakref.py
 wandb/errors/__init__.py
 wandb/errors/error.py
 wandb/errors/term.py
@@ -48,6 +51,7 @@ wandb/sdk_py27/wandb_summary.py
 wandb/stuff/__init__.py
 wandb/stuff/core.py
 wandb/stuff/env.py
+wandb/stuff/file_pusher.py
 wandb/stuff/git_repo.py
 wandb/stuff/io_wrap.py
 wandb/stuff/retry.py

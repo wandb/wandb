@@ -16,6 +16,8 @@ from wandb.internal import datastore
 from wandb.apis import internal
 from wandb.apis import file_stream
 
+from wandb.stuff.file_pusher import FilePusher
+
 from wandb.stuff import io_wrap
 
 import numpy as np
@@ -149,6 +151,7 @@ def wandb_write(settings, q, stopped, data_filename):
 
 def wandb_send(settings, q, resp_q, stopped):
     fs = None
+    pusher = None
     run_id = None
     api = internal.Api(default_settings=settings)
     settings = {k: v for k, v in six.iteritems(settings) if k in ('project',) and v is not None}
@@ -197,6 +200,7 @@ def wandb_send(settings, q, resp_q, stopped):
             #self._fs['run_id'] = run.run_id
             fs = file_stream.FileStreamApi(api, run.run_id, settings=settings)
             fs.start()
+            pusher = FilePusher(api)
             run_id = run.run_id
         elif t == "log":
             log = i.log
@@ -231,9 +235,19 @@ def wandb_send(settings, q, resp_q, stopped):
             cfg = i.config
             config = json.loads(cfg.config_json)
             ups = api.upsert_run(name=cfg.run_id, config=config, **settings)
+        elif t == "files":
+            files = i.files
+            for k in files:
+                path = os.path.abspath(os.path.join(directory, k))
+                pusher.update_file(k, path)
+                pusher.file_changed(k, path)
         else:
             print("what", t)
+    if pusher:
+        pusher.finish()
+        pusher.print_status()
     if fs:
+        # FIXME(jhr): now is a good time to output pending output lines
         fs.finish(0)
 
 

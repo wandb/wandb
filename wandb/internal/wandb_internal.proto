@@ -121,6 +121,15 @@ message SummaryData {
   string summary_json = 4;
 }
 
+message FilesItem {
+  string name = 1;
+}
+
+message FilesData {
+  string run_id = 1;
+  repeated FilesItem files = 2;
+}
+
 message Record {
   int64   num = 1;
   oneof data {
@@ -128,6 +137,7 @@ message Record {
     Run     run = 3;
     OutputData output = 4;
     ConfigData config = 5;
+    FilesData files = 6;
   }
   Control control = 16;
   // config?
