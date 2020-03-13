@@ -22,6 +22,7 @@ def named_entity(docs):
 
         if (test_missing(docs=docs)):
             #and test_types(docs=docs)):
-            wandb.termlog('Visualizing part of speech.')
-            html = spacy.displacy.render(nlp(str(docs)), style='ent', page=True)
+            wandb.termlog('Visualizing named entity recognition.')
+            html = spacy.displacy.render(nlp(str(docs)), style='ent', page=True,
+                                        minify=True)
             return wandb.Html(html)

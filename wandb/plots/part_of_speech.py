@@ -25,7 +25,7 @@ def part_of_speech(docs):
             wandb.termlog('Visualizing part of speech.')
             options = {"compact": True, "color": "#1a1c1f",
                 "font": "Source Sans Pro", "collapse_punct": True,
-                "collapse_phrases": True, "offset_x": 10}
+                "collapse_phrases": True, "offset_x": 10, "word_spacing":30}
             html = spacy.displacy.render(nlp(str(docs)), style='dep',
-                                        options=options, page=True)
+                                        minify=True, options=options, page=True)
             return wandb.Html(html)
