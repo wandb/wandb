@@ -18,6 +18,10 @@ class Config(object):
         object.__setattr__(self, '_users', dict())
         object.__setattr__(self, '_users_inv', dict())
         object.__setattr__(self, '_users_cnt', 0)
+        object.__setattr__(self, '_callback', None)
+
+    def _set_callback(self, cb):
+        self._callback = cb
 
     def keys(self):
         return [k for k in self._items.keys() if k != '_wandb']
@@ -33,6 +37,8 @@ class Config(object):
             print("config item was locked")
             return
         self._items[key] = val
+        if self._callback:
+            self._callback(key=key, val=val, data=self._as_dict)
 
     __setattr__ = __setitem__
 
