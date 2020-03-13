@@ -86,7 +86,7 @@ class TorchHistory(object):
         log_freq - log gradients/parameters every N batches
         """
         if name is not None:
-            prefix = prefix + name
+            prefix = prefix + "/" +  name
 
         if jupyter_run:
             self._jupyter_run = weakref.ref(jupyter_run)
@@ -104,7 +104,7 @@ class TorchHistory(object):
                     else:
                         data = parameter
                     self.log_tensor_stats(
-                        data.cpu(), 'parameters/' + prefix + name)
+                        data.cpu(), 'parameters/' + prefix + "/" + name)
             log_track_params = log_track_init(log_freq)
             hook = module.register_forward_hook(
                 lambda mod, inp, outp: parameter_log_hook(mod, inp, outp, log_track_params))
@@ -115,9 +115,9 @@ class TorchHistory(object):
             for name, parameter in module.named_parameters():
                 if parameter.requires_grad:
                     log_track_grad = log_track_init(log_freq)
-                    module._wandb_hook_names.append('gradients/' + prefix + name)
+                    module._wandb_hook_names.append('gradients/' + prefix + "/" + name)
                     self._hook_variable_gradient_stats(
-                        parameter, 'gradients/' + prefix + name, log_track_grad)
+                        parameter, 'gradients/' + prefix + "/" +  name, log_track_grad)
 
     def log_tensor_stats(self, tensor, name):
         """Add distribution statistics on a tensor's elements to the current History entry
