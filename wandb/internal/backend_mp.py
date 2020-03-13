@@ -6,7 +6,7 @@ import os
 import logging
 import six
 import multiprocessing
-import datetime
+from datetime import date, datetime
 import time
 
 import wandb
@@ -226,7 +226,7 @@ def wandb_send(settings, q, resp_q, stopped):
                 # TODO(jhr): use time from timestamp proto
                 # FIXME(jhr): do we need to make sure we write full lines?  seems to be some issues with line breaks
                 cur_time = time.time()
-                timestamp = datetime.datetime.utcfromtimestamp(
+                timestamp = datetime.utcfromtimestamp(
                     cur_time).isoformat() + ' '
                 prev_str = partial_output.get(stream, "")
                 line = u'{}{}{}{}'.format(prepend, timestamp, prev_str, line)
@@ -548,7 +548,7 @@ class Backend(object):
         # from vendor.protobuf import google3.protobuf.timestamp
         #ts = timestamp.Timestamp()
         #ts.GetCurrentTime()
-        #now = datetime.datetime.now()
+        #now = datetime.now()
         if name == "stdout":
             otype = wandb_internal_pb2.OutputData.OutputType.STDOUT
         elif name == "stderr":

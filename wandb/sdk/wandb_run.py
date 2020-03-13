@@ -108,6 +108,18 @@ class Run(object):
             self._display_run()
 
     def save(self, path):
+        orig_path = path
+        # super hacky
+        if not os.path.exists(path):
+            path = os.path.join("run_dir", path)
+        if not os.path.exists(path):
+            logger.info("Ignoring file: %s", orig_path)
+            return
+
+        # whitelist = [ "save-test.txt", ]
+        # if path not in whitelist:
+        #    return
+
         fname = os.path.basename(path)
         dest = os.path.join(self._settings.files_dir, fname)
         logger.info("Saving from %s to %s", path, dest)
