@@ -30,7 +30,7 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
     wandb.log({'pr': wandb.plots.precision_recall(y_true, y_probas, labels)})
     """
     np = util.get_module("numpy", required="roc requires the numpy library, install with `pip install numpy`")
-    scikit = util.get_module("sklearn", required="roc requires the scikit library, install with `pip install scikit-learn`")
+    scikit = util.get_module("sklearn", "roc requires the scikit library, install with `pip install scikit-learn`")
 
     y_true = np.array(y_true)
     y_probas = np.array(y_probas)

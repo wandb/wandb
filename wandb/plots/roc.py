@@ -25,7 +25,8 @@ def roc(y_true=None, y_probas=None, labels=None,
          wandb.log({'roc': wandb.plots.ROC(y_true, y_probas, labels)})
         """
         np = util.get_module("numpy", required="roc requires the numpy library, install with `pip install numpy`")
-        scikit = util.get_module("sklearn", required="roc requires the scikit library, install with `pip install scikit-learn`")
+        sklearn = util.get_module("sklearn", required="roc requires the scikit library, install with `pip install scikit-learn`")
+        from sklearn.metrics import roc_curve, auc
 
         if (test_missing(y_true=y_true, y_probas=y_probas) and
             test_types(y_true=y_true, y_probas=y_probas)):
@@ -46,10 +47,10 @@ def roc(y_true=None, y_probas=None, labels=None,
                 count = 0
 
                 for i, to_plot in enumerate(indices_to_plot):
-                    fpr_dict[i], tpr_dict[i], _ = scikit.metrics.roc_curve(y_true, probas[:, i],
+                    fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true, probas[:, i],
                                                             pos_label=classes[i])
                     if to_plot:
-                        roc_auc = scikit.metrics.auc(fpr_dict[i], tpr_dict[i])
+                        roc_auc = auc(fpr_dict[i], tpr_dict[i])
                         for j in range(len(fpr_dict[i])):
                             if labels is not None and (isinstance(classes[i], int)
                                         or isinstance(classes[0], np.integer)):
