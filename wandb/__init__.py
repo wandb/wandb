@@ -23,6 +23,7 @@ from wandb.errors.term import termlog, termerror, termwarn
 # Move this (keras.__init__ expects it at top level)
 from wandb.wandb_types.graph import Graph
 from wandb.wandb_types.image import Image
+from wandb import agent
 #from wandb.core import *
 
 # toplevel:

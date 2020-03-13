@@ -48,3 +48,12 @@ def cli(ctx):
 @display_error
 def login():
     print("login")
+
+
+@cli.command(context_settings=CONTEXT, help="Run a SUPER agent")
+@click.option("--project", "-p", default=None, help="The project use.")
+@click.option("--entity", "-e", default=None, help="The entity to use.")
+@click.argument('agent_spec', nargs=-1)
+@display_error
+def agent(project=None, entity=None, agent_spec=None):
+    wandb.agent.run_agent(agent_spec)
