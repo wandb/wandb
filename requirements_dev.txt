@@ -52,4 +52,3 @@ scikit-learn
 scipy
 eli5
 spacy
-en_core_web_md
