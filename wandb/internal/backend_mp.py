@@ -154,6 +154,7 @@ def wandb_send(settings, q, resp_q, stopped):
     pusher = None
     run_id = None
     api = internal.Api(default_settings=settings)
+    orig_settings = settings
     settings = {k: v for k, v in six.iteritems(settings) if k in ('project',) and v is not None}
 
     # TODO(jhr): do something better, why do we need to send full lines?
@@ -236,11 +237,15 @@ def wandb_send(settings, q, resp_q, stopped):
             config = json.loads(cfg.config_json)
             ups = api.upsert_run(name=cfg.run_id, config=config, **settings)
         elif t == "files":
+            directory = orig_settings.get("files_dir")
             files = i.files
-            for k in files:
-                path = os.path.abspath(os.path.join(directory, k))
-                pusher.update_file(k, path)
-                pusher.file_changed(k, path)
+            for k in files.files:
+                fname = k.name
+                logger.info("saving file %s at %s", fname, directory)
+                path = os.path.abspath(os.path.join(directory, fname))
+                logger.info("saving file %s at full %s", fname, path)
+                pusher.update_file(fname, path)
+                pusher.file_changed(fname, path)
         else:
             print("what", t)
     if pusher:
@@ -579,12 +584,21 @@ class Backend(object):
         config.config_json = json.dumps(config_dict['data'])
         return config
 
-    def _make_record(self, run=None, config=None):
+    def _make_files(self, files_dict):
+        files = wandb_internal_pb2.FilesData()
+        for path in files_dict['files']:
+            f = files.files.add()
+            f.name = path
+        return files
+
+    def _make_record(self, run=None, config=None, files=None):
         rec = wandb_internal_pb2.Record()
         if run:
             rec.run.CopyFrom(run)
         if config:
             rec.config.CopyFrom(config)
+        if files:
+            rec.files.CopyFrom(files)
         return rec
 
     def _queue_process(self, rec):
@@ -631,8 +645,10 @@ class Backend(object):
         resp = self._request_response(req)
         return resp
 
-    def send_file_save(self, file_info):
-        pass
+    def send_files(self, files_dict):
+        files = self._make_files(files_dict)
+        rec = self._make_record(files=files)
+        self._queue_process(rec)
 
     def send_exit_code(self, exit_code):
         pass

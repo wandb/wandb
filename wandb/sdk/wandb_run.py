@@ -5,7 +5,9 @@ from . import wandb_config
 import shortuuid  # type: ignore
 import click
 import platform
+import shutil
 import logging
+import os
 
 logger = logging.getLogger("wandb")
 
@@ -104,3 +106,11 @@ class Run(object):
     def on_finish(self):
         if self._run_obj:
             self._display_run()
+
+    def save(self, path):
+        fname = os.path.basename(path)
+        dest = os.path.join(self._settings.files_dir, fname)
+        logger.info("Saving from %s to %s", path, dest)
+        shutil.copyfile(path, dest)
+        files = dict(files=[fname])
+        self._backend.send_files(files)

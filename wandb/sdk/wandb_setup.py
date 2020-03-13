@@ -69,6 +69,7 @@ class _WandbSetup__WandbSetup(object):
         self._settings_setup(settings, early_logging)
         self._log_setup()
         self._settings_early_flush(early_logging)
+        self._settings.freeze()
         early_logging = None
 
         self._check()
@@ -91,7 +92,8 @@ class _WandbSetup__WandbSetup(object):
                                     files=files)
         if settings:
             s.update(settings)
-        s.freeze()
+        # move freeze to later, FIXME(jhr): is this ok?
+        # s.freeze()
         self._settings = s
 
     def _settings_early_flush(self, early_logging):
@@ -197,6 +199,8 @@ class _WandbSetup__WandbSetup(object):
         self._log_user_filename = log_user
         self._log_internal_filename = log_internal
         self._log_files_dir = log_files
+
+        self._settings.files_dir = self._log_files_dir
 
     def _check(self):
         if hasattr(threading, "main_thread"):
