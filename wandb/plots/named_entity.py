@@ -4,7 +4,7 @@ from wandb.plots.utils import test_missing, test_types, encode_labels
 
 def named_entity(docs):
         """
-        Adds support for spaCy's entity visualizer, whuchhighlights named
+        Adds support for spaCy's entity visualizer, which highlights named
             entities and their labels in a text.
 
         Arguments:
