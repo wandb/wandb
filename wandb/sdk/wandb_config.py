@@ -1,5 +1,7 @@
 import six
 
+from wandb.util.term import terminfo
+
 
 def _get_dict(d):
     if isinstance(d, dict):
@@ -24,7 +26,7 @@ class Config(object):
         self._callback = cb
 
     def keys(self):
-        return [k for k in self._items.keys() if k != '_wandb']
+        return [k for k in self._items.keys() if not k.startswith('_')]
 
     def _as_dict(self):
         return self._items
@@ -34,7 +36,7 @@ class Config(object):
 
     def __setitem__(self, key, val):
         if key in self._locked:
-            print("config item was locked")
+            terminfo("Config item '%s' was locked." % key)
             return
         self._items[key] = val
         if self._callback:
