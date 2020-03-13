@@ -3,17 +3,19 @@ import click
 
 import time
 
-def query_queue():
-    pass
+from wandb.apis import internal
 
 
 class Agent(object):
 
     def __init__(self, spec):
         self._spec = spec
+        settings = dict(base_url="app.qa.wandb.ai")
+        self._api = internal.Api(default_settings=settings)
 
     def check_queue(self):
-        return
+        ups = self._api.pop_from_run_queue(entity="jeff", project="super-agent")
+        print("got queue", ups)
 
     def run_job(self, job):
         print("agent: got job", job)
