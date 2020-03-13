@@ -2,6 +2,10 @@ import six
 
 from wandb.util.term import terminfo
 
+import logging
+
+logger = logging.getLogger("wandb")
+
 
 def _get_dict(d):
     if isinstance(d, dict):
@@ -23,7 +27,10 @@ class Config(object):
         object.__setattr__(self, '_callback', None)
 
     def _set_callback(self, cb):
-        self._callback = cb
+        object.__setattr__(self, '_callback', cb)
+
+    def __repr__(self):
+        return str(dict(self))
 
     def keys(self):
         return [k for k in self._items.keys() if not k.startswith('_')]
@@ -39,8 +46,9 @@ class Config(object):
             terminfo("Config item '%s' was locked." % key)
             return
         self._items[key] = val
+        logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
-            self._callback(key=key, val=val, data=self._as_dict)
+            self._callback(key=key, val=val, data=dict(self))
 
     __setattr__ = __setitem__
 
@@ -57,6 +65,7 @@ class Config(object):
 
     def update_locked(self, d, user=None):
         if user not in self._users:
+            # TODO(jhr): use __setattr__ madness
             self._users[user] = self._users_cnt
             self._users_inv[self._users_cnt] = user
             self._users_cnt += 1

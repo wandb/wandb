@@ -121,17 +121,17 @@ def setup_logging(log_fname, log_level, run_id=None):
 
 
 def wandb_read(fd):
-    print("start reading", file=sys.stderr)
+    # print("start reading", file=sys.stderr)
     while True:
         try:
             data = os.read(fd, 200)
         except OSError as e:
-            print("problem", e, file=sys.stderr)
+            # print("problem", e, file=sys.stderr)
             return
         if len(data) == 0:
             break
-        print("got data:", data, file=sys.stderr)
-    print("done reading", file=sys.stderr)
+        # print("got data:", data, file=sys.stderr)
+    # print("done reading", file=sys.stderr)
 
 
 def wandb_write(settings, q, stopped, data_filename):
@@ -227,6 +227,10 @@ def wandb_send(settings, q, resp_q, stopped):
                 line = u'{}{}{}{}'.format(prepend, timestamp, prev_str, line)
                 fs.push("output.log", line)
                 partial_output[stream] = ""
+        elif t == "config":
+            cfg = i.config
+            config = json.loads(cfg.config_json)
+            ups = api.upsert_run(name=cfg.run_id, config=config, **settings)
         else:
             print("what", t)
     if fs:
@@ -555,10 +559,18 @@ class Backend(object):
         run.config_json = json.dumps(run_dict.get('config', {}))
         return run
 
-    def _make_record(self, run=None):
+    def _make_config(self, config_dict):
+        config = wandb_internal_pb2.ConfigData()
+        config.run_id = config_dict['run_id']
+        config.config_json = json.dumps(config_dict['data'])
+        return config
+
+    def _make_record(self, run=None, config=None):
         rec = wandb_internal_pb2.Record()
         if run:
             rec.run.CopyFrom(run)
+        if config:
+            rec.config.CopyFrom(config)
         return rec
 
     def _queue_process(self, rec):
@@ -591,7 +603,11 @@ class Backend(object):
     def send_run(self, run_dict):
         run = self._make_run(run_dict)
         rec = self._make_record(run=run)
+        self._queue_process(rec)
 
+    def send_config(self, config_dict):
+        cfg = self._make_config(config_dict)
+        rec = self._make_record(config=cfg)
         self._queue_process(rec)
 
     def send_run_sync(self, run_dict, timeout=None):

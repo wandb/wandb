@@ -4,6 +4,10 @@ import wandb
 from . import wandb_config
 import shortuuid  # type: ignore
 import click
+import platform
+import logging
+
+logger = logging.getLogger("wandb")
 
 
 def generate_id():
@@ -16,6 +20,7 @@ def generate_id():
 class Run(object):
     def __init__(self, config=None, settings=None):
         self.config = wandb_config.Config()
+        self.config._set_callback(self._config_callback)
         self._settings = settings
         self._backend = None
         self._data = dict()
@@ -44,6 +49,11 @@ class Run(object):
             self.run_id, note, url, style)
         return {"text/html": s}
 
+    def _config_callback(self, key=None, val=None, data=None):
+        logger.info("config_cb %s %s %s", key, val, data)
+        c = dict(run_id=self.run_id, data=data)
+        self._backend.send_config(c)
+
     def _set_backend(self, backend):
         self._backend = backend
 
@@ -61,7 +71,7 @@ class Run(object):
             self._data.update(data)
 
     def join(self):
-        self._backend.join()
+        self._backend.cleanup()
 
     @property
     def dir(self):
@@ -79,7 +89,9 @@ class Run(object):
         return url
 
     def _display_run(self):
-        emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+        emojis = dict(star="", broom="", rocket="")
+        if platform.system() != "Windows":
+            emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
         url = self._get_run_url()
         wandb.termlog("{} View run at {}".format(
             emojis.get("rocket", ""),
@@ -90,4 +102,5 @@ class Run(object):
             self._display_run()
 
     def on_finish(self):
-        pass
+        if self._run_obj:
+            self._display_run()
