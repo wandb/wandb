@@ -16,8 +16,8 @@ def named_entity(docs):
         Example:
          wandb.log({'NER': wandb.plots.NER(docs=doc)})
         """
-        spacy = util.get_module("spacy", required="Logging NER and POS requires spacy")
-        en_core_web_md = util.get_module("en_core_web_md", required="Logging NER and POS requires en_core_web_md")
+        spacy = util.get_module("spacy", required="part_of_speech requires the spacy library, install with `pip install spacy`")
+        en_core_web_md = util.get_module("en_core_web_md", required="part_of_speech requires the en_core_web_md library, install with `python -m spacy download en_core_web_md`")
         nlp = en_core_web_md.load()
 
         if (test_missing(docs=docs)):

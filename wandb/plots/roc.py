@@ -1,8 +1,6 @@
 import wandb
 from wandb import util
 from wandb.plots.utils import test_missing, test_types, encode_labels
-np = util.get_module("numpy", required="Logging plots requires numpy")
-scikit = util.get_module("sklearn")
 chart_limit = wandb.Table.MAX_ROWS
 
 def roc(y_true=None, y_probas=None, labels=None,
@@ -26,6 +24,9 @@ def roc(y_true=None, y_probas=None, labels=None,
         Example:
          wandb.log({'roc': wandb.plots.ROC(y_true, y_probas, labels)})
         """
+        np = util.get_module("numpy", required="roc requires the numpy library, install with `pip install numpy`")
+        scikit = util.get_module("sklearn", required="roc requires the scikit library, install with `pip install scikit-learn`")
+
         if (test_missing(y_true=y_true, y_probas=y_probas) and
             test_types(y_true=y_true, y_probas=y_probas)):
             y_true = np.array(y_true)

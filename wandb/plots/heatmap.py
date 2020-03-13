@@ -1,8 +1,6 @@
 import wandb
 from wandb import util
 from wandb.plots.utils import test_missing, test_types, encode_labels
-np = util.get_module("numpy", required="Logging plots requires numpy")
-scikit = util.get_module("sklearn")
 chart_limit = wandb.Table.MAX_ROWS
 def round_3(n):
     return round(n, 3)
@@ -27,6 +25,9 @@ def heatmap(x_labels, y_labels, matrix_values):
          wandb.log({'roc': wandb.plots.HeatMap(x_labels, y_labels,
                     matrix_values)})
         """
+        np = util.get_module("numpy", required="roc requires the numpy library, install with `pip install numpy`")
+        scikit = util.get_module("sklearn", required="roc requires the scikit library, install with `pip install scikit-learn`")
+
         if (test_missing(x_labels=x_labels, y_labels=y_labels,
             matrix_values=matrix_values) and test_types(x_labels=x_labels,
             y_labels=y_labels, matrix_values=matrix_values)):
@@ -40,9 +41,6 @@ def heatmap(x_labels, y_labels, matrix_values):
                 count = 0
                 for i, x in enumerate(x_labels):
                     for j, y in enumerate(y_labels):
-                        print('i: ', i, ' | x: ', x)
-                        print('j: ', j, ' | y: ', y)
-                        print('matrix value(j,i): ', matrix_values[j][i])
                         x_axis.append(x)
                         y_axis.append(y)
                         values.append(round_3(matrix_values[j][i]))
