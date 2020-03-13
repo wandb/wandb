@@ -10,19 +10,17 @@ def heatmap(x_labels, y_labels, matrix_values):
         Generates a heatmap.
 
         Arguments:
-         y_true (arr): Test set labels.
-         y_probas (arr): Test set predicted probabilities.
-         labels (list): Named labels for target varible (y). Makes plots easier to
-                         read by replacing target values with corresponding index.
-                         For example labels= ['dog', 'cat', 'owl'] all 0s are
-                         replaced by 'dog', 1s by 'cat'.
+         matrix_values (arr): 2D dataset of shape x_labels * y_labels, containing
+                            heatmap values that can be coerced into an ndarray.
+         x_labels (list): Named labels for rows (x_axis).
+         y_labels (list): Named labels for columns (y_axis).
 
         Returns:
          Nothing. To see plots, go to your W&B run page then expand the 'media' tab
                under 'auto visualizations'.
 
         Example:
-         wandb.log({'roc': wandb.plots.HeatMap(x_labels, y_labels,
+         wandb.log({'heatmap': wandb.plots.HeatMap(x_labels, y_labels,
                     matrix_values)})
         """
         np = util.get_module("numpy", required="roc requires the numpy library, install with `pip install numpy`")
