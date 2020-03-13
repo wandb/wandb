@@ -125,7 +125,7 @@ class Run(object):
                 envvars=varsdict,
                 args=[],
                 )
-        configdict = dict(lr=0.3)
+        configdict = dict(self.config),
         artifactsdict = dict(
                 dataset="v1",
                 )
