@@ -2,9 +2,9 @@
 
 ## Play along
 
-`pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb`
+`pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb-ng`
 
-Or from pypi test:
+Or from pypi test (last devel release - might be out of date):
 
 - https://test.pypi.org/project/wandb-ng/
 - `pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple --upgrade wandb-ng`
