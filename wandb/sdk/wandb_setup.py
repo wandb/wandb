@@ -183,9 +183,9 @@ class _WandbSetup__WandbSetup(object):
 
         self._safe_makedirs(log_dir)
         self._safe_makedirs(log_files)
-        self._safe_symlink(log_base_dir, log_dir, "wandb-latest", pid, delete=True)
-        self._safe_symlink(log_base_dir, log_user, "debug-user.log", pid, delete=True)
-        self._safe_symlink(log_base_dir, log_internal, "debug-internal.log", pid)
+        self._safe_symlink(log_base_dir, log_dir, "latest", pid, delete=True)
+        self._safe_symlink(log_base_dir, log_user, "user-debug.txt", pid, delete=True)
+        self._safe_symlink(log_base_dir, log_internal, "internal-debug.txt", pid)
 
         #print("loguser", log_user)
         #print("loginternal", log_internal)
