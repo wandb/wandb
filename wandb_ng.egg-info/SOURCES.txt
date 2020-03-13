@@ -28,6 +28,7 @@ wandb/internal/mpmain/__main__.py
 wandb/keras/__init__.py
 wandb/sdk/__init__.py
 wandb/sdk/wandb_config.py
+wandb/sdk/wandb_config_test.py
 wandb/sdk/wandb_init.py
 wandb/sdk/wandb_run.py
 wandb/sdk/wandb_save.py
@@ -56,6 +57,7 @@ wandb/util/__init__.py
 wandb/util/globals.py
 wandb/util/preinit.py
 wandb/util/redirect.py
+wandb/util/term.py
 wandb/vendor/protobuf/autogen.sh
 wandb/vendor/protobuf/build_files_updated_unittest.sh
 wandb/vendor/protobuf/generate_changelog.py
