@@ -2,9 +2,14 @@
 save.
 """
 
+import wandb
+import logging
+
+logger = logging.getLogger("wandb")
 
 def save(
     path,
     overwrite=None,
 ):
-    pass
+    logger.info("Saving file: %s", path)
+    wandb.run.save(path)

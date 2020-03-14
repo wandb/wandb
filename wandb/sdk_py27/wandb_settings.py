@@ -44,6 +44,10 @@ defaults = dict(
     log_internal_spec="wandb-{timespec}-{pid}-debug-internal.txt",
     log_user=False,
     log_internal=True,
+
+    # where files are temporary stored when saving
+    files_dir="",
+
     data_base_dir="wandb",
     data_dir="",
     data_spec="wandb-{timespec}-{pid}-data.bin",

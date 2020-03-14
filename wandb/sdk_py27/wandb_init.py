@@ -11,6 +11,7 @@ from wandb.util.globals import set_global
 from wandb.internal.backend_mp import Backend
 from wandb.stuff import util2
 
+import json
 import atexit
 import platform
 import six
@@ -224,6 +225,15 @@ class _WandbInit(object):
         wl = self.wl
         config = self.config
 
+        data = ""
+        if os.path.exists("config.json"):
+            with open("config.json", "r") as f:
+                data = f.read()
+            print("got data", data)
+            c = json.loads(data)
+            for k, v in c.items():
+                config[k] = v
+
         if s.mode == "noop":
             return None
 
@@ -299,6 +309,9 @@ class _WandbInit(object):
             self._redirect_cb = self._callback
 
         self._redirect(stdout_slave_fd, stderr_slave_fd)
+
+        # for super agent
+        run._save_job_spec()
 
         return run
 

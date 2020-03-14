@@ -5,7 +5,10 @@ from . import wandb_config
 import shortuuid  # type: ignore
 import click
 import platform
+import shutil
 import logging
+import os
+import json
 
 logger = logging.getLogger("wandb")
 
@@ -104,3 +107,64 @@ class Run(object):
     def on_finish(self):
         if self._run_obj:
             self._display_run()
+
+    def _save_job_spec(self):
+        envdict = dict(
+                python="python3.6",
+                requirements=[],
+                )
+        varsdict = {"WANDB_DISABLE_CODE": "True"}
+        source = dict(
+                git="git@github.com:wandb/examples.git",
+                branch="master",
+                commit="bbd8d23",
+                )
+        execdict = dict(
+                program="train.py",
+                directory="keras-cnn-fashion",
+                envvars=varsdict,
+                args=[],
+                )
+        configdict = dict(self.config),
+        artifactsdict = dict(
+                dataset="v1",
+                )
+        inputdict = dict(
+                config=configdict,
+                artifacts=artifactsdict,
+                )
+        job_spec = dict(
+                kind="WandbJob",
+                version="v0",
+                environment=envdict,
+                source=source,
+                exec=execdict,
+                input=inputdict,
+                )
+
+        s = json.dumps(job_spec, indent=4)
+        spec_filename = "wandb-jobspec.json"
+        with open(spec_filename, "w") as f:
+            print(s, file=f)
+        self.save(spec_filename)
+        
+
+    def save(self, path):
+        orig_path = path
+        # super hacky
+        if not os.path.exists(path):
+            path = os.path.join("run_dir", path)
+        if not os.path.exists(path):
+            logger.info("Ignoring file: %s", orig_path)
+            return
+
+        # whitelist = [ "save-test.txt", ]
+        # if path not in whitelist:
+        #    return
+
+        fname = os.path.basename(path)
+        dest = os.path.join(self._settings.files_dir, fname)
+        logger.info("Saving from %s to %s", path, dest)
+        shutil.copyfile(path, dest)
+        files = dict(files=[fname])
+        self._backend.send_files(files)
