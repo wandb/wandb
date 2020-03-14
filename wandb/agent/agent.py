@@ -4,6 +4,7 @@ import click
 import time
 
 import os
+from wandb.sdk import wandb_settings
 from wandb.apis import internal
 import subprocess
 import json
@@ -13,8 +14,12 @@ class Agent(object):
 
     def __init__(self, spec):
         self._spec = spec
-        settings = dict(base_url="app.qa.wandb.ai")
+        glob_config = os.path.expanduser('~/.config/wandb/settings')
+        loc_config = 'wandb/settings'
+        files = (glob_config, loc_config)
+        settings = wandb_settings.Settings(environ=os.environ, files=files)
         self._api = internal.Api(default_settings=settings)
+        self._settings = settings
 
     def check_queue(self):
         entity, project = self._spec.split("/")
