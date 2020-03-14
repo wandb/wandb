@@ -31,7 +31,7 @@ def heatmap(x_labels, y_labels, matrix_values, show_text=False):
             matrix_values = np.array(matrix_values)
             wandb.termlog('Visualizing heatmap.')
 
-            def heatmap_table(x_labels, y_labels, matrix_values):
+            def heatmap_table(x_labels, y_labels, matrix_values, show_text):
                 x_axis=[]
                 y_axis=[]
                 values=[]
@@ -45,12 +45,15 @@ def heatmap(x_labels, y_labels, matrix_values, show_text=False):
                         if count >= chart_limit:
                             wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                             break
-
+                if show_text:
+                    heatmap_key = 'wandb/heatmap/v1'
+                else:
+                    heatmap_key = 'wandb/heatmap_no_text/v1'
                 return wandb.visualize(
-                    'wandb/heatmap/v1', wandb.Table(
+                    heatmap_key, wandb.Table(
                     columns=['x_axis', 'y_axis', 'values'],
                     data=[
                         [x_axis[i], y_axis[i], round(values[i], 2)] for i in range(len(x_axis))
                     ]
                 ))
-            return heatmap_table(x_labels, y_labels, matrix_values)
+            return heatmap_table(x_labels, y_labels, matrix_values, show_text)
