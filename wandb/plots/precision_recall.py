@@ -2,10 +2,6 @@ import wandb
 from wandb import util
 from wandb.plots.utils import test_missing, test_types, encode_labels
 chart_limit = wandb.Table.MAX_ROWS
-def round_3(n):
-    return round(n, 3)
-def round_2(n):
-    return round(n, 2)
 
 def precision_recall(y_true=None, y_probas=None, labels=None,
                           plot_micro=True, classes_to_plot=None):
@@ -84,7 +80,7 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
                     # if class_names are ints and labels are not set
                     # or, if class_names have something other than ints
                     # (string, float, date) - user class_names
-                    data.append([class_name, round_3(p), round_3(r)])
+                    data.append([class_name, round(p, 3), round(r, 3)])
                     count+=1
                     if count >= chart_limit:
                         wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)

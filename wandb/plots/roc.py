@@ -2,10 +2,6 @@ import wandb
 from wandb import util
 from wandb.plots.utils import test_missing, test_types, encode_labels
 chart_limit = wandb.Table.MAX_ROWS
-def round_3(n):
-    return round(n, 3)
-def round_2(n):
-    return round(n, 2)
 
 def roc(y_true=None, y_probas=None, labels=None,
         plot_micro=True, plot_macro=True, classes_to_plot=None):
@@ -61,7 +57,7 @@ def roc(y_true=None, y_probas=None, labels=None,
                                 class_dict = labels[classes[i]]
                             else:
                                 class_dict = classes[i]
-                            fpr = [class_dict, round_3(fpr_dict[i][j]), round_3(tpr_dict[i][j])]
+                            fpr = [class_dict, round(fpr_dict[i][j], 3), round(tpr_dict[i][j], 3)]
                             data.append(fpr)
                             count+=1
                             if count >= chart_limit:
