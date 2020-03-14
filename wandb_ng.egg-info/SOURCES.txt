@@ -5,6 +5,8 @@ setup.cfg
 setup.py
 wandb/__init__.py
 wandb/py.typed
+wandb/agent/__init__.py
+wandb/agent/agent.py
 wandb/apis/__init__.py
 wandb/apis/file_stream.py
 wandb/apis/internal.py
