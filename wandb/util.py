@@ -683,6 +683,8 @@ def get_log_file_path():
 def is_wandb_file(name):
     return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt" or name == OUTPUT_FNAME or name == DIFF_FNAME
 
+def is_kaggle():
+    return os.getenv("KAGGLE_KERNEL_RUN_TYPE") != None or "kaggle_environments" in sys.modules 
 
 def docker_image_regex(image):
     "regex for valid docker image names"

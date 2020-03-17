@@ -18,6 +18,7 @@ import platform
 
 import wandb
 from wandb import env
+from wandb import util
 
 FNAME = 'config.yaml'
 
@@ -56,6 +57,7 @@ class Config(object):
         self._set_wandb('cli_version', wandb.__version__)
         self._set_wandb('python_version', platform.python_version())
         self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
+        self._set_wandb('is_kaggle_kernel', util.is_kaggle())
 
         # Do this after defaults because it triggers loading of pre-existing
         # config.yaml (if it exists)
