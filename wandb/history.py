@@ -106,7 +106,7 @@ class History(object):
             if key in row:
                 yield row[key]
 
-    def add(self, row={}, step=None, timestamp=None):
+    def add(self, row={}, step=None, timestamp=None, commit=None):
         """Adds or updates a history step.
 
         If row isn't specified, will write the current state of row.
@@ -128,6 +128,10 @@ class History(object):
         # Importing data, reset start time to the first timestamp passed in
         if self._start_time > self._current_timestamp:
             self._start_time = timestamp
+
+        for k in row.keys():
+            if not k:
+                wandb.termwarn("Logging keys with empty names is not supported")
 
         if step is None:
             self.update(row)
@@ -159,6 +163,9 @@ class History(object):
                     self._steps = step
 
             self.update(row)
+            if commit:
+                self._steps = step
+                self._write()
 
     def update(self, new_vals):
         """Add a dictionary of values to the current step without writing it to disk.

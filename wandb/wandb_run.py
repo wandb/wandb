@@ -23,8 +23,9 @@ from wandb import util
 from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
-from wandb.apis import InternalApi, CommError
-from wandb.wandb_config import Config
+from wandb.apis import InternalApi, PublicApi, CommError, artifacts
+from wandb.wandb_config import Config, ConfigStatic
+from wandb.viz import Visualize
 import six
 from six.moves import input
 from six.moves import urllib
@@ -150,6 +151,10 @@ class Run(object):
         self._jupyter_agent = None
 
     @property
+    def config_static(self):
+        return ConfigStatic(self.config)
+
+    @property
     def api(self):
         if self._api is None:
             self._api = InternalApi()
@@ -180,7 +185,7 @@ class Run(object):
         """ Sends a message to the wandb process changing the policy
         of saved files.  This is primarily used internally by wandb.save
         """
-        if not options.get("save_policy") and not options.get("tensorboard") and not options.get("log_artifact"):
+        if not options.get("save_policy") and not options.get("tensorboard") and not options.get("log_artifact") and not options.get("use_artifact"):
             raise ValueError(
                 "Only configuring save_policy, tensorboard  and log_artifact is supported")
         if self.socket:
@@ -363,24 +368,7 @@ class Run(object):
         return run
 
     def auto_project_name(self, api):
-        # if we're in git, set project name to git repo name + relative path within repo
-        root_dir = api.git.root_dir
-        if root_dir is None:
-            return None
-        repo_name = os.path.basename(root_dir)
-        program = self.program
-        if program is None:
-            return repo_name
-        if not os.path.isabs(program):
-            program = os.path.join(os.curdir, program)
-        prog_dir = os.path.dirname(os.path.abspath(program))
-        if not prog_dir.startswith(root_dir):
-            return repo_name
-        project = repo_name
-        sub_path = os.path.relpath(prog_dir, root_dir)
-        if sub_path != '.':
-            project += '-' + sub_path
-        return project.replace(os.sep, '_')
+        return util.auto_project_name(self.program, api)
 
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
         api = api or self.api
@@ -399,29 +387,43 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    def log_input(self, input, api=None):
-        # input must be an ArtifactVersion from public API
+    def use_artifact(self, name=None, artifact=None, path=None, metadata=None, api=None):
+        # One of artifact, name, paths must be passed in
         api = api or self.api
-        api.use_artifact_version(self.entity, self.project, self.id, input.id)
+        entity_name = self.api.settings('entity')
+        project_name = self.api.settings('project')
+        if name is not None and path is None and metadata is None:
+            public_api = PublicApi(self.api.settings())
+            artifact = public_api.artifact_version('%s/%s/%s' % (entity_name, project_name, name))
+        if artifact is not None:
+            # TODO: assert artifact has correct entity_name, project_name
+            # TODO: This should throw if not available
+            api.use_artifact(artifact.id)
+            return artifact
+        elif name is not None and (path is not None or metadata is not None):
+            user_artifact = artifacts.LocalArtifactRead(name, path, metadata)
+            self.send_message({
+                'use_artifact': {
+                    'name': name,
+                    'path': path,
+                    'metadata': metadata
+                }
+            })
+            return user_artifact
+        # TODO
+        raise ValueError('Invalid use artifact call')
 
-    def log_artifact(self, name, path, description=None, metadata=None, labels=None):
+    def log_artifact(self, name, paths=None, description=None, metadata=None, labels=None, aliases=None):
         self.send_message({
             'log_artifact': {
                 'name': name,
-                'path': path,
+                'paths': paths,
                 'description': description,
                 'metadata': metadata,
                 'labels': labels,
+                'aliases': aliases
             }
         })
-
-    def publish_artifact(self, fname, name=None, description=None, api=None):
-        api = api or self.api
-        api.publish_artifact(fname, self.entity, self.project, run=self.id, name=name, description=description, progress=sys.stdout)
-
-    def publish_external_artifact(self, url, name=None, description=None, api=None):
-        api = api or self.api
-        api.publish_external_artifact(url, self.entity, self.project, run=self.id, name=name, description=description)
 
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside
@@ -464,7 +466,7 @@ class Run(object):
     def project_name(self, api=None):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
-        
+
     def _generate_query_string(self, api, params=None):
         """URL encodes dictionary of params"""
 
@@ -487,9 +489,9 @@ class Run(object):
                 viewer = api.viewer()
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])
-        
+
             entity = api.settings('entity')
-        
+
         if not entity:
             # This can happen on network failure
             raise CommError("Can't connect to network to query entity from API key")
@@ -498,7 +500,7 @@ class Run(object):
 
     def get_project_url(self, api=None, network=True, params=None):
         """Generate a url for a project.
-        
+
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
         """
         params = params or {}
@@ -539,7 +541,7 @@ class Run(object):
 
     def get_url(self, api=None, network=True, params=None):
         """Generate a url for a run.
-        
+
         If network is false and entity isn't specified in the environment raises wandb.apis.CommError
         """
         params = params or {}
@@ -553,7 +555,6 @@ class Run(object):
             run=urllib.parse.quote_plus(self.id),
             query_string=self._generate_query_string(api, params)
         )
-         
 
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
@@ -660,7 +661,7 @@ class Run(object):
     def _history_added(self, row):
         self.summary.update(row, overwrite=False)
 
-    def log(self, row=None, commit=True, step=None, sync=True, *args, **kwargs):
+    def log(self, row=None, commit=None, step=None, sync=True, *args, **kwargs):
         if sync == False:
             wandb._ensure_async_log_thread_started()
             return wandb._async_log_queue.put({"row": row, "commit": commit, "step": step})
@@ -668,16 +669,33 @@ class Run(object):
         if row is None:
             row = {}
 
+        for k in row:
+            if isinstance(row[k], Visualize):
+                self._add_viz(k, row[k].viz_id)
+                row[k] = row[k].value
+
         if not isinstance(row, collections.Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, six.string_types) for key in row.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
-        if commit or step is not None:
-            self.history.add(row, *args, step=step, **kwargs)
+        if commit is not False or step is not None:
+            self.history.add(row, *args, step=step, commit=commit, **kwargs)
         else:
             self.history.update(row, *args, **kwargs)
+
+    def _add_viz(self, key, viz_id):
+        if not 'viz' in self.config['_wandb']:
+            self.config._set_wandb('viz', {})
+        self.config['_wandb']['viz'][key] = {
+            'id': viz_id,
+            'historyFieldSettings': {
+                'key': key,
+                'x-axis': '_step'
+            }
+        }
+        self.config.persist()
 
     @property
     def history(self):
@@ -730,7 +748,8 @@ class Run(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         exit_code = 0 if exc_type is None else 1
         wandb.join(exit_code)
-        return exc_type is None 
+        return exc_type is None
+
 
 def run_dir_path(run_id, dry=False):
     if dry:

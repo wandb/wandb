@@ -5,6 +5,7 @@
 import collections
 import os
 import shutil
+import tempfile as builtin_tempfile
 import threading
 import time
 from six.moves import queue
@@ -39,16 +40,18 @@ TMP_DIR = tempfile.TemporaryDirectory('wandb')
 # This is handled by the batching thread
 UploadRequest = collections.namedtuple(
     'EventUploadRequest', ('path', 'save_name', 'artifact_id'))
+CommitArtifactRequest = collections.namedtuple('EventCommitArtifactRequest',
+                                               ('artifact_id', ))
 
 # These are handled by the event thread
 EventStartUploadJob = collections.namedtuple(
-    'EventStartUploadJob', ('path', 'save_name'))
+    'EventStartUploadJob', ('path', 'save_name', 'upload_url', 'upload_headers'))
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 EventFinish = collections.namedtuple('EventFinish', ())
 
 
 class UploadJob(threading.Thread):
-    def __init__(self, done_queue, progress, api, save_name, path):
+    def __init__(self, done_queue, progress, api, save_name, path, upload_url, upload_headers):
         """A file upload thread.
 
         Arguments:
@@ -65,6 +68,8 @@ class UploadJob(threading.Thread):
         self._api = api
         self.save_name = save_name
         self.save_path = self.path = path
+        self.upload_url = upload_url
+        self.upload_headers = upload_headers
         super(UploadJob, self).__init__()
 
     def run(self):
@@ -85,11 +90,26 @@ class UploadJob(threading.Thread):
             'uploaded': 0,
             'failed': False
         }
+        extra_headers = {}
+        for upload_header in self.upload_headers:
+            key, val = upload_header.split(':', 1)
+            extra_headers[key] = val
+        upload_url = self.upload_url
+        # Copied from push TODO(artifacts): clean up
+        # If the upload URL is relative, fill it in with the base URL,
+        # since its a proxied file store like the on-prem VM.
+        if upload_url.startswith('/'):
+            upload_url = '{}{}'.format(self._api.api_url, upload_url)
         try:
             with open(self.save_path, 'rb') as f:
-                self._api.push(
-                    {self.save_name: f},
-                    progress=lambda _, t: self.progress(t))
+                self._api.upload_file_retry(
+                    upload_url,
+                    f,
+                    lambda _, t: self.progress(t),
+                    extra_headers=extra_headers)
+                # self._api.push(
+                #     {self.save_name: f},
+                #     progress=lambda _, t: self.progress(t))
         except Exception as e:
             self._progress[self.save_name]['uploaded'] = 0
             self._progress[self.save_name]['failed'] = True
@@ -117,7 +137,6 @@ class FilePusher(object):
     BATCH_THRESHOLD_SECS = 3
 
     BATCH_MAX_FILES = 1000
-
 
     def __init__(self, api, max_jobs=64):
         self._file_stats = {}  # stats for all files
@@ -147,6 +166,11 @@ class FilePusher(object):
         self._running_jobs = {}
         self._pending_jobs = []
 
+        # Holds refs to tempfiles if users need to make a temporary file that
+        # stays around long enough for file pusher to sync
+        # TODO(artifacts): maybe don't do this
+        self._temp_file_refs = []
+
     def print_status(self):
         step = 0
         spinner_states = ['-', '\\', '|', '/']
@@ -167,7 +191,8 @@ class FilePusher(object):
                 break
             time.sleep(0.25)
         if summary['deduped_bytes'] != 0:
-            wandb.termlog('✨ W&B magic sync reduced upload amount by %.1f%%             ' % (summary['deduped_bytes'] / float(summary['total_bytes']) * 100))
+            wandb.termlog('✨ W&B magic sync reduced upload amount by %.1f%%             ' %
+                          (summary['deduped_bytes'] / float(summary['total_bytes']) * 100))
         # clear progress line.
         wandb.termlog(' ' * 79)
 
@@ -209,6 +234,7 @@ class FilePusher(object):
     def _checksum_body(self):
         finished = False
         while True:
+            artifact_commits = []
             batch = []
             batch_started_at = time.time()
             batch_end_at = batch_started_at + self.BATCH_THRESHOLD_SECS
@@ -223,11 +249,16 @@ class FilePusher(object):
                     break
                 # If it's a finish, stop waiting and send the current batch
                 # immediately.
-                if isinstance(event, EventFinish):
+                if isinstance(event, CommitArtifactRequest):
+                    artifact_commits.append(event.artifact_id)
+                elif isinstance(event, EventFinish):
                     finished = True
                     break
-                # Otherwise, it's file changed, so add it to the pending batch.
-                batch.append(event)
+                elif isinstance(event, UploadRequest):
+                    # Otherwise, it's file changed, so add it to the pending batch.
+                    batch.append(event)
+                else:
+                    raise Exception('invalid event %s' % event)
 
             if batch:
                 paths = [e.path for e in batch]
@@ -236,12 +267,12 @@ class FilePusher(object):
                 file_specs = []
                 for e, checksum in zip(batch, checksums):
                     file_specs.append({
-                        'name': e.save_name, 'artifact_version_id': e.artifact_id, 'fingerprint': checksum})
+                        'name': e.save_name, 'artifactVersionID': e.artifact_id, 'fingerprint': checksum})
                 result = self._api.prepare_files(file_specs)
 
                 for e, file_spec in zip(batch, file_specs):
                     response_file = result[e.save_name]
-                    if file_spec['fingerprint'] == response_file['fingerprint']:
+                    if response_file['uploadUrl'] is None:
                         try:
                             size = os.path.getsize(e.path)
                         except OSError:
@@ -254,9 +285,12 @@ class FilePusher(object):
                         }
                     else:
                         start_upload_event = EventStartUploadJob(
-                            e.path, e.save_name)
+                            e.path, e.save_name, response_file['uploadUrl'], response_file['uploadHeaders'])
                         self._event_queue.put(start_upload_event)
                 batch = []
+
+            for artifact_id in artifact_commits:
+                self._api.commit_artifact_version(artifact_id)
 
             # And stop the infinite loop if we've finished
             if finished:
@@ -292,15 +326,14 @@ class FilePusher(object):
             self._pending_jobs.append(event)
             return
 
-
         # Start it.
         self._last_job_started_at = time.time()
         job = UploadJob(self._event_queue, self._progress, self._api,
-                        event.save_name, event.path)
+                        event.save_name, event.path, event.upload_url, event.upload_headers)
         self._running_jobs[event.save_name] = job
         job.start()
 
-    def file_changed(self, save_name, path, artifact_id):
+    def file_changed(self, save_name, path, artifact_id=None):
         """Tell the file pusher that a file's changed and should be uploaded.
 
         Arguments:
@@ -317,6 +350,17 @@ class FilePusher(object):
         event = UploadRequest(path, save_name, artifact_id)
         self._checksum_queue.put(event)
 
+    def named_temp_file(self, mode='w+b'):
+        # get a named temp file that the file pusher with hold a reference to so it
+        # doesn't get gc'd. Obviously, we should do this very much :). It's currently
+        # used for artifact metadata.
+        f = builtin_tempfile.NamedTemporaryFile(mode=mode, delete=False)
+        self._temp_file_refs.append(f)
+        return f
+
+    def commit_artifact(self, artifact_id):
+        event = CommitArtifactRequest(artifact_id)
+        self._checksum_queue.put(event)
 
     def finish(self):
         self._checksum_queue.put(EventFinish())

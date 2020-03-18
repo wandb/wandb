@@ -13,6 +13,8 @@ from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
 from six.moves import urllib
+import hashlib
+import base64
 
 import wandb
 from wandb import Error, __version__
@@ -21,6 +23,7 @@ from wandb.retry import retriable
 from wandb.summary import HTTPSummary
 from wandb import env
 from wandb.apis import normalize_exceptions
+from wandb.apis import artifact_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,7 @@ RUN_FRAGMENT = '''fragment RunFragment on Run {
     sweepName
     state
     config
+    commit
     readOnly
     createdAt
     heartbeatAt
@@ -258,7 +262,7 @@ class Api(object):
         artifact_name, artifact_alias = art_parts[0], art_parts[1]
         return entity, project, artifact_name, artifact_alias
 
-    def projects(self, entity=None, per_page=None):
+    def projects(self, entity=None, per_page=200):
         """Get projects for a given entity.
         Args:
             entity (str): Name of the entity requested.  If None will fallback to
@@ -278,7 +282,7 @@ class Api(object):
             self._projects[entity] = Projects(self.client, entity, per_page=per_page)
         return self._projects[entity]
 
-    def reports(self, path="", name=None, per_page=None):
+    def reports(self, path="", name=None, per_page=50):
         """Get reports for a given project path.
 
         WARNING: This api is in beta and will likely change in a future release
@@ -301,10 +305,11 @@ class Api(object):
             name = urllib.parse.unquote(name)
         key = "/".join([entity, project, str(name)])
         if key not in self._reports:
-            self._reports[key] = Reports(self.client, Project(entity, project, {}), name=name, per_page=per_page)
+            self._reports[key] = Reports(self.client, Project(
+                self.client, entity, project, {}), name=name, per_page=per_page)
         return self._reports[key]
 
-    def runs(self, path="", filters={}, order="-created_at", per_page=None):
+    def runs(self, path="", filters={}, order="-created_at", per_page=50):
         """Return a set of runs from a project that match the filters provided.
         You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
 
@@ -346,7 +351,7 @@ class Api(object):
         key = path + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(self.client, entity, project,
-                    filters=filters, order=order, per_page=per_page)
+                                   filters=filters, order=order, per_page=per_page)
         return self._runs[key]
 
     @normalize_exceptions
@@ -385,15 +390,10 @@ class Api(object):
         return self._sweeps[path]
 
     @normalize_exceptions
-    def artifact_versions(self, path=None):
-        entity, project, artifact_name = self._parse_path(path)
-        return ProjectArtifactVersions(self.client, entity, project, artifact_name)
-
-    @normalize_exceptions
-    def artifact_version(self, path=None):
+    def artifact_version(self, path=None, expected_digest=None):
         # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
         entity, project, artifact_name, artifact_version_name = self._parse_artifact_path(path)
-        return ArtifactVersion(self.client, entity, project, artifact_name, artifact_version_name)
+        return ArtifactVersion(self.client, entity, project, artifact_name, artifact_version_name, expected_digest=expected_digest)
 
 
 class Attrs(object):
@@ -420,10 +420,13 @@ class Attrs(object):
 class Paginator(object):
     QUERY = None
 
-    def __init__(self, client, variables, per_page=50):
+    def __init__(self, client, variables, per_page=None):
         self.client = client
         self.variables = variables
+        # We don't allow unbounded paging
         self.per_page = per_page
+        if self.per_page is None:
+            self.per_page = 50
         self.objects = []
         self.index = -1
         self.last_response = None
@@ -514,6 +517,7 @@ class Projects(Paginator):
         ''' % PROJECT_FRAGMENT)
 
     def __init__(self, client, entity, per_page=50):
+        self.client = client
         self.entity = entity
         variables = {
             'entity': self.entity,
@@ -539,7 +543,7 @@ class Projects(Paginator):
             return None
 
     def convert_objects(self):
-        return [Project(self.entity, p["node"]["name"], p["node"])
+        return [Project(self.client, self.entity, p["node"]["name"], p["node"])
                 for p in self.last_response['models']['edges']]
 
     def __repr__(self):
@@ -549,8 +553,9 @@ class Projects(Paginator):
 class Project(Attrs):
     """A project is a namespace for runs"""
 
-    def __init__(self, entity, project, attrs):
+    def __init__(self, client, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
+        self.client = client
         self.name = project
         self.entity = entity
 
@@ -560,6 +565,18 @@ class Project(Attrs):
 
     def __repr__(self):
         return "<Project {}>".format("/".join(self.path))
+
+    @normalize_exceptions
+    def artifacts(self, per_page=50):
+        """
+        Args:
+            names (list): names of the requested files, if empty returns all files
+            per_page (int): number of results per page
+
+        Returns:
+            A :obj:`Files` object, which is an iterator over :obj:`File` obejcts.
+        """
+        return ProjectArtifacts(self.client, self.entity, self.name)
 
 
 class Runs(Paginator):
@@ -633,7 +650,7 @@ class Runs(Paginator):
                     sweep = self._sweeps[run.sweep_name]
                 else:
                     sweep = Sweep.get(self.client, self.entity, self.project,
-                            run.sweep_name, withRuns=False)
+                                      run.sweep_name, withRuns=False)
                     self._sweeps[run.sweep_name] = sweep
 
                 run.sweep = sweep
@@ -753,7 +770,7 @@ class Run(Attrs):
                      'project': project, 'name': run_id}
         res = api.client.execute(mutation, variable_values=variables)
         res = res['upsertBucket']['bucket']
-        return Run(api.client, res["project"]["entity"]["name"],  res["project"]["name"], res["name"], {
+        return Run(api.client, res["project"]["entity"]["name"], res["project"]["name"], res["name"], {
             "id": res["id"],
             "config": "{}",
             "systemMetrics": "{}",
@@ -787,7 +804,7 @@ class Run(Attrs):
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
                 self.sweep = Sweep.get(self.client, self.entity, self.project,
-                        self.sweep_name, withRuns=False)
+                                       self.sweep_name, withRuns=False)
                 # TODO: Older runs don't always have sweeps when sweep_name is set
                 if self.sweep:
                     self.sweep.runs.append(self)
@@ -947,14 +964,15 @@ class Run(Attrs):
         Returns:
             An iterable collection over history records (dict).
         """
+        lastStep = self.lastHistoryStep
         # set defaults for min/max step
         if min_step is None:
             min_step = 0
         if max_step is None:
-            max_step = self.lastHistoryStep + 1
+            max_step = lastStep + 1
         # if the max step is past the actual last step, clamp it down
-        if max_step > self.lastHistoryStep:
-            max_step = self.lastHistoryStep + 1
+        if max_step > lastStep:
+            max_step = lastStep + 1
         if keys is None:
             return HistoryScan(run=self, client=self.client, page_size=page_size, min_step=min_step, max_step=max_step)
         else:
@@ -984,7 +1002,19 @@ class Run(Attrs):
 
     @property
     def lastHistoryStep(self):
-        history_keys = self._attrs['historyKeys']
+        query = gql('''
+        query Run($project: String!, $entity: String!, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { historyKeys }
+            }
+        }
+        ''')
+        response = self._exec(query)
+        if response is None or response.get('project') is None \
+                or response['project'].get('run') is None or \
+                response['project']['run'].get('historyKeys') is None:
+            return -1
+        history_keys = response['project']['run']['historyKeys']
         return history_keys['lastStep'] if 'lastStep' in history_keys else -1
 
     def __repr__(self):
@@ -1492,9 +1522,9 @@ class HistoryScan(object):
         self.page_size = page_size
         self.min_step = min_step
         self.max_step = max_step
-        self.page_offset = min_step # minStep for next page
-        self.scan_offset = 0 # index within current page of rows
-        self.rows = [] # current page of rows
+        self.page_offset = min_step  # minStep for next page
+        self.scan_offset = 0  # index within current page of rows
+        self.rows = []  # current page of rows
 
     def __iter__(self):
         self.page_offset = self.min_step
@@ -1511,6 +1541,8 @@ class HistoryScan(object):
             if self.page_offset >= self.max_step:
                 raise StopIteration()
             self._load_next()
+
+    next = __next__
 
     @normalize_exceptions
     @retriable(
@@ -1554,9 +1586,9 @@ class SampledHistoryScan(object):
         self.page_size = page_size
         self.min_step = min_step
         self.max_step = max_step
-        self.page_offset = min_step # minStep for next page
-        self.scan_offset = 0 # index within current page of rows
-        self.rows = [] # current page of rows
+        self.page_offset = min_step  # minStep for next page
+        self.scan_offset = 0  # index within current page of rows
+        self.rows = []  # current page of rows
 
     def __iter__(self):
         self.page_offset = self.min_step
@@ -1573,6 +1605,8 @@ class SampledHistoryScan(object):
             if self.page_offset >= self.max_step:
                 raise StopIteration()
             self._load_next()
+
+    next = __next__
 
     @normalize_exceptions
     @retriable(
@@ -1651,7 +1685,7 @@ class ProjectArtifacts(Paginator):
         self.variables.update({'cursor': self.cursor})
 
     def convert_objects(self):
-        return [Artifact(self.client, self.entity, self.project, r["node"]["id"], r["node"])
+        return [Artifact(self.client, self.entity, self.project, r["node"])
                 for r in self.last_response['project']['artifacts']['edges']]
 
 
@@ -1718,6 +1752,7 @@ class Artifact(object):
         self.client = client
         self.entity = entity
         self.project = project
+        self._attrs = attrs
         if self._attrs is None:
             self.load()
 
@@ -1725,15 +1760,24 @@ class Artifact(object):
     def id(self):
         return self._attrs["id"]
 
+    @property
+    def name(self):
+        return self._attrs["name"]
+
+    def __repr__(self):
+        return "<Artifact {}>".format(self.name)
+
 
 class ArtifactVersion(object):
 
-    def __init__(self, client, entity, project, artifact_name, artifact_version_name, attrs=None):
+    def __init__(self, client, entity, project, artifact_name, artifact_version_name, attrs=None, expected_digest=None):
         self.client = client
         self.entity = entity
         self.project = project
         self.artifact_name = artifact_name
         self.artifact_version_name = artifact_version_name
+        # TODO(artifacts) We can get rid of this when we have server side state tracking
+        self._expected_digest = expected_digest
         self._attrs = attrs
         if self._attrs is None:
             self.load()
@@ -1750,8 +1794,12 @@ class ArtifactVersion(object):
         return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_name, self.name())
 
     @property
-    def name(self):
-        return self._attrs["name"]
+    def digest(self):
+        return self._attrs["digest"]
+
+    @property
+    def state(self):
+        return self._attrs["state"]
 
     @property
     def description(self):
@@ -1769,8 +1817,9 @@ class ArtifactVersion(object):
                 artifact(name: $artifactName) {
                     artifactVersion(name: $name) {
                         id
-                        name
+                        digest
                         description
+                        state
                         createdAt
                         aliases
                         tags
@@ -1786,12 +1835,11 @@ class ArtifactVersion(object):
             'artifactName': self.artifact_name,
             'name': self.artifact_version_name,
         })
-        print(response)
         if response is None \
             or response.get('project') is None \
                 or response['project'].get('artifact') is None \
                 or response['project']['artifact'].get('artifactVersion') is None:
-            raise ValueError("Could not find artifact version %s:%s" % self.artifact_name, self.artifact_version_name)
+            raise ValueError("Could not find artifact version %s:%s" % (self.artifact_name, self.artifact_version_name))
         self._attrs = response['project']['artifact']['artifactVersion']
         return self._attrs
 
@@ -1799,9 +1847,9 @@ class ArtifactVersion(object):
     def files(self, names=[], per_page=50):
         return ArtifactVersionFiles(self.client, self, names, per_page)
 
-    def download(self):
+    def download(self, rootdir='./artifacts'):
         # TODO: not production
-        dirpath = os.path.join('wandb', 'artifacts', self.id)
+        dirpath = os.path.join(rootdir, self.artifact_name, self.digest)
         try:
             os.makedirs(dirpath)
         except FileExistsError:
@@ -1843,7 +1891,7 @@ class ArtifactVersionFiles(Paginator):
             'entityName': artifact_version.entity,
             'projectName': artifact_version.project,
             'artifactName': artifact_version.artifact_name,
-            'artifactVersionName': artifact_version.name,
+            'artifactVersionName': artifact_version.digest,
             'fileNames': names,
         }
         super(ArtifactVersionFiles, self).__init__(client, variables, per_page)

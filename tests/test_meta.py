@@ -68,7 +68,7 @@ def test_colab(mocker, monkeypatch):
         meta = Meta(InternalApi())
         assert meta.data["colab"] == "https://colab.research.google.com/drive/123abc"
         assert meta.data["program"] == "test.ipynb"
-        assert meta.data["codeSaved"]
+        assert meta.data["codePath"] == "test.ipynb"
         assert os.path.exists("code/test.ipynb")
 
 
@@ -79,9 +79,9 @@ def test_git_untracked_notebook_env(monkeypatch, git_repo, mocker):
     os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
     meta = Meta(InternalApi())
     assert meta.data["program"] == "test.ipynb"
-    assert meta.data["codeSaved"]
+    assert meta.data["codePath"] == "test.ipynb"
     assert os.path.exists("code/test.ipynb")
-    os.environ[env.NOTEBOOK_NAME]
+    del os.environ[env.NOTEBOOK_NAME]
 
 
 def test_git_untracked_notebook_env_subdir(monkeypatch, git_repo, mocker):
@@ -92,11 +92,12 @@ def test_git_untracked_notebook_env_subdir(monkeypatch, git_repo, mocker):
     os.environ[env.NOTEBOOK_NAME] = "sub/test.ipynb"
     meta = Meta(InternalApi())
     assert meta.data["program"] == "sub/test.ipynb"
-    assert meta.data["codeSaved"]
+    assert meta.data["codePath"] == "sub/test.ipynb"
     assert os.path.exists("code/sub/test.ipynb")
-    os.environ[env.NOTEBOOK_NAME]
+    del os.environ[env.NOTEBOOK_NAME]
 
 
+# We save code whether it is tracked or not tracked
 def test_git_tracked_notebook_env(monkeypatch, git_repo, mocker):
     mocker.patch('wandb._get_python_type', lambda: "jupyter")
     with open("test.ipynb", "w") as f:
@@ -105,9 +106,9 @@ def test_git_tracked_notebook_env(monkeypatch, git_repo, mocker):
     os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
     meta = Meta(InternalApi())
     assert meta.data["program"] == "test.ipynb"
-    assert not meta.data.get("codeSaved")
-    assert not os.path.exists("code/test.ipynb")
-    os.environ[env.NOTEBOOK_NAME]
+    assert meta.data.get("codePath") == "test.ipynb"
+    assert os.path.exists("code/test.ipynb")
+    del os.environ[env.NOTEBOOK_NAME]
 
 
 def test_meta_cuda(mocker):

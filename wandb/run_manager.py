@@ -49,6 +49,7 @@ from wandb import wandb_socket
 from wandb.compat import windows
 from wandb.apis import InternalApi
 from wandb.apis import CommError
+from wandb.apis import artifacts
 
 
 logger = logging.getLogger(__name__)
@@ -95,8 +96,7 @@ class FileEventHandler(object):
     def __init__(self, file_path, save_name, api, *args, **kwargs):
         self.file_path = file_path
         # Convert windows paths to unix paths 
-        if platform.system() == "Windows":
-            save_name = save_name.replace("\\", "/")
+        save_name = util.to_forward_slash_path(save_name)
         self.save_name = save_name
         self._api = api
 
@@ -114,34 +114,33 @@ class FileEventHandler(object):
         pass
 
 
-class FileEventHandlerWithFilePusher(FileEventHandler):
+class FileEventHandlerOverwrite(FileEventHandler):
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
-        super(FileEventHandlerWithFilePusher, self).__init__(file_path, save_name, api, *args, **kwargs)
+        super(FileEventHandlerOverwrite, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
         self._file_pusher = file_pusher
-        self._artifact_id = kwargs.get('artifact_id')
 
-    def file_pusher_file_changed(self, **kwargs):
-        self._file_pusher.file_changed(self.save_name, self.file_path, self._artifact_id, **kwargs)
-
-
-
-class FileEventHandlerOverwrite(FileEventHandlerWithFilePusher):
     def on_created(self):
         self.on_modified()
 
     def on_modified(self):
-        self.file_pusher_file_changed()
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
-class FileEventHandlerOverwriteOnce(FileEventHandlerWithFilePusher):
+class FileEventHandlerOverwriteOnce(FileEventHandler):
     """This file handler is meant for files like metadata which may update during the run but should be uploaded upon creation"""
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        super(FileEventHandlerOverwriteOnce, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._file_pusher = file_pusher
+
     def on_created(self):
-        self.file_pusher_file_changed()
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
     def finish(self):
-        self.file_pusher_file_changed()
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
-class FileEventHandlerThrottledOverwrite(FileEventHandlerWithFilePusher):
+class FileEventHandlerThrottledOverwrite(FileEventHandler):
     """This file handler uploads the file atmost every 15 seconds and only if it's size has increased by 20%"""
     # Don't upload
     RATE_LIMIT_SECONDS = 15
@@ -149,8 +148,10 @@ class FileEventHandlerThrottledOverwrite(FileEventHandlerWithFilePusher):
     # Wait to upload until size has increased 20% from last upload
     RATE_LIMIT_SIZE_INCREASE = 1.2
 
-    def __init__(self, *args, **kwargs):
-        super(FileEventHandlerThrottledOverwrite, self).__init__(*args, **kwargs)
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        super(FileEventHandlerThrottledOverwrite, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._file_pusher = file_pusher
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
 
@@ -180,13 +181,12 @@ class FileEventHandlerThrottledOverwrite(FileEventHandlerWithFilePusher):
         return 0
 
     def finish(self):
-        if self.current_size != self._last_uploaded_size:
-            self.file_pusher_file_changed()
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
     def save_file(self):
         self._last_uploaded_time = time.time()
         self._last_uploaded_size = self.current_size
-        self.file_pusher_file_changed()
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
 class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwrite):
@@ -211,24 +211,29 @@ class FileEventHandlerThrottledOverwriteMinWait(FileEventHandlerThrottledOverwri
         if time_elapsed > self.min_wait_for_size(self.current_size):
             self.save_file()
 
-class FileEventHandlerOverwriteDeferred(FileEventHandlerWithFilePusher):
+class FileEventHandlerOverwriteDeferred(FileEventHandler):
     """This file handler only updates at the end of the run"""
+    def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
+        super(FileEventHandlerOverwriteDeferred, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._file_pusher = file_pusher
+
     def finish(self):
-        # We use copy=False to avoid possibly expensive copies, and because
-        # user files shouldn't still be changing at the end of the run.
-        self.file_pusher_file_changed()
+        # TODO(artifacts): removed copy=False
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
-class FileEventHandlerConfig(FileEventHandlerWithFilePusher):
+class FileEventHandlerConfig(FileEventHandler):
     """Set the config instead of uploading the file"""
     RATE_LIMIT_SECONDS = 30
 
     def __init__(self, file_path, save_name, api, file_pusher, run, *args, **kwargs):
         self._api = api
         super(FileEventHandlerConfig, self).__init__(
-            file_path, save_name, api, file_pusher, *args, **kwargs)
-        self._run = run
+            file_path, save_name, api, *args, **kwargs)
         self._last_sent = time.time() - self.RATE_LIMIT_SECONDS
+        self._file_pusher = file_pusher
+        self._run = run
         self._thread = None
 
     def on_created(self):
@@ -266,7 +271,7 @@ class FileEventHandlerConfig(FileEventHandlerWithFilePusher):
         # TODO(adrian): ensure the file content will exactly match Bucket.config
         # ie. push the file content as a string
         self._api.upsert_run(id=self._run.storage_id, config=config_dict)
-        self.file_pusher_file_changed()
+        self._file_pusher.file_changed(self.save_name, self.file_path)
         self._last_sent = time.time()
 
     def finish(self):
@@ -277,8 +282,14 @@ class FileEventHandlerConfig(FileEventHandlerWithFilePusher):
         self._update()
 
 
-class FileEventHandlerSummary(FileEventHandlerWithFilePusher):
+class FileEventHandlerSummary(FileEventHandler):
     """Read the file and add to the file push api"""
+
+    def __init__(self, file_path, save_name, api, file_pusher, run, *args, **kwargs):
+        super(FileEventHandlerSummary, self).__init__(
+            file_path, save_name, api, *args, **kwargs)
+        self._api = api
+        self._file_pusher = file_pusher
 
     def on_created(self):
         self.on_modified()
@@ -288,7 +299,7 @@ class FileEventHandlerSummary(FileEventHandlerWithFilePusher):
 
     def finish(self):
         self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
-        self.file_pusher_file_changed()
+        self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
 class FileEventHandlerTextStream(FileEventHandler):
@@ -480,6 +491,9 @@ class RunManager(object):
         self._output = output
         self._port = port
 
+        # Connect to the server early to let it know we are starting up
+        self._socket = wandb_socket.Client(self._port)
+
         self._api = run.api
         self._project = self._resolve_project_name(project)
 
@@ -488,7 +502,6 @@ class RunManager(object):
         self._file_count = 0
         self._init_file_observer()
 
-        self._socket = wandb_socket.Client(self._port)
         # Calling .start() on _meta and _system_stats will spin a thread that reports system stats every 30 seconds
         self._system_stats = stats.SystemStats(run, self._api)
         self._meta = meta.Meta(self._api, self._run.dir)
@@ -503,6 +516,11 @@ class RunManager(object):
         if self._run.program:
             self._meta.data["program"] = self._run.program
             self._meta.data["args"] = self._run.args
+        # Set code path in config
+        if self._meta.data.get("codePath"):
+            self._config._set_wandb("code_path", util.to_forward_slash_path(
+                os.path.join("code", self._meta.data["codePath"])))
+            self._config.persist()
         # Write our initial metadata after overriding the defaults
         self._meta.write()
         self._tensorboard_watchers = []
@@ -519,8 +537,6 @@ class RunManager(object):
             "live": []
         }
         self._file_policy_lock = threading.Lock()
-
-        self._artifacts = {}
 
         logger.debug("Initialized sync for %s/%s", self._project, self._run.id)
 
@@ -604,10 +620,35 @@ class RunManager(object):
         self._unblock_file_observer()
 
     def _end_file_syncing(self, exitcode):
+        try:
+            # avoid hanging if we crashed before the observer was started
+            if self._file_observer.is_alive():
+                # rather unfortunatly we need to manually do a final scan of the dir
+                # with `queue_events`, then iterate through all events before stopping
+                # the observer to catch all files written.  First we need to prevent the
+                # existing thread from consuming our final events, then we process each one.
+                self._file_observer._timeout = 0
+                self._file_observer._stopped_event.set()
+                self._file_observer.join()
+                self.emitter.queue_events(0)
+                while True:
+                    try:
+                        self._file_observer.dispatch_events(self._file_observer.event_queue, 0)
+                    except queue.Empty:
+                        break
+                # Calling stop unschedules any inflight events so we manually handled them above 
+                self._file_observer.stop()
+        # TODO: py2 TypeError: PyCObject_AsVoidPtr called with null pointer
+        except TypeError:
+            pass
+        # TODO: py3 SystemError: <built-in function stop> returned a result with an error set
+        except SystemError:
+            pass
+
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
         ignore_globs = self._api.settings("ignore_globs")
-        for dirpath, _, filenames in os.walk(self._run.dir, followlinks=True):
+        for dirpath, _, filenames in os.walk(self._run.dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._run.dir)
@@ -674,7 +715,6 @@ class RunManager(object):
         file_path: the file's actual path
         save_name: its path relative to the run directory (aka the watch directory)
         """
-
         if save_name not in self._file_event_handlers:
             if save_name == 'wandb-history.jsonl':
                 self._api.get_file_stream_api().set_file_policy(save_name, file_stream.JsonlFilePolicy())
@@ -710,7 +750,7 @@ class RunManager(object):
                 self._run.summary.load()
                 self._api.get_file_stream_api().set_file_policy(save_name, file_stream.SummaryFilePolicy())
                 self._file_event_handlers[save_name] = FileEventHandlerSummary(
-                    file_path, save_name, self._api, self._file_pusher)
+                    file_path, save_name, self._api, self._file_pusher, self._run)
             elif save_name.startswith('media/') or save_name.startswith('code/') or save_name in ["requirements.txt", "diff.patch"]:
                 # Save media files and special wandb files immediately
                 self._file_event_handlers[save_name] = FileEventHandlerOverwrite(
@@ -719,21 +759,16 @@ class RunManager(object):
                 self._file_event_handlers[save_name] = FileEventHandlerOverwriteOnce(
                     file_path, save_name, self._api, self._file_pusher)
             else:
-                # Regular files
                 Handler = FileEventHandlerOverwriteDeferred
-                for g in self._user_file_policies['live']:
-                    if fnmatch.fnmatch(save_name, g):
-                        Handler = FileEventHandlerThrottledOverwriteMinWait
-                artifact_id = None
-                for g, artifact in self._artifacts.items():
-                    # TODO: This logic is not correct. wandb.save() is magical. Might need
-                    # to rethink.
-                    if fnmatch.fnmatch(save_name, g) or save_name.startswith(g):
-                        # Use the first one. Overlapping globs would certainly cause trouble...
-                        artifact_id = artifact['id']
-                        break
+                for policy, globs in six.iteritems(self._user_file_policies):
+                    if policy == "end":
+                        continue
+                    for g in globs:
+                        if any(save_name in p for p in glob.glob(os.path.join(self._run.dir, g))):
+                            if policy == "live":
+                                Handler = FileEventHandlerThrottledOverwriteMinWait
                 self._file_event_handlers[save_name] = Handler(
-                    file_path, save_name, self._api, self._file_pusher, artifact_id=artifact_id)
+                    file_path, save_name, self._api, self._file_pusher)
         return self._file_event_handlers[save_name]
 
     """ RUN MANAGEMENT STUFF """
@@ -894,11 +929,16 @@ class RunManager(object):
                 # Currently we assume we're not resuming in the case of resume = auto,
                 # and we throw an error in the case of resume = must.
                 logger.info("checking resume status, waiting at most %d seconds" % InternalApi.HTTP_TIMEOUT)
+
+                if not self._project:
+                    raise LaunchError(
+                        "resume='must' but no project is specified. Pass project to init: wandb.init(project=\"...\")")
+
                 async_resume_status = util.async_call(self._api.run_resume_status, InternalApi.HTTP_TIMEOUT)
                 resume_status, thread = async_resume_status(self._api.settings("entity"), self._project, self._run.id)
 
                 if resume_status == None and self._run.resume == 'must':
-                    if thread.isAlive():
+                    if thread.is_alive():
                         raise LaunchError(
                             "resume='must' but we were unable to connect to the W&B service after %i seconds" % InternalApi.HTTP_TIMEOUT)
                     else:
@@ -921,7 +961,7 @@ class RunManager(object):
             logger.info("upserting run before process can begin, waiting at most %d seconds" % InternalApi.HTTP_TIMEOUT)
             async_upsert = util.async_call(self._upsert_run, timeout=InternalApi.HTTP_TIMEOUT)
             _, self._upsert_run_thread = async_upsert(True, storage_id, env)
-            if self._upsert_run_thread.isAlive():
+            if self._upsert_run_thread.is_alive():
                 logger.error("Failed to connect to W&B servers after %i seconds.\
                     Letting user process proceed while attempting to reconnect." % InternalApi.HTTP_TIMEOUT)
 
@@ -1139,56 +1179,36 @@ class RunManager(object):
         wandb.termlog(
             "Wandb version %s is available!  To upgrade, please run:\n $ pip install wandb --upgrade" % latest_version)
 
-    def _get_or_create_artifact(self, artifact_name):
-        artifact_id = self._api.get_artifact(self.run.entity, self.run.project, artifact_name)
-        if artifact_id is None:
-            artifact_id = self._api.create_artifact(self.run.entity, self.run.project, artifact_name)
-        return artifact_id
-
     def update_user_file_policy(self, policy):
-        artifact_name = policy['artifact']
-        policy_name = policy['policy']
-        glob_str = policy['glob']
         with self._file_policy_lock:
-            if artifact_name is not None and self._artifacts.get(glob_str) is None:
-                # TODO: we probably want to do this in the user process so they can
-                # modify the artifact after creating it (add tags etc)
-                artifact_id = self._get_or_create_artifact(artifact_name)
-                artifact = self._api.create_artifact_version(self.run.entity, self.run.project, self.run.id, artifact_id)
-                self._artifacts[glob_str] = artifact
-            for path in glob.glob(glob_str):
+            for path in glob.glob(policy["glob"]):
                 save_name = os.path.relpath(path, self._run.dir)
                 # Remove the existing handler if we haven't already made it live
                 current = self._file_event_handlers.get(save_name)
                 is_live = isinstance(current, FileEventHandlerThrottledOverwriteMinWait)
-                if current and policy_name == "live" and not is_live:
+                if current and policy["policy"] == "live" and not is_live:
                     del self._file_event_handlers[save_name]
-            self._user_file_policies[policy_name].append(glob_str)
+            self._user_file_policies[policy["policy"]].append(policy["glob"])
+    
+    def use_artifact(self, message):
+        name = message['name']
+        path = message['path']
+        metadata = message['metadata']
+        la = artifacts.LocalArtifact(self._api, path, metadata=metadata,
+                                     file_pusher=self._file_pusher, is_user_created=True)
+        server_artifact = la.save(name)
+        self._api.use_artifact(server_artifact['id'])
 
     def log_artifact(self, message):
         name = message['name']
-        path = message['path']
+        paths = message['paths']
         description = message['description']
         labels = json.dumps(message['labels']) if 'labels' in message else None
-        metadata = json.dumps(message['metadata']) if 'metadata' in message else None
+        metadata = message['metadata'] if 'metadata' in message else None
+        aliases = message['aliases'] if 'aliases' in message else None
 
-        artifact_id = self._get_or_create_artifact(name)
-        # TODO: Split alias off name and set alias if passed ('name:alias')
-        artifact_version = self._api.create_artifact_version(self.run.entity, self.run.project, self.run.id,
-                                                             artifact_id, description=description,
-                                                             metadata=metadata, labels=labels)
-
-        # TODO: If there is more than one artifact in that have common file
-        #   names, we have a problem.
-        # TODO: let user override path within artifact
-        if os.path.isdir(path):
-            # TODO: is os.walk better / faster? Isn't there an even faster thing
-            # in python3?
-            for root, _, files in os.walk(path):
-                for f in files:
-                    self._file_pusher.file_changed(f, os.path.join(root, f), artifact_version['id'])
-        else:
-            self._file_pusher.file_changed(path, path, artifact_version['id'])
+        la = artifacts.LocalArtifact(self._api, paths, metadata=metadata, file_pusher=self._file_pusher)
+        la.save(name, description=description, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):
         try:
@@ -1299,6 +1319,8 @@ class RunManager(object):
                     elif parsed.get("tensorboard"):
                         if parsed["tensorboard"].get("logdir"):
                             self.start_tensorboard_watcher(parsed["tensorboard"]["logdir"], parsed["tensorboard"]["save"])
+                    elif parsed.get("use_artifact"):
+                        self.use_artifact(parsed["use_artifact"])
                     elif parsed.get("log_artifact"):
                         self.log_artifact(parsed["log_artifact"])
                     else:
