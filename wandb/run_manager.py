@@ -49,6 +49,7 @@ from wandb import wandb_socket
 from wandb.compat import windows
 from wandb.apis import InternalApi
 from wandb.apis import CommError
+from wandb.apis import artifacts
 
 
 logger = logging.getLogger(__name__)
