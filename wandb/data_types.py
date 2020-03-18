@@ -124,10 +124,11 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self):
+    def __init__(self, caption=None):
         self._path = None
         # The run under which this object is bound, if any.
         self._run = None
+        self._caption = caption
 
     def _set_file(self, path, is_tmp=False, extension=None):
         self._path = path
@@ -142,6 +143,13 @@ class Media(WBValue):
     @classmethod
     def get_media_subdir(cls):
         raise NotImplementedError
+
+    @classmethod
+    def captions(cls, media_items):
+        if media_items[0]._caption != None:
+            return [m._caption for m in media_items]
+        else:
+            return False
 
     def is_bound(self):
         return self._run is not None
@@ -510,7 +518,7 @@ class Molecule(BatchableMedia):
 
     SUPPORTED_TYPES = set(['pdb', 'pqr', 'mmcif', 'mcif', 'cif', 'sdf', 'sd', 'gro', 'mol2', 'mmtf'])
 
-    def __init__(self, data_or_path, **kwargs):
+    def __init__(self, data_or_path, caption=None):
         super(Molecule, self).__init__()
 
         if hasattr(data_or_path, 'name'):
@@ -557,6 +565,8 @@ class Molecule(BatchableMedia):
     def to_json(self, run):
         json_dict = super(Molecule, self).to_json(run)
         json_dict['_type'] = 'molecule-file'
+        if self._caption:
+            json_dict['caption'] = self._caption
         return json_dict
 
     @classmethod
@@ -577,6 +587,7 @@ class Molecule(BatchableMedia):
             "filenames": [obj['path'] for obj in jsons],
             "count": len(jsons),
             'objects': jsons,
+            "captions": Media.captions(molecule_list)
         }
 
 
