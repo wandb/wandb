@@ -5,13 +5,13 @@ package wandb_internal;
 import "google/protobuf/timestamp.proto";
 
 
-service InternalService {
-  rpc Log(LogData) returns (LogResult) {}
-  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
-  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
-  rpc RunGet(RunGetRequest) returns (RunGetResult) {}
-  rpc RunUpdate(RunUpdateRequest) returns (RunUpdateResult) {}
-}
+//service InternalService {
+//  rpc Log(LogData) returns (LogResult) {}
+//  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
+//  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
+//  rpc RunGet(RunGetRequest) returns (RunGetResult) {}
+//  rpc RunUpdate(RunUpdateRequest) returns (RunUpdateResult) {}
+//}
 
 message LogValue {
   double value = 1;

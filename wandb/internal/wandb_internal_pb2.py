@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='wandb_internal',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n#wandb/internal/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1fgoogle/protobuf/timestamp.proto\"d\n\x08LogValue\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0f\n\x07integer\x18\x02 \x01(\x12\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0f\n\x07\x62oolean\x18\x04 \x01(\x08\x12\x0c\n\x04\x64\x61ta\x18\x05 \x01(\x0c\x12\x0c\n\x04json\x18\x10 \x01(\t\"?\n\x07LogItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\'\n\x05value\x18\x02 \x01(\x0b\x32\x18.wandb_internal.LogValue\">\n\x07LogData\x12%\n\x04item\x18\x01 \x03(\x0b\x32\x17.wandb_internal.LogItem\x12\x0c\n\x04json\x18\x10 \x01(\t\")\n\tLogResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\xb8\x01\n\nOutputData\x12:\n\x0boutput_type\x18\x01 \x01(\x0e\x32%.wandb_internal.OutputData.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0c\n\x04json\x18\x10 \x01(\t\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\",\n\x0cOutputResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x17\n\x15ServerShutdownRequest\"4\n\x14ServerShutdownResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x15\n\x13ServerStatusRequest\"2\n\x12ServerStatusResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x81\x01\n\x03Run\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0b\x63onfig_json\x18\x03 \x01(\t\x12\x14\n\x0csummary_json\x18\x04 \x01(\t\x12\x0c\n\x04team\x18\x05 \x01(\t\x12\x0f\n\x07project\x18\x06 \x01(\t\x12\x12\n\nstorage_id\x18\x10 \x01(\t\"%\n\x05\x45rror\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x1b\n\rRunGetRequest\x12\n\n\x02id\x18\x01 \x01(\t\"V\n\x0cRunGetResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"4\n\x10RunUpdateRequest\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\"Y\n\x0fRunUpdateResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"\x1b\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\"1\n\nConfigData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x13\n\x0b\x63onfig_json\x18\x03 \x01(\t\"3\n\x0bSummaryData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x14\n\x0csummary_json\x18\x04 \x01(\t\"\x19\n\tFilesItem\x12\x0c\n\x04name\x18\x01 \x01(\t\"E\n\tFilesData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12(\n\x05\x66iles\x18\x02 \x03(\x0b\x32\x19.wandb_internal.FilesItem\"\x9b\x02\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12&\n\x03log\x18\x02 \x01(\x0b\x32\x17.wandb_internal.LogDataH\x00\x12\"\n\x03run\x18\x03 \x01(\x0b\x32\x13.wandb_internal.RunH\x00\x12,\n\x06output\x18\x04 \x01(\x0b\x32\x1a.wandb_internal.OutputDataH\x00\x12,\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1a.wandb_internal.ConfigDataH\x00\x12*\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x19.wandb_internal.FilesDataH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.ControlB\x06\n\x04\x64\x61ta2\xa5\x03\n\x0fInternalService\x12;\n\x03Log\x12\x17.wandb_internal.LogData\x1a\x19.wandb_internal.LogResult\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x12G\n\x06RunGet\x12\x1d.wandb_internal.RunGetRequest\x1a\x1c.wandb_internal.RunGetResult\"\x00\x12P\n\tRunUpdate\x12 .wandb_internal.RunUpdateRequest\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n#wandb/internal/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1fgoogle/protobuf/timestamp.proto\"d\n\x08LogValue\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0f\n\x07integer\x18\x02 \x01(\x12\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0f\n\x07\x62oolean\x18\x04 \x01(\x08\x12\x0c\n\x04\x64\x61ta\x18\x05 \x01(\x0c\x12\x0c\n\x04json\x18\x10 \x01(\t\"?\n\x07LogItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\'\n\x05value\x18\x02 \x01(\x0b\x32\x18.wandb_internal.LogValue\">\n\x07LogData\x12%\n\x04item\x18\x01 \x03(\x0b\x32\x17.wandb_internal.LogItem\x12\x0c\n\x04json\x18\x10 \x01(\t\")\n\tLogResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\xb8\x01\n\nOutputData\x12:\n\x0boutput_type\x18\x01 \x01(\x0e\x32%.wandb_internal.OutputData.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0c\n\x04json\x18\x10 \x01(\t\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\",\n\x0cOutputResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x17\n\x15ServerShutdownRequest\"4\n\x14ServerShutdownResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x15\n\x13ServerStatusRequest\"2\n\x12ServerStatusResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x81\x01\n\x03Run\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0b\x63onfig_json\x18\x03 \x01(\t\x12\x14\n\x0csummary_json\x18\x04 \x01(\t\x12\x0c\n\x04team\x18\x05 \x01(\t\x12\x0f\n\x07project\x18\x06 \x01(\t\x12\x12\n\nstorage_id\x18\x10 \x01(\t\"%\n\x05\x45rror\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x1b\n\rRunGetRequest\x12\n\n\x02id\x18\x01 \x01(\t\"V\n\x0cRunGetResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"4\n\x10RunUpdateRequest\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\"Y\n\x0fRunUpdateResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"\x1b\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\"1\n\nConfigData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x13\n\x0b\x63onfig_json\x18\x03 \x01(\t\"3\n\x0bSummaryData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x14\n\x0csummary_json\x18\x04 \x01(\t\"\x19\n\tFilesItem\x12\x0c\n\x04name\x18\x01 \x01(\t\"E\n\tFilesData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12(\n\x05\x66iles\x18\x02 \x03(\x0b\x32\x19.wandb_internal.FilesItem\"\x9b\x02\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12&\n\x03log\x18\x02 \x01(\x0b\x32\x17.wandb_internal.LogDataH\x00\x12\"\n\x03run\x18\x03 \x01(\x0b\x32\x13.wandb_internal.RunH\x00\x12,\n\x06output\x18\x04 \x01(\x0b\x32\x1a.wandb_internal.OutputDataH\x00\x12,\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1a.wandb_internal.ConfigDataH\x00\x12*\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x19.wandb_internal.FilesDataH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.ControlB\x06\n\x04\x64\x61tab\x06proto3')
   ,
   dependencies=[google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,])
 
@@ -1155,65 +1155,5 @@ Record = _reflection.GeneratedProtocolMessageType('Record', (_message.Message,),
   })
 _sym_db.RegisterMessage(Record)
 
-
-
-_INTERNALSERVICE = _descriptor.ServiceDescriptor(
-  name='InternalService',
-  full_name='wandb_internal.InternalService',
-  file=DESCRIPTOR,
-  index=0,
-  serialized_options=None,
-  serialized_start=1700,
-  serialized_end=2121,
-  methods=[
-  _descriptor.MethodDescriptor(
-    name='Log',
-    full_name='wandb_internal.InternalService.Log',
-    index=0,
-    containing_service=None,
-    input_type=_LOGDATA,
-    output_type=_LOGRESULT,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='ServerShutdown',
-    full_name='wandb_internal.InternalService.ServerShutdown',
-    index=1,
-    containing_service=None,
-    input_type=_SERVERSHUTDOWNREQUEST,
-    output_type=_SERVERSHUTDOWNRESULT,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='ServerStatus',
-    full_name='wandb_internal.InternalService.ServerStatus',
-    index=2,
-    containing_service=None,
-    input_type=_SERVERSTATUSREQUEST,
-    output_type=_SERVERSTATUSRESULT,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='RunGet',
-    full_name='wandb_internal.InternalService.RunGet',
-    index=3,
-    containing_service=None,
-    input_type=_RUNGETREQUEST,
-    output_type=_RUNGETRESULT,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
-    name='RunUpdate',
-    full_name='wandb_internal.InternalService.RunUpdate',
-    index=4,
-    containing_service=None,
-    input_type=_RUNUPDATEREQUEST,
-    output_type=_RUNUPDATERESULT,
-    serialized_options=None,
-  ),
-])
-_sym_db.RegisterServiceDescriptor(_INTERNALSERVICE)
-
-DESCRIPTOR.services_by_name['InternalService'] = _INTERNALSERVICE
 
 # @@protoc_insertion_point(module_scope)
