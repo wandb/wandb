@@ -518,8 +518,8 @@ class Molecule(BatchableMedia):
 
     SUPPORTED_TYPES = set(['pdb', 'pqr', 'mmcif', 'mcif', 'cif', 'sdf', 'sd', 'gro', 'mol2', 'mmtf'])
 
-    def __init__(self, data_or_path, caption=None):
-        super(Molecule, self).__init__()
+    def __init__(self, data_or_path, **kwargs):
+        super(Molecule, self).__init__(**kwargs)
 
         if hasattr(data_or_path, 'name'):
             # if the file has a path, we just detect the type and copy it from there
@@ -586,7 +586,6 @@ class Molecule(BatchableMedia):
             "_type": "molecule",
             "filenames": [obj['path'] for obj in jsons],
             "count": len(jsons),
-            'objects': jsons,
             "captions": Media.captions(molecule_list)
         }
 
