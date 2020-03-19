@@ -394,7 +394,7 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
                 if labels is not None and (isinstance(pred_classes[i], int)
                                     or isinstance(pred_classes[0], np.integer)):
                     pred_dict = labels[pred_classes[i]]
-                    true_dict = labels[true_classes[i]]
+                    true_dict = labels[true_classes[j]]
                 else:
                     pred_dict = pred_classes[i]
                     true_dict = true_classes[j]
