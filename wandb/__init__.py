@@ -789,7 +789,7 @@ def try_to_set_up_global_logging():
 
     It may fail (and return False) eg. if the current directory isn't user-writable
     """
-    root = logging.getLogger()
+    root = logging.getLogger("wandb")
     root.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
