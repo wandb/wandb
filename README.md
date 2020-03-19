@@ -1,5 +1,7 @@
 # Experimental wandb client
 
+https://paper.dropbox.com/doc/Cling-CLI-Refactor-lETNuiP0Rax8yjTi03Scp
+
 ## Play along
 
 `pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb-ng`
@@ -9,22 +11,36 @@ Or from pypi test (last devel release - might be out of date):
 - https://test.pypi.org/project/wandb-ng/
 - `pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple --upgrade wandb-ng`
 
+## Code organization
+
+wandb/sdk          - User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
+wandb/sdk_py27     - Generated files [currently by strip.sh]
+wandb/backend      - Interface to backend execution 
+wandb/internal     - Backend threads/processes
+wandb/apis         - Public api (still has internal api but this should be moved to wandb/internal)
+wandb/cli          - Handlers for command line functionality
+wandb/stuff        - Stuff copied from wandb-og, needs to be refactored or find a place
+wandb/agent        - agent/super agent stuff
+wandb/keras        - keras integration
+wandb/pytorch      - pytorch integration
+
+## Code checks
+
+ - Reformat: `tox -e reformat`
+ - Type check: `tox -e mypy`
+ - Misc: `tox`
+
 ## Tasks
 
-Week of 2020-02-17 
- - [x] Force all but linux python2 users to use multiprocessing spawn
- - [x] Make non-`__main__` users happy
- - [x] Make python logging clean (handle early logging somehow)
- - [ ] Support console log
- - [ ] Support online and offline modes (and hybrid mode), decide default later.
- - [ ] Extend settings to control hundreds? of tunables?
- - [ ] Add metadata sync
- - [ ] Add system metrics
- 
-Week of 2020-02-24
- - [ ] Add file sync
+ - [ ] Improve hybrid (poor connectivity mode) - jhr
+ - [ ] Add metadata sync - jhr
+ - [ ] Add system metrics - jhr
+ - [ ] Add summary metrics mirror - jhr
+ - [x] Add file sync
  - [ ] Add media logging
- - [ ] Add frameworks (keras, pytorch)
+ - [x] Add keras framework
+ - [ ] Add pytorch framework
+ - [ ] Add other frameworks
  - [ ] Basic CLI functionality
 
 ## Progress
@@ -52,7 +68,7 @@ CLI:
 
 Functionality:
  - [ ] system metrics
- - [ ] console log
+ - [x] console log
  - [ ] offline
  - [ ] Unit tests
  - [ ] code coverage
@@ -65,6 +81,7 @@ Goals:
  - [ ] better isolation for extended features (system monitoring, git logging)
  - [ ] offline support improvements: enforce constraints at sync time (code logging, etc)
  - [ ] internal api becomes fully internal, only used by "internal" process
+ - [ ] telemetry of all operations
  
 Bonus:
 - [ ] multi-language synchronizer
@@ -72,15 +89,3 @@ Bonus:
 - [ ] less (no) dependance on local filesytem
 - [ ] type annotations
 - [ ] cleaned up logger
-
-
-## Features
-
-### standardize all CLI->backend updates
-
-Alternatives:
-- RPC
-- multiprocessing queue
-
-Install with:
-`pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb`

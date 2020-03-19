@@ -75,5 +75,3 @@ class Config(object):
         for k, v in six.iteritems(d):
             self._locked[k] = num
             self._items[k] = v
-
-

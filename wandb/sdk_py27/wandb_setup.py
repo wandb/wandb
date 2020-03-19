@@ -82,7 +82,6 @@ class _WandbSetup__WandbSetup(object):
         print("remote", self.git.remote_url)
         print("last", self.git.last_commit)
 
-        
     def _settings_setup(self, settings=None, early_logging=None):
         glob_config = os.path.expanduser('~/.config/wandb/settings')
         loc_config = 'wandb/settings'
@@ -186,8 +185,13 @@ class _WandbSetup__WandbSetup(object):
         self._safe_makedirs(log_dir)
         self._safe_makedirs(log_files)
         self._safe_symlink(log_base_dir, log_dir, "latest", pid, delete=True)
-        self._safe_symlink(log_base_dir, log_user, "user-debug.txt", pid, delete=True)
-        self._safe_symlink(log_base_dir, log_internal, "internal-debug.txt", pid)
+        self._safe_symlink(log_base_dir,
+                           log_user,
+                           "user-debug.txt",
+                           pid,
+                           delete=True)
+        self._safe_symlink(log_base_dir, log_internal, "internal-debug.txt",
+                           pid)
 
         #print("loguser", log_user)
         #print("loginternal", log_internal)
@@ -227,7 +231,9 @@ class _WandbSetup__WandbSetup(object):
         self._multiprocessing = ctx
         #print("t3b", self._multiprocessing.get_start_method())
 
-        self._data_filename = os.path.join(self._log_dir, self._settings.data_spec.format(**self._filename_template))
+        self._data_filename = os.path.join(
+            self._log_dir,
+            self._settings.data_spec.format(**self._filename_template))
 
     def on_finish(self):
         logger.info("done")

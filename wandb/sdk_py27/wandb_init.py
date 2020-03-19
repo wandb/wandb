@@ -56,6 +56,7 @@ logger = logging.getLogger("wandb")
 def online_status(*args, **kwargs):
     pass
 
+
 def _get_python_type():
     try:
         if 'terminal' in get_ipython().__module__:
@@ -157,16 +158,22 @@ class _WandbInit(object):
         logger.info("redirect")
 
         if self._use_redirect:
-            out=False
-            err=False
-            out=True
-            err=True
+            out = False
+            err = False
+            out = True
+            err = True
             if out:
                 out_cap = redirect.Capture(name="stdout", cb=self._redirect_cb)
-                out_redir = redirect.Redirect(src="stdout", dest=out_cap, unbuffered=True, tee=True)
+                out_redir = redirect.Redirect(src="stdout",
+                                              dest=out_cap,
+                                              unbuffered=True,
+                                              tee=True)
             if err:
                 err_cap = redirect.Capture(name="stderr", cb=self._redirect_cb)
-                err_redir = redirect.Redirect(src="stderr", dest=err_cap, unbuffered=True, tee=True)
+                err_redir = redirect.Redirect(src="stderr",
+                                              dest=err_cap,
+                                              unbuffered=True,
+                                              tee=True)
             if out:
                 out_redir.install()
             if err:
@@ -191,8 +198,10 @@ class _WandbInit(object):
             self._save_stderr = sys.stderr
             stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
             stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-            stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-            stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+            stdout_redirector = io_wrap.FileRedirector(sys.stdout,
+                                                       stdout_slave)
+            stderr_redirector = io_wrap.FileRedirector(sys.stderr,
+                                                       stderr_slave)
             stdout_redirector.redirect()
             stderr_redirector.redirect()
             self.stdout_redirector = stdout_redirector
@@ -241,7 +250,8 @@ class _WandbInit(object):
             in_jupyter = _get_python_type() != "python"
             if in_jupyter:
                 app_url = s.base_url.replace("//api.", "//app.")
-                print("Go to this URL in a browser: {}/authorize\n".format(app_url))
+                print("Go to this URL in a browser: {}/authorize\n".format(
+                    app_url))
                 key = getpass.getpass("Enter your authorization code:\n")
             else:
                 key = prompt('Enter api key: ', is_password=True)
@@ -259,17 +269,20 @@ class _WandbInit(object):
                 stdout_master_fd, stdout_slave_fd = win32_create_pipe()
                 stderr_master_fd, stderr_slave_fd = win32_create_pipe()
             else:
-                stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
-                stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
+                stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(
+                    resize=False)
+                stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(
+                    resize=False)
 
         backend = Backend(mode=s.mode)
-        backend.ensure_launched(settings=s,
-                                log_fname=wl._log_internal_filename,
-                                data_fname=wl._data_filename,
-                                stdout_fd=stdout_master_fd,
-                                stderr_fd=stderr_master_fd,
-                                use_redirect=self._use_redirect,
-                                )
+        backend.ensure_launched(
+            settings=s,
+            log_fname=wl._log_internal_filename,
+            data_fname=wl._data_filename,
+            stdout_fd=stdout_master_fd,
+            stderr_fd=stderr_master_fd,
+            use_redirect=self._use_redirect,
+        )
         backend.server_connect()
 
         # resuming needs access to the server, check server_status()?

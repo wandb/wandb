@@ -37,7 +37,6 @@ defaults = dict(
     system_sample_seconds=2,
     system_samples=15,
     heartbeat_seconds=30,
-
     log_base_dir="wandb",
     log_dir="",
     log_user_spec="wandb-{timespec}-{pid}-debug-user.txt",
@@ -47,7 +46,6 @@ defaults = dict(
 
     # where files are temporary stored when saving
     files_dir="",
-
     data_base_dir="wandb",
     data_dir="",
     data_spec="wandb-{timespec}-{pid}-data.bin",
