@@ -2,6 +2,7 @@
 
 import wandb
 from . import wandb_config
+
 import shortuuid  # type: ignore
 import click
 import platform
@@ -30,9 +31,20 @@ class Run(object):
         self.run_id = generate_id()
         self._step = 0
         self._run_obj = None
+        self._run_dir = None
 
         if config:
             self.config.update(config)
+
+    def __getstate__(self):
+        pass
+
+    def __setstate__(self, state):
+        pass
+
+    @property
+    def dir(self):
+        return self._run_dir
 
     # def _repr_html_(self):
     #     url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(

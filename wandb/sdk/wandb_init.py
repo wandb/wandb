@@ -7,8 +7,7 @@ from prompt_toolkit import prompt  # type: ignore
 import wandb
 from .wandb_run import Run
 from wandb.util.globals import set_global
-# from wandb.internal.backend_grpc import Backend
-from wandb.internal.backend_mp import Backend
+from wandb.backend.backend import Backend
 from wandb.stuff import util2
 
 import json

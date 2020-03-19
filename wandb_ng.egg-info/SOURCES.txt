@@ -10,6 +10,7 @@ wandb/agent/agent.py
 wandb/apis/__init__.py
 wandb/apis/file_stream.py
 wandb/apis/internal.py
+wandb/backend/backend.py
 wandb/cli/__init__.py
 wandb/cli/cli.py
 wandb/compat/__init__.py
@@ -19,9 +20,6 @@ wandb/errors/__init__.py
 wandb/errors/error.py
 wandb/errors/term.py
 wandb/internal/__init__.py
-wandb/internal/backend.py
-wandb/internal/backend_grpc.py
-wandb/internal/backend_mp.py
 wandb/internal/datastore.py
 wandb/internal/wandb_internal_client.py
 wandb/internal/wandb_internal_codegen.py
@@ -31,6 +29,7 @@ wandb/internal/wandb_internal_server.py
 wandb/internal/mpmain/__init__.py
 wandb/internal/mpmain/__main__.py
 wandb/keras/__init__.py
+wandb/old/backend_grpc.py
 wandb/sdk/__init__.py
 wandb/sdk/wandb_config.py
 wandb/sdk/wandb_config_test.py
