@@ -192,9 +192,9 @@ class LocalArtifact(object):
 
     def save(self, name, description=None, aliases=None, labels=None):
         """Returns the server artifact."""
-        artifact_id = self._api.create_artifact(name)
-        self._server_artifact = self._api.create_artifact_version(
-            artifact_id, self._local_manifest.digest,
+        artifact_type_id = self._api.create_artifact_type(name)
+        self._server_artifact = self._api.create_artifact(
+            artifact_type_id, self._local_manifest.digest,
             metadata=json.dumps(self._local_manifest.metadata),
             aliases=aliases, labels=labels, description=description,
             is_user_created=self._is_user_created)
@@ -228,7 +228,7 @@ class LocalArtifact(object):
         return self._server_artifact
 
     def commit(self):
-        self._api.commit_artifact_version(self._server_artifact.id)
+        self._api.commit_artifact(self._server_artifact.id)
 
     def wait(self):
         if self._server_artifact is None:

@@ -101,6 +101,8 @@ class UploadJob(threading.Thread):
         if upload_url.startswith('/'):
             upload_url = '{}{}'.format(self._api.api_url, upload_url)
         try:
+            print(upload_url)
+            print(extra_headers)
             with open(self.save_path, 'rb') as f:
                 self._api.upload_file_retry(
                     upload_url,
@@ -267,7 +269,7 @@ class FilePusher(object):
                 file_specs = []
                 for e, checksum in zip(batch, checksums):
                     file_specs.append({
-                        'name': e.save_name, 'artifactVersionID': e.artifact_id, 'fingerprint': checksum})
+                        'name': e.save_name, 'artifactID': e.artifact_id, 'fingerprint': checksum})
                 result = self._api.prepare_files(file_specs)
 
                 for e, file_spec in zip(batch, file_specs):
@@ -290,7 +292,7 @@ class FilePusher(object):
                 batch = []
 
             for artifact_id in artifact_commits:
-                self._api.commit_artifact_version(artifact_id)
+                self._api.commit_artifact(artifact_id)
 
             # And stop the infinite loop if we've finished
             if finished:

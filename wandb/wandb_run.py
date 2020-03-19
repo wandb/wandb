@@ -394,7 +394,7 @@ class Run(object):
         project_name = self.api.settings('project')
         if name is not None and path is None and metadata is None:
             public_api = PublicApi(self.api.settings())
-            artifact = public_api.artifact_version('%s/%s/%s' % (entity_name, project_name, name))
+            artifact = public_api.artifact('%s/%s/%s' % (entity_name, project_name, name))
         if artifact is not None:
             # TODO: assert artifact has correct entity_name, project_name
             # TODO: This should throw if not available

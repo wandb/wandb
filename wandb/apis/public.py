@@ -81,8 +81,8 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
     }
 }'''
 
-ARTIFACTS_FRAGMENT = '''
-fragment ArtifactsFragment on ArtifactConnection {
+ARTIFACTS_TYPES_FRAGMENT = '''
+fragment ArtifactTypesFragment on ArtifactTypeConnection {
     edges {
          node {
              id
@@ -99,8 +99,21 @@ fragment ArtifactsFragment on ArtifactConnection {
 }
 '''
 
+ARTIFACT_FRAGMENT = '''
+fragment ArtifactFragment on Artifact{
+    id
+    digest
+    description
+    state
+    createdAt
+    aliases
+    tags
+    metadata
+}
+'''
+
 # TODO, factor out common file fragment
-ARTIFACT_VERSION_FILES_FRAGMENT = '''fragment ArtifactVersionFilesFragment on ArtifactVersion {
+ARTIFACT_FILES_FRAGMENT = '''fragment ArtifactFilesFragment on Artifact {
     files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
         edges {
             node {
@@ -259,8 +272,8 @@ class Api(object):
                              'project/artifact:alias' % path)
 
         art_parts = artifact.split(":")
-        artifact_name, artifact_alias = art_parts[0], art_parts[1]
-        return entity, project, artifact_name, artifact_alias
+        artifact_type, artifact_alias = art_parts[0], art_parts[1]
+        return entity, project, artifact_type, artifact_alias
 
     def projects(self, entity=None, per_page=200):
         """Get projects for a given entity.
@@ -390,10 +403,10 @@ class Api(object):
         return self._sweeps[path]
 
     @normalize_exceptions
-    def artifact_version(self, path=None, expected_digest=None):
+    def artifact(self, path=None, expected_digest=None):
         # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
-        entity, project, artifact_name, artifact_version_name = self._parse_artifact_path(path)
-        return ArtifactVersion(self.client, entity, project, artifact_name, artifact_version_name, expected_digest=expected_digest)
+        entity, project, artifact_type, artifact_alias = self._parse_artifact_path(path)
+        return Artifact(self.client, entity, project, artifact_type, artifact_alias, expected_digest=expected_digest)
 
 
 class Attrs(object):
@@ -576,7 +589,7 @@ class Project(Attrs):
         Returns:
             A :obj:`Files` object, which is an iterator over :obj:`File` obejcts.
         """
-        return ProjectArtifacts(self.client, self.entity, self.name)
+        return ProjectArtifactTypes(self.client, self.entity, self.name)
 
 
 class Runs(Paginator):
@@ -1635,7 +1648,7 @@ class SampledHistoryScan(object):
         self.scan_offset = 0
 
 
-class ProjectArtifacts(Paginator):
+class ProjectArtifactTypes(Paginator):
     QUERY = gql('''
         query ProjectArtifacts(
             $entityName: String!,
@@ -1643,13 +1656,13 @@ class ProjectArtifacts(Paginator):
             $cursor: String,
         ) {
             project(name: $projectName, entityName: $entityName) {
-                artifacts(after: $cursor) {
-                    ...ArtifactsFragment
+                artifactTypes(after: $cursor) {
+                    ...ArtifactTypesFragment
                 }
             }
         }
         %s
-    ''' % ARTIFACTS_FRAGMENT)
+    ''' % ARTIFACTS_TYPES_FRAGMENT)
 
     def __init__(self, client, entity, project, name=None, per_page=50):
         self.entity = entity
@@ -1660,7 +1673,7 @@ class ProjectArtifacts(Paginator):
             'projectName': project,
         }
 
-        super(ProjectArtifacts, self).__init__(client, variable_values, per_page)
+        super(ProjectArtifactTypes, self).__init__(client, variable_values, per_page)
 
     @property
     def length(self):
@@ -1670,14 +1683,14 @@ class ProjectArtifacts(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response['project']['artifacts']['pageInfo']['hasNextPage']
+            return self.last_response['project']['artifactTypes']['pageInfo']['hasNextPage']
         else:
             return True
 
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response['project']['artifacts']['edges'][-1]['cursor']
+            return self.last_response['project']['artifactTypes']['edges'][-1]['cursor']
         else:
             return None
 
@@ -1685,8 +1698,8 @@ class ProjectArtifacts(Paginator):
         self.variables.update({'cursor': self.cursor})
 
     def convert_objects(self):
-        return [Artifact(self.client, self.entity, self.project, r["node"])
-                for r in self.last_response['project']['artifacts']['edges']]
+        return [ArtifactType(self.client, self.entity, self.project, r["node"])
+                for r in self.last_response['project']['artifactTypes']['edges']]
 
 
 class RunArtifacts(Paginator):
@@ -1699,14 +1712,23 @@ class RunArtifacts(Paginator):
         ) {
             project(name: $project, entityName: $entity) {
                 run(name: $runName) {
-                    artifactsPublished(after: $cursor) {
-                        ...ArtifactsFragment
+                    outputArtifacts(after: $cursor) {
+                        edges {
+                            node {
+                                ...ArtifactFragment
+                                cursor
+                            }
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                        }
                     }
                 }
             }
         }
         %s
-    ''' % ARTIFACTS_FRAGMENT)
+    ''' % ARTIFACT_FRAGMENT)
 
     def __init__(self, client, run, per_page=50):
         self.run = run
@@ -1746,7 +1768,7 @@ class RunArtifacts(Paginator):
                 for r in self.last_response['project']['run']['artifactsPublished']['edges']]
 
 
-class Artifact(object):
+class ArtifactType(object):
 
     def __init__(self, client, entity, project, attrs=None):
         self.client = client
@@ -1765,17 +1787,17 @@ class Artifact(object):
         return self._attrs["name"]
 
     def __repr__(self):
-        return "<Artifact {}>".format(self.name)
+        return "<ArtifactType {}>".format(self.name)
 
 
-class ArtifactVersion(object):
+class Artifact(object):
 
-    def __init__(self, client, entity, project, artifact_name, artifact_version_name, attrs=None, expected_digest=None):
+    def __init__(self, client, entity, project, artifact_type_name, artifact_name, attrs=None, expected_digest=None):
         self.client = client
         self.entity = entity
         self.project = project
+        self.artifact_type_name = artifact_type_name
         self.artifact_name = artifact_name
-        self.artifact_version_name = artifact_version_name
         # TODO(artifacts) We can get rid of this when we have server side state tracking
         self._expected_digest = expected_digest
         self._attrs = attrs
@@ -1791,7 +1813,7 @@ class ArtifactVersion(object):
         # TODO: This is a different style than the rest of the paths. The rest of the
         # paths don't include the object type (which makes them hard to distinguish).
         # We should maybe use URIs here.
-        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_name, self.name())
+        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.name())
 
     @property
     def digest(self):
@@ -1807,15 +1829,15 @@ class ArtifactVersion(object):
 
     def load(self):
         query = gql('''
-        query ArtifactVersion(
+        query Artifact(
             $entityName: String!,
             $projectName: String!,
-            $artifactName: String!,
+            $artifactTypeName: String!,
             $name: String!
         ) {
             project(name: $projectName, entityName: $entityName) {
-                artifact(name: $artifactName) {
-                    artifactVersion(name: $name) {
+                artifactType(name: $artifactTypeName) {
+                    artifact(name: $name) {
                         id
                         digest
                         description
@@ -1832,24 +1854,24 @@ class ArtifactVersion(object):
         response = self.client.execute(query, variable_values={
             'entityName': self.entity,
             'projectName': self.project,
-            'artifactName': self.artifact_name,
-            'name': self.artifact_version_name,
+            'artifactTypeName': self.artifact_type_name,
+            'name': self.artifact_name,
         })
         if response is None \
             or response.get('project') is None \
-                or response['project'].get('artifact') is None \
-                or response['project']['artifact'].get('artifactVersion') is None:
-            raise ValueError("Could not find artifact version %s:%s" % (self.artifact_name, self.artifact_version_name))
-        self._attrs = response['project']['artifact']['artifactVersion']
+                or response['project'].get('artifactType') is None \
+                or response['project']['artifactType'].get('artifact') is None:
+            raise ValueError("Could not find artifact %s:%s" % (self.artifact_type_name, self.artifact_name))
+        self._attrs = response['project']['artifactType']['artifact']
         return self._attrs
 
     @normalize_exceptions
     def files(self, names=[], per_page=50):
-        return ArtifactVersionFiles(self.client, self, names, per_page)
+        return ArtifactFiles(self.client, self, names, per_page)
 
     def download(self, rootdir='./artifacts'):
         # TODO: not production
-        dirpath = os.path.join(rootdir, self.artifact_name, self.digest)
+        dirpath = os.path.join(rootdir, self.artifact_type_name, self.digest)
         try:
             os.makedirs(dirpath)
         except FileExistsError:
@@ -1859,42 +1881,41 @@ class ArtifactVersion(object):
         return dirpath
 
     def __repr__(self):
-        return "<Artifact version {}>".format(self.id)
+        return "<Artifact {}>".format(self.id)
 
 
-class ArtifactVersionFiles(Paginator):
+class ArtifactFiles(Paginator):
     QUERY = gql('''
-        query ArtifactVersionFiles(
+        query ArtifactFiles(
             $entityName: String!,
             $projectName: String!,
-            $artifactName: String!,
-            $artifactVersionName: String!
+            $artifactTypeName: String!,
+            $artifactName: String!
             $fileNames: [String] = [],
             $fileCursor: String,
             $fileLimit: Int = 50
         ) {
             project(name: $projectName, entityName: $entityName) {
-                artifact(name: $artifactName) {
-                    artifactVersion(name: $artifactVersionName) {
-                        id
-                        ...ArtifactVersionFilesFragment
+                artifactType(name: $artifactTypeName) {
+                    artifact(name: $artifactName) {
+                        ...ArtifactFilesFragment
                     }
                 }
             }
         }
         %s
-    ''' % ARTIFACT_VERSION_FILES_FRAGMENT)
+    ''' % ARTIFACT_FILES_FRAGMENT)
 
-    def __init__(self, client, artifact_version, names=[], per_page=50):
-        self.artifact_version = artifact_version
+    def __init__(self, client, artifact, names=[], per_page=50):
+        self.artifact = artifact
         variables = {
-            'entityName': artifact_version.entity,
-            'projectName': artifact_version.project,
-            'artifactName': artifact_version.artifact_name,
-            'artifactVersionName': artifact_version.digest,
+            'entityName': artifact.entity,
+            'projectName': artifact.project,
+            'artifactTypeName': artifact.artifact_type_name,
+            'artifactName': artifact.artifact_name,
             'fileNames': names,
         }
-        super(ArtifactVersionFiles, self).__init__(client, variables, per_page)
+        super(ArtifactFiles, self).__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -1904,14 +1925,14 @@ class ArtifactVersionFiles(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response['project']['artifact']['artifactVersion']['files']['pageInfo']['hasNextPage']
+            return self.last_response['project']['artifactType']['artifact']['files']['pageInfo']['hasNextPage']
         else:
             return True
 
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response['project']['artifact']['artifactVersion']['files']['edges'][-1]['cursor']
+            return self.last_response['project']['artifactType']['artifact']['files']['edges'][-1]['cursor']
         else:
             return None
 
@@ -1920,7 +1941,7 @@ class ArtifactVersionFiles(Paginator):
 
     def convert_objects(self):
         return [File(self.client, r["node"])
-                for r in self.last_response['project']['artifact']['artifactVersion']['files']['edges']]
+                for r in self.last_response['project']['artifactType']['artifact']['files']['edges']]
 
     def __repr__(self):
-        return "<Files {} ({})>".format("/".join(self.artifact_version.path), len(self))
+        return "<Files {} ({})>".format("/".join(self.artifact.path), len(self))
