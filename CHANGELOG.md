@@ -1,3 +1,16 @@
+## 0.8.30 (Mar 19, 2020)
+
+#### :nail_care: Enhancement
+
+- Add ROC, precision_recall, HeatMap, explainText, POS, and NER to wandb.plots
+- Add wandb.Molecule() logging
+- Capture kaggle runs for metrics
+- Add ability to watch from run object
+
+#### :bug: Bug Fix
+
+- Avoid accidently picking up global debugging logs
+
 ## 0.8.29 (Mar 5, 2020)
 
 #### :nail_care: Enhancement
