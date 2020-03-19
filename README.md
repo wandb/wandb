@@ -13,6 +13,7 @@ Or from pypi test (last devel release - might be out of date):
 
 ## Code organization
 
+```
 wandb/sdk          - User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
 wandb/sdk_py27     - Generated files [currently by strip.sh]
 wandb/backend      - Interface to backend execution 
@@ -23,6 +24,7 @@ wandb/stuff        - Stuff copied from wandb-og, needs to be refactored or find 
 wandb/agent        - agent/super agent stuff
 wandb/keras        - keras integration
 wandb/pytorch      - pytorch integration
+```
 
 ## Code checks
 
