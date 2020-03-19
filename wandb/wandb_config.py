@@ -18,7 +18,6 @@ import platform
 
 import wandb
 from wandb import env
-from wandb import util
 
 FNAME = 'config.yaml'
 
