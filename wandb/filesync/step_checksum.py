@@ -1,6 +1,7 @@
 """Batching file prepare requests to our API."""
 
 import multiprocessing
+import multiprocessing.pool
 import collections
 import queue
 import threading
@@ -26,7 +27,7 @@ class StepChecksum(object):
         self._request_queue = request_queue
         self._output_queue = output_queue
 
-        self._pool = multiprocessing.Pool(4)
+        self._pool = multiprocessing.pool.ThreadPool(4)
         self._thread = threading.Thread(target=self._thread_body)
 
     def _thread_body(self):
@@ -77,6 +78,8 @@ class StepChecksum(object):
                 self._output_queue.put(step_upload.EventFinish())
                 break
 
+        self._pool.close()
+
     def start(self):
         self._thread.start()
 
@@ -85,7 +88,3 @@ class StepChecksum(object):
 
     def finish(self):
         self._request_queue.put(RequestFinish())
-
-    def shutdown(self):
-        self.finish()
-        self._thread.join()
