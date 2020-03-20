@@ -37,6 +37,8 @@ def boolify(s):
         return False
     raise ValueError("Not a boolean")
 
+def is_kaggle():
+    return os.getenv("KAGGLE_KERNEL_RUN_TYPE") != None or "kaggle_environments" in sys.modules
 
 class Config(object):
     """Creates a W&B config object."""
@@ -56,6 +58,7 @@ class Config(object):
         self._set_wandb('cli_version', wandb.__version__)
         self._set_wandb('python_version', platform.python_version())
         self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
+        self._set_wandb('is_kaggle_kernel', is_kaggle())
 
         # Do this after defaults because it triggers loading of pre-existing
         # config.yaml (if it exists)
