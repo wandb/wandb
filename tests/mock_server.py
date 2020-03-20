@@ -120,6 +120,7 @@ def create_app():
                     "node" : {
                         "id": str(i),
                         "name": file_spec['name'],
+                        "displayName": file_spec['name'],
                         "digest": "null",
                         "uploadUrl": request.url_root + "/storage?file=%s" % file_spec['name'],
                         "uploadHeaders": ""
