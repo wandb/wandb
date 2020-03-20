@@ -622,19 +622,6 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_view
     assert result.exit_code > 0
 
 
-@pytest.mark.updateAvailable(True)
-def test_run_update(runner, request_mocker, upsert_run, git_repo, upload_logs):
-    upload_logs(request_mocker, "abc123")
-    upsert_run(request_mocker)
-    runner.invoke(cli.off)
-    with open("simple.py", "w") as f:
-        f.write('print("Done!")')
-    result = runner.invoke(cli.run, ["--id=abc123", "--", "simple.py"])
-    print(result.output)
-    print(result.exception)
-    print(traceback.print_tb(result.exc_info[2]))
-
-
 def test_enable_on(runner, git_repo):
     with open("wandb/settings", "w") as f:
         f.write("[default]\nproject=rad")
