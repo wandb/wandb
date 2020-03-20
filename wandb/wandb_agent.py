@@ -316,6 +316,7 @@ class Agent(object):
             command_list = []
             sweep_command = self._sweep_command or ["${env}", "${interpreter}", "${program}", "${args}"]
             for c in sweep_command:
+                c = str(c)
                 if c.startswith("${") and c.endswith("}"):
                     replace_list = sweep_vars.get(c[2:-1])
                     command_list += replace_list or []

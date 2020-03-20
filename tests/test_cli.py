@@ -622,19 +622,6 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_view
     assert result.exit_code > 0
 
 
-@pytest.mark.updateAvailable(True)
-def test_run_update(runner, request_mocker, upsert_run, git_repo, upload_logs):
-    upload_logs(request_mocker, "abc123")
-    upsert_run(request_mocker)
-    runner.invoke(cli.off)
-    with open("simple.py", "w") as f:
-        f.write('print("Done!")')
-    result = runner.invoke(cli.run, ["--id=abc123", "--", "simple.py"])
-    print(result.output)
-    print(result.exception)
-    print(traceback.print_tb(result.exc_info[2]))
-
-
 def test_enable_on(runner, git_repo):
     with open("wandb/settings", "w") as f:
         f.write("[default]\nproject=rad")
@@ -704,13 +691,8 @@ def test_sync_tensorboard_single(runner, git_repo, mock_server):
     assert len(json.loads(mock_server.requests["file_stream"][0]["files"]["wandb-history.jsonl"]["content"][0]).keys()) == 5
 
 
-def test_sync_runs(runner, request_mocker, upsert_run, upload_url, upload_logs, query_viewer, git_repo):
+def test_sync_runs(runner, git_repo, mock_server):
     os.environ["WANDB_API_KEY"] = "some invalid key"
-    query_viewer(request_mocker)
-    upsert_run(request_mocker)
-    upload_url(request_mocker)
-    upload_logs(request_mocker, "abc123zz")
-    upload_logs(request_mocker, "cba321zz")
     run_1 = "wandb/run-120199-abc123zz"
     run_2 = "wandb/dryrun-120300-cba321zz"
     wandb.util.mkdir_exists_ok(run_1)

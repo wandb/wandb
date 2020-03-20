@@ -1872,10 +1872,7 @@ class Artifact(object):
     def download(self, rootdir='./artifacts'):
         # TODO: not production
         dirpath = os.path.join(rootdir, self.artifact_type_name, self.digest)
-        try:
-            os.makedirs(dirpath)
-        except FileExistsError:
-            pass
+        util.mkdir_exists_ok(dirpath)
         for f in self.files():
             f.download(root=dirpath, replace=True)
         return dirpath
