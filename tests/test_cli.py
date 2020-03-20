@@ -84,6 +84,7 @@ def test_config(runner, monkeypatch):
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
         assert "wandb config set" in result.output
         assert os.path.exists("config-defaults.yaml")
 
@@ -100,6 +101,9 @@ def test_config_show(runner, monkeypatch):
         print(result_py.output)
         print(result_py.exception)
         print(traceback.print_tb(result_py.exc_info[2]))
+        assert result_py.exit_code == 0
+        assert result_yml.exit_code == 0
+        assert result_json.exit_code == 0
         assert "awesome" in result_py.output
         assert "awesome" in result_yml.output
         assert "awesome" in result_json.output
@@ -109,6 +113,7 @@ def test_config_show(runner, monkeypatch):
 def test_config_show_empty(runner, monkeypatch):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.config, ["show"])
+        assert result.exit_code == 0
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
@@ -118,11 +123,13 @@ def test_config_show_empty(runner, monkeypatch):
 @pytest.mark.skip(reason='config reworked, fixes coming...')
 def test_config_set(runner):
     with runner.isolated_filesystem():
-        runner.invoke(cli.config, ["init"])
+        cli_result = runner.invoke(cli.config, ["init"])
         result = runner.invoke(cli.config, ["set", "foo=bar"])
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
+        assert cli_esult.exit_code == 0
+        assert result.exit_code == 0
         assert "foo='bar'" in result.output
 
 
@@ -136,6 +143,7 @@ def test_config_del(runner):
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
         assert "1 parameters changed" in result.output
 
 
@@ -333,20 +341,24 @@ def no_tty(mocker):
         yield
 
 def test_docker_run_digest(runner, docker, monkeypatch):
-    runner.invoke(cli.docker_run, ["wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"])
+    result = runner.invoke(cli.docker_run, ["wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"])
+    assert result.exit_code == 0
     docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177', '--runtime', 'nvidia', 'wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177'])
 
 def test_docker_run_bad_image(runner, docker, monkeypatch):
-    runner.invoke(cli.docker_run, ["wandb///foo$"])
+    result = runner.invoke(cli.docker_run, ["wandb///foo$"])
+    assert result.exit_code == 0
     docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '--runtime', 'nvidia', "wandb///foo$"])
 
 def test_docker_run_no_nvidia(runner, docker, monkeypatch):
     monkeypatch.setattr(cli, 'find_executable', lambda name: False)
-    runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad"])
+    result = runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad"])
+    assert result.exit_code == 0
     docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '-v', 'cool:/cool', 'rad'])
 
 def test_docker_run_nvidia(runner, docker):
-    runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad", "/bin/bash", "cool"])
+    result = runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad", "/bin/bash", "cool"])
+    assert result.exit_code == 0
     docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', 
         '--runtime', 'nvidia', '-v', 'cool:/cool', 'rad', '/bin/bash', 'cool'])
 
@@ -606,10 +618,7 @@ def test_init_existing_login(runner, local_netrc, request_mocker, query_projects
         assert "This directory is configured" in result.output
 
 
-def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_viewer, no_tty):
-    upsert_run(request_mocker)
-    query_viewer(request_mocker)
-
+def test_run_with_error(runner, git_repo, mock_server):
     runner.invoke(cli.off)
     result = runner.invoke(cli.run, ["python", "missing.py"])
 
@@ -630,6 +639,7 @@ def test_enable_on(runner, git_repo):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert "W&B enabled" in str(result.output)
+    assert result.exit_code == 0
 
 
 def test_enable_off(runner, git_repo):
@@ -641,6 +651,7 @@ def test_enable_off(runner, git_repo):
     print(traceback.print_tb(result.exc_info[2]))
     assert "W&B disabled" in str(result.output)
     assert "disabled" in open("wandb/settings").read()
+    assert result.exit_code == 0
 
 
 def test_sync(runner, git_repo, mock_server):
@@ -707,6 +718,7 @@ def test_sync_runs(runner, git_repo, mock_server):
     print(traceback.print_tb(result.exc_info[2]))
     found = re.findall(r"Uploading history metrics", str(result.output))
     assert len(found) == 2
+    assert result.exit_code == 0
 
 
 def test_run_simple(runner, git_repo, mock_server, monkeypatch):
@@ -724,6 +736,7 @@ def test_run_simple(runner, git_repo, mock_server, monkeypatch):
     #assert "Verifying uploaded files... verified!" in result.output
     assert result.exit_code == 0
     assert "Syncing run lovely-dawn-32" in result.output
+    assert result.exit_code == 0
 
 def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     run_id = "abc123"
