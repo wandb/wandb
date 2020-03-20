@@ -76,7 +76,7 @@ class StepChecksum(object):
 
             # And stop the infinite loop if we've finished
             if finished:
-                self._output_queue.put(step_upload.EventFinish())
+                self._output_queue.put(step_upload.RequestFinish())
                 break
 
         self._pool.close()

@@ -13,7 +13,7 @@ RequestUpload = collections.namedtuple(
     'EventStartUploadJob', ('path', 'save_name', 'artifact_id', 'md5'))
 RequestCommitArtifact = collections.namedtuple(
     'RequestCommitArtifact', ('artifact_id', ))
-EventFinish = collections.namedtuple('EventFinish', ())
+RequestFinish = collections.namedtuple('RequestFinish', ())
 
     
 class StepUpload(object):
@@ -40,7 +40,7 @@ class StepUpload(object):
         # finish event is received
         while True:
             event = self._event_queue.get()
-            if isinstance(event, EventFinish):
+            if isinstance(event, RequestFinish):
                 break
             self._handle_event(event)
         

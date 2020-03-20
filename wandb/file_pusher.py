@@ -42,12 +42,6 @@ warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'wan
 # uploading it.
 TMP_DIR = tempfile.TemporaryDirectory('wandb')
 
-# These are handled by the event thread
-EventStartUploadJob = collections.namedtuple(
-    'EventStartUploadJob', ('path', 'save_name', 'upload_url', 'upload_headers'))
-EventJobDone = collections.namedtuple('EventJobDone', ('job'))
-EventFinish = collections.namedtuple('EventFinish', ())
-
 
 class FilePusher(object):
     """Parallel file upload class.
