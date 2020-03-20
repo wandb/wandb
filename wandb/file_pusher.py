@@ -101,8 +101,6 @@ class UploadJob(threading.Thread):
         if upload_url.startswith('/'):
             upload_url = '{}{}'.format(self._api.api_url, upload_url)
         try:
-            print(upload_url)
-            print(extra_headers)
             with open(self.save_path, 'rb') as f:
                 self._api.upload_file_retry(
                     upload_url,
