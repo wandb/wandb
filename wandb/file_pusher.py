@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Potential improvements:
 #   - when add to pending_jobs, we should look and see if we already have a job
 #     for this file, if so, don't bother adding it. We don't need more than
