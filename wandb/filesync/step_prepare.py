@@ -33,7 +33,6 @@ class StepPrepare(object):
         self._thread.daemon = True
 
     def _thread_body(self):
-        finish = False
         while True:
             request = self._request_queue.get()
             if isinstance(request, RequestFinish):

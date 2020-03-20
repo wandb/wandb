@@ -27,13 +27,13 @@ class StepChecksum(object):
         self._request_queue = request_queue
         self._output_queue = output_queue
 
-        self._pool = multiprocessing.pool.ThreadPool(4)
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
 
     def _thread_body(self):
         finished = False
         while True:
+            # TODO: we're no longer batching these. Remove batching code
             artifact_commits = []
             batch = []
             batch_started_at = time.time()
@@ -62,7 +62,9 @@ class StepChecksum(object):
 
             if batch:
                 paths = [e.path for e in batch]
-                checksums = self._pool.imap(wandb.util.md5_file, paths, chunksize=5)
+                checksums = []
+                for path in paths:
+                    checksums.append(wandb.util.md5_file(path))
 
                 file_specs = []
                 for e, checksum in zip(batch, checksums):
@@ -78,8 +80,6 @@ class StepChecksum(object):
             if finished:
                 self._output_queue.put(step_upload.RequestFinish())
                 break
-
-        self._pool.close()
 
     def start(self):
         self._thread.start()
