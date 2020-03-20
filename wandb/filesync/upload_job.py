@@ -2,6 +2,8 @@ import collections
 import os
 import threading
 
+import wandb
+
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 
 class UploadJob(threading.Thread):
@@ -69,8 +71,7 @@ class UploadJob(threading.Thread):
                     #     {self.save_name: f},
                     #     progress=lambda _, t: self.progress(t))
             except Exception as e:
-                self._progress[self.save_name]['uploaded'] = 0
-                self._progress[self.save_name]['failed'] = True
+                self._stats.update_failed_file(self.save_name)
                 wandb.util.sentry_exc(e)
                 wandb.termerror('Error uploading "{}": {}, {}'.format(
                     self.save_name, type(e).__name__, e))

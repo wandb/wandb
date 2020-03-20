@@ -21,6 +21,10 @@ class Stats(object):
     def update_uploaded_file(self, save_name, total_uploaded):
         self._stats[save_name]['uploaded'] = total_uploaded
 
+    def update_failed_file(self, save_name ):
+        self._stats[save_name]['uploaded'] = 0
+        self._stats[save_name]['failed'] = True
+
     def summary(self):
         stats = list(self._stats.values())
         return {

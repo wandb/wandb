@@ -121,7 +121,7 @@ def create_app():
                         "id": str(i),
                         "name": file_spec['name'],
                         "fingerprint": "null",
-                        "uploadUrl": "https://examples.com",
+                        "uploadUrl": request.url_root + "/storage?file=%s" % file_spec['name'],
                         "uploadHeaders": ""
                     }})
             return json.dumps({

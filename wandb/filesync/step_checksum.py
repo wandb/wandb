@@ -29,6 +29,7 @@ class StepChecksum(object):
 
         self._pool = multiprocessing.pool.ThreadPool(4)
         self._thread = threading.Thread(target=self._thread_body)
+        self._thread.daemon = True
 
     def _thread_body(self):
         finished = False

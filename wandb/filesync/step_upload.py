@@ -25,6 +25,7 @@ class StepUpload(object):
         self._max_jobs = max_jobs
 
         self._thread = threading.Thread(target=self._thread_body)
+        self._thread.daemon = True
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
         self._running_jobs = {}
