@@ -1149,7 +1149,7 @@ class Api(object):
     def prepare_files(self, file_specs, entity=None, project=None, run=None):
         """TODO
 
-        file_specs: [{name, artifact_id, fingerprint}]
+        file_specs: [{name, artifact_id, digest}]
         """
         mutation = gql('''
         mutation PrepareFiles(
@@ -1170,7 +1170,6 @@ class Api(object):
                             id
                             name
                             displayName
-                            fingerprint
                             uploadUrl
                             uploadHeaders
                         }

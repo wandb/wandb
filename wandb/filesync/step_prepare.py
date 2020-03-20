@@ -78,8 +78,8 @@ class StepPrepare(object):
         for prepare_request in batch:
             file_specs.append({
                 'name': prepare_request.save_name,
-                'artifactVersionID': prepare_request.artifact_id,
-                'fingerprint': prepare_request.md5})
+                'artifactID': prepare_request.artifact_id,
+                'digest': prepare_request.md5})
         return self._api.prepare_files(file_specs)
 
     def prepare_async(self, path, save_name, md5, artifact_id, final=False):

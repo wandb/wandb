@@ -119,7 +119,7 @@ class StepUpload(object):
     def _maybe_commit_artifact(self, artifact_id):
         artifact_status = self._artifacts[artifact_id]
         if artifact_status['pending_count'] == 0 and artifact_status['commit_requested']:
-            self._api.commit_artifact_version(artifact_id)
+            self._api.commit_artifact(artifact_id)
 
     def start(self):
         self._thread.start()
