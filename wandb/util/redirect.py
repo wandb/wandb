@@ -55,7 +55,9 @@ class Redirect(object):
 
     def _redirect(self, to_fd, unbuffered=False):
         fp = getattr(sys, self._stream)
-        fp.close()
+        # FIXME(jhr): does this still work under windows?  are we leaking a fd?
+        # Do not close old filedescriptor as others might be using it
+        # fp.close()
         os.dup2(to_fd, self._old_fd)
         setattr(sys, self._stream, os.fdopen(self._old_fd, 'w'))
         if unbuffered:

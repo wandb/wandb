@@ -78,111 +78,141 @@ def wandb_write(settings, q, stopped, data_filename):
     ds.close()
 
 
-def wandb_send(settings, q, resp_q, stopped):
-    fs = None
-    pusher = None
-    run_id = None
-    api = internal.Api(default_settings=settings)
-    orig_settings = settings
-    settings = {k: v for k, v in six.iteritems(settings) if k in ('project',) and v is not None}
+class _SendManager(object):
+    def __init__(self, settings, q, resp_q):
+        self._settings = settings
+        self._q = q
+        self._resp_q = resp_q
 
-    # TODO(jhr): do something better, why do we need to send full lines?
-    partial_output = dict()
+        self._fs = None
+        self._pusher = None
+
+        # is anyone using run_id?
+        self._run_id = None
+        self._api = internal.Api(default_settings=settings)
+        self._orig_settings = settings
+        self._settings = {k: v for k, v in six.iteritems(settings) if k in ('project',) and v is not None}
+
+        # TODO(jhr): do something better, why do we need to send full lines?
+        self._partial_output = dict()
+
+    def handle_run(self, data):
+        run = data.run
+        config = json.loads(run.config_json)
+        ups = self._api.upsert_run(name=run.run_id, config=config, **self._settings)
+
+        if data.control.req_resp:
+            storage_id = ups.get("id")
+            if storage_id:
+                data.run.storage_id = storage_id
+            display_name = ups.get("displayName")
+            if display_name:
+                data.run.name = display_name
+            project = ups.get("project")
+            if project:
+                project_name = project.get("name")
+                if project_name:
+                    data.run.project = project_name
+                    self._settings['project'] = project_name
+                entity = project.get("entity")
+                if entity:
+                    entity_name = entity.get("name")
+                    if entity_name:
+                        data.run.team = entity_name
+            self._resp_q.put(data)
+
+        #fs = file_stream.FileStreamApi(api, run.run_id, settings=settings)
+        #fs.start()
+        #self._fs['rfs'] = fs
+        #self._fs['run_id'] = run.run_id
+        self._fs = file_stream.FileStreamApi(self._api, run.run_id, settings=self._settings)
+        self._fs.start()
+        self._pusher = FilePusher(self._api)
+        self._run_id = run.run_id
+
+    def handle_log(self, data):
+        log = data.log
+        d = json.loads(log.json)
+        if self._fs:
+            #print("about to send", d)
+            x = self._fs.push("wandb-history.jsonl", json.dumps(d))
+            #print("got", x)
+
+    def handle_output(self, data):
+        out = data.output
+        prepend = ""
+        stream = "stdout"
+        if out.output_type == wandb_internal_pb2.OutputData.OutputType.STDERR:
+            stream = "stderr"
+            prepend = "ERROR "
+        line = out.str
+        if not line.endswith("\n"):
+            self._partial_output.setdefault(stream, "")
+            self._partial_output[stream] += line
+            # FIXME(jhr): how do we make sure this gets flushed? we might need this for other stuff like telemetry
+        else:
+            # TODO(jhr): use time from timestamp proto
+            # FIXME(jhr): do we need to make sure we write full lines?  seems to be some issues with line breaks
+            cur_time = time.time()
+            timestamp = datetime.utcfromtimestamp(
+                cur_time).isoformat() + ' '
+            prev_str = self._partial_output.get(stream, "")
+            line = u'{}{}{}{}'.format(prepend, timestamp, prev_str, line)
+            self._fs.push("output.log", line)
+            self._partial_output[stream] = ""
+
+    def handle_config(self, data):
+        cfg = data.config
+        config = json.loads(cfg.config_json)
+        ups = self._api.upsert_run(name=cfg.run_id, config=config, **self._settings)
+
+    def handle_files(self, data):
+        directory = self._orig_settings.get("files_dir")
+        files = data.files
+        for k in files.files:
+            fname = k.name
+            logger.info("saving file %s at %s", fname, directory)
+            path = os.path.abspath(os.path.join(directory, fname))
+            logger.info("saving file %s at full %s", fname, path)
+            self._pusher.update_file(fname, path)
+            self._pusher.file_changed(fname, path)
+
+    def finish(self):
+        if self._pusher:
+            self._pusher.finish()
+        if self._fs:
+            # FIXME(jhr): now is a good time to output pending output lines
+            self._fs.finish(0)
+        if self._pusher:
+            self._pusher.update_all_files()
+            files = self._pusher.files()
+            for f in files:
+                print("Sync:", f)
+            self._pusher.print_status()
+
+
+def wandb_send(settings, q, resp_q, stopped):
+
+    sh = _SendManager(settings, q, resp_q)
 
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)
         except queue.Empty:
             continue
-        #print("send", i)
 
         t = i.WhichOneof("data")
         if t is None:
             continue
-        elif t == "run":
-            run = i.run
-            config = json.loads(run.config_json)
-            ups = api.upsert_run(name=run.run_id, config=config, **settings)
-
-            if i.control.req_resp:
-                storage_id = ups.get("id")
-                if storage_id:
-                    i.run.storage_id = storage_id
-                display_name = ups.get("displayName")
-                if display_name:
-                    i.run.name = display_name
-                project = ups.get("project")
-                if project:
-                    project_name = project.get("name")
-                    if project_name:
-                        i.run.project = project_name
-                        settings['project'] = project_name
-                    entity = project.get("entity")
-                    if entity:
-                        entity_name = entity.get("name")
-                        if entity_name:
-                            i.run.team = entity_name
-                resp_q.put(i)
-
-            #fs = file_stream.FileStreamApi(api, run.run_id, settings=settings)
-            #fs.start()
-            #self._fs['rfs'] = fs
-            #self._fs['run_id'] = run.run_id
-            fs = file_stream.FileStreamApi(api, run.run_id, settings=settings)
-            fs.start()
-            pusher = FilePusher(api)
-            run_id = run.run_id
-        elif t == "log":
-            log = i.log
-            d = json.loads(log.json)
-            if fs:
-                #print("about to send", d)
-                x = fs.push("wandb-history.jsonl", json.dumps(d))
-                #print("got", x)
-        elif t == "output":
-            out = i.output
-            prepend = ""
-            stream = "stdout"
-            if out.output_type == wandb_internal_pb2.OutputData.OutputType.STDERR:
-                stream = "stderr"
-                prepend = "ERROR "
-            line = out.str
-            if not line.endswith("\n"):
-                partial_output.setdefault(stream, "")
-                partial_output[stream] += line
-                # FIXME(jhr): how do we make sure this gets flushed? we might need this for other stuff like telemetry
-            else:
-                # TODO(jhr): use time from timestamp proto
-                # FIXME(jhr): do we need to make sure we write full lines?  seems to be some issues with line breaks
-                cur_time = time.time()
-                timestamp = datetime.utcfromtimestamp(
-                    cur_time).isoformat() + ' '
-                prev_str = partial_output.get(stream, "")
-                line = u'{}{}{}{}'.format(prepend, timestamp, prev_str, line)
-                fs.push("output.log", line)
-                partial_output[stream] = ""
-        elif t == "config":
-            cfg = i.config
-            config = json.loads(cfg.config_json)
-            ups = api.upsert_run(name=cfg.run_id, config=config, **settings)
-        elif t == "files":
-            directory = orig_settings.get("files_dir")
-            files = i.files
-            for k in files.files:
-                fname = k.name
-                logger.info("saving file %s at %s", fname, directory)
-                path = os.path.abspath(os.path.join(directory, fname))
-                logger.info("saving file %s at full %s", fname, path)
-                pusher.update_file(fname, path)
-                pusher.file_changed(fname, path)
-        else:
+        handler = getattr(sh, 'handle_' + t, None)
+        if handler is None:
             print("what", t)
-    if pusher:
-        pusher.finish()
-        pusher.print_status()
-    if fs:
-        # FIXME(jhr): now is a good time to output pending output lines
-        fs.finish(0)
+            continue
+
+        # run the handler
+        handler(i)
+
+    sh.finish()
 
 
 class WriteSerializingFile(object):

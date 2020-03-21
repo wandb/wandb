@@ -31,7 +31,7 @@ class Run(object):
         self.run_id = generate_id()
         self._step = 0
         self._run_obj = None
-        self._run_dir = None
+        self._run_name = None
 
         if config:
             self.config.update(config)
@@ -44,7 +44,11 @@ class Run(object):
 
     @property
     def dir(self):
-        return self._run_dir
+        return self._settings.files_dir
+
+    @property
+    def name(self):
+        return self._run_name
 
     # def _repr_html_(self):
     #     url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(
@@ -87,10 +91,6 @@ class Run(object):
 
     def join(self):
         self._backend.cleanup()
-
-    @property
-    def dir(self):
-        return "run_dir"
 
     @property
     def summary(self):
@@ -159,21 +159,14 @@ class Run(object):
         self.save(spec_filename)
 
     def save(self, path):
-        orig_path = path
-        # super hacky
-        if not os.path.exists(path):
-            path = os.path.join("run_dir", path)
-        if not os.path.exists(path):
-            logger.info("Ignoring file: %s", orig_path)
-            return
-
-        # whitelist = [ "save-test.txt", ]
-        # if path not in whitelist:
-        #    return
-
         fname = os.path.basename(path)
-        dest = os.path.join(self._settings.files_dir, fname)
-        logger.info("Saving from %s to %s", path, dest)
-        shutil.copyfile(path, dest)
+
+        if os.path.exists(path):
+            dest = os.path.join(self._settings.files_dir, fname)
+            logger.info("Saving from %s to %s", path, dest)
+            shutil.copyfile(path, dest)
+        else:
+            logger.info("file not found yet: %s", path)
+
         files = dict(files=[fname])
         self._backend.send_files(files)
