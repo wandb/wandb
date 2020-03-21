@@ -30,8 +30,9 @@ class Run(object):
         self._data = dict()
         self.run_id = generate_id()
         self._step = 0
+
+        # Returned from backend send_run_sync, set from wandb_init?
         self._run_obj = None
-        self._run_name = None
 
         if config:
             self.config.update(config)
@@ -48,7 +49,9 @@ class Run(object):
 
     @property
     def name(self):
-        return self._run_name
+        if not self._run_obj:
+            return None
+        return self._run_obj.name
 
     # def _repr_html_(self):
     #     url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(
