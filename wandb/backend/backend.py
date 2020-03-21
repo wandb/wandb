@@ -264,6 +264,12 @@ class Backend(object):
         config.config_json = json.dumps(config_dict['data'])
         return config
 
+    def _make_summary(self, summary_dict):
+        summary = wandb_internal_pb2.SummaryData()
+        summary.run_id = summary_dict['run_id']
+        summary.summary_json = json.dumps(summary_dict['data'])
+        return summary
+
     def _make_files(self, files_dict):
         files = wandb_internal_pb2.FilesData()
         for path in files_dict['files']:
@@ -271,12 +277,14 @@ class Backend(object):
             f.name = path
         return files
 
-    def _make_record(self, run=None, config=None, files=None):
+    def _make_record(self, run=None, config=None, files=None, summary=None):
         rec = wandb_internal_pb2.Record()
         if run:
             rec.run.CopyFrom(run)
         if config:
             rec.config.CopyFrom(config)
+        if summary:
+            rec.summary.CopyFrom(summary)
         if files:
             rec.files.CopyFrom(files)
         return rec
@@ -316,6 +324,11 @@ class Backend(object):
     def send_config(self, config_dict):
         cfg = self._make_config(config_dict)
         rec = self._make_record(config=cfg)
+        self._queue_process(rec)
+
+    def send_summary(self, summary_dict):
+        summary = self._make_summary(summary_dict)
+        rec = self._make_record(summary=summary)
         self._queue_process(rec)
 
     def send_run_sync(self, run_dict, timeout=None):

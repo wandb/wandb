@@ -40,8 +40,12 @@ class Summary(object):
 
     def update(self, d):
         self._items.update(_get_dict(d))
+        if self._callback:
+            self._callback(data=dict(self))
 
     def setdefaults(self, d):
         d = _get_dict(d)
         for k, v in six.iteritems(d):
             self._items.setdefault(k, v)
+        if self._callback:
+            self._callback(data=dict(self))

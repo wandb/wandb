@@ -83,9 +83,11 @@ class Run(object):
         self._backend.send_config(c)
 
     def _summary_callback(self, key=None, val=None, data=None):
-        pass
+        s = dict(run_id=self.run_id, data=data)
+        self._backend.send_summary(s)
 
     def _history_callback(self, row=None):
+        self.summary.update(row)
         self._backend.send_log(row)
 
     def _set_backend(self, backend):

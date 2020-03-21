@@ -138,6 +138,12 @@ class _SendManager(object):
             x = self._fs.push("wandb-history.jsonl", json.dumps(d))
             #print("got", x)
 
+    def handle_summary(self, data):
+        summary = data.summary
+        d = json.loads(summary.summary_json)
+        if self._fs:
+            x = self._fs.push("wandb-summary.json", json.dumps(d))
+
     def handle_output(self, data):
         out = data.output
         prepend = ""

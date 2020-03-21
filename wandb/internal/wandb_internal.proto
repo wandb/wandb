@@ -138,6 +138,7 @@ message Record {
     OutputData output = 4;
     ConfigData config = 5;
     FilesData files = 6;
+    SummaryData summary = 7;
   }
   Control control = 16;
   // config?
