@@ -14,6 +14,10 @@ def _get_dict(d):
 class Summary(object):
     def __init__(self):
         object.__setattr__(self, '_items', dict())
+        object.__setattr__(self, '_callback', None)
+
+    def _set_callback(self, cb):
+        object.__setattr__(self, '_callback', cb)
 
     def keys(self):
         return [k for k in self._items.keys() if k != '_wandb']
@@ -26,6 +30,8 @@ class Summary(object):
 
     def __setitem__(self, key, val):
         self._items[key] = val
+        if self._callback:
+            self._callback(key=key, val=val, data=dict(self))
 
     __setattr__ = __setitem__
 
@@ -34,8 +40,12 @@ class Summary(object):
 
     def update(self, d):
         self._items.update(_get_dict(d))
+        if self._callback:
+            self._callback(data=dict(self))
 
     def setdefaults(self, d):
         d = _get_dict(d)
         for k, v in six.iteritems(d):
             self._items.setdefault(k, v)
+        if self._callback:
+            self._callback(data=dict(self))

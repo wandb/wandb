@@ -33,6 +33,8 @@ wandb/keras/__init__.py
 wandb/sdk/__init__.py
 wandb/sdk/wandb_config.py
 wandb/sdk/wandb_config_test.py
+wandb/sdk/wandb_history.py
+wandb/sdk/wandb_history_test.py
 wandb/sdk/wandb_init.py
 wandb/sdk/wandb_run.py
 wandb/sdk/wandb_save.py

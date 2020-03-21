@@ -2,6 +2,8 @@
 
 import wandb
 from . import wandb_config
+from . import wandb_summary
+from . import wandb_history
 
 import shortuuid  # type: ignore
 import click
@@ -25,13 +27,18 @@ class Run(object):
     def __init__(self, config=None, settings=None):
         self.config = wandb_config.Config()
         self.config._set_callback(self._config_callback)
+        self.summary = wandb_summary.Summary()
+        self.summary._set_callback(self._summary_callback)
+        self._history = wandb_history.History()
+        self._history._set_callback(self._history_callback)
+
         self._settings = settings
         self._backend = None
         self._data = dict()
         self.run_id = generate_id()
-        self._step = 0
+
+        # Returned from backend send_run_sync, set from wandb_init?
         self._run_obj = None
-        self._run_dir = None
 
         if config:
             self.config.update(config)
@@ -44,7 +51,13 @@ class Run(object):
 
     @property
     def dir(self):
-        return self._run_dir
+        return self._settings.files_dir
+
+    @property
+    def name(self):
+        if not self._run_obj:
+            return None
+        return self._run_obj.name
 
     # def _repr_html_(self):
     #     url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(
@@ -69,6 +82,14 @@ class Run(object):
         c = dict(run_id=self.run_id, data=data)
         self._backend.send_config(c)
 
+    def _summary_callback(self, key=None, val=None, data=None):
+        s = dict(run_id=self.run_id, data=data)
+        self._backend.send_summary(s)
+
+    def _history_callback(self, row=None):
+        self.summary.update(row)
+        self._backend.send_log(row)
+
     def _set_backend(self, backend):
         self._backend = backend
 
@@ -77,24 +98,12 @@ class Run(object):
 
     def log(self, data, step=None, commit=True):
         if commit:
-            self._data["_step"] = self._step
-            self._step += 1
-            self._data.update(data)
-            self._backend.send_log(self._data)
-            self._data = dict()
+            self._history._row_add(data)
         else:
-            self._data.update(data)
+            self._history._row_update(data)
 
     def join(self):
         self._backend.cleanup()
-
-    @property
-    def dir(self):
-        return "run_dir"
-
-    @property
-    def summary(self):
-        return dict()
 
     def _get_run_url(self):
         s = self._settings
@@ -159,21 +168,14 @@ class Run(object):
         self.save(spec_filename)
 
     def save(self, path):
-        orig_path = path
-        # super hacky
-        if not os.path.exists(path):
-            path = os.path.join("run_dir", path)
-        if not os.path.exists(path):
-            logger.info("Ignoring file: %s", orig_path)
-            return
-
-        # whitelist = [ "save-test.txt", ]
-        # if path not in whitelist:
-        #    return
-
         fname = os.path.basename(path)
-        dest = os.path.join(self._settings.files_dir, fname)
-        logger.info("Saving from %s to %s", path, dest)
-        shutil.copyfile(path, dest)
+
+        if os.path.exists(path):
+            dest = os.path.join(self._settings.files_dir, fname)
+            logger.info("Saving from %s to %s", path, dest)
+            shutil.copyfile(path, dest)
+        else:
+            logger.info("file not found yet: %s", path)
+
         files = dict(files=[fname])
         self._backend.send_files(files)

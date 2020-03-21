@@ -5,10 +5,10 @@ Track history from Run.log() calls.
 
 """
 
+
 class History(object):
     """Time series data for Runs.
     """
-
     def __init__(self):
         self._step = 0
         self._data = dict()
