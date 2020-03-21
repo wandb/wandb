@@ -2,6 +2,8 @@
 
 import wandb
 from . import wandb_config
+from . import wandb_summary
+from . import wandb_history
 
 import shortuuid  # type: ignore
 import click
@@ -25,11 +27,15 @@ class Run(object):
     def __init__(self, config=None, settings=None):
         self.config = wandb_config.Config()
         self.config._set_callback(self._config_callback)
+        self.summary = wandb_summary.Summary()
+        self.summary._set_callback(self._summary_callback)
+        self._history = wandb_history.History()
+        self._history._set_callback(self._history_callback)
+
         self._settings = settings
         self._backend = None
         self._data = dict()
         self.run_id = generate_id()
-        self._step = 0
 
         # Returned from backend send_run_sync, set from wandb_init?
         self._run_obj = None
@@ -76,6 +82,12 @@ class Run(object):
         c = dict(run_id=self.run_id, data=data)
         self._backend.send_config(c)
 
+    def _summary_callback(self, key=None, val=None, data=None):
+        pass
+
+    def _history_callback(self, row=None):
+        self._backend.send_log(row)
+
     def _set_backend(self, backend):
         self._backend = backend
 
@@ -84,20 +96,12 @@ class Run(object):
 
     def log(self, data, step=None, commit=True):
         if commit:
-            self._data["_step"] = self._step
-            self._step += 1
-            self._data.update(data)
-            self._backend.send_log(self._data)
-            self._data = dict()
+            self._history._row_add(data)
         else:
-            self._data.update(data)
+            self._history._row_update(data)
 
     def join(self):
         self._backend.cleanup()
-
-    @property
-    def summary(self):
-        return dict()
 
     def _get_run_url(self):
         s = self._settings
