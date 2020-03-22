@@ -1,0 +1,11 @@
+[MASTER]
+exclude =
+    wandb/vendor
+    wandb/sdk_py27
+
+max-line-length = 180
+
+
+[MISCELLANEOUS]
+notes=FIXME,XXX
+
