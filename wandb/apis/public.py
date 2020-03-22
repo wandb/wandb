@@ -613,10 +613,7 @@ class Run(Attrs):
         self.id = run_id
         self.sweep = None
         self.dir = os.path.join(self._base_dir, *self.path)
-        try:
-            os.makedirs(self.dir)
-        except OSError:
-            pass
+        os.makedirs(self.dir, exist_ok=True)
         self._summary = None
         self.state = attrs.get("state", "not found")
 
