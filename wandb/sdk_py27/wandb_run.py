@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""Run - Run object.
+
+Manage wandb run.
+
+"""
+
+from __future__ import print_function
 
 import wandb
 from . import wandb_config
@@ -152,14 +159,14 @@ class Run(object):
             config=configdict,
             artifacts=artifactsdict,
         )
-        job_spec = dict(
-            kind="WandbJob",
-            version="v0",
-            environment=envdict,
-            source=source,
-            exec=execdict,
-            input=inputdict,
-        )
+        job_spec = {
+            "kind": "WandbJob",
+            "version": "v0",
+            "environment": envdict,
+            "source": source,
+            "exec": execdict,
+            "input": inputdict,
+        }
 
         s = json.dumps(job_spec, indent=4)
         spec_filename = "wandb-jobspec.json"

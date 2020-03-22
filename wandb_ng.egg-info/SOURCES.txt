@@ -45,6 +45,7 @@ wandb/sdk/wandb_summary.py
 wandb/sdk/wandb_summary_test.py
 wandb/sdk_py27/__init__.py
 wandb/sdk_py27/wandb_config.py
+wandb/sdk_py27/wandb_history.py
 wandb/sdk_py27/wandb_init.py
 wandb/sdk_py27/wandb_run.py
 wandb/sdk_py27/wandb_save.py
