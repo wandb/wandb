@@ -143,7 +143,9 @@ class FilePusher(object):
         self._incoming_queue.put(event)
 
     def finish(self):
-        self._incoming_queue.put(step_checksum.RequestFinish())
+        self._step_checksum.shutdown()
+        self._step_upload.shutdown()
+        self._step_prepare.shutdown()
 
     # def shutdown(self):
     #     self.finish()

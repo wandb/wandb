@@ -20,14 +20,35 @@ from wandb import util
 from wandb.wandb_run import Run
 from tests import utils
 from tests.mock_server import create_app
+import socket
 
+# Turn off the internets in tests
+_true_connect = socket.socket.connect
+def host_from_address(address):
+    host = address[0]
+    if isinstance(host, str) or isinstance(host, unicode):
+        return host
+
+def guarded_connect(inst, *args):
+    address = args[0]
+    if isinstance(address, tuple):
+        host = host_from_address(address)
+        if host and host in ["localhost"]:
+            return _true_connect(inst, *args)
+        raise Exception("Network connection blocked to host %s" % host)
+    else:
+        return _true_conect(inst, *args)
+socket.socket.connect = guarded_connect
 
 def pytest_runtest_setup(item):
     wandb.reset_env()
     wandb.uninit()
     global_settings = os.path.expanduser("~/.config/wandb/settings")
     if os.path.exists(global_settings):
-        os.remove(global_settings)
+        try:
+            os.remove(global_settings)
+        except IOError:
+            pass
     # This is used to find tests that are leaking outside of tmp directories
     os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
 
@@ -276,7 +297,7 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
             try:
                 print("Initializing with", kwargs)
                 run = wandb.init(**kwargs)
-                if request.node.get_closest_marker('resume') or request.node.get_closest_marker('mocked_run_manager'):
+                if request.node.get_closest_marker('resume') or request.node.get_closest_marker('mocked_run_manager') or request.node.get_closest_marker('jupyter'):
                     # Reset history
                     run._history = None
                     rm = wandb.run_manager.RunManager(run)
@@ -394,8 +415,8 @@ def dryrun():
 
 # "Error: 'Session' object has no attribute 'request'""
 # @pytest.fixture(autouse=True)
-# def no_requests(monkeypatch):
-#    monkeypatch.delattr("requests.sessions.Session.request")
+# def no_requests(monkeypatch, mock_server):
+#    monkeypatch.setattr("requests.sessions.Session.request", mock_server.request)
 
 
 @pytest.fixture
@@ -439,7 +460,7 @@ def check_environ():
 
 
 @pytest.fixture
-def mock_server(mocker, request_mocker):
+def mock_server(mocker):
     app = create_app()
     mock = utils.RequestsMock(app.test_client(), {})
     mocker.patch("gql.transport.requests.requests", mock)

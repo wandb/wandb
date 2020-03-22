@@ -22,7 +22,6 @@ def get_last_val(history, key):
         pass
     return val
 
-
 def test_wandb_run_args(git_repo):
     environ = dict(os.environ)
     environ[env.ARGS] = json.dumps(["foo", "bar"])

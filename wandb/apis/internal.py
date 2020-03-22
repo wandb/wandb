@@ -3,7 +3,6 @@ from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
 import datetime
 import os
-import requests
 import ast
 import os
 import json

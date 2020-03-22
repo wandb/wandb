@@ -89,3 +89,7 @@ class StepChecksum(object):
 
     def finish(self):
         self._request_queue.put(RequestFinish())
+
+    def shutdown(self):
+        self.finish()
+        self._thread.join()
