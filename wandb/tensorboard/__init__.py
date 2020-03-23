@@ -23,7 +23,8 @@ def make_ndarray(tensor):
         else:
             return res
     else:
-        raise TypeError("Can't convert tensor summary, upgrade tensorboard with `pip install tensorboard --upgrade`")
+        wandb.termwarn("Can't convert tensor summary, upgrade tensorboard with `pip install tensorboard --upgrade`")
+        return None
 
 # Constants for patching tensorboard
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
