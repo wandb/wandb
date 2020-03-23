@@ -16,7 +16,12 @@ if sys.modules.get("tensorboard"):
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 def make_ndarray(tensor):
     if tensor_util:
-        return tensor_util.make_ndarray(tensor)
+        res = tensor_util.make_ndarray(tensor)
+        # Tensorboard can log generic objects and we don't want to save them
+        if res.dtype == "object":
+            return None
+        else:
+            return res
     else:
         raise TypeError("Can't convert tensor summary, upgrade tensorboard with `pip install tensorboard --upgrade`")
 
