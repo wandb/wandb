@@ -127,9 +127,6 @@ class StepUpload(object):
     def is_alive(self):
         return self._thread.is_alive()
 
-    def finish(self):
-        self._event_queue.put(RequestFinish())
-
     def shutdown(self):
         self.finish()
         self._thread.join()
