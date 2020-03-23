@@ -153,8 +153,8 @@ class Meta(object):
             pass
         # TODO: we should use the cuda library to collect this
         if os.path.exists("/usr/local/cuda/version.txt"):
-            self.data["cuda"] = open(
-                "/usr/local/cuda/version.txt").read().split(" ")[-1].strip()
+            with open("/usr/local/cuda/version.txt") as f:
+                self.data["cuda"] = f.read().split(" ")[-1].strip()
         self.data["args"] = sys.argv[1:]
         self.data["state"] = "running"
 
