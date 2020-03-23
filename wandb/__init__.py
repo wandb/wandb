@@ -12,10 +12,12 @@ if sys.version_info < (3, 0):
     from wandb.sdk_py27.wandb_init import init
     from wandb.sdk_py27.wandb_setup import setup
     from wandb.sdk_py27.wandb_save import save
+    from wandb.sdk_py27.wandb_watch import watch
 else:
     from wandb.sdk.wandb_init import init
     from wandb.sdk.wandb_setup import setup
     from wandb.sdk.wandb_save import save
+    from wandb.sdk.wandb_watch import watch
 
 from wandb.util import preinit as _preinit
 from wandb.errors.term import termlog, termerror, termwarn

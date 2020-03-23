@@ -152,7 +152,7 @@ class _WandbInit(object):
 
     def _callback(self, name, data):
         logger.info("callback: %s, %s", name, data)
-        self.backend.send_output(name, data)
+        self.backend.sender.send_output(name, data)
 
     def _redirect(self, stdout_slave_fd, stderr_slave_fd):
         logger.info("redirect")
@@ -296,18 +296,18 @@ class _WandbInit(object):
         logger.info("runconfig: %s", run_config)
         r = dict(run_id=run.run_id, config=run_config, project=s.project)
         if s.mode == 'online':
-            ret = backend.send_run_sync(r, timeout=30)
+            ret = backend.sender.send_run_sync(r, timeout=30)
             # TODO: fail on error, check return type
             run._set_run_obj(ret.run)
         elif s.mode in ('offline', 'dryrun'):
-            backend.send_run(r)
+            backend.sender.send_run(r)
         elif s.mode in ('async', 'run'):
             try:
-                err = backend.send_run_sync(r, timeout=10)
+                err = backend.sender.send_run_sync(r, timeout=10)
             except Backend.Timeout:
                 pass
             # TODO: on network error, do async run save
-            backend.send_run(r)
+            backend.sender.send_run(r)
 
         self.run = run
         self.backend = backend
