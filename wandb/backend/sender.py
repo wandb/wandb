@@ -85,6 +85,8 @@ class WandBJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if hasattr(obj, 'json_encode'):
             return obj.json_encode()
+        if hasattr(obj, 'to_json'):
+            return obj.to_json()
         tmp_obj, converted = json_friendly(obj)
         if converted:
             return tmp_obj
@@ -149,9 +151,10 @@ class BackendSender(object):
         return stats
 
     def _make_summary(self, summary_dict):
+        json_data = json.dumps(summary_dict['data'], cls=WandBJSONEncoder)
         summary = wandb_internal_pb2.SummaryData()
         summary.run_id = summary_dict['run_id']
-        summary.summary_json = json.dumps(summary_dict['data'])
+        summary.summary_json = json_data
         return summary
 
     def _make_files(self, files_dict):
