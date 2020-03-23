@@ -342,8 +342,9 @@ def download_h5(run_id, entity=None, project=None, out_dir=None):
 def upload_h5(file, run_id, entity=None, project=None):
     api = Api()
     wandb.termlog("Uploading summary data...")
-    api.push({os.path.basename(file): open(file, 'rb')}, run=run_id, project=project,
-             entity=entity)
+    with open(file, 'rb') as f:
+        api.push({os.path.basename(file): f}, run=run_id, project=project,
+                entity=entity)
 
 
 class FileSummary(Summary):
