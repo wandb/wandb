@@ -354,7 +354,8 @@ class FileSummary(Summary):
 
     def load(self):
         try:
-            self._json_dict = json.load(open(self._fname))
+            with open(self._fname) as f:
+                self._json_dict = json.load(f)
         except (IOError, ValueError):
             self._json_dict = {}
 
