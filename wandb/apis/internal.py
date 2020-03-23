@@ -1119,7 +1119,7 @@ class Api(object):
             'description': description,
             'tags': labels,
             'aliases': aliases,
-            'metadata': metadata,
+            'metadata': json.dumps(metadata),
         })
         av = response['createArtifact']['artifact']
         return av

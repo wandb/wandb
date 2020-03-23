@@ -404,12 +404,11 @@ class Run(object):
             api.use_artifact(artifact.id)
             return artifact
         elif name is not None and (path is not None or metadata is not None):
-            user_artifact = artifacts.LocalArtifactRead(name, path, metadata)
+            user_artifact = artifacts.LocalArtifactRead(name, path)
             self.send_message({
                 'use_artifact': {
                     'name': name,
                     'path': path,
-                    'metadata': metadata
                 }
             })
             return user_artifact

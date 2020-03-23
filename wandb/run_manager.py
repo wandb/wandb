@@ -1193,8 +1193,7 @@ class RunManager(object):
     def use_artifact(self, message):
         name = message['name']
         path = message['path']
-        metadata = message['metadata']
-        la = artifacts.LocalArtifact(self._api, path, metadata=metadata,
+        la = artifacts.LocalArtifact(self._api, path,
                                      file_pusher=self._file_pusher, is_user_created=True)
         server_artifact = la.save(name)
         self._api.use_artifact(server_artifact['id'])
@@ -1207,8 +1206,8 @@ class RunManager(object):
         metadata = message['metadata'] if 'metadata' in message else None
         aliases = message['aliases'] if 'aliases' in message else None
 
-        la = artifacts.LocalArtifact(self._api, paths, metadata=metadata, file_pusher=self._file_pusher)
-        la.save(name, description=description, aliases=aliases, labels=labels)
+        la = artifacts.LocalArtifact(self._api, paths, file_pusher=self._file_pusher)
+        la.save(name, description=description, metadata=metadata, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):
         try:

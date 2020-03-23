@@ -14,8 +14,6 @@ from wandb.apis import artifact_manifest
 from wandb.file_pusher import FilePusher
 from wandb import util
 
-ARTIFACT_METADATA_FILENAME = 'artifact-metadata.json'
-
 # Like md5_file in util but not b64 encoded.
 # TODO(artifacts): decide what we actually want
 
@@ -58,29 +56,6 @@ class Artifact(object):
     #     or load an artifact from the server, download, use the files, log as input
 
 
-class ArtifactMetadata(object):
-    @classmethod
-    def from_file(cls, path):
-        return cls(json.load(open(path), object_pairs_hook=collections.OrderedDict))
-
-    def __init__(self, metadata):
-        self._metadata = metadata
-
-    @property
-    def value(self):
-        return self._metadata
-
-    def dump(self, fp):
-        json.dump(self._metadata, fp, sort_keys=True, allow_nan=False, indent=4)
-
-    def digest(self):
-        with tempfile.NamedTemporaryFile('w', delete=False) as fp:
-            self.dump(fp)
-            fp.close()
-            # TODO: what format for md5
-            return hash_file(fp.name)
-
-
 def user_paths_to_path_specs(paths):
     # path_specs maps from internal artifact path to local path on disk
     path_specs = {}
@@ -120,28 +95,13 @@ LocalArtifactEntry = collections.namedtuple('LocalArtifactEntry', ('path', 'hash
 
 
 class LocalArtifactManifestV1(object):
-    def __init__(self, paths, metadata=None):
+    def __init__(self, paths):
         self._path_specs = user_paths_to_path_specs(paths)
 
-        self._metadata = None
-        if metadata is not None:
-            self._metadata = ArtifactMetadata(metadata)
-        if ARTIFACT_METADATA_FILENAME in self._path_specs:
-            if self._metadata is not None:
-                raise ValueError('may not specify metadata argument if paths contains %s' % ARTIFACT_METADATA_FILENAME)
-            # pop it out of path specs
-            local_path = self._path_specs.pop(ARTIFACT_METADATA_FILENAME)
-            self._metadata = ArtifactMetadata.from_file(local_path)
-
-        if len(self._path_specs) == 0 and self._metadata is None:
-            raise ValueError('Artifact must contain at least one file or have metadata')
+        if len(self._path_specs) == 0:
+            raise ValueError('Artifact must contain at least one file')
 
         self._local_entries = []
-        if self._metadata is not None:
-            self._local_entries.append(
-                LocalArtifactEntry(ARTIFACT_METADATA_FILENAME,
-                                   self._metadata.digest(),
-                                   None))  # use none for local path, this file gets directly encoded in the LocalArtifact file
         for artifact_path, local_path in self._path_specs.items():
             self._local_entries.append(
                 LocalArtifactEntry(artifact_path, hash_file(local_path), os.path.abspath(local_path)))
@@ -157,19 +117,9 @@ class LocalArtifactManifestV1(object):
     def digest(self):
         return self._digest
 
-    @property
-    def metadata(self):
-        if self._metadata is None:
-            return None
-        return self._metadata.value
-
     def dump(self, fp):
         fp.write('version: 1\n')
         fp.write('digest: %s\n' % self._digest)
-        fp.write('metadata: ')
-        if self._metadata is not None:
-            json.dump(self._metadata.value, fp)
-        fp.write('\n')
         for entry in self._local_entries:
             if entry.path == ARTIFACT_METADATA_FILENAME:
                 continue
@@ -180,22 +130,22 @@ class LocalArtifactManifestV1(object):
 class LocalArtifact(object):
     # TODO: entity, project, file_pusher, api. Can we use some kind of context
     # thing?
-    def __init__(self, api, paths, metadata=None, file_pusher=None, is_user_created=False):
+    def __init__(self, api, paths, file_pusher=None, is_user_created=False):
         self._api = api
         # TODO(artifacts): move file_pusher inside API.
         self._file_pusher = file_pusher
         if self._file_pusher is None:
             self._file_pusher = FilePusher(self._api)
         self._is_user_created = is_user_created
-        self._local_manifest = LocalArtifactManifestV1(paths, metadata=metadata)
+        self._local_manifest = LocalArtifactManifestV1(paths)
         self._server_artifact = None
 
-    def save(self, name, description=None, aliases=None, labels=None):
+    def save(self, name, metadata=None, description=None, aliases=None, labels=None):
         """Returns the server artifact."""
         artifact_type_id = self._api.create_artifact_type(name)
         self._server_artifact = self._api.create_artifact(
             artifact_type_id, self._local_manifest.digest,
-            metadata=json.dumps(self._local_manifest.metadata),
+            metadata=metadata,
             aliases=aliases, labels=labels, description=description,
             is_user_created=self._is_user_created)
         # TODO(artifacts):
@@ -217,13 +167,7 @@ class LocalArtifact(object):
             # Sync files. Because of hacking this on the client-side we may have multiple runs
             # pushing to the same artifact version. We could fix this on the server (or maybe it's not
             # the worst thing?)
-            if entry.path == ARTIFACT_METADATA_FILENAME:
-                metadata_file = self._file_pusher.named_temp_file(mode='w+')
-                self._local_manifest._metadata.dump(metadata_file)
-                metadata_file.close()
-                self._file_pusher.file_changed(entry.path, metadata_file.name, self._server_artifact['id'])
-            else:
-                self._file_pusher.file_changed(entry.path, entry.local_path, self._server_artifact['id'])
+            self._file_pusher.file_changed(entry.path, entry.local_path, self._server_artifact['id'])
         self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact
 
@@ -238,7 +182,7 @@ class LocalArtifact(object):
 
 
 class LocalArtifactRead(object):
-    def __init__(self, name, path, metadata):
+    def __init__(self, name, path):
         self._artifact_dir = None
         if path is not None:
             if not isinstance(path, string_types):
@@ -249,7 +193,7 @@ class LocalArtifactRead(object):
                 self._artifact_dir = os.path.dirname(path)
             else:
                 raise ValueError("path must be a local file or directory")
-        self._local_manifest = LocalArtifactManifestV1(path, metadata=metadata)
+        self._local_manifest = LocalArtifactManifestV1(path)
 
     # TODO: give some way for the user to check if we have this on the server?
 
