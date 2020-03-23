@@ -21,6 +21,8 @@ from wandb.stuff.file_pusher import FilePusher
 
 from wandb.stuff import io_wrap
 
+from . import stats
+
 import numpy as np
 import platform
 
@@ -95,6 +97,16 @@ class _SendManager(object):
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
+        self._start_time = time.time()
+
+    def _flatten(self, dictionary):
+        if type(dictionary) == dict:
+            for k, v in list(dictionary.items()):
+                if type(v) == dict:
+                    self._flatten(v)
+                    dictionary.pop(k)
+                    for k2, v2 in v.items():
+                        dictionary[k + "." + k2] = v2
 
     def handle_run(self, data):
         run = data.run
@@ -143,6 +155,17 @@ class _SendManager(object):
         d = json.loads(summary.summary_json)
         if self._fs:
             x = self._fs.push("wandb-summary.json", json.dumps(d))
+
+    def handle_stats(self, data):
+        stats = data.stats
+        d = json.loads(stats.stats_json)
+        if self._fs:
+            row = dict(system=d)
+            self._flatten(row)
+            row["_wandb"] = True
+            row["_timestamp"] = int(time.time())
+            row['_runtime'] = int(time.time() - self._start_time)
+            x = self._fs.push("wandb-events.jsonl", json.dumps(row))
 
     def handle_output(self, data):
         out = data.output
@@ -292,6 +315,12 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
     if log_fname:
         setup_logging(log_fname, log_level)
 
+    run = None
+    api = None
+
+    pid = os.getpid()
+    system_stats = stats.SystemStats(pid=pid, process_q=process_queue, notify_q=notify_queue)
+    system_stats.start()
 
     if use_redirect:
         pass
@@ -345,7 +374,6 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
         try:
             while True:
                 i = notify_queue.get()
-                #print("got", i)
                 if i == constants.NOTIFY_PROCESS:
                     rec = process_queue.get()
                     send_queue.put(rec)
@@ -370,6 +398,7 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
             if done:
                 break
 
+    system_stats.shutdown()
 
     write_thread.join()
     send_thread.join()
