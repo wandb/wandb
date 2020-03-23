@@ -3,7 +3,7 @@ from .utils import git_repo
 import os
 import glob
 import sys
-import six
+import io
 from click.testing import CliRunner
 import wandb
 import types
@@ -116,7 +116,7 @@ def test_meta_cuda(mocker):
 
     def magic(path, mode="w"):
         if "cuda/version.txt" in path:
-            return six.BytesIO(b"CUDA Version 9.0.176")
+            return io.BytesIO(b"CUDA Version 9.0.176")
         else:
             return open(path, mode=mode)
     mocker.patch('wandb.meta.open', magic)
