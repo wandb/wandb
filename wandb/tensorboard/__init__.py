@@ -6,6 +6,19 @@ import sys
 import glob
 import wandb
 
+for path in sys.path:
+    if path.endswith(os.path.join("client", "wandb")):
+        sys.path.remove(path)
+    if path.endswith(os.path.join("site-packages", "wandb")):
+        sys.path.remove(path)
+if sys.modules.get("tensorboard"):
+    del sys.modules["tensorboard"]
+tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
+def make_ndarray(tensor):
+    if tensor_util:
+        return tensor_util.make_ndarray(tensor)
+    else:
+        raise TypeError("Can't convert tensor summary, upgrade tensorboard with `pip install tensorboard --upgrade`")
 
 # Constants for patching tensorboard
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
@@ -267,6 +280,8 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
             continue
         if kind == "simple_value":
             values[namespaced_tag(value.tag, namespace)] = value.simple_value
+        elif kind == "tensor":
+            values[namespaced_tag(value.tag, namespace)] = make_ndarray(value.tensor)
         elif kind == "image":
             from PIL import Image
             img_str = value.image.encoded_image_string
@@ -318,7 +333,6 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
             else:
                 wandb.termerror(
                     "Received hparams tf.summary, but could not import the hparams plugin from tensorboard")
-
     return values
 
 
