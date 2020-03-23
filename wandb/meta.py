@@ -173,7 +173,7 @@ class Meta(object):
         self._shutdown = True
         try:
             self._thread.join()
-        # Incase we never start it
+        # In case we never start it
         except RuntimeError:
             pass
 
