@@ -26,13 +26,13 @@ def mnist_data(scope='module'):
 
 
 @pytest.fixture
-def dummy_model_no_callback(mnist_data):
+def dummy_model_no_callback(mnist_data, socket_enabled):
     learn=cnn_learner(mnist_data, models.squeezenet1_1, metrics=[accuracy])
     return learn
 
 
 @pytest.fixture
-def dummy_model_with_callback(mnist_data):
+def dummy_model_with_callback(mnist_data, socket_enabled):
     learn=cnn_learner(mnist_data,
                       models.squeezenet1_1,
                       metrics=[accuracy],
@@ -41,7 +41,7 @@ def dummy_model_with_callback(mnist_data):
 
 
 @pytest.fixture
-def dummy_model_with_callback_images(mnist_data):
+def dummy_model_with_callback_images(mnist_data, socket_enabled):
     learn=cnn_learner(mnist_data,
                       models.squeezenet1_1,
                       metrics=[accuracy],

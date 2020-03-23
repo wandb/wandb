@@ -327,7 +327,7 @@ def test_jupyter_init(wandb_init_run):
     # TODO: saw some global state issues here...
     # assert "" == err
 
-
+@pytest.mark.skip("Flaky spec in CI, skipping for now")
 @pytest.mark.jupyter
 def test_jupyter_log_history(wandb_init_run):
     # This simulates what the happens in a Jupyter notebook, it's gnarly

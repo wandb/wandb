@@ -40,6 +40,12 @@ def guarded_connect(inst, *args):
         return _true_conect(inst, *args)
 socket.socket.connect = guarded_connect
 
+@pytest.fixture
+def socket_enabled():
+    socket.socket.connect = _true_connect
+    yield
+    socket.socket.connect = guarded_connect
+
 def pytest_runtest_setup(item):
     wandb.reset_env()
     wandb.uninit()
