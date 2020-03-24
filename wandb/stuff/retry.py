@@ -109,8 +109,8 @@ class Retry(object):
                     wandb.termlog(
                         '{} ({}), entering retry loop. See {} for full traceback.'.format(
                             self._error_prefix, e.__class__.__name__, util.get_log_file_path()))
-                if wandb.env.is_debug():
-                    traceback.print_exc()
+                # if wandb.env.is_debug():
+                #     traceback.print_exc()
             first = False
             time.sleep(sleep + random.random() * 0.25 * sleep)
             sleep *= 2

@@ -11,10 +11,10 @@ import logging
 from datetime import date, datetime
 import time
 
-from wandb.proto import wandb_internal_pb2
+from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.interface import constants
 
-import numpy as np
+import numpy as np  # type: ignore
 
 logger = logging.getLogger("wandb")
 
@@ -200,7 +200,7 @@ class BackendSender(object):
             rsp = self.response_queue.get(timeout=timeout)
         except queue.Empty:
             self._request_flush()
-            raise Backend.ExceptionTimeout("timeout")
+            raise BackendSender.ExceptionTimeout("timeout")
 
         # returns response, err
         return rsp

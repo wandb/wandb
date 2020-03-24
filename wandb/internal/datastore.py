@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from wandb.proto import wandb_internal_pb2
+from wandb.proto import wandb_internal_pb2  # type: ignore
 import struct
 import logging
 

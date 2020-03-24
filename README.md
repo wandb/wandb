@@ -16,7 +16,9 @@ Or from pypi test (last devel release - might be out of date):
 ```
 wandb/sdk          - User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
 wandb/sdk_py27     - Generated files [currently by strip.sh]
-wandb/backend      - Interface to backend execution 
+wandb/backend      - Support to launch internal process
+wandb/interface    - Interface to backend execution 
+wandb/proto        - Protocol buffers for inter-process communication and persist file store
 wandb/internal     - Backend threads/processes
 wandb/apis         - Public api (still has internal api but this should be moved to wandb/internal)
 wandb/cli          - Handlers for command line functionality

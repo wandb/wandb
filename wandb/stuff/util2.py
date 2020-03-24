@@ -657,7 +657,8 @@ def get_log_file_path():
     It would probably be better if this pointed to a log file in a
     run directory.
     """
-    return wandb.GLOBAL_LOG_FNAME
+    # return wandb.GLOBAL_LOG_FNAME # TODO(jhr): refactor
+    return "TODO_refactor.txt"
 
 
 def is_wandb_file(name):

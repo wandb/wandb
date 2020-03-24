@@ -10,7 +10,7 @@ from datetime import date, datetime
 import time
 
 import wandb
-from wandb.proto import wandb_internal_pb2
+from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.interface import constants
 from wandb.internal import datastore
 
@@ -23,7 +23,7 @@ from wandb.stuff import io_wrap
 
 from . import stats
 
-import numpy as np
+import numpy as np  # type: ignore
 import platform
 
 logger = logging.getLogger(__name__)
