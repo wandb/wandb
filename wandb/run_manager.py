@@ -89,6 +89,7 @@ class FileTailer(object):
     def stop(self):
         self.running = False
         self._thread.join()
+        self._file.close()
 
 
 class FileEventHandler(object):
