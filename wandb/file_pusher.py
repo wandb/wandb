@@ -52,15 +52,9 @@ class FilePusher(object):
     uploads are complete.
     """
 
-    # After 3 seconds of gathering batched uploads, kick off a batch without
-    # waiting any longer.
-    BATCH_THRESHOLD_SECS = 3
-
-    BATCH_MAX_FILES = 1000
-
     MAX_UPLOAD_JOBS = 64
 
-    def __init__(self, api, max_jobs=64):
+    def __init__(self, api):
         self._api = api
 
         self._stats = stats.Stats()
