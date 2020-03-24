@@ -10,9 +10,9 @@ from datetime import date, datetime
 import time
 
 import wandb
-from wandb.internal import wandb_internal_pb2
+from wandb.proto import wandb_internal_pb2
+from wandb.interface import constants
 from wandb.internal import datastore
-from wandb.internal import constants
 
 from wandb.apis import internal
 from wandb.apis import file_stream

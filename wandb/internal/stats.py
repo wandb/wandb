@@ -7,7 +7,7 @@ import threading
 import wandb
 from wandb.stuff import util2 as util
 
-from wandb.backend import sender
+from wandb.interface import interface
 
 psutil = util.get_module("psutil")
 
@@ -59,7 +59,7 @@ class SystemStats(object):
         #self.run = run
         self._pid = pid
         self._api = api
-        self._sender = sender.BackendSender(
+        self._interface = interface.BackendSender(
                 process_queue=process_q,
                 notify_queue=notify_q,
                 )
@@ -133,7 +133,7 @@ class SystemStats(object):
                 samples = list(self.sampler.get(stat, [stats[stat]]))
                 stats[stat] = round(sum(samples) / len(samples), 2)
         #self.run.events.track("system", stats, _wandb=True)
-        self._sender.send_stats(dict(type="system", data=stats))
+        self._interface.send_stats(dict(type="system", data=stats))
         self.samples = 0
         self.sampler = {}
 

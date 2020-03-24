@@ -9,5 +9,5 @@ protoc.main((
     '-I', 'wandb/vendor/protobuf/src',
     '-I', '.',
     '--python_out=.',
-    'wandb/internal/wandb_internal.proto',
+    'wandb/proto/wandb_internal.proto',
     ))

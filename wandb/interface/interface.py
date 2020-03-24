@@ -11,8 +11,8 @@ import logging
 from datetime import date, datetime
 import time
 
-from wandb.internal import wandb_internal_pb2
-from wandb.internal import constants
+from wandb.proto import wandb_internal_pb2
+from wandb.interface import constants
 
 import numpy as np
 

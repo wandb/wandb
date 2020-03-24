@@ -87,15 +87,15 @@ class Run(object):
     def _config_callback(self, key=None, val=None, data=None):
         logger.info("config_cb %s %s %s", key, val, data)
         c = dict(run_id=self.run_id, data=data)
-        self._backend.sender.send_config(c)
+        self._backend.interface.send_config(c)
 
     def _summary_callback(self, key=None, val=None, data=None):
         s = dict(run_id=self.run_id, data=data)
-        self._backend.sender.send_summary(s)
+        self._backend.interface.send_summary(s)
 
     def _history_callback(self, row=None):
         self.summary.update(row)
-        self._backend.sender.send_log(row)
+        self._backend.interface.send_log(row)
 
     def _set_backend(self, backend):
         self._backend = backend
@@ -185,4 +185,4 @@ class Run(object):
             logger.info("file not found yet: %s", path)
 
         files = dict(files=[fname])
-        self._backend.sender.send_files(files)
+        self._backend.interface.send_files(files)

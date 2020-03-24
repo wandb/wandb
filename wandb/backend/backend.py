@@ -15,12 +15,12 @@ import six
 import multiprocessing
 from datetime import date, datetime
 import time
-from . import sender
+from wandb.interface import interface
 
 import wandb
 
 from wandb.internal.internal import wandb_internal
-from wandb.internal import constants
+from wandb.interface import constants
 
 import platform
 
@@ -42,7 +42,7 @@ class Backend(object):
 
         self._done = False
         self._wl = wandb.setup()
-        self.sender = None
+        self.interface = None
 
     def ensure_launched(self, settings=None, log_fname=None, log_level=None, data_fname=None, stdout_fd=None, stderr_fd=None, use_redirect=None):
         """Launch backend worker if not running."""
@@ -148,7 +148,7 @@ class Backend(object):
         self.cancel_queue = cancel_queue
         self.notify_queue = notify_queue
 
-        self.sender = sender.BackendSender(
+        self.interface = interface.BackendSender(
                 notify_queue=notify_queue,
                 process_queue=process_queue,
                 request_queue=req_queue,
