@@ -4,14 +4,14 @@ import hashlib
 import json
 import os
 from six import string_types
+import requests
 import tempfile
 import time
+import urllib
 
 from wandb import InternalApi
 from wandb.file_pusher import FilePusher
 from wandb import util
-
-# TODO(artifacts): swap to final digest format
 
 def md5_hash_file(path):
     hash_md5 = hashlib.md5()
@@ -72,8 +72,9 @@ class ArtifactManifestV1(object):
         self._entries = sorted(entries)
 
     def dump(self, fp):
+        fp.write('wandb-artifact-manifest-v1\n')
         for entry in self._entries:
-            fp.write('%s:%s\n' % (entry.path, entry.hash))
+            fp.write('%s %s\n' % (requests.utils.quote(entry.path), entry.hash))
 
     @property
     def digest(self):

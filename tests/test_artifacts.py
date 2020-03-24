@@ -10,4 +10,4 @@ def test_one_file_manifest(runner):
     with runner.isolated_filesystem():
         open('file1.txt', 'w').write('hello')
         dig = artifacts.LocalArtifactManifestV1(['file1.txt']).digest
-        assert dig == 'a43ea3ce45f60ca3b2b7e7a7ce184a23'
+        assert dig == '8999ba3788b3e39321b6556d4437bb8c'
