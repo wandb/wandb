@@ -1,6 +1,4 @@
-# TODO: come up with format for artifact manifest. Filenames can include all kinds of
-# nasty characters, which is probably why git uses null char separation for fields
-
+import base64
 import collections
 import hashlib
 import json
@@ -10,51 +8,23 @@ import tempfile
 import time
 
 from wandb import InternalApi
-from wandb.apis import artifact_manifest
 from wandb.file_pusher import FilePusher
 from wandb import util
 
-# Like md5_file in util but not b64 encoded.
-# TODO(artifacts): decide what we actually want
+# TODO(artifacts): swap to final digest format
 
+def md5_hash_file(path):
+    hash_md5 = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5
 
-def hash_file(path):
-    return util.md5_file(path)
+def md5_file_b64(path):
+    return base64.b64encode(md5_hash_file(path).digest()).decode('ascii')
 
-
-class Artifact(object):
-    @classmethod
-    def from_alias(alias):
-        # TODO
-        # fetch alias from server
-        pass
-
-    @classmethod
-    def from_files(paths):
-        # TODO
-        # create from files
-        pass
-
-    def __init__(self, digest):
-        # all artifacts have a digest
-        pass
-
-    def download(self, paths=None):
-        # TODO: return dir?
-        pass
-
-    @property
-    def dir(self):
-        pass
-
-    # in public api
-    #   download artifact, query artifacts, create artifact (user)
-    # in run api
-    #   use path:
-    #     create an artifact from local files, set metadata, sync if we need to, log
-    #         as input, use the files
-    #     or load an artifact from the server, download, use the files, log as input
-
+def md5_file_hex(path):
+    return md5_hash_file(path).hexdigest()
 
 def user_paths_to_path_specs(paths):
     # path_specs maps from internal artifact path to local path on disk
@@ -91,10 +61,41 @@ def user_paths_to_path_specs(paths):
     return path_specs
 
 
-LocalArtifactEntry = collections.namedtuple('LocalArtifactEntry', ('path', 'hash', 'local_path'))
+class ArtifactManifestV1(object):
+    """This implements the same artifact digest algorithm as the server."""
+
+    # hash must be the base64 encoded md5 checksum of the file at path.
+    ArtifactManifestEntry = collections.namedtuple('ArtifactManifestEntry', ('path', 'hash'))
+
+    def __init__(self, entries):
+        # lexicographic sort. paths must be unique, so sort doesn't ever visit hash
+        self._entries = sorted(entries)
+
+    def dump(self, fp):
+        for entry in self._entries:
+            fp.write('%s:%s\n' % (entry.path, entry.hash))
+
+    @property
+    def digest(self):
+        with tempfile.NamedTemporaryFile('w+') as fp:
+            self.dump(fp)
+            fp.seek(0)
+            return md5_file_hex(fp.name)
 
 
 class LocalArtifactManifestV1(object):
+    
+    """Used to keep track of local files in an artifact.
+    
+    Not yet implemented: save local manifests on the local filesystem, and implement
+    smarter artifact downloads that are aware of locally cached files.
+    """
+
+    # A local manifest contains the path to the local file in addition to the path within
+    # the artifact.
+    LocalArtifactManifestEntry = collections.namedtuple('LocalArtifactManifestEntry', (
+        'path', 'hash', 'local_path'))
+
     def __init__(self, paths):
         self._path_specs = user_paths_to_path_specs(paths)
 
@@ -104,9 +105,10 @@ class LocalArtifactManifestV1(object):
         self._local_entries = []
         for artifact_path, local_path in self._path_specs.items():
             self._local_entries.append(
-                LocalArtifactEntry(artifact_path, hash_file(local_path), os.path.abspath(local_path)))
+                self.LocalArtifactManifestEntry(
+                    artifact_path, md5_file_b64(local_path), os.path.abspath(local_path)))
 
-        self._manifest = artifact_manifest.ArtifactManifestV1(self._local_entries)
+        self._manifest = ArtifactManifestV1(self._local_entries)
         self._digest = self._manifest.digest
 
     @property
@@ -118,19 +120,16 @@ class LocalArtifactManifestV1(object):
         return self._digest
 
     def dump(self, fp):
+        # TODO(artifacts): finalize format
         fp.write('version: 1\n')
         fp.write('digest: %s\n' % self._digest)
         for entry in self._local_entries:
-            # TODO(artifacts): Filenames can have nasty chars, maybe each line is json
             fp.write('%s %s %s\n' % (entry.path, entry.local_path, entry.hash))
 
 
 class LocalArtifact(object):
-    # TODO: entity, project, file_pusher, api. Can we use some kind of context
-    # thing?
     def __init__(self, api, paths, file_pusher=None, is_user_created=False):
         self._api = api
-        # TODO(artifacts): move file_pusher inside API.
         self._file_pusher = file_pusher
         if self._file_pusher is None:
             self._file_pusher = FilePusher(self._api)
@@ -150,7 +149,6 @@ class LocalArtifact(object):
         #   if it's committed, all is good. If it's committing, just moving ahead isn't necessarily
         #   correct. It may be better to poll until it's committed or failed, and then decided what to
         #   do
-        # if it's committing we go ahead and
         if self._server_artifact['state'] == 'COMMITTED' or self._server_artifact['state'] == 'COMMITTING':
             # TODO: update aliases, labels, description etc?
             return self._server_artifact
@@ -162,9 +160,6 @@ class LocalArtifact(object):
         # creating the same artifact. In theory this could be ok but the backend doesn't handle
         # it right now.
         for entry in self._local_manifest.entries:
-            # Sync files. Because of hacking this on the client-side we may have multiple runs
-            # pushing to the same artifact version. We could fix this on the server (or maybe it's not
-            # the worst thing?)
             self._file_pusher.file_changed(entry.path, entry.local_path, self._server_artifact['id'])
         self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact

@@ -1508,15 +1508,3 @@ class Api(object):
     def _flatten_edges(self, response):
         """Return an array from the nested graphql relay structure"""
         return [node['node'] for node in response['edges']]
-
-    def _upload_file_with_progress(self, url, file, progress=None, extra_headers=None):
-        if progress:
-            if hasattr(progress, '__call__'):
-                return self.upload_file_retry(url, file, progress, extra_headers=extra_headers)
-            else:
-                length = os.fstat(file.fileno()).st_size
-                with click.progressbar(file=progress, length=length, label='Uploading file: %s' % file.name,
-                                       fill_char=click.style('&', fg='green')) as bar:
-                    return self.upload_file_retry(url, file, lambda bites, _: bar.update(bites), extra_headers=extra_headers)
-        else:
-            return self.upload_file_retry(url, file, extra_headers=extra_headers)

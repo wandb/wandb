@@ -23,7 +23,6 @@ from wandb.retry import retriable
 from wandb.summary import HTTPSummary
 from wandb import env
 from wandb.apis import normalize_exceptions
-from wandb.apis import artifact_manifest
 
 logger = logging.getLogger(__name__)
 
