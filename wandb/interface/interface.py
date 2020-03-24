@@ -23,6 +23,28 @@ def is_numpy_array(obj):
     return np and isinstance(obj, np.ndarray)
 
 
+def is_tf_tensor(obj):
+    import tensorflow
+    return isinstance(obj, tensorflow.Tensor)
+
+
+def is_tf_tensor_typename(typename):
+    return typename.startswith('tensorflow.') and ('Tensor' in typename or 'Variable' in typename)
+
+
+def is_tf_eager_tensor_typename(typename):
+    return typename.startswith('tensorflow.') and ('EagerTensor' in typename)
+
+
+def is_pytorch_tensor(obj):
+    import torch
+    return isinstance(obj, torch.Tensor)
+
+
+def is_pytorch_tensor_typename(typename):
+    return typename.startswith('torch.') and ('Tensor' in typename or 'Variable' in typename)
+
+
 def get_full_typename(o):
     """We determine types based on type names so we don't have to import
     (and therefore depend on) PyTorch, TensorFlow, etc.
@@ -39,27 +61,26 @@ def json_friendly(obj):
     converted = True
     typename = get_full_typename(obj)
 
-    #if is_tf_eager_tensor_typename(typename):
-    #    obj = obj.numpy()
-    #elif is_tf_tensor_typename(typename):
-    #    obj = obj.eval()
-    #elif is_pytorch_tensor_typename(typename):
-    #    try:
-    #        if obj.requires_grad:
-    #            obj = obj.detach()
-    #    except AttributeError:
-    #        pass  # before 0.4 is only present on variables
-#
-#        try:
-#            obj = obj.data
-#        except RuntimeError:
-#            pass  # happens for Tensors before 0.4
-#
-#        if obj.size():
-#            obj = obj.numpy()
-#        else:
-#            return obj.item(), True
+    if is_tf_eager_tensor_typename(typename):
+        obj = obj.numpy()
+    elif is_tf_tensor_typename(typename):
+        obj = obj.eval()
+    elif is_pytorch_tensor_typename(typename):
+        try:
+            if obj.requires_grad:
+                obj = obj.detach()
+        except AttributeError:
+            pass  # before 0.4 is only present on variables
 
+        try:
+            obj = obj.data
+        except RuntimeError:
+            pass  # happens for Tensors before 0.4
+
+        if obj.size():
+            obj = obj.numpy()
+        else:
+            return obj.item(), True
     if is_numpy_array(obj):
         if obj.size == 1:
             obj = obj.flatten()[0]

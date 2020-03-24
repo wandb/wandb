@@ -203,11 +203,6 @@ class _WandbInit(object):
             if err:
                 self._err_redir = err_redir
             logger.info("redirect2")
-
-            print("from Python")
-            os.system("echo non-Python applications are also supported")
-            logger.info("redirect3")
-
             return
 
         # redirect stdout

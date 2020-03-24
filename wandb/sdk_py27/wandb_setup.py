@@ -187,10 +187,10 @@ class _WandbSetup__WandbSetup(object):
         self._safe_symlink(log_base_dir, log_dir, "latest", pid, delete=True)
         self._safe_symlink(log_base_dir,
                            log_user,
-                           "user-debug.txt",
+                           "debug.log",
                            pid,
                            delete=True)
-        self._safe_symlink(log_base_dir, log_internal, "internal-debug.txt",
+        self._safe_symlink(log_base_dir, log_internal, "debug-internal.log",
                            pid)
 
         #print("loguser", log_user)

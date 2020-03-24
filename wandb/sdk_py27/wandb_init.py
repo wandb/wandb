@@ -28,7 +28,7 @@ from wandb.apis import internal
 # if typing.TYPE_CHECKING:
 #   from typing import Dict, List, Optional
 # from typing import Optional, Dict
-from typing import Optional, Dict  # noqa: F401
+from typing import Optional, Union, List, Dict  # noqa: F401
 
 logger = logging.getLogger("wandb")
 
@@ -108,7 +108,6 @@ class _WandbInit(object):
         self.kwargs = None
         self.settings = None
         self.config = None
-        self.magic = None
         self.wl = None
         self.run = None
         self.backend = None
@@ -128,8 +127,29 @@ class _WandbInit(object):
         self.kwargs = kwargs
 
         settings = kwargs.pop("settings", None)
+
+        # Remove parameters that are not part of settings
         self.config = kwargs.pop("config", None)
-        self.magic = kwargs.pop("magic", None)
+
+        # Temporarily unsupported parameters
+        unsupported = (
+                "magic",
+                "config_exclude_keys",
+                "config_include_keys",
+                "reinit",
+                "anonymous",
+                "dir",
+                "allow_val_change",
+                "resume",
+                "force",
+                "tensorboard",
+                "sync_tensorboard",
+                "monitor_gym",
+                )
+        for key in unsupported:
+            val = kwargs.pop(key, None)
+            if val:
+                logger.info("unsupported wandb.init() arg: %s", val)
 
         wl = wandb.setup()
         settings = settings or dict()
@@ -183,11 +203,6 @@ class _WandbInit(object):
             if err:
                 self._err_redir = err_redir
             logger.info("redirect2")
-
-            print("from Python")
-            os.system("echo non-Python applications are also supported")
-            logger.info("redirect3")
-
             return
 
         # redirect stdout
@@ -334,31 +349,46 @@ def getcaller():
 
 
 def init(
-        settings = None,
-        mode = None,
         entity = None,
         team = None,
         project = None,
+        settings = None,
+        mode = None,
         group = None,
+        job_type = None,
+        tags = None,
+        name = None,
+        config = None,  # TODO(jhr): type is a union for argparse/absl
+        notes = None,
+
         magic = None,  # FIXME: type is union
-        config = None,
+        config_exclude_keys=None,
+        config_include_keys=None,
         reinit = None,
         anonymous = None,
-        name=None,
-):
-    """This is my comment.
 
-    Intialize stuff.
+        dir=None,
+        allow_val_change=None,
+        resume=None,
+        force=None,
+        tensorboard=None,
+        sync_tensorboard=None,
+        monitor_gym=None,
+        id=None,
+):
+    """Initialize a wandb Run.
 
     Args:
-        settings: This is my setting.
-        mode: set my mode.
+        entity: alias for team.
+        team: personal user or team to use for Run.
+        project: project name for the Run.
 
     Raises:
-        Exception
+        Exception: if problem.
 
     Returns:
-        The return value
+        wandb Run object
+
     """
     kwargs = locals()
     try:
@@ -376,11 +406,11 @@ def init(
             # silent or warn
             # TODO: return dummy run instead
             return None
-    except KeyboardInterrupt:
-        print("interrupt")
-        raise_from(Exception("interrupted"), None)
+    except KeyboardInterrupt as e:
+        logger.warning("interupted", exc_info=e)
+        raise_from(Exception("interrupted"), e)
     except Exception as e:
-        print("got e", e)
-        raise_from(Exception("problem"), None)
+        logger.error("error", exc_info=e)
+        raise_from(Exception("problem"), e)
 
     return run
