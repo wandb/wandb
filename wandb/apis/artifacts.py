@@ -121,8 +121,6 @@ class LocalArtifactManifestV1(object):
         fp.write('version: 1\n')
         fp.write('digest: %s\n' % self._digest)
         for entry in self._local_entries:
-            if entry.path == ARTIFACT_METADATA_FILENAME:
-                continue
             # TODO(artifacts): Filenames can have nasty chars, maybe each line is json
             fp.write('%s %s %s\n' % (entry.path, entry.local_path, entry.hash))
 
