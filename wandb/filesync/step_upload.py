@@ -62,8 +62,6 @@ class StepUpload(object):
                 # Queue was empty and no jobs left.
                 break
         
-        # finish may have already been sent, but we need to send it again in the case
-        # that we didn't schedule new jobs after step_upload finished
         self._step_prepare.finish()
 
     def _handle_event(self, event):
@@ -111,8 +109,7 @@ class StepUpload(object):
         job = upload_job.UploadJob(
             self._step_prepare,
             self._event_queue, self._stats, self._api,
-            event.save_name, event.path, event.artifact_id, event.md5,
-            is_last=self._finished and not self._pending_jobs)
+            event.save_name, event.path, event.artifact_id, event.md5)
         self._running_jobs[event.save_name] = job
         job.start()
 

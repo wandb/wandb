@@ -7,7 +7,7 @@ import wandb
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 
 class UploadJob(threading.Thread):
-    def __init__(self, step_prepare, done_queue, stats, api, save_name, path, artifact_id, md5, is_last=False):
+    def __init__(self, step_prepare, done_queue, stats, api, save_name, path, artifact_id, md5):
         """A file upload thread.
 
         Arguments:
@@ -27,7 +27,6 @@ class UploadJob(threading.Thread):
         self.save_path = self.path = path
         self.artifact_id = artifact_id
         self.md5 = md5
-        self._is_last = is_last
         super(UploadJob, self).__init__()
 
     def run(self):
@@ -43,7 +42,7 @@ class UploadJob(threading.Thread):
             size = 0
 
         prepare_response = self._step_prepare.prepare(
-            self.save_path, self.save_name, self.md5, self.artifact_id, final=self._is_last)
+            self.save_path, self.save_name, self.md5, self.artifact_id)
         if prepare_response.upload_url == None:
             self._stats.add_deduped_file(self.save_name, size)
         else:

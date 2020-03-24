@@ -81,7 +81,7 @@ class StepPrepare(object):
                 'digest': prepare_request.md5})
         return self._api.prepare_files(file_specs)
 
-    def prepare_async(self, path, save_name, md5, artifact_id, final=False):
+    def prepare_async(self, path, save_name, md5, artifact_id):
         """Request the backend to prepare a file for upload.
         
         Returns:
@@ -90,12 +90,10 @@ class StepPrepare(object):
         """
         response_queue = queue.Queue()
         self._request_queue.put(RequestPrepare(path, save_name, md5, artifact_id, response_queue))
-        if final:
-            self.finish()
         return response_queue
 
-    def prepare(self, path, save_name, md5, artifact_id, final=False):
-        return self.prepare_async(path, save_name, md5, artifact_id, final=final).get()
+    def prepare(self, path, save_name, md5, artifact_id):
+        return self.prepare_async(path, save_name, md5, artifact_id).get()
 
     def start(self):
         self._thread.start()
