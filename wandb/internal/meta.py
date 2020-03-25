@@ -25,7 +25,7 @@ class Meta(object):
 
     def __init__(self, settings=None, process_q=None, notify_q=None):
         self._settings = settings
-        self.fname = os.path.join(self._settings["files_dir"], METADATA_FNAME)
+        self.fname = os.path.join(self._settings.files_dir, METADATA_FNAME)
         self.data = {}
         self._interface = interface.BackendSender(
                 process_queue=process_q,
@@ -38,7 +38,7 @@ class Meta(object):
         self.data["args"] = sys.argv[1:]
         self.data["state"] = "running"
         self.data["heartbeatAt"] = datetime.utcnow().isoformat()
-        self.data["startedAt"] = datetime.utcfromtimestamp(self._settings["start_time"]).isoformat()
+        self.data["startedAt"] = datetime.utcfromtimestamp(self._settings.start_time).isoformat()
 
     def write(self):
         with open(self.fname, 'w') as f:

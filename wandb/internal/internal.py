@@ -35,6 +35,26 @@ import platform
 logger = logging.getLogger(__name__)
 
 
+class SettingsStatic(object):
+    def __init__(self, config):
+        object.__setattr__(self, "__dict__", dict(config))
+
+    def __setattr__(self, name, value):
+        raise AttributeError("Error: SettingsStatic is a readonly object")
+
+    def __setitem__(self, key, val):
+        raise AttributeError("Error: SettingsStatic is a readonly object")
+
+    def keys(self):
+        return self.__dict__.keys()
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __str__(self):
+        return str(self.__dict__)
+
+
 def setup_logging(log_fname, log_level, run_id=None):
     handler = logging.FileHandler(log_fname)
     handler.setLevel(log_level)
@@ -98,7 +118,7 @@ class _SendManager(object):
         # is anyone using run_id?
         self._run_id = None
         self._api = internal.Api(default_settings=settings)
-        self._api_settings = {k: v for k, v in six.iteritems(settings) if k in ('project',) and v is not None}
+        self._api_settings = {k: v for k, v in six.iteritems(dict(settings)) if k in ('project',) and v is not None}
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -169,7 +189,7 @@ class _SendManager(object):
             self._flatten(row)
             row["_wandb"] = True
             row["_timestamp"] = int(time.time())
-            row['_runtime'] = int(time.time() - self._settings["start_time"])
+            row['_runtime'] = int(time.time() - self._settings.start_time)
             x = self._fs.push("wandb-events.jsonl", json.dumps(row))
 
     def handle_output(self, data):
@@ -201,7 +221,7 @@ class _SendManager(object):
         ups = self._api.upsert_run(name=cfg.run_id, config=config, **self._api_settings)
 
     def handle_files(self, data):
-        directory = self._settings.get("files_dir")
+        directory = self._settings.files_dir
         files = data.files
         for k in files.files:
             fname = k.name
@@ -319,6 +339,9 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
 
     if log_fname:
         setup_logging(log_fname, log_level)
+
+    # Lets make sure we dont modify settings so use a static object
+    settings = SettingsStatic(settings)
 
     run = None
     api = None
