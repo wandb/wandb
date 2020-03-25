@@ -88,7 +88,8 @@ class Settings(object):
                  early_logging=None):
         _settings_dict = dict()
         for k, v in six.iteritems(defaults):
-            _settings_dict[k] = v
+            if not k.startswith('_'):
+                _settings_dict[k] = v
         # _forced_dict = dict()
         object.__setattr__(self, "_early_logging", early_logging)
         object.__setattr__(self, "_settings_dict", _settings_dict)
