@@ -1,8 +1,14 @@
+# -*- coding: utf-8 -*-
+"""
+config.
+"""
+
+import logging
+
 import six
 
 from wandb.util.term import terminfo
 
-import logging
 
 logger = logging.getLogger("wandb")
 

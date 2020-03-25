@@ -133,19 +133,19 @@ class _WandbInit(object):
 
         # Temporarily unsupported parameters
         unsupported = (
-                "magic",
-                "config_exclude_keys",
-                "config_include_keys",
-                "reinit",
-                "anonymous",
-                "dir",
-                "allow_val_change",
-                "resume",
-                "force",
-                "tensorboard",
-                "sync_tensorboard",
-                "monitor_gym",
-                )
+            "magic",
+            "config_exclude_keys",
+            "config_include_keys",
+            "reinit",
+            "anonymous",
+            "dir",
+            "allow_val_change",
+            "resume",
+            "force",
+            "tensorboard",
+            "sync_tensorboard",
+            "monitor_gym",
+        )
         for key in unsupported:
             val = kwargs.pop(key, None)
             if val:
@@ -360,13 +360,11 @@ def init(
         name = None,
         config = None,  # TODO(jhr): type is a union for argparse/absl
         notes = None,
-
         magic = None,  # FIXME: type is union
         config_exclude_keys=None,
         config_include_keys=None,
         reinit = None,
         anonymous = None,
-
         dir=None,
         allow_val_change=None,
         resume=None,

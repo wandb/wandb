@@ -4,6 +4,9 @@ exclude =
     wandb/sdk_py27
 
 max-line-length = 180
+good-names = logger
+disable =
+    useless-object-inheritance  # for py2 compatibility
 
 
 [MISCELLANEOUS]
