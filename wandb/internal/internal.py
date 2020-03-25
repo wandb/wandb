@@ -241,7 +241,7 @@ class _SendManager(object):
             self._pusher.update_all_files()
             files = self._pusher.files()
             for f in files:
-                print("Sync:", f)
+                logger.info("Finish Sync: %s", f)
             self._pusher.print_status()
 
 

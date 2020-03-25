@@ -77,10 +77,11 @@ class _WandbSetup__WandbSetup(object):
         self._gitstuff()
 
     def _gitstuff(self):
-        #self.git = GitRepo(remote=self.settings("git_remote"))
-        self.git = GitRepo()
-        print("remote", self.git.remote_url)
-        print("last", self.git.last_commit)
+        # self.git = GitRepo(remote=self.settings("git_remote"))
+        # self.git = GitRepo()
+        # print("remote", self.git.remote_url)
+        # print("last", self.git.last_commit)
+        pass
 
     def _settings_setup(self, settings=None, early_logging=None):
         glob_config = os.path.expanduser('~/.config/wandb/settings')
