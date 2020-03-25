@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+internal.
+"""
+
 import threading
 import json
 from six.moves import queue
@@ -22,6 +27,7 @@ from wandb.stuff.file_pusher import FilePusher
 from wandb.stuff import io_wrap
 
 from . import stats
+from . import meta
 
 import numpy as np  # type: ignore
 import platform
@@ -92,12 +98,10 @@ class _SendManager(object):
         # is anyone using run_id?
         self._run_id = None
         self._api = internal.Api(default_settings=settings)
-        self._orig_settings = settings
-        self._settings = {k: v for k, v in six.iteritems(settings) if k in ('project',) and v is not None}
+        self._api_settings = {k: v for k, v in six.iteritems(settings) if k in ('project',) and v is not None}
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
-        self._start_time = time.time()
 
     def _flatten(self, dictionary):
         if type(dictionary) == dict:
@@ -111,7 +115,7 @@ class _SendManager(object):
     def handle_run(self, data):
         run = data.run
         config = json.loads(run.config_json)
-        ups = self._api.upsert_run(name=run.run_id, config=config, **self._settings)
+        ups = self._api.upsert_run(name=run.run_id, config=config, **self._api_settings)
 
         if data.control.req_resp:
             storage_id = ups.get("id")
@@ -125,7 +129,7 @@ class _SendManager(object):
                 project_name = project.get("name")
                 if project_name:
                     data.run.project = project_name
-                    self._settings['project'] = project_name
+                    self._api_settings['project'] = project_name
                 entity = project.get("entity")
                 if entity:
                     entity_name = entity.get("name")
@@ -137,10 +141,11 @@ class _SendManager(object):
         #fs.start()
         #self._fs['rfs'] = fs
         #self._fs['run_id'] = run.run_id
-        self._fs = file_stream.FileStreamApi(self._api, run.run_id, settings=self._settings)
+        self._fs = file_stream.FileStreamApi(self._api, run.run_id, settings=self._api_settings)
         self._fs.start()
         self._pusher = FilePusher(self._api)
         self._run_id = run.run_id
+        logger.info("run started: %s", self._run_id)
 
     def handle_log(self, data):
         log = data.log
@@ -164,7 +169,7 @@ class _SendManager(object):
             self._flatten(row)
             row["_wandb"] = True
             row["_timestamp"] = int(time.time())
-            row['_runtime'] = int(time.time() - self._start_time)
+            row['_runtime'] = int(time.time() - self._settings["start_time"])
             x = self._fs.push("wandb-events.jsonl", json.dumps(row))
 
     def handle_output(self, data):
@@ -193,10 +198,10 @@ class _SendManager(object):
     def handle_config(self, data):
         cfg = data.config
         config = json.loads(cfg.config_json)
-        ups = self._api.upsert_run(name=cfg.run_id, config=config, **self._settings)
+        ups = self._api.upsert_run(name=cfg.run_id, config=config, **self._api_settings)
 
     def handle_files(self, data):
-        directory = self._orig_settings.get("files_dir")
+        directory = self._settings.get("files_dir")
         files = data.files
         for k in files.files:
             fname = k.name
@@ -322,6 +327,10 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
     system_stats = stats.SystemStats(pid=pid, process_q=process_queue, notify_q=notify_queue)
     system_stats.start()
 
+    run_meta = meta.Meta(settings=settings, process_q=process_queue, notify_q=notify_queue)
+    run_meta.probe()
+    run_meta.write()
+
     if use_redirect:
         pass
     else:
@@ -366,7 +375,7 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
 
     write_thread.start()
     send_thread.start()
-    
+
     done = False
     while not done:
         count = 0

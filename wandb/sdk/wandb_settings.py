@@ -52,6 +52,14 @@ defaults = dict(
     data_spec="wandb-{timespec}-{pid}-data.bin",
     run_base_dir="wandb",
     run_dir_spec="run-{timespec}-{pid}",
+
+    program=None,
+    notebook_name=None,
+    disable_code=None,
+    host=None,
+    username=None,
+    docker=None,
+    start_time=None,
 )
 
 move_mapping = dict(entity="team", )

@@ -10,6 +10,7 @@ from wandb.util.globals import set_global
 from wandb.backend.backend import Backend
 from wandb.stuff import util2
 
+import time
 import json
 import atexit
 import platform
@@ -157,6 +158,10 @@ class _WandbInit(object):
         d = dict(**kwargs)
         # strip out items where value is None
         d = {k: v for k, v in six.iteritems(d) if v is not None}
+
+        # TODO(jhr): should this be moved? probably.
+        d.setdefault("start_time", time.time())
+
         s.update(d)
         s.freeze()
         self.wl = wl
