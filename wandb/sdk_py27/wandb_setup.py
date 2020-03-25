@@ -170,7 +170,8 @@ class _WandbSetup__WandbSetup(object):
         # TODO: read from settings
         log_user_spec = "debug-user.txt"
         log_internal_spec = "debug-internal.txt"
-        log_files_spec = "files"
+        dir_files_spec = "files"
+        dir_data_spec = "data"
 
         # TODO(jhr): should we use utc?
         when = datetime.datetime.now()
@@ -180,10 +181,12 @@ class _WandbSetup__WandbSetup(object):
         log_dir = os.path.join(log_base_dir, log_dir_spec.format(**d))
         log_user = os.path.join(log_dir, log_user_spec.format(**d))
         log_internal = os.path.join(log_dir, log_internal_spec.format(**d))
-        log_files = os.path.join(log_dir, log_files_spec.format(**d))
+        dir_files = os.path.join(log_dir, dir_files_spec.format(**d))
+        dir_data = os.path.join(log_dir, dir_data_spec.format(**d))
 
         self._safe_makedirs(log_dir)
-        self._safe_makedirs(log_files)
+        self._safe_makedirs(dir_files)
+        self._safe_makedirs(dir_data)
         self._safe_symlink(log_base_dir, log_dir, "latest", pid, delete=True)
         self._safe_symlink(log_base_dir,
                            log_user,
@@ -193,8 +196,6 @@ class _WandbSetup__WandbSetup(object):
         self._safe_symlink(log_base_dir, log_internal, "debug-internal.log",
                            pid)
 
-        #print("loguser", log_user)
-        #print("loginternal", log_internal)
         self._enable_logging(log_user)
 
         logger.info("Logging to {}".format(log_user))
@@ -202,9 +203,9 @@ class _WandbSetup__WandbSetup(object):
         self._log_dir = log_dir
         self._log_user_filename = log_user
         self._log_internal_filename = log_internal
-        self._log_files_dir = log_files
 
-        self._settings.files_dir = self._log_files_dir
+        self._settings.files_dir = dir_files
+        self._settings.data_dir = dir_data
 
     def _check(self):
         if hasattr(threading, "main_thread"):
