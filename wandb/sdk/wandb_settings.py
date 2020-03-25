@@ -11,7 +11,7 @@ logger = logging.getLogger("wandb")
 source = ("org", "team", "project", "sysdir", "dir", "env", "setup",
           "settings", "args")
 
-Field = collections.namedtuple('TypedField', ['value', 'type', 'choices'])
+Field = collections.namedtuple('TypedField', ['type', 'choices'])
 
 defaults = dict(
     team=None,
@@ -23,15 +23,16 @@ defaults = dict(
     anonymous=None,
 
     # how do we annotate that: dryrun==offline?
-    mode=Field('online', str,
-               ('noop', 'online', 'offline', 'dryrun', 'async')),
+    mode='online',
+    _mode=Field(str, ('noop', 'online', 'offline', 'dryrun', 'async')),
     group=None,
     job_type=None,
 
     # compatibility / error handling
     compat_version=None,  # set to "0.8" for safer defaults for older users
     strict=None,  # set to "on" to enforce current best practices (also "warn")
-    problem=Field('fatal', str, ('fatal', 'warn', 'silent')),
+    problem='fatal',
+    _problem=Field(str, ('fatal', 'warn', 'silent')),
 
     # dynamic settings
     system_sample_seconds=2,
@@ -87,10 +88,7 @@ class Settings(object):
                  early_logging=None):
         _settings_dict = dict()
         for k, v in six.iteritems(defaults):
-            if isinstance(v, Field):
-                _settings_dict[k] = v.value
-            else:
-                _settings_dict[k] = v
+            _settings_dict[k] = v
         # _forced_dict = dict()
         object.__setattr__(self, "_early_logging", early_logging)
         object.__setattr__(self, "_settings_dict", _settings_dict)
@@ -130,7 +128,7 @@ class Settings(object):
 
     def _check_invalid(self, k, v):
         # Check to see if matches choice
-        f = defaults.get(k)
+        f = defaults.get('_' + k)
         if f and isinstance(f, Field):
             if v is not None and f.choices and v not in f.choices:
                 raise TypeError('Settings field {} set to {} not in {}'.format(

@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+util/redirect.
+"""
 
 import os
 import threading
@@ -32,7 +36,8 @@ def _pipe_relay(stopped, fd, name, cb, tee):
         if len(data) == 0:
             break
         if stopped.isSet():
-            if data == _LAST_WRITE_TOKEN.encode():
+            # TODO(jhr): Is this going to capture all timings?
+            if data.endswith(_LAST_WRITE_TOKEN.encode()):
                 logger.info("relay done saw last write: %s", name)
                 break
         if tee:
