@@ -405,7 +405,7 @@ class Api(object):
     def artifact(self, path=None, expected_digest=None):
         # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
         entity, project, artifact_type, artifact_alias = self._parse_artifact_path(path)
-        return Artifact(self.client, entity, project, artifact_type, artifact_alias, expected_digest=expected_digest)
+        return Artifact(self.client, entity, project, artifact_type, alias=artifact_alias, expected_digest=expected_digest)
 
 
 class Attrs(object):
@@ -1791,12 +1791,14 @@ class ArtifactType(object):
 
 class Artifact(object):
 
-    def __init__(self, client, entity, project, artifact_type_name, artifact_name, attrs=None, expected_digest=None):
+    def __init__(self, client, entity, project, artifact_type_name, digest=None, alias=None, attrs=None, expected_digest=None):
+        if digest is None and alias is None and attrs is None:
+            raise ValueError('one of digest, alias, or attrs must be set')
         self.client = client
         self.entity = entity
         self.project = project
         self.artifact_type_name = artifact_type_name
-        self.artifact_name = artifact_name
+        self.name = digest if digest is not None else alias
         # TODO(artifacts) We can get rid of this when we have server side state tracking
         self._expected_digest = expected_digest
         self._attrs = attrs
@@ -1854,13 +1856,13 @@ class Artifact(object):
             'entityName': self.entity,
             'projectName': self.project,
             'artifactTypeName': self.artifact_type_name,
-            'name': self.artifact_name,
+            'name': self.name,
         })
         if response is None \
             or response.get('project') is None \
                 or response['project'].get('artifactType') is None \
                 or response['project']['artifactType'].get('artifact') is None:
-            raise ValueError("Could not find artifact %s:%s" % (self.artifact_type_name, self.artifact_name))
+            raise ValueError("Could not find artifact %s:%s" % (self.artifact_type_name, self.artifact_alias))
         self._attrs = response['project']['artifactType']['artifact']
         return self._attrs
 
