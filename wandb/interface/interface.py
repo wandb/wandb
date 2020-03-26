@@ -156,6 +156,29 @@ class WandBJSONEncoderOld(json.JSONEncoder):
         return json.JSONEncoder.default(self, tmp_obj)
 
 
+def maybe_compress_history(obj):
+    if np and isinstance(obj, np.ndarray) and obj.size > 32:
+        return wandb.Histogram(obj, num_bins=32).to_json(), True
+    else:
+        return obj, False
+
+def json_dumps_safer_history(obj, **kwargs):
+    """Convert obj to json, with some extra encodable types, including histograms"""
+    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+
+
+class WandBHistoryJSONEncoder(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types.
+    This encoder turns numpy like objects with a size > 32 into histograms"""
+
+    def default(self, obj):
+        obj, converted = json_friendly(obj)
+        obj, compressed = maybe_compress_history(obj)
+        if converted:
+            return obj
+        return json.JSONEncoder.default(self, obj)
+
+
 class BackendSender(object):
 
     class ExceptionTimeout(Exception):
@@ -192,7 +215,7 @@ class BackendSender(object):
 
     def send_log(self, data):
         data = data_types.history_dict_to_json(self._run, data)
-        json_data = json.dumps(data, cls=WandBJSONEncoder)
+        json_data = json_dumps_safer_history(data)
         #json_data = json.dumps(data)
         l = wandb_internal_pb2.LogData(json=json_data)
         rec = wandb_internal_pb2.Record()
