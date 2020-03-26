@@ -43,9 +43,12 @@ wandb/framework/pytorch  - pytorch integration
  - [x] Add file sync
  - [X] Add media logging
  - [x] Add keras framework
+ - [ ] Add code saving
  - [ ] Add pytorch framework
  - [ ] Add other frameworks
  - [ ] Basic CLI functionality
+ - [ ] Support modes
+ - [ ] Offline sync - jhr
 
 ## Progress
 
