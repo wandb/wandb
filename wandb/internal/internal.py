@@ -19,10 +19,10 @@ from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.interface import constants
 from wandb.internal import datastore
 
-from wandb.apis import internal
-from wandb.apis import file_stream
+from . import internal_api
+from . import file_stream
 
-from wandb.stuff.file_pusher import FilePusher
+from .file_pusher import FilePusher
 
 from wandb.stuff import io_wrap
 
@@ -117,7 +117,7 @@ class _SendManager(object):
 
         # is anyone using run_id?
         self._run_id = None
-        self._api = internal.Api(default_settings=settings)
+        self._api = internal_api.Api(default_settings=settings)
         self._api_settings = {k: v for k, v in six.iteritems(dict(settings)) if k in ('project',) and v is not None}
 
         # TODO(jhr): do something better, why do we need to send full lines?

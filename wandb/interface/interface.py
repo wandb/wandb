@@ -5,11 +5,13 @@ Manage backend sender.
 
 """
 
+import six
 import json
 from six.moves import queue
 import logging
 from datetime import date, datetime
 import time
+from wandb.data import data_types
 
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.interface import constants
@@ -56,6 +58,16 @@ def get_full_typename(o):
         return instance_name
 
 
+def get_h5_typename(o):
+    typename = get_full_typename(o)
+    if is_tf_tensor_typename(typename):
+        return "tensorflow.Tensor"
+    elif is_pytorch_tensor_typename(typename):
+        return "torch.Tensor"
+    else:
+        return o.__class__.__module__.split('.')[0] + "." + o.__class__.__name__
+
+
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
     converted = True
@@ -100,18 +112,48 @@ def json_friendly(obj):
     return obj, converted
 
 
+def maybe_compress_summary(obj, h5_typename):
+    if np and isinstance(obj, np.ndarray) and obj.size > 32:
+        return {
+            "_type": h5_typename,  # may not be ndarray
+            "var": np.var(obj).item(),
+            "mean": np.mean(obj).item(),
+            "min": np.amin(obj).item(),
+            "max": np.amax(obj).item(),
+            "10%": np.percentile(obj, 10),
+            "25%": np.percentile(obj, 25),
+            "75%": np.percentile(obj, 75),
+            "90%": np.percentile(obj, 90),
+            "size": obj.size
+        }, True
+    else:
+        return obj, False
+
+
 class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
     def default(self, obj):
         if hasattr(obj, 'json_encode'):
             return obj.json_encode()
-        if hasattr(obj, 'to_json'):
-            return obj.to_json()
+        # if hasattr(obj, 'to_json'):
+        #     return obj.to_json()
         tmp_obj, converted = json_friendly(obj)
         if converted:
             return tmp_obj
         return json.JSONEncoder.default(self, obj)
+
+
+class WandBJSONEncoderOld(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types."""
+
+    def default(self, obj):
+        tmp_obj, converted = json_friendly(obj)
+        tmp_obj, compressed = maybe_compress_summary(
+            tmp_obj, get_h5_typename(obj))
+        if converted:
+            return tmp_obj
+        return json.JSONEncoder.default(self, tmp_obj)
 
 
 class BackendSender(object):
@@ -124,6 +166,10 @@ class BackendSender(object):
         self.notify_queue = notify_queue
         self.request_queue = request_queue
         self.response_queue = response_queue
+        self._run = None
+
+    def _hack_set_run(self, run):
+        self._run = run
 
     def send_output(self, name, data):
         # from vendor.protobuf import google3.protobuf.timestamp
@@ -145,6 +191,7 @@ class BackendSender(object):
         self.notify_queue.put(constants.NOTIFY_PROCESS)
 
     def send_log(self, data):
+        data = data_types.history_dict_to_json(self._run, data)
         json_data = json.dumps(data, cls=WandBJSONEncoder)
         #json_data = json.dumps(data)
         l = wandb_internal_pb2.LogData(json=json_data)
@@ -171,8 +218,39 @@ class BackendSender(object):
         stats.stats_json = json.dumps(stats_dict['data'])
         return stats
 
+    def _summary_encode(self, value, path_from_root):
+        """Normalize, compress, and encode sub-objects for backend storage.
+
+        value: Object to encode.
+        path_from_root: `tuple` of key strings from the top-level summary to the
+            current `value`.
+
+        Returns:
+            A new tree of dict's with large objects replaced with dictionaries
+            with "_type" entries that say which type the original data was.
+        """
+
+        # Constructs a new `dict` tree in `json_value` that discards and/or
+        # encodes objects that aren't JSON serializable.
+
+        if isinstance(value, dict):
+            json_value = {}
+            for key, value in six.iteritems(value):
+                json_value[key] = self._summary_encode(value, path_from_root + (key,))
+            return json_value
+        else:
+            path = ".".join(path_from_root)
+            friendly_value, converted = json_friendly(data_types.val_to_json(self._run, path, value))
+            json_value, compressed = maybe_compress_summary(friendly_value, get_h5_typename(value))
+            if compressed:
+                self.write_h5(path_from_root, friendly_value)
+
+            return json_value
+
     def _make_summary(self, summary_dict):
-        json_data = json.dumps(summary_dict['data'], cls=WandBJSONEncoder)
+        data = summary_dict['data']
+        data = self._summary_encode(data, tuple())
+        json_data = json.dumps(data, cls=WandBJSONEncoderOld)
         summary = wandb_internal_pb2.SummaryData()
         summary.run_id = summary_dict['run_id']
         summary.summary_json = json_data

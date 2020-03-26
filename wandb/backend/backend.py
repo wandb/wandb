@@ -44,6 +44,9 @@ class Backend(object):
         self._wl = wandb.setup()
         self.interface = None
 
+    def _hack_set_run(self, run):
+        self.interface._hack_set_run(run)
+
     def ensure_launched(self, settings=None, log_fname=None, log_level=None, data_fname=None, stdout_fd=None, stderr_fd=None, use_redirect=None):
         """Launch backend worker if not running."""
         log_fname = log_fname or ""

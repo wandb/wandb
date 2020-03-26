@@ -34,7 +34,10 @@ from wandb.stuff import env
 from wandb.stuff.settings import Settings
 from wandb.stuff import retry
 from wandb.stuff import util2 as util
-from wandb.apis import FileStreamApi, normalize_exceptions, CommError, Progress, UsageError
+from wandb.apis import normalize_exceptions, CommError, UsageError
+
+from .file_stream import FileStreamApi
+from .progress import Progress
 
 logger = logging.getLogger(__name__)
 

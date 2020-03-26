@@ -23,6 +23,7 @@ import importlib
 import types
 import yaml
 from datetime import date, datetime
+import platform
 
 import click
 import requests
@@ -642,6 +643,9 @@ def downsample(values, target_length):
         result.append(values[int(i * ratio)])
     return result
 
+import numbers
+def has_num(dictionary, key):
+     return (key in dictionary and isinstance(dictionary[key], numbers.Number))
 
 def md5_file(path):
     hash_md5 = hashlib.md5()
@@ -970,3 +974,8 @@ def parse_sweep_id(parts_dict):
     else:
         return 'Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep'
     parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
+
+def to_forward_slash_path(path):
+    if platform.system() == "Windows":
+        path = path.replace("\\", "/")
+    return path
