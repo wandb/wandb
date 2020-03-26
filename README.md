@@ -10,7 +10,7 @@ Use W&B to organize and analyze machine learning experiments. It's framework-agn
 
 ## Experimental
 
-This is an unreleased development version of the library, refer to [Development](README-devel.am) for more details.
+This is an unreleased development version of the library, refer to [Development](README-dev.md) for more details.
 
 ## Features
 
