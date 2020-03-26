@@ -229,6 +229,11 @@ class BackendSender(object):
         run.config_json = json.dumps(run_dict.get('config', {}))
         return run
 
+    def _make_exit(self, exit_code):
+        exit = wandb_internal_pb2.ExitData()
+        exit.exit_code = exit_code
+        return exit
+
     def _make_config(self, config_dict):
         config = wandb_internal_pb2.ConfigData()
         config.run_id = config_dict['run_id']
@@ -286,7 +291,7 @@ class BackendSender(object):
             f.name = path
         return files
 
-    def _make_record(self, run=None, config=None, files=None, summary=None, stats=None):
+    def _make_record(self, run=None, config=None, files=None, summary=None, stats=None, exit=None):
         rec = wandb_internal_pb2.Record()
         if run:
             rec.run.CopyFrom(run)
@@ -298,6 +303,8 @@ class BackendSender(object):
             rec.files.CopyFrom(files)
         if stats:
             rec.stats.CopyFrom(stats)
+        if exit:
+            rec.exit.CopyFrom(exit)
         return rec
 
     def _queue_process(self, rec):
@@ -359,5 +366,12 @@ class BackendSender(object):
         rec = self._make_record(files=files)
         self._queue_process(rec)
 
-    def send_exit_code(self, exit_code):
+    def send_exit(self, exit_code):
         pass
+
+    def send_exit_sync(self, exit_code, timeout=None):
+        exit = self._make_exit(exit_code)
+        req = self._make_record(exit=exit)
+
+        resp = self._request_response(req)
+        return resp

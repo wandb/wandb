@@ -132,6 +132,22 @@ class _SendManager(object):
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
 
+    def handle_exit(self, data):
+        # Ensure we've at least noticed every file in the run directory. Sometimes
+        # we miss things because asynchronously watching filesystems isn't reliable.
+        run_dir = self._settings.files_dir
+        logger.info("scan: %s", run_dir)
+
+        for dirpath, _, filenames in os.walk(run_dir):
+            for fname in filenames:
+                file_path = os.path.join(dirpath, fname)
+                save_name = os.path.relpath(file_path, run_dir)
+                logger.info("scan save: %s %s", file_path, save_name)
+                self._save_file(save_name)
+
+        if data.control.req_resp:
+            self._resp_q.put(data)
+
     def handle_run(self, data):
         run = data.run
         config = json.loads(run.config_json)
@@ -220,16 +236,19 @@ class _SendManager(object):
         config = json.loads(cfg.config_json)
         ups = self._api.upsert_run(name=cfg.run_id, config=config, **self._api_settings)
 
-    def handle_files(self, data):
+    def _save_file(self, fname):
         directory = self._settings.files_dir
+        logger.info("saving file %s at %s", fname, directory)
+        path = os.path.abspath(os.path.join(directory, fname))
+        logger.info("saving file %s at full %s", fname, path)
+        self._pusher.update_file(fname, path)
+        self._pusher.file_changed(fname, path)
+
+    def handle_files(self, data):
         files = data.files
         for k in files.files:
             fname = k.name
-            logger.info("saving file %s at %s", fname, directory)
-            path = os.path.abspath(os.path.join(directory, fname))
-            logger.info("saving file %s at full %s", fname, path)
-            self._pusher.update_file(fname, path)
-            self._pusher.file_changed(fname, path)
+            self._save_file(fname)
 
     def finish(self):
         if self._pusher:

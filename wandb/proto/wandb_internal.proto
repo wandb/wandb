@@ -135,6 +135,11 @@ message StatsData {
   string stats_json = 2;
 }
 
+message ExitData {
+  string run_id = 1;
+  int32 exit_code = 2;
+}
+
 message Record {
   int64   num = 1;
   oneof data {
@@ -145,6 +150,7 @@ message Record {
     FilesData files = 6;
     SummaryData summary = 7;
     StatsData stats = 8;
+    ExitData exit = 9;
   }
   Control control = 16;
   // config?
