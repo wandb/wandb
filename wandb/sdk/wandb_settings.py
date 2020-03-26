@@ -52,7 +52,6 @@ defaults = dict(
     data_spec="wandb-{timespec}-{pid}-data.bin",
     run_base_dir="wandb",
     run_dir_spec="run-{timespec}-{pid}",
-
     program=None,
     notebook_name=None,
     disable_code=None,

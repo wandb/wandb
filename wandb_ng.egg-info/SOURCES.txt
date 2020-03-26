@@ -8,8 +8,6 @@ wandb/py.typed
 wandb/agent/__init__.py
 wandb/agent/agent.py
 wandb/apis/__init__.py
-wandb/apis/file_stream.py
-wandb/apis/internal.py
 wandb/backend/__init__.py
 wandb/backend/backend.py
 wandb/cli/__init__.py
@@ -17,6 +15,8 @@ wandb/cli/cli.py
 wandb/compat/__init__.py
 wandb/compat/tempfile.py
 wandb/compat/weakref.py
+wandb/data/__init__.py
+wandb/data/data_types.py
 wandb/errors/__init__.py
 wandb/errors/error.py
 wandb/errors/term.py
@@ -28,7 +28,12 @@ wandb/interface/constants.py
 wandb/interface/interface.py
 wandb/internal/__init__.py
 wandb/internal/datastore.py
+wandb/internal/file_pusher.py
+wandb/internal/file_stream.py
 wandb/internal/internal.py
+wandb/internal/internal_api.py
+wandb/internal/meta.py
+wandb/internal/progress.py
 wandb/internal/stats.py
 wandb/internal/mpmain/__init__.py
 wandb/internal/mpmain/__main__.py
@@ -62,7 +67,6 @@ wandb/sdk_py27/wandb_watch.py
 wandb/stuff/__init__.py
 wandb/stuff/core.py
 wandb/stuff/env.py
-wandb/stuff/file_pusher.py
 wandb/stuff/git_repo.py
 wandb/stuff/io_wrap.py
 wandb/stuff/retry.py
@@ -268,9 +272,6 @@ wandb/vendor/protobuf/ruby/compatibility_tests/v3.0.0/test.sh
 wandb/vendor/protobuf/src/google/protobuf/compiler/zip_output_unittest.sh
 wandb/vendor/protobuf/src/google/protobuf/compiler/objectivec/method_dump.sh
 wandb/vendor/protobuf/src/google/protobuf/io/gzip_stream_unittest.sh
-wandb/wandb_types/__init__.py
-wandb/wandb_types/graph.py
-wandb/wandb_types/image.py
 wandb_ng.egg-info/PKG-INFO
 wandb_ng.egg-info/SOURCES.txt
 wandb_ng.egg-info/dependency_links.txt

@@ -23,7 +23,7 @@ import sys
 import os
 from wandb.util import redirect
 
-from wandb.apis import internal
+# from wandb.apis import internal
 
 # import typing
 # if typing.TYPE_CHECKING:
@@ -265,17 +265,17 @@ class _WandbInit(object):
         if s.mode == "noop":
             return None
 
-        api = internal.Api(default_settings=dict(s))
-        if not api.api_key:
-            in_jupyter = _get_python_type() != "python"
-            if in_jupyter:
-                app_url = s.base_url.replace("//api.", "//app.")
-                print("Go to this URL in a browser: {}/authorize\n".format(
-                    app_url))
-                key = getpass.getpass("Enter your authorization code:\n")
-            else:
-                key = prompt('Enter api key: ', is_password=True)
-            util2.set_api_key(api, key)
+        # api = internal.Api(default_settings=dict(s))
+        # if not api.api_key:
+        #     in_jupyter = _get_python_type() != "python"
+        #     if in_jupyter:
+        #         app_url = s.base_url.replace("//api.", "//app.")
+        #         print("Go to this URL in a browser: {}/authorize\n".format(
+        #             app_url))
+        #         key = getpass.getpass("Enter your authorization code:\n")
+        #     else:
+        #         key = prompt('Enter api key: ', is_password=True)
+        #     util2.set_api_key(api, key)
 
         if self._use_redirect:
             stdout_master_fd = None
@@ -311,6 +311,8 @@ class _WandbInit(object):
         run._set_backend(backend)
         # TODO: pass mode to backend
         run_synced = None
+
+        backend._hack_set_run(run)
 
         run_config = dict(run.config)
         logger.info("runconfig: %s", run_config)
