@@ -1,95 +1,85 @@
-# Experimental wandb client
+<div align="center">
+  <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
+</div>
 
-https://paper.dropbox.com/doc/Cling-CLI-Refactor-lETNuiP0Rax8yjTi03Scp
+# Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb)
 
-## Play along
+Use W&B to organize and analyze machine learning experiments. It's framework-agnostic and lighter than TensorBoard. Each time you run a script instrumented with `wandb`, we save your hyperparameters and output metrics. Visualize models over the course of training, and compare versions of your models easily. We also automatically track the state of your code, system metrics, and configuration parameters.
 
-`pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb-ng`
+[Sign up for a free account →](https://wandb.com)
 
-Or from pypi test (last devel release - might be out of date):
+## Experimental
 
-- https://test.pypi.org/project/wandb-ng/
-- `pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple --upgrade wandb-ng`
+This is an unreleased development version of the library, refer to [Development](README-devel.am) for more details.
 
-## Code organization
+## Features
 
+-   Store hyper-parameters used in a training run
+-   Search, compare, and visualize training runs
+-   Analyze system usage metrics alongside runs
+-   Collaborate with team members
+-   Replicate historic results
+-   Run parameter sweeps
+-   Keep records of experiments available forever
+
+[Documentation →](https://docs.wandb.com)
+
+## Quickstart
+
+```shell
+pip install wandb
 ```
-wandb/sdk          - User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
-wandb/sdk_py27     - Generated files [currently by strip.sh]
-wandb/backend      - Support to launch internal process
-wandb/interface    - Interface to backend execution 
-wandb/proto        - Protocol buffers for inter-process communication and persist file store
-wandb/internal     - Backend threads/processes
-wandb/apis         - Public api (still has internal api but this should be moved to wandb/internal)
-wandb/cli          - Handlers for command line functionality
-wandb/stuff        - Stuff copied from wandb-og, needs to be refactored or find a place
-wandb/agent        - agent/super agent stuff
-wandb/keras        - keras integration
-wandb/pytorch      - pytorch integration
+
+In your training script:
+
+```python
+import wandb
+# Your custom arguments defined here
+args = ...
+
+wandb.init(config=args, project="my-project")
+wandb.config["more"] = "custom"
+
+def training_loop():
+    while True:
+        # Do some machine learning
+        epoch, loss, val_loss = ...
+        # Framework agnostic / custom metrics
+        wandb.log({"epoch": epoch, "loss": loss, "val_loss": val_loss})
 ```
 
-## Code checks
+If you're already using Tensorboard or [TensorboardX](https://github.com/lanpa/tensorboardX), you can integrate with one line:
 
- - Reformat: `tox -e reformat`
- - Type check: `tox -e mypy`
- - Misc: `tox`
+```python
+wandb.init(sync_tensorboard=True)
+```
 
-## Tasks
+## Running your script
 
- - [ ] Improve hybrid (poor connectivity mode) - jhr
- - [ ] Add metadata sync - jhr
- - [ ] Add system metrics - jhr
- - [ ] Add summary metrics mirror - jhr
- - [x] Add file sync
- - [ ] Add media logging
- - [x] Add keras framework
- - [ ] Add pytorch framework
- - [ ] Add other frameworks
- - [ ] Basic CLI functionality
+Run `wandb login` from your terminal to signup or authenticate your machine (we store your api key in ~/.netrc). You can also set the `WANDB_API_KEY` environment variable with a key from your [settings](https://app.wandb.ai/settings).
 
-## Progress
+Run your script with `python my_script.py` and all metadata will be synced to the cloud. You will see a url in your terminal logs when your script starts and finishes. Data is staged locally in a directory named _wandb_ relative to your script. If you want to test your script without syncing to the cloud you can set the environment variable `WANDB_MODE=dryrun`.
 
-API:
- - [x] wandb.init() basic
- - [x] wandb.log() basic
- - [x] wandb.join() basic
- - [x] wandb.run basic
- - [x] wandb.config basic
- - [ ] wandb.save()
- - [ ] wandb.restore()
- - [ ] wandb.init() full
- - [ ] wandb.log() full
- - [ ] wandb.join() full
- - [ ] wandb.run full
- - [ ] wandb.config full
- - [ ] wandb.sweep()
- - [ ] wandb.agent()
- - [ ] wandb.controller()
- 
-CLI:
- - [ ] wandb login
- - [ ] wandb sync
+If you are using [docker](https://docker.com) to run your code, we provide a wrapper command `wandb docker` that mounts your current directory, sets environment variables, and ensures the wandb library is installed. Training your models in docker gives you the ability to restore the exact code and environment with the `wandb restore` command.
 
-Functionality:
- - [ ] system metrics
- - [x] console log
- - [ ] offline
- - [ ] Unit tests
- - [ ] code coverage
+## Web Interface
 
-Goals:
- - [ ] standardize all CLI->backend updates
- - [ ] reorganize code to avoid different contexts (run_manager)
- - [ ] jupyter simplification using request queues or RPC
- - [ ] utilize more standard methods for background process
- - [ ] better isolation for extended features (system monitoring, git logging)
- - [ ] offline support improvements: enforce constraints at sync time (code logging, etc)
- - [ ] internal api becomes fully internal, only used by "internal" process
- - [ ] telemetry of all operations
- 
-Bonus:
-- [ ] multi-language synchronizer
-- [ ] schema'ed binary? cloud? log for offline run data
-- [ ] less (no) dependance on local filesytem
-- [ ] type annotations
-- [ ] cleaned up logger
+[Sign up for a free account →](https://wandb.com)
+[![Watch the video](https://i.imgur.com/PW0Ejlc.png)](https://youtu.be/EeqhOSvNX-A)
+[Introduction video →](https://youtu.be/EeqhOSvNX-A)
+
+## Detailed Usage
+
+Framework specific and detailed usage can be found in our [documentation](http://docs.wandb.com/).
+
+## Testing
+
+To run the tests we use `pytest tests`. If you want a simple mock of the wandb backend and cloud storage you can use the mock_server fixture, see tests/test_cli.py for examples.
+
+We use [circleci](https://circleci.com) and [appveyor](https://appveyor.com) for CI.
+
+# Academic Researchers
+If you'd like a free academic account for your research group, [reach out to us →](https://www.wandb.com/academic)
+
+We make it easy to cite W&B in your published paper. [Learn more →](https://www.wandb.com/academic)
+[![](https://i.imgur.com/loKLiez.png)](https://www.wandb.com/academic)

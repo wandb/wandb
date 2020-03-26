@@ -168,6 +168,10 @@ class _WandbInit(object):
         self.settings = s
 
     def _atexit_cleanup(self):
+
+        ret = self.backend.interface.send_exit_sync(0, timeout=30)
+        logger.info("got exit ret: %s", ret)
+
         self._restore()
 
         self.backend.cleanup()

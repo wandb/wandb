@@ -3,7 +3,7 @@
 
 from setuptools import setup
 
-with open('package_readme.md') as readme_file:
+with open('README.md') as readme_file:
     readme = readme_file.read()
 
 requirements = [
