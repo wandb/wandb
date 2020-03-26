@@ -44,7 +44,7 @@ ray[tune]
 gym
 scikit-plot
 configparser
-tensorflow==1.14.0
+tensorflow==1.15.2
 tensorboard==1.14.0
 protobuf>=3.6.0
 vcrpy>=2.0.0
