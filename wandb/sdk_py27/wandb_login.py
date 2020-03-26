@@ -8,8 +8,8 @@ import logging
 
 import wandb
 
-
 logger = logging.getLogger("wandb")
+
 
 def login():
     if is_logged_in():
@@ -34,4 +34,3 @@ def is_logged_in(settings=None):
         wl = wandb.setup()
         settings = wl.settings()
     return api_key(settings=settings) is not None
-

@@ -1,6 +1,5 @@
 MANIFEST.in
 README.md
-package_readme.md
 setup.cfg
 setup.py
 wandb/__init__.py
@@ -46,6 +45,7 @@ wandb/sdk/wandb_config_test.py
 wandb/sdk/wandb_history.py
 wandb/sdk/wandb_history_test.py
 wandb/sdk/wandb_init.py
+wandb/sdk/wandb_login.py
 wandb/sdk/wandb_run.py
 wandb/sdk/wandb_save.py
 wandb/sdk/wandb_settings.py
@@ -58,6 +58,7 @@ wandb/sdk_py27/__init__.py
 wandb/sdk_py27/wandb_config.py
 wandb/sdk_py27/wandb_history.py
 wandb/sdk_py27/wandb_init.py
+wandb/sdk_py27/wandb_login.py
 wandb/sdk_py27/wandb_run.py
 wandb/sdk_py27/wandb_save.py
 wandb/sdk_py27/wandb_settings.py

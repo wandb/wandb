@@ -169,8 +169,8 @@ class _WandbSetup__WandbSetup(object):
         log_dir_spec = "wandb-{timespec}-{pid}"
         # log spec
         # TODO: read from settings
-        log_user_spec = "debug-user.txt"
-        log_internal_spec = "debug-internal.txt"
+        log_user_spec = "debug.log"
+        log_internal_spec = "debug-internal.log"
         dir_files_spec = "files"
         dir_data_spec = "data"
 

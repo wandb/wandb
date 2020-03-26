@@ -40,8 +40,8 @@ defaults = dict(
     heartbeat_seconds=30,
     log_base_dir="wandb",
     log_dir="",
-    log_user_spec="wandb-{timespec}-{pid}-debug-user.txt",
-    log_internal_spec="wandb-{timespec}-{pid}-debug-internal.txt",
+    log_user_spec="wandb-{timespec}-{pid}-debug.log",
+    log_internal_spec="wandb-{timespec}-{pid}-debug-internal.log",
     log_user=False,
     log_internal=True,
 
