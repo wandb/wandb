@@ -47,10 +47,10 @@ def cli(ctx):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @display_error
 def login():
-    print("login")
+    wandb.login()
 
 
-@cli.command(context_settings=CONTEXT, help="Run a SUPER agent")
+@cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
 @click.option("--project", "-p", default=None, help="The project use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.argument('agent_spec', nargs=-1)

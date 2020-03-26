@@ -3,17 +3,47 @@
 login.
 """
 
+from __future__ import print_function
+
 import requests
 import logging
+from prompt_toolkit import prompt  # type: ignore
+import getpass
 
 import wandb
+from wandb.stuff import util2
 
 logger = logging.getLogger("wandb")
 
 
-def login():
+def _get_python_type():
+    try:
+        if 'terminal' in get_ipython().__module__:
+            return 'ipython'
+        else:
+            return 'jupyter'
+    except (NameError, AttributeError):
+        return "python"
+
+
+def login(settings=None):
     if is_logged_in():
-        return True
+        return
+
+    if not settings:
+        wl = wandb.setup()
+        settings = wl.settings()
+
+    app_url = settings.base_url.replace("//api.", "//app.")
+    in_jupyter = _get_python_type() != "python"
+    if in_jupyter:
+        print("Go to this URL in a browser: {}/authorize\n".format(app_url))
+        key = getpass.getpass("Enter your authorization code:\n")
+    else:
+        print("Go to this URL in a browser: {}/authorize\n".format(app_url))
+        key = prompt('Enter api key: ', is_password=True)
+
+    util2.set_api_key(api, key)
     return
 
 

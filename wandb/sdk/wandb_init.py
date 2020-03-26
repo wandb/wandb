@@ -3,7 +3,6 @@
 init.
 """
 
-from prompt_toolkit import prompt  # type: ignore
 import wandb
 from .wandb_run import Run
 from wandb.util.globals import set_global
@@ -15,7 +14,6 @@ import json
 import atexit
 import platform
 import six
-import getpass
 import logging
 from six import raise_from
 from wandb.stuff import io_wrap
@@ -56,16 +54,6 @@ logger = logging.getLogger("wandb")
 
 def online_status(*args, **kwargs):
     pass
-
-
-def _get_python_type():
-    try:
-        if 'terminal' in get_ipython().__module__:
-            return 'ipython'
-        else:
-            return 'jupyter'
-    except (NameError, AttributeError):
-        return "python"
 
 
 def win32_redirect(stdout_slave_fd, stderr_slave_fd):
@@ -269,17 +257,8 @@ class _WandbInit(object):
         if s.mode == "noop":
             return None
 
-        # api = internal.Api(default_settings=dict(s))
-        # if not api.api_key:
-        #     in_jupyter = _get_python_type() != "python"
-        #     if in_jupyter:
-        #         app_url = s.base_url.replace("//api.", "//app.")
-        #         print("Go to this URL in a browser: {}/authorize\n".format(
-        #             app_url))
-        #         key = getpass.getpass("Enter your authorization code:\n")
-        #     else:
-        #         key = prompt('Enter api key: ', is_password=True)
-        #     util2.set_api_key(api, key)
+        # Make sure we are logged in
+        wandb.login()
 
         if self._use_redirect:
             stdout_master_fd = None
