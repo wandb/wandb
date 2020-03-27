@@ -53,7 +53,7 @@ class Config(object):
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
-            self._callback(key=key, val=val, data=dict(self))
+            self._callback(key=key, val=val, data=self._as_dict())
 
     __setattr__ = __setitem__
 
