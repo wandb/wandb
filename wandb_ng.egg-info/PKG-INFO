@@ -16,10 +16,6 @@ Description: <div align="center">
         
         [Sign up for a free account →](https://wandb.com)
         
-        ## Experimental
-        
-        This is an unreleased development version of the library, refer to [Development](README-dev.md) for more details.
-        
         ## Features
         
         -   Store hyper-parameters used in a training run
@@ -35,7 +31,7 @@ Description: <div align="center">
         ## Quickstart
         
         ```shell
-        pip install wandb_ng
+        pip install wandb-ng
         ```
         
         In your training script:
