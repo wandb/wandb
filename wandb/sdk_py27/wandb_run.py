@@ -47,6 +47,10 @@ class Run(object):
         # Returned from backend send_run_sync, set from wandb_init?
         self._run_obj = None
 
+        config = config or dict()
+        wandb_key = "_wandb"
+        config.setdefault(wandb_key, dict(desc=None, value=dict()))
+        config[wandb_key]["value"]["cli_version"] = wandb.__version__
         if config:
             self.config.update(config)
 

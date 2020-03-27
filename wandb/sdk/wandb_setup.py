@@ -194,8 +194,11 @@ class _WandbSetup__WandbSetup(object):
                            "debug.log",
                            pid,
                            delete=True)
-        self._safe_symlink(log_base_dir, log_internal, "debug-internal.log",
-                           pid, delete=True)
+        self._safe_symlink(log_base_dir,
+                           log_internal,
+                           "debug-internal.log",
+                           pid,
+                           delete=True)
 
         self._enable_logging(log_user)
 

@@ -27,7 +27,7 @@ This is an unreleased development version of the library, refer to [Development]
 ## Quickstart
 
 ```shell
-pip install wandb
+pip install wandb_ng
 ```
 
 In your training script:
