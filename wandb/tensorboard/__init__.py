@@ -12,7 +12,9 @@ for path in sys.path:
     if path.endswith(os.path.join("site-packages", "wandb")):
         sys.path.remove(path)
 if sys.modules.get("tensorboard"):
-    del sys.modules["tensorboard"]
+    # Remove tensorboard if it's us
+    if hasattr(wandb.util.get_module("tensorboard"), "TENSORBOARD_C_MODULE"):
+        del sys.modules["tensorboard"]
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 def make_ndarray(tensor):
     if tensor_util:
