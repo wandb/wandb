@@ -120,7 +120,8 @@ class Capture(object):
 
         self._stopped = threading.Event()
         # NB: daemon thread is used because we use atexit to determine when a user process is finished.  the atexit handler is responsible for flushing, joining, and closing
-        read_thread = threading.Thread(name=self._name, target=_pipe_relay, daemon=True, args=(self._stopped, self._pipe_rd, self._name, self._cb, self._tee))
+        read_thread = threading.Thread(name=self._name, target=_pipe_relay, args=(self._stopped, self._pipe_rd, self._name, self._cb, self._tee))
+        read_thread.daemon = True
         read_thread.start()
         self._thread = read_thread
 

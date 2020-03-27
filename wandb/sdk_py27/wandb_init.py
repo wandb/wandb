@@ -3,6 +3,8 @@
 init.
 """
 
+from __future__ import print_function
+
 import wandb
 from .wandb_run import Run
 from wandb.util.globals import set_global
