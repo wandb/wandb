@@ -37,6 +37,7 @@ wandb/internal/stats.py
 wandb/internal/mpmain/__init__.py
 wandb/internal/mpmain/__main__.py
 wandb/keras/__init__.py
+wandb/proto/__init__.py
 wandb/proto/wandb_internal_codegen.py
 wandb/proto/wandb_internal_pb2.py
 wandb/sdk/__init__.py
