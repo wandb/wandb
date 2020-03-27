@@ -8,10 +8,6 @@ Use W&B to organize and analyze machine learning experiments. It's framework-agn
 
 [Sign up for a free account →](https://wandb.com)
 
-## Experimental
-
-This is an unreleased development version of the library, refer to [Development](README-dev.md) for more details.
-
 ## Features
 
 -   Store hyper-parameters used in a training run
@@ -27,7 +23,7 @@ This is an unreleased development version of the library, refer to [Development]
 ## Quickstart
 
 ```shell
-pip install wandb_ng
+pip install wandb-ng
 ```
 
 In your training script:
