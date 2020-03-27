@@ -13,7 +13,7 @@ for path in sys.path:
         sys.path.remove(path)
 if sys.modules.get("tensorboard"):
     # Remove tensorboard if it's us
-    if hasattr(util.get_module("tensorboard"), "TENSORBOARD_C_MODULE"):
+    if hasattr(wandb.util.get_module("tensorboard"), "TENSORBOARD_C_MODULE"):
         del sys.modules["tensorboard"]
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 def make_ndarray(tensor):
