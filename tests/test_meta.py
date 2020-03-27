@@ -116,7 +116,11 @@ def test_meta_cuda(mocker):
 
     def magic(path, mode="w"):
         if "cuda/version.txt" in path:
-            return six.StringIO("CUDA Version 9.0.176")
+            stringIO = six.StringIO("CUDA Version 9.0.176")
+            # Monkeypatching for Python 2 compatibility
+            stringIO.__enter__ = lambda: stringIO
+            stringIO.__exit__ = lambda type, value, traceback: True
+            return stringIO
         else:
             return open(path, mode=mode)
     mocker.patch('wandb.meta.open', magic)

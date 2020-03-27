@@ -1,3 +1,41 @@
+## 0.8.31 (Mar 19, 2020)
+
+#### :nail_care: Enhancement
+
+-   Close all open files to avoice ResourceWarnings, thanks @CrafterKolyan!
+
+#### :bug: Bug Fix
+
+-   Parse "tensor" protobufs, fixing issues with tensorboard syncing in 2.1
+
+## 0.8.30 (Mar 19, 2020)
+
+#### :nail_care: Enhancement
+
+-   Add ROC, precision_recall, HeatMap, explainText, POS, and NER to wandb.plots
+-   Add wandb.Molecule() logging
+-   Capture kaggle runs for metrics
+-   Add ability to watch from run object
+
+#### :bug: Bug Fix
+
+-   Avoid accidently picking up global debugging logs
+
+## 0.8.29 (Mar 5, 2020)
+
+#### :nail_care: Enhancement
+
+-   Improve bounding box annotations
+-   Log active GPU system metrics
+-   Only writing wandb/settings file if wandb init is called
+-   Improvements to wandb local command
+
+#### :bug: Bug Fix
+
+-   Fix GPU logging on some devices without power metrics
+-   Fix sweep config command handling
+-   Fix tensorflow string logging
+
 ## 0.8.28 (Feb 21, 2020)
 
 #### :nail_care: Enhancement
@@ -72,7 +110,7 @@
 
 #### :nail_care: Enhancement
 
--   Ignore wandb.init() specified project and entity when running a sweep 
+-   Ignore wandb.init() specified project and entity when running a sweep
 
 #### :bug: Bug Fix
 

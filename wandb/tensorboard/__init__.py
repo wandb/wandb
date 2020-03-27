@@ -6,6 +6,25 @@ import sys
 import glob
 import wandb
 
+for path in sys.path:
+    if path.endswith(os.path.join("client", "wandb")):
+        sys.path.remove(path)
+    if path.endswith(os.path.join("site-packages", "wandb")):
+        sys.path.remove(path)
+if sys.modules.get("tensorboard"):
+    del sys.modules["tensorboard"]
+tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
+def make_ndarray(tensor):
+    if tensor_util:
+        res = tensor_util.make_ndarray(tensor)
+        # Tensorboard can log generic objects and we don't want to save them
+        if res.dtype == "object":
+            return None
+        else:
+            return res
+    else:
+        wandb.termwarn("Can't convert tensor summary, upgrade tensorboard with `pip install tensorboard --upgrade`")
+        return None
 
 # Constants for patching tensorboard
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
@@ -80,7 +99,10 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
                 elif hasattr(self, "_ev_writer"):
                     if hasattr(self._ev_writer, "FileName"):
                         # Legacy Tensorflow
-                        name = self._ev_writer.FileName().decode("utf-8")
+                        try:
+                            name = self._ev_writer.FileName().decode("utf-8")
+                        except AttributeError:
+                            name = self._ev_writer.FileName()
                     elif hasattr(self._ev_writer, "_file_name"):
                         # Current TensorboardX
                         name = self._ev_writer._file_name
@@ -264,6 +286,8 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
             continue
         if kind == "simple_value":
             values[namespaced_tag(value.tag, namespace)] = value.simple_value
+        elif kind == "tensor":
+            values[namespaced_tag(value.tag, namespace)] = make_ndarray(value.tensor)
         elif kind == "image":
             from PIL import Image
             img_str = value.image.encoded_image_string
@@ -315,7 +339,6 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
             else:
                 wandb.termerror(
                     "Received hparams tf.summary, but could not import the hparams plugin from tensorboard")
-
     return values
 
 

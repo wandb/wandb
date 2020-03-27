@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.28'
+__version__ = '0.8.30'
 
 import atexit
 import click
@@ -56,6 +56,7 @@ from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Html
 from wandb.data_types import Object3D
+from wandb.data_types import Molecule
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 from wandb import trigger
@@ -64,6 +65,7 @@ from wandb.dataframes import image_segmentation_dataframe
 from wandb.dataframes import image_segmentation_binary_dataframe
 from wandb.dataframes import image_segmentation_multiclass_dataframe
 from wandb.viz import visualize
+from wandb import plots
 
 from wandb import wandb_torch
 from wandb.wandb_agent import agent
@@ -788,7 +790,7 @@ def try_to_set_up_global_logging():
 
     It may fail (and return False) eg. if the current directory isn't user-writable
     """
-    root = logging.getLogger()
+    root = logging.getLogger("wandb")
     root.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
@@ -1134,4 +1136,4 @@ sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
     'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
     'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
-    'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']
+    'Audio',  'Table', 'Html', 'Object3D', 'Molecule', 'Histogram', 'Graph', 'Api']

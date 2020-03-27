@@ -25,6 +25,9 @@ from warnings import simplefilter
 # ignore all future warnings
 simplefilter(action='ignore', category=FutureWarning)
 
+from wandb.plots.roc import roc
+from wandb.plots.precision_recall import precision_recall
+
 def round_3(n):
     return round(n, 3)
 def round_2(n):
@@ -315,58 +318,6 @@ def plot_learning_curve(model=None, X=None, y=None, cv=None,
         random_state, train_sizes, n_jobs, scoring)})
 
 
-def roc(y_true=None, y_probas=None, labels=None,
-        plot_micro=True, plot_macro=True, classes_to_plot=None):
-        """
-        Calculates receiver operating characteristic scores and visualizes them as the
-            ROC curve.
-
-        Called by plot_roc to visualize roc curves. Please use the function plot_roc()
-        if you wish to visualize your roc curves.
-        """
-        if (test_missing(y_true=y_true, y_probas=y_probas) and
-            test_types(y_true=y_true, y_probas=y_probas)):
-            y_true = np.array(y_true)
-            y_probas = np.array(y_probas)
-            classes = np.unique(y_true)
-            probas = y_probas
-
-            if classes_to_plot is None:
-                classes_to_plot = classes
-
-            fpr_dict = dict()
-            tpr_dict = dict()
-
-            indices_to_plot = np.in1d(classes, classes_to_plot)
-            def roc_table(fpr_dict, tpr_dict, classes, indices_to_plot):
-                data=[]
-                count = 0
-
-                for i, to_plot in enumerate(indices_to_plot):
-                    fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true, probas[:, i],
-                                                            pos_label=classes[i])
-                    if to_plot:
-                        roc_auc = auc(fpr_dict[i], tpr_dict[i])
-                        for j in range(len(fpr_dict[i])):
-                            if labels is not None and (isinstance(classes[i], int)
-                                        or isinstance(classes[0], np.integer)):
-                                class_dict = labels[classes[i]]
-                            else:
-                                class_dict = classes[i]
-                            fpr = [class_dict, fpr_dict[i][j], tpr_dict[i][j]]
-                            data.append(fpr)
-                            count+=1
-                            if count >= chart_limit:
-                                wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
-                                break
-                return wandb.visualize(
-                    'wandb/roc/v1', wandb.Table(
-                    columns=['class', 'fpr', 'tpr'],
-                    data=data
-                ))
-            return roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)
-
-
 def plot_roc(y_true=None, y_probas=None, labels=None,
              plot_micro=True, plot_macro=True, classes_to_plot=None):
      """
@@ -443,7 +394,7 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
                 if labels is not None and (isinstance(pred_classes[i], int)
                                     or isinstance(pred_classes[0], np.integer)):
                     pred_dict = labels[pred_classes[i]]
-                    true_dict = labels[true_classes[i]]
+                    true_dict = labels[true_classes[j]]
                 else:
                     pred_dict = pred_classes[i]
                     true_dict = true_classes[j]
@@ -485,91 +436,6 @@ def plot_confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=Non
     wandb.log({'confusion_matrix': confusion_matrix(y_true, y_pred, labels, true_labels,
                           pred_labels, title, normalize,
                           hide_zeros, hide_counts)})
-
-
-def precision_recall(y_true=None, y_probas=None, labels=None,
-                          plot_micro=True, classes_to_plot=None):
-    """
-    Computes the tradeoff between precision and recall for different thresholds.
-        A high area under the curve represents both high recall and high precision,
-        where high precision relates to a low false positive rate, and high recall
-        relates to a low false negative rate. High scores for both show that the
-        classifier is returning accurate results (high precision), as well as
-        returning a majority of all positive results (high recall).
-        PR curve is useful when the classes are very imbalanced.
-
-    Called by plot_precision_recall to visualize PR curves. Please use the function
-    plot_precision_recall() if you wish to visualize your PR curves.
-    """
-    y_true = np.array(y_true)
-    y_probas = np.array(y_probas)
-
-    if (test_missing(y_true=y_true, y_probas=y_probas) and
-        test_types(y_true=y_true, y_probas=y_probas)):
-        classes = np.unique(y_true)
-        probas = y_probas
-
-        if classes_to_plot is None:
-            classes_to_plot = classes
-
-        binarized_y_true = label_binarize(y_true, classes=classes)
-        if len(classes) == 2:
-            binarized_y_true = np.hstack(
-                (1 - binarized_y_true, binarized_y_true))
-
-        pr_curves = {}
-        indices_to_plot = np.in1d(classes, classes_to_plot)
-        for i, to_plot in enumerate(indices_to_plot):
-            if to_plot:
-                average_precision = average_precision_score(
-                    binarized_y_true[:, i],
-                    probas[:, i])
-                precision, recall, _ = precision_recall_curve(
-                    y_true, probas[:, i], pos_label=classes[i])
-
-                samples = 20
-                sample_precision = []
-                sample_recall = []
-                for k in range(samples):
-                    sample_precision.append(precision[int(len(precision)*k/samples)])
-                    sample_recall.append(recall[int(len(recall)*k/samples)])
-
-
-                pr_curves[classes[i]] = (sample_precision, sample_recall)
-        # if plot_micro:
-        #     precision, recall, _ = precision_recall_curve(
-        #         binarized_y_true.ravel(), probas.ravel())
-        #     average_precision = average_precision_score(binarized_y_true,
-        #                                                 probas,
-        #                                                 average='micro')
-        #     ax.plot(recall, precision,
-        #             label='micro-average Precision-recall curve '
-        #                   '(area = {0:0.3f})'.format(average_precision),
-        #             color='navy', linestyle=':', linewidth=4)
-        def pr_table(pr_curves):
-            data=[]
-            count=0
-            for i, class_name in enumerate(pr_curves.keys()):
-                precision, recall = pr_curves[class_name]
-                for p, r in zip(precision, recall):
-                    # if class_names are ints and labels are set
-                    if labels is not None and (isinstance(class_name, int)
-                                    or isinstance(class_name, np.integer)):
-                        class_name = labels[class_name]
-                    # if class_names are ints and labels are not set
-                    # or, if class_names have something other than ints
-                    # (string, float, date) - user class_names
-                    data.append([class_name, p, r])
-                    count+=1
-                    if count >= chart_limit:
-                        wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
-                        break
-            return wandb.visualize(
-                'wandb/pr_curve/v1', wandb.Table(
-                columns=['class', 'precision', 'recall'],
-                data=data
-            ))
-        return pr_table(pr_curves)
 
 
 def plot_precision_recall(y_true=None, y_probas=None, labels=None,

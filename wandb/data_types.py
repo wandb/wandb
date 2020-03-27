@@ -124,10 +124,11 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self):
+    def __init__(self, caption=None):
         self._path = None
         # The run under which this object is bound, if any.
         self._run = None
+        self._caption = caption
 
     def _set_file(self, path, is_tmp=False, extension=None):
         self._path = path
@@ -142,6 +143,13 @@ class Media(WBValue):
     @classmethod
     def get_media_subdir(cls):
         raise NotImplementedError
+
+    @classmethod
+    def captions(cls, media_items):
+        if media_items[0]._caption != None:
+            return [m._caption for m in media_items]
+        else:
+            return False
 
     def is_bound(self):
         return self._run is not None
@@ -497,6 +505,88 @@ class Object3D(BatchableMedia):
             "filenames": [os.path.relpath(j['path'], cls.get_media_subdir()) for j in jsons],
             "count": len(jsons),
             'objects': jsons,
+        }
+
+class Molecule(BatchableMedia):
+    """
+        Wandb class for Molecular data
+
+        Args:
+            data_or_path ( string | io ):
+                Molecule can be initialized from a file name or an io object.
+    """
+
+    SUPPORTED_TYPES = set(['pdb', 'pqr', 'mmcif', 'mcif', 'cif', 'sdf', 'sd', 'gro', 'mol2', 'mmtf'])
+
+    def __init__(self, data_or_path, **kwargs):
+        super(Molecule, self).__init__(**kwargs)
+
+        if hasattr(data_or_path, 'name'):
+            # if the file has a path, we just detect the type and copy it from there
+            data_or_path = data_or_path.name
+
+        if hasattr(data_or_path, 'read'):
+            if hasattr(data_or_path, 'seek'):
+                data_or_path.seek(0)
+            molecule = data_or_path.read()
+
+            extension = kwargs.pop("file_type", None)
+            if extension == None:
+                raise ValueError(
+                    "Must pass file type keyword argument when using io objects.")
+            if extension not in Molecule.SUPPORTED_TYPES:
+                raise ValueError("Molecule 3D only supports files of the type: " +
+                                 ", ".join(Molecule.SUPPORTED_TYPES))
+
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.' + extension)
+            with open(tmp_path, "w") as f:
+                f.write(molecule)
+
+            self._set_file(tmp_path, is_tmp=True)
+        elif isinstance(data_or_path, six.string_types):
+            path = data_or_path
+            try:
+                extension = os.path.splitext(data_or_path)[1][1:]
+            except:
+                raise ValueError(
+                    "File type must have an extension")
+            if extension not in Molecule.SUPPORTED_TYPES:
+                raise ValueError("Molecule only supports files of the type: " +
+                                 ", ".join(Molecule.SUPPORTED_TYPES))
+
+            self._set_file(data_or_path, is_tmp=False)
+        else:
+            raise ValueError("Data must be file name or a file object")
+
+    @classmethod
+    def get_media_subdir(self):
+        return os.path.join('media', 'molecule')
+
+    def to_json(self, run):
+        json_dict = super(Molecule, self).to_json(run)
+        json_dict['_type'] = 'molecule-file'
+        if self._caption:
+            json_dict['caption'] = self._caption
+        return json_dict
+
+    @classmethod
+    def seq_to_json(cls, molecule_list, run, key, step):
+        molecule_list = list(molecule_list)
+        for i, obj in enumerate(molecule_list):
+            if not obj.is_bound():
+                obj.bind_to_run(run, key, step, id_=i)
+
+        jsons = [obj.to_json(run) for obj in molecule_list]
+
+        for obj in jsons:
+            if not obj['path'].startswith(cls.get_media_subdir()):
+                raise ValueError('Files in an array of Molecule\'s must be in the {} directory, not {}'.format(cls.get_media_subdir(), obj['path']))
+
+        return {
+            "_type": "molecule",
+            "filenames": [obj['path'] for obj in jsons],
+            "count": len(jsons),
+            "captions": Media.captions(molecule_list)
         }
 
 
@@ -1013,7 +1103,6 @@ class BoundingBoxes2D(JSONMetadata):
             if not "position" in box:
                 raise TypeError(error_str)
             else:
-                # import ipdb; ipdb.set_trace()
                 valid = False
                 if "middle" in box["position"] and len(box["position"]["middle"]) == 2 and \
                    has_num(box["position"], "width") and \
@@ -1028,7 +1117,6 @@ class BoundingBoxes2D(JSONMetadata):
                 if not valid:
                     raise TypeError(error_str)
 
-
             # Optional arguments
             if ("scores" in box) and not isinstance(box["scores"], dict):
                 raise TypeError("Box scores must be a dictionary")
@@ -1039,8 +1127,8 @@ class BoundingBoxes2D(JSONMetadata):
                     if not isinstance(v, numbers.Number):
                         raise TypeError("A score value must be a number")
 
-            if ("class_label" in box) and not isinstance(box["class_label"], six.string_types):
-                raise TypeError("A box's class label must be of type must be of type string")
+            if ("class_id" in box) and not isinstance(box["class_id"], six.integer_types):
+                raise TypeError("A box's class_id must be an integer")
 
             # Optional
             if ("box_caption" in box) and not isinstance(box["box_caption"], six.string_types):
