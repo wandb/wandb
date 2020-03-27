@@ -297,7 +297,7 @@ class _WandbInit(object):
 
         backend._hack_set_run(run)
 
-        run_config = dict(run.config)
+        run_config = run.config._as_dict()
         logger.info("runconfig: %s", run_config)
         r = dict(run_id=run.run_id, config=run_config, project=s.project)
         if s.mode == 'online':
