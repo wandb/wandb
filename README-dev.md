@@ -48,6 +48,7 @@ wandb/framework/pytorch  - pytorch integration
  - [ ] Add other frameworks
  - [ ] Basic CLI functionality
  - [ ] Support modes
+ - [ ] Decide on persistant storage
  - [ ] Offline sync - jhr
 
 ## Progress
