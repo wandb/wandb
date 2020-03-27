@@ -23,6 +23,9 @@ coverage: ## check code coverage quickly with the default Python
 release-test: dist ## package and upload test release
 	twine upload --repository testpypi dist/*
 
+release: dist ## package and upload release
+	twine upload dist/*
+
 dist: clean ## builds source and wheel package
 	python setup.py sdist bdist_wheel
 	ls -l dist
