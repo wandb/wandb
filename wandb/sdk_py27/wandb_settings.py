@@ -48,12 +48,22 @@ class CantTouchThis(type):
 
 
 class Settings(six.with_metaclass(CantTouchThis, object)):
+    """Settings Constructor
+
+    Args:
+        entity: alias for team.
+        team: personal user or team to use for Run.
+        project: project name for the Run.
+
+    Raises:
+        Exception: if problem.
+
+    """
+    # team: Optional[str]
+    # entity: Optional[str]
+
     def __init__(
         self,
-        _settings=None,
-        _environ=None,
-        _files=None,
-        _early_logging=None,
         team = None,
         entity = None,
         project = None,
@@ -100,18 +110,13 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         username=None,
         docker=None,
         start_time=None,
+
+        # special
+        _settings=None,
+        _environ=None,
+        _files=None,
+        _early_logging=None,
     ):
-        """Settings Constructor
-
-        Args:
-            entity: alias for team.
-            team: personal user or team to use for Run.
-            project: project name for the Run.
-
-        Raises:
-            Exception: if problem.
-
-        """
         kwargs = locals()
         object.__setattr__(self, "_masked_keys", set(['_frozen']))
         object.__setattr__(self, "_unsaved_keys",
@@ -120,7 +125,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         self._setup(kwargs)
 
         if _settings:
-            self.update(settings)
+            self.update(_settings)
         files = _files or []
         for f in files:
             d = self._load(f)
