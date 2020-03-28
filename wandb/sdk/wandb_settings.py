@@ -48,6 +48,9 @@ class CantTouchThis(type):
 
 
 class Settings(six.with_metaclass(CantTouchThis, object)):
+    team: Optional[str]
+    entity: Optional[str]
+
     def __init__(
         self,
         _settings=None,
