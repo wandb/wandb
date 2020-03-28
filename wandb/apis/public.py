@@ -66,6 +66,7 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
                 id
                 name
                 url(upload: $upload)
+                directUrl
                 sizeBytes
                 mimetype
                 updatedAt
@@ -119,6 +120,7 @@ ARTIFACT_FILES_FRAGMENT = '''fragment ArtifactFilesFragment on Artifact {
                 id
                 name
                 url
+                directUrl
                 sizeBytes
                 mimetype
                 updatedAt
@@ -1256,7 +1258,7 @@ class File(object):
 
     @property
     def url(self):
-        return self._attrs["url"]
+        return self._attrs["directUrl"]
 
     @property
     def md5(self):
@@ -1294,7 +1296,7 @@ class File(object):
             `ValueError` if file already exists and replace=False
         """
 
-        response = requests.get(self._attrs["url"], auth=(
+        response = requests.get(self.url, auth=(
             "api", Api().api_key), stream=True, timeout=5)
         response.raise_for_status()
         path = os.path.join(root, self._attrs["name"])
@@ -1808,6 +1810,10 @@ class Artifact(object):
     @property
     def id(self):
         return self._attrs["id"]
+    
+    @property
+    def metadata(self):
+        return json.loads(self._attrs["metadata"])
 
     @property
     def path(self):
@@ -1852,6 +1858,7 @@ class Artifact(object):
             }
         }
         ''')
+        print('E P A A', self.entity, self.project, self.artifact_type_name, self.artifact_name)
         response = self.client.execute(query, variable_values={
             'entityName': self.entity,
             'projectName': self.project,
