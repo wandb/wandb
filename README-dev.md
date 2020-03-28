@@ -44,6 +44,8 @@ wandb/framework/pytorch  - pytorch integration
  - [X] Add media logging
  - [x] Add keras framework
  - [ ] Fix grouping / job_type / run naming
+ - [ ] Fix file descriptor close (message + hang on pix2pix)
+ - [ ] Fix colab console redir error
  - [ ] Add code saving
  - [ ] Add pytorch framework
  - [ ] Add other frameworks
