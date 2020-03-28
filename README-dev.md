@@ -4,12 +4,12 @@ https://paper.dropbox.com/doc/Cling-CLI-Refactor-lETNuiP0Rax8yjTi03Scp
 
 ## Play along
 
-`pip install --upgrade git+ssh://git@github.com/wandb/client-ng.git#egg=wandb-ng`
+`pip install --upgrade git+git://github.com/wandb/client-ng.git#egg=wandb-ng`
 
-Or from pypi test (last devel release - might be out of date):
+Or from pypi:
 
-- https://test.pypi.org/project/wandb-ng/
-- `pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple --upgrade wandb-ng`
+- https://pypi.org/project/wandb-ng/
+- `pip install --upgrade wandb-ng`
 
 ## Code organization
 

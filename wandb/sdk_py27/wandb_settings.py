@@ -6,6 +6,7 @@ import six
 import collections
 import logging
 import configparser
+from typing import Optional, Union, List, Dict  # noqa: F401
 
 logger = logging.getLogger("wandb")
 
@@ -53,15 +54,15 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _environ=None,
         _files=None,
         _early_logging=None,
-        team=None,
-        entity=None,
-        project=None,
+        team = None,
+        entity = None,
+        project = None,
         base_url="https://api.wandb.ai",
-        api_key=None,
+        api_key = None,
         anonymous=None,
 
         # how do we annotate that: dryrun==offline?
-        mode='online',
+        mode = 'online',
         group=None,
         job_type=None,
         run_name=None,
