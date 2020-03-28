@@ -11,7 +11,7 @@ from prompt_toolkit import prompt  # type: ignore
 import getpass
 
 import wandb
-from wandb.stuff import util2
+from wandb.util import apikey
 
 logger = logging.getLogger("wandb")
 
@@ -41,9 +41,9 @@ def login(settings=None):
         key = getpass.getpass("Enter your authorization code:\n")
     else:
         print("Go to this URL in a browser: {}/authorize\n".format(app_url))
-        key = prompt('Enter api key: ', is_password=True)
+        key = prompt(u'Enter api key: ', is_password=True)
 
-    util2.set_api_key(api, key)
+    apikey.write_key(settings, key)
     return
 
 

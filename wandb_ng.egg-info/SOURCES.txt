@@ -75,6 +75,7 @@ wandb/stuff/retry.py
 wandb/stuff/settings.py
 wandb/stuff/util2.py
 wandb/util/__init__.py
+wandb/util/apikey.py
 wandb/util/globals.py
 wandb/util/lazyloader.py
 wandb/util/preinit.py
