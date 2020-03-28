@@ -27,6 +27,8 @@ defaults = dict(
     _mode=Field(str, ('noop', 'online', 'offline', 'dryrun', 'async')),
     group=None,
     job_type=None,
+    run_name=None,
+    run_id=None,
 
     # compatibility / error handling
     compat_version=None,  # set to "0.8" for safer defaults for older users
