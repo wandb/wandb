@@ -148,7 +148,10 @@ class _WandbInit(object):
         d = dict(**kwargs)
         # strip out items where value is None
         param_map = dict(name='run_name', id='run_id')
-        d = {param_map.get(k, k): v for k, v in six.iteritems(d) if v is not None}
+        d = {
+            param_map.get(k, k): v
+            for k, v in six.iteritems(d) if v is not None
+        }
 
         # TODO(jhr): should this be moved? probably.
         d.setdefault("start_time", time.time())

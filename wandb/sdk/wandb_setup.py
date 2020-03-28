@@ -57,7 +57,8 @@ class _WandbSetup__WandbSetup(object):
     def __init__(self, settings=None, environ=None):
         self._multiprocessing = None
         self._settings = None
-        self._environ = environ or os.environ
+        self._environ = environ or dict(os.environ)
+        #self._environ = environ or dict()
         self._log_user_filename = None
         self._log_internal_filename = None
         self._data_filename = None
@@ -87,9 +88,9 @@ class _WandbSetup__WandbSetup(object):
         glob_config = os.path.expanduser('~/.config/wandb/settings')
         loc_config = 'wandb/settings'
         files = (glob_config, loc_config)
-        s = wandb_settings.Settings(environ=self._environ,
-                                    early_logging=early_logging,
-                                    files=files)
+        s = wandb_settings.Settings(_environ=self._environ,
+                                    _early_logging=early_logging,
+                                    _files=files)
         if settings:
             s.update(settings)
         # move freeze to later, FIXME(jhr): is this ok?
