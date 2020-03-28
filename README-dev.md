@@ -43,6 +43,7 @@ wandb/framework/pytorch  - pytorch integration
  - [x] Add file sync
  - [X] Add media logging
  - [x] Add keras framework
+ - [ ] Fix grouping / job_type / run naming
  - [ ] Add code saving
  - [ ] Add pytorch framework
  - [ ] Add other frameworks
