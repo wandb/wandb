@@ -46,6 +46,7 @@ wandb/framework/pytorch  - pytorch integration
  - [ ] Fix grouping / job_type / run naming
  - [ ] Fix file descriptor close (message + hang on pix2pix)
  - [ ] Fix colab console redir error
+ - [ ] Fix issue in pix2pix with logging
  - [ ] Add code saving
  - [ ] Add pytorch framework
  - [ ] Add other frameworks
