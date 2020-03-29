@@ -142,7 +142,7 @@ class _WandbInit(object):
         for key in unsupported:
             val = kwargs.pop(key, None)
             if val:
-                logger.info("unsupported wandb.init() arg: %s", val)
+                logger.info("unsupported wandb.init() arg: %s", key)
 
         wl = wandb.setup()
         settings = dict(settings or dict())

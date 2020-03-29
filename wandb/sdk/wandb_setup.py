@@ -90,7 +90,11 @@ class _WandbSetup__WandbSetup(object):
                                     _early_logging=early_logging,
                                     _files=files)
         if settings:
-            s.update(settings)
+            s.update(dict(settings))
+
+        # setup defaults
+        s.setdefaults()
+
         # move freeze to later, FIXME(jhr): is this ok?
         # s.freeze()
         self._settings = s

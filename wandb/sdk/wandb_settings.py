@@ -17,6 +17,7 @@ source = ("org", "team", "project", "sysdir", "dir", "env", "setup",
 Field = collections.namedtuple('TypedField', ['type', 'choices'])
 
 defaults = dict(
+    base_url="https://api.wandb.ai",
     _mode=Field(str, ('noop', 'online', 'offline', 'dryrun', 'async')),
     _problem=Field(str, ('fatal', 'warn', 'silent')),
 )
@@ -72,7 +73,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         team: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
-        base_url="https://api.wandb.ai",
+        base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         anonymous=None,
 
@@ -136,6 +137,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             d = self._load(f)
             self.update(d)
         if _environ:
+            l = _early_logging or logger
             inv_map = _build_inverse_map(env_prefix, env_settings)
             env_dict = dict()
             for k, v in six.iteritems(_environ):
@@ -145,9 +147,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                 if setting_key:
                     env_dict[setting_key] = v
                 else:
-                    l = _early_logging or logger
                     l.info("Unhandled environment var: {}".format(k))
 
+            l.info("setting env".format(env_dict))
             self.update(env_dict)
 
     def _clear_early_logging(self):
@@ -186,6 +188,14 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         self.__dict__.update(
             {k: v
              for k, v in kwargs.items() if v is not None})
+
+    def setdefaults(self, __d=None):
+        __d = __d or defaults
+        # set defaults
+        for k, v in __d.items():
+            if not k.startswith('_'):
+                if self.__dict__.get(k) is None:
+                    object.__setattr__(self, k, v)
 
     def save(self, fname):
         pass
