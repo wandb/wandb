@@ -183,7 +183,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                     raise KeyError(k)
                 self._check_invalid(k, check[k])
         self.__dict__.update({k: v for k, v in d.items() if v is not None})
-        self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
+        self.__dict__.update(
+            {k: v
+             for k, v in kwargs.items() if v is not None})
 
     def save(self, fname):
         pass
