@@ -190,3 +190,13 @@ class Run(object):
 
         files = dict(files=[fname])
         self._backend.interface.send_files(files)
+
+    # NB: there is a copy of this in wand_wach with the same signature
+    def watch(self,
+              models,
+              criterion=None,
+              log="gradients",
+              log_freq=100,
+              idx=None):
+        logger.info("Watching")
+        #wandb.run.watch(watch)

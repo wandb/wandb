@@ -10,6 +10,7 @@ import copy
 
 def test_attrib_get():
     s = Settings()
+    s.setdefaults()
     assert s.base_url == "https://api.wandb.ai"
 
 

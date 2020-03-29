@@ -21,7 +21,7 @@ wandb/errors/error.py
 wandb/errors/term.py
 wandb/framework/keras/__init__.py
 wandb/framework/keras/keras.py
-wandb/framework/pytorch/__init__.py
+wandb/framework/torch/__init__.py
 wandb/interface/__init__.py
 wandb/interface/constants.py
 wandb/interface/interface.py

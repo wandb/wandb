@@ -149,7 +149,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                 else:
                     l.info("Unhandled environment var: {}".format(k))
 
-            l.info("setting env".format(env_dict))
+            l.info("setting env: {}".format(env_dict))
             self.update(env_dict)
 
     def _clear_early_logging(self):
