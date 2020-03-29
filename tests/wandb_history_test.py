@@ -4,7 +4,7 @@ history test.
 
 import pytest  # type: ignore
 
-from . import wandb_history
+from wandb.sdk import wandb_history
 
 
 class MockCallback(object):

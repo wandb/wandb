@@ -4,7 +4,7 @@ config tests.
 
 import pytest  # type: ignore
 
-from . import wandb_config
+from wandb.sdk import wandb_config
 
 
 def callback_func(key, val, data):

@@ -13,7 +13,7 @@ import click
 import time
 
 import os
-from wandb.sdk import wandb_settings
+from wandb import Settings
 # from wandb.apis import internal
 import subprocess
 import json
@@ -26,7 +26,7 @@ class Agent(object):
         glob_config = os.path.expanduser('~/.config/wandb/settings')
         loc_config = 'wandb/settings'
         files = (glob_config, loc_config)
-        settings = wandb_settings.Settings(environ=os.environ, files=files)
+        settings = Settings(environ=os.environ, files=files)
         self._api = internal.Api(default_settings=settings)
         self._settings = settings
 

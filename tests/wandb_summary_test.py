@@ -4,7 +4,7 @@ settings test.
 
 import pytest  # type: ignore
 
-from . import wandb_summary
+from wandb.sdk import wandb_summary
 
 
 class MockCallback(object):

@@ -6,7 +6,7 @@ from grpc_tools import protoc  # type: ignore
 os.chdir("../..")
 protoc.main((
     '',
-    '-I', 'wandb/vendor/protobuf/src',
+    '-I', 'vendor/protobuf/src',
     '-I', '.',
     '--python_out=.',
     'wandb/proto/wandb_internal.proto',

@@ -2,3 +2,4 @@ pytest
 coverage
 coveralls
 tox
+pip
