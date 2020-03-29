@@ -3,4 +3,3 @@ coverage
 coveralls
 tox
 pip
-mypy
