@@ -2,11 +2,12 @@
 settings.
 """
 
-import six
 import collections
 import logging
 import configparser
-from typing import Optional, Union, List, Dict  # noqa: F401
+# from typing import Optional, Union, List, Dict  # noqa: F401
+
+import six
 
 logger = logging.getLogger("wandb")
 
@@ -59,11 +60,13 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         Exception: if problem.
 
     """
+    # pylint: disable=no-member
+
     # TODO(david): fix codemod to handle this?
     # team: Optional[str]
     # entity: Optional[str]
 
-    def __init__(
+    def __init__(  # pylint: disable=unused-argument
         self,
         team: Optional[str] = None,
         entity: Optional[str] = None,
@@ -156,6 +159,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                 object.__setattr__(self, k, v)
 
     def __copy__(self):
+        """Copy (note that the copied object will not be frozen)."""
         s = Settings()
         s.update(dict(self))
         return s
