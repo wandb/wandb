@@ -3,11 +3,12 @@ import os
 import threading
 
 import wandb
+from wandb import util
 
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 
 class UploadJob(threading.Thread):
-    def __init__(self, step_prepare, done_queue, stats, api, save_name, path, artifact_id, md5):
+    def __init__(self, step_prepare, done_queue, stats, api, save_name, path, artifact_id, md5, copied):
         """A file upload thread.
 
         Arguments:
@@ -27,12 +28,15 @@ class UploadJob(threading.Thread):
         self.save_path = self.path = path
         self.artifact_id = artifact_id
         self.md5 = md5
+        self.copied = copied
         super(UploadJob, self).__init__()
 
     def run(self):
         try:
             self.push()
         finally:
+            if self.copied and os.path.isfile(self.save_path):
+                os.remove(self.save_path)
             self._done_queue.put(EventJobDone(self))
 
     def push(self):
@@ -66,9 +70,6 @@ class UploadJob(threading.Thread):
                         f,
                         lambda _, t: self.progress(t),
                         extra_headers=extra_headers)
-                    # self._api.push(
-                    #     {self.save_name: f},
-                    #     progress=lambda _, t: self.progress(t))
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)
                 wandb.util.sentry_exc(e)

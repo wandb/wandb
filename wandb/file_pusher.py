@@ -57,6 +57,8 @@ class FilePusher(object):
     def __init__(self, api):
         self._api = api
 
+        self._tempdir = tempfile.TemporaryDirectory('wandb')
+
         self._stats = stats.Stats()
 
         self._incoming_queue = queue.Queue()
@@ -66,7 +68,7 @@ class FilePusher(object):
         self._step_prepare.start()
 
         self._step_checksum = step_checksum.StepChecksum(
-            self._api, 3.0, 1000, self._incoming_queue, self._event_queue)
+            self._api, self._tempdir, self._incoming_queue, self._event_queue)
         self._step_checksum.start()
 
         self._step_upload = step_upload.StepUpload(
@@ -107,7 +109,7 @@ class FilePusher(object):
     def files(self):
         return self._stats.files()
 
-    def file_changed(self, save_name, path, artifact_id=None):
+    def file_changed(self, save_name, path, artifact_id=None, copy=True):
         """Tell the file pusher that a file's changed and should be uploaded.
 
         Arguments:
@@ -121,7 +123,7 @@ class FilePusher(object):
         if os.path.getsize(path) == 0:
             return
 
-        event = step_checksum.RequestUpload(path, save_name, artifact_id)
+        event = step_checksum.RequestUpload(path, save_name, artifact_id, copy)
         self._incoming_queue.put(event)
 
     def named_temp_file(self, mode='w+b'):

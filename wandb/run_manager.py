@@ -219,8 +219,9 @@ class FileEventHandlerOverwriteDeferred(FileEventHandler):
         self._file_pusher = file_pusher
 
     def finish(self):
-        # TODO(artifacts): removed copy=False
-        self._file_pusher.file_changed(self.save_name, self.file_path)
+        # We use copy=False to avoid possibly expensive copies, and because
+        # user files shouldn't still be changing at the end of the run.
+        self._file_pusher.file_changed(self.save_name, self.file_path, copy=False)
 
 
 class FileEventHandlerConfig(FileEventHandler):

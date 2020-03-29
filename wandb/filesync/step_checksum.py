@@ -3,7 +3,9 @@
 import multiprocessing
 import multiprocessing.pool
 import collections
+import os
 import queue
+import shutil
 import threading
 import time
 from six.moves import queue
@@ -13,17 +15,16 @@ from wandb.filesync import step_upload
 
 
 RequestUpload = collections.namedtuple(
-    'RequestUpload', ('path', 'save_name', 'artifact_id'))
+    'RequestUpload', ('path', 'save_name', 'artifact_id', 'copy'))
 RequestCommitArtifact = collections.namedtuple(
     'RequestCommitArtifact', ('artifact_id', ))
 RequestFinish = collections.namedtuple('RequestFinish', ())
 
     
 class StepChecksum(object):
-    def __init__(self, api, batch_time, batch_max_files, request_queue, output_queue):
+    def __init__(self, api, tempdir, request_queue, output_queue):
         self._api = api
-        self._batch_time = batch_time
-        self._batch_max_files = batch_max_files
+        self._tempdir = tempdir
         self._request_queue = request_queue
         self._output_queue = output_queue
 
@@ -33,53 +34,25 @@ class StepChecksum(object):
     def _thread_body(self):
         finished = False
         while True:
-            # TODO: we're no longer batching these. Remove batching code
-            artifact_commits = []
-            batch = []
-            batch_started_at = time.time()
-            batch_end_at = batch_started_at + self._batch_time
-            while time.time() < batch_end_at and len(batch) < self._batch_max_files:
-                # Get the latest event
-                try:
-                    wait_secs = batch_end_at - time.time()
-                    event = self._request_queue.get(timeout=wait_secs)
-                except queue.Empty:
-                    # If nothing is available in the batch by the timeout
-                    # wrap up and send the current batch immediately.
-                    break
-                # If it's a finish, stop waiting and send the current batch
-                # immediately.
-                if isinstance(event, RequestCommitArtifact):
-                    artifact_commits.append(event.artifact_id)
-                elif isinstance(event, RequestFinish):
-                    finished = True
-                    break
-                elif isinstance(event, RequestUpload):
-                    # Otherwise, it's file changed, so add it to the pending batch.
-                    batch.append(event)
-                else:
-                    raise Exception('invalid event %s' % str(event))
-
-            if batch:
-                paths = [e.path for e in batch]
-                checksums = []
-                for path in paths:
-                    checksums.append(wandb.util.md5_file(path))
-
-                file_specs = []
-                for e, checksum in zip(batch, checksums):
-                    self._output_queue.put(
-                        step_upload.RequestUpload(e.path, e.save_name, e.artifact_id, checksum))
-
-            # pass artifact commits through to step_upload, only after sending prior
-            # upload requests
-            for artifact_id in artifact_commits:
-                self._output_queue.put(step_upload.RequestCommitArtifact(artifact_id))
-
-            # And stop the infinite loop if we've finished
-            if finished:
-                self._output_queue.put(step_upload.RequestFinish())
+            req = self._request_queue.get()
+            if isinstance(req, RequestUpload):
+                path = req.path
+                if req.copy:
+                    path = os.path.join(self._tempdir.name, '%s-%s' % (
+                        wandb.util.generate_id(), req.save_name))
+                    wandb.util.mkdir_exists_ok(os.path.dirname(path))
+                    shutil.copy2(req.path, path)
+                checksum = wandb.util.md5_file(path)
+                self._output_queue.put(
+                    step_upload.RequestUpload(path, req.save_name, req.artifact_id, checksum, req.copy))
+            elif isinstance(req, RequestCommitArtifact):
+                self._output_queue.put(step_upload.RequestCommitArtifact(req.artifact_id))
+            elif isinstance(req, RequestFinish):
                 break
+            else:
+                raise Exception('internal error')
+
+        self._output_queue.put(step_upload.RequestFinish())
 
     def start(self):
         self._thread.start()

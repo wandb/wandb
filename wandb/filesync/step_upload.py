@@ -10,7 +10,7 @@ from wandb.filesync import upload_job
 
 
 RequestUpload = collections.namedtuple(
-    'EventStartUploadJob', ('path', 'save_name', 'artifact_id', 'md5'))
+    'EventStartUploadJob', ('path', 'save_name', 'artifact_id', 'md5', 'copied'))
 RequestCommitArtifact = collections.namedtuple(
     'RequestCommitArtifact', ('artifact_id', ))
 RequestFinish = collections.namedtuple('RequestFinish', ())
@@ -109,7 +109,7 @@ class StepUpload(object):
         job = upload_job.UploadJob(
             self._step_prepare,
             self._event_queue, self._stats, self._api,
-            event.save_name, event.path, event.artifact_id, event.md5)
+            event.save_name, event.path, event.artifact_id, event.md5, event.copied)
         self._running_jobs[event.save_name] = job
         job.start()
 
