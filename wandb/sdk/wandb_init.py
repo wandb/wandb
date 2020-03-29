@@ -370,7 +370,7 @@ def init(
         sync_tensorboard=None,
         monitor_gym=None,
         id=None,
-) -> Optional[Run]:
+) -> Run:
     """Initialize a wandb Run.
 
     Args:
