@@ -23,5 +23,6 @@
   ],
   "python.testing.pytestArgs": [
     "."
-  ]
+  ],
+  "python.linting.pylintEnabled": true
 }

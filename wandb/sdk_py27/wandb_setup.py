@@ -10,11 +10,10 @@ import datetime
 import errno
 import logging
 import copy
-import os
 
 from . import wandb_settings
 
-from wandb.stuff.git_repo import GitRepo
+# from wandb.stuff.git_repo import GitRepo
 
 logger = logging.getLogger("wandb")
 
@@ -58,7 +57,6 @@ class _WandbSetup__WandbSetup(object):
         self._multiprocessing = None
         self._settings = None
         self._environ = environ or dict(os.environ)
-        #self._environ = environ or dict()
         self._log_user_filename = None
         self._log_internal_filename = None
         self._data_filename = None
@@ -220,11 +218,11 @@ class _WandbSetup__WandbSetup(object):
             print("bad thread2", threading.current_thread().name)
         if getattr(sys, 'frozen', False):
             print("frozen, could be trouble")
-        #print("t2", multiprocessing.get_start_method(allow_none=True))
-        #print("t3", multiprocessing.get_start_method())
+        # print("t2", multiprocessing.get_start_method(allow_none=True))
+        # print("t3", multiprocessing.get_start_method())
 
     def _setup(self):
-        #TODO: use fork context if unix and frozen?
+        # TODO: use fork context if unix and frozen?
         # if py34+, else fall back
         if hasattr(multiprocessing, "get_context"):
             all_methods = multiprocessing.get_all_start_methods()
@@ -235,7 +233,7 @@ class _WandbSetup__WandbSetup(object):
             logger.info("multiprocessing fallback, likely fork on unix")
             ctx = multiprocessing
         self._multiprocessing = ctx
-        #print("t3b", self._multiprocessing.get_start_method())
+        # print("t3b", self._multiprocessing.get_start_method())
 
         self._data_filename = os.path.join(
             self._log_dir,
@@ -253,7 +251,7 @@ class _WandbSetup(object):
         # TODO(jhr): what do we do if settings changed?
         if _WandbSetup._instance is not None:
             return
-        _WandbSetup._instance = __WandbSetup(settings=settings)
+        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
