@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os
-from grpc_tools import protoc
+from grpc_tools import protoc  # type: ignore
 
 os.chdir("../..")
 protoc.main((

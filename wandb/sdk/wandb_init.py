@@ -23,13 +23,15 @@ import sys
 import os
 from wandb.util import redirect
 
+from .wandb_settings import Settings
+
 # from wandb.apis import internal
 
 # import typing
 # if typing.TYPE_CHECKING:
 #   from typing import Dict, List, Optional
 # from typing import Optional, Dict
-from typing import Optional, Union, List, Dict  # noqa: F401
+from typing import Optional, Union, List, Dict, Any  # noqa: F401
 
 logger = logging.getLogger("wandb")
 
@@ -345,10 +347,10 @@ def getcaller():
 
 
 def init(
+        settings: Union[Settings, Dict[str, Any], str, None] = None,
         entity: Optional[str] = None,
         team: Optional[str] = None,
         project: Optional[str] = None,
-        settings: Optional[Dict] = None,
         mode: Optional[str] = None,
         group: Optional[str] = None,
         job_type: Optional[str] = None,

@@ -59,6 +59,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         Exception: if problem.
 
     """
+    # TODO(david): fix codemod to handle this?
     # team: Optional[str]
     # entity: Optional[str]
 

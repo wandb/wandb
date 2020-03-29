@@ -26,7 +26,7 @@ def is_numpy_array(obj):
 
 
 def is_tf_tensor(obj):
-    import tensorflow
+    import tensorflow  # type: ignore
     return isinstance(obj, tensorflow.Tensor)
 
 
