@@ -5,7 +5,7 @@ settings.
 import collections
 import logging
 import configparser
-# from typing import Optional, Union, List, Dict  # noqa: F401
+from typing import Optional, Union, List, Dict  # noqa: F401 pylint: disable=unused-import
 
 import six
 
@@ -102,7 +102,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         log_internal=True,
 
         # where files are temporary stored when saving
-        files_dir="",
+        files_dir=None,
         data_base_dir="wandb",
         data_dir="",
         data_spec="wandb-{timespec}-{pid}-data.bin",
@@ -123,7 +123,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _early_logging=None,
     ):
         kwargs = locals()
-        object.__setattr__(self, "_masked_keys", set(['_frozen']))
+        object.__setattr__(self, "_masked_keys", set(['self', '_frozen']))
         object.__setattr__(self, "_unsaved_keys",
                            set(['_settings', '_files', '_environ']))
         object.__setattr__(self, "_frozen", False)
@@ -182,8 +182,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                 if k not in self.__dict__:
                     raise KeyError(k)
                 self._check_invalid(k, check[k])
-        self.__dict__.update(d)
-        self.__dict__.update(kwargs)
+        self.__dict__.update({k: v for k, v in d.items() if v is not None})
+        self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
 
     def save(self, fname):
         pass

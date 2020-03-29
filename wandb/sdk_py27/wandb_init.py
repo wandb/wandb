@@ -145,7 +145,7 @@ class _WandbInit(object):
                 logger.info("unsupported wandb.init() arg: %s", val)
 
         wl = wandb.setup()
-        settings = settings or dict()
+        settings = dict(settings or dict())
         s = wl.settings(**settings)
         d = dict(**kwargs)
         # strip out items where value is None
