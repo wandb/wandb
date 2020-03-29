@@ -60,6 +60,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         Exception: if problem.
 
     """
+
     # pylint: disable=no-member
 
     # TODO(david): fix codemod to handle this?
