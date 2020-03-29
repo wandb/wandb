@@ -118,7 +118,7 @@ ARTIFACT_FILES_FRAGMENT = '''fragment ArtifactFilesFragment on Artifact {
         edges {
             node {
                 id
-                name
+                name: displayName
                 url
                 directUrl
                 sizeBytes
@@ -402,6 +402,11 @@ class Api(object):
         if not self._sweeps.get(path):
             self._sweeps[path] = Sweep(self.client, entity, project, sweep_id)
         return self._sweeps[path]
+
+    @normalize_exceptions
+    def artifact_types(self, path=None):
+        entity, project = path.split('/')
+        return ProjectArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
     def artifact(self, path=None, expected_digest=None):
@@ -1299,7 +1304,7 @@ class File(object):
         response = requests.get(self.url, auth=(
             "api", Api().api_key), stream=True, timeout=5)
         response.raise_for_status()
-        path = os.path.join(root, self._attrs["name"])
+        path = os.path.join(root, self.name)
         if os.path.exists(path) and not replace:
             raise ValueError(
                 "File already exists, pass replace=True to overwrite")
@@ -1858,7 +1863,6 @@ class Artifact(object):
             }
         }
         ''')
-        print('E P A A', self.entity, self.project, self.artifact_type_name, self.artifact_name)
         response = self.client.execute(query, variable_values={
             'entityName': self.entity,
             'projectName': self.project,
@@ -1917,7 +1921,7 @@ class ArtifactFiles(Paginator):
             'entityName': artifact.entity,
             'projectName': artifact.project,
             'artifactTypeName': artifact.artifact_type_name,
-            'artifactName': artifact.artifact_name,
+            'artifactName': artifact.name,
             'fileNames': names,
         }
         super(ArtifactFiles, self).__init__(client, variables, per_page)
