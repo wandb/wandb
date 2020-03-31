@@ -1,5 +1,4 @@
 {
-  "python.pythonPath": "~/.pyenv/shims/python",
   "editor.formatOnSave": true,
   "files.exclude": {
     "**/*.pyc": true,
@@ -17,12 +16,7 @@
   "python.testing.nosetestsEnabled": false,
 
   "python.formatting.provider": "yapf",
-  "python.formatting.autopep8Args": [
-      "--max-line-length",
-      "120"
-  ],
-  "python.testing.pytestArgs": [
-    "."
-  ],
+  "python.formatting.autopep8Args": ["--max-line-length", "120"],
+  "python.testing.pytestArgs": ["."],
   "python.linting.pylintEnabled": true
 }
