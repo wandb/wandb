@@ -1008,15 +1008,15 @@ class Image(BatchableMedia):
         return meta
 
     @classmethod
-    def all_masks(cls, images, run, key, step):
+    def all_masks(cls, images, run, run_key, step):
         all_mask_groups = []
         for image in images:
             if image._masks:
                 mask_group = {}
                 for k in image._masks:
                     mask = image._masks[k]
-                    mask.bind_to_run(run, key, step)
-                    mask_group[key] = mask.to_json(run)
+                    mask.bind_to_run(run, run_key, step)
+                    mask_group[k] = mask.to_json(run)
                 all_mask_groups.append(mask_group)
             else:
                all_mask_groups.append(None)
@@ -1160,7 +1160,7 @@ class ImageMask(Media):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super(ImageMask, self).bind_to_run(run, key, step)
-        run._add_singleton("mask/class_labels", key + "__" + self._key , self._val["class_labels"])
+        run._add_singleton("mask/class_labels", key + "_wandb_delimeter_" + self._key , self._val["class_labels"])
 
     def get_media_subdir(self):
         return os.path.join('media', 'images', self.type_name())
