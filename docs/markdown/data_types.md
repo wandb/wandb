@@ -196,7 +196,7 @@ Wandb class for images.
  
 
 ## JSONMetadata
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1049)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1054)
 ```python
 JSONMetadata(self, val, **kwargs)
 ```
@@ -205,7 +205,7 @@ JSONMetadata is a type for encoding arbitrary metadata as files.
 
 
 ## BoundingBoxes2D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1082)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1087)
 ```python
 BoundingBoxes2D(self, val, **kwargs)
 ```
@@ -214,16 +214,16 @@ Wandb class for 2D bounding Boxes
 
 
 ## ImageMask
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1132)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1137)
 ```python
-ImageMask(self, val, **kwargs)
+ImageMask(self, val, key, **kwargs)
 ```
 
 Wandb class for image masks, useful for segmentation tasks
 
 
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1185)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1197)
 ```python
 Plotly(self, val, **kwargs)
 ```
@@ -236,7 +236,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1226)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1238)
 ```python
 Graph(self, format='keras')
 ```
@@ -262,7 +262,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1381)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1393)
 ```python
 Node(self,
      id=None,
@@ -280,7 +280,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1546)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1558)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -289,7 +289,7 @@ Edge used in [`Graph`](#graph)
 
 
 ## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1671)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1683)
 ```python
 data_frame_to_json(df, run, key, step)
 ```
