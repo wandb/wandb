@@ -390,14 +390,18 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    def use_artifact(self, name=None, artifact=None, path=None, metadata=None, api=None):
+    def use_artifact(self, type=None, name=None, artifact=None, path=None, metadata=None, api=None):
+        if name is not None:
+            if type is None:
+                raise ValueError('type required when specifying artifact name')
+            name = '%s/%s' % (type, name)
         # One of artifact, name, paths must be passed in
         api = api or self.api
         entity_name = self.api.settings('entity')
         project_name = self.api.settings('project')
         if name is not None and path is None and metadata is None:
             public_api = PublicApi(self.api.settings())
-            artifact = public_api.artifact('%s/%s/%s' % (entity_name, project_name, name))
+            artifact = public_api.artifact(name)
         if artifact is not None:
             # TODO: assert artifact has correct entity_name, project_name
             # TODO: This should throw if not available
@@ -415,11 +419,16 @@ class Run(object):
         # TODO
         raise ValueError('Invalid use artifact call')
 
-    def log_artifact(self, name, paths=None, description=None, metadata=None, labels=None, aliases=None):
+    def log_artifact(self, type=None, name=None, contents=None, description=None, metadata=None, labels=None, aliases=None):
+        # TODO validate input here, fail early if bad arguments are passed
+        # name/contents required
+        if name is None or type is None:
+            raise ValueError('type and name required')
+        name = '%s/%s' % (type, name)
         self.send_message({
             'log_artifact': {
                 'name': name,
-                'paths': paths,
+                'contents': contents,
                 'description': description,
                 'metadata': metadata,
                 'labels': labels,

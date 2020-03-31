@@ -1201,13 +1201,13 @@ class RunManager(object):
 
     def log_artifact(self, message):
         name = message['name']
-        paths = message['paths']
+        contents = message['contents']
         description = message['description']
         labels = json.dumps(message['labels']) if 'labels' in message else None
         metadata = message['metadata'] if 'metadata' in message else None
         aliases = message['aliases'] if 'aliases' in message else None
 
-        la = artifacts.LocalArtifact(self._api, paths, file_pusher=self._file_pusher)
+        la = artifacts.LocalArtifact(self._api, contents, file_pusher=self._file_pusher)
         la.save(name, description=description, metadata=metadata, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):

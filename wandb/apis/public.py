@@ -260,17 +260,21 @@ class Api(object):
 
         entity is optional and will fallback to the current logged in user.
         """
+        # This doesn't support specifying project and entity, since
+        #   artifact names may have slashes in them.
+        # TODO(artifacts): resolve this
         project = self.settings['project']
         entity = self.settings['entity']
-        parts = path.split("/")
-        if len(parts) == 2:
-            # the entity is assumed here
-            project, artifact = parts[0], parts[1]
-        elif len(parts) == 3:
-            entity, project, artifact = parts[0], parts[1], parts[2]
-        else:
-            raise ValueError('%s is not a valid path of the form entity/project/artifact:alias or '
-                             'project/artifact:alias' % path)
+        # parts = path.split("/")
+        # if len(parts) == 2:
+        #     # the entity is assumed here
+        #     project, artifact = parts[0], parts[1]
+        # elif len(parts) == 3:
+        #     entity, project, artifact = parts[0], parts[1], parts[2]
+        # else:
+        #     raise ValueError('%s is not a valid path of the form entity/project/artifact:alias or '
+        #                      'project/artifact:alias' % path)
+        artifact = path
 
         art_parts = artifact.split(":")
         artifact_type, artifact_alias = art_parts[0], art_parts[1]
@@ -1789,11 +1793,15 @@ class ArtifactType(object):
         return self._attrs["id"]
 
     @property
+    def type(self):
+        return self._attrs["name"].split('/', 1)[0]
+
+    @property
     def name(self):
-        return self._attrs["name"]
+        return self._attrs["name"].split('/', 1)[1]
 
     def __repr__(self):
-        return "<ArtifactType {}>".format(self.name)
+        return "<ArtifactType {} {}>".format(self.type, self.name)
 
 
 class Artifact(object):
@@ -1873,7 +1881,7 @@ class Artifact(object):
             or response.get('project') is None \
                 or response['project'].get('artifactType') is None \
                 or response['project']['artifactType'].get('artifact') is None:
-            raise ValueError("Could not find artifact %s:%s" % (self.artifact_type_name, self.artifact_alias))
+            raise ValueError("Could not find artifact %s:%s" % (self.artifact_type_name, self.name))
         self._attrs = response['project']['artifactType']['artifact']
         return self._attrs
 
