@@ -837,9 +837,12 @@ class Image(BatchableMedia):
             self._boxes = BoundingBoxes2D(boxes)
         self._masks = None
         if masks:
-            if not isinstance(masks, list):
-                raise ValueError("Masks must be a list")
-            self._masks = [ImageMask(m) for m in masks]
+            if not isinstance(masks, dict):
+                raise ValueError("Images \"masks\" argument must be a dictionary")
+            masks_final = {}
+            for key in masks:
+                masks_final[key] = ImageMask(masks[key], key)
+            self._masks = masks_final
 
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
@@ -886,8 +889,8 @@ class Image(BatchableMedia):
             self._boxes.bind_to_run(*args, **kwargs)
 
         if self._masks is not None:
-            for mask in self._masks:
-                mask.bind_to_run(*args, **kwargs)
+            for k in self._masks:
+                self._masks[k].bind_to_run(*args, **kwargs)
 
     def to_json(self, run):
         json_dict = super(Image, self).to_json(run)
@@ -905,7 +908,8 @@ class Image(BatchableMedia):
         if self._boxes:
             json_dict['boxes'] = self._boxes.to_json(run)
         if self._masks:
-            json_dict['masks'] = [mask.to_json(run) for mask in self._masks]
+            json_dict['masks'] = {
+                    k: mask.to_json(run) for (k, mask) in self._masks.items()}
 
         return json_dict
 
@@ -1004,14 +1008,15 @@ class Image(BatchableMedia):
         return meta
 
     @classmethod
-    def all_masks(cls, images, run, key, step):
+    def all_masks(cls, images, run, run_key, step):
         all_mask_groups = []
-        for i in images:
-            if i._masks:
-                mask_group = []
-                for mask in i._masks:
-                    mask.bind_to_run(run, key, step)
-                    mask_group.append(mask.to_json(run))
+        for image in images:
+            if image._masks:
+                mask_group = {}
+                for k in image._masks:
+                    mask = image._masks[k]
+                    mask.bind_to_run(run, run_key, step)
+                    mask_group[k] = mask.to_json(run)
                 all_mask_groups.append(mask_group)
             else:
                all_mask_groups.append(None)
@@ -1134,11 +1139,12 @@ class ImageMask(Media):
     Wandb class for image masks, useful for segmentation tasks
     """
 
-    def __init__(self, val, **kwargs):
+    def __init__(self, val, key, **kwargs):
         super(ImageMask, self).__init__()
 
         self.validate(val)
         self._val = val
+        self._key = key
 
         ext = "." + self.type_name() + ".png"
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
@@ -1149,6 +1155,12 @@ class ImageMask(Media):
         
         image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+    def bind_to_run(self, run, key, step):
+        # bind_to_run key argument is the Image parent key
+        # the self._key value is the mask's sub key
+        super(ImageMask, self).bind_to_run(run, key, step)
+        run._add_singleton("mask/class_labels", key + "_wandb_delimeter_" + self._key , self._val["class_labels"])
 
     def get_media_subdir(self):
         return os.path.join('media', 'images', self.type_name())
@@ -1165,7 +1177,7 @@ class ImageMask(Media):
     def validate(self , mask):
         # 2D Make this work with all tensor(like) types
         if not "mask_data" in mask:
-            raise TypeError("A mask requires mask data(A 2D array representing the predctions")
+            raise TypeError("Missing key \"mask_data\": A mask requires mask data(A 2D array representing the predctions)")
         else:
             error_str = "mask_data must be a 2d array" 
             shape = mask["mask_data"].shape

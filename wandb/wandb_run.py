@@ -664,6 +664,36 @@ class Run(object):
         }
         self.config.persist()
 
+    # Stores a singleton item to wandb config.
+    #
+    # A singleton in this context is a piece of data that is continually
+    # logged with the same value in each history step, but represented
+    # as a single item in the config.
+    #
+    # We do this to avoid filling up history with a lot of repeated uneccessary data
+    #
+    # Add singleton can be called many times in one run and it will only be updated when the value changes. The last value logged will be the one persisted to the server
+    def _add_singleton(self, type, key, value):
+        # Wrap te value with information
+        value_extra = {
+            'type': type,
+            'key': key,
+            'value': value
+        }
+
+        if not type in self.config['_wandb']:
+            self.config['_wandb'][type] = {}
+
+        if type in self.config['_wandb'][type]:
+            old_value = self.config['_wandb'][type][key]
+        else:
+            old_value = None
+
+        if value_extra != old_value:
+            self.config['_wandb'][type][key] = value_extra
+            self.config.persist()
+
+
     @property
     def history(self):
         if self._history is None:
