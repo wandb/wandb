@@ -11,16 +11,31 @@ class _Reporter(object):
         self._settings = settings
         self._errors = []
         self._warnings = []
-        self._d = dict()
+        self._num_errors = 0
+        self._num_warnings = 0
+        self._context = dict()
 
     def error(self, __s, *args):
         pass
 
     def warning(self, __s, *args):
-        pass
+        show = self._settings.show_warnings
+        summary = self._settings.summary_warnings
+        if show is not None or summary is not None:
+            s = __s % args
+        self._num_warnings += 1
+        if show is not None:
+            if self._num_warnings <= show or show == 0:
+                print("[WARNING]", s)
+                if self._num_warnings == show:
+                    print("not showing any more warnings")
+        if summary is not None:
+            if self._num_warnings <= summary or summary == 0:
+                self._warnings.append(s)
 
     def info(self, __s, *args):
-        print(("[INFO]" + __s) % args)
+        if self._settings.show_info:
+            print(("[INFO]" + __s) % args)
 
     def internal(self, __s, *args):
         pass
@@ -30,15 +45,31 @@ class _Reporter(object):
 
     def set_context(self, __d=None, **kwargs):
         if __d:
-            self._d.update(__d)
-        self._d.update(**kwargs)
+            self._context.update(__d)
+        self._context.update(**kwargs)
 
     def clear_context(self, keys=None):
         if keys is None:
-            self._d = dict()
+            self._context = dict()
             return
         for k in keys:
-            self._d.pop(k, None)
+            self._context.pop(k, None)
+
+    @property
+    def warning_count(self):
+        return self._num_warnings
+
+    @property
+    def error_count(self):
+        return self._num_errors
+
+    @property
+    def warning_lines(self):
+        return self._warnings
+
+    @property
+    def error_lines(self):
+        return self._errors
 
 
 class Reporter(object):

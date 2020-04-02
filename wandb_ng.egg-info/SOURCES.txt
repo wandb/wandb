@@ -76,6 +76,7 @@ wandb/util/globals.py
 wandb/util/lazyloader.py
 wandb/util/preinit.py
 wandb/util/redirect.py
+wandb/util/reporting.py
 wandb/util/term.py
 wandb_ng.egg-info/PKG-INFO
 wandb_ng.egg-info/SOURCES.txt

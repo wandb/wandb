@@ -41,6 +41,7 @@ class Run(object):
 
         self._settings = settings
         self._backend = None
+        self._reporter = None
         self._data = dict()
         self.run_id = generate_id()
 
@@ -104,6 +105,9 @@ class Run(object):
     def _set_backend(self, backend):
         self._backend = backend
 
+    def _set_reporter(self, reporter):
+        self._reporter = reporter
+
     def _set_run_obj(self, run_obj):
         self._run_obj = run_obj
 
@@ -140,6 +144,22 @@ class Run(object):
         # check for warnings and errors, show log file locations
         if self._run_obj:
             self._display_run()
+        if self._reporter:
+            warning_lines = self._reporter.warning_lines
+            if warning_lines:
+                wandb.termlog("Warnings:")
+                for line in warning_lines:
+                    wandb.termlog(line)
+                if len(warning_lines) < self._reporter.warning_count:
+                    wandb.termlog("More warnings")
+
+            error_lines = self._reporter.error_lines
+            if error_lines:
+                wandb.termlog("Errors:")
+                for line in error_lines:
+                    wandb.termlog(line)
+                if len(error_lines) < self._reporter.error_count:
+                    wandb.termlog("More errors")
 
     def _save_job_spec(self):
         envdict = dict(

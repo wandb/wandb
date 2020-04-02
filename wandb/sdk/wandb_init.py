@@ -10,6 +10,7 @@ from .wandb_run import Run
 from wandb.util.globals import set_global
 from wandb.backend.backend import Backend
 from wandb.stuff import util2
+from wandb.util import reporting
 
 import time
 import json
@@ -83,6 +84,7 @@ class _WandbInit(object):
         self._redirect_cb = None
         self._out_redir = None
         self._err_redir = None
+        self._reporter = None
 
         # move this
         self.stdout_redirector = None
@@ -90,10 +92,15 @@ class _WandbInit(object):
         self._save_stdout = None
         self._save_stderr = None
 
+        self._atexit_cleanup_called = None
+
     def setup(self, kwargs):
         self.kwargs = kwargs
 
-        settings = kwargs.pop("settings", None)
+        wl = wandb.setup()
+        settings: Settings = wl.settings(dict(kwargs.pop("settings", tuple())))
+
+        self._reporter = reporting.setup_reporter(settings=settings.duplicate().freeze())
 
         # Remove parameters that are not part of settings
         self.config = kwargs.pop("config", None)
@@ -116,28 +123,21 @@ class _WandbInit(object):
         for key in unsupported:
             val = kwargs.pop(key, None)
             if val:
-                logger.info("unsupported wandb.init() arg: %s", key)
+                self._reporter.warning("unsupported wandb.init() arg: %s", key)
 
-        wl = wandb.setup()
-        settings = dict(settings or dict())
-        s = wl.settings(**settings)
-        d = dict(**kwargs)
-        # strip out items where value is None
-        param_map = dict(name='run_name', id='run_id')
-        d = {
-            param_map.get(k, k): v
-            for k, v in six.iteritems(d) if v is not None
-        }
+        settings.apply_init(kwargs)
 
         # TODO(jhr): should this be moved? probably.
-        d.setdefault("start_time", time.time())
+        d = dict(start_time=time.time())
+        settings.update(d)
 
-        s.update(d)
-        s.freeze()
         self.wl = wl
-        self.settings = s
+        self.settings = settings.freeze()
 
     def _atexit_cleanup(self):
+        if self._atexit_cleanup_called:
+            return
+        self._atexit_cleanup_called = True
 
         ret = self.backend.interface.send_exit_sync(0, timeout=30)
         logger.info("got exit ret: %s", ret)
@@ -259,8 +259,7 @@ class _WandbInit(object):
             stdout_master_fd, stdout_slave_fd = win32_create_pipe()
             stderr_master_fd, stderr_slave_fd = win32_create_pipe()
         else:
-            # warning
-            pass
+            self._reporter.internal("Unknown console: %s", console)
 
         backend = Backend(mode=s.mode)
         backend.ensure_launched(
@@ -277,6 +276,7 @@ class _WandbInit(object):
 
         run = Run(config=config, settings=s)
         run._set_backend(backend)
+        run._set_reporter(self._reporter)
         # TODO: pass mode to backend
         run_synced = None
 
@@ -302,6 +302,7 @@ class _WandbInit(object):
         self.run = run
         self.backend = backend
         set_global(run=run, config=run.config, log=run.log, join=run.join)
+        self._reporter.set_context(run=run)
         run.on_start()
 
         logger.info("atexit reg")
@@ -374,12 +375,11 @@ def init(
         except (KeyboardInterrupt, Exception) as e:
             getcaller()
             logger.exception("we got issues")
+            wi._atexit_cleanup()
             if wi.settings.problem == "fatal":
                 raise
             if wi.settings.problem == "warn":
                 pass
-            # silent or warn
-            # TODO: return dummy run instead
             return None
     except KeyboardInterrupt as e:
         logger.warning("interupted", exc_info=e)

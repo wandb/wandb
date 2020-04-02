@@ -7,6 +7,7 @@ import logging
 import configparser
 import platform
 from typing import Optional, Union, List, Dict  # noqa: F401 pylint: disable=unused-import
+import copy
 
 import six
 
@@ -19,6 +20,8 @@ Field = collections.namedtuple('TypedField', ['type', 'choices'])
 
 defaults = dict(
     base_url="https://api.wandb.ai",
+    show_warnings=2,
+    summary_warnings=5,
     _mode=Field(str, (
         'auto',
         'noop',
@@ -153,6 +156,16 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         jupyter=None,
         windows=None,
 
+        show_colors=None,
+        show_emoji=None,
+        show_console=None,
+        show_info=None,
+        show_warnings=None,
+        show_errors=None,
+
+        summary_errors=None,
+        summary_warnings=None,
+
         # special
         _settings=None,
         _environ=None,
@@ -202,6 +215,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         s = Settings()
         s.update(dict(self))
         return s
+
+    def duplicate(self):
+        return copy.copy(self)
 
     def _check_invalid(self, k, v):
         # Check to see if matches choice
@@ -274,6 +290,11 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
     def freeze(self):
         object.__setattr__(self, "_frozen", True)
+        return self
+
+    @property
+    def frozen(self):
+        return self._frozen
 
     def _load(self, fname):
         section = 'default'
@@ -284,3 +305,12 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         for k in cp[section]:
             d[k] = cp[section][k]
         return d
+
+    def apply_init(self, args):
+        # strip out items where value is None
+        param_map = dict(name='run_name', id='run_id')
+        args = {
+            param_map.get(k, k): v
+            for k, v in six.iteritems(args) if v is not None
+        }
+        self.update(args)
