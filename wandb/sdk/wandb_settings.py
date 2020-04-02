@@ -96,9 +96,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
     # pylint: disable=no-member
 
-    # TODO(david): fix codemod to handle this?
-    # team: Optional[str]
-    # entity: Optional[str]
+    team: Optional[str]
+    entity: Optional[str]
 
     def __init__(  # pylint: disable=unused-argument
         self,
