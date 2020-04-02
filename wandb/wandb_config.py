@@ -247,7 +247,7 @@ class Config(object):
                 converted.append(self._sanitize_val(value))
             return converted
         else:
-            if val.__class__.__module__ not in ('builtins', '__builtin__'):
+            if val.__class__.__module__ not in ('builtins', '__builtin__') or isinstance(val, slice):
                 val = str(val)
             return val
 
