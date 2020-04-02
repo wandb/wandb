@@ -137,6 +137,7 @@ class Run(object):
             self._display_run()
 
     def on_finish(self):
+        # check for warnings and errors, show log file locations
         if self._run_obj:
             self._display_run()
 

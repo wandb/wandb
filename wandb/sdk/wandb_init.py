@@ -24,35 +24,10 @@ from wandb.util import redirect
 
 from .wandb_settings import Settings
 
-# from wandb.apis import internal
-
-# import typing
-# if typing.TYPE_CHECKING:
-#   from typing import Dict, List, Optional
-# from typing import Optional, Dict
-from typing import Optional, Union, List, Dict, Any  # noqa: F401
+if wandb.TYPE_CHECKING:
+    from typing import Optional, Union, List, Dict, Any  # noqa: F401
 
 logger = logging.getLogger("wandb")
-
-# priority order (highest to lowest):
-# WANDB_FORCE_MODE
-# settings.force_mode
-# wandb.init(mode=)
-# WANDB_MODE
-# settings.mode
-# ) -> Optional[Run]:
-
-# def init(settings: Dict = None,
-#          mode: int = None,
-#          entity=None,
-#          team=None,
-#          project=None,
-#          group=None,
-#          magic=None,
-#          config=None,
-#          reinit=None,
-#          name=None,
-#          ) -> Optional[Run]:
 
 
 def online_status(*args, **kwargs):

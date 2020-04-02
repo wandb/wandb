@@ -15,9 +15,9 @@ import sys
 from wandb.errors import Error
 
 
-# Cut off is python 3.6 for better type annotations
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
+    TYPE_CHECKING = True
     from wandb.sdk.wandb_init import init
     from wandb.sdk.wandb_setup import setup
     from wandb.sdk.wandb_save import save
@@ -25,6 +25,7 @@ if PY3:
     from wandb.sdk.wandb_login import login
     from wandb.sdk.wandb_settings import Settings
 else:
+    TYPE_CHECKING = False
     from wandb.sdk_py27.wandb_init import init
     from wandb.sdk_py27.wandb_setup import setup
     from wandb.sdk_py27.wandb_save import save
