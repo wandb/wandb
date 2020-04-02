@@ -94,6 +94,7 @@ class _WandbSetup__WandbSetup(object):
 
         # setup defaults
         s.setdefaults()
+        s._probe()
 
         # move freeze to later, FIXME(jhr): is this ok?
         # s.freeze()

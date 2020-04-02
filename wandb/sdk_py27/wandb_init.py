@@ -14,7 +14,6 @@ from wandb.stuff import util2
 import time
 import json
 import atexit
-import platform
 import six
 import logging
 from six import raise_from
@@ -180,35 +179,29 @@ class _WandbInit(object):
         self.backend.interface.send_output(name, data)
 
     def _redirect(self, stdout_slave_fd, stderr_slave_fd):
-        logger.info("redirect")
+        console = self.settings.console
+        logger.info("redirect: %s", console)
 
-        if self._use_redirect:
-            out = False
-            err = False
-            out = True
-            err = True
-            if out:
-                out_cap = redirect.Capture(name="stdout", cb=self._redirect_cb)
-                out_redir = redirect.Redirect(src="stdout",
-                                              dest=out_cap,
-                                              unbuffered=True,
-                                              tee=True)
-            if err:
-                err_cap = redirect.Capture(name="stderr", cb=self._redirect_cb)
-                err_redir = redirect.Redirect(src="stderr",
-                                              dest=err_cap,
-                                              unbuffered=True,
-                                              tee=True)
-            if out:
-                out_redir.install()
-            if err:
-                err_redir.install()
-            if out:
-                self._out_redir = out_redir
-            if err:
-                self._err_redir = err_redir
+        if console == 'redirect':
+            logger.info("redirect1")
+            out_cap = redirect.Capture(name="stdout", cb=self._redirect_cb)
+            out_redir = redirect.Redirect(src="stdout",
+                                          dest=out_cap,
+                                          unbuffered=True,
+                                          tee=True)
+            err_cap = redirect.Capture(name="stderr", cb=self._redirect_cb)
+            err_redir = redirect.Redirect(src="stderr",
+                                          dest=err_cap,
+                                          unbuffered=True,
+                                          tee=True)
+            out_redir.install()
+            err_redir.install()
+            self._out_redir = out_redir
+            self._err_redir = err_redir
             logger.info("redirect2")
             return
+
+        return
 
         # redirect stdout
         if platform.system() == "Windows":
@@ -263,27 +256,36 @@ class _WandbInit(object):
                 config[k] = v
 
         if s.mode == "noop":
+            # TODO(jhr): return dummy object
             return None
 
         # Make sure we are logged in
         wandb.login()
 
-        if self._use_redirect:
-            stdout_master_fd = None
-            stderr_master_fd = None
-            stdout_slave_fd = None
-            stderr_slave_fd = None
-            #self._redirect_q = self.wl._multiprocessing.Queue()
+        stdout_master_fd = None
+        stderr_master_fd = None
+        stdout_slave_fd = None
+        stderr_slave_fd = None
+        console = s.console
+
+        if console == 'redirect':
+            pass
+        elif console == 'off':
+            pass
+        elif console == 'mock':
+            pass
+        elif console == 'file':
+            pass
+        elif console == 'iowrap':
+            stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
+            stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
+        elif console == '_win32':
+            # Not used right now
+            stdout_master_fd, stdout_slave_fd = win32_create_pipe()
+            stderr_master_fd, stderr_slave_fd = win32_create_pipe()
         else:
-            if platform.system() == "Windows":
-                # create win32 pipes
-                stdout_master_fd, stdout_slave_fd = win32_create_pipe()
-                stderr_master_fd, stderr_slave_fd = win32_create_pipe()
-            else:
-                stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(
-                    resize=False)
-                stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(
-                    resize=False)
+            # warning
+            pass
 
         backend = Backend(mode=s.mode)
         backend.ensure_launched(
@@ -326,6 +328,7 @@ class _WandbInit(object):
         self.backend = backend
         set_global(run=run, config=run.config, log=run.log, join=run.join)
         run.on_start()
+
         logger.info("atexit reg")
         atexit.register(lambda: self._atexit_cleanup())
 

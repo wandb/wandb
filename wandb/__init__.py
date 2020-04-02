@@ -10,10 +10,13 @@ from __future__ import unicode_literals
 
 __version__ = '0.0.14'
 
+import sys
+
 from wandb.errors import Error
 
-import sys
-PY3 = sys.version_info[0] >= 3
+
+# Cut off is python 3.6 for better type annotations
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     from wandb.sdk.wandb_init import init
     from wandb.sdk.wandb_setup import setup

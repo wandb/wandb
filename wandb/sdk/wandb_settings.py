@@ -26,12 +26,12 @@ defaults = dict(
         'offline',
         'dryrun',
         'run',
-        )),
+    )),
     _problem=Field(str, (
         'fatal',
         'warn',
         'silent',
-        )),
+    )),
     console='auto',
     _console=Field(str, (
         'auto',
@@ -40,7 +40,7 @@ defaults = dict(
         'mock',
         'file',
         'iowrap',
-        )),
+    )),
 )
 
 # env mapping?
@@ -68,7 +68,7 @@ def _build_inverse_map(prefix, d):
 
 def _get_python_type():
     try:
-        if'terminal' in get_ipython().__module__:
+        if 'terminal' in get_ipython().__module__:
             return 'ipython'
         else:
             return 'jupyter'
@@ -147,7 +147,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         username=None,
         docker=None,
         start_time=None,
-
         console=None,
 
         # compute environment
