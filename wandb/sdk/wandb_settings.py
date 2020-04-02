@@ -5,6 +5,7 @@ settings.
 import collections
 import logging
 import configparser
+import platform
 from typing import Optional, Union, List, Dict  # noqa: F401 pylint: disable=unused-import
 
 import six
@@ -18,8 +19,28 @@ Field = collections.namedtuple('TypedField', ['type', 'choices'])
 
 defaults = dict(
     base_url="https://api.wandb.ai",
-    _mode=Field(str, ('noop', 'online', 'offline', 'dryrun', 'async')),
-    _problem=Field(str, ('fatal', 'warn', 'silent')),
+    _mode=Field(str, (
+        'auto',
+        'noop',
+        'online',
+        'offline',
+        'dryrun',
+        'run',
+        )),
+    _problem=Field(str, (
+        'fatal',
+        'warn',
+        'silent',
+        )),
+    console='auto',
+    _console=Field(str, (
+        'auto',
+        'redirect',
+        'off',
+        'mock',
+        'file',
+        'iowrap',
+        )),
 )
 
 # env mapping?
@@ -33,6 +54,7 @@ env_settings = dict(
     group="WANDB_RUN_GROUP",
     job_type=None,
     problem=None,
+    console=None,
 )
 
 
@@ -42,6 +64,16 @@ def _build_inverse_map(prefix, d):
         v = v or prefix + k.upper()
         inv_map[v] = k
     return inv_map
+
+
+def _get_python_type():
+    try:
+        if'terminal' in get_ipython().__module__:
+            return 'ipython'
+        else:
+            return 'jupyter'
+    except (NameError, AttributeError):
+        return "python"
 
 
 class CantTouchThis(type):
@@ -117,6 +149,12 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         docker=None,
         start_time=None,
 
+        console=None,
+
+        # compute environment
+        jupyter=None,
+        windows=None,
+
         # special
         _settings=None,
         _environ=None,
@@ -188,6 +226,21 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         self.__dict__.update(
             {k: v
              for k, v in kwargs.items() if v is not None})
+
+    def _probe(self):
+        d = {}
+        d['jupyter'] = _get_python_type() != "python"
+        d['windows'] = platform.system() == "Windows"
+        self.setdefaults(d)
+
+        # TODO(jhr): this needs to be moved last in setting up settings
+        u = {}
+        if self.console == 'auto':
+            console = 'redirect'
+            if self.jupyter:
+                console = 'off'
+            u['console'] = console
+        self.update(u)
 
     def setdefaults(self, __d=None):
         __d = __d or defaults
