@@ -240,6 +240,9 @@ class Config(object):
             for key, value in six.iteritems(val):
                 converted[key] = self._sanitize_val(value)
             return converted
+        if isinstance(val, slice):
+            converted = dict(slice_start=val.start, slice_step=val.step, slice_stop=val.stop)
+            return converted
         val, _ = wandb.util.json_friendly(val)
         if isinstance(val, Sequence) and not isinstance(val, six.string_types):
             converted = []
@@ -247,7 +250,7 @@ class Config(object):
                 converted.append(self._sanitize_val(value))
             return converted
         else:
-            if val.__class__.__module__ not in ('builtins', '__builtin__') or isinstance(val, slice):
+            if val.__class__.__module__ not in ('builtins', '__builtin__'):
                 val = str(val)
             return val
 
