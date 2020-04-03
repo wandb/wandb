@@ -21,6 +21,7 @@ from wandb.internal import datastore
 
 from . import internal_api
 from . import file_stream
+from . import update
 
 from .file_pusher import FilePusher
 
@@ -374,6 +375,9 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
     run_meta = meta.Meta(settings=settings, process_q=process_queue, notify_q=notify_queue)
     run_meta.probe()
     run_meta.write()
+
+    current_version = wandb.__version__
+    update.check_available(current_version)
 
     if use_redirect:
         pass
