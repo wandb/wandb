@@ -160,6 +160,12 @@ class Run(object):
                     wandb.termlog(line)
                 if len(error_lines) < self._reporter.error_count:
                     wandb.termlog("More errors")
+        if self._settings.log_user:
+            wandb.termlog("Find user logs for this run at: {}".format(
+                self._settings.log_user))
+        if self._settings.log_internal:
+            wandb.termlog("Find internal logs for this run at: {}".format(
+                self._settings.log_internal))
 
     def _save_job_spec(self):
         envdict = dict(

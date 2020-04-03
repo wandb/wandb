@@ -128,8 +128,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         log_dir="",
         log_user_spec="wandb-{timespec}-{pid}-debug.log",
         log_internal_spec="wandb-{timespec}-{pid}-debug-internal.log",
-        log_user=False,
-        log_internal=True,
+        log_user=None,
+        log_internal=None,
+        symlink=None,
 
         # where files are temporary stored when saving
         files_dir=None,
@@ -238,6 +239,10 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         d = {}
         d['jupyter'] = _get_python_type() != "python"
         d['windows'] = platform.system() == "Windows"
+        # disable symlinks if on windows (requires admin or developer setup)
+        d['symlink'] = True
+        if d['windows']:
+            d['symlink'] = False
         self.setdefaults(d)
 
         # TODO(jhr): this needs to be moved last in setting up settings

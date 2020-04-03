@@ -192,17 +192,23 @@ class _WandbSetup__WandbSetup(object):
         self._safe_makedirs(log_dir)
         self._safe_makedirs(dir_files)
         self._safe_makedirs(dir_data)
-        self._safe_symlink(log_base_dir, log_dir, "latest", pid, delete=True)
-        self._safe_symlink(log_base_dir,
-                           log_user,
-                           "debug.log",
-                           pid,
-                           delete=True)
-        self._safe_symlink(log_base_dir,
-                           log_internal,
-                           "debug-internal.log",
-                           pid,
-                           delete=True)
+
+        if self._settings.symlink:
+            self._safe_symlink(log_base_dir,
+                               log_dir,
+                               "latest",
+                               pid,
+                               delete=True)
+            self._safe_symlink(log_base_dir,
+                               log_user,
+                               "debug.log",
+                               pid,
+                               delete=True)
+            self._safe_symlink(log_base_dir,
+                               log_internal,
+                               "debug-internal.log",
+                               pid,
+                               delete=True)
 
         self._enable_logging(log_user)
 
@@ -212,6 +218,8 @@ class _WandbSetup__WandbSetup(object):
         self._log_user_filename = log_user
         self._log_internal_filename = log_internal
 
+        self._settings.log_user = log_user
+        self._settings.log_internal = log_internal
         self._settings.files_dir = dir_files
         self._settings.data_dir = dir_data
 
