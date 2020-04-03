@@ -1,6 +1,6 @@
-from gql import Client, gql
-from gql.client import RetryError
-from gql.transport.requests import RequestsHTTPTransport
+from gql import Client, gql  # type: ignore
+from gql.client import RetryError  # type: ignore
+from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import datetime
 import os
 import requests
@@ -19,9 +19,9 @@ import random
 import traceback
 
 if os.name == 'posix' and sys.version_info[0] < 3:
-    import subprocess32 as subprocess
+    import subprocess32 as subprocess  # type: ignore
 else:
-    import subprocess
+    import subprocess  # type: ignore[no-redef]
 
 import six
 from six import b
