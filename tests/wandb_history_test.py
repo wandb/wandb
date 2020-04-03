@@ -4,7 +4,7 @@ history test.
 
 import pytest  # type: ignore
 
-from wandb.sdk import wandb_history
+from wandb import wandb_sdk
 
 
 class MockCallback(object):
@@ -17,7 +17,7 @@ class MockCallback(object):
 
 def test_row_add():
     m = MockCallback()
-    h = wandb_history.History()
+    h = wandb_sdk.History()
     h._set_callback(m.callback)
     h._row_add(dict(this=2))
     assert m.row == dict(this=2, _step=0)
@@ -25,7 +25,7 @@ def test_row_add():
 
 def test_row_update():
     m = MockCallback()
-    h = wandb_history.History()
+    h = wandb_sdk.History()
     h._set_callback(m.callback)
     h._row_update(dict(this=2))
     assert m.row == None

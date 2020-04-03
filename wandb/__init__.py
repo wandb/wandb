@@ -18,20 +18,17 @@ from wandb.errors import Error
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     TYPE_CHECKING = True
-    from wandb.sdk.wandb_init import init
-    from wandb.sdk.wandb_setup import setup
-    from wandb.sdk.wandb_save import save
-    from wandb.sdk.wandb_watch import watch
-    from wandb.sdk.wandb_login import login
-    from wandb.sdk.wandb_settings import Settings
+    from wandb import sdk as wandb_sdk
 else:
     TYPE_CHECKING = False
-    from wandb.sdk_py27.wandb_init import init
-    from wandb.sdk_py27.wandb_setup import setup
-    from wandb.sdk_py27.wandb_save import save
-    from wandb.sdk_py27.wandb_watch import watch
-    from wandb.sdk_py27.wandb_login import login
-    from wandb.sdk_py27.wandb_settings import Settings
+    from wandb import sdk_py27 as wandb_sdk
+
+init = wandb_sdk.init
+setup = wandb_sdk.setup
+save = wandb_sdk.save
+watch = wandb_sdk.watch
+login = wandb_sdk.login
+Settings = wandb_sdk.Settings
 
 from wandb.util import preinit as _preinit
 from wandb.errors.term import termlog, termerror, termwarn

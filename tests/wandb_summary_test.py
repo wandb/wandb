@@ -4,7 +4,7 @@ settings test.
 
 import pytest  # type: ignore
 
-from wandb.sdk import wandb_summary
+from wandb import wandb_sdk
 
 
 class MockCallback(object):
@@ -20,20 +20,20 @@ class MockCallback(object):
 
 
 def test_attrib_get():
-    s = wandb_summary.Summary()
+    s = wandb_sdk.Summary()
     s['this'] = 2
     assert s.this == 2
 
 
 def test_item_get():
-    s = wandb_summary.Summary()
+    s = wandb_sdk.Summary()
     s['this'] = 2
     assert s['this'] == 2
 
 
 def test_attrib_internal_callback():
     m = MockCallback()
-    s = wandb_summary.Summary()
+    s = wandb_sdk.Summary()
     s._set_callback(m.callback)
     s['this'] = 2
     assert m.key == 'this'

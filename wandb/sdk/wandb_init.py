@@ -100,7 +100,8 @@ class _WandbInit(object):
         wl = wandb.setup()
         settings: Settings = wl.settings(dict(kwargs.pop("settings", tuple())))
 
-        self._reporter = reporting.setup_reporter(settings=settings.duplicate().freeze())
+        self._reporter = reporting.setup_reporter(
+            settings=settings.duplicate().freeze())
 
         # Remove parameters that are not part of settings
         self.config = kwargs.pop("config", None)

@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 wandb framwwork keras module.
 """
 
-from .keras import WandbCallback
+from wandb.framework.keras.keras import WandbCallback
 
 __all__ = ['WandbCallback']

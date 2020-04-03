@@ -150,14 +150,12 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         # compute environment
         jupyter=None,
         windows=None,
-
         show_colors=None,
         show_emoji=None,
         show_console=None,
         show_info=None,
         show_warnings=None,
         show_errors=None,
-
         summary_errors=None,
         summary_warnings=None,
 
