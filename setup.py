@@ -30,7 +30,7 @@ requirements = [
 
 setup(
     name='wandb-ng',
-    version='0.0.14',
+    version='0.0.15',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
