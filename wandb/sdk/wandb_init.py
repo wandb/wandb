@@ -98,7 +98,8 @@ class _WandbInit(object):
         self.kwargs = kwargs
 
         wl = wandb.setup()
-        settings: Settings = wl.settings(dict(kwargs.pop("settings", tuple())))
+        settings: Settings = wl.settings(
+            dict(kwargs.pop("settings", None) or tuple()))
 
         self._reporter = reporting.setup_reporter(
             settings=settings.duplicate().freeze())
