@@ -136,6 +136,7 @@ class _WandbSetup__WandbSetup(object):
         handler.setFormatter(formatter)
         if run_id:
             handler.addFilter(WBFilter())
+        logger.propagate = False
         logger.setLevel(logging.DEBUG)
         logger.addHandler(handler)
 
