@@ -120,7 +120,7 @@ class _SendManager(object):
         self._run_id = None
         self._api = internal_api.Api(default_settings=settings)
         api_keys = ('project', 'group', 'job_type',)
-        api_map = dict(run_id='name', run_name='display_name')
+        api_map = dict(run_id='name', run_name='display_name', run_notes='notes')
         self._api_settings = {api_map.get(k, k): v for k, v in six.iteritems(dict(settings)) if (k in api_map or k in api_keys) and v is not None}
 
         # TODO(jhr): do something better, why do we need to send full lines?

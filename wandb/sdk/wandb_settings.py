@@ -58,6 +58,8 @@ env_settings = dict(
     job_type=None,
     problem=None,
     console=None,
+    run_name="WANDB_NAME",
+    run_notes="WANDB_NOTES",
 )
 
 
@@ -116,6 +118,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         group=None,
         job_type=None,
         run_name=None,
+        run_notes=None,
         run_id=None,
 
         # compatibility / error handling

@@ -13,16 +13,16 @@ class LazyLoader(types.ModuleType):
         self._parent_module_globals = parent_module_globals
         self._warning = warning
 
-        super(LazyLoader, self).__init__(name)
+        super(LazyLoader, self).__init__(str(name))
 
     def _load(self):
         """Load the module and insert it into the parent's globals."""
         # Import the target module and insert it into the parent's namespace
         module = importlib.import_module(self.__name__)
         self._parent_module_globals[self._local_name] = module
-        print("import", self.__name__)
-        print("Set global", self._local_name)
-        print("mod", module)
+        # print("import", self.__name__)
+        # print("Set global", self._local_name)
+        # print("mod", module)
         sys.modules[self._local_name] = module
 
         # Emit a warning if one was specified
@@ -38,15 +38,15 @@ class LazyLoader(types.ModuleType):
 
         return module
 
-    def __getattribute__(self, item):
-        print("getattribute", item)
+    # def __getattribute__(self, item):
+    #     print("getattribute", item)
 
     def __getattr__(self, item):
-        print("getattr", item)
+        # print("getattr", item)
         module = self._load()
         return getattr(module, item)
 
     def __dir__(self):
-        print("dir")
+        # print("dir")
         module = self._load()
         return dir(module)

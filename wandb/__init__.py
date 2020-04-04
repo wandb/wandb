@@ -31,6 +31,7 @@ login = wandb_sdk.login
 Settings = wandb_sdk.Settings
 
 from wandb.util import preinit as _preinit
+from wandb.util import lazyloader as _lazyloader
 from wandb.errors.term import termlog, termerror, termwarn
 
 # Move this (keras.__init__ expects it at top level)
@@ -62,6 +63,8 @@ config = _preinit.PreInitObject("wandb.config")
 summary = _preinit.PreInitObject("wandb.summary")
 log = _preinit.PreInitCallable("wandb.log")
 join = _preinit.PreInitCallable("wandb.join")
+
+keras = _lazyloader.LazyLoader('keras', globals(), 'wandb.framework.keras')
 
 __all__ = [
     "__version__",
