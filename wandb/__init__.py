@@ -64,7 +64,7 @@ summary = _preinit.PreInitObject("wandb.summary")
 log = _preinit.PreInitCallable("wandb.log")
 join = _preinit.PreInitCallable("wandb.join")
 
-keras = _lazyloader.LazyLoader('keras', globals(), 'wandb.framework.keras')
+keras = _lazyloader.LazyLoader('wandb.keras', globals(), 'wandb.framework.keras')
 
 __all__ = [
     "__version__",
