@@ -284,22 +284,19 @@ class _WandbInit(object):
 
         backend._hack_set_run(run)
 
-        run_config = run.config._as_dict()
-        logger.info("runconfig: %s", run_config)
-        r = dict(run_id=run.run_id, config=run_config, project=s.project)
         if s.mode == 'online':
-            ret = backend.interface.send_run_sync(r, timeout=30)
+            ret = backend.interface.send_run_sync(run, timeout=30)
             # TODO: fail on error, check return type
             run._set_run_obj(ret.run)
         elif s.mode in ('offline', 'dryrun'):
-            backend.interface.send_run(r)
+            backend.interface.send_run(run)
         elif s.mode in ('async', 'run'):
             try:
-                err = backend.interface.send_run_sync(r, timeout=10)
+                err = backend.interface.send_run_sync(run, timeout=10)
             except Backend.Timeout:
                 pass
             # TODO: on network error, do async run save
-            backend.interface.send_run(r)
+            backend.interface.send_run(run)
 
         self.run = run
         self.backend = backend

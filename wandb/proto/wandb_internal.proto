@@ -78,8 +78,13 @@ message Run {
   string config_json = 3;
   // summary
   string summary_json = 4;
-  string team = 5;
+  string entity = 5;
   string project = 6;
+  repeated string tags = 7;
+  string group = 8;
+  string job_type = 9;
+  string notes = 10;
+
   string storage_id = 16;
 }
 

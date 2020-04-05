@@ -223,11 +223,10 @@ class BackendSender(object):
         self.process_queue.put(rec)
         self.notify_queue.put(constants.NOTIFY_PROCESS)
 
-    def _make_run(self, run_dict):
-        run = wandb_internal_pb2.Run()
-        run.run_id = run_dict['run_id']
-        run.config_json = json.dumps(run_dict.get('config', {}))
-        return run
+    def _make_run(self, run):
+        proto_run = wandb_internal_pb2.Run()
+        run._make_proto_run(proto_run)
+        return proto_run
 
     def _make_exit(self, exit_code):
         exit = wandb_internal_pb2.ExitData()

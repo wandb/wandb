@@ -13,7 +13,7 @@ import six
 
 logger = logging.getLogger("wandb")
 
-source = ("org", "team", "project", "sysdir", "dir", "env", "setup",
+source = ("org", "entity", "project", "sysdir", "dir", "env", "setup",
           "settings", "args")
 
 Field = collections.namedtuple('TypedField', ['type', 'choices'])
@@ -49,7 +49,6 @@ defaults = dict(
 # env mapping?
 env_prefix = "WANDB_"
 env_settings = dict(
-    team=None,
     entity=None,
     project=None,
     base_url=None,
@@ -90,8 +89,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
     """Settings Constructor
 
     Args:
-        entity: alias for team.
-        team: personal user or team to use for Run.
+        entity: personal user or team to use for Run.
         project: project name for the Run.
 
     Raises:
@@ -100,26 +98,24 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
     """
 
     # pylint: disable=no-member
-
-    team: Optional[str]
     entity: Optional[str]
 
     def __init__(  # pylint: disable=unused-argument
         self,
-        team: Optional[str] = None,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         anonymous=None,
 
         # how do we annotate that: dryrun==offline?
         mode: Optional[str] = 'online',
-        group=None,
-        job_type=None,
-        run_name=None,
-        run_notes=None,
-        run_id=None,
+        entity: str = None,
+        project: str = None,
+        group: str = None,
+        job_type: str = None,
+        run_id: str = None,
+        run_name: str = None,
+        run_notes: str = None,
+        run_tags=None,
 
         # compatibility / error handling
         compat_version=None,  # set to "0.8" for safer defaults for older users
@@ -314,7 +310,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
     def apply_init(self, args):
         # strip out items where value is None
-        param_map = dict(name='run_name', id='run_id')
+        param_map = dict(name='run_name', id='run_id', tags='run_tags')
         args = {
             param_map.get(k, k): v
             for k, v in six.iteritems(args) if v is not None

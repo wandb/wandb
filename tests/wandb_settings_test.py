@@ -79,8 +79,8 @@ def test_invalid_both():
         s.update(dict(project="ok"), invalid="new")
     assert s.project != "ok"
     with pytest.raises(KeyError):
-        s.update(dict(wrong="bad", team="nope"), project="okbutnotset")
-    assert s.team != "nope"
+        s.update(dict(wrong="bad", entity="nope"), project="okbutnotset")
+    assert s.entity != "nope"
     assert s.project != "okbutnotset"
 
 

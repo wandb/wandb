@@ -118,10 +118,12 @@ class _SendManager(object):
 
         # is anyone using run_id?
         self._run_id = None
+
+        self._entity = None
+        self._project = None
+
         self._api = internal_api.Api(default_settings=settings)
-        api_keys = ('project', 'group', 'job_type',)
-        api_map = dict(run_id='name', run_name='display_name', run_notes='notes')
-        self._api_settings = {api_map.get(k, k): v for k, v in six.iteritems(dict(settings)) if (k in api_map or k in api_keys) and v is not None}
+        self._api_settings = dict()
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -154,7 +156,16 @@ class _SendManager(object):
     def handle_run(self, data):
         run = data.run
         config = json.loads(run.config_json)
-        ups = self._api.upsert_run(name=run.run_id, config=config, **self._api_settings)
+        ups = self._api.upsert_run(
+                entity=run.entity,
+                project=run.project,
+                group=run.group,
+                job_type=run.job_type,
+                name=run.run_id,
+                display_name=run.name,
+                notes=run.notes,
+                config=config, 
+                )
 
         if data.control.req_resp:
             storage_id = ups.get("id")
@@ -168,18 +179,19 @@ class _SendManager(object):
                 project_name = project.get("name")
                 if project_name:
                     data.run.project = project_name
-                    self._api_settings['project'] = project_name
+                    self._project = project_name
                 entity = project.get("entity")
                 if entity:
                     entity_name = entity.get("name")
                     if entity_name:
-                        data.run.team = entity_name
+                        data.run.entity = entity_name
+                        self._entity = entity_name
             self._resp_q.put(data)
 
-        #fs = file_stream.FileStreamApi(api, run.run_id, settings=settings)
-        #fs.start()
-        #self._fs['rfs'] = fs
-        #self._fs['run_id'] = run.run_id
+        if self._entity is not None:
+            self._api_settings["entity"] = self._entity
+        if self._project is not None:
+            self._api_settings["project"] = self._project
         self._fs = file_stream.FileStreamApi(self._api, run.run_id, settings=self._api_settings)
         self._fs.start()
         self._pusher = FilePusher(self._api)
