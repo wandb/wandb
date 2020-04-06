@@ -141,7 +141,7 @@ class _WandbInit(object):
             return
         self._atexit_cleanup_called = True
 
-        ret = self.backend.interface.send_exit_sync(0, timeout=30)
+        ret = self.backend.interface.send_exit_sync(0, timeout=60)
         logger.info("got exit ret: %s", ret)
 
         self._restore()

@@ -352,7 +352,7 @@ class BackendSender(object):
         run = self._make_run(run_dict)
         req = self._make_record(run=run)
 
-        resp = self._request_response(req)
+        resp = self._request_response(req, timeout=timeout)
         return resp
 
     def send_stats(self, stats_dict):
@@ -372,5 +372,5 @@ class BackendSender(object):
         exit = self._make_exit(exit_code)
         req = self._make_record(exit=exit)
 
-        resp = self._request_response(req)
+        resp = self._request_response(req, timeout=timeout)
         return resp
