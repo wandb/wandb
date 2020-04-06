@@ -59,7 +59,10 @@ env_settings = dict(
     console=None,
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
+    run_tags="WANDB_TAGS",
 )
+
+env_convert = dict(run_tags=lambda s: s.split(','), )
 
 
 def _build_inverse_map(prefix, d):
@@ -189,6 +192,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                     continue
                 setting_key = inv_map.get(k)
                 if setting_key:
+                    conv = env_convert.get(setting_key, None)
+                    if conv:
+                        v = conv(v)
                     env_dict[setting_key] = v
                 else:
                     l.info("Unhandled environment var: {}".format(k))

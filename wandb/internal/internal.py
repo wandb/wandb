@@ -155,6 +155,7 @@ class _SendManager(object):
 
     def handle_run(self, data):
         run = data.run
+        run_tags = run.tags[:]
         config = json.loads(run.config_json)
         ups = self._api.upsert_run(
                 entity=run.entity,
@@ -164,6 +165,7 @@ class _SendManager(object):
                 name=run.run_id,
                 display_name=run.name,
                 notes=run.notes,
+                tags=run_tags,
                 config=config, 
                 )
 

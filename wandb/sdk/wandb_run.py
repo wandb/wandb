@@ -92,7 +92,8 @@ class Run(object):
         if self._project is not None:
             run.project = self._project
         if self._tags is not None:
-            run.tags = self._tags
+            for tag in self._tags:
+                run.tags.append(tag)
         if self._config is not None:
             run.config_json = json.dumps(self._config._as_dict())
 
