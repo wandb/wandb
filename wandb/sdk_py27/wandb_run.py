@@ -83,14 +83,20 @@ class Run(object):
             self._tags = settings.run_tags
 
     def _make_proto_run(self, run):
+        if self._entity is not None:
+            run.entity = self._entity
+        if self._project is not None:
+            run.project = self._project
+        if self._group is not None:
+            run.group = self._group
+        if self._job_type is not None:
+            run.job_type = self._job_type
         if self._run_id is not None:
             run.run_id = self._run_id
         if self._name is not None:
             run.name = self._name
         if self._notes is not None:
             run.notes = self._notes
-        if self._project is not None:
-            run.project = self._project
         if self._tags is not None:
             for tag in self._tags:
                 run.tags.append(tag)
