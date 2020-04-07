@@ -23,6 +23,7 @@ from wandb.retry import retriable
 from wandb.summary import HTTPSummary
 from wandb import env
 from wandb.apis import normalize_exceptions
+from wandb.apis import artifacts_cache
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ ARTIFACT_FILES_FRAGMENT = '''fragment ArtifactFilesFragment on Artifact {
                 sizeBytes
                 mimetype
                 updatedAt
+                digest
                 md5
             }
             cursor
@@ -1274,6 +1276,10 @@ class File(object):
         return self._attrs["md5"]
 
     @property
+    def digest(self):
+        return self._attrs["digest"]
+
+    @property
     def mimetype(self):
         return self._attrs["mimetype"]
 
@@ -1889,12 +1895,14 @@ class Artifact(object):
     def files(self, names=[], per_page=50):
         return ArtifactFiles(self.client, self, names, per_page)
 
-    def download(self, rootdir='./artifacts'):
-        # TODO: not production
-        dirpath = os.path.join(rootdir, self.artifact_type_name, self.digest)
-        util.mkdir_exists_ok(dirpath)
+    def download(self):
+        cache = artifacts_cache.get_artifacts_cache()
+        dirpath = cache.get_artifact_dir(self.artifact_type_name, self.digest)
         for f in self.files():
-            f.download(root=dirpath, replace=True)
+            local_file_path = os.path.join(dirpath, f.name)
+            if (not os.path.isfile(local_file_path)
+                    or util.md5_file(local_file_path) != f.digest):
+                f.download(root=dirpath, replace=True)
         return dirpath
 
     def __repr__(self):
