@@ -2,9 +2,11 @@ import base64
 import collections
 import hashlib
 import json
+import glob
 import os
 from six import string_types
 import requests
+import shutil
 import tempfile
 import time
 import urllib
@@ -12,6 +14,7 @@ import urllib
 from wandb import InternalApi
 from wandb.file_pusher import FilePusher
 from wandb import util
+from wandb.compat import tempfile as compat_tempfile
 
 from wandb.apis import artifacts_cache
 
@@ -211,13 +214,14 @@ class WriteableArtifact(object):
         self.type = type
         self.description = description
         self.metadata = metadata
-        self._write_dir = None
+        self._write_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
 
     @property
     def write_dir(self):
-        if self._write_dir is None:
-            self._write_dir = self._cache.get_artifact_write_dir(self.type)
-        return self._write_dir
+        return self._write_dir.name
 
     def finalize(self, digest):
-        return self._cache.finalize_artifact_write_dir(self._write_dir, self.type, digest)
+        artifact_dir = self._cache.get_artifact_dir(self.type, digest)
+        shutil.rmtree(artifact_dir)
+        os.rename(self.write_dir, artifact_dir)
+        return artifact_dir

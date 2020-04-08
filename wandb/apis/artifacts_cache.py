@@ -14,21 +14,9 @@ class ArtifactsCache(object):
         return dirname
 
     def get_artifact_external_dir(self, artifact_type, artifact_digest):
-        dirname = os.path.join(self._cache_dir, 'final', artifact_type, artifact_digest, 'external')
+        dirname = os.path.join(self._cache_dir, 'final', artifact_type, artifact_digest, 'external_files')
         util.mkdir_exists_ok(dirname)
         return dirname
-
-    def get_artifact_write_dir(self, artifact_type):
-        dirname = os.path.join(self._cache_dir, 'creating', artifact_type, util.generate_id())
-        util.mkdir_exists_ok(dirname)
-        return dirname
-
-    def finalize_artifact_write_dir(self, write_dir, artifact_type, artifact_digest):
-        artifact_dir = self.get_artifact_dir(artifact_type, artifact_digest)
-        if os.path.isdir(artifact_dir):
-            shutil.rmtree(artifact_dir)
-        shutil.move(write_dir, artifact_dir)
-        return artifact_dir
 
 
 _artifacts_cache = None

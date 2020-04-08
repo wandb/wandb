@@ -46,20 +46,23 @@ class TemporaryDirectory(object):
     in it are removed.
     """
 
-    def __init__(self, suffix=None, prefix=None, dir=None):
+    def __init__(self, suffix=None, prefix=None, dir=None, missing_ok_on_cleanup=False):
+        self._missing_ok_on_remove = missing_ok_on_cleanup
         self.name = mkdtemp(suffix, prefix, dir)
         self._finalizer = finalize(
             self, self._cleanup, self.name,
-            warn_message="Implicitly cleaning up {!r}".format(self))
+            warn_message="Implicitly cleaning up {!r}".format(self),
+            missing_ok_on_cleanup=missing_ok_on_cleanup)
 
     @classmethod
-    def _cleanup(cls, name, warn_message):
+    def _cleanup(cls, name, warn_message, missing_ok_on_cleanup):
         try:
             _rmtree(name)
         # On windows only one process can open a file at a time TODO: PermissionError when > 3.5
         except OSError:
-            _warnings.warn("Couldn't remove temp directory %s" % name)
-        _warnings.warn(warn_message, _ResourceWarning)
+            if not missing_ok_on_cleanup:
+                _warnings.warn("Couldn't remove temp directory %s" % name)
+        # _warnings.warn(warn_message, _ResourceWarning)
 
     def __repr__(self):
         return "<{} {!r}>".format(self.__class__.__name__, self.name)
@@ -76,4 +79,5 @@ class TemporaryDirectory(object):
                 _rmtree(self.name)
             # On windows only one process can open a file at a time TODO: PermissionError when > 3.5
             except OSError:
-                _warnings.warn("Couldn't remove temp directory %s" % self.name)
+                if not self._missing_ok_on_cleanup:
+                    _warnings.warn("Couldn't remove temp directory %s" % self.name)
