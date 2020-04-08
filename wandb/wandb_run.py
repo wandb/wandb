@@ -611,6 +611,7 @@ class Run(object):
             '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
         handler.setFormatter(formatter)
         handler.addFilter(WBFilter())
+        handler.propagate = False
 
         root = logging.getLogger()
         root.addHandler(handler)
