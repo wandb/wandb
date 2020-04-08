@@ -435,10 +435,10 @@ class Run(object):
         api.use_artifact(artifact.id)
         return artifact
 
-    def log_artifact(self, artifact=None, type=None, name=None, contents=None, description=None, metadata=None, labels=None, aliases=None):
+    def log_artifact(self, artifact=None, type=None, name=None, paths=None, description=None, metadata=None, labels=None, aliases=None):
         if isinstance(artifact, artifacts.WriteableArtifact):
-            if contents is not None:
-                raise ValueError('Passing contents to log_artifact is invalid when also passing artifact')
+            if paths is not None:
+                raise ValueError('Passing paths to log_artifact is invalid when also passing artifact')
             type = artifact.type or type
             metadata = artifact.metadata or metadata
             manifest = artifact.manifest
@@ -462,9 +462,9 @@ class Run(object):
         elif artifact is not None:
             raise ValueError('artifact must be an instance of wandb.WriteableArtifact')
         else:
-            manifest = artifacts.LocalArtifactManifestV1(contents)
-            if contents is None:
-                raise ValueError('contents required when not passing artifact')
+            manifest = artifacts.LocalArtifactManifestV1(paths)
+            if paths is None:
+                raise ValueError('paths required when not passing artifact')
         
         if name is None or type is None:
             raise ValueError('type and name required')
