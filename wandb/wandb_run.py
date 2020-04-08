@@ -441,14 +441,28 @@ class Run(object):
                 raise ValueError('Passing contents to log_artifact is invalid when also passing artifact')
             type = artifact.type or type
             metadata = artifact.metadata or metadata
-            # TODO: we're computing digest here and then in run_manager. We don't need
-            #   to recompute in run manager
-            digest = artifacts.LocalArtifactManifestV1(artifact.write_dir).digest
-            contents = artifact.finalize(digest)
+            manifest = artifact.manifest
+
+            # move artifact files into cache
+            final_artifact_dir = artifact._cache.get_artifact_dir(artifact.type, manifest.digest)
+            shutil.rmtree(final_artifact_dir)
+            os.rename(artifact.artifact_dir, final_artifact_dir)
+            # update the manifest
+            manifest.move(artifact.artifact_dir, final_artifact_dir)
+
+            # move external files into cache if there are any
+            if len(os.listdir(artifact.external_data_dir)) > 0:
+                final_external_data_dir = cache.get_artifact_external_dir(
+                        artifact.type, manifest.digest)
+                shutil.rmtree(final_external_data_dir)
+                os.rename(
+                    artifact.artifact_dir,
+                    final_external_data_dir)
+
         elif artifact is not None:
             raise ValueError('artifact must be an instance of wandb.WriteableArtifact')
         else:
-            digest = artifacts.LocalArtifactManifestV1(contents).digest
+            manifest = artifacts.LocalArtifactManifestV1(contents)
             if contents is None:
                 raise ValueError('contents required when not passing artifact')
         
@@ -458,8 +472,8 @@ class Run(object):
         self.send_message({
             'log_artifact': {
                 'name': name,
-                'contents': contents,
-                'digest': digest,
+                'manifest_entries': manifest.entries,
+                'digest': manifest.digest,
                 'description': description,
                 'metadata': metadata,
                 'labels': labels,

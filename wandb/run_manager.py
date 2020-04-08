@@ -1192,6 +1192,7 @@ class RunManager(object):
             self._user_file_policies[policy["policy"]].append(policy["glob"])
     
     def use_artifact(self, message):
+        # NOTE: This is currently disabled, we don't automatically save used artifacts
         name = message['name']
         path = message['path']
         la = artifacts.LocalArtifact(self._api, path,
@@ -1201,14 +1202,14 @@ class RunManager(object):
 
     def log_artifact(self, message):
         name = message['name']
-        contents = message['contents']
+        manifest_entries = message['manifest_entries']
         description = message['description']
         digest = message['digest']
         labels = json.dumps(message['labels']) if 'labels' in message else None
         metadata = message['metadata'] if 'metadata' in message else None
         aliases = message['aliases'] if 'aliases' in message else None
 
-        la = artifacts.LocalArtifact(self._api, contents, digest, file_pusher=self._file_pusher)
+        la = artifacts.LocalArtifact(self._api, digest, manifest_entries, file_pusher=self._file_pusher)
         la.save(name, description=description, metadata=metadata, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):

@@ -91,11 +91,7 @@ class ArtifactManifestV1(object):
 
 class LocalArtifactManifestV1(object):
     
-    """Used to keep track of local files in an artifact.
-    
-    Not yet implemented: save local manifests on the local filesystem, and implement
-    smarter artifact downloads that are aware of locally cached files.
-    """
+    """Used to keep track of local files in an artifact."""
 
     # A local manifest contains the path to the local file in addition to the path within
     # the artifact.
@@ -117,6 +113,15 @@ class LocalArtifactManifestV1(object):
         self._manifest = ArtifactManifestV1(self._local_entries)
         self._digest = self._manifest.digest
 
+    def move(self, from_dir, to_dir):
+        self._local_entries = [
+            self.LocalArtifactManifestEntry(
+                e.path,
+                e.hash,
+                os.path.join(to_dir, os.path.relpath(e.local_path, from_dir)))
+            for e in self._local_entries
+        ]
+
     @property
     def entries(self):
         return self._local_entries
@@ -134,23 +139,25 @@ class LocalArtifactManifestV1(object):
 
 
 class LocalArtifact(object):
-    def __init__(self, api, paths, digest, file_pusher=None, is_user_created=False):
+    def __init__(self, api, digest, manifest_entries, file_pusher=None, is_user_created=False):
+        # NOTE: manifest_entries are LocalManifestEntry but they get converted to
+        # arrays when we convert to json, so we need to access fields by index instead
+        # of by name
         self._api = api
         self._file_pusher = file_pusher
         if self._file_pusher is None:
             self._file_pusher = FilePusher(self._api)
+        self._digest = digest
+        self._manifest_entries = manifest_entries
         self._is_user_created = is_user_created
-        self._local_manifest = LocalArtifactManifestV1(paths)
-        if digest != self._local_manifest.digest:
-            # TODO: how to properly fail here?
-            raise Error('Artifact digest doesn\'t match')
         self._server_artifact = None
 
     def save(self, name, metadata=None, description=None, aliases=None, labels=None):
         """Returns the server artifact."""
         artifact_type_id = self._api.create_artifact_type(name)
         self._server_artifact = self._api.create_artifact(
-            artifact_type_id, self._local_manifest.digest,
+            artifact_type_id,
+            self._digest,
             metadata=metadata,
             aliases=aliases, labels=labels, description=description,
             is_user_created=self._is_user_created)
@@ -168,8 +175,8 @@ class LocalArtifact(object):
         # if it is in PENDING but not created by us, we also have a problem (two parallel runs)
         # creating the same artifact. In theory this could be ok but the backend doesn't handle
         # it right now.
-        for entry in self._local_manifest.entries:
-            self._file_pusher.file_changed(entry.path, entry.local_path, self._server_artifact['id'])
+        for path, hash, local_path  in self._manifest_entries:
+            self._file_pusher.file_changed(path, local_path, self._server_artifact['id'])
         self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact
 
@@ -214,14 +221,21 @@ class WriteableArtifact(object):
         self.type = type
         self.description = description
         self.metadata = metadata
-        self._write_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
+        self._artifact_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
+        self._external_data_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
 
     @property
-    def write_dir(self):
-        return self._write_dir.name
+    def manifest(self):
+        return LocalArtifactManifestV1(self.artifact_dir)
 
-    def finalize(self, digest):
-        artifact_dir = self._cache.get_artifact_dir(self.type, digest)
-        shutil.rmtree(artifact_dir)
-        os.rename(self.write_dir, artifact_dir)
-        return artifact_dir
+    @property
+    def digest(self):
+        return self.manifest.digest
+
+    @property
+    def artifact_dir(self):
+        return self._artifact_dir.name
+
+    @property
+    def external_data_dir(self):
+        return self._external_data_dir.name
