@@ -419,9 +419,23 @@ class Run(object):
         # TODO
         raise ValueError('Invalid use artifact call')
 
-    def log_artifact(self, type=None, name=None, contents=None, description=None, metadata=None, labels=None, aliases=None):
-        # TODO validate input here, fail early if bad arguments are passed
-        # name/contents required
+    def log_artifact(self, artifact=None, type=None, name=None, contents=None, description=None, metadata=None, labels=None, aliases=None):
+        if isinstance(artifact, artifacts.WriteableArtifact):
+            if contents is not None:
+                raise ValueError('Passing contents to log_artifact is invalid when also passing artifact')
+            type = artifact.type or type
+            metadata = artifact.metadata or metadata
+            # TODO: we're computing digest here and then in run_manager. We don't need
+            #   to recompute in run manager
+            digest = artifacts.LocalArtifactManifestV1(artifact.write_dir).digest
+            contents = artifact.finalize(digest)
+        elif artifact is not None:
+            raise ValueError('artifact must be an instance of wandb.WriteableArtifact')
+        else:
+            digest = artifacts.LocalArtifactManifestV1(contents).digest
+            if contents is None:
+                raise ValueError('contents required when not passing artifact')
+        
         if name is None or type is None:
             raise ValueError('type and name required')
         name = '%s/%s' % (type, name)
@@ -429,6 +443,7 @@ class Run(object):
             'log_artifact': {
                 'name': name,
                 'contents': contents,
+                'digest': digest,
                 'description': description,
                 'metadata': metadata,
                 'labels': labels,

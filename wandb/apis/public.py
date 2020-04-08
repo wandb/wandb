@@ -1825,6 +1825,7 @@ class Artifact(object):
         self._attrs = attrs
         if self._attrs is None:
             self.load()
+        self._cache = artifacts_cache.get_artifacts_cache()
 
     @property
     def id(self):
@@ -1895,14 +1896,22 @@ class Artifact(object):
     def files(self, names=[], per_page=50):
         return ArtifactFiles(self.client, self, names, per_page)
 
+    @property
+    def artifact_dir(self):
+        return self._cache.get_artifact_dir(self.artifact_type_name, self.digest)
+
+    @property
+    def external_data_dir(self):
+        return self._cache.get_artifact_external_dir(self.artifact_type_name, self.digest)
+
     def download(self):
-        cache = artifacts_cache.get_artifacts_cache()
-        dirpath = cache.get_artifact_dir(self.artifact_type_name, self.digest)
+        dirpath = self.artifact_dir
         for f in self.files():
             local_file_path = os.path.join(dirpath, f.name)
             if (not os.path.isfile(local_file_path)
                     or util.md5_file(local_file_path) != f.digest):
                 f.download(root=dirpath, replace=True)
+        # TODO: make sure we clear any extra files
         return dirpath
 
     def __repr__(self):

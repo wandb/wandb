@@ -13,6 +13,8 @@ from wandb import InternalApi
 from wandb.file_pusher import FilePusher
 from wandb import util
 
+from wandb.apis import artifacts_cache
+
 def md5_hash_file(path):
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
@@ -129,13 +131,16 @@ class LocalArtifactManifestV1(object):
 
 
 class LocalArtifact(object):
-    def __init__(self, api, paths, file_pusher=None, is_user_created=False):
+    def __init__(self, api, paths, digest, file_pusher=None, is_user_created=False):
         self._api = api
         self._file_pusher = file_pusher
         if self._file_pusher is None:
             self._file_pusher = FilePusher(self._api)
         self._is_user_created = is_user_created
         self._local_manifest = LocalArtifactManifestV1(paths)
+        if digest != self._local_manifest.digest:
+            # TODO: how to properly fail here?
+            raise Error('Artifact digest doesn\'t match')
         self._server_artifact = None
 
     def save(self, name, metadata=None, description=None, aliases=None, labels=None):
@@ -197,3 +202,22 @@ class LocalArtifactRead(object):
 
     def download(self, *args, **kwargs):
         return self._artifact_dir
+
+class WriteableArtifact(object):
+    """An artifact object you can write files into, and pass to log_artifact."""
+
+    def __init__(self, type=None, description=None, metadata=None):
+        self._cache = artifacts_cache.get_artifacts_cache()
+        self.type = type
+        self.description = description
+        self.metadata = metadata
+        self._write_dir = None
+
+    @property
+    def write_dir(self):
+        if self._write_dir is None:
+            self._write_dir = self._cache.get_artifact_write_dir(self.type)
+        return self._write_dir
+
+    def finalize(self, digest):
+        return self._cache.finalize_artifact_write_dir(self._write_dir, self.type, digest)

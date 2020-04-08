@@ -43,6 +43,8 @@ from .core import *
 # These imports need to be below "from .core import *" until we remove
 # 'from wandb import __stage_dir__' from api.py etc.
 from wandb.apis import InternalApi, PublicApi, CommError
+from wandb.apis.artifacts import WriteableArtifact
+from wandb.apis.artifacts_cache import get_artifacts_cache
 from wandb import wandb_types as types
 from wandb import wandb_config
 from wandb import wandb_run
@@ -72,6 +74,7 @@ from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep, controller
 
 from wandb.compat import windows
+
 
 logger = logging.getLogger(__name__)
 

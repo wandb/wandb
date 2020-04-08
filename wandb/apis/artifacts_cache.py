@@ -1,4 +1,5 @@
 import os
+import shutil
 
 from wandb import util
 
@@ -8,27 +9,33 @@ class ArtifactsCache(object):
         self._cache_dir = cache_dir
 
     def get_artifact_dir(self, artifact_type, artifact_digest):
-        dirname = os.path.join(self._cache_dir, artifact_type, artifact_digest, 'artifact')
+        dirname = os.path.join(self._cache_dir, 'final', artifact_type, artifact_digest, 'artifact')
         util.mkdir_exists_ok(dirname)
         return dirname
 
     def get_artifact_external_dir(self, artifact_type, artifact_digest):
-        dirname = os.path.join(self._cache_dir, artifact_type, artifact_digest, 'external')
+        dirname = os.path.join(self._cache_dir, 'final', artifact_type, artifact_digest, 'external')
         util.mkdir_exists_ok(dirname)
         return dirname
 
     def get_artifact_write_dir(self, artifact_type):
-        dirname = os.path.join(self._cache_dir, artifact_type, 'creating', util.generate_id())
+        dirname = os.path.join(self._cache_dir, 'creating', artifact_type, util.generate_id())
+        util.mkdir_exists_ok(dirname)
         return dirname
 
-    def finish_artifact_write_dir(self, write_dir, artifact_type, artifact_digest):
-        # TODO remove target dir
-        shutil.move(write_dir, self.get_artifact_dir(artifact_type, artifact_digest))
+    def finalize_artifact_write_dir(self, write_dir, artifact_type, artifact_digest):
+        artifact_dir = self.get_artifact_dir(artifact_type, artifact_digest)
+        if os.path.isdir(artifact_dir):
+            shutil.rmtree(artifact_dir)
+        shutil.move(write_dir, artifact_dir)
+        return artifact_dir
+
 
 _artifacts_cache = None
 
 def get_artifacts_cache():
     global _artifacts_cache
     if _artifacts_cache is None:
+        # TODO: Load this from settings
         _artifacts_cache = ArtifactsCache(os.path.expanduser('~/.cache/wandb/artifacts'))
     return _artifacts_cache
