@@ -1854,6 +1854,11 @@ class Artifact(object):
     def description(self):
         return self._attrs["description"]
 
+    # TODO: Fix once we have both type & name
+    @property
+    def type(self):
+        return self.artifact_type_name.split('/', 1)[0]
+
     def load(self):
         query = gql('''
         query Artifact(
@@ -1898,11 +1903,11 @@ class Artifact(object):
 
     @property
     def artifact_dir(self):
-        return self._cache.get_artifact_dir(self.artifact_type_name, self.digest)
+        return self._cache.get_artifact_dir(self.type, self.digest)
 
     @property
     def external_data_dir(self):
-        return self._cache.get_artifact_external_dir(self.artifact_type_name, self.digest)
+        return self._cache.get_artifact_external_dir(self.type, self.digest)
 
     def download(self):
         dirpath = self.artifact_dir

@@ -436,6 +436,7 @@ class Run(object):
         return artifact
 
     def log_artifact(self, artifact=None, type=None, name=None, paths=None, description=None, metadata=None, labels=None, aliases=None):
+        # TODO: change aliases to tags.
         if isinstance(artifact, artifacts.WriteableArtifact):
             if paths is not None:
                 raise ValueError('Passing paths to log_artifact is invalid when also passing artifact')
@@ -444,7 +445,7 @@ class Run(object):
             manifest = artifact.manifest
 
             # move artifact files into cache
-            final_artifact_dir = artifact._cache.get_artifact_dir(artifact.type, manifest.digest)
+            final_artifact_dir = artifact._cache.get_artifact_dir(type, manifest.digest)
             shutil.rmtree(final_artifact_dir)
             os.rename(artifact.artifact_dir, final_artifact_dir)
             # update the manifest
