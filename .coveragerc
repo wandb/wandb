@@ -1,0 +1,4 @@
+[run]
+source =
+    wandb/
+    tests/
