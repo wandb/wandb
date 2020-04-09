@@ -31,6 +31,16 @@ def generate_id():
 
 
 class Run(object):
+    def __init__(self):
+        pass
+
+
+class RunDummy(Run):
+    def __init__(self):
+        pass
+
+
+class RunManaged(Run):
     def __init__(self, config=None, settings=None):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)

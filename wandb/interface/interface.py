@@ -39,7 +39,7 @@ def is_tf_eager_tensor_typename(typename):
 
 
 def is_pytorch_tensor(obj):
-    import torch
+    import torch  # type: ignore[import]
     return isinstance(obj, torch.Tensor)
 
 

@@ -6,7 +6,7 @@ init.
 from __future__ import print_function
 
 import wandb
-from .wandb_run import Run
+from .wandb_run import Run, RunManaged, RunDummy
 from wandb.util.globals import set_global
 from wandb.backend.backend import Backend
 from wandb.stuff import util2
@@ -276,7 +276,7 @@ class _WandbInit(object):
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(config=config, settings=s)
+        run = RunManaged(config=config, settings=s)
         run._set_backend(backend)
         run._set_reporter(self._reporter)
         # TODO: pass mode to backend
@@ -380,7 +380,7 @@ def init(
                 raise
             if wi.settings.problem == "warn":
                 pass
-            return None
+            run = RunDummy()
     except KeyboardInterrupt as e:
         logger.warning("interupted", exc_info=e)
         raise_from(Exception("interrupted"), e)

@@ -1,5 +1,5 @@
 import collections
-import pynvml
+import pynvml  # type: ignore[import]
 import time
 import os
 from numbers import Number
