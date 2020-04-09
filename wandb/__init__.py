@@ -14,6 +14,8 @@ import sys
 
 from wandb.errors import Error
 
+# Used to make sure we don't use some code in the incorrect process context
+_IS_INTERNAL_PROCESS = False
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:

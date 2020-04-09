@@ -367,6 +367,10 @@ def _get_stdout_stderr_streams():
         return stdout_streams, stderr_streams
 
 def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level, data_filename, use_redirect):
+
+    # mark this process as internal
+    wandb._IS_INTERNAL_PROCESS = True
+
     #fd = multiprocessing.reduction.recv_handle(child_pipe)
     #if msvcrt:
     #    fd = msvcrt.open_osfhandle(fd, os.O_WRONLY)

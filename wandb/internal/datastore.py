@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 import struct
 import logging
@@ -12,7 +13,7 @@ class DataStore(object):
         self._fp = None
         self._log_type = wandb_internal_pb2.LogData().__class__.__name__
         self._run_type = wandb_internal_pb2.Run().__class__.__name__
-
+        assert wandb._IS_INTERNAL_PROCESS
 
     def open(self, fname):
         self._fname = fname

@@ -364,6 +364,7 @@ def init(
         wandb Run object
 
     """
+    assert not wandb._IS_INTERNAL_PROCESS
     kwargs = locals()
     try:
         wi = _WandbInit()
