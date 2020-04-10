@@ -450,7 +450,7 @@ class Run(object):
 
             # move external files into cache if there are any
             if len(os.listdir(artifact.external_data_dir)) > 0:
-                final_external_data_dir = cache.get_artifact_external_dir(
+                final_external_data_dir = artifact._cache.get_artifact_external_dir(
                         artifact.type, manifest.digest)
                 shutil.rmtree(final_external_data_dir)
                 os.rename(

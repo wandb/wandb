@@ -1476,8 +1476,6 @@ class LocalArtifact(object):
         # of by name
         self._api = api
         self._file_pusher = file_pusher
-        if self._file_pusher is None:
-            self._file_pusher = FilePusher(self._api)
         self._digest = digest
         self._manifest_entries = manifest_entries
         self._is_user_created = is_user_created
