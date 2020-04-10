@@ -255,23 +255,16 @@ class Api(object):
             project = parts[0]
         return entity, project, run
 
-    def _parse_artifact_path(self, path):
-        """Parses artifact paths in the following formats:
-
-        url: artifactType/[digest | artifactCollection:alias]
-
-        entity is optional and will fallback to the current logged in user.
-        """
+    def _parse_project_path(self, path):
+        """Returns project and entity for project specified by path"""
         project = self.settings['project']
         entity = self.settings['entity']
-        parts = path.split("/")
-        if len(parts) == 2:
-            # the project and entity are assumed here
-            artifact_type, artifact_name = parts[0], parts[1]
-        else:
-            raise ValueError('%s is not a valid path of the form artifactType/name:alias or artifactType/digest')
-
-        return entity, project, artifact_type, artifact_name
+        if path is None:
+            return entity, project
+        parts = path.split('/', 1)
+        if len(parts) == 1:
+            return entity, path
+        return parts
 
     def projects(self, entity=None, per_page=200):
         """Get projects for a given entity.
@@ -401,15 +394,19 @@ class Api(object):
         return self._sweeps[path]
 
     @normalize_exceptions
-    def artifact_types(self, path=None):
-        entity, project = path.split('/')
+    def artifact_types(self, project=None):
+        entity, project = self._parse_project_path(project)
         return ProjectArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
-    def artifact(self, path=None, expected_digest=None):
-        # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
-        entity, project, artifact_type, artifact_name = self._parse_artifact_path(path)
-        return Artifact(self.client, entity, project, artifact_type, artifact_name, expected_digest=expected_digest)
+    def artifact_type(self, type_name, project=None):
+        entity, project = self._parse_project_path(project)
+        return ArtifactType(self.client, entity, project, type_name)
+
+    @normalize_exceptions
+    def artifact(self, type=None, name=None, project=None):
+        entity, project = self._parse_project_path(project)
+        return Artifact(self.client, entity, project, type, name)
 
 
 class Attrs(object):
@@ -995,7 +992,7 @@ class Run(Attrs):
             return SampledHistoryScan(run=self, client=self.client, keys=keys, page_size=page_size, min_step=min_step, max_step=max_step)
 
     @normalize_exceptions
-    def published_artifacts(self, per_page=100):
+    def logged_artifacts(self, per_page=100):
         return RunArtifacts(self.client, self, per_page)
 
     @property
@@ -1705,8 +1702,76 @@ class ProjectArtifactTypes(Paginator):
         self.variables.update({'cursor': self.cursor})
 
     def convert_objects(self):
-        return [ArtifactType(self.client, self.entity, self.project, r["node"])
+        return [ArtifactType(self.client, self.entity, self.project, r["node"]["name"], r["node"])
                 for r in self.last_response['project']['artifactTypes']['edges']]
+
+
+class ProjectArtifactCollections(Paginator):
+    QUERY = gql('''
+        query ProjectArtifactCollections(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $cursor: String,
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactBranches(after: $cursor) {
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        edges {
+                            node {
+                                id
+                                name
+                                description
+                                createdAt
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ''')
+
+    def __init__(self, client, entity, project, type_name, per_page=50):
+        self.entity = entity
+        self.project = project
+
+        variable_values = {
+            'entityName': entity,
+            'projectName': project,
+            'artifactTypeName': type_name
+        }
+
+        super(ProjectArtifactCollections, self).__init__(client, variable_values, per_page)
+
+    @property
+    def length(self):
+        # TODO
+        return None
+
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response['project']['artifactType']['artifactBranches']['pageInfo']['hasNextPage']
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response['project']['artifactType']['artifactBranches']['edges'][-1]['cursor']
+        else:
+            return None
+
+    def update_variables(self):
+        self.variables.update({'cursor': self.cursor})
+
+    def convert_objects(self):
+        return [ArtifactCollection(self.client, self.entity, self.project, r["node"]["name"], r["node"])
+                for r in self.last_response['project']['artifactType']['artifactBranches']['edges']]
 
 
 class RunArtifacts(Paginator):
@@ -1777,40 +1842,81 @@ class RunArtifacts(Paginator):
 
 class ArtifactType(object):
 
-    def __init__(self, client, entity, project, attrs=None):
+    def __init__(self, client, entity, project, type_name, attrs=None):
         self.client = client
         self.entity = entity
         self.project = project
+        self.type = type_name
         self._attrs = attrs
         if self._attrs is None:
             self.load()
+
+    def load(self):
+        query = gql('''
+        query ProjectArtifactType(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    id
+                    name
+                    description
+                    createdAt
+                }
+            }
+        }
+        ''')
+        response = self.client.execute(query, variable_values={
+            'entityName': self.entity,
+            'projectName': self.project,
+            'artifactTypeName': self.type,
+        })
+        if response is None \
+            or response.get('project') is None \
+                or response['project'].get('artifactType') is None:
+            raise ValueError("Could not find artifact type %s" % self.type)
+        self._attrs = response['project']['artifactType']
+        return self._attrs
 
     @property
     def id(self):
         return self._attrs["id"]
 
-    @property
-    def type(self):
-        return self._attrs["name"].split('/', 1)[0]
-
-    @property
-    def name(self):
-        return self._attrs["name"].split('/', 1)[1]
+    @normalize_exceptions
+    def artifact_collections(self, per_page=50):
+        """Artifact collections"""
+        return ProjectArtifactCollections(self.client, self.entity, self.project, self.type)
 
     def __repr__(self):
-        return "<ArtifactType {} {}>".format(self.type, self.name)
+        return "<ArtifactType {}>".format(self.type)
+
+
+class ArtifactCollection(object):
+    def __init__(self, client, entity, project, name, attrs=None):
+        self.client = client
+        self.entity = entity
+        self.project = project
+        self.name = name
+        self._attrs = attrs
+
+    @property
+    def id(self):
+        return self._attrs["id"]
+
+    def __repr__(self):
+        return "<ArtifactCollection {}>".format(self.name)
 
 
 class Artifact(object):
 
-    def __init__(self, client, entity, project, artifact_type, name, attrs=None, expected_digest=None):
+    def __init__(self, client, entity, project, artifact_type, name, attrs=None):
         self.client = client
         self.entity = entity
         self.project = project
         self.artifact_type_name = artifact_type
         self.artifact_name = name
-        # TODO(artifacts) We can get rid of this when we have server side state tracking
-        self._expected_digest = expected_digest
         self._attrs = attrs
         if self._attrs is None:
             self.load()
@@ -1938,7 +2044,7 @@ class ArtifactFiles(Paginator):
             'entityName': artifact.entity,
             'projectName': artifact.project,
             'artifactTypeName': artifact.artifact_type_name,
-            'artifactName': artifact.name,
+            'artifactName': artifact.artifact_name,
             'fileNames': names,
         }
         super(ArtifactFiles, self).__init__(client, variables, per_page)

@@ -421,12 +421,14 @@ class Run(object):
     #     # TODO
     #     raise ValueError('Invalid use artifact call')
 
-    def use_artifact(self, name, api=None):
+    def use_artifact(self, type=None, name=None, api=None):
+        if type is None or name is None:
+            raise ValueError('type and name required')
         api = api or self.api
         entity_name = self.api.settings('entity')
         project_name = self.api.settings('project')
         public_api = PublicApi(self.api.settings())
-        artifact = public_api.artifact(name)
+        artifact = public_api.artifact(type=type, name=name)
         if artifact is None:
             raise ValueError('Artifact %s doesn\'t exist' % artifact)
         api.use_artifact(artifact.id)
