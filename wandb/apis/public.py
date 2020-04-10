@@ -22,6 +22,7 @@ from wandb import util
 from wandb.retry import retriable
 from wandb.summary import HTTPSummary
 from wandb import env
+from wandb.apis.internal import Api as InternalApi
 from wandb.apis import normalize_exceptions
 from wandb.apis import artifacts_cache
 
@@ -67,7 +68,6 @@ FILE_FRAGMENT = '''fragment RunFilesFragment on Run {
                 id
                 name
                 url(upload: $upload)
-                directUrl
                 sizeBytes
                 mimetype
                 updatedAt
@@ -121,7 +121,6 @@ ARTIFACT_FILES_FRAGMENT = '''fragment ArtifactFilesFragment on Artifact {
                 id
                 name: displayName
                 url
-                directUrl
                 sizeBytes
                 mimetype
                 updatedAt
@@ -169,12 +168,7 @@ class Api(object):
     _HTTP_TIMEOUT = env.get_http_timeout(9)
 
     def __init__(self, overrides={}):
-        self.settings = {
-            'entity': None,
-            'project': None,
-            'run': "latest",
-            'base_url': env.get_base_url("https://api.wandb.ai")
-        }
+        self.settings = InternalApi().settings()
         if self.api_key is None:
             wandb.login()
         self.settings.update(overrides)
@@ -1257,7 +1251,7 @@ class File(object):
 
     @property
     def url(self):
-        return self._attrs["directUrl"]
+        return self._attrs["url"]
 
     @property
     def md5(self):

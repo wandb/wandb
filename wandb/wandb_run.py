@@ -425,9 +425,7 @@ class Run(object):
         if type is None or name is None:
             raise ValueError('type and name required')
         api = api or self.api
-        entity_name = self.api.settings('entity')
-        project_name = self.api.settings('project')
-        public_api = PublicApi(self.api.settings())
+        public_api = PublicApi()
         artifact = public_api.artifact(type=type, name=name)
         if artifact is None:
             raise ValueError('Artifact %s doesn\'t exist' % artifact)
