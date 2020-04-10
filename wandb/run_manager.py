@@ -1201,6 +1201,7 @@ class RunManager(object):
     #     self._api.use_artifact(server_artifact['id'])
 
     def log_artifact(self, message):
+        type = message['type']
         name = message['name']
         manifest_entries = message['manifest_entries']
         description = message['description']
@@ -1210,7 +1211,7 @@ class RunManager(object):
         aliases = message['aliases'] if 'aliases' in message else None
 
         la = LocalArtifact(self._api, digest, manifest_entries, file_pusher=self._file_pusher)
-        la.save(name, description=description, metadata=metadata, aliases=aliases, labels=labels)
+        la.save(type, name, description=description, metadata=metadata, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):
         try:
@@ -1482,14 +1483,32 @@ class LocalArtifact(object):
         self._is_user_created = is_user_created
         self._server_artifact = None
 
-    def save(self, name, metadata=None, description=None, aliases=None, labels=None):
+    def save(self, type, name, metadata=None, description=None, aliases=None, labels=None):
+        aliases = aliases or []
+        alias_specs = []
+        for alias in aliases:
+            if ":" in alias:
+                # Users can explicitly alias this artifact to names
+                # other than the primary one passed in by using the
+                # 'secondaryName:alias' notation.
+                idx = alias.index(":")
+                artifact_collection_name = alias[:idx-1]
+                tag = alias[idx+1:]
+            else:
+                artifact_collection_name = name
+                tag = alias
+            alias_specs.append({
+                'artifactCollectionName': artifact_collection_name,
+                'alias': tag,
+            })
+
         """Returns the server artifact."""
-        artifact_type_id = self._api.create_artifact_type(name)
         self._server_artifact = self._api.create_artifact(
-            artifact_type_id,
+            type,
+            name,
             self._digest,
             metadata=metadata,
-            aliases=aliases, labels=labels, description=description,
+            aliases=alias_specs, labels=labels, description=description,
             is_user_created=self._is_user_created)
         # TODO(artifacts):
         #   if it's committed, all is good. If it's committing, just moving ahead isn't necessarily

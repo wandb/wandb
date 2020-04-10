@@ -421,10 +421,7 @@ class Run(object):
     #     # TODO
     #     raise ValueError('Invalid use artifact call')
 
-    def use_artifact(self, type=None, name=None, api=None):
-        if type is None or name is None:
-            raise ValueError('type and name required')
-        name = '%s/%s' % (type, name)
+    def use_artifact(self, name, api=None):
         api = api or self.api
         entity_name = self.api.settings('entity')
         project_name = self.api.settings('project')
@@ -469,9 +466,11 @@ class Run(object):
         
         if name is None or type is None:
             raise ValueError('type and name required')
-        name = '%s/%s' % (type, name)
+        if not isinstance(aliases, list):
+            aliases = [aliases]
         self.send_message({
             'log_artifact': {
+                'type': type,
                 'name': name,
                 'manifest_entries': manifest.entries,
                 'digest': manifest.digest,

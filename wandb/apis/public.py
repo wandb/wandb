@@ -108,7 +108,7 @@ fragment ArtifactFragment on Artifact{
     state
     createdAt
     aliases
-    tags
+    labels
     metadata
 }
 '''
@@ -258,29 +258,20 @@ class Api(object):
     def _parse_artifact_path(self, path):
         """Parses artifact paths in the following formats:
 
-        url: entity/project/artifact:alias
+        url: artifactType/[digest | artifactCollection:alias]
 
         entity is optional and will fallback to the current logged in user.
         """
-        # This doesn't support specifying project and entity, since
-        #   artifact names may have slashes in them.
-        # TODO(artifacts): resolve this
         project = self.settings['project']
         entity = self.settings['entity']
-        # parts = path.split("/")
-        # if len(parts) == 2:
-        #     # the entity is assumed here
-        #     project, artifact = parts[0], parts[1]
-        # elif len(parts) == 3:
-        #     entity, project, artifact = parts[0], parts[1], parts[2]
-        # else:
-        #     raise ValueError('%s is not a valid path of the form entity/project/artifact:alias or '
-        #                      'project/artifact:alias' % path)
-        artifact = path
+        parts = path.split("/")
+        if len(parts) == 2:
+            # the project and entity are assumed here
+            artifact_type, artifact_name = parts[0], parts[1]
+        else:
+            raise ValueError('%s is not a valid path of the form artifactType/name:alias or artifactType/digest')
 
-        art_parts = artifact.split(":")
-        artifact_type, artifact_alias = art_parts[0], art_parts[1]
-        return entity, project, artifact_type, artifact_alias
+        return entity, project, artifact_type, artifact_name
 
     def projects(self, entity=None, per_page=200):
         """Get projects for a given entity.
@@ -417,8 +408,8 @@ class Api(object):
     @normalize_exceptions
     def artifact(self, path=None, expected_digest=None):
         # TODO: currently takes entity/project/id, should it be entity/project/artifact/id?
-        entity, project, artifact_type, artifact_alias = self._parse_artifact_path(path)
-        return Artifact(self.client, entity, project, artifact_type, alias=artifact_alias, expected_digest=expected_digest)
+        entity, project, artifact_type, artifact_name = self._parse_artifact_path(path)
+        return Artifact(self.client, entity, project, artifact_type, artifact_name, expected_digest=expected_digest)
 
 
 class Attrs(object):
@@ -1812,14 +1803,12 @@ class ArtifactType(object):
 
 class Artifact(object):
 
-    def __init__(self, client, entity, project, artifact_type_name, digest=None, alias=None, attrs=None, expected_digest=None):
-        if digest is None and alias is None and attrs is None:
-            raise ValueError('one of digest, alias, or attrs must be set')
+    def __init__(self, client, entity, project, artifact_type, name, attrs=None, expected_digest=None):
         self.client = client
         self.entity = entity
         self.project = project
-        self.artifact_type_name = artifact_type_name
-        self.name = digest if digest is not None else alias
+        self.artifact_type_name = artifact_type
+        self.artifact_name = name
         # TODO(artifacts) We can get rid of this when we have server side state tracking
         self._expected_digest = expected_digest
         self._attrs = attrs
@@ -1840,7 +1829,7 @@ class Artifact(object):
         # TODO: This is a different style than the rest of the paths. The rest of the
         # paths don't include the object type (which makes them hard to distinguish).
         # We should maybe use URIs here.
-        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.name())
+        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.artifact_name())
 
     @property
     def digest(self):
@@ -1854,10 +1843,9 @@ class Artifact(object):
     def description(self):
         return self._attrs["description"]
 
-    # TODO: Fix once we have both type & name
     @property
     def type(self):
-        return self.artifact_type_name.split('/', 1)[0]
+        return self.artifact_type_name
 
     def load(self):
         query = gql('''
@@ -1875,8 +1863,7 @@ class Artifact(object):
                         description
                         state
                         createdAt
-                        aliases
-                        tags
+                        labels
                         metadata
                     }
                 }
@@ -1887,13 +1874,13 @@ class Artifact(object):
             'entityName': self.entity,
             'projectName': self.project,
             'artifactTypeName': self.artifact_type_name,
-            'name': self.name,
+            'name': self.artifact_name,
         })
         if response is None \
             or response.get('project') is None \
                 or response['project'].get('artifactType') is None \
                 or response['project']['artifactType'].get('artifact') is None:
-            raise ValueError("Could not find artifact %s:%s" % (self.artifact_type_name, self.name))
+            raise ValueError("Could not find artifact %s:%s" % (self.artifact_type_name, self.artifact_name))
         self._attrs = response['project']['artifactType']['artifact']
         return self._attrs
 

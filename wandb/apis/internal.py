@@ -1021,8 +1021,7 @@ class Api(object):
                     description
                     state
                     createdAt
-                    aliases
-                    tags
+                    labels
                     metadata
                 }
             }
@@ -1073,28 +1072,30 @@ class Api(object):
         })
         return response['createArtifactType']['artifactType']['id']
 
-    def create_artifact(self, artifact_type_id, digest, entity_name=None, project_name=None, run_name=None, description=None, labels=None, metadata=None, aliases=None, is_user_created=False):
+    def create_artifact(self, artifact_type_name, artifact_collection_name, digest, entity_name=None, project_name=None, run_name=None, description=None, labels=None, metadata=None, aliases=None, is_user_created=False):
         mutation = gql('''
         mutation CreateArtifact(
-            $artifactTypeID: ID!,
+            $artifactTypeName: String!,
+            $artifactCollectionNames: [String!],
             $entityName: String!,
             $projectName: String!,
             $runName: String,
             $description: String
             $digest: String!,
-            $tags: JSONString
-            $aliases: [String!]
+            $labels: JSONString
+            $aliases: [ArtifactAliasInput!]
             $metadata: JSONString
         ) {
             createArtifact(input: {
-                artifactTypeID: $artifactTypeID,
+                artifactTypeName: $artifactTypeName,
+                artifactCollectionNames: $artifactCollectionNames,
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
                 description: $description,
                 digest: $digest,
                 digestAlgorithm: MANIFEST_MD5,
-                tags: $tags
+                labels: $labels
                 aliases: $aliases
                 metadata: $metadata
             }) {
@@ -1114,11 +1115,12 @@ class Api(object):
             'entityName': entity_name,
             'projectName': project_name,
             'runName': run_name,
-            'artifactTypeID': artifact_type_id,
+            'artifactTypeName': artifact_type_name,
+            'artifactCollectionNames': [artifact_collection_name],
             'digest': digest,
             'description': description,
-            'tags': labels,
-            'aliases': aliases,
+            'labels': labels,
+            'aliases': [alias for alias in aliases],
             'metadata': json.dumps(metadata),
         })
         av = response['createArtifact']['artifact']
