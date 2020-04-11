@@ -15,15 +15,34 @@ from wandb.proto import wandb_internal_pb2  # type: ignore
 
 FNAME = "test.dat"
 
+try:
+    FileNotFoundError
+except NameError:
+    FileNotFoundError = OSError
+
+
+def check(ds, data_sizes=tuple(), expected_records=0, expected_pad=0):
+    for x, data_size in enumerate(data_sizes):
+        ds.write_data(b'\x01' * data_size)
+    num = sum(data_sizes) + expected_records * 7 + expected_pad
+    ds.close()
+    s = os.stat(FNAME)
+    assert s.st_size == num
+
 
 @pytest.fixture()
 def with_datastore(request):
+    try:
+        os.unlink(FNAME)
+    except FileNotFoundError:
+        pass
     wandb._set_internal_process()
     s = datastore.DataStore()
     s.open(FNAME)
-    # def fin():
-    #     s.close()
-    # request.addfinalizer(fin)
+
+    def fin():
+        os.unlink(FNAME)
+    request.addfinalizer(fin)
     return s
 
 
@@ -44,11 +63,8 @@ def test_proto_write_partial():
 
 def test_data_write_full(with_datastore):
     """write a full block."""
-    ds = with_datastore
-    ds.write_data(b'\x01' * (32768 - 7))
-    ds.close()
-    s = os.stat(FNAME)
-    assert s.st_size == 32768
+    sizes, records = tuple([32768 - 7]), 1
+    check(with_datastore, data_sizes=sizes, expected_records=records)
 
 
 def test_data_write_overflow(with_datastore):
@@ -69,6 +85,7 @@ def test_data_write_pad(with_datastore):
     s = os.stat(FNAME)
     assert s.st_size == 32768 + 7 + 1
 
+
 def test_data_write_empty(with_datastore):
     """Write empty record with zero length, then write next record."""
     ds = with_datastore
@@ -77,6 +94,7 @@ def test_data_write_empty(with_datastore):
     ds.close()
     s = os.stat(FNAME)
     assert s.st_size == 32768 + 7 + 1
+
 
 def test_data_write_split(with_datastore):
     """leave just room for 1 more byte, then try to write 2."""
@@ -87,6 +105,7 @@ def test_data_write_split(with_datastore):
     s = os.stat(FNAME)
     assert s.st_size == 32768 + 7 + 1
 
+
 def test_data_write_split_overflow(with_datastore):
     """leave just room for 1 more byte, then write a block + 1 byte."""
     ds = with_datastore
@@ -96,16 +115,8 @@ def test_data_write_split_overflow(with_datastore):
     s = os.stat(FNAME)
     assert s.st_size == 32768 * 2 + 7 + 1
 
-def calc_size(data_sizes=tuple(), expected_records=0, expected_pad=0):
-    return sum(data_sizes) + expected_records * 7 + expected_pad
 
 def test_data_write_fill(with_datastore):
     """leave just room for 1 more byte, then write a 1 byte, followed by another 1 byte."""
-    ds = with_datastore
-    data_sizes = (32768 - 7 - 8, 1, 1)
-    expected_records = 3
-    for x, data_size in enumerate(data_sizes):
-        ds.write_data(b'\x01' * data_size)
-    ds.close()
-    s = os.stat(FNAME)
-    assert s.st_size == calc_size(data_sizes=data_sizes, expected_records=expected_records)
+    sizes, records = tuple([32768 - 7 - 8, 1, 1]), 3
+    check(with_datastore, data_sizes=sizes, expected_records=records)

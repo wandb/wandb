@@ -13,6 +13,11 @@ import "google/protobuf/timestamp.proto";
 //  rpc RunUpdate(RunUpdateRequest) returns (RunUpdateResult) {}
 //}
 
+message Header {
+  uint32 magic = 1;
+  uint32 version = 2;
+}
+
 message LogValue {
   double value = 1;
   sint64 integer = 2;

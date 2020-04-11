@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='wandb_internal',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1fgoogle/protobuf/timestamp.proto\"d\n\x08LogValue\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0f\n\x07integer\x18\x02 \x01(\x12\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0f\n\x07\x62oolean\x18\x04 \x01(\x08\x12\x0c\n\x04\x64\x61ta\x18\x05 \x01(\x0c\x12\x0c\n\x04json\x18\x10 \x01(\t\"?\n\x07LogItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\'\n\x05value\x18\x02 \x01(\x0b\x32\x18.wandb_internal.LogValue\">\n\x07LogData\x12%\n\x04item\x18\x01 \x03(\x0b\x32\x17.wandb_internal.LogItem\x12\x0c\n\x04json\x18\x10 \x01(\t\")\n\tLogResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\xb8\x01\n\nOutputData\x12:\n\x0boutput_type\x18\x01 \x01(\x0e\x32%.wandb_internal.OutputData.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0c\n\x04json\x18\x10 \x01(\t\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\",\n\x0cOutputResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x17\n\x15ServerShutdownRequest\"4\n\x14ServerShutdownResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x15\n\x13ServerStatusRequest\"2\n\x12ServerStatusResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\xc1\x01\n\x03Run\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0b\x63onfig_json\x18\x03 \x01(\t\x12\x14\n\x0csummary_json\x18\x04 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x05 \x01(\t\x12\x0f\n\x07project\x18\x06 \x01(\t\x12\x0c\n\x04tags\x18\x07 \x03(\t\x12\r\n\x05group\x18\x08 \x01(\t\x12\x10\n\x08job_type\x18\t \x01(\t\x12\r\n\x05notes\x18\n \x01(\t\x12\x12\n\nstorage_id\x18\x10 \x01(\t\"%\n\x05\x45rror\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x1b\n\rRunGetRequest\x12\n\n\x02id\x18\x01 \x01(\t\"V\n\x0cRunGetResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"4\n\x10RunUpdateRequest\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\"Y\n\x0fRunUpdateResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"\x1b\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\"1\n\nConfigData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x13\n\x0b\x63onfig_json\x18\x02 \x01(\t\"3\n\x0bSummaryData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x14\n\x0csummary_json\x18\x02 \x01(\t\"\x19\n\tFilesItem\x12\x0c\n\x04name\x18\x01 \x01(\t\"E\n\tFilesData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12(\n\x05\x66iles\x18\x02 \x03(\x0b\x32\x19.wandb_internal.FilesItem\"/\n\tStatsData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x12\n\nstats_json\x18\x02 \x01(\t\"-\n\x08\x45xitData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x11\n\texit_code\x18\x02 \x01(\x05\"\xa1\x03\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12&\n\x03log\x18\x02 \x01(\x0b\x32\x17.wandb_internal.LogDataH\x00\x12\"\n\x03run\x18\x03 \x01(\x0b\x32\x13.wandb_internal.RunH\x00\x12,\n\x06output\x18\x04 \x01(\x0b\x32\x1a.wandb_internal.OutputDataH\x00\x12,\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1a.wandb_internal.ConfigDataH\x00\x12*\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x19.wandb_internal.FilesDataH\x00\x12.\n\x07summary\x18\x07 \x01(\x0b\x32\x1b.wandb_internal.SummaryDataH\x00\x12*\n\x05stats\x18\x08 \x01(\x0b\x32\x19.wandb_internal.StatsDataH\x00\x12(\n\x04\x65xit\x18\t \x01(\x0b\x32\x18.wandb_internal.ExitDataH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.ControlB\x06\n\x04\x64\x61tab\x06proto3'
+  serialized_pb=b'\n wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1fgoogle/protobuf/timestamp.proto\"(\n\x06Header\x12\r\n\x05magic\x18\x01 \x01(\r\x12\x0f\n\x07version\x18\x02 \x01(\r\"d\n\x08LogValue\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0f\n\x07integer\x18\x02 \x01(\x12\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0f\n\x07\x62oolean\x18\x04 \x01(\x08\x12\x0c\n\x04\x64\x61ta\x18\x05 \x01(\x0c\x12\x0c\n\x04json\x18\x10 \x01(\t\"?\n\x07LogItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\'\n\x05value\x18\x02 \x01(\x0b\x32\x18.wandb_internal.LogValue\">\n\x07LogData\x12%\n\x04item\x18\x01 \x03(\x0b\x32\x17.wandb_internal.LogItem\x12\x0c\n\x04json\x18\x10 \x01(\t\")\n\tLogResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\xb8\x01\n\nOutputData\x12:\n\x0boutput_type\x18\x01 \x01(\x0e\x32%.wandb_internal.OutputData.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0b\n\x03str\x18\x03 \x01(\t\x12\x0c\n\x04json\x18\x10 \x01(\t\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\",\n\x0cOutputResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x17\n\x15ServerShutdownRequest\"4\n\x14ServerShutdownResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x15\n\x13ServerStatusRequest\"2\n\x12ServerStatusResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\xc1\x01\n\x03Run\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0b\x63onfig_json\x18\x03 \x01(\t\x12\x14\n\x0csummary_json\x18\x04 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x05 \x01(\t\x12\x0f\n\x07project\x18\x06 \x01(\t\x12\x0c\n\x04tags\x18\x07 \x03(\t\x12\r\n\x05group\x18\x08 \x01(\t\x12\x10\n\x08job_type\x18\t \x01(\t\x12\r\n\x05notes\x18\n \x01(\t\x12\x12\n\nstorage_id\x18\x10 \x01(\t\"%\n\x05\x45rror\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x1b\n\rRunGetRequest\x12\n\n\x02id\x18\x01 \x01(\t\"V\n\x0cRunGetResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"4\n\x10RunUpdateRequest\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\"Y\n\x0fRunUpdateResult\x12 \n\x03run\x18\x01 \x01(\x0b\x32\x13.wandb_internal.Run\x12$\n\x05\x65rror\x18\x10 \x01(\x0b\x32\x15.wandb_internal.Error\"\x1b\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\"1\n\nConfigData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x13\n\x0b\x63onfig_json\x18\x02 \x01(\t\"3\n\x0bSummaryData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x14\n\x0csummary_json\x18\x02 \x01(\t\"\x19\n\tFilesItem\x12\x0c\n\x04name\x18\x01 \x01(\t\"E\n\tFilesData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12(\n\x05\x66iles\x18\x02 \x03(\x0b\x32\x19.wandb_internal.FilesItem\"/\n\tStatsData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x12\n\nstats_json\x18\x02 \x01(\t\"-\n\x08\x45xitData\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x11\n\texit_code\x18\x02 \x01(\x05\"\xa1\x03\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12&\n\x03log\x18\x02 \x01(\x0b\x32\x17.wandb_internal.LogDataH\x00\x12\"\n\x03run\x18\x03 \x01(\x0b\x32\x13.wandb_internal.RunH\x00\x12,\n\x06output\x18\x04 \x01(\x0b\x32\x1a.wandb_internal.OutputDataH\x00\x12,\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1a.wandb_internal.ConfigDataH\x00\x12*\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x19.wandb_internal.FilesDataH\x00\x12.\n\x07summary\x18\x07 \x01(\x0b\x32\x1b.wandb_internal.SummaryDataH\x00\x12*\n\x05stats\x18\x08 \x01(\x0b\x32\x19.wandb_internal.StatsDataH\x00\x12(\n\x04\x65xit\x18\t \x01(\x0b\x32\x18.wandb_internal.ExitDataH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.ControlB\x06\n\x04\x64\x61tab\x06proto3'
   ,
   dependencies=[google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,])
 
@@ -42,10 +42,48 @@ _OUTPUTDATA_OUTPUTTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=508,
-  serialized_end=544,
+  serialized_start=550,
+  serialized_end=586,
 )
 _sym_db.RegisterEnumDescriptor(_OUTPUTDATA_OUTPUTTYPE)
+
+
+_HEADER = _descriptor.Descriptor(
+  name='Header',
+  full_name='wandb_internal.Header',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='magic', full_name='wandb_internal.Header.magic', index=0,
+      number=1, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='version', full_name='wandb_internal.Header.version', index=1,
+      number=2, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=85,
+  serialized_end=125,
+)
 
 
 _LOGVALUE = _descriptor.Descriptor(
@@ -109,8 +147,8 @@ _LOGVALUE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=85,
-  serialized_end=185,
+  serialized_start=127,
+  serialized_end=227,
 )
 
 
@@ -147,8 +185,8 @@ _LOGITEM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=187,
-  serialized_end=250,
+  serialized_start=229,
+  serialized_end=292,
 )
 
 
@@ -185,8 +223,8 @@ _LOGDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=252,
-  serialized_end=314,
+  serialized_start=294,
+  serialized_end=356,
 )
 
 
@@ -223,8 +261,8 @@ _LOGRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=316,
-  serialized_end=357,
+  serialized_start=358,
+  serialized_end=399,
 )
 
 
@@ -276,8 +314,8 @@ _OUTPUTDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=360,
-  serialized_end=544,
+  serialized_start=402,
+  serialized_end=586,
 )
 
 
@@ -314,8 +352,8 @@ _OUTPUTRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=546,
-  serialized_end=590,
+  serialized_start=588,
+  serialized_end=632,
 )
 
 
@@ -338,8 +376,8 @@ _SERVERSHUTDOWNREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=592,
-  serialized_end=615,
+  serialized_start=634,
+  serialized_end=657,
 )
 
 
@@ -376,8 +414,8 @@ _SERVERSHUTDOWNRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=617,
-  serialized_end=669,
+  serialized_start=659,
+  serialized_end=711,
 )
 
 
@@ -400,8 +438,8 @@ _SERVERSTATUSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=671,
-  serialized_end=692,
+  serialized_start=713,
+  serialized_end=734,
 )
 
 
@@ -438,8 +476,8 @@ _SERVERSTATUSRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=694,
-  serialized_end=744,
+  serialized_start=736,
+  serialized_end=786,
 )
 
 
@@ -539,8 +577,8 @@ _RUN = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=747,
-  serialized_end=940,
+  serialized_start=789,
+  serialized_end=982,
 )
 
 
@@ -577,8 +615,8 @@ _ERROR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=942,
-  serialized_end=979,
+  serialized_start=984,
+  serialized_end=1021,
 )
 
 
@@ -608,8 +646,8 @@ _RUNGETREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=981,
-  serialized_end=1008,
+  serialized_start=1023,
+  serialized_end=1050,
 )
 
 
@@ -646,8 +684,8 @@ _RUNGETRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1010,
-  serialized_end=1096,
+  serialized_start=1052,
+  serialized_end=1138,
 )
 
 
@@ -677,8 +715,8 @@ _RUNUPDATEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1098,
-  serialized_end=1150,
+  serialized_start=1140,
+  serialized_end=1192,
 )
 
 
@@ -715,8 +753,8 @@ _RUNUPDATERESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1152,
-  serialized_end=1241,
+  serialized_start=1194,
+  serialized_end=1283,
 )
 
 
@@ -746,8 +784,8 @@ _CONTROL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1243,
-  serialized_end=1270,
+  serialized_start=1285,
+  serialized_end=1312,
 )
 
 
@@ -784,8 +822,8 @@ _CONFIGDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1272,
-  serialized_end=1321,
+  serialized_start=1314,
+  serialized_end=1363,
 )
 
 
@@ -822,8 +860,8 @@ _SUMMARYDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1323,
-  serialized_end=1374,
+  serialized_start=1365,
+  serialized_end=1416,
 )
 
 
@@ -853,8 +891,8 @@ _FILESITEM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1376,
-  serialized_end=1401,
+  serialized_start=1418,
+  serialized_end=1443,
 )
 
 
@@ -891,8 +929,8 @@ _FILESDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1403,
-  serialized_end=1472,
+  serialized_start=1445,
+  serialized_end=1514,
 )
 
 
@@ -929,8 +967,8 @@ _STATSDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1474,
-  serialized_end=1521,
+  serialized_start=1516,
+  serialized_end=1563,
 )
 
 
@@ -967,8 +1005,8 @@ _EXITDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1523,
-  serialized_end=1568,
+  serialized_start=1565,
+  serialized_end=1610,
 )
 
 
@@ -1064,8 +1102,8 @@ _RECORD = _descriptor.Descriptor(
       name='data', full_name='wandb_internal.Record.data',
       index=0, containing_type=None, fields=[]),
   ],
-  serialized_start=1571,
-  serialized_end=1988,
+  serialized_start=1613,
+  serialized_end=2030,
 )
 
 _LOGITEM.fields_by_name['value'].message_type = _LOGVALUE
@@ -1112,6 +1150,7 @@ _RECORD.fields_by_name['stats'].containing_oneof = _RECORD.oneofs_by_name['data'
 _RECORD.oneofs_by_name['data'].fields.append(
   _RECORD.fields_by_name['exit'])
 _RECORD.fields_by_name['exit'].containing_oneof = _RECORD.oneofs_by_name['data']
+DESCRIPTOR.message_types_by_name['Header'] = _HEADER
 DESCRIPTOR.message_types_by_name['LogValue'] = _LOGVALUE
 DESCRIPTOR.message_types_by_name['LogItem'] = _LOGITEM
 DESCRIPTOR.message_types_by_name['LogData'] = _LOGDATA
@@ -1137,6 +1176,13 @@ DESCRIPTOR.message_types_by_name['StatsData'] = _STATSDATA
 DESCRIPTOR.message_types_by_name['ExitData'] = _EXITDATA
 DESCRIPTOR.message_types_by_name['Record'] = _RECORD
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
+
+Header = _reflection.GeneratedProtocolMessageType('Header', (_message.Message,), {
+  'DESCRIPTOR' : _HEADER,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.Header)
+  })
+_sym_db.RegisterMessage(Header)
 
 LogValue = _reflection.GeneratedProtocolMessageType('LogValue', (_message.Message,), {
   'DESCRIPTOR' : _LOGVALUE,

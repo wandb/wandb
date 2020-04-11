@@ -14,14 +14,17 @@ record :=
 from __future__ import print_function
 
 import zlib
+import sys
+import os
 
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 import struct
 import logging
-import zlib
 
 logger = logging.getLogger(__name__)
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 5
 
 LEVELDBLOG_HEADER_LEN = 7
 LEVELDBLOG_BLOCK_LEN = 32768
@@ -59,7 +62,12 @@ class DataStore(object):
     def open(self, fname):
         self._fname = fname
         logger.info("open: %s", fname)
-        self._fp = open(fname, "wb")
+        open_flags = "xb"
+        if not PY3:
+            open_flags = "wb"
+            if os.path.exists(fname):
+                raise IOError("File exists: {}".format(fname))
+        self._fp = open(fname, open_flags)
 
     def open_for_append(self, fname):
         # TODO: implement
