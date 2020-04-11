@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""wandb setup."""
 
 from setuptools import setup
 
@@ -56,7 +57,7 @@ setup(
     install_requires=requirements,
     license="MIT license",
     zip_safe=False,
-    #keywords='wandb',
+    # keywords='wandb',
     python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*',
     classifiers=[
         'Development Status :: 5 - Production/Stable',

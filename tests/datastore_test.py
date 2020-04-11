@@ -1,13 +1,11 @@
-"""
-datastore tests.
-"""
+"""datastore tests."""
 
 from __future__ import print_function
 
-import os
 import json
-import pytest
+import os
 
+import pytest
 import wandb
 from wandb.internal import datastore
 from wandb.proto import wandb_internal_pb2  # type: ignore
@@ -22,7 +20,8 @@ except NameError:
 
 
 def check(ds, data_sizes=tuple(), expected_records=0, expected_pad=0):
-    for x, data_size in enumerate(data_sizes):
+    """Check datastore size after multiple items written."""
+    for _, data_size in enumerate(data_sizes):
         ds.write_data(b'\x01' * data_size)
     num = sum(data_sizes) + expected_records * 7 + expected_pad
     ds.close()
@@ -32,6 +31,7 @@ def check(ds, data_sizes=tuple(), expected_records=0, expected_pad=0):
 
 @pytest.fixture()
 def with_datastore(request):
+    """Fixture which returns an initialized datastore."""
     try:
         os.unlink(FNAME)
     except FileNotFoundError:
@@ -47,12 +47,12 @@ def with_datastore(request):
 
 
 def test_proto_write_partial():
-    """serialize a proto into a partial block."""
+    """Serialize a proto into a partial block."""
     data = dict(this=2, that=4)
     json_data = json.dumps(data)
-    l = wandb_internal_pb2.LogData(json=json_data)
+    log = wandb_internal_pb2.LogData(json=json_data)
     rec = wandb_internal_pb2.Record()
-    rec.log.CopyFrom(l)
+    rec.log.CopyFrom(log)
 
     wandb._set_internal_process()
     s = datastore.DataStore()
@@ -62,13 +62,13 @@ def test_proto_write_partial():
 
 
 def test_data_write_full(with_datastore):
-    """write a full block."""
+    """Write a full block."""
     sizes, records = tuple([32768 - 7]), 1
     check(with_datastore, data_sizes=sizes, expected_records=records)
 
 
 def test_data_write_overflow(with_datastore):
-    """write one more than we can fit in a block."""
+    """Write one more than we can fit in a block."""
     ds = with_datastore
     ds.write_data(b'\x01' * (32768 - 7 + 1))
     ds.close()
@@ -97,7 +97,7 @@ def test_data_write_empty(with_datastore):
 
 
 def test_data_write_split(with_datastore):
-    """leave just room for 1 more byte, then try to write 2."""
+    """Leave just room for 1 more byte, then try to write 2."""
     ds = with_datastore
     ds.write_data(b'\x01' * (32768 - 7 - 8))
     ds.write_data(b'\x02' * (2))
@@ -107,7 +107,7 @@ def test_data_write_split(with_datastore):
 
 
 def test_data_write_split_overflow(with_datastore):
-    """leave just room for 1 more byte, then write a block + 1 byte."""
+    """Leave just room for 1 more byte, then write a block + 1 byte."""
     ds = with_datastore
     ds.write_data(b'\x01' * (32768 - 7 - 8))
     ds.write_data(b'\x02' * (2 + 32768 - 7))
@@ -117,6 +117,6 @@ def test_data_write_split_overflow(with_datastore):
 
 
 def test_data_write_fill(with_datastore):
-    """leave just room for 1 more byte, then write a 1 byte, followed by another 1 byte."""
+    """Leave just room for 1 more byte, then write a 1 byte, followed by another 1 byte."""
     sizes, records = tuple([32768 - 7 - 8, 1, 1]), 3
     check(with_datastore, data_sizes=sizes, expected_records=records)

@@ -39,6 +39,10 @@ clean-build: ## remove build artifacts
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
 
+setup-clean:
+	rm -fr build/
+	rm -fr dist/
+
 test-clean:
 	rm -fr build/
 	rm -fr dist/
