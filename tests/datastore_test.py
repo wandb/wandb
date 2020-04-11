@@ -15,14 +15,6 @@ from wandb.proto import wandb_internal_pb2  # type: ignore
 
 FNAME = "test.dat"
 
-try:
-    bytes('', 'ascii')
-    def strtobytes(x): return bytes(x, 'iso8859-1')
-    def bytestostr(x): return str(x, 'iso8859-1')
-except:
-    strtobytes = str
-    bytestostr = str
-
 
 @pytest.fixture()
 def with_datastore(request):
