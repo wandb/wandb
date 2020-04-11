@@ -14,9 +14,6 @@ import sys
 
 from wandb.errors import Error
 
-# Used to make sure we don't use some code in the incorrect process context
-_IS_INTERNAL_PROCESS = False
-
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     TYPE_CHECKING = True
@@ -51,6 +48,17 @@ from wandb.data.data_types import Graph
 
 from wandb import agent
 #from wandb.core import *
+
+# Used to make sure we don't use some code in the incorrect process context
+_IS_INTERNAL_PROCESS = False
+
+def _set_internal_process():
+    global _IS_INTERNAL_PROCESS
+    _IS_INTERNAL_PROCESS = True
+
+def _is_internal_process():
+    return _IS_INTERNAL_PROCESS
+
 
 # toplevel:
 # save()
