@@ -179,7 +179,8 @@ class WandbCallback(TrackerCallback):
                 raise FastaiError('Unable to run "predict" method from Learner to log prediction samples.')
 
             # scalar -> likely to be a category
-            if not pred[1].shape:
+            # tensor of dim 1 -> likely to be multicategory
+            if not pred[1].shape or pred[1].dim() == 1:
                 pred_log.append(
                     wandb.Image(
                         x.data,
