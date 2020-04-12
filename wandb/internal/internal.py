@@ -3,6 +3,8 @@
 internal.
 """
 
+from __future__ import print_function
+
 import threading
 import json
 from six.moves import queue
@@ -80,7 +82,7 @@ def setup_logging(log_fname, log_level, run_id=None):
     root.addHandler(handler)
 
 
-def wandb_read(fd):
+def wandb_stream_read(fd):
     # print("start reading", file=sys.stderr)
     while True:
         try:
@@ -105,6 +107,19 @@ def wandb_write(settings, q, stopped, data_filename):
         ds.write(i)
         #print("write", i)
     ds.close()
+
+
+def wandb_read(settings, q, data_q, stopped, data_filename):
+    # ds = datastore.DataStore()
+    # ds.open(data_filename)
+    while not stopped.isSet():
+        try:
+            i = q.get(timeout=1)
+        except queue.Empty:
+            continue
+        # ds.write(i)
+        #print("write", i)
+    # ds.close()
 
 
 class _SendManager(object):
@@ -281,7 +296,7 @@ class _SendManager(object):
             self._pusher.print_status()
 
 
-def wandb_send(settings, q, resp_q, stopped):
+def wandb_send(settings, q, resp_q, read_q, data_q, stopped):
 
     sh = _SendManager(settings, q, resp_q)
 
@@ -410,7 +425,7 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
             #logger.info("windows stdout: %d", stdout_fd)
             #logger.info("windows stderr: %d", stderr_fd)
 
-            #read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
+            #read_thread = threading.Thread(name="wandb_stream_read", target=wandb_stream_read, args=(stdout_fd,))
             #read_thread.start()
             #stdout_read_file = os.fdopen(stdout_fd, 'rb')
             #stderr_read_file = os.fdopen(stderr_fd, 'rb')
@@ -424,7 +439,7 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
             logger.info("nonwindows stdout: %d", stdout_fd)
             logger.info("nonwindows stderr: %d", stderr_fd)
 
-            #read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(stdout_fd,))
+            #read_thread = threading.Thread(name="wandb_stream_read", target=wandb_stream_read, args=(stdout_fd,))
             #read_thread.start()
             stdout_read_file = os.fdopen(stdout_fd, 'rb')
             stderr_read_file = os.fdopen(stderr_fd, 'rb')
@@ -434,13 +449,19 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
 
     stopped = threading.Event()
    
-    write_queue = queue.Queue()
-    write_thread = threading.Thread(name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped, data_filename))
     send_queue = queue.Queue()
-    send_thread = threading.Thread(name="wandb_send", target=wandb_send, args=(settings, send_queue, resp_queue, stopped))
+    write_queue = queue.Queue()
+    read_queue = queue.Queue()
+    data_queue = queue.Queue()
 
-    write_thread.start()
+    send_thread = threading.Thread(name="wandb_send", target=wandb_send, args=(settings, send_queue, resp_queue, read_queue, data_queue, stopped))
+    write_thread = threading.Thread(name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped, data_filename))
+    read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(settings, read_queue, data_queue, stopped, data_filename))
+    # sequencer_thread - future
+
+    read_thread.start()
     send_thread.start()
+    write_thread.start()
 
     done = False
     while not done:
@@ -475,5 +496,6 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
 
     system_stats.shutdown()
 
-    write_thread.join()
+    read_thread.join()
     send_thread.join()
+    write_thread.join()
