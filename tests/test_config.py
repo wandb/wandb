@@ -39,12 +39,12 @@ def test_config_docker_env_digest():
         del os.environ[env.DOCKER]
 
 
-def test_config_empty_by_default():
+def test_config_set_items():
     with CliRunner().isolated_filesystem():
         conf = config.Config()
         conf['a'] = 15
         conf.b = 16
-        assert list(conf.keys()) == ['_wandb', 'a', 'b']
+        assert list(conf.keys()) == ['a', 'b']
         assert conf.a == 15
         assert conf['b'] == 16
 
@@ -62,6 +62,39 @@ def test_config_update_accepts_dict_vals():
         conf.update({'b': 14, 'c': 15})
         assert conf.b == 14
         assert conf.c == 15
+
+
+def test_config_static_match():
+    with CliRunner().isolated_filesystem():
+        conf = config.Config()
+        conf.update({'b': 14, 'c': 15})
+        stat = config.ConfigStatic(conf)
+        assert stat.b == 14
+        assert stat.c == 15
+        assert set(conf.keys()) == set(['b', 'c'])
+        assert set(stat.keys()) == set(['b', 'c'])
+
+
+def test_config_static_frozen():
+    with CliRunner().isolated_filesystem():
+        conf = config.Config()
+        conf.update({'b': 14, 'c': 15})
+        stat = config.ConfigStatic(conf)
+        conf.update({'d': 16, 'e': 17})
+        assert set(conf.keys()) == set(['b', 'c', 'd', 'e'])
+        assert set(stat.keys()) == set(['b', 'c'])
+
+
+def test_config_static_readonly():
+    with CliRunner().isolated_filesystem():
+        conf = config.Config()
+        conf.update({'b': 14, 'c': 15})
+        stat = config.ConfigStatic(conf)
+        with pytest.raises(AttributeError):
+            stat.b = 3
+        with pytest.raises(AttributeError):
+            stat.new_attrib = 9
+
 
 @pytest.mark.skipif(os.getenv("NO_ML") == "true", reason="No numpy in NO_ML")
 def test_config_wild_values():

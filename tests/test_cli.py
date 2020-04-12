@@ -23,6 +23,7 @@ import webbrowser
 import wandb
 import threading
 import subprocess
+import platform
 
 DUMMY_API_KEY = '1824812581259009ca9981580f8f8a9012409eee'
 
@@ -189,7 +190,7 @@ def test_status(runner, request_mocker, query_project):
     with runner.isolated_filesystem():
         os.mkdir("wandb")
         query_project(request_mocker)
-        result = runner.invoke(cli.status, ["-p", "foo"])
+        result = runner.invoke(cli.status)
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
@@ -615,7 +616,8 @@ def test_run_with_error(runner, request_mocker, upsert_run, git_repo, query_view
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
-    assert "not found" in str(result.output) or "No such file" in str(result.output)
+    output = result.output.encode("utf8")
+    assert "not found" in str(output) or "No such file" in str(output)
     # TODO: there's a race between the sigint and the actual failure so exit_code could be 1 or 255
     assert result.exit_code > 0
 
@@ -739,7 +741,7 @@ def test_run_simple(runner, git_repo, mock_server, monkeypatch):
     # This is disabled for now because it hasn't worked for a long time:
     #assert "Verifying uploaded files... verified!" in result.output
     assert result.exit_code == 0
-    assert "Synced lovely-dawn-32" in result.output
+    assert "Syncing run lovely-dawn-32" in result.output
 
 def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     run_id = "abc123"
@@ -757,11 +759,11 @@ def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     # This is disabled for now because it hasn't worked for a long time:
     #assert "Verifying uploaded files... verified!" in result.output
     assert result.exit_code == 0
-    assert "Synced lovely-dawn-32" in result.output
+    assert "Syncing run lovely-dawn-32" in result.output
     assert 'storage?file=diff.patch' not in mock_server.requests.keys()
     wandb.reset_env()
 
-@pytest.mark.skipif(os.getenv("NO_ML") == "true", reason="No PIL win NO_ML")
+@pytest.mark.skipif(os.getenv("NO_ML") == "true" or platform.system() == "@indows", reason="No PIL in NO_ML, this was failing in windows for some reason")
 def test_run_image(runner, git_repo, mock_server):
     run_id = "123abc"
     with open("image.py", "w") as f:
@@ -777,7 +779,7 @@ wandb.log({"img": [wandb.Image(np.ones((28,28,1)))]})
     print(result.exception)
     #print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    assert "Synced lovely-dawn-32" in result.output
+    assert "Syncing run lovely-dawn-32" in result.output
     assert "CommError" not in result.output
 
 

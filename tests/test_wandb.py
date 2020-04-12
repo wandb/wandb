@@ -15,7 +15,7 @@ import threading
 from click.testing import CliRunner
 
 from .api_mocks import *
-from .utils import runner
+from .utils import runner, git_repo
 import wandb
 from wandb import wandb_run
 from wandb import env
@@ -66,6 +66,37 @@ def test_async_log(wandb_init_run):
     wandb.shutdown_async_log_thread()
     assert wandb.run.history.rows[-1]['cool'] == 100
     assert len(wandb.run.history.rows) == 101
+
+
+def test_log_step_uncommited(wandb_init_run):
+    wandb.log(dict(cool=2), step=2)
+    wandb.log(dict(cool=2), step=4)
+    assert len(wandb.run.history.rows) == 1
+
+
+def test_log_step_committed(wandb_init_run):
+    wandb.log(dict(cool=2), step=2)
+    wandb.log(dict(cool=2), step=4, commit=True)
+    assert len(wandb.run.history.rows) == 2
+
+
+def test_log_step_committed_same(wandb_init_run):
+    wandb.log(dict(cool=2), step=1)
+    wandb.log(dict(cool=2), step=4)
+    wandb.log(dict(bad=3), step=4, commit=True)
+    assert len(wandb.run.history.rows) == 2
+    assert len([x for x in wandb.run.history.rows[-1].keys() if not x.startswith("_")]) == 2
+    assert wandb.run.history.rows[-1]["cool"] == 2
+    assert wandb.run.history.rows[-1]["bad"] == 3
+
+
+def test_log_step_committed_same_dropped(wandb_init_run):
+    wandb.log(dict(cool=2), step=1)
+    wandb.log(dict(cool=2), step=4, commit=True)
+    wandb.log(dict(bad=3), step=4, commit=True)
+    assert len(wandb.run.history.rows) == 2
+    assert len([x for x in wandb.run.history.rows[-1].keys() if not x.startswith("_")]) == 1
+    assert wandb.run.history.rows[-1]["cool"] == 2
 
 
 def test_nice_log_error():
@@ -180,6 +211,18 @@ def test_login_no_key(local_netrc, mocker):
     assert wandb.api.api_key == "C" * 40
 
 
+def test_run_context_multi_run(live_mock_server, git_repo):
+    os.environ[env.BASE_URL] = "http://localhost:%i" % 8765
+    os.environ["WANDB_API_KEY"] = "B" * 40
+    with wandb.init() as run:
+        run.log({"a": 1, "b": 2})
+
+    with wandb.init(reinit=True) as run:
+        run.log({"c": 3, "d": 4})
+
+    assert len(glob.glob("wandb/*")) == 4
+
+
 def test_login_jupyter_anonymous(mock_server, local_netrc, mocker):
     python = mocker.patch("wandb._get_python_type")
     python.return_value = "ipython"
@@ -263,10 +306,8 @@ def test_save_policy_jupyter(wandb_init_run, query_upload_h5, request_mocker):
         'end': [], 'live': ['test.rad']}
 
 
-def test_restore(runner, wandb_init_run, request_mocker, download_url, query_run_v2, query_run_files):
+def test_restore(runner, request_mocker, download_url, wandb_init_run):
     with runner.isolated_filesystem():
-        query_run_v2(request_mocker)
-        query_run_files(request_mocker)
         download_url(request_mocker, size=10000)
         res = wandb.restore("weights.h5")
         assert os.path.getsize(res.name) == 10000

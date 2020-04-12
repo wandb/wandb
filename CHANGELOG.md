@@ -1,3 +1,223 @@
+## 0.8.29 (Mar 5, 2020)
+
+#### :nail_care: Enhancement
+
+-   Improve bounding box annotations
+-   Log active GPU system metrics
+-   Only writing wandb/settings file if wandb init is called
+-   Improvements to wandb local command
+
+#### :bug: Bug Fix
+
+-   Fix GPU logging on some devices without power metrics
+-   Fix sweep config command handling
+-   Fix tensorflow string logging
+
+## 0.8.28 (Feb 21, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added code saving of main python module
+-   Added ability to specify metadata for bounding boxes and segmentation masks
+
+#### :bug: Bug Fix
+
+-   Fix situations where uncommited data from wandb.log() is not persisted
+
+## 0.8.27 (Feb 11, 2020)
+
+#### :bug: Bug Fix
+
+-   Fix dependency conflict with new versions of six package
+
+## 0.8.26 (Feb 10, 2020)
+
+#### :nail_care: Enhancement
+
+-   Add best metric and epoch to run summary with Keras callback
+-   Added wandb.run.config_static for environments required pickled config
+
+#### :bug: Bug Fix
+
+-   Fixed regression causing failures with wandb.watch() and DataParallel
+-   Improved compatibility with python 3.8
+-   Fix model logging under windows
+
+## 0.8.25 (Feb 4, 2020)
+
+#### :bug: Bug Fix
+
+-   Fix exception when using wandb.watch() in a notebook
+-   Improve support for sparse tensor gradient logging on GPUs
+
+## 0.8.24 (Feb 3, 2020)
+
+#### :bug: Bug Fix
+
+-   Relax version dependancy for PyYAML for users with old environments
+
+## 0.8.23 (Feb 3, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added scikit-learn support
+-   Added ability to specify/exclude specific keys when building wandb.config
+
+#### :bug: Bug Fix
+
+-   Fix wandb.watch() on sparse tensors
+-   Fix incompatibilty with ray 0.8.1
+-   Fix missing pyyaml requirement
+-   Fix "W&B process failed to launch" problems
+-   Improved ability to log large model graphs and plots
+
+## 0.8.22 (Jan 24, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added ability to configure agent commandline from sweep config
+
+#### :bug: Bug Fix
+
+-   Fix fast.ai prediction logging
+-   Fix logging of eager tensorflow tensors
+-   Fix jupyter issues with logging notebook name and wandb.watch()
+
+## 0.8.21 (Jan 15, 2020)
+
+#### :nail_care: Enhancement
+
+-   Ignore wandb.init() specified project and entity when running a sweep 
+
+#### :bug: Bug Fix
+
+-   Fix agent "flapping" detection
+-   Fix local controller not starting when sweep is pending
+
+## 0.8.20 (Jan 10, 2020)
+
+#### :nail_care: Enhancement
+
+-   Added support for LightGBM
+-   Added local board support (Experimental)
+-   Added ability to modify sweep configuration
+-   Added GPU power logging to system metrics
+
+#### :bug: Bug Fix
+
+-   Prevent sweep agent from failing continously when misconfigured
+
+## 0.8.19 (Dec 18, 2019)
+
+#### :nail_care: Enhancement
+
+-   Added beta support for ray/tune hyperopt search strategy
+-   Added ability to specify max runs per agent
+-   Improve experience starting a sweep without a project already created
+
+#### :bug: Bug Fix
+
+-   Fix repeated wandb.Api().Run(id).scan_history() calls get updated data
+-   Fix early_terminate/hyperband in notebook/python environments
+
+## 0.8.18 (Dec 4, 2019)
+
+#### :nail_care: Enhancement
+
+-   Added min_step and max_step to run.scan_history for grabbing sub-sections of metrics
+-   wandb.init(reinit=True) now automatically calls wandb.join() to better support multiple runs per process
+
+#### :bug: Bug Fix
+
+-   wandb.init(sync_tensorboard=True) works again for TensorFlow 2.0
+
+## 0.8.17 (Dec 2, 2019)
+
+#### :nail_care: Enhancement
+
+-   Handle tags being passed in as a string
+
+#### :bug: Bug Fix
+
+-   Pin graphql-core < 3.0.0 to fix install errors
+-   TQDM progress bars update logs properly
+-   Oversized summary or history logs are now dropped which prevents retry hanging
+
+## 0.8.16 (Nov 21, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix regression syncing some versions of Tensorboard since 0.8.13
+-   Fix network error in Jupyter
+
+## 0.8.15 (Nov 5, 2019)
+
+#### :bug: Bug Fix
+
+-   Fix calling wandb.init with sync_tensorboard multiple times in Jupyter
+-   Fix RuntimeError race when using threads and calling wandb.log
+-   Don't initialize Sentry when error reporting is disabled
+
+#### :nail_care: Enhancement
+
+-   Added best_run() to wandb.sweep() public Api objects
+-   Remove internal tracking keys from wandb.config objects in the public Api
+
+## 0.8.14 (Nov 1, 2019)
+
+#### :bug: Bug Fix
+
+-   Improve large object warning when values reach maximum size
+-   Warn when wandb.save isn't passed a string
+-   Run stopping from the UI works since regressing in 0.8.12
+-   Restoring a file that already exists locally works
+-   Fixed TensorBoard incorrectly placing some keys in the wrong step since 0.8.10
+-   wandb.Video only accepts uint8 instead of incorrectly converting to floats
+-   SageMaker environment detection is now more robust
+-   Resuming correctly populates config
+-   wandb.restore respects root when run.dir is set #658
+-   Calling wandb.watch multiple times properly namespaces histograms and graphs
+
+#### :nail_care: Enhancement
+
+-   Sweeps now work in Windows!
+-   Added sweep attribute to Run in the public api
+-   Added sweep link to Jupyter and terminal output
+-   TensorBoard logging now stores proper timestamps when importing historic results
+-   TensorBoard logging now supports configuring rate_limits and filtering event types
+-   Use simple output mirroring stdout doesn't have a file descriptor
+-   Write wandb meta files to the system temp directory if the local directory isn't writable
+-   Added beta api.reports to the public API
+-   Added wandb.unwatch to remove hooks from pytorch models
+-   Store the framework used in config.\_wandb
+
+## 0.8.13 (Oct 15, 2019)
+
+#### :bug: Bug Fix
+
+-   Create nested directory when videos are logged from tensorboard namespaces
+-   Fix race when using wandb.log `async=True`
+-   run.summary acts like a proper dictionary
+-   run.summary sub dictionaries properly render
+-   handle None when passing class_colors for segmentation masks
+-   handle tensorflow2 not having a SessionHook
+-   properly escape args in windows
+-   fix hanging login when in anonymode
+-   tf2 keras patch now handles missing callbacks args
+
+#### :nail_care: Enhancement
+
+-   Updates documentation autogenerated from docstrings in /docs
+-   wandb.init(config=config_dict) does not update sweep specified parameters
+-   wandb.config object now has a setdefaults method enabling improved sweep support
+-   Improved terminal and jupyter message incorporating :rocket: emojii!
+-   Allow wandb.watch to be called multiple times on different models
+-   Improved support for watching multple tfevent files
+-   Windows no longer requires `wandb run` simply run `python script_name.py`
+-   `wandb agent` now works on windows.
+-   Nice error message when wandb.log is called without a dict
+-   Keras callback has a new `log_batch_frequency` for logging metrics every N batches
+
 ## 0.8.12 (Sep 20, 2019)
 
 #### :bug: Bug Fix

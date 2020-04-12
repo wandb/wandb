@@ -16,6 +16,7 @@ from pkg_resources import parse_version
 from wandb.history import History
 History.keep_rows = True
 
+# TODO: FLAKY SPECS sometimes these specs are timing out
 
 def dummy_torch_tensor(size, requires_grad=True):
     if parse_version(torch.__version__) >= parse_version('0.4'):
@@ -42,21 +43,18 @@ class DynamicModule(nn.Module):
         return x
 
 class Discrete(nn.Module):
-    def __init__(self, num_outputs):
+    def __init__(self):
         super(Discrete, self).__init__()
 
     def forward(self, x):
-        probs = nn.functional.softmax(x, dim=0)
-        dist = torch.distributions.Categorical(probs=probs)
-        # TODO: if we don't call entropy here, PyTorch blows up with because we added hooks...
-        return dist.entropy()
+        return nn.functional.softmax(x, dim=0)
 
 class DiscreteModel(nn.Module):
     def __init__(self, num_outputs=2):
         super(DiscreteModel, self).__init__()
         self.linear1 = nn.Linear(1, 10)
         self.linear2 = nn.Linear(10, num_outputs)
-        self.dist = Discrete(num_outputs)
+        self.dist = Discrete()
 
     def forward(self, x):
         x = self.linear1(x)
@@ -270,7 +268,7 @@ class VGGConcator(nn.Module):
 
 
 class Embedding(nn.Module):
-    def __init__(self, d_embedding, d_word, d_hidden, word_dim, dropout):
+    def __init__(self, d_embedding, d_word, d_hidden, word_dim, dropout, sparse=False):
         super(Embedding, self).__init__()
 
         glove = torch.ones((10, 300))
@@ -280,7 +278,7 @@ class Embedding(nn.Module):
         glove = glove[:self.word_dim]
 
         self.d_word = d_word
-        self.emb = nn.Embedding(word_dim, 300, padding_idx=0)
+        self.emb = nn.Embedding(word_dim, 300, padding_idx=0, sparse=sparse)
         self.emb.weight.data = glove
 
         # consts
@@ -339,6 +337,19 @@ def test_embedding(wandb_init_run):
         wandb.log({"loss": 1})
     assert len(wandb_init_run.history.rows[0]) == 82
 
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
+def test_sparse_embedding(wandb_init_run):
+    net = Embedding(d_embedding=300, d_word=300,
+                    d_hidden=300, word_dim=100, dropout=0, sparse=True)
+    wandb.watch(net, log="all", log_freq=1)
+    for i in range(2):
+        output = net(torch.ones((1, 4, 3, 224, 224)),
+                     torch.ones((1, 4, 3, 20)))
+        output.backward(torch.ones(1, 4, 300))
+        wandb.log({"loss": 1})
+    assert len(wandb_init_run.history.rows[0]) == 82
+
 def test_categorical(wandb_init_run):
     net = DiscreteModel(num_outputs=2)
     wandb.watch(net, log="all", log_freq=1)
@@ -346,7 +357,7 @@ def test_categorical(wandb_init_run):
         output = net(torch.ones((1)))
         samp = output.backward(torch.ones((2)))
         wandb.log({"loss": samp})
-    assert wandb_init_run.summary["graph_0"].to_json()
+    assert wandb_init_run.summary["graph_0"]._to_graph_json()
     assert len(wandb_init_run.history.rows[0]) == 12
 
 def test_double_log(wandb_init_run):
@@ -366,6 +377,39 @@ def test_gradient_logging(wandb_init_run):
         assert(len(wandb_init_run.history.row) == 8)
         assert(
             wandb_init_run.history.row['gradients/fc2.bias'].histogram[0] > 0)
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 3)
+
+def test_unwatch(wandb_init_run):
+    net = ConvNet()
+    wandb.watch(net, log_freq=1, log="all")
+    wandb.unwatch()
+    for i in range(3):
+        output = net(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output.backward(grads)
+        assert(len(wandb_init_run.history.row) == 0)
+        assert(
+            wandb_init_run.history.row.get('gradients/fc2.bias') is None)
+        wandb.log({"a": 2})
+    assert(len(wandb_init_run.history.rows) == 3)
+
+def test_unwatch_multi(wandb_init_run):
+    net1 = ConvNet()
+    net2 = ConvNet()
+    wandb.watch(net1, log_freq=1, log="all")
+    wandb.watch(net2, log_freq=1, log="all")
+    wandb.unwatch(net1)
+    for i in range(3):
+        output1 = net1(dummy_torch_tensor((64, 1, 28, 28)))
+        output2 = net2(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output1.backward(grads)
+        output2.backward(grads)
+        assert(len(wandb_init_run.history.row) == 16)
+        print(wandb_init_run.history.row)
+        assert wandb_init_run.history.row.get('gradients/graph_1conv1.bias')
+        assert wandb_init_run.history.row.get('gradients/conv1.bias') is None
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
 
@@ -469,7 +513,7 @@ def test_simple_net():
     output = net.forward(dummy_torch_tensor((64, 1, 28, 28)))
     grads = torch.ones(64, 10)
     output.backward(grads)
-    graph = graph.to_json()
+    graph = graph._to_graph_json()
     assert len(graph["nodes"]) == 5
     assert graph["nodes"][0]['class_name'] == "Conv2d(1, 10, kernel_size=(5, 5), stride=(1, 1))"
     assert graph["nodes"][0]['name'] == "conv1"
@@ -481,7 +525,7 @@ def test_sequence_net():
     output = net.forward(dummy_torch_tensor(
         (97, 100)))
     output.backward(torch.zeros((97, 100)))
-    graph = graph.to_json()
+    graph = graph._to_graph_json()
     assert len(graph["nodes"]) == 3
     assert len(graph["nodes"][0]['parameters']) == 4
     assert graph["nodes"][0]['class_name'] == "LSTMCell(1, 51)"
@@ -489,15 +533,30 @@ def test_sequence_net():
 
 
 def test_multi_net(wandb_init_run):
-    net = ConvNet()
-    graphs = wandb.watch((net, net))
-    output = net.forward(dummy_torch_tensor((64, 1, 28, 28)))
+    net1 = ConvNet()
+    net2 = ConvNet()
+    graphs = wandb.watch((net1, net2))
+    output1 = net1.forward(dummy_torch_tensor((64, 1, 28, 28)))
+    output2 = net2.forward(dummy_torch_tensor((64, 1, 28, 28)))
     grads = torch.ones(64, 10)
-    output.backward(grads)
-    graph1 = graphs[0].to_json()
-    graph2 = graphs[1].to_json()
+    output1.backward(grads)
+    output2.backward(grads)
+    graph1 = graphs[0]._to_graph_json()
+    graph2 = graphs[1]._to_graph_json()
     assert len(graph1["nodes"]) == 5
     assert len(graph2["nodes"]) == 5
+
+def test_multi_net_global(wandb_init_run):
+    net1 = ConvNet()
+    net2 = ConvNet()
+    wandb.watch(net1)
+    wandb.watch(net2)
+    output1 = net1.forward(dummy_torch_tensor((64, 1, 28, 28)))
+    output2 = net2.forward(dummy_torch_tensor((64, 1, 28, 28)))
+    grads = torch.ones(64, 10)
+    output1.backward(grads)
+    output2.backward(grads)
+    assert wandb.run.summary["graph_1"]
 
 
 def test_alex_net():
@@ -506,7 +565,7 @@ def test_alex_net():
     output = alex.forward(dummy_torch_tensor((2, 3, 224, 224)))
     grads = torch.ones(2, 1000)
     output.backward(grads)
-    graph = graph.to_json()
+    graph = graph._to_graph_json()
     # This was failing in CI with 21 nodes?!?
     print(graph["nodes"])
     assert len(graph["nodes"]) >= 20
@@ -525,7 +584,7 @@ def test_lstm(wandb_init_run):
     input_data = torch.ones((100)).type(torch.LongTensor)
     output = net.forward(input_data, hidden)
     grads = torch.ones(2, 1000)
-    graph = graph.to_json()
+    graph = graph._to_graph_json()
 
     assert len(graph["nodes"]) == 3
     assert graph["nodes"][2]['output_shape'] == [[1, 2]]
@@ -538,7 +597,7 @@ def test_resnet18():
 
     grads = torch.ones(2, 1000)
     output.backward(grads)
-    graph = graph.to_json()
+    graph = graph._to_graph_json()
     assert graph["nodes"][0]['class_name'] == "Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)"
 
 
@@ -549,7 +608,7 @@ def test_subnet():
 
     grads = torch.ones(256, 81, 4)
     output.backward(grads)
-    graph = graph.to_json()
+    graph = graph._to_graph_json()
     assert graph["nodes"][0]['class_name'] == "Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))"
 
 

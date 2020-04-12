@@ -8,6 +8,7 @@ import fnmatch
 import tempfile
 import shutil
 import glob
+import collections
 
 from sentry_sdk import configure_scope
 
@@ -22,8 +23,9 @@ from wandb import util
 from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
-from wandb.apis import InternalApi
-from wandb.wandb_config import Config
+from wandb.apis import InternalApi, CommError
+from wandb.wandb_config import Config, ConfigStatic
+from wandb.viz import Visualize
 import six
 from six.moves import input
 from six.moves import urllib
@@ -118,7 +120,10 @@ class Run(object):
             self.project = self.api.settings("project")
             scope.set_tag("project", self.project)
             scope.set_tag("entity", self.entity)
-            scope.set_tag("url", self.get_url(self.api, network=False))  # TODO: Move this somewhere outside of init
+            try:
+                scope.set_tag("url", self.get_url(self.api, network=False))  # TODO: Move this somewhere outside of init
+            except CommError:
+                pass
 
         if self.resume == "auto":
             util.mkdir_exists_ok(wandb.wandb_dir())
@@ -144,6 +149,13 @@ class Run(object):
         self._meta = None
         self._run_manager = None
         self._jupyter_agent = None
+
+        # give access to watch method
+        self.watch = wandb.watch
+
+    @property
+    def config_static(self):
+        return ConfigStatic(self.config)
 
     @property
     def api(self):
@@ -276,7 +288,10 @@ class Run(object):
         res = api.upsert_run(name=run_id, project=project, entity=entity, display_name=run_name)
         entity = res["project"]["entity"]["name"]
         wandb.termlog("Syncing {} to:".format(directory))
-        wandb.termlog(res["displayName"] + " " + run.get_url(api))
+        try:
+            wandb.termlog(res["displayName"] + " " + run.get_url(api))
+        except CommError as e:
+            wandb.termwarn(e.message)
 
         file_api = api.get_file_stream_api()
         file_api.start()
@@ -332,7 +347,8 @@ class Run(object):
             if meta.get("git"):
                 run_update["commit"] = meta["git"].get("commit")
                 run_update["repo"] = meta["git"].get("remote")
-            run_update["host"] = meta["host"]
+            if meta.get("host"):
+                run_update["host"] = meta["host"]
             run_update["program_path"] = meta["program"]
             run_update["job_type"] = meta.get("jobType")
             run_update["notes"] = meta.get("notes")
@@ -356,24 +372,7 @@ class Run(object):
         return run
 
     def auto_project_name(self, api):
-        # if we're in git, set project name to git repo name + relative path within repo
-        root_dir = api.git.root_dir
-        if root_dir is None:
-            return None
-        repo_name = os.path.basename(root_dir)
-        program = self.program
-        if program is None:
-            return repo_name
-        if not os.path.isabs(program):
-            program = os.path.join(os.curdir, program)
-        prog_dir = os.path.dirname(os.path.abspath(program))
-        if not prog_dir.startswith(root_dir):
-            return repo_name
-        project = repo_name
-        sub_path = os.path.relpath(prog_dir, root_dir)
-        if sub_path != '.':
-            project += '-' + sub_path
-        return project.replace(os.sep, '_')
+        return util.auto_project_name(self.program, api)
 
     def save(self, id=None, program=None, summary_metrics=None, num_retries=None, api=None):
         api = api or self.api
@@ -434,35 +433,95 @@ class Run(object):
         api = api or self.api
         return api.settings('project') or self.auto_project_name(api) or "uncategorized"
 
-    def get_url(self, api=None, network=True, params=None):
-        """If network is False we don't query for entity, required for wandb.init"""
+    def _generate_query_string(self, api, params=None):
+        """URL encodes dictionary of params"""
+
         params = params or {}
-        api = api or self.api
-        if api.api_key:
-            if api.settings('entity') is None and network:
+
+        if str(api.settings().get('anonymous', 'false')) == 'true':
+            params['apiKey'] = api.api_key
+
+        if not params:
+            return ""
+        return '?' + urllib.parse.urlencode(params)
+
+    def _load_entity(self, api, network):
+        if not api.api_key:
+            raise CommError("Can't find API key, run wandb login or set WANDB_API_KEY")
+
+        entity = api.settings('entity')
+        if network:
+            if api.settings('entity') is None:
                 viewer = api.viewer()
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])
-            if api.settings('entity'):
-                if str(api.settings().get('anonymous', 'false')) == 'true':
-                    params['apiKey'] = api.api_key
 
-                query_string = ""
-                if params != {}:
-                    query_string = '?' + urllib.parse.urlencode(params)
+            entity = api.settings('entity')
 
-                return "{base}/{entity}/{project}/runs/{run}{query_string}".format(
-                    base=api.app_url,
-                    entity=urllib.parse.quote_plus(api.settings('entity')),
-                    project=urllib.parse.quote_plus(self.project_name(api)),
-                    run=urllib.parse.quote_plus(self.id),
-                    query_string=query_string
-                )
-            else:
-                # TODO: I think this could only happen if the api key is invalid
-                return "run pending creation, url not known"
-        else:
-            return "not logged in, run wandb login or set WANDB_API_KEY"
+        if not entity:
+            # This can happen on network failure
+            raise CommError("Can't connect to network to query entity from API key")
+
+        return entity
+
+    def get_project_url(self, api=None, network=True, params=None):
+        """Generate a url for a project.
+
+        If network is false and entity isn't specified in the environment raises wandb.apis.CommError
+        """
+        params = params or {}
+        api = api or self.api
+        self._load_entity(api, network)
+
+        return "{base}/{entity}/{project}{query_string}".format(
+            base=api.app_url,
+            entity=urllib.parse.quote(api.settings('entity')),
+            project=urllib.parse.quote(self.project_name(api)),
+            query_string=self._generate_query_string(api, params)
+        )
+
+    def get_sweep_url(self, api=None, network=True, params=None):
+        """Generate a url for a sweep.
+
+        If network is false and entity isn't specified in the environment raises wandb.apis.CommError
+
+        Returns:
+            string - url if the run is part of a sweep
+            None - if the run is not part of the sweep
+        """
+        params = params or {}
+        api = api or self.api
+        self._load_entity(api, network)
+
+        sweep_id = self.sweep_id
+        if sweep_id is None:
+            return
+
+        return "{base}/{entity}/{project}/sweeps/{sweepid}{query_string}".format(
+            base=api.app_url,
+            entity=urllib.parse.quote(api.settings('entity')),
+            project=urllib.parse.quote(self.project_name(api)),
+            sweepid=urllib.parse.quote(sweep_id),
+            query_string=self._generate_query_string(api, params)
+        )
+
+    def get_url(self, api=None, network=True, params=None):
+        """Generate a url for a run.
+
+        If network is false and entity isn't specified in the environment raises wandb.apis.CommError
+        """
+        params = params or {}
+        api = api or self.api
+        self._load_entity(api, network)
+
+        return "{base}/{entity}/{project}/runs/{run}{query_string}".format(
+            base=api.app_url,
+            entity=urllib.parse.quote(api.settings('entity')),
+            project=urllib.parse.quote(self.project_name(api)),
+            run=urllib.parse.quote(self.id),
+            query_string=self._generate_query_string(api, params)
+        )
+
 
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
@@ -473,7 +532,10 @@ class Run(object):
             pusher.finish()
 
     def __repr__(self):
-        return "W&B Run: %s" % self.get_url()
+        try:
+            return "W&B Run: %s" % self.get_url()
+        except CommError as e:
+            return "W&B Error: %s" % e.message
 
     @property
     def name(self):
@@ -566,6 +628,42 @@ class Run(object):
     def _history_added(self, row):
         self.summary.update(row, overwrite=False)
 
+    def log(self, row=None, commit=None, step=None, sync=True, *args, **kwargs):
+        if sync == False:
+            wandb._ensure_async_log_thread_started()
+            return wandb._async_log_queue.put({"row": row, "commit": commit, "step": step})
+
+        if row is None:
+            row = {}
+
+        for k in row:
+            if isinstance(row[k], Visualize):
+                self._add_viz(k, row[k].viz_id)
+                row[k] = row[k].value
+
+        if not isinstance(row, collections.Mapping):
+            raise ValueError("wandb.log must be passed a dictionary")
+
+        if any(not isinstance(key, six.string_types) for key in row.keys()):
+            raise ValueError("Key values passed to `wandb.log` must be strings.")
+
+        if commit is not False or step is not None:
+            self.history.add(row, *args, step=step, commit=commit, **kwargs)
+        else:
+            self.history.update(row, *args, **kwargs)
+
+    def _add_viz(self, key, viz_id):
+        if not 'viz' in self.config['_wandb']:
+            self.config._set_wandb('viz', {})
+        self.config['_wandb']['viz'][key] = {
+            'id': viz_id,
+            'historyFieldSettings': {
+                'key': key,
+                'x-axis': '_step'
+            }
+        }
+        self.config.persist()
+
     @property
     def history(self):
         if self._history is None:
@@ -611,6 +709,13 @@ class Run(object):
             self._history.close()
             self._history = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        exit_code = 0 if exc_type is None else 1
+        wandb.join(exit_code)
+        return exc_type is None
 
 def run_dir_path(run_id, dry=False):
     if dry:

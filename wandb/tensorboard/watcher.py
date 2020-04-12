@@ -1,10 +1,15 @@
 from __future__ import absolute_import
 import sys
+import os
 # Ensure we don't have the wandb directory in the path to avoid importing our tensorboard
-# module.  This should only happen when wandb is installed with pip -e
+# module.  This should only happen when wandb is installed with pip -e or pip install ...#egg=wandb
 for path in sys.path:
-    if "client/wandb" in path:
+    if path.endswith(os.path.join("client", "wandb")):
         sys.path.remove(path)
+    if path.endswith(os.path.join("site-packages", "wandb")):
+        sys.path.remove(path)
+if sys.modules.get("tensorboard"):
+    del sys.modules["tensorboard"]
 from tensorboard.backend.event_processing import directory_watcher
 from tensorboard.backend.event_processing import event_file_loader
 from tensorboard.compat import tf
@@ -25,10 +30,10 @@ class Event(object):
     def __init__(self, event, namespace):
         self.event = event
         self.namespace = namespace
-        self.created_at = event.wall_time
+        self.created_at = time.time()
 
     def __lt__(self, other):
-        return self.event.step < other.event.step
+        return self.event.wall_time < other.event.wall_time
 
 
 class Consumer(object):
@@ -43,7 +48,7 @@ class Consumer(object):
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
         self._shutdown = False
-        self._delay = 10
+        self._delay = delay
 
     def start(self):
         self._thread.start()

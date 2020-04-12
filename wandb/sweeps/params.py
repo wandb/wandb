@@ -242,11 +242,12 @@ class HyperParameter():
         #     raise ValueError("Unsupported hyperparameter distribution type")
 
     def to_config(self):
+        config = {}
         if self.value != None:
-            self.config['value'] = self.value
+            config['value'] = self.value
             # Remove values list if we have picked a value for this parameter
             self.config.pop('values', None)
-        return self.name, self.config
+        return self.name, config
 
     def _infer_distribution(self, config, param_name):
         """

@@ -49,7 +49,7 @@ def test_project_download_urls(request_mocker, query_project):
 
 def test_project_upload_urls(request_mocker, query_project):
     query_project(request_mocker)
-    bucket_id, res = api.upload_urls(
+    bucket_id, headers, res = api.upload_urls(
         "test", files=["weights.h5", "model.json"])
     assert bucket_id == 'test1234'
     assert res == {
@@ -78,13 +78,23 @@ def test_parse_slug():
     assert project == "bar"
     assert run == "foo"
 
+def test_base_url_env(git_repo):
+    api.set_setting("base_url", "https://api.wandb.ai", persist=True)
+    os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
+    api.settings("base_url") == "http://localhost:8080"
+    del os.environ["WANDB_BASE_URL"]
 
 def test_app_url():
     api.set_setting("base_url", "https://api.test")
-    assert api.app_url == "http://app.test"
+    assert api.app_url == "http://app.wandb.test"
     api.set_setting("base_url", "https://api.foo.bar.baz")
     assert api.app_url == "https://app.foo.bar.baz"
 
+def test_base_url():
+    api.set_setting("base_url", "foo.com/")
+    assert api.settings("base_url") == "https://foo.com"
+    api.set_setting("base_url", "http://foo.com")
+    assert api.settings("base_url") == "http://foo.com"
 
 def test_pull_success(request_mocker, download_url, query_project):
     query_project(request_mocker)

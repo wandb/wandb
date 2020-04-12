@@ -17,11 +17,13 @@ import sys
 import threading
 import time
 import random
+import platform
 import stat
 import shortuuid
 import importlib
 import types
 import yaml
+import numbers
 from datetime import date, datetime
 
 import click
@@ -59,10 +61,11 @@ if wandb.core.IS_GIT:
 else:
     SENTRY_ENV = 'production'
 
-sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
-                release=wandb.__version__,
-                default_integrations=False,
-                environment=SENTRY_ENV)
+if error_reporting_enabled():
+    sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
+                    release=wandb.__version__,
+                    default_integrations=False,
+                    environment=SENTRY_ENV)
 
 
 def sentry_message(message):
@@ -95,6 +98,12 @@ def vendor_import(name):
     """This enables us to use the vendor directory for packages we don't depend on"""
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, 'vendor')
+
+    # TODO: this really needs to go, was added for CI
+    if sys.modules.get("prompt_toolkit"):
+        for k in list(sys.modules.keys()):
+            if k.startswith("prompt_toolkit"):
+                del sys.modules[k]
 
     sys.path.insert(1, vendor_dir)
     return import_module(name)
@@ -159,6 +168,7 @@ class LazyLoader(types.ModuleType):
         module = self._load()
         return dir(module)
 
+
 class PreInitObject(object):
     def __init__(self, name):
         self._name = name
@@ -184,6 +194,7 @@ class PreInitObject(object):
                 'You must call wandb.init() before {}.{}'.format(self._name, key))
         else:
             raise AttributeError()
+
 
 np = get_module('numpy')
 
@@ -221,8 +232,10 @@ def is_tf_tensor(obj):
 def is_tf_tensor_typename(typename):
     return typename.startswith('tensorflow.') and ('Tensor' in typename or 'Variable' in typename)
 
+
 def is_tf_eager_tensor_typename(typename):
     return typename.startswith('tensorflow.') and ('EagerTensor' in typename)
+
 
 def is_pytorch_tensor(obj):
     import torch
@@ -240,14 +253,22 @@ def is_pandas_data_frame_typename(typename):
 def is_matplotlib_typename(typename):
     return typename.startswith("matplotlib.")
 
+
 def is_plotly_typename(typename):
     return typename.startswith("plotly.")
+
+
+def is_plotly_figure_typename(typename):
+    return typename.startswith("plotly.") and typename.endswith('.Figure')
+
 
 def is_numpy_array(obj):
     return np and isinstance(obj, np.ndarray)
 
+
 def is_pandas_data_frame(obj):
     return is_pandas_data_frame_typename(get_full_typename(obj))
+
 
 def ensure_matplotlib_figure(obj):
     """Extract the current figure from a matplotlib object or return the object if it's a figure.
@@ -275,10 +296,10 @@ def json_friendly(obj):
     converted = True
     typename = get_full_typename(obj)
 
-    if is_tf_tensor_typename(typename):
-        obj = obj.eval()
-    elif is_tf_eager_tensor_typename(typename):
+    if is_tf_eager_tensor_typename(typename):
         obj = obj.numpy()
+    elif is_tf_tensor_typename(typename):
+        obj = obj.eval()
     elif is_pytorch_tensor_typename(typename):
         try:
             if obj.requires_grad:
@@ -310,14 +331,15 @@ def json_friendly(obj):
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
-        logger.warning("Object %s is %i bytes", obj, getsizeof(obj))
+        wandb.termwarn("Serializing object of type {} that is {} bytes".format(type(obj).__name__, getsizeof(obj)))
 
     return obj, converted
 
 
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
-        tools = get_module("plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+        tools = get_module(
+            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
         obj = tools.mpl_to_plotly(obj)
 
     if is_plotly_typename(get_full_typename(obj)):
@@ -396,7 +418,8 @@ def parse_tfjob_config():
 def parse_sm_config():
     """Attempts to parse SageMaker configuration returning False if it can't find it"""
     sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
-    if os.path.exists(sagemaker_config):
+    resource_config = "/opt/ml/input/config/resourceconfig.json"
+    if os.path.exists(sagemaker_config) and os.path.exists(resource_config):
         conf = {}
         conf["sagemaker_training_job_name"] = os.getenv('TRAINING_JOB_NAME')
         # Hyper-parameter searchs quote configs...
@@ -438,16 +461,31 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
             return obj
         return json.JSONEncoder.default(self, obj)
 
+class JSONEncoderUncompressed(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types.
+    This encoder turns numpy like objects with a size > 32 into histograms"""
+
+    def default(self, obj):
+        if is_numpy_array(obj):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+def json_dump_safer(obj, fp, **kwargs):
+    """Convert obj to json, with some extra encodable types."""
+    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
 
 def json_dumps_safer(obj, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
+# This is used for dumping raw json into files
+def json_dump_uncompressed(obj, fp, **kwargs):
+    """Convert obj to json, with some extra encodable types."""
+    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
 
 def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
-
 
 def make_json_if_not_number(v):
     """If v is not a basic type convert it to json."""
@@ -480,7 +518,12 @@ def no_retry_auth(e):
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise CommError("Invalid or missing api_key.  Run wandb login")
+        extra = ""
+        if wandb.run and str(wandb.run.api.api_key).startswith("local-"):
+            extra = " --host=http://localhost:8080"
+            if wandb.run.api.api_url == "https://api.wandb.ai":
+                raise CommError("Attempting to authenticate with the cloud using a local API key.  Set WANDB_BASE_URL to your local instance.")
+        raise CommError("Invalid or missing api_key.  Run wandb login" + extra)
     elif wandb.run:
         raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
@@ -495,7 +538,8 @@ def write_netrc(host, entity, key):
         return None
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
-        wandb.termlog("Appending key for {} to your netrc file: {}".format(normalized_host, os.path.expanduser('~/.netrc')))
+        wandb.termlog("Appending key for {} to your netrc file: {}".format(
+            normalized_host, os.path.expanduser('~/.netrc')))
         machine_line = 'machine %s' % normalized_host
         path = os.path.expanduser('~/.netrc')
         orig_lines = None
@@ -546,8 +590,18 @@ def request_with_retry(func, *args, **kwargs):
             response.raise_for_status()
             return response
         except (requests.exceptions.ConnectionError,
-                requests.exceptions.HTTPError,  # XXX 500s aren't retryable
+                requests.exceptions.HTTPError,
                 requests.exceptions.Timeout) as e:
+            if isinstance(e, requests.exceptions.HTTPError):
+                # Non-retriable HTTP errors.
+                #
+                # We retry 500s just to be cautious, and because the back end
+                # returns them when there are infrastructure issues. If retrying
+                # some request winds up being problematic, we'll change the
+                # back end to indicate that it shouldn't be retried.
+                if e.response.status_code in {400, 403, 404, 409}:
+                    return e
+
             if retry_count == max_retries:
                 return e
             retry_count += 1
@@ -581,7 +635,7 @@ def find_runner(program):
         # program is a path to a non-executable file
         try:
             opened = open(program)
-        except IOError: # PermissionError doesn't exist in 2.7
+        except IOError:  # PermissionError doesn't exist in 2.7
             return None
         first_line = opened.readline().strip()
         if first_line.startswith('#!'):
@@ -641,8 +695,8 @@ def image_from_docker_args(args):
     If excludes any argments that start with a dash, and the argument after it if it isn't a boolean
     switch.  This can be improved, we currently fallback gracefully when this fails.
     """
-    bool_args = ["-t", "--tty", "--rm","--privileged", "--oom-kill-disable","--no-healthcheck", "-i",
-        "--interactive", "--init", "--help", "--detach", "-d", "--sig-proxy", "-it", "-itd"]
+    bool_args = ["-t", "--tty", "--rm", "--privileged", "--oom-kill-disable", "--no-healthcheck", "-i",
+                 "--interactive", "--init", "--help", "--detach", "-d", "--sig-proxy", "-it", "-itd"]
     last_flag = -2
     last_arg = ""
     possible_images = []
@@ -706,7 +760,7 @@ def async_call(target, timeout=None):
        Returns a new method that will call the original with any args, waiting for upto timeout seconds.
        This new method blocks on the original and returns the result or None
        if timeout was reached, along with the thread.
-       You can check thread.isAlive() to determine if a timeout was reached.
+       You can check thread.is_alive() to determine if a timeout was reached.
        If an exception is thrown in the thread, we reraise it.
     """
     q = queue.Queue()
@@ -796,11 +850,12 @@ def set_api_key(api, key, anonymous=False):
 
     if len(suffix) == 40:
         os.environ[env.API_KEY] = key
-        api.set_setting('anonymous', str(anonymous).lower(), globally=True)
+        api.set_setting('anonymous', str(anonymous).lower(), globally=True, persist=True)
         write_netrc(api.api_url, "user", key)
         api.reauth()
         return
     raise ValueError("API key must be 40 characters long, yours was %s" % len(key))
+
 
 def isatty(ob):
     return hasattr(ob, "isatty") and ob.isatty()
@@ -818,14 +873,14 @@ LOGIN_CHOICES = [
 ]
 
 
-def prompt_api_key(api, input_callback=None, browser_callback=None):
+def prompt_api_key(api, input_callback=None, browser_callback=None, no_offline=False, local=False):
     input_callback = input_callback or getpass.getpass
 
     choices = [choice for choice in LOGIN_CHOICES]
     if os.environ.get(env.ANONYMOUS, "never") == "never":
         # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
         choices.remove(LOGIN_CHOICE_ANON)
-    if os.environ.get(env.JUPYTER, "false") == "true":
+    if os.environ.get(env.JUPYTER, "false") == "true" or no_offline:
         choices.remove(LOGIN_CHOICE_DRYRUN)
 
     if os.environ.get(env.ANONYMOUS) == "must":
@@ -833,9 +888,12 @@ def prompt_api_key(api, input_callback=None, browser_callback=None):
     # If we're not in an interactive environment, default to dry-run.
     elif not isatty(sys.stdout) or not isatty(sys.stdin):
         result = LOGIN_CHOICE_DRYRUN
+    elif local:
+        result = LOGIN_CHOICE_EXISTS
     else:
         for i, choice in enumerate(choices):
             wandb.termlog("(%i) %s" % (i + 1, choice))
+
         def prompt_choice():
             try:
                 return int(six.moves.input("%s: Enter your choice: " % wandb.core.LOG_STRING)) - 1
@@ -860,7 +918,7 @@ def prompt_api_key(api, input_callback=None, browser_callback=None):
         if not key:
             wandb.termlog('Create an account here: {}/authorize?signup=true'.format(api.app_url))
             key = input_callback('%s: Paste an API key from your profile and hit enter' % wandb.core.LOG_STRING).strip()
-            
+
         set_api_key(api, key)
         return key
     elif result == LOGIN_CHOICE_EXISTS:
@@ -878,3 +936,70 @@ def prompt_api_key(api, input_callback=None, browser_callback=None):
 
         set_api_key(api, key, anonymous=anonymous)
         return key
+
+
+def auto_project_name(program, api):
+    # if we're in git, set project name to git repo name + relative path within repo
+    root_dir = api.git.root_dir
+    if root_dir is None:
+        return None
+    repo_name = os.path.basename(root_dir)
+    if program is None:
+        return repo_name
+    if not os.path.isabs(program):
+        program = os.path.join(os.curdir, program)
+    prog_dir = os.path.dirname(os.path.abspath(program))
+    if not prog_dir.startswith(root_dir):
+        return repo_name
+    project = repo_name
+    sub_path = os.path.relpath(prog_dir, root_dir)
+    if sub_path != '.':
+        project += '-' + sub_path
+    return project.replace(os.sep, '_')
+
+
+def parse_sweep_id(parts_dict):
+    """In place parse sweep path from parts dict.
+
+    Args:
+        parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
+    
+    Returns:
+        None or str if there is an error
+    """
+
+    entity = None
+    project = None
+    sweep_id = parts_dict.get("name")
+    if not isinstance(sweep_id, six.string_types):
+        return 'Expected string sweep_id'
+
+    sweep_split = sweep_id.split('/')
+    if len(sweep_split) == 1:
+        pass
+    elif len(sweep_split) == 2:
+        split_project, sweep_id = sweep_split
+        project = split_project or project
+    elif len(sweep_split) == 3:
+        split_entity, split_project, sweep_id = sweep_split
+        project = split_project or project
+        entity = split_entity or entity
+    else:
+        return 'Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep'
+    parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
+
+def has_num(dictionary, key):
+     return (key in dictionary and isinstance(dictionary[key], numbers.Number))
+
+def get_program():
+    try:
+        import __main__
+        program = __main__.__file__
+    except (ImportError, AttributeError):
+        program = None
+    return program
+    
+def to_forward_slash_path(path):
+    if platform.system() == "Windows":
+        path = path.replace("\\", "/")
+    return path

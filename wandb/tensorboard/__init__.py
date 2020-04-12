@@ -64,7 +64,6 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
         else:
             # If we're using tensorflow >= 2.0 this patch won't be used, but we'll do it anyway
             tensorboard_py_module = TENSORBOARD_LEGACY_MODULE
-
     writers = set()
     writer = wandb.util.get_module(tensorboard_py_module)
 
@@ -81,7 +80,10 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
                 elif hasattr(self, "_ev_writer"):
                     if hasattr(self._ev_writer, "FileName"):
                         # Legacy Tensorflow
-                        name = self._ev_writer.FileName().decode("utf-8")
+                        try:
+                            name = self._ev_writer.FileName().decode("utf-8")
+                        except AttributeError:
+                            name = self._ev_writer.FileName()
                     elif hasattr(self._ev_writer, "_file_name"):
                         # Current TensorboardX
                         name = self._ev_writer._file_name
@@ -142,34 +144,78 @@ def patch(save=True, tensorboardX=TENSORBOARDX_LOADED, pytorch=PYTORCH_TENSORBOA
             [TENSORBOARD_C_MODULE, "create_summary_file_writer"])
 
 
-STEPS = {"": {"step": 0}}
+# We have atleast the default namestep and a global step to track
+# TODO: reset this structure on wandb.join
+STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
+# We support rate limited logging by settings this to number of seconds, can be a floating point
+RATE_LIMIT_SECONDS = None
+# To skip importing certain event types this can be set.  i.e. ["image", "histo"]
+IGNORE_KINDS = []
 
 
-def log(tf_summary_str, history=None, **kwargs):
-    """Logs a tfsummary to wandb"""
+def configure(ignore_kinds=None, rate_limit_seconds=None):
+    """Configure tensorboard import to be rate_limited or ignore types of events.
+
+    Example:
+        # Don't log histograms to W&B and log events at most 1 once every 2 seconds
+        wandb.tensorboard.configure(ignore_kinds=["histo"], rate_limit_seconds=2)
+    """
+    global IGNORE_KINDS
+    global RATE_LIMIT_SECONDS
+    IGNORE_KINDS = ignore_kinds or []
+    RATE_LIMIT_SECONDS = rate_limit_seconds
+
+
+def reset_state():
+    """Internal method for reseting state, called by wandb.join"""
     global STEPS
-    namespace = kwargs.get("namespace") or ""
-    if "namespace" in kwargs:
-        del kwargs["namespace"]
+    STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
+
+
+def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
+    """Logs a tfsummary to wandb
+
+    Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
+    history object is passed.  Can optionally namespace events.  Results are commited when
+    step increases for this namespace.  
+
+    NOTE: This assumes that events being passed in are in chronological order
+    """
+    global STEPS
+    global RATE_LIMIT
+    history = history or wandb.run.history
     # To handle multiple global_steps, we keep track of them here instead of the global log
     last_step = STEPS.get(namespace, {"step": 0})
-    cur_step = kwargs.get("step", 0)
-    if last_step["step"] < cur_step:
-        kwargs["commit"] = True
-    else:
-        kwargs["commit"] = False
-    STEPS[namespace] = {"step": cur_step}
-    if "step" in kwargs:
-        del kwargs["step"]
-    log_dict = tf_summary_to_dict(tf_summary_str, namespace)
+
+    # Commit our existing data if this namespace increased its step
+    commit = False
+    if last_step["step"] < step:
+        commit = True
+
+    log_dict = tf_summary_to_dict(tf_summary_str_or_pb, namespace)
+    # Pass timestamp to history for loading historic data
+    timestamp = log_dict.get("_timestamp", time.time())
+    # Store our initial timestamp
+    if STEPS["global"]["last_log"] is None:
+        STEPS["global"]["last_log"] = timestamp
+    # Rollup events that share the same step across namespaces
+    if commit and step == STEPS["global"]["step"]:
+        commit = False
+    # Always add the biggest global_step key for non-default namespaces
+    if step > STEPS["global"]["step"]:
+        STEPS["global"]["step"] = step
     if namespace != "":
-        log_dict["/".join([namespace, "step"])] = cur_step
-    if history is None:
-        wandb.log(log_dict, **kwargs)
-    else:
-        # TODO: Where is this used?
-        del kwargs["commit"]
-        history.add(log_dict, **kwargs)
+        log_dict["global_step"] = STEPS["global"]["step"]
+
+    # Keep internal step counter
+    STEPS[namespace] = {"step": step}
+
+    if commit:
+        # Only commit our data if we're below the rate limit or don't have one
+        if RATE_LIMIT_SECONDS is None or timestamp - STEPS["global"]["last_log"] >= RATE_LIMIT_SECONDS:
+            history.add({}, **kwargs)
+        STEPS["global"]["last_log"] = timestamp
+    history.update(log_dict)
 
 
 def history_image_key(key, namespace=""):
@@ -217,6 +263,8 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
 
     for value in summary_pb.value:
         kind = value.WhichOneof("value")
+        if kind in IGNORE_KINDS:
+            continue
         if kind == "simple_value":
             values[namespaced_tag(value.tag, namespace)] = value.simple_value
         elif kind == "image":

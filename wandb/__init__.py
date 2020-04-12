@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.12'
+__version__ = '0.8.29'
 
 import atexit
 import click
@@ -30,7 +30,10 @@ import tempfile
 import re
 import glob
 import threading
+import platform
+import collections
 from six.moves import queue
+from six import string_types
 from importlib import import_module
 
 from . import env
@@ -46,7 +49,7 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
-from wandb.run_manager import LaunchError
+from wandb.run_manager import LaunchError, Process
 from wandb.data_types import Image
 from wandb.data_types import Video
 from wandb.data_types import Audio
@@ -60,15 +63,18 @@ from wandb.dataframes import image_categorizer_dataframe
 from wandb.dataframes import image_segmentation_dataframe
 from wandb.dataframes import image_segmentation_binary_dataframe
 from wandb.dataframes import image_segmentation_multiclass_dataframe
+from wandb.viz import visualize
 
 from wandb import wandb_torch
-from wandb.wandb_controller import controller
 from wandb.wandb_agent import agent
-from wandb.wandb_controller import sweep
+from wandb.wandb_controller import sweep, controller
 
+from wandb.compat import windows
 
 logger = logging.getLogger(__name__)
 
+# Internal variables
+_shutdown_async_log_thread_wait_time = 20
 
 # this global W&B debug log gets re-written by every W&B process
 if __stage_dir__ is not None:
@@ -100,10 +106,10 @@ def hook_torch(*args, **kwargs):
     return watch(*args, **kwargs)
 
 
-watch_called = False
+_global_watch_idx = 0
 
 
-def watch(models, criterion=None, log="gradients", log_freq=100):
+def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
@@ -112,17 +118,17 @@ def watch(models, criterion=None, log="gradients", log_freq=100):
     :param (torch.F) criterion: An optional loss value being optimized
     :param (str) log: One of "gradients", "parameters", "all", or None
     :param (int) log_freq: log gradients and parameters every N batches
+    :param (int) idx: an index to be used when calling wandb.watch on multiple models
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
-    global watch_called
+    global _global_watch_idx
+
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling watch")
-    if watch_called:
-        raise ValueError(
-            "You can only call `wandb.watch` once per process. If you want to watch multiple models, pass them in as a tuple."
-        )
-    watch_called = True
+
+    in_jupyter = _get_python_type() != "python"
+
     log_parameters = False
     log_gradients = True
     if log == "all":
@@ -137,18 +143,43 @@ def watch(models, criterion=None, log="gradients", log_freq=100):
         models = (models,)
     graphs = []
     prefix = ''
-    for idx, model in enumerate(models):
-        if idx > 0:
-            prefix = "graph_%i" % idx
+    if idx is None:
+        idx = _global_watch_idx
+    for local_idx, model in enumerate(models):
+        global_idx = idx + local_idx
+        _global_watch_idx += 1
+        if global_idx > 0:
+            # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
+            prefix = "graph_%i" % global_idx
 
         run.history.torch.add_log_hooks_to_pytorch_module(
-            model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq)
+            model, log_parameters=log_parameters, log_gradients=log_gradients, prefix=prefix, log_freq=log_freq,
+            jupyter_run=run if in_jupyter else None)
 
         graph = wandb_torch.TorchGraph.hook_torch(
-            model, criterion, graph_idx=idx)
+            model, criterion, graph_idx=global_idx)
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
+
+
+def unwatch(models=None):
+    """Remove pytorch gradient and parameter hooks.
+
+    Args:
+        models (list): Optional list of pytorch models that have had watch called on them
+    """
+    if models:
+        if not isinstance(models, (tuple, list)):
+            models = (models,)
+        for model in models:
+            if not hasattr(model, "_wandb_hook_names"):
+                termwarn("%s model has not been watched" % model)
+            else:
+                for name in model._wandb_hook_names:
+                    run.history.torch.unhook(name)
+    else:
+        run.history.torch.unhook_all()
 
 
 class ExitHooks(object):
@@ -189,6 +220,10 @@ def _init_headless(run, cloud=True):
     global join
     global _user_process_finished_called
 
+    program = util.get_program()
+    if program:
+        os.environ[env.PROGRAM] = os.getenv(env.PROGRAM) or program
+
     environ = dict(os.environ)
     run.set_environment(environ)
 
@@ -197,8 +232,19 @@ def _init_headless(run, cloud=True):
     hooks = ExitHooks()
     hooks.hook()
 
-    if sys.platform == "win32":
-        # PTYs don't work in windows so we use pipes.
+    if platform.system() == "Windows":
+        try:
+            import win32api
+            # Make sure we are not ignoring CTRL_C_EVENT
+            # https://docs.microsoft.com/en-us/windows/console/setconsolectrlhandler
+            # https://stackoverflow.com/questions/1364173/stopping-python-using-ctrlc
+            win32api.SetConsoleCtrlHandler(None, False)
+        except ImportError:
+            termerror("Install the win32api library with `pip install pypiwin32`")
+
+        # PTYs don't work in windows so we create these unused pipes and
+        # mirror stdout to run.dir/output.log.  There should be a way to make
+        # pipes work, but I haven't figured it out.  See links in compat/windows
         stdout_master_fd, stdout_slave_fd = os.pipe()
         stderr_master_fd, stderr_slave_fd = os.pipe()
     else:
@@ -216,7 +262,7 @@ def _init_headless(run, cloud=True):
     internal_cli_path = os.path.join(
         os.path.dirname(__file__), 'internal_cli.py')
 
-    if six.PY2:
+    if six.PY2 or platform.system() == "Windows":
         # TODO(adrian): close_fds=False is bad for security. we set
         # it so we can pass the PTY FDs to the wandb process. We
         # should use subprocess32, which has pass_fds.
@@ -230,13 +276,13 @@ def _init_headless(run, cloud=True):
     # https://stackoverflow.com/questions/30476971/is-the-child-process-in-foreground-or-background-on-fork-in-c
     wandb_process = subprocess.Popen([sys.executable, internal_cli_path, json.dumps(
         headless_args)], env=environ, **popen_kwargs)
-    termlog('Started W&B process version {} with PID {}'.format(
-        __version__, wandb_process.pid))
+    termlog('Tracking run with wandb version {}'.format(
+        __version__))
     os.close(stdout_master_fd)
     os.close(stderr_master_fd)
     # Listen on the socket waiting for the wandb process to be ready
     try:
-        success, message = server.listen(30)
+        success, _ = server.listen(30)
     except KeyboardInterrupt:
         success = False
     else:
@@ -245,7 +291,7 @@ def _init_headless(run, cloud=True):
                 wandb_process.pid))
     if not success:
         wandb_process.kill()
-        for i in range(20):
+        for _ in range(20):
             time.sleep(0.1)
             if wandb_process.poll() is not None:
                 break
@@ -257,11 +303,21 @@ def _init_headless(run, cloud=True):
         raise LaunchError(
             "W&B process failed to launch, see: {}".format(path))
 
-    stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
-    stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-
-    stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-    stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+    if platform.system() == "Windows":
+        output = open(os.path.join(run.dir, "output.log"), "wb")
+        stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output)
+        stderr_redirector = io_wrap.WindowsRedirector(sys.stderr, output)
+    else:
+        stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
+        stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
+        try:
+            stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+            stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+        except (ValueError, AttributeError):
+            # stdout / err aren't files
+            output = open(os.path.join(run.dir, "output.log"), "wb")
+            stdout_redirector = io_wrap.WindowsRedirector(sys.stdout, output)
+            stderr_redirector = io_wrap.WindowsRedirector(sys.stderr, output)
 
     # TODO(adrian): we should register this right after starting the wandb process to
     # make sure we shut down the W&B process eg. if there's an exception in the code
@@ -269,9 +325,16 @@ def _init_headless(run, cloud=True):
     atexit.register(_user_process_finished, server, hooks,
                     wandb_process, stdout_redirector, stderr_redirector)
 
-    def _wandb_join():
+    def _wandb_join(exit_code=None):
+        global _global_run_stack
+        shutdown_async_log_thread()
+        run.close_files()
+        if exit_code is not None:
+            hooks.exit_code = exit_code
         _user_process_finished(server, hooks,
                                wandb_process, stdout_redirector, stderr_redirector)
+        if len(_global_run_stack) > 0:
+            _global_run_stack.pop()
     join = _wandb_join
     _user_process_finished_called = False
 
@@ -292,6 +355,10 @@ def login(anonymous=None, key=None):
 
        anonymous can be "never", "must", or "allow".  If set to "must" we'll always login anonymously,
        if set to "allow" we'll only create an anonymous user if the user isn't already logged in.
+
+       Returns:
+            True if login was successful
+            False on failure
     """
     # This ensures we have a global api object
     ensure_configured()
@@ -304,14 +371,15 @@ def login(anonymous=None, key=None):
         if in_jupyter:
             termwarn("Calling wandb.login() without arguments from jupyter should prompt you for an api key.")
         util.set_api_key(api, key)
-        return key
     elif api.api_key and anonymous != "must":
-        return api.api_key
+        key = api.api_key
     elif in_jupyter:
         os.environ[env.JUPYTER] = "true"
-        return _jupyter_login(api=api)
+        # Don't return key to ensure it's not displayed in the notebook.
+        key = _jupyter_login(api=api)
     else:
-        return util.prompt_api_key(api)
+        key = util.prompt_api_key(api)
+    return True if key else False
 
 
 def _jupyter_login(force=True, api=None):
@@ -338,7 +406,8 @@ def _jupyter_login(force=True, api=None):
                 termerror("Not authenticated.  Copy a key from https://app.wandb.ai/authorize")
                 key = getpass.getpass("API Key: ").strip()
             except NotImplementedError:
-                termerror("Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
+                termerror(
+                    "Can't accept input in this environment, you should set WANDB_API_KEY or call wandb.login(key='YOUR_API_KEY')")
         return key, anonymous
 
     api = api or (run.api if run else None)
@@ -361,27 +430,45 @@ def _init_jupyter(run):
     os.environ[env.JUPYTER] = "true"
 
     if not run.api.api_key:
+        # Fetches or prompts the users for an API key. Or if anonymode enabled, uses anonymous API key
         key = _jupyter_login()
         # Ensure our api client picks up the new key
         if key:
             run.api.reauth()
         else:
             run.mode = "dryrun"
+            display(HTML('''
+                <b>Could not authenticate.</b><br/>
+            '''))
     run.resume = "allow"
     if run.mode == "dryrun":
         display(HTML('''
-            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>.  Results will not be sent to the cloud.  
-            Call wandb.login() with an <a href="{}/authorize">api key</a> to authenticate this machine.
+            Using <a href="https://wandb.com" target="_blank">Weights & Biases</a> in dryrun mode. Not logging results to the cloud.<br/>
+            Call wandb.login() to authenticate this machine.<br/>
         '''.format(run.api.app_url)))
     else:
-        display(HTML('''
-            Notebook configured with <a href="https://wandb.com" target="_blank">W&B</a>. You can <a href="{}" target="_blank">open</a> the run page, or call <code>%%wandb</code>
-            in a cell containing your training loop to display live results.  Learn more in our <a href="https://docs.wandb.com/docs/integrations/jupyter.html" target="_blank">docs</a>.
-        '''.format(run.get_url())))
+        displayed = False
         try:
+            sweep_url = run.get_sweep_url()
+            sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
+                sweep_url, sweep_url) if sweep_url else ""
+            docs_html = '<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">(Documentation)</a>'
+            display(HTML('''
+                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a> {}.<br/>
+                Project page: <a href="{}" target="_blank">{}</a><br/>
+                {}Run page: <a href="{}" target="_blank">{}</a><br/>
+            '''.format(docs_html, run.get_project_url(), run.get_project_url(), sweep_line, run.get_url(), run.get_url() )))
+            displayed = True
             run.save()
         except (CommError, ValueError) as e:
-            termerror(str(e))
+            if not displayed:
+                display(HTML('''
+                    Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a>.<br/>
+                    Couldn't load entity due to error: {}
+                '''.format(e.message)))
+            else:
+                termerror(str(e))
+
     run.set_environment()
     run._init_jupyter_agent()
     ipython = get_ipython()
@@ -400,7 +487,6 @@ def _init_jupyter(run):
     ipython.events.register('post_run_cell', cleanup)
 
 
-join = None
 _user_process_finished_called = False
 
 
@@ -410,7 +496,8 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         return
     _user_process_finished_called = True
     trigger.call('on_finished')
-    shutdown_async_log_thread()
+    if run:
+        run.close_files()
 
     stdout_redirector.restore()
     if not env.is_debug():
@@ -423,11 +510,15 @@ def _user_process_finished(server, hooks, wandb_process, stdout_redirector, stde
         while wandb_process.poll() is None:
             time.sleep(0.1)
     except KeyboardInterrupt:
-        pass
+        termlog('Sending ctrl-c to W&B process, PID {}. Press ctrl-c again to kill it.'.format(wandb_process.pid))
 
-    if wandb_process.poll() is None:
-        termlog('Killing W&B process, PID {}'.format(wandb_process.pid))
-        wandb_process.kill()
+    try:
+        while wandb_process.poll() is None:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        if wandb_process.poll() is None:
+            termlog('Killing W&B process, PID {}'.format(wandb_process.pid))
+            wandb_process.kill()
 
 
 # Will be set to the run object for the current run, as returned by
@@ -446,6 +537,16 @@ patched = {
     "gym": []
 }
 _saved_files = set()
+_global_run_stack = []
+
+
+def join(exit_code=None):
+    """Marks a run as finished"""
+    shutdown_async_log_thread()
+    if run:
+        run.close_files()
+    if len(_global_run_stack) > 0:
+        _global_run_stack.pop()
 
 
 def save(glob_str, base_path=None, policy="live"):
@@ -463,10 +564,13 @@ def save(glob_str, base_path=None, policy="live"):
     if policy not in ("live", "end"):
         raise ValueError(
             'Only "live" and "end" policies are currently supported.')
-    if base_path is None:
-        base_path = os.path.dirname(glob_str)
     if isinstance(glob_str, bytes):
         glob_str = glob_str.decode('utf-8')
+    if not isinstance(glob_str, string_types):
+        raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+
+    if base_path is None:
+        base_path = os.path.dirname(glob_str)
     wandb_glob_str = os.path.relpath(glob_str, base_path)
     if "../" in wandb_glob_str:
         raise ValueError(
@@ -496,7 +600,7 @@ def save(glob_str, base_path=None, policy="live"):
     return files
 
 
-def restore(name, run_path=None, replace=False, root="."):
+def restore(name, run_path=None, replace=False, root=None):
     """ Downloads the specified file from cloud storage into the current run directory
     if it doesn exist.
 
@@ -514,9 +618,10 @@ def restore(name, run_path=None, replace=False, root="."):
             "You must call `wandb.init` before calling restore or specify a run_path")
     api = Api()
     api_run = api.run(run_path or run.path)
-    root = run.dir if run else root
-    path = os.path.exists(os.path.join(root, name))
-    if path and replace == False:
+    if root is None:
+        root = run.dir if run else '.'
+    path = os.path.join(root, name)
+    if os.path.exists(path) and replace == False:
         return open(path, "r")
     files = api_run.files([name])
     if len(files) == 0:
@@ -588,7 +693,7 @@ def _async_log_thread_target():
     shutdown_requested = False
     while not shutdown_requested:
         try:
-            kwargs = _async_log_queue.get(True)
+            kwargs = _async_log_queue.get(block=True, timeout=1)
             log(**kwargs)
         except queue.Empty:
             shutdown_requested = _async_log_thread_shutdown_event.wait(1) and _async_log_queue.empty()
@@ -598,9 +703,11 @@ def _async_log_thread_target():
 
 def _ensure_async_log_thread_started():
     """Ensures our log consuming thread is started"""
-    global _async_log_thread
+    global _async_log_thread, _async_log_thread_shutdown_event, _async_log_thread_complete_event
 
     if _async_log_thread is None:
+        _async_log_thread_shutdown_event = threading.Event()
+        _async_log_thread_complete_event = threading.Event()
         _async_log_thread = threading.Thread(target=_async_log_thread_target)
         _async_log_thread.daemon = True
         _async_log_thread.start()
@@ -610,20 +717,23 @@ def shutdown_async_log_thread():
     """Shuts down our async logging thread"""
     if _async_log_thread:
         _async_log_thread_shutdown_event.set()
-        res = _async_log_thread_complete_event.wait(2)  # TODO: possible race here
-        if res is None:
-            termwarn('async log queue not empty after 2 seconds, some log statements will be dropped')
+        res = _async_log_thread_complete_event.wait(_shutdown_async_log_thread_wait_time)  # TODO: possible race here
+        if res is False:
+            termwarn('async log queue not empty after %d seconds, some log statements will be dropped' % (
+                _shutdown_async_log_thread_wait_time))
+            # FIXME: it is worse than this, likely the program will crash because files will be closed
+        # FIXME: py 2.7 will return None here so we dont know if we dropped data
 
 
-def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
+def log(row=None, commit=None, step=None, sync=True, *args, **kwargs):
     """Log a dict to the global run's history.
 
     wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
 
     Args:
         row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types
-        commit (boolean, optional): Persist a set of metrics, if false just update the existing dict
-        step (integer, optional): The global step in processing. This sets commit=True any time step increases
+        commit (boolean, optional): Persist a set of metrics, if false just update the existing dict (defaults to true if step is not specified)
+        step (integer, optional): The global step in processing. This persists any non-committed earlier steps but defaults to not committing the specified step
         sync (boolean, True): If set to False, process calls to log in a seperate thread
     """
 
@@ -631,26 +741,7 @@ def log(row=None, commit=True, step=None, sync=True, *args, **kwargs):
         raise ValueError(
             "You must call `wandb.init` in the same process before calling log")
 
-    if sync == False:
-        _ensure_async_log_thread_started()
-        return _async_log_queue.put({"row": row, "commit": commit, "step": step})
-
-    tensorboard_patched = len(patched["tensorboard"]) > 0
-
-    if tensorboard_patched and step is None:
-        termwarn(
-            "wandb.log called without a step keyword argument.  Pass the same step that tensorboard is using to avoid data loss see:\nhttps://docs.wandb.com/docs/integrations/tensorboard.html#custom-metrics", repeat=False)
-
-    if row is None:
-        row = {}
-
-    if any(not isinstance(key, six.string_types) for key in row.keys()):
-        raise ValueError("Key values passed to `wandb.log` must be strings.")
-
-    if commit or step is not None:
-        run.history.add(row, *args, step=step, **kwargs)
-    else:
-        run.history.update(row, *args, **kwargs)
+    run.log(row, commit, step, sync, *args, **kwargs)
 
 
 def ensure_configured():
@@ -663,12 +754,11 @@ def ensure_configured():
 def uninit(only_patches=False):
     """Undo the effects of init(). Useful for testing.
     """
-    global run, config, summary, watch_called, patched, _saved_files
+    global run, config, summary, patched, _saved_files
     if not only_patches:
         run = None
         config = util.PreInitObject("wandb.config")
         summary = util.PreInitObject("wandb.summary")
-        watch_called = False
         _saved_files = set()
     # UNDO patches
     for mod in patched["tensorboard"]:
@@ -751,15 +841,10 @@ def sagemaker_auth(overrides={}, path="."):
             file.write("{}={}\n".format(k, v))
 
 
-def join():
-    # no-op until it's overridden in _init_headless
-    pass
-
-
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
-         anonymous=None):
+         anonymous=None, config_exclude_keys=None, config_include_keys=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -769,6 +854,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     Args:
         job_type (str, optional): The type of job running, defaults to 'train'
         config (dict, argparse, or tf.FLAGS, optional): The hyper parameters to store with the run
+        config_exclude_keys (list, optional): string keys to exclude storing in W&B when specifying config
+        config_include_keys (list, optional): string keys to include storing in W&B when specifying config
         project (str, optional): The project to push metrics to
         entity (str, optional): The entity to push metrics to
         dir (str, optional): An absolute path to a directory where metadata will be stored
@@ -794,11 +881,20 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     trigger.call('on_init', **init_args)
     global run
     global __stage_dir__
+    global _global_watch_idx
 
     # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
     if reinit or (in_jupyter and reinit != False):
+        # Reset global state for pytorch watch and tensorboard
+        _global_watch_idx = 0
+        if len(patched["tensorboard"]) > 0:
+            util.get_module("wandb.tensorboard").reset_state()
         reset_env(exclude=env.immutable_keys())
+        if len(_global_run_stack) > 0:
+            if len(_global_run_stack) > 1:
+                termwarn("If you want to track multiple runs concurrently in wandb you should use multi-processing not threads")
+            join()
         run = None
 
     # TODO: deprecate tensorboard
@@ -843,15 +939,26 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     image = util.image_id_from_k8s()
     if image:
         os.environ[env.DOCKER] = image
-    if project:
-        os.environ[env.PROJECT] = project
-    if entity:
-        os.environ[env.ENTITY] = entity
+
+    if not os.environ.get(env.SWEEP_ID):
+        if project:
+            os.environ[env.PROJECT] = project
+        if entity:
+            os.environ[env.ENTITY] = entity
+    else:
+        if entity and entity != os.environ.get(env.ENTITY):
+            termwarn("Ignoring entity='{}' passed to wandb.init when running a sweep".format(entity))
+        if project and project != os.environ.get(env.PROJECT):
+            termwarn("Ignoring project='{}' passed to wandb.init when running a sweep".format(project))
+
     if group:
         os.environ[env.RUN_GROUP] = group
     if job_type:
         os.environ[env.JOB_TYPE] = job_type
     if tags:
+        if isinstance(tags, str):
+            # People sometimes pass a string instead of an array of strings...
+            tags = [tags]
         os.environ[env.TAGS] = ",".join(tags)
     if id:
         os.environ[env.RUN_ID] = id
@@ -898,6 +1005,10 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     resume_path = os.path.join(wandb_dir(), wandb_run.RESUME_FNAME)
     if resume == True:
         os.environ[env.RESUME] = "auto"
+    elif resume in ("allow", "must", "never"):
+        os.environ[env.RESUME] = resume
+        if id:
+            os.environ[env.RUN_ID] = id
     elif resume:
         os.environ[env.RESUME] = os.environ.get(env.RESUME, "allow")
         # TODO: remove allowing resume as a string in the future
@@ -934,6 +1045,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     try:
         run = wandb_run.Run.from_environment_or_defaults()
+        _global_run_stack.append(run)
     except IOError as e:
         termerror('Failed to create run directory: {}'.format(e))
         raise LaunchError("Could not write to filesystem.")
@@ -950,13 +1062,6 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     # set this immediately after setting the run and the config. if there is an
     # exception after this it'll probably break the user script anyway
     os.environ[env.INITED] = '1'
-
-    # we do these checks after setting the run and the config because users scripts
-    # may depend on those things
-    if sys.platform == 'win32' and run.mode != 'clirun':
-        termerror(
-            'To use wandb on Windows, you need to run the command "wandb run python <your_train_script>.py"')
-        return run
 
     if in_jupyter:
         _init_jupyter(run)
@@ -992,19 +1097,23 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     # set the run directory in the config so it actually gets persisted
     run.config.set_run_dir(run.dir)
+    # we have re-read the config, add telemetry data
+    telemetry_updated = run.config._telemetry_update()
 
     if sagemaker_config:
-        run.config.update(sagemaker_config)
+        run.config._update(sagemaker_config)
         allow_val_change = True
-    if config:
-        run.config.update(config, allow_val_change=allow_val_change)
+    if config or telemetry_updated:
+        run.config._update(config,
+                exclude_keys=config_exclude_keys,
+                include_keys=config_include_keys,
+                allow_val_change=allow_val_change,
+                as_defaults=not allow_val_change)
 
     # Access history to ensure resumed is set when resuming
     run.history
     # Load the summary to support resuming
     run.summary.load()
-
-    atexit.register(run.close_files)
 
     return run
 
@@ -1016,9 +1125,13 @@ keras = util.LazyLoader('keras', globals(), 'wandb.keras')
 fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
+lightgbm = util.LazyLoader('lightgbm', globals(), 'wandb.lightgbm')
 gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
+sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
 
 
-__all__ = ['init', 'config', 'termlog', 'termwarn', 'termerror', 'tensorflow',
-           'run', 'types', 'callbacks', 'join']
+__all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
+    'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
+    'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
+    'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']

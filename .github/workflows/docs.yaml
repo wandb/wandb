@@ -1,0 +1,76 @@
+name: Build Docs
+
+on: [push, pull_request]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v1
+              with:
+                  fetch-depth: 1
+            - name: Set up Python 3.7
+              uses: actions/setup-python@v1
+              with:
+                  python-version: 3.7
+            - uses: actions/cache@v1
+              with:
+                  path: ~/.cache/pip
+                  key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pip-
+            - name: Install dependencies
+              if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install pydoc-markdown==2.0.5 yapf numpy tensorflow fastai
+                  pip install -e .
+            - name: Debug head ref
+              run: git rev-parse --abbrev-ref HEAD
+            - name: Build docs
+              if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+              run: |
+                  cd docs
+                  python generate.py
+            - name: REF
+              run: echo '${{ github.ref }}'
+            - name: Upload docs
+              uses: actions/upload-artifact@master
+              with:
+                  name: "docs"
+                  path: docs/markdown
+            - name: Git status
+              run: |
+                  git status
+            - name: Commit changes
+              uses: stefanzweifel/git-auto-commit-action@v2.5.0
+              with:
+                  commit_message: "Doc updates"
+                  branch: ${{ github.head_ref }}
+                  file_pattern: "*.md"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_API_TOKEN }}
+    deploy:
+        needs: build
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/master'
+        steps:
+            - uses: actions/checkout@v1
+            - name: "Download docs"
+              uses: actions/download-artifact@master
+              with:
+                  name: docs
+                  path: generated_docs
+            - name: "Print what's here"
+              run: ls -al
+            - name: "Push to gitbook"
+              uses: ./.github/actions/commit-docs
+              with:
+                  repo: https://github.com/wandb/gitbook.git
+                  author_name: Chris Van Pelt
+                  author_email: vanpelt@wandb.com
+                  force: false
+                  path: "."
+                  pattern: "library/reference/*"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_API_TOKEN }}

@@ -1,5 +1,5 @@
 import wandb
-from wandb.apis import InternalApi
+from wandb.apis import InternalApi, CommError
 from wandb.run_manager import RunManager
 import time
 import os
@@ -105,7 +105,7 @@ def notebook_metadata():
             return {}
         for nn in res:
             # TODO: wandb/client#400 found a case where res returned an array of strings...
-            if isinstance(nn, dict) and nn.get("kernel"):
+            if isinstance(nn, dict) and nn.get("kernel") and 'notebook' in nn:
                 if nn['kernel']['id'] == kernel_id:
                     return {"root": s['notebook_dir'], "path": nn['notebook']['path'], "name": nn['notebook']['name']}
     return {}
@@ -148,6 +148,9 @@ class Run(object):
             state = "no_agent"
         elif self.run._jupyter_agent.paused:
             state = "paused"
-        url = self.run.get_url(params={'jupyter': 'true', 'state': state})
-        return '''<iframe src="%s" style="border:none;width:100%%;height:420px">
-        </iframe>''' % url
+        try:
+            url = self.run.get_url(params={'jupyter': 'true', 'state': state})
+            return '''<iframe src="%s" style="border:none;width:100%%;height:420px">
+                </iframe>''' % url
+        except CommError as e:
+            return "Can't display wandb interface<br/>{}".format(e.message)
