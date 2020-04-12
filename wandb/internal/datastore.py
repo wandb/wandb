@@ -109,8 +109,7 @@ class DataStore(object):
         pass
 
     def _write_record(self, s, dtype=None):
-        """Records must fit into a block."""
-
+        """Write record that must fit into a block."""
         # double check that there is enough space (this is a precondition to calling this method)
         assert len(s) + LEVELDBLOG_HEADER_LEN <= LEVELDBLOG_BLOCK_LEN - self._index % LEVELDBLOG_BLOCK_LEN
 
@@ -126,6 +125,8 @@ class DataStore(object):
 
     def write_data(self, s):
         file_offset = self._index
+        flush_index = 0
+        flush_offset = 0
 
         offset = self._index % LEVELDBLOG_BLOCK_LEN
         space_left = LEVELDBLOG_BLOCK_LEN - offset
@@ -158,7 +159,7 @@ class DataStore(object):
             # write last
             self._write_record(s[data_used:], LEVELDBLOG_LAST)
 
-        return file_offset, self._index - file_offset
+        return file_offset, self._index - file_offset, flush_index, flush_offset
 
     def write(self, obj):
         """Write a protocol buffer.
@@ -167,7 +168,7 @@ class DataStore(object):
             obj: Protocol buffer to write.
 
         Returns:
-            (file_offset, length) if successful, None otherwise
+            (file_offset, length, flush_index, flush_offset) if successful, None otherwise
 
         """
         raw_size = obj.ByteSize()

@@ -124,5 +124,5 @@ def test_data_write_fill(with_datastore):
     """Leave just room for 1 more byte, then write a 1 byte, followed by another 1 byte."""
     sizes = tuple([32768 - 7 - 8, 1, 1])
     records = 3
-    lengths = (0, 32760), (32760, 8), (32768, 8)
+    lengths = (0, 32760, 0, 0), (32760, 8, 0, 0), (32768, 8, 0, 0)
     check(with_datastore, chunk_sizes=sizes, expected_records=records, expected_record_sizes=lengths)
