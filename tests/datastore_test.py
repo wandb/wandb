@@ -19,14 +19,18 @@ except NameError:
     FileNotFoundError = OSError
 
 
-def check(ds, data_sizes=tuple(), expected_records=0, expected_pad=0):
+def check(ds, chunk_sizes=tuple(), expected_records=0, expected_pad=0, expected_record_sizes=None):
     """Check datastore size after multiple items written."""
-    for _, data_size in enumerate(data_sizes):
-        ds.write_data(b'\x01' * data_size)
-    num = sum(data_sizes) + expected_records * 7 + expected_pad
+    record_sizes = []
+    for _, chunk_size in enumerate(chunk_sizes):
+        size = ds.write_data(b'\x01' * chunk_size)
+        record_sizes.append(size)
+    num = sum(chunk_sizes) + expected_records * 7 + expected_pad
     ds.close()
     s = os.stat(FNAME)
     assert s.st_size == num
+    if expected_record_sizes is not None:
+        assert tuple(record_sizes) == expected_record_sizes
 
 
 @pytest.fixture()
@@ -64,7 +68,7 @@ def test_proto_write_partial():
 def test_data_write_full(with_datastore):
     """Write a full block."""
     sizes, records = tuple([32768 - 7]), 1
-    check(with_datastore, data_sizes=sizes, expected_records=records)
+    check(with_datastore, chunk_sizes=sizes, expected_records=records)
 
 
 def test_data_write_overflow(with_datastore):
@@ -118,5 +122,7 @@ def test_data_write_split_overflow(with_datastore):
 
 def test_data_write_fill(with_datastore):
     """Leave just room for 1 more byte, then write a 1 byte, followed by another 1 byte."""
-    sizes, records = tuple([32768 - 7 - 8, 1, 1]), 3
-    check(with_datastore, data_sizes=sizes, expected_records=records)
+    sizes = tuple([32768 - 7 - 8, 1, 1])
+    records = 3
+    lengths = (0, 32760), (32760, 8), (32768, 8)
+    check(with_datastore, chunk_sizes=sizes, expected_records=records, expected_record_sizes=lengths)

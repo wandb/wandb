@@ -10,17 +10,17 @@ record :=
   type: uint8          // One of FULL, FIRST, MIDDLE, LAST
   data: uint8[length]
 
-""" 
+"""
 from __future__ import print_function
 
-import zlib
-import sys
+import logging
 import os
+import struct
+import sys
+import zlib
 
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
-import struct
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +37,17 @@ LEVELDBLOG_LAST = 4
 
 try:
     bytes('', 'ascii')
-    def strtobytes(x): return bytes(x, 'iso8859-1')
-    def bytestostr(x): return str(x, 'iso8859-1')
-except:
+
+    def strtobytes(x):
+        """strtobytes."""
+        return bytes(x, 'iso8859-1')
+
+    # def bytestostr(x):
+    #     return str(x, 'iso8859-1')
+
+except Exception:
     strtobytes = str
-    bytestostr = str
+    # bytestostr = str
 
 
 class DataStore(object):
@@ -104,10 +110,10 @@ class DataStore(object):
 
     def _write_record(self, s, dtype=None):
         """Records must fit into a block."""
-        # make sure there is enough space
-        offset = self._index % LEVELDBLOG_BLOCK_LEN
-        space_left = LEVELDBLOG_BLOCK_LEN - offset
-        assert len(s) + LEVELDBLOG_HEADER_LEN <= space_left
+
+        # double check that there is enough space (this is a precondition to calling this method)
+        assert len(s) + LEVELDBLOG_HEADER_LEN <= LEVELDBLOG_BLOCK_LEN - self._index % LEVELDBLOG_BLOCK_LEN
+
         checksum = 0
         dlength = len(s)
         dtype = dtype or LEVELDBLOG_FULL
@@ -119,44 +125,56 @@ class DataStore(object):
         self._index += LEVELDBLOG_HEADER_LEN + len(s)
 
     def write_data(self, s):
+        file_offset = self._index
+
         offset = self._index % LEVELDBLOG_BLOCK_LEN
         space_left = LEVELDBLOG_BLOCK_LEN - offset
-        written = 0
+        data_used = 0
         data_left = len(s)
         if space_left < LEVELDBLOG_HEADER_LEN:
             pad = '\x00' * space_left
             self._fp.write(strtobytes(pad))
             self._index += space_left
-            # print("zero pad (zize={})".format(len(space_left)))
             offset = 0
             space_left = LEVELDBLOG_BLOCK_LEN
 
         # does it fit in first (possibly partial) block?
         if data_left + LEVELDBLOG_HEADER_LEN <= space_left:
             self._write_record(s)
-            return
+        else:
+            # write first record (we could still be in the middle of a block, but this write will end on a block boundary)
+            data_room = space_left - LEVELDBLOG_HEADER_LEN
+            self._write_record(s[:data_room], LEVELDBLOG_FIRST)
+            data_used += data_room
+            data_left -= data_room
+            assert data_left
 
-        # write first record (we could still be in the middle of a block, but we will end on a block boundary)
-        data_room = space_left - LEVELDBLOG_HEADER_LEN
-        self._write_record(s[:data_room], LEVELDBLOG_FIRST)
-        written += data_room
-        data_left -= data_room
-        assert data_left
+            # write middles (if any)
+            while data_left > LEVELDBLOG_DATA_LEN:
+                self._write_record(s[data_used:data_used + LEVELDBLOG_DATA_LEN], LEVELDBLOG_MIDDLE)
+                data_used += LEVELDBLOG_DATA_LEN
+                data_left -= LEVELDBLOG_DATA_LEN
 
-        # write middles (if any)
-        while data_left > LEVELDBLOG_DATA_LEN:
-            self._write_record(s[written:written + LEVELDBLOG_DATA_LEN], LEVELDBLOG_MIDDLE)
-            written += LEVELDBLOG_DATA_LEN
-            data_left -= LEVELDBLOG_DATA_LEN
+            # write last
+            self._write_record(s[data_used:], LEVELDBLOG_LAST)
 
-        # write last
-        self._write_record(s[written:], LEVELDBLOG_LAST)
+        return file_offset, self._index - file_offset
 
     def write(self, obj):
+        """Write a protocol buffer.
+
+        Args:
+            obj: Protocol buffer to write.
+
+        Returns:
+            (file_offset, length) if successful, None otherwise
+
+        """
         raw_size = obj.ByteSize()
         s = obj.SerializeToString()
         assert len(s) == raw_size
-        self.write_data(s)
+        ret = self.write_data(s)
+        return ret
 
     def close(self):
         if self._fp is not None:
