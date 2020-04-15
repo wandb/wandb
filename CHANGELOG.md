@@ -1,3 +1,9 @@
+## 0.8.32 (Apr 14, 2020)
+
+#### :nail_care: Enhancement
+
+-   Improve semantic segmentation image mask logging
+
 ## 0.8.31 (Mar 19, 2020)
 
 #### :nail_care: Enhancement
