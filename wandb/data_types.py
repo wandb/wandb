@@ -1681,7 +1681,7 @@ def val_to_json(run, key, val, step='summary'):
 
 
 def data_frame_to_json(df, run, key, step):
-    """Encode a Pandas DataFrame into the JSON/backend format.
+    """!NODOC Encode a Pandas DataFrame into the JSON/backend format.
 
     Writes the data to a file and returns a dictionary that we use to represent
     it in `Summary`'s.
