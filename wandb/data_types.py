@@ -93,8 +93,8 @@ class Histogram(WBValue):
 
         if np_histogram:
             if len(np_histogram) == 2:
-                self.histogram = np_histogram[0]
-                self.bins = np_histogram[1]
+                self.histogram = np_histogram[0].tolist()
+                self.bins = np_histogram[1].tolist()
             else:
                 raise ValueError(
                     'Expected np_histogram to be a tuple of (values, bin_edges) or sequence to be specified')
