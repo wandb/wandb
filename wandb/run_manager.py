@@ -90,6 +90,7 @@ class FileTailer(object):
     def stop(self):
         self.running = False
         self._thread.join()
+        self._file.close()
 
 
 class FileEventHandler(object):
@@ -263,7 +264,8 @@ class FileEventHandlerConfig(FileEventHandler):
 
     def _update(self):
         try:
-            config_dict = util.load_yaml(open(self.file_path))
+            with open(self.file_path) as f:
+                config_dict = util.load_yaml(f)
         except yaml.parser.ParserError:
             wandb.termlog(
                 "Unable to parse config file; probably being modified by user process?")
@@ -296,10 +298,12 @@ class FileEventHandlerSummary(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
-        self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
+        with open(self.file_path) as f:
+            self._api.get_file_stream_api().push(self.save_name, f.read())
 
     def finish(self):
-        self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
+        with open(self.file_path) as f:
+            self._api.get_file_stream_api().push(self.save_name, f.read())
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
