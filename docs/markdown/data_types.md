@@ -288,6 +288,3 @@ Edge(self, from_node, to_node)
 Edge used in [`Graph`](#graph)
 
 
-## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1683)
-

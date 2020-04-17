@@ -2,9 +2,6 @@
 description: wandb.apis.public
 ---
 
-# wandb.apis.public
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L0)
-
 
 ## Api
 [source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L94)
