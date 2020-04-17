@@ -240,11 +240,11 @@ class Table(Media):
     """This is a table designed to display small sets of records.
 
     Arguments:
-        columns ([str]): Names of the columns in the table.  
+        columns ([str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data (array): 2D Array of values that will be displayed as strings.
     """
-    MAX_ROWS = 1000 
+    MAX_ROWS = 10000 
     def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
@@ -831,9 +831,9 @@ class Image(BatchableMedia):
         self._width = None
         self._height = None
         self._image = None
-        
-        self._boxes = None 
-        if boxes: 
+
+        self._boxes = None
+        if boxes:
             self._boxes = BoundingBoxes2D(boxes)
         self._masks = None
         if masks:
@@ -1036,7 +1036,7 @@ class Image(BatchableMedia):
                 boxes.append(None)
         if boxes and not all(x is None for x in boxes):
             return boxes
-        else: 
+        else:
             return False
 
     @classmethod
@@ -1078,7 +1078,7 @@ class JSONMetadata(Media):
         return json_dict
 
     # These methods should be overridden in the child class
-    def type_name(self): 
+    def type_name(self):
         return "metadata"
 
     def validate(self, val):
@@ -1106,14 +1106,14 @@ class BoundingBoxes2D(JSONMetadata):
                 valid = False
                 if "middle" in box["position"] and len(box["position"]["middle"]) == 2 and \
                    has_num(box["position"], "width") and \
-                   has_num(box["position"], "height"): 
+                   has_num(box["position"], "height"):
                    valid = True
                 elif has_num(box["position"], "minX") and \
                      has_num(box["position"], "maxX") and \
                      has_num(box["position"], "minY") and \
                      has_num(box["position"], "maxY"):
                    valid = True
-                
+
                 if not valid:
                     raise TypeError(error_str)
 
@@ -1152,7 +1152,7 @@ class ImageMask(Media):
         PILImage = util.get_module(
             "PIL.Image", required='wandb.Image needs the PIL package. To get it, run "pip install pillow".')
         image = PILImage.fromarray(Image.to_uint8(val["mask_data"]), mode="L")
-        
+
         image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
 
@@ -1179,7 +1179,7 @@ class ImageMask(Media):
         if not "mask_data" in mask:
             raise TypeError("Missing key \"mask_data\": A mask requires mask data(A 2D array representing the predctions)")
         else:
-            error_str = "mask_data must be a 2d array" 
+            error_str = "mask_data must be a 2d array"
             shape = mask["mask_data"].shape
             if len(shape) != 2:
                 raise TypeError(error_str)
