@@ -834,7 +834,7 @@ class Image(BatchableMedia):
         
         self._boxes = None 
         if boxes: 
-            self._boxes = BoundingBoxes2D(boxes)
+            self._boxes = BoundingBoxes2D(boxes )
         self._masks = None
         if masks:
             if not isinstance(masks, dict):
@@ -1088,6 +1088,16 @@ class BoundingBoxes2D(JSONMetadata):
     """
     Wandb class for 2D bounding Boxes
     """
+
+    def __init__(self, val, key, **kwargs):
+        super(BoundingBoxes2D, self).__init__()
+        self._val = val
+
+    def bind_to_run(self, run, key, step):
+        # bind_to_run key argument is the Image parent key
+        # the self._key value is the mask's sub key
+        super(BoundingBoxes2D, self).bind_to_run(run, key, step)
+        run._add_singleton("boundingBoxes2D/class_labels", key , self._val["class_labels"])
 
     def type_name(self):
         return "boxes2D"
