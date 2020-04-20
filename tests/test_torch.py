@@ -18,6 +18,7 @@ History.keep_rows = True
 
 # TODO: FLAKY SPECS sometimes these specs are timing out
 
+
 def dummy_torch_tensor(size, requires_grad=True):
     if parse_version(torch.__version__) >= parse_version('0.4'):
         return torch.ones(size, requires_grad=requires_grad)
@@ -42,12 +43,14 @@ class DynamicModule(nn.Module):
         x = self.activations[act](x)
         return x
 
+
 class Discrete(nn.Module):
     def __init__(self):
         super(Discrete, self).__init__()
 
     def forward(self, x):
         return nn.functional.softmax(x, dim=0)
+
 
 class DiscreteModel(nn.Module):
     def __init__(self, num_outputs=2):
@@ -60,6 +63,7 @@ class DiscreteModel(nn.Module):
         x = self.linear1(x)
         x = self.linear2(x)
         return self.dist(x)
+
 
 class ParameterModule(nn.Module):
     def __init__(self):
@@ -75,7 +79,7 @@ class ParameterModule(nn.Module):
         return x
 
 
-def init_conv_weights(layer, weights_std=0.01,  bias=0):
+def init_conv_weights(layer, weights_std=0.01, bias=0):
     '''Initialize weights for subnet convolution'''
 
     if parse_version(torch.__version__) >= parse_version('0.4'):
@@ -325,6 +329,7 @@ class Embedding(nn.Module):
                    Variable(torch.zeros(*dims)))
         return hiddens
 
+
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_embedding(wandb_init_run):
     net = Embedding(d_embedding=300, d_word=300,
@@ -350,6 +355,7 @@ def test_sparse_embedding(wandb_init_run):
         wandb.log({"loss": 1})
     assert len(wandb_init_run.history.rows[0]) == 82
 
+
 def test_categorical(wandb_init_run):
     net = DiscreteModel(num_outputs=2)
     wandb.watch(net, log="all", log_freq=1)
@@ -359,6 +365,7 @@ def test_categorical(wandb_init_run):
         wandb.log({"loss": samp})
     assert wandb_init_run.summary["graph_0"]._to_graph_json()
     assert len(wandb_init_run.history.rows[0]) == 12
+
 
 def test_double_log(wandb_init_run):
     net = ConvNet()
@@ -380,6 +387,30 @@ def test_gradient_logging(wandb_init_run):
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
 
+
+def test_nan_inf_gradient_logging(wandb_init_run):
+    net = ConvNet()
+    wandb.watch(net, log_freq=1)
+
+    output = net(dummy_torch_tensor((64, 1, 28, 28)))
+    grads = torch.ones(64, 10)
+    grads[32, 1] = float('nan')
+    output.backward(grads)
+    assert(len(wandb_init_run.history.row) == 6)
+    assert('gradients/fc2.bias' not in wandb_init_run.history.row)
+    wandb.log({"a": 2})
+
+    output = net(dummy_torch_tensor((64, 1, 28, 28)))
+    grads = torch.ones(64, 10)
+    grads[0, 0] = float('inf')
+    output.backward(grads)
+    assert(len(wandb_init_run.history.row) == 6)
+    assert('gradients/fc2.bias' not in wandb_init_run.history.row)
+    wandb.log({"a": 2})
+
+    assert(len(wandb_init_run.history.rows) == 2)
+
+
 def test_unwatch(wandb_init_run):
     net = ConvNet()
     wandb.watch(net, log_freq=1, log="all")
@@ -393,6 +424,7 @@ def test_unwatch(wandb_init_run):
             wandb_init_run.history.row.get('gradients/fc2.bias') is None)
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
+
 
 def test_unwatch_multi(wandb_init_run):
     net1 = ConvNet()
@@ -412,6 +444,7 @@ def test_unwatch_multi(wandb_init_run):
         assert wandb_init_run.history.row.get('gradients/conv1.bias') is None
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
+
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_gradient_logging_freq(wandb_init_run):
@@ -447,6 +480,7 @@ def test_all_logging(wandb_init_run):
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 3)
 
+
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_all_logging_freq(wandb_init_run):
     net = ConvNet()
@@ -468,6 +502,8 @@ def test_all_logging_freq(wandb_init_run):
     assert(len(wandb_init_run.history.rows) == 110)
 
 # These were timing out in old python
+
+
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_parameter_logging(wandb_init_run):
     net = ConvNet()
@@ -485,6 +521,7 @@ def test_parameter_logging(wandb_init_run):
         open(os.path.join(wandb_init_run.dir, "wandb-summary.json")).read())
     assert file_summary["graph_0"]
     assert(len(wandb_init_run.history.rows) == 3)
+
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Timeouts in older python versions")
 def test_parameter_logging_freq(wandb_init_run):
@@ -505,6 +542,7 @@ def test_parameter_logging_freq(wandb_init_run):
             assert(len(wandb_init_run.history.row) == 0)
         wandb.log({"a": 2})
     assert(len(wandb_init_run.history.rows) == 50)
+
 
 @pytest.mark.skipif(sys.version_info == (3, 6), reason="Timeouts in 3.6 for some reason...")
 def test_simple_net():
@@ -545,6 +583,7 @@ def test_multi_net(wandb_init_run):
     graph2 = graphs[1]._to_graph_json()
     assert len(graph1["nodes"]) == 5
     assert len(graph2["nodes"]) == 5
+
 
 def test_multi_net_global(wandb_init_run):
     net1 = ConvNet()
@@ -628,13 +667,13 @@ def test_false_requires_grad(wandb_init_run):
 
 
 def test_nested_shape():
-    shape = wandb.wandb_torch.nested_shape([2,4,5])
-    assert shape == [[],[],[]]
-    shape = wandb.wandb_torch.nested_shape([dummy_torch_tensor((2,3)),dummy_torch_tensor((4,5))])
-    assert shape == [[2,3],[4,5]]
+    shape = wandb.wandb_torch.nested_shape([2, 4, 5])
+    assert shape == [[], [], []]
+    shape = wandb.wandb_torch.nested_shape([dummy_torch_tensor((2, 3)), dummy_torch_tensor((4, 5))])
+    assert shape == [[2, 3], [4, 5]]
     # create recursive lists of tensors (t3 includes itself)
-    t1 = dummy_torch_tensor((2,3))
-    t2 = dummy_torch_tensor((4,5))
+    t1 = dummy_torch_tensor((2, 3))
+    t2 = dummy_torch_tensor((4, 5))
     t3 = [t1, t2]
     t3.append(t3)
     t3.append(t2)
