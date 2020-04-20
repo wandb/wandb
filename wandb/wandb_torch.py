@@ -201,7 +201,7 @@ class TorchHistory(object):
         # Remove nans from tensor. There's no good way to represent that in histograms.
         flat = flat[~torch.isnan(flat)]
         flat = flat[~torch.isinf(flat)]
-        if flat.shape.numel() == 0:
+        if flat.shape == torch.Size([0]):
             # Often the whole tensor is nan or inf. Just don't log it in that case.
             return
         tmin = flat.min().item()
