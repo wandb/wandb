@@ -93,14 +93,14 @@ def balanced_corners_portrait():
     image = np.random.randint(255, size=(img_height, img_width, 3))
 
     box_corners = [
-            [padding, padding],
-            [padding, img_height - box_h - padding],
-            [img_width - box_w - padding, padding],
-            [img_width -  box_w - padding,
-                img_height - box_h - padding]]
+        [padding, padding],
+        [padding, img_height - box_h - padding],
+        [img_width - box_w - padding, padding],
+        [img_width -  box_w - padding, img_height - box_h - padding]]
 
 
     img_pixel = wandb.Image(image, boxes={
+        "predctions": {
         "box_data": [
             {"position": {
                 "middle": [x + box_w/2.0, y + box_h/2.0],
@@ -115,10 +115,12 @@ def balanced_corners_portrait():
             "domain": "pixel"
             }
             for [x,y] in box_corners ],
-        "class_labels": class_id_to_label })
+        "class_labels": class_id_to_label
+        }})
 
     img_norm_domain = wandb.Image(image, boxes={
-        "box_data": [
+        "predictions":
+        {"box_data": [
             {"position": {
                 "middle": [(x + box_w/2.0)/img_width, 
                            (y + box_h/2.0) / img_height],
@@ -133,11 +135,12 @@ def balanced_corners_portrait():
             }
             for [x,y] in box_corners],
         "class_labels": class_id_to_label
-    })
+    }})
 
     id = random.randint(0,10)
     img_min_max_pixel = wandb.Image(image, boxes={
-        "box_data": [
+        "predctions":
+        {"box_data": [
             {"position": {
                 "minX": x,
                 "maxX": x + box_w,
@@ -153,26 +156,26 @@ def balanced_corners_portrait():
             }
             for [x,y] in box_corners],
         "class_labels": class_id_to_label
-    })
+    }})
 
     img_min_max_norm_domain = wandb.Image(image, boxes={
-        "box_data": [
-            {"position": {
-                "minX": float(x)/img_width,
-                "maxX": float(x + box_w)/img_width,
-                "minY": float(y)/img_height,
-                "maxY": float(y + box_h)/img_height,
-            },
-            "class_id" : random.randint(0,10),
-            "box_caption": "minmax 0-1",
-            "scores" : {
-                "acc": 0.7
-                }
-            }
-            for [x,y] in box_corners
-        ],
-        "class_labels": class_id_to_label
-    })
+        "predictions": {
+            "box_data": [
+                {"position": {
+                    "minX": float(x)/img_width,
+                    "maxX": float(x + box_w)/img_width,
+                    "minY": float(y)/img_height,
+                    "maxY": float(y + box_h)/img_height,
+                    },
+                    "class_id" : random.randint(0,10),
+                    "box_caption": "minmax 0-1",
+                    "scores" : {
+                        "acc": 0.7
+                        }
+                    }
+                for [x,y] in box_corners ],
+            "class_labels": class_id_to_label
+        }})
 
     return [img_pixel, 
             img_norm_domain,
