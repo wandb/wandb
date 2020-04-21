@@ -35,6 +35,8 @@ from . import meta
 import numpy as np  # type: ignore
 import platform
 
+import psutil  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,7 +100,7 @@ def wandb_stream_read(fd):
 
 def wandb_write(settings, q, stopped, data_filename):
     ds = datastore.DataStore()
-    ds.open(data_filename)
+    ds.open_for_write(data_filename)
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)
@@ -381,7 +383,26 @@ def _get_stdout_stderr_streams():
 
         return stdout_streams, stderr_streams
 
+_check_process_last = None
+def _check_process(settings, pid):
+    global _check_process_last
+    check_process_interval = settings._internal_check_process
+    if not check_process_interval:
+        return
+    time_now = time.time()
+    if _check_process_last and time_now < _check_process_last + check_process_interval:
+        return
+    _check_process_last = time_now
+
+    exists = psutil.pid_exists(pid)
+    if not exists:
+        print("badness")
+        sys.exit(-1)
+    print("check", exists)
+
 def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level, data_filename, use_redirect):
+
+    parent_pid = os.getppid() 
 
     # mark this process as internal
     wandb._IS_INTERNAL_PROCESS = True
@@ -469,8 +490,13 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
         # TODO: think about this try/except clause
         try:
             while True:
-                i = notify_queue.get()
-                if i == constants.NOTIFY_PROCESS:
+                try:
+                    i = notify_queue.get(block=True, timeout=settings._internal_queue_timeout)
+                except queue.Empty:
+                    i = queue.Empty
+                if i == queue.Empty:
+                    pass
+                elif i == constants.NOTIFY_PROCESS:
                     rec = process_queue.get()
                     send_queue.put(rec)
                     write_queue.put(rec)
@@ -485,6 +511,7 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
                     send_queue.put(rec)
                 else:
                     print("unknown", i)
+                _check_process(settings, parent_pid)
         except KeyboardInterrupt as e:
             print("\nInterrupt: {}\n".format(count))
             count += 1
@@ -494,8 +521,10 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
             if done:
                 break
 
+    print("shut?")
     system_stats.shutdown()
 
     read_thread.join()
     send_thread.join()
     write_thread.join()
+    print("done")

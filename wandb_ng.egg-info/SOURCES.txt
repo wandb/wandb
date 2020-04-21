@@ -34,6 +34,7 @@ wandb/internal/internal.py
 wandb/internal/internal_api.py
 wandb/internal/meta.py
 wandb/internal/progress.py
+wandb/internal/sentry.py
 wandb/internal/stats.py
 wandb/internal/update.py
 wandb/internal/mpmain/__init__.py

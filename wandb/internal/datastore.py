@@ -10,6 +10,10 @@ record :=
   type: uint8          // One of FULL, FIRST, MIDDLE, LAST
   data: uint8[length]
 
+header :=
+  ident: char[4]
+  magic: uint16
+  version: uint8
 """
 from __future__ import print_function
 
@@ -34,6 +38,10 @@ LEVELDBLOG_FULL = 1
 LEVELDBLOG_FIRST = 2
 LEVELDBLOG_MIDDLE = 3
 LEVELDBLOG_LAST = 4
+
+LEVELDBLOG_HEADER_IDENT = ":W&B"
+LEVELDBLOG_HEADER_MAGIC = 0xbee1  # zlib.crc32(bytes("Weights & Biases", 'iso8859-1')) & 0xffff
+LEVELDBLOG_HEADER_VERSION = 0
 
 try:
     bytes('', 'ascii')
@@ -65,7 +73,7 @@ class DataStore(object):
 
         assert wandb._IS_INTERNAL_PROCESS
 
-    def open(self, fname):
+    def open_for_write(self, fname):
         self._fname = fname
         logger.info("open: %s", fname)
         open_flags = "xb"
@@ -74,6 +82,8 @@ class DataStore(object):
             if os.path.exists(fname):
                 raise IOError("File exists: {}".format(fname))
         self._fp = open(fname, open_flags)
+        # write header
+        self._write_header()
 
     def open_for_append(self, fname):
         # TODO: implement
@@ -108,6 +118,12 @@ class DataStore(object):
         # how much left in the block.  if less than header len, read as pad, verify they are zero
         pass
 
+    def _write_header(self):
+        data = struct.pack('<4sHB', strtobytes(LEVELDBLOG_HEADER_IDENT), LEVELDBLOG_HEADER_MAGIC, LEVELDBLOG_HEADER_VERSION)
+        assert len(data) == 7
+        self._fp.write(data)
+        self._index += len(data)
+
     def _write_record(self, s, dtype=None):
         """Write record that must fit into a block."""
         # double check that there is enough space (this is a precondition to calling this method)
@@ -123,7 +139,7 @@ class DataStore(object):
             self._fp.write(s)
         self._index += LEVELDBLOG_HEADER_LEN + len(s)
 
-    def write_data(self, s):
+    def _write_data(self, s):
         file_offset = self._index
         flush_index = 0
         flush_offset = 0
@@ -174,7 +190,7 @@ class DataStore(object):
         raw_size = obj.ByteSize()
         s = obj.SerializeToString()
         assert len(s) == raw_size
-        ret = self.write_data(s)
+        ret = self._write_data(s)
         return ret
 
     def close(self):
