@@ -1151,7 +1151,7 @@ class ImageMask(Media):
 
         PILImage = util.get_module(
             "PIL.Image", required='wandb.Image needs the PIL package. To get it, run "pip install pillow".')
-        image = PILImage.fromarray(Image.to_uint8(val["mask_data"]), mode="L")
+        image = PILImage.fromarray(val["mask_data"], mode="L")
 
         image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
