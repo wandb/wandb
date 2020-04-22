@@ -1125,7 +1125,8 @@ class BoundingBoxes2D(JSONMetadata):
             classes = np.unique(map( lambda box: box["class_id"], val["box_data"]))
             class_labels = dict((int(c), "class_" + str(c)) for c in classes)
             self._class_labels = class_labels
-        self._class_labels = val["class_labels"]
+        else:
+            self._class_labels = val["class_labels"]
 
     def bind_to_run(self, run, key, step):
         # bind_to_run key argument is the Image parent key
