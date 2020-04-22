@@ -13,7 +13,7 @@ import json
 import pprint
 import shutil
 from six.moves import queue
-import warnings
+import warningsng
 
 import numbers
 import collections
@@ -1132,7 +1132,7 @@ class BoundingBoxes2D(JSONMetadata):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super(BoundingBoxes2D, self).bind_to_run(run, key, step)
-        run._add_singleton("boundingBox/class_labels", key + "_wandb_delimeter_" + self._key , self._class_labels)
+        run._add_singleton("bounding_box/class_labels", key + "_wandb_delimeter_" + self._key , self._class_labels)
 
 
     def type_name(self):
