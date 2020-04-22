@@ -93,78 +93,89 @@ def balanced_corners_portrait():
     image = np.random.randint(255, size=(img_height, img_width, 3))
 
     box_corners = [
-            [padding, padding],
-            [padding, img_height - box_h - padding],
-            [img_width - box_w - padding, padding],
-            [img_width -  box_w - padding,
-                img_height - box_h - padding]]
+        [padding, padding],
+        [padding, img_height - box_h - padding],
+        [img_width - box_w - padding, padding],
+        [img_width -  box_w - padding, img_height - box_h - padding]]
 
 
-    img_pixel = wandb.Image(image, boxes=[
-        {"position": {
-            "middle": [x + box_w/2.0, y + box_h/2.0],
-            "width":  box_w,
-            "height":  box_h,
-            },
-        "class_id" : random.randint(0,10),
-        "box_caption":  "m,w,h(pixel)",
-        "scores" : {
-            "acc": 0.7
-            },
-        "domain": "pixel"
-        }
+    img_pixel = wandb.Image(image, boxes={
+        "predctions": {
+        "box_data": [
+            {"position": {
+                "middle": [x + box_w/2.0, y + box_h/2.0],
+                "width":  box_w,
+                "height":  box_h,
+                },
+            "class_id" : random.randint(0,10),
+            "box_caption":  "m,w,h(pixel)",
+            "scores" : {
+                "acc": 0.7
+                },
+            "domain": "pixel"
+            }
+            for [x,y] in box_corners ],
+        "class_labels": class_id_to_label
+        }})
 
-        for [x,y] in box_corners ])
+    img_norm_domain = wandb.Image(image, boxes={
+        "predictions":
+        {"box_data": [
+            {"position": {
+                "middle": [(x + box_w/2.0)/img_width, 
+                           (y + box_h/2.0) / img_height],
+                "width":  float(box_w) / img_width,
+                "height":  float(box_h) / img_height,
+                },
+            "class_id" : random.randint(0,10),
+            "box_caption": "m,w,h 0-1",
+            "scores" : {
+                "acc": 0.7
+                }
+            }
+            for [x,y] in box_corners],
+        "class_labels": class_id_to_label
+    }})
 
     id = random.randint(0,10)
-    img_norm_domain = wandb.Image(image, boxes=[
-        {"position": {
-            "middle": [(x + box_w/2.0)/img_width, (y + box_h/2.0) / img_height],
-            "width":  float(box_w) / img_width,
-            "height":  float(box_h) / img_height,
-            },
-        "class_id" : random.randint(0,10),
-        "box_caption": "m,w,h 0-1",
-        "scores" : {
-            "acc": 0.7
+    img_min_max_pixel = wandb.Image(image, boxes={
+        "predctions":
+        {"box_data": [
+            {"position": {
+                "minX": x,
+                "maxX": x + box_w,
+                "minY": y,
+                "maxY": y + box_h,
+                },
+            "class_id" : random.randint(0,10),
+            "box_caption": "minMax(pixel)" ,
+            "scores" : {
+                "acc": 0.7
+                },
+            "domain": "pixel"
             }
-        }
+            for [x,y] in box_corners],
+        "class_labels": class_id_to_label
+    }})
 
-        for [x,y] in box_corners])
-
-    id = random.randint(0,10)
-    img_min_max_pixel = wandb.Image(image, boxes=[
-        {"position": {
-            "minX": x,
-            "maxX": x + box_w,
-            "minY": y,
-            "maxY": y + box_h,
-            },
-        "class_id" : random.randint(0,10),
-        "box_caption": "minMax(pixel)" ,
-        "scores" : {
-            "acc": 0.7
-            },
-        "domain": "pixel"
-        }
-
-        for [x,y] in box_corners])
-
-    img_min_max_norm_domain = wandb.Image(image, boxes=[
-        {"position": {
-            "minX": float(x)/img_width,
-            "maxX": float(x + box_w)/img_width,
-            "minY": float(y)/img_height,
-            "maxY": float(y + box_h)/img_height,
-        },
-        "class_id" : random.randint(0,10),
-        "box_caption": "minmax 0-1",
-        "scores" : {
-            "acc": 0.7
-            }
-        }
-
-        for [x,y] in box_corners])
+    img_min_max_norm_domain = wandb.Image(image, boxes={
+        "predictions": {
+            "box_data": [
+                {"position": {
+                    "minX": float(x)/img_width,
+                    "maxX": float(x + box_w)/img_width,
+                    "minY": float(y)/img_height,
+                    "maxY": float(y + box_h)/img_height,
+                    },
+                    "class_id" : random.randint(0,10),
+                    "box_caption": "minmax 0-1",
+                    "scores" : {
+                        "acc": 0.7
+                        }
+                    }
+                for [x,y] in box_corners ],
+            # "class_labels": class_id_to_label
+        }})
 
     return [img_pixel, 
             img_norm_domain,
