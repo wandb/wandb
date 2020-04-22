@@ -10,7 +10,7 @@ All of the special data types are subclasses of WBValue. All of the data types s
 
 
 ## WBValue
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L42)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L43)
 ```python
 WBValue(self)
 ```
@@ -24,7 +24,7 @@ The objects will be serialized as JSON and always have a _type attribute that in
  
 
 ## Histogram
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L61)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L64)
 ```python
 Histogram(self, sequence=None, np_histogram=None, num_bins=64)
 ```
@@ -61,7 +61,7 @@ wandb.Histogram(np_histogram=hist)
  
 
 ## Media
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L119)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L122)
 ```python
 Media(self, caption=None)
 ```
@@ -71,7 +71,7 @@ If necessary, we move or copy the file into the Run's media directory so that it
 
 
 ## BatchableMedia
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L227)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L231)
 ```python
 BatchableMedia(self, caption=None)
 ```
@@ -81,7 +81,7 @@ Apart from images, we just use these batches to help organize files by name in t
 
 
 ## Table
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L239)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L243)
 ```python
 Table(self, columns=['Input', 'Output', 'Expected'], data=None, rows=None)
 ```
@@ -94,7 +94,7 @@ This is a table designed to display small sets of records.
  
 
 ## Audio
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L291)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L296)
 ```python
 Audio(self, data_or_path, sample_rate=None, caption=None)
 ```
@@ -109,7 +109,7 @@ Wandb class for audio clips.
  
 
 ## Object3D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L389)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L395)
 ```python
 Object3D(self, data_or_path, **kwargs)
 ```
@@ -132,7 +132,7 @@ Wandb class for 3D point clouds.
  
 
 ## Molecule
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L510)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L517)
 ```python
 Molecule(self, data_or_path, **kwargs)
 ```
@@ -145,7 +145,7 @@ Wandb class for Molecular data
  
 
 ## Html
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L593)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L601)
 ```python
 Html(self, data, inject=True)
 ```
@@ -159,7 +159,7 @@ Wandb class for arbitrary html
  
 
 ## Video
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L660)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L670)
 ```python
 Video(self, data_or_path, caption=None, fps=4, format=None)
 ```
@@ -175,7 +175,7 @@ Wandb representation of video.
  
 
 ## Image
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L806)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L817)
 ```python
 Image(self,
       data_or_path,
@@ -196,7 +196,7 @@ Wandb class for images.
  
 
 ## JSONMetadata
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1054)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1068)
 ```python
 JSONMetadata(self, val, **kwargs)
 ```
@@ -205,7 +205,7 @@ JSONMetadata is a type for encoding arbitrary metadata as files.
 
 
 ## BoundingBoxes2D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1087)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1101)
 ```python
 BoundingBoxes2D(self, val, **kwargs)
 ```
@@ -214,7 +214,7 @@ Wandb class for 2D bounding Boxes
 
 
 ## ImageMask
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1137)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1152)
 ```python
 ImageMask(self, val, key, **kwargs)
 ```
@@ -223,7 +223,7 @@ Wandb class for image masks, useful for segmentation tasks
 
 
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1197)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1212)
 ```python
 Plotly(self, val, **kwargs)
 ```
@@ -236,7 +236,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1238)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1253)
 ```python
 Graph(self, format='keras')
 ```
@@ -262,7 +262,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1393)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1409)
 ```python
 Node(self,
      id=None,
@@ -280,7 +280,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1558)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1575)
 ```python
 Edge(self, from_node, to_node)
 ```
@@ -288,29 +288,3 @@ Edge(self, from_node, to_node)
 Edge used in [`Graph`](#graph)
 
 
-## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1683)
-```python
-data_frame_to_json(df, run, key, step)
-```
-Encode a Pandas DataFrame into the JSON/backend format.
-
-Writes the data to a file and returns a dictionary that we use to represent it in `Summary`'s.
-
-**Arguments**:
-
-- `df` _pandas.DataFrame_ - The DataFrame. Must not have columns named "wandb_run_id" or "wandb_data_frame_id". They will be added to the DataFrame here.
-- `run` _wandb_run.Run_ - The Run the DataFrame is associated with. We need this because the information we store on the DataFrame is derived from the Run it's in.
-- `key` _str_ - Name of the DataFrame, ie. the summary key path in which it's stored. This is for convenience, so people exploring the directory tree can have some idea of what is in the Parquet files.
-- `step` - History step or "summary".
- 
-
-**Returns**:
-
- A dict representing the DataFrame that we can store in summaries or histories. This is the format: {
-- `'_type'` - 'data-frame', # Magic field that indicates that this object is a data frame as # opposed to a normal dictionary or anything else.
-- `'id'` - 'asdf', # ID for the data frame that is unique to this Run.
-- `'format'` - 'parquet', # The file format in which the data frame is stored. Currently can # only be Parquet.
-- `'project'` - 'wfeas', # (Current) name of the project that this Run is in. It'd be # better to store the project's ID because we know it'll never # change but we don't have that here. We store this just in # case because we use the project name in identifiers on the # back end.
-- `'path'` - 'media/data_frames/sdlk.parquet', # Path to the Parquet file in the Run directory. }
- 
