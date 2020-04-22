@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import sys
 import os
+from wandb import util
 # Ensure we don't have the wandb directory in the path to avoid importing our tensorboard
 # module.  This should only happen when wandb is installed with pip -e or pip install ...#egg=wandb
 for path in sys.path:
@@ -9,12 +10,13 @@ for path in sys.path:
     if path.endswith(os.path.join("site-packages", "wandb")):
         sys.path.remove(path)
 if sys.modules.get("tensorboard"):
-    del sys.modules["tensorboard"]
+    # Remove tensorboard if it's us
+    if hasattr(util.get_module("tensorboard"), "TENSORBOARD_C_MODULE"):
+        del sys.modules["tensorboard"]
 from tensorboard.backend.event_processing import directory_watcher
 from tensorboard.backend.event_processing import event_file_loader
 from tensorboard.compat import tf
 from wandb.tensorboard import log
-from wandb import util
 import six
 import os
 from six.moves import queue

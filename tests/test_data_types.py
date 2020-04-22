@@ -109,10 +109,10 @@ standard_mask = {
 def test_image_accepts_masks():
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
-        img = wandb.Image(image, masks=[standard_mask])
+        img = wandb.Image(image, masks={"overlay": standard_mask})
         img.bind_to_run(run, "images", 0)
         img_json = img.to_json(run)
-        path = img_json["masks"][0]["path"]
+        path = img_json["masks"]["overlay"]["path"]
         assert os.path.exists(os.path.join(run.dir, path))
 
 def test_cant_serialize_to_other_run():

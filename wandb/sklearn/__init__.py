@@ -898,7 +898,7 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
     Please note this function fits the model on the training set when called.
 
     Arguments:
-        model (regressor): Takes in a fitted classifier.
+        model (regressor): Takes in a fitted regressor.
         X (arr): Training set features.
         y (arr): Training set labels.
 
@@ -975,7 +975,7 @@ def plot_residuals(regressor=None, X=None, y=None):
     Please note this function fits variations of the model on the training set when called.
 
     Arguments:
-        model (regressor): Takes in a fitted classifier.
+        model (regressor): Takes in a fitted regressor.
         X (arr): Training set features.
         y (arr): Training set labels.
 
