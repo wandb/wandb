@@ -288,29 +288,3 @@ Edge(self, from_node, to_node)
 Edge used in [`Graph`](#graph)
 
 
-## data_types.data_frame_to_json
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1683)
-```python
-data_frame_to_json(df, run, key, step)
-```
-Encode a Pandas DataFrame into the JSON/backend format.
-
-Writes the data to a file and returns a dictionary that we use to represent it in `Summary`'s.
-
-**Arguments**:
-
-- `df` _pandas.DataFrame_ - The DataFrame. Must not have columns named "wandb_run_id" or "wandb_data_frame_id". They will be added to the DataFrame here.
-- `run` _wandb_run.Run_ - The Run the DataFrame is associated with. We need this because the information we store on the DataFrame is derived from the Run it's in.
-- `key` _str_ - Name of the DataFrame, ie. the summary key path in which it's stored. This is for convenience, so people exploring the directory tree can have some idea of what is in the Parquet files.
-- `step` - History step or "summary".
- 
-
-**Returns**:
-
- A dict representing the DataFrame that we can store in summaries or histories. This is the format: {
-- `'_type'` - 'data-frame', # Magic field that indicates that this object is a data frame as # opposed to a normal dictionary or anything else.
-- `'id'` - 'asdf', # ID for the data frame that is unique to this Run.
-- `'format'` - 'parquet', # The file format in which the data frame is stored. Currently can # only be Parquet.
-- `'project'` - 'wfeas', # (Current) name of the project that this Run is in. It'd be # better to store the project's ID because we know it'll never # change but we don't have that here. We store this just in # case because we use the project name in identifiers on the # back end.
-- `'path'` - 'media/data_frames/sdlk.parquet', # Path to the Parquet file in the Run directory. }
- 
