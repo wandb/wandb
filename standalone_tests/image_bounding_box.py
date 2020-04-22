@@ -174,7 +174,7 @@ def balanced_corners_portrait():
                         }
                     }
                 for [x,y] in box_corners ],
-            "class_labels": class_id_to_label
+            # "class_labels": class_id_to_label
         }})
 
     return [img_pixel, 

@@ -43,7 +43,6 @@ def gen_mask_img():
     mask_img = wandb.Image(np.array(image), masks={
         "predictions":
         {"mask_data": mask_data,
-            "class_labels": class_labels
             }})
     return mask_img
 
