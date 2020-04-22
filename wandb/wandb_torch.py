@@ -198,6 +198,12 @@ class TorchHistory(object):
         if isinstance(flat, torch.HalfTensor):
             flat = flat.clone().type(torch.FloatTensor).detach()
 
+        # Remove nans from tensor. There's no good way to represent that in histograms.
+        flat = flat[~torch.isnan(flat)]
+        flat = flat[~torch.isinf(flat)]
+        if flat.shape == torch.Size([0]):
+            # Often the whole tensor is nan or inf. Just don't log it in that case.
+            return
         tmin = flat.min().item()
         tmax = flat.max().item()
         if sparse_zeros:
