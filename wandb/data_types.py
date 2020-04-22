@@ -1160,8 +1160,8 @@ class ImageMask(Media):
         # Add default class mapping
         if not "class_labels" in val:
             np = util.get_module("numpy", required="Semantic Segmentation mask support requires numpy")
-            classes = np.unique(val["mask_data"])
-            class_labels = dict((int(c), "class_" + str(c)) for c in classes)
+            classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
+            class_labels = dict((c, "class_" + str(c)) for c in classes)
             val["class_labels"] = class_labels
 
         self.validate(val)
