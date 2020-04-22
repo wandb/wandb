@@ -1526,7 +1526,7 @@ class LocalArtifact(object):
         # if it is in PENDING but not created by us, we also have a problem (two parallel runs)
         # creating the same artifact. In theory this could be ok but the backend doesn't handle
         # it right now.
-        for path, hash, local_path  in self._manifest_entries:
+        for path, hash, local_path in self._manifest_entries:
             self._file_pusher.file_changed(path, local_path, self._server_artifact['id'])
         self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact

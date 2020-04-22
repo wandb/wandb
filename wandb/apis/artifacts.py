@@ -1,72 +1,15 @@
-import base64
 import collections
-import hashlib
 import json
-import glob
-import os
-from six import string_types
 import requests
-import shutil
 import tempfile
-import time
-import urllib
 
-from wandb import InternalApi
-from wandb.file_pusher import FilePusher
-from wandb import util
 from wandb.compat import tempfile as compat_tempfile
 
 from wandb.apis import artifacts_cache
-
-def md5_hash_file(path):
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5
-
-def md5_file_b64(path):
-    return base64.b64encode(md5_hash_file(path).digest()).decode('ascii')
-
-def md5_file_hex(path):
-    return md5_hash_file(path).hexdigest()
-
-def user_paths_to_path_specs(paths):
-    # path_specs maps from internal artifact path to local path on disk
-    path_specs = {}
-    if paths is None:
-        pass
-    elif isinstance(paths, list):
-        # every entry must be a file, and duplicate basenames are not allowed.
-        # we don't check if they're valid files here. We'll do that later when we
-        # checksum (so that we only have to do a big parallel operation in one place)
-        for path in paths:
-            basename = os.path.basename(path)
-            if basename in path_specs:
-                raise ValueError('Duplicate file name found in artifact file list. Pass a dictionary instead.')
-            path_specs[basename] = path
-    elif isinstance(paths, dict):
-        # Cool
-        path_specs = paths
-    else:
-        # We have a single file or directory
-        # Note, we follow symlinks for files contained within the diretory
-        path = paths
-        if os.path.isdir(path):
-            for dirpath, _, filenames in os.walk(path, followlinks=True):
-                for fname in filenames:
-                    local_path = os.path.join(dirpath, fname)
-                    artifact_path = os.path.relpath(local_path, path)
-                    path_specs[artifact_path] = local_path
-        elif os.path.isfile(path):
-            basename = os.path.basename(path)
-            path_specs[basename] = path
-        else:
-            raise ValueError('paths must be a list, dictionary, or valid file or directory path.')
-    return path_specs
+from wandb.apis.artifacts_storage import *
 
 
-class ArtifactManifestV1(object):
+class ServerManifestV1(object):
     """This implements the same artifact digest algorithm as the server."""
 
     # hash must be the base64 encoded md5 checksum of the file at path.
@@ -99,18 +42,24 @@ class LocalArtifactManifestV1(object):
         'path', 'hash', 'local_path'))
 
     def __init__(self, paths):
-        self._path_specs = user_paths_to_path_specs(paths)
+        # TODO: passing this local manifest instance as the artifact is not what we want.
+        # storage_policy = WandbStoragePolicy(self)
+        storage_policy = TrackingPolicy(self)
+        manifest = ArtifactManifestV1(self, storage_policy)
+        self._file_specs = manifest.store_paths(paths)
 
-        if len(self._path_specs) == 0:
-            raise ValueError('Artifact must contain at least one file')
+        # Add the manifest itself as a file
+        with tempfile.NamedTemporaryFile('w+', suffix=".json", delete=False) as fp:
+            json.dump(manifest.to_manifest_json(), fp, indent=4)
+            self._file_specs['wandb_manifest.json'] = fp.name
 
         self._local_entries = []
-        for artifact_path, local_path in self._path_specs.items():
+        for artifact_path, local_path in self._file_specs.items():
             self._local_entries.append(
                 self.LocalArtifactManifestEntry(
                     artifact_path, md5_file_b64(local_path), os.path.abspath(local_path)))
 
-        self._manifest = ArtifactManifestV1(self._local_entries)
+        self._manifest = ServerManifestV1(self._local_entries)
         self._digest = self._manifest.digest
 
     def move(self, from_dir, to_dir):

@@ -468,6 +468,7 @@ class Run(object):
             raise ValueError('type and name required')
         if not isinstance(aliases, list):
             aliases = [aliases]
+
         self.send_message({
             'log_artifact': {
                 'type': type,

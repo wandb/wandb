@@ -15,6 +15,7 @@ from gql.transport.requests import RequestsHTTPTransport
 from six.moves import urllib
 import hashlib
 import base64
+import requests
 
 import wandb
 from wandb import Error, __version__
@@ -25,6 +26,8 @@ from wandb import env
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis import normalize_exceptions
 from wandb.apis import artifacts_cache
+from wandb.apis import artifacts_storage
+from wandb.apis import artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -1915,6 +1918,17 @@ class Artifact(object):
         if self._attrs is None:
             self.load()
         self._cache = artifacts_cache.get_artifacts_cache()
+        self._manifest = None
+        self._is_downloaded = False
+
+    @property
+    def manifest(self):
+        if self._manifest is None:
+            index_file_url = self.files(names=['wandb_manifest.json'])[0].url
+            with requests.get(index_file_url) as req:
+                print(req.content)
+                self._manifest = artifacts_storage.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
+        return self._manifest
 
     @property
     def id(self):
@@ -1929,7 +1943,7 @@ class Artifact(object):
         # TODO: This is a different style than the rest of the paths. The rest of the
         # paths don't include the object type (which makes them hard to distinguish).
         # We should maybe use URIs here.
-        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.artifact_name())
+        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.artifact_name)
 
     @property
     def digest(self):
@@ -1985,7 +1999,7 @@ class Artifact(object):
         return self._attrs
 
     @normalize_exceptions
-    def files(self, names=[], per_page=50):
+    def files(self, names=None, per_page=50):
         return ArtifactFiles(self.client, self, names, per_page)
 
     @property
@@ -1996,14 +2010,23 @@ class Artifact(object):
     def external_data_dir(self):
         return self._cache.get_artifact_external_dir(self.type, self.digest)
 
+    def load_path(self, name=None):
+        if name is None:
+            return self.download()
+        return self.manifest.load_path(name)
+
     def download(self):
         dirpath = self.artifact_dir
+        if self._is_downloaded:
+            return dirpath
+
         for f in self.files():
             local_file_path = os.path.join(dirpath, f.name)
             if (not os.path.isfile(local_file_path)
                     or util.md5_file(local_file_path) != f.digest):
                 f.download(root=dirpath, replace=True)
         # TODO: make sure we clear any extra files
+        self._is_downloaded = True
         return dirpath
 
     def __repr__(self):
@@ -2017,7 +2040,7 @@ class ArtifactFiles(Paginator):
             $projectName: String!,
             $artifactTypeName: String!,
             $artifactName: String!
-            $fileNames: [String] = [],
+            $fileNames: [String!],
             $fileCursor: String,
             $fileLimit: Int = 50
         ) {
@@ -2032,7 +2055,7 @@ class ArtifactFiles(Paginator):
         %s
     ''' % ARTIFACT_FILES_FRAGMENT)
 
-    def __init__(self, client, artifact, names=[], per_page=50):
+    def __init__(self, client, artifact, names=None, per_page=50):
         self.artifact = artifact
         variables = {
             'entityName': artifact.entity,
