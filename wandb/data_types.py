@@ -13,7 +13,7 @@ import json
 import pprint
 import shutil
 from six.moves import queue
-import warningsng
+import warnings
 
 import numbers
 import collections
