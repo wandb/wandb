@@ -1196,6 +1196,13 @@ class ImageMask(Media):
     def __init__(self, val, key, **kwargs):
         super(ImageMask, self).__init__()
 
+        # Add default class mapping
+        if not "class_labels" in val:
+            np = util.get_module("numpy", required="Semantic Segmentation mask support requires numpy")
+            classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
+            class_labels = dict((c, "class_" + str(c)) for c in classes)
+            val["class_labels"] = class_labels
+
         self.validate(val)
         self._val = val
         self._key = key
@@ -1214,7 +1221,9 @@ class ImageMask(Media):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super(ImageMask, self).bind_to_run(run, key, step)
-        run._add_singleton("mask/class_labels", key + "_wandb_delimeter_" + self._key, self._val["class_labels"])
+        class_labels = self._val["class_labels"]
+
+        run._add_singleton("mask/class_labels", key + "_wandb_delimeter_" + self._key , class_labels)
 
     def get_media_subdir(self):
         return os.path.join('media', 'images', self.type_name())

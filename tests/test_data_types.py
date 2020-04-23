@@ -115,6 +115,15 @@ def test_image_accepts_masks():
         path = img_json["masks"]["overlay"]["path"]
         assert os.path.exists(os.path.join(run.dir, path))
 
+def test_image_accepts_masks_without_class_labels():
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        img = wandb.Image(image, masks={"overlay": dissoc(standard_mask, "class_labels")})
+        img.bind_to_run(run, "images", 0)
+        img_json = img.to_json(run)
+        path = img_json["masks"]["overlay"]["path"]
+        assert os.path.exists(os.path.join(run.dir, path))
+
 def test_cant_serialize_to_other_run():
     """This isn't implemented yet. Should work eventually.
     """
