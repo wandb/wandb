@@ -43,10 +43,15 @@ class LocalArtifactManifestV1(object):
 
     def __init__(self, paths):
         # TODO: passing this local manifest instance as the artifact is not what we want.
-        # storage_policy = WandbStoragePolicy(self)
-        storage_policy = TrackingPolicy(self)
+        self._file_specs = {}
+
+        def add_file_spec(name, path):
+            self._file_specs[name] = path
+
+        storage_policy = WandbStoragePolicy(self, add_file_spec)
+        # storage_policy = TrackingPolicy(self)
         manifest = ArtifactManifestV1(self, storage_policy)
-        self._file_specs = manifest.store_paths(paths)
+        manifest.store_paths(paths)
 
         # Add the manifest itself as a file
         with tempfile.NamedTemporaryFile('w+', suffix=".json", delete=False) as fp:

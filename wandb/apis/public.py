@@ -2010,10 +2010,20 @@ class Artifact(object):
     def external_data_dir(self):
         return self._cache.get_artifact_external_dir(self.type, self.digest)
 
-    def load_path(self, name=None):
-        if name is None:
-            return self.download()
-        return self.manifest.load_path(name)
+    def load_path(self, name):
+        manifest = self.manifest
+
+        class ArtifactPath:
+
+            @staticmethod
+            def local():
+                return manifest.load_path(name, local=True)
+
+            @staticmethod
+            def remote():
+                return manifest.load_path(name)
+
+        return ArtifactPath()
 
     def download(self):
         dirpath = self.artifact_dir
