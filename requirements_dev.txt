@@ -1,3 +1,4 @@
+llvmlite==0.31.0
 fastparquet==0.2.1
 pip>=19.0.1
 bumpversion==0.5.3
