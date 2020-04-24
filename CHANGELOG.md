@@ -1,3 +1,17 @@
+## 0.8.33 (Apr 24, 2020)
+
+#### :nail_care: Enhancement
+
+-   Add default class labels for semantic segmentation
+-   Enhance bounding box API to be similar to semantic segmentation API
+
+#### :bug: Bug Fix
+
+-   Increase media table rows to improve ROC/PR curve logging
+-   Fix issue where pre binned histograms were not being handled properly
+-   Handle nan values in pytorch histograms
+-   Fix handling of binary image masks
+
 ## 0.8.32 (Apr 14, 2020)
 
 #### :nail_care: Enhancement
