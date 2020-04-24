@@ -11,6 +11,7 @@ from wandb.util.globals import set_global
 from wandb.backend.backend import Backend
 from wandb.stuff import util2
 from wandb.util import reporting
+from wandb.errors import Error
 
 import time
 import json
@@ -22,6 +23,7 @@ from wandb.stuff import io_wrap
 import sys
 import os
 from wandb.util import redirect
+import traceback
 
 from .wandb_settings import Settings
 
@@ -33,6 +35,40 @@ logger = logging.getLogger("wandb")
 
 def online_status(*args, **kwargs):
     pass
+
+
+class ExitHooks(object):
+    def __init__(self):
+        self.exit_code = 0
+        self.exception = None
+
+    def hook(self):
+        self._orig_exit = sys.exit
+        sys.exit = self.exit
+        sys.excepthook = self.exc_handler
+
+    def exit(self, code=0):
+        orig_code = code
+        if code is None:
+            code = 0
+        elif not isinstance(code, int):
+            code = 1
+        self.exit_code = code
+        self._orig_exit(orig_code)
+
+    def was_ctrl_c(self):
+        return isinstance(self.exception, KeyboardInterrupt)
+
+    def exc_handler(self, exc_type, exc, *tb):
+        self.exit_code = 1
+        self.exception = exc
+        if issubclass(exc_type, Error):
+            termerror(str(exc))
+
+        if self.was_ctrl_c():
+            self.exit_code = 255
+
+        traceback.print_exception(exc_type, exc, *tb)
 
 
 def win32_redirect(stdout_slave_fd, stderr_slave_fd):
@@ -92,6 +128,7 @@ class _WandbInit(object):
         self._save_stdout = None
         self._save_stderr = None
 
+        self._hooks = None
         self._atexit_cleanup_called = None
 
     def setup(self, kwargs):
@@ -141,7 +178,9 @@ class _WandbInit(object):
             return
         self._atexit_cleanup_called = True
 
-        ret = self.backend.interface.send_exit_sync(0, timeout=60)
+        exit_code = self._hooks.exit_code if self._hooks else 0
+        logger.info("got exitcode: %d", exit_code)
+        ret = self.backend.interface.send_exit_sync(exit_code, timeout=60)
         logger.info("got exit ret: %s", ret)
 
         self._restore()
@@ -305,6 +344,8 @@ class _WandbInit(object):
         run.on_start()
 
         logger.info("atexit reg")
+        self._hooks = ExitHooks()
+        self._hooks.hook()
         atexit.register(lambda: self._atexit_cleanup())
 
         if self._use_redirect:

@@ -145,6 +145,8 @@ class _SendManager(object):
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
 
+        self._exit_code = 0
+
     def _flatten(self, dictionary):
         if type(dictionary) == dict:
             for k, v in list(dictionary.items()):
@@ -155,6 +157,9 @@ class _SendManager(object):
                         dictionary[k + "." + k2] = v2
 
     def handle_exit(self, data):
+        exit = data.exit
+        self._exit_code = exit.exit_code
+
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
         run_dir = self._settings.files_dir
@@ -289,7 +294,7 @@ class _SendManager(object):
             self._pusher.finish()
         if self._fs:
             # FIXME(jhr): now is a good time to output pending output lines
-            self._fs.finish(0)
+            self._fs.finish(self._exit_code)
         if self._pusher:
             self._pusher.update_all_files()
             files = self._pusher.files()
