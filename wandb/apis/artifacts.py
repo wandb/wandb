@@ -642,12 +642,12 @@ class S3Handler(StorageHandler):
         # Unfortunately, this is not the true MD5 of the file. Without
         # streaming the file and computing an MD5 manually, there is no
         # way to obtain the true MD5.
-        return obj.e_tag[1:-1]  # strip leading and trailing "
+        return obj.e_tag  # strip leading and trailing "
 
     @staticmethod
     def _extra_from_obj(obj):
         return {
-            'etag': obj.e_tag,
+            'etag': obj.e_tag[1:-1],  # escape leading and trailing quote
             'versionID': obj.version_id,
         }
 
@@ -656,4 +656,4 @@ class S3Handler(StorageHandler):
         # TODO: is this the structure we want? not at all human
         # readable, but that's probably OK. don't want people
         # poking around in the bucket
-        return 'wandb/%s' % md5
+        return 'wandb/%s' % base64.b64encode(md5.encode("ascii")).decode("ascii")
