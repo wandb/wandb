@@ -71,6 +71,7 @@ Framework specific and detailed usage can be found in our [documentation](http:/
 ## Testing
 
 To run the tests we use `pytest tests`. If you want a simple mock of the wandb backend and cloud storage you can use the mock_server fixture, see tests/test_cli.py for examples.
+To run the tests with coverage use `make coverage`, a html report is created in the `htmlcov` folder, if all tests pass. 
 
 We use [circleci](https://circleci.com) and [appveyor](https://appveyor.com) for CI.
 
