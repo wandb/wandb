@@ -26,7 +26,6 @@ from wandb import env
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis import normalize_exceptions
 from wandb.apis import artifacts_cache
-from wandb.apis import artifacts_storage
 from wandb.apis import artifacts
 
 logger = logging.getLogger(__name__)
@@ -1916,19 +1915,10 @@ class Artifact(object):
         self.artifact_name = name
         self._attrs = attrs
         if self._attrs is None:
-            self.load()
+            self._load()
         self._cache = artifacts_cache.get_artifacts_cache()
         self._manifest = None
         self._is_downloaded = False
-
-    @property
-    def manifest(self):
-        if self._manifest is None:
-            index_file_url = self.files(names=['wandb_manifest.json'])[0].url
-            with requests.get(index_file_url) as req:
-                print(req.content)
-                self._manifest = artifacts_storage.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
-        return self._manifest
 
     @property
     def id(self):
@@ -1961,7 +1951,57 @@ class Artifact(object):
     def type(self):
         return self.artifact_type_name
 
-    def load(self):
+    @normalize_exceptions
+    def files(self, names=None, per_page=50):
+        return ArtifactFiles(self.client, self, names, per_page)
+
+    @property
+    def artifact_dir(self):
+        return self._cache.get_artifact_dir(self.type, self.digest)
+
+    @property
+    def external_data_dir(self):
+        return self._cache.get_artifact_external_dir(self.type, self.digest)
+
+    def add_file(self, path, name=None):
+        raise ValueError('Cannot add files to an artifact once it has been saved')
+
+    def add_reference(self, path, name=None):
+        raise ValueError('Cannot add files to an artifact once it has been saved')
+
+    def load_path(self, name):
+        manifest = self._load_manifest()
+
+        class ArtifactPath:
+
+            @staticmethod
+            def local():
+                return manifest.load_path(name, local=True)
+
+            @staticmethod
+            def remote():
+                return manifest.load_path(name)
+
+        return ArtifactPath()
+
+    def download(self):
+        dirpath = self.artifact_dir
+        if self._is_downloaded:
+            return dirpath
+
+        for f in self.files():
+            local_file_path = os.path.join(dirpath, f.name)
+            if (not os.path.isfile(local_file_path)
+                    or util.md5_file(local_file_path) != f.digest):
+                f.download(root=dirpath, replace=True)
+        # TODO: make sure we clear any extra files
+        self._is_downloaded = True
+        return dirpath
+
+    def __repr__(self):
+        return "<Artifact {}>".format(self.id)
+
+    def _load(self):
         query = gql('''
         query Artifact(
             $entityName: String!,
@@ -1994,53 +2034,17 @@ class Artifact(object):
             or response.get('project') is None \
                 or response['project'].get('artifactType') is None \
                 or response['project']['artifactType'].get('artifact') is None:
-            raise ValueError("Could not find artifact %s:%s" % (self.artifact_type_name, self.artifact_name))
+            raise ValueError('Could not find artifact %s:%s' % (self.artifact_type_name, self.artifact_name))
         self._attrs = response['project']['artifactType']['artifact']
         return self._attrs
 
-    @normalize_exceptions
-    def files(self, names=None, per_page=50):
-        return ArtifactFiles(self.client, self, names, per_page)
-
-    @property
-    def artifact_dir(self):
-        return self._cache.get_artifact_dir(self.type, self.digest)
-
-    @property
-    def external_data_dir(self):
-        return self._cache.get_artifact_external_dir(self.type, self.digest)
-
-    def load_path(self, name):
-        manifest = self.manifest
-
-        class ArtifactPath:
-
-            @staticmethod
-            def local():
-                return manifest.load_path(name, local=True)
-
-            @staticmethod
-            def remote():
-                return manifest.load_path(name)
-
-        return ArtifactPath()
-
-    def download(self):
-        dirpath = self.artifact_dir
-        if self._is_downloaded:
-            return dirpath
-
-        for f in self.files():
-            local_file_path = os.path.join(dirpath, f.name)
-            if (not os.path.isfile(local_file_path)
-                    or util.md5_file(local_file_path) != f.digest):
-                f.download(root=dirpath, replace=True)
-        # TODO: make sure we clear any extra files
-        self._is_downloaded = True
-        return dirpath
-
-    def __repr__(self):
-        return "<Artifact {}>".format(self.id)
+    def _load_manifest(self):
+        if self._manifest is None:
+            index_file_url = self.files(names=['wandb_manifest.json'])[0].url
+            with requests.get(index_file_url) as req:
+                print(req.content)
+                self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
+        return self._manifest
 
 
 class ArtifactFiles(Paginator):

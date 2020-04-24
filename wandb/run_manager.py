@@ -1214,7 +1214,7 @@ class RunManager(object):
         metadata = message['metadata'] if 'metadata' in message else None
         aliases = message['aliases'] if 'aliases' in message else None
 
-        la = LocalArtifact(self._api, digest, manifest_entries, file_pusher=self._file_pusher)
+        la = ArtifactSaver(self._api, digest, manifest_entries, file_pusher=self._file_pusher)
         la.save(type, name, description=description, metadata=metadata, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):
@@ -1473,7 +1473,7 @@ class RunManager(object):
         sys.exit(exitcode)
 
 
-class LocalArtifact(object):
+class ArtifactSaver(object):
     def __init__(self, api, digest, manifest_entries, file_pusher=None, is_user_created=False):
         # NOTE: manifest_entries are LocalManifestEntry but they get converted to
         # arrays when we convert to json, so we need to access fields by index instead

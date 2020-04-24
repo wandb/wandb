@@ -421,6 +421,35 @@ class Run(object):
     #     # TODO
     #     raise ValueError('Invalid use artifact call')
 
+    def new_artifact(self, type, name, description=None, metadata=None, labels=None, aliases=None,
+                     storage_policy=None):
+        if isinstance(aliases, str):
+            aliases = [aliases]
+
+        def log_artifact(artifact, entries):
+            self.send_message({
+                'log_artifact': {
+                    'type': type,
+                    'name': name,
+                    'manifest_entries': entries,
+                    'digest': artifact.digest,
+                    'description': artifact.description,
+                    'metadata': artifact.metadata,
+                    'labels': artifact.labels,
+                    'aliases': artifact.aliases,
+                }
+            })
+
+        return artifacts.LocalArtifact(
+            log_artifact,
+            type,
+            name,
+            description=description,
+            metadata=metadata,
+            labels=labels,
+            aliases=aliases,
+            storage_policy=storage_policy)
+
     def use_artifact(self, type=None, name=None, api=None):
         if type is None or name is None:
             raise ValueError('type and name required')
@@ -432,55 +461,21 @@ class Run(object):
         api.use_artifact(artifact.id)
         return artifact
 
-    def log_artifact(self, artifact=None, type=None, name=None, paths=None, description=None, metadata=None, labels=None, aliases=None):
-        # TODO: change aliases to tags.
-        if isinstance(artifact, artifacts.WriteableArtifact):
-            if paths is not None:
-                raise ValueError('Passing paths to log_artifact is invalid when also passing artifact')
-            type = artifact.type or type
-            metadata = artifact.metadata or metadata
-            manifest = artifact.manifest
-
-            # move artifact files into cache
-            final_artifact_dir = artifact._cache.get_artifact_dir(type, manifest.digest)
-            shutil.rmtree(final_artifact_dir)
-            os.rename(artifact.artifact_dir, final_artifact_dir)
-            # update the manifest
-            manifest.move(artifact.artifact_dir, final_artifact_dir)
-
-            # move external files into cache if there are any
-            if len(os.listdir(artifact.external_data_dir)) > 0:
-                final_external_data_dir = artifact._cache.get_artifact_external_dir(
-                        artifact.type, manifest.digest)
-                shutil.rmtree(final_external_data_dir)
-                os.rename(
-                    artifact.artifact_dir,
-                    final_external_data_dir)
-
-        elif artifact is not None:
-            raise ValueError('artifact must be an instance of wandb.WriteableArtifact')
+    def log_artifact(self, type, name, paths=None, description=None, metadata=None,
+                     labels=None, aliases=None, storage_policy=None):
+        artifact = self.new_artifact(type, name, description=description, metadata=metadata,
+                                     labels=labels, aliases=aliases, storage_policy=storage_policy)
+        if isinstance(paths, list):
+            for path in paths:
+                artifact.add_file(path)
+        if isinstance(paths, dict):
+            for name, path in paths.items():
+                artifact.add_file(path, name)
         else:
-            manifest = artifacts.LocalArtifactManifestV1(paths)
-            if paths is None:
-                raise ValueError('paths required when not passing artifact')
-        
-        if name is None or type is None:
-            raise ValueError('type and name required')
-        if not isinstance(aliases, list):
-            aliases = [aliases]
+            path = paths
+            artifact.add_file(path)
 
-        self.send_message({
-            'log_artifact': {
-                'type': type,
-                'name': name,
-                'manifest_entries': manifest.entries,
-                'digest': manifest.digest,
-                'description': description,
-                'metadata': metadata,
-                'labels': labels,
-                'aliases': aliases
-            }
-        })
+        artifact.save()
 
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside
