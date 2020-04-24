@@ -7,13 +7,17 @@ workflows:
   main:
     jobs:
       - test:
+         name: "Linters"
+         image: "python:3.6"
+         toxenv: "mypy"
+      - test:
          name: "Python 2.7"
          image: "python:2.7"
-         toxenv: "py27"
+         toxenv: "py27,covercircle"
       - test:
          name: "Python 3.6"
          image: "python:3.6"
-         toxenv: "py36"
+         toxenv: "py36,covercircle"
       - test:
          name: "Python 3.7"
          image: "python:3.7"
@@ -22,6 +26,11 @@ workflows:
          name: "Windows (Python 3.7)"
       - mac:
          name: "MacOS (Python 3.7)"
+      - final:
+         name: "Upload Coverage"
+         requires:
+            - "Python 2.7"
+            - "Python 3.6"
 
 jobs:
     test:
@@ -79,3 +88,11 @@ jobs:
                   name: Run tests
                   command: |
                       python3 -m tox -v -e py37
+    final:
+        docker:
+            - image: python:3.7
+        steps:
+            - run:
+                  name: Call coveralls webhook
+                  command: |
+                      curl -k https://coveralls.io/webhook?repo_token=$COVERALLS_REPO_TOKEN -d "payload[build_num]=$CIRCLE_WORKFLOW_ID&payload[status]=done"
