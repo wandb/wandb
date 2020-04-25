@@ -451,13 +451,6 @@ def _init_jupyter(run):
     else:
         displayed = False
         try:
-            if wandb_config.is_kaggle():
-                # Kaggle has internet disabled by default, this checks for that case
-                async_sweep_url = util.async_call(run.get_sweep_url, timeout=3)
-                _, sweep_url_thread = async_sweep_url()
-                if sweep_url_thread.is_alive():
-                    logger.error("To use W&B in kaggle you must enable internet in the settings panel on the right.")
-                    return
             sweep_url = run.get_sweep_url()
             sweep_line = 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
                 sweep_url, sweep_url) if sweep_url else ""
