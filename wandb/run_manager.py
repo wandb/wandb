@@ -664,11 +664,9 @@ class RunManager(object):
         """Stops file syncing/streaming but doesn't actually wait for everything to
         finish. We print progress info later.
         """
-
         # TODO: there was a case where _file_event_handlers was getting modified in the loop.
         for handler in list(self._file_event_handlers.values()):
             handler.finish()
-
         self._file_pusher.finish()
         self._api.get_file_stream_api().finish(exitcode)
         # In Jupyter notebooks, wandb.init can be called multiple times in the same
@@ -968,8 +966,11 @@ class RunManager(object):
             async_upsert = util.async_call(self._upsert_run, timeout=InternalApi.HTTP_TIMEOUT)
             _, self._upsert_run_thread = async_upsert(True, storage_id, env)
             if self._upsert_run_thread.is_alive():
-                logger.error("Failed to connect to W&B servers after %i seconds.\
-                    Letting user process proceed while attempting to reconnect." % InternalApi.HTTP_TIMEOUT)
+                if config.is_kaggle():
+                    logger.error("To use W&B in kaggle you must enable internet in the settings panel on the right.")
+                else:
+                    logger.error("Failed to connect to W&B servers after %i seconds.\
+                        Letting user process proceed while attempting to reconnect." % InternalApi.HTTP_TIMEOUT)
 
         return new_step
 
@@ -1080,11 +1081,12 @@ class RunManager(object):
         if self._run_status_checker:
             self._run_status_checker.shutdown()
 
+        self._run.history.close()
+
         if self._cloud:
             logger.info("stopping streaming files and file change observer")
             self._end_file_syncing(exitcode)
 
-        self._run.history.close()
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.

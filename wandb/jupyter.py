@@ -119,10 +119,10 @@ class JupyterAgent(object):
 
     def start(self):
         if self.paused:
+            self.paused = False
             self.rm = RunManager(wandb.run, output=False, cloud=wandb.run.mode != "dryrun")
             wandb.run.api._file_stream_api = None
             self.rm.mirror_stdout_stderr()
-            self.paused = False
             # Init will return the last step of a resumed run
             # we update the runs history._steps in extreme hack fashion
             # TODO: this reserves a bigtime refactor
@@ -132,10 +132,11 @@ class JupyterAgent(object):
 
     def stop(self):
         if not self.paused:
+            self.paused = True
+            started = time.time()
             self.rm.unmirror_stdout_stderr()
             self.rm.shutdown()
             wandb.run.close_files()
-            self.paused = True
 
 
 class Run(object):
