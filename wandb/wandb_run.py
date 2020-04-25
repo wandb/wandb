@@ -456,7 +456,7 @@ class Run(object):
                 async_viewer = util.async_call(api.viewer, timeout=3)
                 viewer, viewer_thread = async_viewer()
                 if viewer_thread.is_alive():
-                    if is_kaggle()
+                    if is_kaggle():
                         raise CommError("To use W&B in kaggle you must enable internet in the settings panel on the right.")
                     else:
                         raise CommError("Can't connect to network to query entity from API key")
