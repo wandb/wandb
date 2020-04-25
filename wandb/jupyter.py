@@ -133,7 +133,6 @@ class JupyterAgent(object):
     def stop(self):
         if not self.paused:
             self.paused = True
-            started = time.time()
             self.rm.unmirror_stdout_stderr()
             self.rm.shutdown()
             wandb.run.close_files()

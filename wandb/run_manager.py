@@ -966,11 +966,8 @@ class RunManager(object):
             async_upsert = util.async_call(self._upsert_run, timeout=InternalApi.HTTP_TIMEOUT)
             _, self._upsert_run_thread = async_upsert(True, storage_id, env)
             if self._upsert_run_thread.is_alive():
-                if config.is_kaggle():
-                    logger.error("To use W&B in kaggle you must enable internet in the settings panel on the right.")
-                else:
-                    logger.error("Failed to connect to W&B servers after %i seconds.\
-                        Letting user process proceed while attempting to reconnect." % InternalApi.HTTP_TIMEOUT)
+                logger.error("Failed to connect to W&B servers after %i seconds.\
+                    Letting user process proceed while attempting to reconnect." % InternalApi.HTTP_TIMEOUT)
 
         return new_step
 
