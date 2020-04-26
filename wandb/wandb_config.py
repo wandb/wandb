@@ -178,7 +178,7 @@ class Config(object):
     def load_json(self, json):
         """Loads existing config from JSON"""
         for key in json:
-            if key == "wandb_version":
+            if key == "wandb_version" or key == "_wandb":
                 continue
             self._items[key] = json[key].get('value')
             self._descriptions[key] = json[key].get('desc')
