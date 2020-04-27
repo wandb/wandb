@@ -1201,7 +1201,7 @@ class RunManager(object):
         path = message['path']
         metadata = message['metadata']
         lam = artifacts.LocalArtifactManifestV1(path)
-        la = LocalArtifact(self._api, lam.digest, lam.entries,
+        la = ArtifactSaver(self._api, lam.digest, lam.entries,
                            file_pusher=self._file_pusher, is_user_created=True)
         server_artifact = la.save(type, name, metadata=metadata)
         self._api.use_artifact(server_artifact['id'])
