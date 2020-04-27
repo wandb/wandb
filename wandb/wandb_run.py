@@ -450,15 +450,27 @@ class Run(object):
             aliases=aliases,
             storage_policy=storage_policy)
 
-    def use_artifact(self, type=None, name=None, api=None):
+    def use_artifact(self, type=None, name=None, path=None, metadata=None, api=None):
         if type is None or name is None:
             raise ValueError('type and name required')
         api = api or self.api
         public_api = PublicApi()
-        artifact = public_api.artifact(type=type, name=name)
-        if artifact is None:
-            raise ValueError('Artifact %s doesn\'t exist' % artifact)
-        api.use_artifact(artifact.id)
+        if path is None:
+            artifact = public_api.artifact(type=type, name=name)
+            if artifact is None:
+                raise ValueError('Artifact %s doesn\'t exist' % artifact)
+            api.use_artifact(artifact.id)
+        else:
+            self.send_message({
+                'use_artifact': {
+                    'type': type,
+                    'name': name,
+                    'path': path,
+                    'metadata': metadata
+                }
+            })
+            # TODO: return something useful
+            artifact = None
         return artifact
 
     def log_artifact(self, type, name, paths=None, description=None, metadata=None,

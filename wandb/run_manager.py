@@ -1195,14 +1195,16 @@ class RunManager(object):
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy["policy"]].append(policy["glob"])
     
-    # def use_artifact(self, message):
-    #     # NOTE: This is currently disabled, we don't automatically save used artifacts
-    #     name = message['name']
-    #     path = message['path']
-    #     la = LocalArtifact(self._api, path,
-    #                                 file_pusher=self._file_pusher, is_user_created=True)
-    #     server_artifact = la.save(name)
-    #     self._api.use_artifact(server_artifact['id'])
+    def use_artifact(self, message):
+        type = message['type']
+        name = message['name']
+        path = message['path']
+        metadata = message['metadata']
+        lam = artifacts.LocalArtifactManifestV1(path)
+        la = LocalArtifact(self._api, lam.digest, lam.entries,
+                           file_pusher=self._file_pusher, is_user_created=True)
+        server_artifact = la.save(type, name, metadata=metadata)
+        self._api.use_artifact(server_artifact['id'])
 
     def log_artifact(self, message):
         type = message['type']
@@ -1539,28 +1541,3 @@ class ArtifactSaver(object):
             raise ValueError('Must call save first')
         while self._server_artifact.state != 'READY':
             time.sleep(2)
-
-
-# Not currently used, would be used by use_artifact
-# class LocalArtifactRead(object):
-#     def __init__(self, name, path):
-#         self._artifact_dir = None
-#         if path is not None:
-#             if not isinstance(path, string_types):
-#                 raise ValueError("path must be a local file or directory")
-#             if os.path.isdir(path):
-#                 self._artifact_dir = path
-#             elif os.path.isfile(path):
-#                 self._artifact_dir = os.path.dirname(path)
-#             else:
-#                 raise ValueError("path must be a local file or directory")
-#         self._local_manifest = LocalArtifactManifestV1(path)
-
-#     # TODO: give some way for the user to check if we have this on the server?
-
-#     @property
-#     def digest(self):
-#         return self._local_manifest.digest()
-
-#     def download(self, *args, **kwargs):
-#         return self._artifact_dir
