@@ -27,7 +27,10 @@ def pytest_runtest_setup(item):
     wandb.uninit()
     global_settings = os.path.expanduser("~/.config/wandb/settings")
     if os.path.exists(global_settings):
-        os.remove(global_settings)
+        try:
+            os.remove(global_settings)
+        except OSError:
+            pass
     # This is used to find tests that are leaking outside of tmp directories
     os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
 

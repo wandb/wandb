@@ -148,7 +148,11 @@ class JupyterAgent(object):
 
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook"""
-        from nbformat import write, v4
+        try:
+            from nbformat import write, v4
+        except ImportError:
+            logger.error("Run pip install nbformat to save notebook history")
+            return
 
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))
