@@ -476,23 +476,33 @@ def _init_jupyter(run):
     run._init_jupyter_agent()
     ipython = get_ipython()
     ipython.register_magics(jupyter.WandBMagics)
-    if not hasattr(ipython.display_pub, "_orig_publish"):
-        def publish(data, metadata=None, source=None, *, transient=None, update=False, **kwargs):
-            ipython.display_pub._orig_publish(data, metadata, source, transient, update, **kwargs)
-            run._jupyter_agent.save_display(ipython.execution_count , {'data':data, 'metadata':metadata})
-        ipython.display_pub._orig_publish = ipython.display_pub.publish
-        ipython.display_pub.publish = publish
 
+    # Monkey patch ipython publish to capture displayed outputs
+    if not hasattr(ipython.display_pub, "_orig_publish"):
+        ipython.display_pub._orig_publish = ipython.display_pub.publish
+    def publish(data, metadata=None, source=None, *, transient=None, update=False, **kwargs):
+        ipython.display_pub._orig_publish(data, metadata, source, transient, update, **kwargs)
+        run._jupyter_agent.save_display(ipython.execution_count , {'data':data, 'metadata':metadata})
+    ipython.display_pub.publish = publish
+
+    # Cell start
     def reset_start():
         """Reset START_TIME to when the cell starts"""
         global START_TIME
         START_TIME = time.time()
+    if hasattr(ipython.events, "_orig_pre_run"):
+        ipython.events.unregister("pre_run_cell", ipython.events._orig_pre_run)
+    ipython.events._orig_pre_run = reset_start
     ipython.events.register("pre_run_cell", reset_start)
 
+    # Cell shutdown
     def cleanup():
         # shutdown async logger because _user_process_finished isn't called in jupyter
         shutdown_async_log_thread()
         run._stop_jupyter_agent()
+    if hasattr(ipython.events, "_orig_post_run"):
+        ipython.events.unregister("post_run_cell", ipython.events._orig_post_run)
+    ipython.events._orig_post_run = cleanup
     ipython.events.register('post_run_cell', cleanup)
 
 
