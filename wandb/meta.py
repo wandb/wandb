@@ -60,6 +60,9 @@ class Meta(object):
         logger.debug("save program starting: {}".format(program))
         if os.path.exists(program):
             relative_path = os.path.relpath(program, start=self.data["root"])
+            # Ignore paths outside of out_dir when using custom dir
+            if "../" in relative_path:
+                relative_path = os.path.basename(relative_path)
             util.mkdir_exists_ok(os.path.join(self.out_dir, "code", os.path.dirname(relative_path)))
             saved_program = os.path.join(self.out_dir, "code", relative_path)
             logger.debug("save program saved: {}".format(saved_program))
