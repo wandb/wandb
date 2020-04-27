@@ -141,7 +141,7 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
 
                             class Hist(object):
                                 def get_range(self, **kwargs):
-                                    return []
+                                    return [[None, 1, ('#source code', None)]]
 
                             self.events = Hook()
                             self.display_pub = Pub()

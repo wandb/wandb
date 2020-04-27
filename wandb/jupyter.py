@@ -1,6 +1,7 @@
 import wandb
 from wandb.apis import InternalApi, CommError
 from wandb.run_manager import RunManager
+from wandb.env import DISABLE_CODE
 import time
 import os
 import threading
@@ -151,7 +152,7 @@ class JupyterAgent(object):
 
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))
-        if(len(hist)<=1):
+        if len(hist) <= 1 or os.getenv(DISABLE_CODE):
             return
         for session, execution_count, exc in hist:
             if exc[1]:
