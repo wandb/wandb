@@ -13,6 +13,7 @@ from IPython.display import display, Javascript
 import requests
 from requests.compat import urljoin
 import re
+import sys
 from pkg_resources import resource_filename
 from importlib import import_module
 
@@ -116,6 +117,8 @@ class JupyterAgent(object):
 
     def __init__(self):
         self.paused = True
+        self.outputs = {}
+        self.shell = get_ipython()
 
     def start(self):
         if self.paused:
@@ -133,9 +136,50 @@ class JupyterAgent(object):
     def stop(self):
         if not self.paused:
             self.paused = True
+            self.save_history()
             self.rm.unmirror_stdout_stderr()
             self.rm.shutdown()
             wandb.run.close_files()
+
+    def save_display(self, exc_count, data):
+        self.outputs[exc_count] = self.outputs.get(exc_count, [])
+        self.outputs[exc_count].append(data)
+
+    def save_history(self):
+        """This saves all cell executions in the current session as a new notebook"""
+        from nbformat import write, v4
+
+        cells = []
+        hist = list(self.shell.history_manager.get_range(output=True))
+        if(len(hist)<=1):
+            return
+        for session, execution_count, exc in hist:
+            if exc[1]:
+                # TODO: capture stderr?
+                outputs = [v4.new_output(output_type="stream", name="stdout", text=exc[1])]
+            else:
+                outputs = []
+            if self.outputs.get(execution_count):
+                for out in self.outputs[execution_count]:
+                    outputs.append(v4.new_output(output_type="display_data", data=out["data"], metadata=out["metadata"]))
+            cells.append(v4.new_code_cell(
+                execution_count=execution_count,
+                source=exc[0],
+                outputs=outputs
+            ))
+        nb = v4.new_notebook(cells=cells, metadata={
+            'kernelspec': {
+                'display_name': 'Python %i' % sys.version_info[0],
+                'name': 'python%i' % sys.version_info[0],
+                'language': 'python'
+            },
+            'language_info': self.shell.kernel.language_info
+        })
+        state_path = os.path.join("code", "_session_history.ipynb")
+        wandb.run.config._set_wandb("session_history", state_path)
+        wandb.run.config.persist()
+        with open(os.path.join(wandb.run.dir, state_path), 'w', encoding='utf-8') as f:
+            write(nb, f, version=4)
 
 
 class Run(object):

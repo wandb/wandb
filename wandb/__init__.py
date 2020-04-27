@@ -424,6 +424,7 @@ def _init_jupyter(run):
     """
     from wandb import jupyter
     from IPython.core.display import display, HTML
+
     # TODO: Should we log to jupyter?
     # global logging had to be disabled because it set the level to debug
     # I also disabled run logging because we're rairly using it.
@@ -475,6 +476,12 @@ def _init_jupyter(run):
     run._init_jupyter_agent()
     ipython = get_ipython()
     ipython.register_magics(jupyter.WandBMagics)
+    if not hasattr(ipython.display_pub, "_orig_publish"):
+        def publish(data, metadata=None, source=None, *, transient=None, update=False, **kwargs):
+            ipython.display_pub._orig_publish(data, metadata, source, transient, update, **kwargs)
+            run._jupyter_agent.save_display(ipython.execution_count , {'data':data, 'metadata':metadata})
+        ipython.display_pub._orig_publish = ipython.display_pub.publish
+        ipython.display_pub.publish = publish
 
     def reset_start():
         """Reset START_TIME to when the cell starts"""
