@@ -76,7 +76,7 @@ class Meta(object):
 
         self.data["root"] = os.getcwd()
         program = os.getenv(env.PROGRAM) or util.get_program()
-        if program:
+        if program and program != '<python with no main file>':
             self.data["program"] = program
         else:
             self.data["program"] = '<python with no main file>'

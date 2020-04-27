@@ -24,7 +24,7 @@ from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi, CommError
-from wandb.wandb_config import Config, ConfigStatic
+from wandb.wandb_config import Config, ConfigStatic, is_kaggle
 from wandb.viz import Visualize
 import six
 from six.moves import input
@@ -452,7 +452,14 @@ class Run(object):
         entity = api.settings('entity')
         if network:
             if api.settings('entity') is None:
-                viewer = api.viewer()
+                # Kaggle has internet disabled by default, this checks for that case
+                async_viewer = util.async_call(api.viewer, timeout=3)
+                viewer, viewer_thread = async_viewer()
+                if viewer_thread.is_alive():
+                    if is_kaggle():
+                        raise CommError("To use W&B in kaggle you must enable internet in the settings panel on the right.")
+                    else:
+                        raise CommError("Can't connect to network to query entity from API key")
                 if viewer.get('entity'):
                     api.set_setting('entity', viewer['entity'])
 

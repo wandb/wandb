@@ -27,7 +27,10 @@ def pytest_runtest_setup(item):
     wandb.uninit()
     global_settings = os.path.expanduser("~/.config/wandb/settings")
     if os.path.exists(global_settings):
-        os.remove(global_settings)
+        try:
+            os.remove(global_settings)
+        except OSError:
+            pass
     # This is used to find tests that are leaking outside of tmp directories
     os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
 
@@ -134,12 +137,24 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
                             class Hook(object):
                                 def register(self, what, where):
                                     pass
+
+                            class Pub(object):
+                                def publish(self, **kwargs):
+                                    pass
+
+                            class Hist(object):
+                                def get_range(self, **kwargs):
+                                    return [[None, 1, ('#source code', None)]]
+
                             self.events = Hook()
+                            self.display_pub = Pub()
+                            self.history_manager = Hist()
 
                         def register_magics(self, magic):
                             pass
                     return Jupyter()
                 wandb.get_ipython = fake_ipython
+                wandb.jupyter.get_ipython = fake_ipython
             # no i/o wrapping - it breaks pytest
             os.environ['WANDB_MODE'] = 'clirun'
 
