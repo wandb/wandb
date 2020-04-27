@@ -154,6 +154,10 @@ class JupyterAgent(object):
             logger.error("Run pip install nbformat to save notebook history")
             return
 
+        # TODO: some tests didn't patch ipython properly?
+        if self.shell == None:
+            return
+
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))
         if len(hist) <= 1 or os.getenv(DISABLE_CODE):
