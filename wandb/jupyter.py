@@ -178,6 +178,7 @@ class JupyterAgent(object):
         state_path = os.path.join("code", "_session_history.ipynb")
         wandb.run.config._set_wandb("session_history", state_path)
         wandb.run.config.persist()
+        wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
         with open(os.path.join(wandb.run.dir, state_path), 'w', encoding='utf-8') as f:
             write(nb, f, version=4)
 
