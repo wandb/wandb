@@ -3,7 +3,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import ElasticNet
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.datasets import make_regression, make_hastie_10_2
-from keras.layers import Dense, Flatten
+from keras.layers import Dense, Flatten, Reshape
 from keras.models import Sequential
 from keras import backend as K
 from wandb.keras import WandbCallback

@@ -489,9 +489,9 @@ def plot_feature_importances(model=None, feature_names=None,
             if result == '':
                 result = attributes_to_check[index]
             else:
-                result = f'{result}, {attributes_to_check[index]}'
+                result = ", ".join([result, attributes_to_check[index]])
 
-        return f'{result} or {attributes_to_check[-1]}'
+        return " or ".join([result, attributes_to_check[-1]])
 
     def check_for_attribute_on(model):
         for each in attributes_to_check:
@@ -501,7 +501,7 @@ def plot_feature_importances(model=None, feature_names=None,
 
     found_attribute = check_for_attribute_on(model)
     if found_attribute is None:
-        wandb.termwarn(f"{get_attributes_as_formatted_string()} attribute not in classifier. Cannot plot feature importances.")
+        wandb.termwarn("%s attribute not in classifier. Cannot plot feature importances." % get_attributes_as_formatted_string())
         return
 
     if (test_missing(model=model) and test_types(model=model) and
