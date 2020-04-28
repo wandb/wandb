@@ -112,12 +112,12 @@ class LocalArtifact(object):
     def new_file(self, name):
         path = os.path.join(self._artifact_dir.name, name)
         if os.path.exists(path):
-            raise ValueError('file with name "%s" already exists' % name)
+            raise ValueError('File with name "%s" already exists' % name)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         self._new_files.append((name, path))
         return open(path, 'w')
 
-    def load_path(self, name):
+    def load_path(self, name, expand_dirs=False):
         raise ValueError('Cannot load paths from an artifact before it has been saved')
 
     def save(self):
@@ -186,14 +186,24 @@ class ArtifactManifest(ABC):
     def to_manifest_json(self):
         raise NotImplementedError()
 
-    def load_path(self, path, local=False):
+    def load_path(self, path, local=False, expand_dirs=False):
         if path in self.entries:
             return self.storage_policy.load_path(self.artifact, self.entries[path], local=local)
-        if local:
-            # the path could be a dictionary, so find all of the prefixes
-            pass
+
+        # the path could be a dictionary, so load all matching prefixes
+        paths = []
+        for (name, entry) in self.entries.items():
+            if name.startswith(path):
+                paths.append(self.storage_policy.load_path(self.artifact, entry, local=local))
+
+        if len(paths) > 0 and local:
+            return os.path.join(self.artifact.artifact_dir, path)
+        if len(paths) > 0 and not local:
+            if expand_dirs:
+                return paths
+            raise ValueError('Cannot fetch remote path of directory "%s". '
+                             'Set expand_dirs=True get remote paths for directories.' % path)
         raise ValueError('Failed to find "%s" in artifact manifest' % path)
-        # return self.storage_policy.load_path(self.artifact)
 
     def store_path(self, path, name=None, reference=False):
         for entry in self.storage_policy.store_path(self.artifact, path, name=name, reference=reference):
@@ -613,6 +623,7 @@ class S3Handler(StorageHandler):
             return manifest_entry.path
 
         path = '%s/%s' % (artifact.artifact_dir, manifest_entry.name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         obj.download_file(path, ExtraArgs=extra_args)
         return path
 
@@ -627,10 +638,10 @@ class S3Handler(StorageHandler):
         key = url.path[1:]  # strip leading slash
         obj = self._s3.Object(bucket, key)
 
-        md5 = obj.e_tag
+        md5 = self._md5_from_obj(obj)
         extra = self._extra_from_obj(obj)
 
-        return [ArtifactManifestEntry(key, path, md5, extra)]
+        return [ArtifactManifestEntry(name or key, path, md5, extra)]
 
     def upload_callback(self, manifest_entry):
         key = self._content_addressed_path(manifest_entry.md5)
@@ -655,7 +666,7 @@ class S3Handler(StorageHandler):
         # Unfortunately, this is not the true MD5 of the file. Without
         # streaming the file and computing an MD5 manually, there is no
         # way to obtain the true MD5.
-        return obj.e_tag  # strip leading and trailing "
+        return obj.e_tag[1:-1]  # escape leading and trailing quote
 
     @staticmethod
     def _extra_from_obj(obj):

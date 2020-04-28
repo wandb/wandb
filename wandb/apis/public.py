@@ -1969,18 +1969,18 @@ class Artifact(object):
     def add_reference(self, path, name=None):
         raise ValueError('Cannot add files to an artifact once it has been saved')
 
-    def load_path(self, name):
+    def load_path(self, name, expand_dirs=False):
         manifest = self._load_manifest()
 
         class ArtifactPath:
 
             @staticmethod
             def local():
-                return manifest.load_path(name, local=True)
+                return manifest.load_path(name, local=True, expand_dirs=expand_dirs)
 
             @staticmethod
             def remote():
-                return manifest.load_path(name)
+                return manifest.load_path(name, expand_dirs=expand_dirs)
 
         return ArtifactPath()
 
