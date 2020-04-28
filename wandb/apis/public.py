@@ -2042,7 +2042,6 @@ class Artifact(object):
         if self._manifest is None:
             index_file_url = self.files(names=['wandb_manifest.json'])[0].url
             with requests.get(index_file_url) as req:
-                print(req.content)
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
         return self._manifest
 

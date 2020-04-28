@@ -465,6 +465,7 @@ class Run(object):
                      labels=None, aliases=None, storage_policy=None):
         artifact = self.new_artifact(type, name, description=description, metadata=metadata,
                                      labels=labels, aliases=aliases, storage_policy=storage_policy)
+
         if isinstance(paths, list):
             for path in paths:
                 artifact.add_file(path)

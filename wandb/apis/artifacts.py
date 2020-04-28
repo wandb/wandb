@@ -75,13 +75,13 @@ class LocalArtifact(object):
         def add_file_spec(name, path):
             self._file_specs[name] = path
 
-        storage_policy or WandbStoragePolicy(add_file_spec)
+        storage_policy = storage_policy or WandbStoragePolicy(add_file_spec)
         self._save_callback = save_callback
         self._digest = None
         self._manifest = ArtifactManifestV1(self, storage_policy)
         self._cache = artifacts_cache.get_artifacts_cache()
         self._artifact_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
-        self._external_data_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
+        self._new_files = []
         self.type = type
         self.name = name
         self.description = description
@@ -104,15 +104,27 @@ class LocalArtifact(object):
         return self._digest
 
     def add_file(self, path, name=None):
-        return self._manifest.store_path(path, name=name)
+        self._manifest.store_path(path, name=name)
 
     def add_reference(self, path, name=None):
-        return self._manifest.store_path(path, name=name, reference=True)
+        self._manifest.store_path(path, name=name, reference=True)
+
+    def new_file(self, name):
+        path = os.path.join(self._artifact_dir.name, name)
+        if os.path.exists(path):
+            raise ValueError('file with name "%s" already exists' % name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        self._new_files.append((name, path))
+        return open(path, 'w')
 
     def load_path(self, name):
         raise ValueError('Cannot load paths from an artifact before it has been saved')
 
     def save(self):
+        # Record any created files in the manifest.
+        for (name, path) in self._new_files:
+            self._manifest.store_path(path, name=name)
+
         # Add the manifest itself as a file.
         with tempfile.NamedTemporaryFile('w+', suffix=".json", delete=False) as fp:
             json.dump(self._manifest.to_manifest_json(), fp, indent=4)
@@ -127,30 +139,23 @@ class LocalArtifact(object):
         server_manifest = ServerManifestV1(file_entries)
         self._digest = server_manifest.digest
 
-        # Move artifact files into cache
-         # final_artifact_dir = self._cache.get_artifact_dir(self.type, server_manifest.digest)
-         # shutil.rmtree(final_artifact_dir)
-         # os.rename(self._artifact_dir.name, final_artifact_dir)
+        # If there are new files, move them into the artifact cache.
+        # TODO: careful with the download logic to make sure it still knows when to download files
+        if len(self._new_files) > 0:
+            final_artifact_dir = self._cache.get_artifact_dir(self.type, server_manifest.digest)
+            shutil.rmtree(final_artifact_dir)
+            os.rename(self._artifact_dir.name, final_artifact_dir)
 
-         # print(entries)
+            # Update the file entries for new files to point at their new location.
+            def remap_file_entry(file_entry):
+                if not file_entry.local_path.startswith(self._artifact_dir.name):
+                    return file_entry
+                rel_path = os.path.relpath(file_entry.local_path, start=self._artifact_dir.name)
+                local_path = os.path.join(final_artifact_dir, rel_path)
+                return self.LocalArtifactManifestEntry(
+                    file_entry.path, file_entry.hash, local_path)
 
-         # # Update the manifest to reflect the new paths
-         # entries = [
-         #     self.LocalArtifactManifestEntry(
-         #         e.path,
-         #         e.hash,
-         #         os.path.join(final_artifact_dir, os.path.relpath(e.local_path, e.path)))
-         #     for e in entries
-         # ]
-
-         # # move external files into cache if there are any
-         # if len(os.listdir(self._external_data_dir.name)) > 0:
-         #     final_external_data_dir = self._cache.get_artifact_external_dir(
-         #         self.type, server_manifest.digest)
-         #     shutil.rmtree(final_external_data_dir)
-         #     os.rename(
-         #         self._artifact_dir.name,
-         #         final_external_data_dir)
+            file_entries = [remap_file_entry(file_entry) for file_entry in file_entries]
 
         self._save_callback(self, file_entries)
 
@@ -182,9 +187,13 @@ class ArtifactManifest(ABC):
         raise NotImplementedError()
 
     def load_path(self, path, local=False):
-        if path not in self.entries:
-            raise ValueError('Failed to find "%s" in artifact manifest' % path)
-        return self.storage_policy.load_path(self.artifact, self.entries[path], local=local)
+        if path in self.entries:
+            return self.storage_policy.load_path(self.artifact, self.entries[path], local=local)
+        if local:
+            # the path could be a dictionary, so find all of the prefixes
+            pass
+        raise ValueError('Failed to find "%s" in artifact manifest' % path)
+        # return self.storage_policy.load_path(self.artifact)
 
     def store_path(self, path, name=None, reference=False):
         for entry in self.storage_policy.store_path(self.artifact, path, name=name, reference=reference):
@@ -587,22 +596,24 @@ class S3Handler(StorageHandler):
         key = url.path[1:]
         version = manifest_entry.extra['versionID']
 
+        extra_args = {}
         if version is None:
             # Object versioning is disabled on the bucket, so just get
-            # the latest version.
+            # the latest version and make sure the MD5 matches.
             obj = self._s3.Object(bucket, key)
+            md5 = self._md5_from_obj(obj)
+            if md5 != manifest_entry.md5:
+                raise ValueError('Digest mismatch for object %s/%s: expected %s but found %s',
+                                 (self._bucket, key, manifest_entry.md5, md5))
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
+            extra_args['VersionId'] = version
 
-        md5 = self._md5_from_obj(obj)
-        if md5 != manifest_entry.md5:
-            raise ValueError('Digest mismatch for object %s/%s: expected %s but found %s',
-                             (self._bucket, key, manifest_entry.md5, md5))
         if not local:
             return manifest_entry.path
 
         path = '%s/%s' % (artifact.artifact_dir, manifest_entry.name)
-        obj.download_file(path)
+        obj.download_file(path, ExtraArgs=extra_args)
         return path
 
     def store_path(self, artifact, path, name=None, reference=False):
@@ -625,11 +636,13 @@ class S3Handler(StorageHandler):
         key = self._content_addressed_path(manifest_entry.md5)
         obj = self._s3.Object(self._bucket, key)
 
-        obj.upload_file(manifest_entry.path, ExtraArgs={
-            'Metadata': {
-                'md5': manifest_entry.md5,
-            }
-        })
+        # Only upload the file if it doesn't already exist.
+        if len(list(self._s3.Bucket(self._bucket).objects.filter(Prefix=key))) == 0:
+            obj.upload_file(manifest_entry.path, ExtraArgs={
+                'Metadata': {
+                    'md5': manifest_entry.md5,
+                }
+            })
 
         manifest_entry.path = 's3://%s/%s' % (self._bucket, key)
         manifest_entry.extra = self._extra_from_obj(obj)
