@@ -1996,12 +1996,6 @@ class Artifact(object):
                     or util.md5_file(local_file_path) != f.digest):
                 f.download(root=dirpath, replace=True)
 
-        # Force all the files to download into the same directory.
-        # This is way too slow, needs to happen in parallel
-        manifest = self._load_manifest()
-        for name in manifest.entries:
-            print('LOCAL', self.load_path(name).local())
-
         # TODO: make sure we clear any extra files
         self._is_downloaded = True
         return dirpath

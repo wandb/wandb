@@ -1198,11 +1198,10 @@ class RunManager(object):
     def use_artifact(self, message):
         type = message['type']
         name = message['name']
-        path = message['path']
+        manifest_entries = message['manifest_entries']
+        digest = message['digest']
         metadata = message['metadata']
-        lam = artifacts.LocalArtifactManifestV1(path)
-        la = ArtifactSaver(self._api, lam.digest, lam.entries,
-                           file_pusher=self._file_pusher, is_user_created=True)
+        la = ArtifactSaver(self._api, digest, manifest_entries, file_pusher=self._file_pusher, is_user_created=True)
         server_artifact = la.save(type, name, metadata=metadata)
         self._api.use_artifact(server_artifact['id'])
 

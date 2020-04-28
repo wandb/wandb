@@ -71,6 +71,7 @@ class LocalArtifact(object):
     def __init__(self, save_callback, type, name, description=None, metadata=None, labels=None,
                  aliases=None, storage_policy=None):
         self._file_specs = {}
+        self._final = False
 
         def add_file_spec(name, path):
             self._file_specs[name] = path
@@ -78,6 +79,7 @@ class LocalArtifact(object):
         storage_policy = storage_policy or WandbStoragePolicy(add_file_spec)
         self._save_callback = save_callback
         self._digest = None
+        self._file_entries = None
         self._manifest = ArtifactManifestV1(self, storage_policy)
         self._cache = artifacts_cache.get_artifacts_cache()
         self._artifact_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
@@ -96,20 +98,28 @@ class LocalArtifact(object):
 
     @property
     def manifest(self):
+        self.finalize()
         return self._manifest
 
     @property
     def digest(self):
+        self.finalize()
         # Digest will be none if the artifact hasn't been saved yet.
         return self._digest
 
     def add_file(self, path, name=None):
+        if self._final:
+            raise ValueError('Can\'t add to finalized artifact.')
         self._manifest.store_path(path, name=name)
 
     def add_reference(self, path, name=None):
+        if self._final:
+            raise ValueError('Can\'t add to finalized artifact.')
         self._manifest.store_path(path, name=name, reference=True)
 
     def new_file(self, name):
+        if self._final:
+            raise ValueError('Can\'t add to finalized artifact.')
         path = os.path.join(self._artifact_dir.name, name)
         if os.path.exists(path):
             raise ValueError('File with name "%s" already exists' % name)
@@ -120,7 +130,11 @@ class LocalArtifact(object):
     def load_path(self, name, expand_dirs=False):
         raise ValueError('Cannot load paths from an artifact before it has been saved')
 
-    def save(self):
+    def finalize(self):
+        if self._final:
+            return self._file_entries
+        self._final = True
+
         # Record any created files in the manifest.
         for (name, path) in self._new_files:
             self._manifest.store_path(path, name=name)
@@ -157,6 +171,11 @@ class LocalArtifact(object):
 
             file_entries = [remap_file_entry(file_entry) for file_entry in file_entries]
 
+        self._file_entries = file_entries
+        return self._file_entries
+
+    def save(self):
+        file_entries = self.finalize()
         self._save_callback(self, file_entries)
 
 
