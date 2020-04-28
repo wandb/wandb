@@ -1,3 +1,17 @@
+## 0.8.34 (Apr 28, 2020)
+
+#### :nail_care: Enhancement
+
+-   Save session history in jupyter notebooks
+-   Kaggle internet enable notification
+-   Extend wandb.plots.feature_importances to work with more model types, thanks @neomatrix369!
+
+#### :bug: Bug Fix
+
+-   Code saving for jupyter notebooks restored
+-   Fixed thread errors in jupyter
+-   Ensure final history rows aren't dropped in jupyter
+
 ## 0.8.33 (Apr 24, 2020)
 
 #### :nail_care: Enhancement
