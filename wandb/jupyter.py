@@ -176,16 +176,23 @@ class JupyterAgent(object):
                 source=exc[0],
                 outputs=outputs
             ))
-        nb = v4.new_notebook(cells=cells, metadata={
-            'kernelspec': {
-                'display_name': 'Python %i' % sys.version_info[0],
-                'name': 'python%i' % sys.version_info[0],
-                'language': 'python'
-            },
-            'language_info': self.shell.kernel.language_info
-        })
-        state_path = os.path.join("code", "_session_history.ipynb")
         try:
+            if hasattr(self.shell, "kernel"):
+                language_info = self.shell.kernel.language_info
+            else:
+                language_info = {
+                    'name': "python",
+                    "version": sys.version
+                }
+            nb = v4.new_notebook(cells=cells, metadata={
+                'kernelspec': {
+                    'display_name': 'Python %i' % sys.version_info[0],
+                    'name': 'python%i' % sys.version_info[0],
+                    'language': 'python'
+                },
+                'language_info': language_info
+            })
+            state_path = os.path.join("code", "_session_history.ipynb")
             wandb.run.config._set_wandb("session_history", state_path)
             wandb.run.config.persist()
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))

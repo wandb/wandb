@@ -278,7 +278,8 @@ class FileEventHandlerConfig(FileEventHandler):
 
     def finish(self):
         if self._thread:
-            self._thread.join()
+            # Cancel the current thread to keep moving
+            self._thread.cancel()
             self._thread = None
 
         self._update()
