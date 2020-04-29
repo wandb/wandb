@@ -13,6 +13,7 @@ from six.moves.urllib.parse import urlparse
 from wandb.compat import tempfile as compat_tempfile
 
 from wandb.apis import artifacts_cache
+from wandb import util
 
 
 def md5_string(string):
@@ -609,8 +610,7 @@ class WandbFileHandler(StorageHandler):
 class S3Handler(StorageHandler):
 
     def __init__(self, bucket, scheme=None):
-        if 'boto3' not in sys.modules:
-            import boto3
+        boto3 = util.get_module('boto3', required=True)
         self._s3 = boto3.resource('s3')
         self._bucket = bucket
         self._scheme = scheme or "s3"
