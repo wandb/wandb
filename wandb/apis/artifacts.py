@@ -588,7 +588,7 @@ class WandbFileHandler(StorageHandler):
             # We can make this smarter by just downloading the requested
             # file.
             url = urlparse(manifest_entry.path)
-            return artifact.download() + url.path
+            return artifact.download(download_l1=False) + url.path
 
         files = artifact.files(names=[manifest_entry.name])
         if len(files) == 0:
@@ -642,6 +642,17 @@ class S3Handler(StorageHandler):
             return manifest_entry.path
 
         path = '%s/%s' % (artifact.artifact_dir, manifest_entry.name)
+
+        # md5 the path, and skip the download if we already have this file.
+        # TODO:
+        #   - this will cause etag files to always redownload (maybe ok?).
+        #   - this only works for s3 files currently
+        if os.path.isfile(path):
+            md5 = md5_file_b64(path)
+            if md5 == manifest_entry.md5:
+                # Skip download.
+                return path
+
         os.makedirs(os.path.dirname(path), exist_ok=True)
         obj.download_file(path, ExtraArgs=extra_args)
         return path
