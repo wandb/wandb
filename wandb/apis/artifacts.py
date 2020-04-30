@@ -4,15 +4,15 @@ import base64
 import hashlib
 import os
 import sys
-import requests
 import tempfile
 import shutil
+import requests
 from abc import ABC, abstractmethod
 from six.moves.urllib.parse import urlparse
 
 from wandb.compat import tempfile as compat_tempfile
 
-from wandb.apis import artifacts_cache
+from wandb.apis import artifacts_cache, InternalApi
 
 
 def md5_string(string):
@@ -70,12 +70,9 @@ class LocalArtifact(object):
 
     def __init__(self, save_callback, type, name, description=None, metadata=None, labels=None,
                  aliases=None, storage_policy=None):
+        storage_policy = storage_policy or WandbStoragePolicy()
         self._file_specs = {}
-
-        def add_file_spec(name, path):
-            self._file_specs[name] = path
-
-        storage_policy = storage_policy or WandbStoragePolicy(add_file_spec)
+        self._api = InternalApi()
         self._save_callback = save_callback
         self._digest = None
         self._manifest = ArtifactManifestV1(self, storage_policy)
@@ -93,6 +90,14 @@ class LocalArtifact(object):
     def id(self):
         # The artifact hasn't been saved so an ID doesn't exist yet.
         return None
+
+    @property
+    def entity(self):
+        return self._api.settings('entity')
+
+    @property
+    def project(self):
+        return self._api.settings('project')
 
     @property
     def manifest(self):
@@ -190,7 +195,7 @@ class ArtifactManifest(ABC):
         if path in self.entries:
             return self.storage_policy.load_path(self.artifact, self.entries[path], local=local)
 
-        # the path could be a dictionary, so load all matching prefixes
+        # the path could be a directory, so load all matching prefixes
         paths = []
         for (name, entry) in self.entries.items():
             if name.startswith(path):
@@ -293,12 +298,6 @@ class StoragePolicy(ABC):
         pass
 
 
-def wandb_policy(upload_callback):
-    def create(artifact):
-        return WandbStoragePolicy(artifact, upload_callback)
-    return create
-
-
 class WandbStoragePolicy(StoragePolicy):
 
     @classmethod
@@ -307,14 +306,10 @@ class WandbStoragePolicy(StoragePolicy):
 
     @classmethod
     def from_config(cls, config):
-        def upload_callback(name, path):
-            # Not valid to upload from here.
-            raise NotImplementedError()
+        return cls()
 
-        return cls(upload_callback)
-
-    def __init__(self, wandb_upload_callback):
-        wandb = WandbFileHandler(wandb_upload_callback)
+    def __init__(self):
+        wandb = WandbFileHandler()
         local = LocalFileHandler(upload_callback=wandb.upload_callback)
 
         self._handler = MultiHandler(handlers=[
@@ -503,7 +498,7 @@ class LocalFileHandler(StorageHandler):
         are expanded to create an entry for each file contained within.
         """
         self._scheme = scheme or ""
-        self._upload_callback = upload_callback or (lambda entry: None)
+        self._upload_callback = upload_callback or (lambda artifact, entry: None)
 
     @property
     def scheme(self):
@@ -539,13 +534,13 @@ class LocalFileHandler(StorageHandler):
                     logical_path = os.path.join(artifact_root, os.path.relpath(physical_path, start=path))
                     entry = ArtifactManifestEntry(logical_path, physical_path, md5= md5_file_b64(physical_path))
                     if not reference:
-                        self._upload_callback(entry)
+                        self._upload_callback(artifact, entry)
                     entries.append(entry)
         elif os.path.isfile(path):
             name = name or os.path.basename(path)
             entry = ArtifactManifestEntry(name, path, md5=md5_file_b64(path))
             if not reference:
-                self._upload_callback(entry)
+                self._upload_callback(artifact, entry)
             entries.append(entry)
         else:
             raise ValueError('Path "%s" must be a valid file or directory path' % path)
@@ -554,37 +549,56 @@ class LocalFileHandler(StorageHandler):
 
 class WandbFileHandler(StorageHandler):
 
-    def __init__(self, wandb_upload_callback, scheme=None):
-        self._wandb_upload_callback = wandb_upload_callback
+    def __init__(self, scheme=None):
         self._scheme = scheme or "wandb"
+        self._api = InternalApi()
 
     @property
     def scheme(self):
         return self._scheme
 
     def load_path(self, artifact, manifest_entry, local=False):
-        if local:
-            # This implementation naively downloads the whole artifact.
-            # We can make this smarter by just downloading the requested
-            # file.
-            url = urlparse(manifest_entry.path)
-            return artifact.download() + url.path
+        if not local:
+            return self._file_url(artifact, manifest_entry)
 
-        files = artifact.files(names=[manifest_entry.name])
-        if len(files) == 0:
-            raise ValueError('Failed to find %s in %s' % (manifest_entry.name, self._artifact.id))
-        return artifact.files(names=[manifest_entry.name])[0].url
+        url = urlparse(manifest_entry.path)
+        path = f'{artifact.artifact_dir}/{url.path}'
+        os.makedirs(os.path.dirname(path))
+        response = requests.get(self._file_url(artifact, manifest_entry),
+                                auth=("api", self._api.api_key),
+                                stream=True)
+        response.raise_for_status()
+
+        with open(path, "wb") as file:
+            for data in response.iter_content(chunk_size=1024):
+                file.write(data)
+        return path
 
     def store_path(self, artifact, path, name=None, reference=False):
         # Shouldn't be called. Only local files should be saved.
         raise NotImplementedError()
 
-    def upload_callback(self, manifest_entry):
-        self._wandb_upload_callback(manifest_entry.name, manifest_entry.path)
+    def upload_callback(self, artifact, manifest_entry):
+        # TODO: move this to file_pusher so that we don't block the user process
+        with open(manifest_entry.path, "rb") as file:
+            r = requests.put(self._file_url(artifact, manifest_entry),
+                             auth=("api", self._api.api_key),
+                             stream=True,
+                             headers={
+                                 'Content-Length': str(os.path.getsize(manifest_entry.path)),
+                                 'Content-MD5': manifest_entry.md5,
+                             },
+                             data=file)
+            r.raise_for_status()
+
         # Prepend the manifest path entry with the 'wandb:/' scheme.
         # We don't care about storing the physical path in the manifest
         # entry as files within a wandb artifact are mapped to their name.
         manifest_entry.path = '%s:/%s' % (self.scheme, manifest_entry.name)
+
+    def _file_url(self, artifact, manifest_entry):
+        base64_md5 = base64.b64encode(manifest_entry.md5.encode('ascii')).decode('ascii')
+        return f'{self._api.settings("base_url")}/artifacts/{artifact.entity}/{artifact.project}/{base64_md5}'
 
 
 class S3Handler(StorageHandler):
@@ -643,7 +657,7 @@ class S3Handler(StorageHandler):
 
         return [ArtifactManifestEntry(name or key, path, md5, extra)]
 
-    def upload_callback(self, manifest_entry):
+    def upload_callback(self, artifact, manifest_entry):
         key = self._content_addressed_path(manifest_entry.md5)
         obj = self._s3.Object(self._bucket, key)
 
