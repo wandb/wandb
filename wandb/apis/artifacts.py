@@ -3,7 +3,6 @@ import json
 import base64
 import hashlib
 import os
-import sys
 import tempfile
 import shutil
 import requests
@@ -13,6 +12,7 @@ from six.moves.urllib.parse import urlparse
 from wandb.compat import tempfile as compat_tempfile
 
 from wandb.apis import artifacts_cache, InternalApi
+from wandb import util
 
 
 def md5_string(string):
@@ -73,8 +73,11 @@ class LocalArtifact(object):
         storage_policy = storage_policy or WandbStoragePolicy()
         self._file_specs = {}
         self._api = InternalApi()
+        self._final = False
+        storage_policy = storage_policy or WandbStoragePolicy()
         self._save_callback = save_callback
         self._digest = None
+        self._file_entries = None
         self._manifest = ArtifactManifestV1(self, storage_policy)
         self._cache = artifacts_cache.get_artifacts_cache()
         self._artifact_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
@@ -101,20 +104,28 @@ class LocalArtifact(object):
 
     @property
     def manifest(self):
+        self.finalize()
         return self._manifest
 
     @property
     def digest(self):
+        self.finalize()
         # Digest will be none if the artifact hasn't been saved yet.
         return self._digest
 
     def add_file(self, path, name=None):
+        if self._final:
+            raise ValueError('Can\'t add to finalized artifact.')
         self._manifest.store_path(path, name=name)
 
     def add_reference(self, path, name=None):
+        if self._final:
+            raise ValueError('Can\'t add to finalized artifact.')
         self._manifest.store_path(path, name=name, reference=True)
 
     def new_file(self, name):
+        if self._final:
+            raise ValueError('Can\'t add to finalized artifact.')
         path = os.path.join(self._artifact_dir.name, name)
         if os.path.exists(path):
             raise ValueError('File with name "%s" already exists' % name)
@@ -125,7 +136,11 @@ class LocalArtifact(object):
     def load_path(self, name, expand_dirs=False):
         raise ValueError('Cannot load paths from an artifact before it has been saved')
 
-    def save(self):
+    def finalize(self):
+        if self._final:
+            return self._file_entries
+        self._final = True
+
         # Record any created files in the manifest.
         for (name, path) in self._new_files:
             self._manifest.store_path(path, name=name)
@@ -162,6 +177,11 @@ class LocalArtifact(object):
 
             file_entries = [remap_file_entry(file_entry) for file_entry in file_entries]
 
+        self._file_entries = file_entries
+        return self._file_entries
+
+    def save(self):
+        file_entries = self.finalize()
         self._save_callback(self, file_entries)
 
 
@@ -604,8 +624,7 @@ class WandbFileHandler(StorageHandler):
 class S3Handler(StorageHandler):
 
     def __init__(self, bucket, scheme=None):
-        if 'boto3' not in sys.modules:
-            import boto3
+        boto3 = util.get_module('boto3', required=True)
         self._s3 = boto3.resource('s3')
         self._bucket = bucket
         self._scheme = scheme or "s3"
@@ -637,6 +656,17 @@ class S3Handler(StorageHandler):
             return manifest_entry.path
 
         path = '%s/%s' % (artifact.artifact_dir, manifest_entry.name)
+
+        # md5 the path, and skip the download if we already have this file.
+        # TODO:
+        #   - this will cause etag files to always redownload (maybe ok?).
+        #   - this only works for s3 files currently
+        if os.path.isfile(path):
+            md5 = md5_file_b64(path)
+            if md5 == manifest_entry.md5:
+                # Skip download.
+                return path
+
         os.makedirs(os.path.dirname(path), exist_ok=True)
         obj.download_file(path, ExtraArgs=extra_args)
         return path

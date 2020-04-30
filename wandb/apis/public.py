@@ -1984,7 +1984,9 @@ class Artifact(object):
 
         return ArtifactPath()
 
-    def download(self):
+    # We need this download_l1 because WandbFileHandler calls download. It
+    # sets download_l1 to false to avoid infinite recursion
+    def download(self, download_l1=True):
         dirpath = self.artifact_dir
         if self._is_downloaded:
             return dirpath
@@ -1995,6 +1997,17 @@ class Artifact(object):
             if (not os.path.isfile(local_file_path)
                     or util.md5_file(local_file_path) != f.digest):
                 f.download(root=dirpath, replace=True)
+
+        # Force all the files to download into the same directory.
+        # Download in parallel
+        # TODO: this may not be the right place to do this.
+        if download_l1:
+            import multiprocessing.dummy  # this uses threads
+            pool = multiprocessing.dummy.Pool(16)
+            manifest = self._load_manifest()
+            pool.map(lambda name: self.load_path(name).local(), manifest.entries)
+            pool.close()
+            pool.join()
 
         # TODO: make sure we clear any extra files
         self._is_downloaded = True

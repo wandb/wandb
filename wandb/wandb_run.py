@@ -450,7 +450,7 @@ class Run(object):
             aliases=aliases,
             storage_policy=storage_policy)
 
-    def use_artifact(self, type=None, name=None, path=None, metadata=None, api=None):
+    def use_artifact(self, type=None, name=None, path=None, metadata=None, api=None, storage_policy=None):
         if type is None or name is None:
             raise ValueError('type and name required')
         api = api or self.api
@@ -461,12 +461,16 @@ class Run(object):
                 raise ValueError('Artifact %s doesn\'t exist' % artifact)
             api.use_artifact(artifact.id)
         else:
+            artifact = self.new_artifact(type, name, metadata=metadata,
+                                        storage_policy=storage_policy)
+            entries = artifact.finalize()
             self.send_message({
                 'use_artifact': {
                     'type': type,
                     'name': name,
-                    'path': path,
-                    'metadata': metadata
+                    'manifest_entries': entries,
+                    'digest': artifact.digest,
+                    'metadata': artifact.metadata
                 }
             })
             # TODO: return something useful
@@ -478,15 +482,17 @@ class Run(object):
         artifact = self.new_artifact(type, name, description=description, metadata=metadata,
                                      labels=labels, aliases=aliases, storage_policy=storage_policy)
 
-        if isinstance(paths, list):
+        if isinstance(paths, str):
+            path = paths
+            artifact.add_file(path)
+        elif isinstance(paths, collections.Sequence):
             for path in paths:
                 artifact.add_file(path)
-        if isinstance(paths, dict):
+        elif isinstance(paths, collections.Mapping):
             for name, path in paths.items():
                 artifact.add_file(path, name)
         else:
-            path = paths
-            artifact.add_file(path)
+            raise ValueError('paths must be str, sequence, or mapping')
 
         artifact.save()
 
