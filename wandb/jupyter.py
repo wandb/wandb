@@ -170,7 +170,7 @@ class JupyterAgent(object):
                 outputs = []
             if self.outputs.get(execution_count):
                 for out in self.outputs[execution_count]:
-                    outputs.append(v4.new_output(output_type="display_data", data=out["data"], metadata=out["metadata"]))
+                    outputs.append(v4.new_output(output_type="display_data", data=out["data"], metadata=out["metadata"] or {}))
             cells.append(v4.new_code_cell(
                 execution_count=execution_count,
                 source=exc[0],
