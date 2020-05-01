@@ -1,3 +1,11 @@
+## 0.8.35 (May 1, 2020)
+
+#### :bug: Bug Fix
+
+-   Ensure cells don't hang on completion
+-   Fixed jupyter integration in PyCharm shells
+-   Made session history saving handle None metadata in outputs
+
 ## 0.8.34 (Apr 28, 2020)
 
 #### :nail_care: Enhancement
