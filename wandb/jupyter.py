@@ -170,22 +170,29 @@ class JupyterAgent(object):
                 outputs = []
             if self.outputs.get(execution_count):
                 for out in self.outputs[execution_count]:
-                    outputs.append(v4.new_output(output_type="display_data", data=out["data"], metadata=out["metadata"]))
+                    outputs.append(v4.new_output(output_type="display_data", data=out["data"], metadata=out["metadata"] or {}))
             cells.append(v4.new_code_cell(
                 execution_count=execution_count,
                 source=exc[0],
                 outputs=outputs
             ))
-        nb = v4.new_notebook(cells=cells, metadata={
-            'kernelspec': {
-                'display_name': 'Python %i' % sys.version_info[0],
-                'name': 'python%i' % sys.version_info[0],
-                'language': 'python'
-            },
-            'language_info': self.shell.kernel.language_info
-        })
-        state_path = os.path.join("code", "_session_history.ipynb")
         try:
+            if hasattr(self.shell, "kernel"):
+                language_info = self.shell.kernel.language_info
+            else:
+                language_info = {
+                    'name': "python",
+                    "version": sys.version
+                }
+            nb = v4.new_notebook(cells=cells, metadata={
+                'kernelspec': {
+                    'display_name': 'Python %i' % sys.version_info[0],
+                    'name': 'python%i' % sys.version_info[0],
+                    'language': 'python'
+                },
+                'language_info': language_info
+            })
+            state_path = os.path.join("code", "_session_history.ipynb")
             wandb.run.config._set_wandb("session_history", state_path)
             wandb.run.config.persist()
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
