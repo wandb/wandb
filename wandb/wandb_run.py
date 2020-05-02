@@ -463,6 +463,7 @@ class Run(object):
         else:
             artifact = self.new_artifact(type, name, metadata=metadata,
                                         storage_policy=storage_policy)
+            artifact.add_file(path)
             entries = artifact.finalize()
             self.send_message({
                 'use_artifact': {
