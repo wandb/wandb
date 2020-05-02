@@ -4,167 +4,149 @@ package wandb_internal;
 
 import "google/protobuf/timestamp.proto";
 
-
-//service InternalService {
-//  rpc Log(LogData) returns (LogResult) {}
-//  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
-//  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
-//  rpc RunGet(RunGetRequest) returns (RunGetResult) {}
-//  rpc RunUpdate(RunUpdateRequest) returns (RunUpdateResult) {}
-//}
-
-message Header {
-  uint32 magic = 1;
-  uint32 version = 2;
+/*
+ * Record: joined record for message passing and persistance
+ */
+message Record {
+  int64         num = 1;
+  oneof data {
+    HistoryData history = 2;
+    SummaryData summary = 3;
+    OutputData  output = 4;
+    ConfigData  config = 5;
+    FilesData   files = 6;
+    StatsData   stats = 7;
+    RunData     run = 17;
+    ExitData    exit = 18;
+  }
+  Control       control = 16;
 }
 
-message LogValue {
-  double value = 1;
-  sint64 integer = 2;
-  string str = 3;
-  bool   boolean = 4;
-  bytes  data = 5;
-
-  string json = 16;
+/*
+ * Control: message passing metadata
+ */
+message Control {
+  bool req_resp = 1;
 }
 
-message LogItem {
-  string key = 1;
-  LogValue value = 2;
+/*
+ * RunData: wandb/sdk/wandb_run/Run
+ */
+message RunData {
+  string run_id = 1;
+  string entity = 2;
+  string project = 3;
+  ConfigData config = 4;
+  SummaryData summary = 5;
+  string run_group = 6;
+  string job_type = 7;
+  string display_name = 8;
+  string notes = 9;
+  repeated string tags = 10;
+  SettingsData settings = 11;
+
+  string storage_id = 16;
+  google.protobuf.Timestamp start_time = 17;
 }
 
-message LogData {
-  repeated LogItem item = 1;
-
-  string json = 16;
+/*
+ * SettingsData: wandb/sdk/wandb_settings/Settings
+ */
+message SettingsData {
+  repeated SettingsItem item = 1;
 }
 
-message LogResult {
-  int32  code = 1;
-  string status = 2;
+message SettingsItem {
+  string          key = 1;
+  string          value_json = 16;
 }
 
+/*
+ * HistoryData: wandb/sdk/wandb_history/History
+ */
+message HistoryData {
+  repeated HistoryItem item = 1;
+}
+
+message HistoryItem {
+  string          key = 1;
+  repeated string nested_key = 2;
+  string          value_json = 16;
+}
+
+/*
+ * OutputData: console output
+ */
 message OutputData {
   enum OutputType {
     STDERR = 0;
     STDOUT = 1;
   }
-  OutputType output_type = 1;
+  OutputType                output_type = 1;
   google.protobuf.Timestamp timestamp = 2;
-  string str = 3;
-  string json = 16;
+  string                    line = 3;
 }
 
-message OutputResult {
-  int32 code = 1;
-  string status = 2;
-}
-
-message ServerShutdownRequest {
-}
-
-message ServerShutdownResult {
-  int32  code = 1;
-  string status = 2;
-}
-
-message ServerStatusRequest {
-}
-
-message ServerStatusResult {
-  int32  code = 1;
-  string status = 2;
-}
-
-message Run {
-  string run_id = 1;
-  string name = 2;
-  // config
-  string config_json = 3;
-  // summary
-  string summary_json = 4;
-  string entity = 5;
-  string project = 6;
-  repeated string tags = 7;
-  string group = 8;
-  string job_type = 9;
-  string notes = 10;
-
-  string storage_id = 16;
-}
-
-message Error {
-  int32  code = 1;
-  string status = 2;
-}
-
-message RunGetRequest {
-  string id = 1;
-}
-
-message RunGetResult {
-  Run   run = 1;
-  Error error = 16;
-}
-
-message RunUpdateRequest {
-  Run   run = 1;
-  // TODO(jhr): Mask of fields to clear?
-}
-
-message RunUpdateResult {
-  Run   run = 1;
-  Error error = 16;
-}
-
-message Control {
-  bool req_resp = 1;
-}
-
+/*
+ * ConfigData: wandb/sdk/wandb_config/Config
+ */
 message ConfigData {
-  string run_id = 1;
-  string config_json = 2;
+  repeated ConfigItem update = 1;
+  repeated ConfigItem remove = 2;
 }
 
+message ConfigItem {
+  string          key = 1;
+  repeated string nested_key = 2;
+  string          value_json = 16;
+}
+
+/*
+ * SummaryData: wandb/sdk/wandb_summary/Summary
+ */
 message SummaryData {
-  string run_id = 1;
-  string summary_json = 2;
+  repeated SummaryItem update = 1;
+  repeated SummaryItem remove = 2;
+}
+
+message SummaryItem {
+  string          key = 1;
+  repeated string nested_key = 2;
+  string          value_json = 16;
+}
+
+/*
+ * FilesData: files added to run
+ */
+message FilesData {
+  repeated FilesItem files = 1;
 }
 
 message FilesItem {
-  string name = 1;
+  repeated string path = 1;
+  repeated string external_path = 16;
 }
 
-message FilesData {
-  string run_id = 1;
-  repeated FilesItem files = 2;
-}
-
+/*
+ * StatsData: system metrics
+ */
 message StatsData {
-  string run_id = 1;
-  string stats_json = 2;
-}
-
-message ExitData {
-  string run_id = 1;
-  int32 exit_code = 2;
-}
-
-message Record {
-  int64   num = 1;
-  oneof data {
-    LogData log = 2;
-    Run     run = 3;
-    OutputData output = 4;
-    ConfigData config = 5;
-    FilesData files = 6;
-    SummaryData summary = 7;
-    StatsData stats = 8;
-    ExitData exit = 9;
+  enum StatsType {
+    SYSTEM = 0;
   }
-  Control control = 16;
-  // config?
-  // summary?
-  // console
-  // file chunk?
+  StatsType                 stats_type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  repeated StatsItem        item = 3;
+}
+
+message StatsItem {
+  string          key = 1;
+  string          value_json = 16;
+}
+
+/*
+ * ExitData: exit status of process
+ */
+message ExitData {
+  int32 exit_code = 1;
 }

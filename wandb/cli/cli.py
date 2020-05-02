@@ -55,5 +55,5 @@ def login():
 @click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.argument('agent_spec', nargs=-1)
 @display_error
-def agent(project=None, entity=None, agent_spec=None):
-    wandb.agent.run_agent(agent_spec)
+def superagent(project=None, entity=None, agent_spec=None):
+    wandb.superagent.run_agent(agent_spec)

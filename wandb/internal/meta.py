@@ -38,7 +38,7 @@ class Meta(object):
         self.data["args"] = sys.argv[1:]
         self.data["state"] = "running"
         self.data["heartbeatAt"] = datetime.utcnow().isoformat()
-        self.data["startedAt"] = datetime.utcfromtimestamp(self._settings.start_time).isoformat()
+        self.data["startedAt"] = datetime.utcfromtimestamp(self._settings._start_time).isoformat()
 
     def write(self):
         with open(self.fname, 'w') as f:
@@ -46,5 +46,5 @@ class Meta(object):
             f.write(s)
             f.write('\n')
         base_name = os.path.basename(self.fname)
-        files = dict(files=[base_name])
+        files = dict(files=[(base_name,)])
         self._interface.send_files(files)

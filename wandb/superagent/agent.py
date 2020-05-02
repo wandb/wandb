@@ -14,7 +14,7 @@ import time
 
 import os
 from wandb import Settings
-# from wandb.apis import internal
+from wandb.apis import internal_runqueue
 import subprocess
 import json
 
@@ -23,11 +23,11 @@ class Agent(object):
 
     def __init__(self, spec):
         self._spec = spec
-        glob_config = os.path.expanduser('~/.config/wandb/settings')
-        loc_config = 'wandb/settings'
-        files = (glob_config, loc_config)
-        settings = Settings(environ=os.environ, files=files)
-        self._api = internal.Api(default_settings=settings)
+        # glob_config = os.path.expanduser('~/.config/wandb/settings')
+        # loc_config = 'wandb/settings'
+        # files = (glob_config, loc_config)
+        settings = Settings()
+        self._api = internal_runqueue.Api()
         self._settings = settings
 
     def check_queue(self):
@@ -71,8 +71,8 @@ class Agent(object):
 
 
 def run_agent(spec):
-    if not spec or len(spec) < 1:
-        click.echo("ERROR: Specify agent spec in the form: 'entity/project' or 'entity/project/queue'")
+    if not spec or len(spec) != 1 or len(spec[0].split("/")) != 2:
+        click.echo("ERROR: Specify agent spec in the form: 'entity/project'")
         sys.exit(1)
     spec = spec[0]
     print("Super agent spec: %s" % spec)

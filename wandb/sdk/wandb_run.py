@@ -12,7 +12,6 @@ from . import wandb_config
 from . import wandb_summary
 from . import wandb_history
 
-import shortuuid  # type: ignore
 import click
 import platform
 import shutil
@@ -21,13 +20,6 @@ import os
 import json
 
 logger = logging.getLogger("wandb")
-
-
-def generate_id():
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(
-        alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return run_gen.random(8)
 
 
 class Run(object):
@@ -58,7 +50,7 @@ class RunManaged(Run):
         self._project = None
         self._group = None
         self._job_type = None
-        self._run_id = generate_id()
+        self._run_id = settings.run_id
         self._name = None
         self._notes = None
         self._tags = None
@@ -93,6 +85,7 @@ class RunManaged(Run):
             self._tags = settings.run_tags
 
     def _make_proto_run(self, run):
+        """Populate protocol buffer RunData for interface/interface."""
         if self._entity is not None:
             run.entity = self._entity
         if self._project is not None:
@@ -110,8 +103,7 @@ class RunManaged(Run):
         if self._tags is not None:
             for tag in self._tags:
                 run.tags.append(tag)
-        if self._config is not None:
-            run.config_json = json.dumps(self._config._as_dict())
+        # Note: run.config is set in interface/interface:_make_run()
 
     def __getstate__(self):
         pass
@@ -131,7 +123,7 @@ class RunManaged(Run):
     def name(self):
         if not self._run_obj:
             return None
-        return self._run_obj.name
+        return self._run_obj.display_name
 
     # def _repr_html_(self):
     #     url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(
@@ -153,16 +145,14 @@ class RunManaged(Run):
 
     def _config_callback(self, key=None, val=None, data=None):
         logger.info("config_cb %s %s %s", key, val, data)
-        c = dict(run_id=self._run_id, data=data)
-        self._backend.interface.send_config(c)
+        self._backend.interface.send_config(data)
 
     def _summary_callback(self, key=None, val=None, data=None):
-        s = dict(run_id=self._run_id, data=data)
-        self._backend.interface.send_summary(s)
+        self._backend.interface.send_summary(data)
 
     def _history_callback(self, row=None):
         self.summary.update(row)
-        self._backend.interface.send_log(row)
+        self._backend.interface.send_history(row)
 
     def _set_backend(self, backend):
         self._backend = backend
@@ -268,6 +258,7 @@ class RunManaged(Run):
         self.save(spec_filename)
 
     def save(self, path):
+        # TODO(jhr): this only works with files at root level of files dir
         fname = os.path.basename(path)
 
         if os.path.exists(path):
@@ -275,12 +266,12 @@ class RunManaged(Run):
             logger.info("Saving from %s to %s", path, dest)
             shutil.copyfile(path, dest)
         else:
-            logger.info("file not found yet: %s", path)
+            logger.info("file not found: %s", path)
 
-        files = dict(files=[fname])
+        files = dict(files=[(fname, )])
         self._backend.interface.send_files(files)
 
-    # NB: there is a copy of this in wand_wach with the same signature
+    # NB: there is a copy of this in wandb_watch.py with the same signature
     def watch(self,
               models,
               criterion=None,

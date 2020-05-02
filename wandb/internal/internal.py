@@ -124,6 +124,13 @@ def wandb_read(settings, q, data_q, stopped, data_filename):
     # ds.close()
 
 
+def _dict_from_proto_list(obj_list):
+    d = dict()
+    for item in obj_list:
+        d[item.key] = json.loads(item.value_json)
+    return d
+
+
 class _SendManager(object):
     def __init__(self, settings, q, resp_q):
         self._settings = settings
@@ -178,17 +185,22 @@ class _SendManager(object):
     def handle_run(self, data):
         run = data.run
         run_tags = run.tags[:]
-        config = json.loads(run.config_json)
+
+        # build config dict
+        config_dict = None
+        if run.HasField("config"):
+            config_dict = _dict_from_proto_list(run.config.update)
+
         ups = self._api.upsert_run(
                 entity=run.entity,
                 project=run.project,
-                group=run.group,
+                group=run.run_group,
                 job_type=run.job_type,
                 name=run.run_id,
-                display_name=run.name,
+                display_name=run.display_name,
                 notes=run.notes,
                 tags=run_tags,
-                config=config, 
+                config=config_dict,
                 )
 
         if data.control.req_resp:
@@ -197,7 +209,7 @@ class _SendManager(object):
                 data.run.storage_id = storage_id
             display_name = ups.get("displayName")
             if display_name:
-                data.run.name = display_name
+                data.run.display_name = display_name
             project = ups.get("project")
             if project:
                 project_name = project.get("name")
@@ -222,30 +234,36 @@ class _SendManager(object):
         self._run_id = run.run_id
         logger.info("run started: %s", self._run_id)
 
-    def handle_log(self, data):
-        log = data.log
-        d = json.loads(log.json)
+    def handle_history(self, data):
+        history = data.history
+        history_dict = _dict_from_proto_list(history.item)
         if self._fs:
             #print("about to send", d)
-            x = self._fs.push("wandb-history.jsonl", json.dumps(d))
+            x = self._fs.push("wandb-history.jsonl", json.dumps(history_dict))
             #print("got", x)
 
     def handle_summary(self, data):
         summary = data.summary
-        d = json.loads(summary.summary_json)
+        summary_dict = _dict_from_proto_list(summary.update)
         if self._fs:
-            x = self._fs.push("wandb-summary.json", json.dumps(d))
+            x = self._fs.push("wandb-summary.json", json.dumps(summary_dict))
 
     def handle_stats(self, data):
         stats = data.stats
-        d = json.loads(stats.stats_json)
-        if self._fs:
-            row = dict(system=d)
-            self._flatten(row)
-            row["_wandb"] = True
-            row["_timestamp"] = int(time.time())
-            row['_runtime'] = int(time.time() - self._settings.start_time)
-            x = self._fs.push("wandb-events.jsonl", json.dumps(row))
+        if stats.stats_type != wandb_internal_pb2.StatsData.StatsType.SYSTEM:
+            return
+        if not self._fs:
+            return
+        now = stats.timestamp.seconds
+        d = dict()
+        for item in stats.item:
+            d[item.key] = json.loads(item.value_json)
+        row = dict(system=d)
+        self._flatten(row)
+        row["_wandb"] = True
+        row["_timestamp"] = now
+        row['_runtime'] = int(now - self._settings._start_time)
+        x = self._fs.push("wandb-events.jsonl", json.dumps(row))
 
     def handle_output(self, data):
         out = data.output
@@ -254,7 +272,7 @@ class _SendManager(object):
         if out.output_type == wandb_internal_pb2.OutputData.OutputType.STDERR:
             stream = "stderr"
             prepend = "ERROR "
-        line = out.str
+        line = out.line
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             self._partial_output[stream] += line
@@ -272,8 +290,8 @@ class _SendManager(object):
 
     def handle_config(self, data):
         cfg = data.config
-        config = json.loads(cfg.config_json)
-        ups = self._api.upsert_run(name=cfg.run_id, config=config, **self._api_settings)
+        config_dict = _dict_from_proto_list(cfg.update)
+        ups = self._api.upsert_run(name=self._run_id, config=config_dict, **self._api_settings)
 
     def _save_file(self, fname):
         directory = self._settings.files_dir
@@ -286,7 +304,9 @@ class _SendManager(object):
     def handle_files(self, data):
         files = data.files
         for k in files.files:
-            fname = k.name
+            fpath = k.path
+            # TODO(jhr): fix paths with directories
+            fname = fpath[0]
             self._save_file(fname)
 
     def finish(self):
@@ -318,7 +338,7 @@ def wandb_send(settings, q, resp_q, read_q, data_q, stopped):
             continue
         handler = getattr(sh, 'handle_' + t, None)
         if handler is None:
-            print("what", t)
+            print("unknown handle", t)
             continue
 
         # run the handler
@@ -401,9 +421,9 @@ def _check_process(settings, pid):
 
     exists = psutil.pid_exists(pid)
     if not exists:
-        print("badness")
-        sys.exit(-1)
-    print("check", exists)
+        my_pid = os.getpid()
+        print("badness: process gone", pid, my_pid)
+        os._exit(-1)
 
 def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level, data_filename, use_redirect):
 
@@ -526,10 +546,8 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
             if done:
                 break
 
-    print("shut?")
     system_stats.shutdown()
 
     read_thread.join()
     send_thread.join()
     write_thread.join()
-    print("done")

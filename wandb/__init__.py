@@ -46,7 +46,7 @@ from wandb.data.data_types import Histogram
 from wandb.data.data_types import Graph
 
 
-from wandb import agent
+from wandb import superagent
 #from wandb.core import *
 
 # Used to make sure we don't use some code in the incorrect process context

@@ -63,8 +63,6 @@ class DataStore(object):
     def __init__(self):
         self._opened_for_scan = False
         self._fp = None
-        self._log_type = wandb_internal_pb2.LogData().__class__.__name__
-        self._run_type = wandb_internal_pb2.Run().__class__.__name__
         self._index = 0
 
         self._crc = [0] * (LEVELDBLOG_LAST + 1)

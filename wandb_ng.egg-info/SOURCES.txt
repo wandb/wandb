@@ -4,9 +4,8 @@ setup.cfg
 setup.py
 wandb/__init__.py
 wandb/py.typed
-wandb/agent/__init__.py
-wandb/agent/agent.py
 wandb/apis/__init__.py
+wandb/apis/internal_runqueue.py
 wandb/backend/__init__.py
 wandb/backend/backend.py
 wandb/cli/__init__.py
@@ -73,6 +72,8 @@ wandb/stuff/io_wrap.py
 wandb/stuff/retry.py
 wandb/stuff/settings.py
 wandb/stuff/util2.py
+wandb/superagent/__init__.py
+wandb/superagent/agent.py
 wandb/util/__init__.py
 wandb/util/apikey.py
 wandb/util/globals.py

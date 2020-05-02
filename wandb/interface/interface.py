@@ -184,12 +184,13 @@ class BackendSender(object):
     class ExceptionTimeout(Exception):
         pass
 
-    def __init__(self, process_queue=None, notify_queue=None, request_queue=None, response_queue=None):
+    def __init__(self, process_queue=None, notify_queue=None, request_queue=None, response_queue=None, process=None):
         self.process_queue = process_queue
         self.notify_queue = notify_queue
         self.request_queue = request_queue
         self.response_queue = response_queue
         self._run = None
+        self._process = process
 
     def _hack_set_run(self, run):
         self._run = run
@@ -206,26 +207,29 @@ class BackendSender(object):
         else:
             # FIXME: throw error?
             print("unknown type")
-        o = wandb_internal_pb2.OutputData(output_type=otype, str=data)
+        o = wandb_internal_pb2.OutputData(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         rec = wandb_internal_pb2.Record()
         rec.output.CopyFrom(o)
-        self.process_queue.put(rec)
-        self.notify_queue.put(constants.NOTIFY_PROCESS)
+        self._queue_process(rec)
 
-    def send_log(self, data):
-        data = data_types.history_dict_to_json(self._run, data)
-        json_data = json_dumps_safer_history(data)
-        #json_data = json.dumps(data)
-        l = wandb_internal_pb2.LogData(json=json_data)
+    def send_history(self, data):
         rec = wandb_internal_pb2.Record()
-        rec.log.CopyFrom(l)
-        self.process_queue.put(rec)
-        self.notify_queue.put(constants.NOTIFY_PROCESS)
+        data = data_types.history_dict_to_json(self._run, data)
+        history = rec.history
+        for k, v in six.iteritems(data):
+            item = history.item.add()
+            item.key = k
+            item.value_json = json_dumps_safer_history(v)
+        self._queue_process(rec)
 
     def _make_run(self, run):
-        proto_run = wandb_internal_pb2.Run()
+        proto_run = wandb_internal_pb2.RunData()
         run._make_proto_run(proto_run)
+        proto_run.start_time.GetCurrentTime()
+        if run._config is not None:
+            config_dict = run._config._as_dict()
+            self._make_config(config_dict, obj=proto_run.config)
         return proto_run
 
     def _make_exit(self, exit_code):
@@ -233,16 +237,22 @@ class BackendSender(object):
         exit.exit_code = exit_code
         return exit
 
-    def _make_config(self, config_dict):
-        config = wandb_internal_pb2.ConfigData()
-        config.run_id = config_dict['run_id']
-        config.config_json = json.dumps(config_dict['data'])
+    def _make_config(self, config_dict, obj=None):
+        config = obj or wandb_internal_pb2.ConfigData()
+        for k, v in six.iteritems(config_dict):
+            update = config.update.add()
+            update.key = k
+            update.value_json = json.dumps(v)
         return config
 
     def _make_stats(self, stats_dict):
         stats = wandb_internal_pb2.StatsData()
-        #config.run_id = config_dict['run_id']
-        stats.stats_json = json.dumps(stats_dict['data'])
+        stats.stats_type = wandb_internal_pb2.StatsData.StatsType.SYSTEM
+        stats.timestamp.GetCurrentTime()
+        for k, v in six.iteritems(stats_dict):
+            item = stats.item.add()
+            item.key = k
+            item.value_json = json.dumps(v)
         return stats
 
     def _summary_encode(self, value, path_from_root):
@@ -275,19 +285,19 @@ class BackendSender(object):
             return json_value
 
     def _make_summary(self, summary_dict):
-        data = summary_dict['data']
-        data = self._summary_encode(data, tuple())
-        json_data = json.dumps(data, cls=WandBJSONEncoderOld)
+        data = self._summary_encode(summary_dict, tuple())
         summary = wandb_internal_pb2.SummaryData()
-        summary.run_id = summary_dict['run_id']
-        summary.summary_json = json_data
+        for k, v in six.iteritems(data):
+            update = summary.update.add()
+            update.key = k
+            update.value_json = json.dumps(v, cls=WandBJSONEncoderOld)
         return summary
 
     def _make_files(self, files_dict):
         files = wandb_internal_pb2.FilesData()
         for path in files_dict['files']:
             f = files.files.add()
-            f.name = path
+            f.path[:] = path
         return files
 
     def _make_record(self, run=None, config=None, files=None, summary=None, stats=None, exit=None):
@@ -307,6 +317,8 @@ class BackendSender(object):
         return rec
 
     def _queue_process(self, rec):
+        if self._process and not self._process.is_alive():
+            raise Exception("problem")
         self.process_queue.put(rec)
         self.notify_queue.put(constants.NOTIFY_PROCESS)
 
@@ -328,7 +340,8 @@ class BackendSender(object):
             rsp = self.response_queue.get(timeout=timeout)
         except queue.Empty:
             self._request_flush()
-            raise BackendSender.ExceptionTimeout("timeout")
+            # raise BackendSender.ExceptionTimeout("timeout")
+            return None
 
         # returns response, err
         return rsp

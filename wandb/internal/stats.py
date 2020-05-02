@@ -133,7 +133,7 @@ class SystemStats(object):
                 samples = list(self.sampler.get(stat, [stats[stat]]))
                 stats[stat] = round(sum(samples) / len(samples), 2)
         #self.run.events.track("system", stats, _wandb=True)
-        self._interface.send_stats(dict(type="system", data=stats))
+        self._interface.send_stats(stats)
         self.samples = 0
         self.sampler = {}
 

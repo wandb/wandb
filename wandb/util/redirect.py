@@ -8,6 +8,8 @@ import threading
 import sys
 import logging
 
+import six
+
 
 logger = logging.getLogger("wandb")
 
@@ -29,7 +31,7 @@ class Unbuffered(object):
 def _pipe_relay(stopped, fd, name, cb, tee):
     while True:
         try:
-            data = os.read(fd, 1000)
+            data = os.read(fd, 4096)
         except OSError as e:
             # TODO(jhr): handle this
             return
@@ -43,7 +45,15 @@ def _pipe_relay(stopped, fd, name, cb, tee):
         if tee:
             os.write(tee, data)
         if cb:
-            cb(name, data)
+            try:
+                cb(name, data)
+            except Exception as e:
+                logger.exception("problem in pipe relay")
+                # Prevent further callbacks
+                # TODO(jhr): how does error get propogated?
+                cb = None
+                # exc_info = sys.exc_info()
+                # six.reraise(*exc_info)
     logger.info("relay done done: %s", name)
 
 

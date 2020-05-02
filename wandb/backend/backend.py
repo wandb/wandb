@@ -152,6 +152,7 @@ class Backend(object):
         self.notify_queue = notify_queue
 
         self.interface = interface.BackendSender(
+                process=wandb_process,
                 notify_queue=notify_queue,
                 process_queue=process_queue,
                 request_queue=req_queue,

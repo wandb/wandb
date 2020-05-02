@@ -1,22 +1,48 @@
-"""
-settings.
+"""Settings.
+
+This module configures settings which impact wandb runs.
+
+Order of loading settings: (differs from priority)
+    defaults
+    environment
+    wandb.setup(settings=)
+    system_config
+    workspace_config
+    wandb.init(settings=)
+    network_org
+    network_entity
+    network_project
+
+Priority of settings:  See "source" variable.
+
 """
 
 import collections
 import logging
 import configparser
 import platform
+import datetime
 from typing import Optional, Union, List, Dict  # noqa: F401 pylint: disable=unused-import
+import os
 import copy
+import shortuuid  # type: ignore
 
 import six
 
 logger = logging.getLogger("wandb")
 
-source = ("org", "entity", "project", "sysdir", "dir", "env", "setup",
+source = ("org", "entity", "project", "system", "workspace", "env", "setup",
           "settings", "args")
 
 Field = collections.namedtuple('TypedField', ['type', 'choices'])
+
+
+def _generate_id():
+    # ~3t run ids (36**8)
+    run_gen = shortuuid.ShortUUID(
+        alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
+    return run_gen.random(8)
+
 
 defaults = dict(
     base_url="https://api.wandb.ai",
@@ -53,7 +79,7 @@ env_settings = dict(
     project=None,
     base_url=None,
     mode=None,
-    group="WANDB_RUN_GROUP",
+    run_group="WANDB_RUN_GROUP",
     job_type=None,
     problem=None,
     console=None,
@@ -130,29 +156,44 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         system_samples=15,
         heartbeat_seconds=30,
 
-        # logging
-        log_base_dir="wandb",
-        log_dir="",
-        log_user_spec="wandb-{timespec}-{pid}-debug.log",
-        log_internal_spec="wandb-{timespec}-{pid}-debug-internal.log",
-        log_user=None,
-        log_internal=None,
-        symlink=None,
+        # directories and files
+        wandb_dir="wandb",
+        config_system_spec="~/.config/wandb/settings",
+        config_workspace_spec="{wandb_dir}/settings",
+        config_system=None,  # computed
+        config_workspace=None,  # computed
+        sync_dir_spec="{wandb_dir}/runs/wandb-{timespec}-{run_id}",
+        sync_file_spec="run-{timespec}-{run_id}.wandb",
+        sync_symlink_sync_spec="{wandb_dir}/sync",
+        sync_symlink_offline_spec="{wandb_dir}/offline",
+        sync_symlink_latest_spec="{wandb_dir}/latest",
+        sync_file=None,  # computed
+        log_dir_spec="{wandb_dir}/runs/wandb-{timespec}-{run_id}/logs",
+        log_user_spec="debug-{timespec}-{run_id}.log",
+        log_internal_spec="debug-internal-{timespec}-{run_id}.log",
+        log_symlink_user_spec="{wandb_dir}/debug.log",
+        log_symlink_internal_spec="{wandb_dir}/debug-internal.log",
+        log_user=None,  # computed
+        log_internal=None,  # computed
+        files_dir_spec="{wandb_dir}/runs/wandb-{timespec}-{run_id}/files",
+        files_dir=None,  # computed
+        symlink=None,  # probed
 
         # where files are temporary stored when saving
-        files_dir=None,
-        data_base_dir="wandb",
-        data_dir="",
-        data_spec="wandb-{timespec}-{pid}-data.bin",
-        run_base_dir="wandb",
-        run_dir_spec="run-{timespec}-{pid}",
+        # files_dir=None,
+        # data_base_dir="wandb",
+        # data_dir="",
+        # data_spec="wandb-{timespec}-{pid}-data.bin",
+        # run_base_dir="wandb",
+        # run_dir_spec="run-{timespec}-{pid}",
         program=None,
         notebook_name=None,
         disable_code=None,
         host=None,
         username=None,
         docker=None,
-        start_time=None,
+        _start_time=None,
+        _start_datetime=None,
         console=None,
 
         # compute environment
@@ -171,7 +212,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _settings=None,
         _environ=None,
         _files=None,
-        _early_logging=None,
+        _early_logger=None,
         _internal_queue_timeout=2,
         _internal_check_process=8,
     ):
@@ -180,16 +221,12 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         object.__setattr__(self, "_unsaved_keys",
                            set(['_settings', '_files', '_environ']))
         object.__setattr__(self, "_frozen", False)
+        object.__setattr__(self, "_locked_by", dict)
+        object.__setattr__(self, "_configured_by", dict)
         self._setup(kwargs)
 
-        if _settings:
-            self.update(_settings)
-        files = _files or []
-        for f in files:
-            d = self._load(f)
-            self.update(d)
         if _environ:
-            l = _early_logging or logger
+            l = _early_logger or logger
             inv_map = _build_inverse_map(env_prefix, env_settings)
             env_dict = dict()
             for k, v in six.iteritems(_environ):
@@ -205,11 +242,48 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                     l.info("Unhandled environment var: {}".format(k))
 
             l.info("setting env: {}".format(env_dict))
-            self.update(env_dict)
+            self.update(env_dict, _setter="env")
+        if _files:
+            # TODO(jhr): permit setting of config in system and workspace
+            config_system = self._path_convert(
+                self.__dict__.get("config_system_spec"))
+            self.update(self._load(config_system), _setter="system")
+            config_workspace = self._path_convert(
+                self.__dict__.get("config_workspace_spec"))
+            self.update(self._load(config_workspace), _setter="workspace")
+        if _settings:
+            self.update(_settings)
 
-    def _clear_early_logging(self):
+    def _path_convert_part(self, path_part, format_dict):
+        """convert slashes, expand ~ and other macros."""
+
+        path_parts = path_part.split(os.sep if os.sep in path_part else '/')
+        for i in range(len(path_parts)):
+            path_parts[i] = path_parts[i].format(**format_dict)
+        return path_parts
+
+    def _path_convert(self, *path):
+        """convert slashes, expand ~ and other macros."""
+
+        format_dict = dict()
+        if self._start_time:
+            format_dict["timespec"] = datetime.datetime.strftime(
+                self._start_datetime, "%Y%m%d_%H%M%S")
+        if self.run_id:
+            format_dict["run_id"] = self.run_id
+        format_dict["proc"] = os.getpid()
+        format_dict["wandb_dir"] = self.wandb_dir
+
+        path_items = []
+        for p in path:
+            path_items += self._path_convert_part(p, format_dict)
+        path = os.path.join(*path_items)
+        path = os.path.expanduser(path)
+        return path
+
+    def _clear_early_logger(self):
         # TODO(jhr): this is a hack
-        object.__setattr__(self, "_early_logging", None)
+        object.__setattr__(self, "_early_logger", None)
 
     def _setup(self, kwargs):
         for k, v in six.iteritems(kwargs):
@@ -233,7 +307,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                 raise TypeError('Settings field {} set to {} not in {}'.format(
                     k, v, ','.join(f.choices)))
 
-    def update(self, __d=None, **kwargs):
+    def update(self, __d=None, _setter=None, **kwargs):
         if self._frozen and (__d or kwargs):
             raise TypeError('Settings object is frozen')
         d = __d or dict()
@@ -288,10 +362,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         self._check_invalid(name, value)
         object.__setattr__(self, name, value)
 
-    def _apply_wandb_init_args(self, kwargs):
-        unhandled_keys = tuple()
-        return unhandled_keys
-
     def keys(self):
         return tuple(k for k in self.__dict__ if k not in self._masked_keys)
 
@@ -324,3 +394,4 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             for k, v in six.iteritems(args) if v is not None
         }
         self.update(args)
+        self.run_id = self.run_id or _generate_id()

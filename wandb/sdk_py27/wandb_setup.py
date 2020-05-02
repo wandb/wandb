@@ -1,24 +1,35 @@
-"""
-setup.
+"""Setup wandb session.
+
+This module configures a wandb session which can extend to mutiple wandb runs.
+
+Functions:
+    setup(): Configure wandb session.
+
+Early logging keeps track of logger output until the call to wandb.init() when the run_id can be resolved.
+
 """
 
 import threading
 import multiprocessing
 import sys
 import os
-import datetime
-import errno
 import logging
 import copy
+import platform
 
 from . import wandb_settings
 
-# from wandb.stuff.git_repo import GitRepo
+logger = None  # will be configured to be either a standard logger instance or _EarlyLogger
 
-logger = logging.getLogger("wandb")
+
+def _set_logger(log_object):
+    """Configure module logger."""
+    global logger
+    logger = log_object
 
 
 class _EarlyLogger(object):
+    """Early logger which captures logs in memory until logging can be configured."""
     def __init__(self):
         self._log = []
         self._exception = []
@@ -45,6 +56,7 @@ class _EarlyLogger(object):
         self._log.append(level, msg, args, kwargs)
 
     def _flush(self):
+        assert self is not logger
         for level, msg, args, kwargs in self._log:
             logger.log(level, msg, *args, **kwargs)
         for msg, args, kwargs in self._exception:
@@ -57,19 +69,12 @@ class _WandbSetup__WandbSetup(object):
         self._multiprocessing = None
         self._settings = None
         self._environ = environ or dict(os.environ)
-        self._log_user_filename = None
-        self._log_internal_filename = None
-        self._data_filename = None
-        self._log_dir = None
-        self._filename_template = None
 
-        # TODO(jhr): defer strict checks until settings is fully initialized and logging is ready
-        early_logging = _EarlyLogger()
-        self._settings_setup(settings, early_logging)
-        self._log_setup()
-        self._settings_early_flush(early_logging)
+        # TODO(jhr): defer strict checks until settings are fully initialized and logging is ready
+        self._early_logger = _EarlyLogger()
+        _set_logger(self._early_logger)
+        self._settings_setup(settings, self._early_logger)
         self._settings.freeze()
-        early_logging = None
 
         self._check()
         self._setup()
@@ -82,15 +87,13 @@ class _WandbSetup__WandbSetup(object):
         # print("last", self.git.last_commit)
         pass
 
-    def _settings_setup(self, settings=None, early_logging=None):
-        glob_config = os.path.expanduser('~/.config/wandb/settings')
-        loc_config = 'wandb/settings'
-        files = (glob_config, loc_config)
+    def _settings_setup(self, settings=None, early_logger=None):
         s = wandb_settings.Settings(_environ=self._environ,
-                                    _early_logging=early_logging,
-                                    _files=files)
-        if settings:
-            s.update(dict(settings))
+                                    _files=True,
+                                    _early_logger=early_logger,
+                                    _settings=settings)
+        # if settings:
+        #     s.update(dict(settings))
 
         # setup defaults
         s.setdefaults()
@@ -100,129 +103,20 @@ class _WandbSetup__WandbSetup(object):
         # s.freeze()
         self._settings = s
 
-    def _settings_early_flush(self, early_logging):
-        if early_logging:
-            self._settings._clear_early_logging()
-            early_logging._flush()
+    def _early_logger_flush(self, new_logger):
+        if not self._early_logger:
+            return
+        _set_logger(new_logger)
+        self._settings._clear_early_logger()
+        self._early_logger._flush()
+
+    def _get_logger(self):
+        return logger
 
     def settings(self, __d=None, **kwargs):
         s = copy.copy(self._settings)
         s.update(__d, **kwargs)
         return s
-
-    def _enable_logging(self, log_fname, run_id=None):
-        """Enable logging to the global debug log.  This adds a run_id to the log,
-        in case of muliple processes on the same machine.
-
-        Currently no way to disable logging after it's enabled.
-        """
-        handler = logging.FileHandler(log_fname)
-        handler.setLevel(logging.INFO)
-
-        class WBFilter(logging.Filter):
-            def filter(self, record):
-                record.run_id = run_id
-                return True
-
-        if run_id:
-            formatter = logging.Formatter(
-                '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s'
-            )
-        else:
-            formatter = logging.Formatter(
-                '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s'
-            )
-
-        handler.setFormatter(formatter)
-        if run_id:
-            handler.addFilter(WBFilter())
-        logger.propagate = False
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(handler)
-
-    def _safe_makedirs(self, dir_name):
-        try:
-            os.makedirs(dir_name)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
-        if not os.path.isdir(dir_name):
-            raise Exception("not dir")
-        if not os.access(dir_name, os.W_OK):
-            raise Exception("cant write: {}".format(dir_name))
-
-    def _safe_symlink(self, base, target, name, pid, delete=False):
-        # TODO(jhr): do this with relpaths, but i cant figure it out on no sleep
-        if not hasattr(os, 'symlink'):
-            return
-        tmp_name = '%s.%d' % (name, pid)
-        owd = os.getcwd()
-        os.chdir(base)
-        if delete:
-            try:
-                os.remove(name)
-            except OSError:
-                pass
-        target = os.path.relpath(target, base)
-        os.symlink(target, tmp_name)
-        os.rename(tmp_name, name)
-        os.chdir(owd)
-
-    def _log_setup(self):
-        # log dir - where python logs go
-        log_base_dir = "wandb"
-        log_dir_spec = "wandb-{timespec}-{pid}"
-        # log spec
-        # TODO: read from settings
-        log_user_spec = "debug.log"
-        log_internal_spec = "debug-internal.log"
-        dir_files_spec = "files"
-        dir_data_spec = "data"
-
-        # TODO(jhr): should we use utc?
-        when = datetime.datetime.now()
-        pid = os.getpid()
-        datestr = datetime.datetime.strftime(when, "%Y%m%d_%H%M%S")
-        d = dict(pid=pid, timespec=datestr)
-        log_dir = os.path.join(log_base_dir, log_dir_spec.format(**d))
-        log_user = os.path.join(log_dir, log_user_spec.format(**d))
-        log_internal = os.path.join(log_dir, log_internal_spec.format(**d))
-        dir_files = os.path.join(log_dir, dir_files_spec.format(**d))
-        dir_data = os.path.join(log_dir, dir_data_spec.format(**d))
-
-        self._safe_makedirs(log_dir)
-        self._safe_makedirs(dir_files)
-        self._safe_makedirs(dir_data)
-
-        if self._settings.symlink:
-            self._safe_symlink(log_base_dir,
-                               log_dir,
-                               "latest",
-                               pid,
-                               delete=True)
-            self._safe_symlink(log_base_dir,
-                               log_user,
-                               "debug.log",
-                               pid,
-                               delete=True)
-            self._safe_symlink(log_base_dir,
-                               log_internal,
-                               "debug-internal.log",
-                               pid,
-                               delete=True)
-
-        self._enable_logging(log_user)
-
-        logger.info("Logging to {}".format(log_user))
-        self._filename_template = d
-        self._log_dir = log_dir
-        self._log_user_filename = log_user
-        self._log_internal_filename = log_internal
-
-        self._settings.log_user = log_user
-        self._settings.log_internal = log_internal
-        self._settings.files_dir = dir_files
-        self._settings.data_dir = dir_data
 
     def _check(self):
         if hasattr(threading, "main_thread"):
@@ -249,10 +143,6 @@ class _WandbSetup__WandbSetup(object):
         self._multiprocessing = ctx
         # print("t3b", self._multiprocessing.get_start_method())
 
-        self._data_filename = os.path.join(
-            self._log_dir,
-            self._settings.data_spec.format(**self._filename_template))
-
     def on_finish(self):
         logger.info("done")
 
@@ -262,8 +152,10 @@ class _WandbSetup(object):
     _instance = None
 
     def __init__(self, settings=None):
-        # TODO(jhr): what do we do if settings changed?
         if _WandbSetup._instance is not None:
+            logger.warning(
+                "Ignoring settings passed to wandb.setup() which has already been configured."
+            )
             return
         _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
 
