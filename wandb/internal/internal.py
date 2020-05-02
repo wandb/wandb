@@ -98,9 +98,9 @@ def wandb_stream_read(fd):
     # print("done reading", file=sys.stderr)
 
 
-def wandb_write(settings, q, stopped, data_filename):
+def wandb_write(settings, q, stopped):
     ds = datastore.DataStore()
-    ds.open_for_write(data_filename)
+    ds.open_for_write(settings.sync_file)
     while not stopped.isSet():
         try:
             i = q.get(timeout=1)
@@ -111,7 +111,7 @@ def wandb_write(settings, q, stopped, data_filename):
     ds.close()
 
 
-def wandb_read(settings, q, data_q, stopped, data_filename):
+def wandb_read(settings, q, data_q, stopped):
     # ds = datastore.DataStore()
     # ds.open(data_filename)
     while not stopped.isSet():
@@ -425,8 +425,7 @@ def _check_process(settings, pid):
         print("badness: process gone", pid, my_pid)
         os._exit(-1)
 
-def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_fname, log_level, data_filename, use_redirect):
-
+def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_level, use_redirect):
     parent_pid = os.getppid() 
 
     # mark this process as internal
@@ -438,11 +437,11 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
     #os.write(fd, "this is a test".encode())
     #os.close(fd)
 
-    if log_fname:
-        setup_logging(log_fname, log_level)
-
     # Lets make sure we dont modify settings so use a static object
     settings = SettingsStatic(settings)
+
+    if settings.log_internal:
+        setup_logging(settings.log_internal, log_level)
 
     run = None
     api = None
@@ -501,8 +500,8 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
     data_queue = queue.Queue()
 
     send_thread = threading.Thread(name="wandb_send", target=wandb_send, args=(settings, send_queue, resp_queue, read_queue, data_queue, stopped))
-    write_thread = threading.Thread(name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped, data_filename))
-    read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(settings, read_queue, data_queue, stopped, data_filename))
+    write_thread = threading.Thread(name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped))
+    read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(settings, read_queue, data_queue, stopped))
     # sequencer_thread - future
 
     read_thread.start()

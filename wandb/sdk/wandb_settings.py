@@ -164,8 +164,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         config_workspace=None,  # computed
         sync_dir_spec="{wandb_dir}/runs/wandb-{timespec}-{run_id}",
         sync_file_spec="run-{timespec}-{run_id}.wandb",
-        sync_symlink_sync_spec="{wandb_dir}/sync",
-        sync_symlink_offline_spec="{wandb_dir}/offline",
+        # sync_symlink_sync_spec="{wandb_dir}/sync",
+        # sync_symlink_offline_spec="{wandb_dir}/offline",
         sync_symlink_latest_spec="{wandb_dir}/latest",
         sync_file=None,  # computed
         log_dir_spec="{wandb_dir}/runs/wandb-{timespec}-{run_id}/logs",

@@ -47,9 +47,8 @@ class Backend(object):
     def _hack_set_run(self, run):
         self.interface._hack_set_run(run)
 
-    def ensure_launched(self, settings=None, log_fname=None, log_level=None, data_fname=None, stdout_fd=None, stderr_fd=None, use_redirect=None):
+    def ensure_launched(self, settings=None, log_level=None, stdout_fd=None, stderr_fd=None, use_redirect=None):
         """Launch backend worker if not running."""
-        log_fname = log_fname or ""
         log_level = log_level or logging.DEBUG
         settings = settings or {}
         settings = dict(settings)
@@ -80,9 +79,7 @@ class Backend(object):
                     resp_queue,
                     cancel_queue,
                     fd_pipe_child,
-                    log_fname,
                     log_level,
-                    data_fname,
                     use_redirect,
                     ))
         wandb_process.name = "wandb_internal"

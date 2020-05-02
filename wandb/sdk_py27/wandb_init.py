@@ -434,8 +434,6 @@ class _WandbInit(object):
         backend = Backend(mode=s.mode)
         backend.ensure_launched(
             settings=s,
-            log_fname=s.log_internal,
-            data_fname=s.sync_file,
             stdout_fd=stdout_master_fd,
             stderr_fd=stderr_master_fd,
             use_redirect=self._use_redirect,
