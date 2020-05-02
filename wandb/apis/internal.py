@@ -1123,7 +1123,7 @@ class Api(object):
             'description': description,
             'labels': labels,
             'aliases': [alias for alias in aliases],
-            'metadata': json.dumps(metadata),
+            'metadata': json.dumps(util.make_safe_for_json(metadata))
         })
         av = response['createArtifact']['artifact']
         return av
