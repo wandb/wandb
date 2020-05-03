@@ -63,8 +63,8 @@ class RunManaged(Run):
 
         config = config or dict()
         wandb_key = "_wandb"
-        config.setdefault(wandb_key, dict(desc=None, value=dict()))
-        config[wandb_key]["value"]["cli_version"] = wandb.__version__
+        config.setdefault(wandb_key, dict())
+        config[wandb_key]["cli_version"] = wandb.__version__
         if config:
             self._config.update(config)
 

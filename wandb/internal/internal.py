@@ -130,6 +130,12 @@ def _dict_from_proto_list(obj_list):
         d[item.key] = json.loads(item.value_json)
     return d
 
+def _config_dict_from_proto_list(obj_list):
+    d = dict()
+    for item in obj_list:
+        d[item.key] = dict(desc=None, value=json.loads(item.value_json))
+    return d
+
 
 class _SendManager(object):
     def __init__(self, settings, q, resp_q):
@@ -189,7 +195,7 @@ class _SendManager(object):
         # build config dict
         config_dict = None
         if run.HasField("config"):
-            config_dict = _dict_from_proto_list(run.config.update)
+            config_dict = _config_dict_from_proto_list(run.config.update)
 
         ups = self._api.upsert_run(
                 entity=run.entity,
@@ -290,7 +296,7 @@ class _SendManager(object):
 
     def handle_config(self, data):
         cfg = data.config
-        config_dict = _dict_from_proto_list(cfg.update)
+        config_dict = _config_dict_from_proto_list(cfg.update)
         ups = self._api.upsert_run(name=self._run_id, config=config_dict, **self._api_settings)
 
     def _save_file(self, fname):
