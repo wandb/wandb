@@ -97,7 +97,7 @@ class RunManaged(Run):
         if self._run_id is not None:
             run.run_id = self._run_id
         if self._name is not None:
-            run.name = self._name
+            run.display_name = self._name
         if self._notes is not None:
             run.notes = self._notes
         if self._tags is not None:

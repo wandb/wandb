@@ -485,7 +485,9 @@ class _WandbInit(object):
 
 
 def getcaller():
-    src, line, func, stack = logger.findCaller(stack_info=True)
+    # py2 doesnt have stack_info
+    # src, line, func, stack = logger.findCaller(stack_info=True)
+    src, line, func = logger.findCaller()[:3]
     print("Problem at:", src, line, func)
 
 
