@@ -5,18 +5,17 @@ Manage backend sender.
 
 """
 
-import six
-import json
-from six.moves import queue
-import logging
 from datetime import date, datetime
-import time
-from wandb.data import data_types
-
-from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.interface import constants
+import json
+import logging
 
 import numpy as np  # type: ignore
+import six
+from six.moves import queue
+import wandb
+from wandb.data import data_types
+from wandb.interface import constants
+from wandb.proto import wandb_internal_pb2  # type: ignore
 
 logger = logging.getLogger("wandb")
 
@@ -42,7 +41,7 @@ def is_tf_eager_tensor_typename(typename):
 
 
 def is_pytorch_tensor(obj):
-    import torch  # type: ignore[import]
+    import torch  # type: ignore
 
     return isinstance(obj, torch.Tensor)
 
@@ -113,7 +112,8 @@ def json_friendly(obj):
     else:
         converted = False
     # if getsizeof(obj) > VALUE_BYTES_LIMIT:
-    #    wandb.termwarn("Serializing object of type {} that is {} bytes".format(type(obj).__name__, getsizeof(obj)))
+    #    wandb.termwarn("Serializing object of type {} that is {} bytes".format(
+    #                   type(obj).__name__, getsizeof(obj)))
 
     return obj, converted
 

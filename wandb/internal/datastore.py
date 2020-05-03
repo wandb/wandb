@@ -24,7 +24,6 @@ import sys
 import zlib
 
 import wandb
-from wandb.proto import wandb_internal_pb2  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +113,8 @@ class DataStore(object):
         pass
 
     def scan(self):
-        # how much left in the block.  if less than header len, read as pad, verify they are zero
+        # how much left in the block.  if less than header len, read as pad,
+        # verify they are zero
         pass
 
     def _write_header(self):
@@ -130,7 +130,8 @@ class DataStore(object):
 
     def _write_record(self, s, dtype=None):
         """Write record that must fit into a block."""
-        # double check that there is enough space (this is a precondition to calling this method)
+        # double check that there is enough space
+        # (this is a precondition to calling this method)
         assert (
             len(s) + LEVELDBLOG_HEADER_LEN
             <= LEVELDBLOG_BLOCK_LEN - self._index % LEVELDBLOG_BLOCK_LEN
@@ -166,7 +167,8 @@ class DataStore(object):
         if data_left + LEVELDBLOG_HEADER_LEN <= space_left:
             self._write_record(s)
         else:
-            # write first record (we could still be in the middle of a block, but this write will end on a block boundary)
+            # write first record (we could still be in the middle of a block,
+            # but this write will end on a block boundary)
             data_room = space_left - LEVELDBLOG_HEADER_LEN
             self._write_record(s[:data_room], LEVELDBLOG_FIRST)
             data_used += data_room
@@ -176,7 +178,8 @@ class DataStore(object):
             # write middles (if any)
             while data_left > LEVELDBLOG_DATA_LEN:
                 self._write_record(
-                    s[data_used : data_used + LEVELDBLOG_DATA_LEN], LEVELDBLOG_MIDDLE
+                    s[data_used : data_used + LEVELDBLOG_DATA_LEN],  # noqa: E203
+                    LEVELDBLOG_MIDDLE,
                 )
                 data_used += LEVELDBLOG_DATA_LEN
                 data_left -= LEVELDBLOG_DATA_LEN
@@ -193,7 +196,8 @@ class DataStore(object):
             obj: Protocol buffer to write.
 
         Returns:
-            (file_offset, length, flush_index, flush_offset) if successful, None otherwise
+            (file_offset, length, flush_index, flush_offset) if successful,
+            None otherwise
 
         """
         raw_size = obj.ByteSize()

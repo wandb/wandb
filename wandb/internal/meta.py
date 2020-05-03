@@ -3,14 +3,12 @@
 meta.
 """
 
-import json
-import os
-import sys
-import platform
-import time
-import getpass
-import logging
 from datetime import datetime
+import json
+import logging
+import os
+import platform
+import sys
 
 from wandb.interface import interface
 

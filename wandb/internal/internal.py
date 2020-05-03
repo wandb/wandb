@@ -5,37 +5,33 @@ internal.
 
 from __future__ import print_function
 
-import threading
+from datetime import datetime
 import json
-from six.moves import queue
-import sys
-import os
 import logging
-import six
 import multiprocessing
-from datetime import date, datetime
+import os
+import platform
+import sys
+import threading
 import time
 
+import psutil  # type: ignore
+import six
+from six.moves import queue
 import wandb
-from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.interface import constants
 from wandb.internal import datastore
+from wandb.proto import wandb_internal_pb2  # type: ignore
 
-from . import internal_api
+# from wandb.stuff import io_wrap
+
 from . import file_stream
+from . import internal_api
+from . import meta
+from . import stats
 from . import update
-
 from .file_pusher import FilePusher
 
-from wandb.stuff import io_wrap
-
-from . import stats
-from . import meta
-
-import numpy as np  # type: ignore
-import platform
-
-import psutil  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +67,13 @@ def setup_logging(log_fname, log_level, run_id=None):
 
     if run_id:
         formatter = logging.Formatter(
-            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+            "[%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
         )
     else:
         formatter = logging.Formatter(
-            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+            "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
         )
 
     handler.setFormatter(formatter)
@@ -91,7 +89,7 @@ def wandb_stream_read(fd):
     while True:
         try:
             data = os.read(fd, 200)
-        except OSError as e:
+        except OSError:
             # print("problem", e, file=sys.stderr)
             return
         if len(data) == 0:
@@ -118,7 +116,7 @@ def wandb_read(settings, q, data_q, stopped):
     # ds.open(data_filename)
     while not stopped.isSet():
         try:
-            i = q.get(timeout=1)
+            q.get(timeout=1)
         except queue.Empty:
             continue
         # ds.write(i)
@@ -250,14 +248,14 @@ class _SendManager(object):
         history_dict = _dict_from_proto_list(history.item)
         if self._fs:
             # print("about to send", d)
-            x = self._fs.push("wandb-history.jsonl", json.dumps(history_dict))
+            self._fs.push("wandb-history.jsonl", json.dumps(history_dict))
             # print("got", x)
 
     def handle_summary(self, data):
         summary = data.summary
         summary_dict = _dict_from_proto_list(summary.update)
         if self._fs:
-            x = self._fs.push("wandb-summary.json", json.dumps(summary_dict))
+            self._fs.push("wandb-summary.json", json.dumps(summary_dict))
 
     def handle_stats(self, data):
         stats = data.stats
@@ -274,7 +272,8 @@ class _SendManager(object):
         row["_wandb"] = True
         row["_timestamp"] = now
         row["_runtime"] = int(now - self._settings._start_time)
-        x = self._fs.push("wandb-events.jsonl", json.dumps(row))
+        self._fs.push("wandb-events.jsonl", json.dumps(row))
+        # TODO(jhr): check fs.push results?
 
     def handle_output(self, data):
         out = data.output
@@ -287,10 +286,12 @@ class _SendManager(object):
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             self._partial_output[stream] += line
-            # FIXME(jhr): how do we make sure this gets flushed? we might need this for other stuff like telemetry
+            # FIXME(jhr): how do we make sure this gets flushed?
+            # we might need this for other stuff like telemetry
         else:
             # TODO(jhr): use time from timestamp proto
-            # FIXME(jhr): do we need to make sure we write full lines?  seems to be some issues with line breaks
+            # FIXME(jhr): do we need to make sure we write full lines?
+            # seems to be some issues with line breaks
             cur_time = time.time()
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
@@ -301,9 +302,10 @@ class _SendManager(object):
     def handle_config(self, data):
         cfg = data.config
         config_dict = _config_dict_from_proto_list(cfg.update)
-        ups = self._api.upsert_run(
+        self._api.upsert_run(
             name=self._run_id, config=config_dict, **self._api_settings
         )
+        # TODO(jhr): check result of upsert_run?
 
     def _save_file(self, fname):
         directory = self._settings.files_dir
@@ -407,7 +409,8 @@ def _get_stdout_stderr_streams():
     stderr_streams = [stderr, output_log]
 
     #        if self._cloud:
-    #            # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
+    #            # Tee stdout/stderr into our TextOutputStream,
+    #            # which will push lines to the cloud.
     #            fs_api = self._api.get_file_stream_api()
     #            self._stdout_stream = streaming_log.TextStreamPusher(
     #                fs_api, util.OUTPUT_FNAME, prepend_timestamp=True)
@@ -469,9 +472,6 @@ def wandb_internal(
     if settings.log_internal:
         setup_logging(settings.log_internal, log_level)
 
-    run = None
-    api = None
-
     pid = os.getpid()
     system_stats = stats.SystemStats(
         pid=pid, process_q=process_queue, notify_q=notify_queue
@@ -500,7 +500,8 @@ def wandb_internal(
             # logger.info("windows stdout: %d", stdout_fd)
             # logger.info("windows stderr: %d", stderr_fd)
 
-            # read_thread = threading.Thread(name="wandb_stream_read", target=wandb_stream_read, args=(stdout_fd,))
+            # read_thread = threading.Thread(name="wandb_stream_read",
+            #     target=wandb_stream_read, args=(stdout_fd,))
             # read_thread.start()
             # stdout_read_file = os.fdopen(stdout_fd, 'rb')
             # stderr_read_file = os.fdopen(stderr_fd, 'rb')
@@ -514,13 +515,14 @@ def wandb_internal(
             logger.info("nonwindows stdout: %d", stdout_fd)
             logger.info("nonwindows stderr: %d", stderr_fd)
 
-            # read_thread = threading.Thread(name="wandb_stream_read", target=wandb_stream_read, args=(stdout_fd,))
+            # read_thread = threading.Thread(name="wandb_stream_read",
+            #    target=wandb_stream_read, args=(stdout_fd,))
             # read_thread.start()
-            stdout_read_file = os.fdopen(stdout_fd, "rb")
-            stderr_read_file = os.fdopen(stderr_fd, "rb")
-            stdout_streams, stderr_streams = _get_stdout_stderr_streams()
-            stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
-            stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+            # stdout_read_file = os.fdopen(stdout_fd, "rb")
+            # stderr_read_file = os.fdopen(stderr_fd, "rb")
+            # stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+            # stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+            # stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
 
     stopped = threading.Event()
 
@@ -578,14 +580,14 @@ def wandb_internal(
                 else:
                     print("unknown", i)
                 _check_process(settings, parent_pid)
-        except KeyboardInterrupt as e:
+        except KeyboardInterrupt:
             print("\nInterrupt: {}\n".format(count))
             count += 1
         finally:
             if count >= 2:
                 done = True
-            if done:
-                break
+        if done:
+            break
 
     system_stats.shutdown()
 

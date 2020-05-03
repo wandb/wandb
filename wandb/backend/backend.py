@@ -5,24 +5,15 @@ Manage backend.
 
 """
 
-import threading
-import json
-from six.moves import queue
-import sys
-import os
 import logging
-import six
 import multiprocessing
-from datetime import date, datetime
-import time
-from wandb.interface import interface
+import os
+import platform
+import sys
 
 import wandb
-
+from wandb.interface import constants, interface
 from wandb.internal.internal import wandb_internal
-from wandb.interface import constants
-
-import platform
 
 logger = logging.getLogger("wandb")
 
@@ -124,8 +115,10 @@ class Backend(object):
                 # stdout_fd = msvcrt.get_osfhandle(stdout_fd)
                 # print("DEBUG2: {}".format(stdout_fd))
                 # stderr_fd = msvcrt.get_osfhandle(stderr_fd)
-                # multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
-                # multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
+                # multiprocessing.reduction.send_handle(fd_pipe_parent,
+                #   stdout_fd,  wandb_process.pid)
+                # multiprocessing.reduction.send_handle(fd_pipe_parent,
+                #   stderr_fd,  wandb_process.pid)
 
                 # should we do this?
                 # os.close(stdout_fd)

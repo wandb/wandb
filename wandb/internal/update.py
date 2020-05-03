@@ -1,6 +1,6 @@
-import wandb
-import requests
 from pkg_resources import parse_version
+import requests
+import wandb
 
 
 def check_available(current_version):
@@ -9,7 +9,7 @@ def check_available(current_version):
     try:
         data = requests.get(pypi_url, timeout=timeout).json()
         latest_version = data["info"]["version"]
-    except:
+    except Exception:
         # Any issues whatsoever, just skip the latest version check.
         return
 
@@ -19,6 +19,6 @@ def check_available(current_version):
 
     # A new version is available!
     wandb.termlog(
-        "wandb-ng version %s is available!  To upgrade, please run:\n $ pip install wandb-ng --upgrade"
-        % latest_version
+        "wandb-ng version %s is available!  To upgrade, please run:\n"
+        " $ pip install wandb-ng --upgrade" % latest_version
     )
