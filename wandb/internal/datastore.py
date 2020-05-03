@@ -99,7 +99,7 @@ class DataStore(object):
 
     def scan_record(self):
         assert self._opened_for_scan
-        # FIXME: if end of block, deal with up to 6 zero bytes
+        # TODO(jhr): if end of block, deal with up to 6 zero bytes
         header = self._fp.read(LEVELDBLOG_HEADER_LEN)
         if len(header) != LEVELDBLOG_HEADER_LEN:
             return None
@@ -132,9 +132,8 @@ class DataStore(object):
         """Write record that must fit into a block."""
         # double check that there is enough space
         # (this is a precondition to calling this method)
-        assert (
-            len(s) + LEVELDBLOG_HEADER_LEN
-            <= LEVELDBLOG_BLOCK_LEN - self._index % LEVELDBLOG_BLOCK_LEN
+        assert len(s) + LEVELDBLOG_HEADER_LEN <= (
+            LEVELDBLOG_BLOCK_LEN - self._index % LEVELDBLOG_BLOCK_LEN
         )
 
         checksum = 0

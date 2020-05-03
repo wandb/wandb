@@ -106,7 +106,8 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         s.setdefaults()
         s._probe()
 
-        # move freeze to later, FIXME(jhr): is this ok?
+        # move freeze to later
+        # TODO(jhr): is this ok?
         # s.freeze()
         self._settings = s
 

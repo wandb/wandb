@@ -320,7 +320,7 @@ class _WandbInit(object):
         self._restore()
 
         self.backend.cleanup()
-        # FIXME: no warning allowed
+        # TODO(jhr): no warning allowed
         if self.run:
             self.run.on_finish()
 
@@ -369,7 +369,7 @@ class _WandbInit(object):
 
     def _restore(self):
         logger.info("restore")
-        # FIXME(jhr): drain and shutdown all threads
+        # TODO(jhr): drain and shutdown all threads
         if self._use_redirect:
             if self._out_redir:
                 self._out_redir.uninstall()
@@ -503,7 +503,7 @@ def init(
     name = None,
     config = None,  # TODO(jhr): type is a union for argparse/absl
     notes = None,
-    magic = None,  # FIXME: type is union
+    magic = None,  # TODO(jhr): type is union
     config_exclude_keys=None,
     config_include_keys=None,
     reinit = None,

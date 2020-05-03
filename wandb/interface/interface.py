@@ -220,7 +220,7 @@ class BackendSender(object):
         elif name == "stderr":
             otype = wandb_internal_pb2.OutputData.OutputType.STDERR
         else:
-            # FIXME: throw error?
+            # TODO(jhr): throw error?
             print("unknown type")
         o = wandb_internal_pb2.OutputData(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()

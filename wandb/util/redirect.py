@@ -72,7 +72,7 @@ class Redirect(object):
 
     def _redirect(self, to_fd, unbuffered=False):
         # fp = getattr(sys, self._stream)
-        # FIXME(jhr): does this still work under windows?  are we leaking a fd?
+        # TODO(jhr): does this still work under windows?  are we leaking a fd?
         # Do not close old filedescriptor as others might be using it
         # fp.close()
         os.dup2(to_fd, self._old_fd)
@@ -152,7 +152,7 @@ class Capture(object):
         os.close(self._pipe_wr)
 
         logger.info("_stop closed: %s", name)
-        # FIXME: need to shut this down cleanly since it is a daemon thread
+        # TODO: need to shut this down cleanly since it is a daemon thread
         self._thread.join(timeout=30)
         if self._thread.isAlive():
             logger.error("Thread did not join: %s", self._name)

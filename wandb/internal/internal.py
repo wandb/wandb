@@ -286,11 +286,11 @@ class _SendManager(object):
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             self._partial_output[stream] += line
-            # FIXME(jhr): how do we make sure this gets flushed?
+            # TODO(jhr): how do we make sure this gets flushed?
             # we might need this for other stuff like telemetry
         else:
             # TODO(jhr): use time from timestamp proto
-            # FIXME(jhr): do we need to make sure we write full lines?
+            # TODO(jhr): do we need to make sure we write full lines?
             # seems to be some issues with line breaks
             cur_time = time.time()
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
@@ -327,7 +327,7 @@ class _SendManager(object):
         if self._pusher:
             self._pusher.finish()
         if self._fs:
-            # FIXME(jhr): now is a good time to output pending output lines
+            # TODO(jhr): now is a good time to output pending output lines
             self._fs.finish(self._exit_code)
         if self._pusher:
             self._pusher.update_all_files()
