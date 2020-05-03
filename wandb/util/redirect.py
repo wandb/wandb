@@ -3,36 +3,38 @@
 util/redirect.
 """
 
-import os
-import threading
-import sys
 import logging
-
-import six
+import os
+import sys
+import threading
 
 
 logger = logging.getLogger("wandb")
 
 _LAST_WRITE_TOKEN = "L@stWr!t3T0k3n\n"
 
+
 class Unbuffered(object):
-   def __init__(self, stream):
-       self.stream = stream
-   def write(self, data):
-       self.stream.write(data)
-       self.stream.flush()
-   def writelines(self, datas):
-       self.stream.writelines(datas)
-       self.stream.flush()
-   def __getattr__(self, attr):
-       return getattr(self.stream, attr)
+    def __init__(self, stream):
+        self.stream = stream
+
+    def write(self, data):
+        self.stream.write(data)
+        self.stream.flush()
+
+    def writelines(self, datas):
+        self.stream.writelines(datas)
+        self.stream.flush()
+
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
 
 
 def _pipe_relay(stopped, fd, name, cb, tee):
     while True:
         try:
             data = os.read(fd, 4096)
-        except OSError as e:
+        except OSError:
             # TODO(jhr): handle this
             return
         if len(data) == 0:
@@ -47,7 +49,7 @@ def _pipe_relay(stopped, fd, name, cb, tee):
         if cb:
             try:
                 cb(name, data)
-            except Exception as e:
+            except Exception:
                 logger.exception("problem in pipe relay")
                 # Prevent further callbacks
                 # TODO(jhr): how does error get propogated?
@@ -69,12 +71,12 @@ class Redirect(object):
         self._old_fp = None
 
     def _redirect(self, to_fd, unbuffered=False):
-        fp = getattr(sys, self._stream)
+        # fp = getattr(sys, self._stream)
         # FIXME(jhr): does this still work under windows?  are we leaking a fd?
         # Do not close old filedescriptor as others might be using it
         # fp.close()
         os.dup2(to_fd, self._old_fd)
-        setattr(sys, self._stream, os.fdopen(self._old_fd, 'w'))
+        setattr(sys, self._stream, os.fdopen(self._old_fd, "w"))
         if unbuffered:
             setattr(sys, self._stream, Unbuffered(getattr(sys, self._stream)))
 
@@ -83,7 +85,7 @@ class Redirect(object):
 
         fp = getattr(sys, self._stream)
         fd = fp.fileno()
-        old_fp = os.fdopen(os.dup(fd), 'w')
+        old_fp = os.fdopen(os.dup(fd), "w")
 
         if self._tee:
             self._dest._set_tee(old_fp.fileno())
@@ -129,8 +131,14 @@ class Capture(object):
         self._started = True
 
         self._stopped = threading.Event()
-        # NB: daemon thread is used because we use atexit to determine when a user process is finished.  the atexit handler is responsible for flushing, joining, and closing
-        read_thread = threading.Thread(name=self._name, target=_pipe_relay, args=(self._stopped, self._pipe_rd, self._name, self._cb, self._tee))
+        # NB: daemon thread is used because we use atexit to determine when a user
+        #     process is finished.  the atexit handler is responsible for flushing,
+        #     joining, and closing
+        read_thread = threading.Thread(
+            name=self._name,
+            target=_pipe_relay,
+            args=(self._stopped, self._pipe_rd, self._name, self._cb, self._tee),
+        )
         read_thread.daemon = True
         read_thread.start()
         self._thread = read_thread

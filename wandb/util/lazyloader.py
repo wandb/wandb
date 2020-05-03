@@ -8,17 +8,26 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import types
-import sys
 import importlib
+import sys
+import types
+
 
 class LazyLoader(types.ModuleType):
     """Lazily import a module, mainly to avoid pulling in large dependencies.
-    we use this for tensorflow and other optional libraries primarily at the top module level
+
+    We use this for tensorflow and other optional libraries primarily at the
+    top module level.
     """
 
     # The lint error here is incorrect.
-    def __init__(self, local_name, parent_module_globals, name, warning=None):  # pylint: disable=super-on-old-class
+    def __init__(
+        self,
+        local_name,  # pylint: disable=super-on-old-class
+        parent_module_globals,
+        name,
+        warning=None,
+    ):
         self._local_name = local_name
         self._parent_module_globals = parent_module_globals
         self._warning = warning

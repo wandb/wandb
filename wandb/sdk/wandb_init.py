@@ -24,7 +24,6 @@ from wandb.stuff import io_wrap
 from wandb.util import redirect, reporting
 from wandb.util.globals import set_global
 
-
 from .wandb_run import Run, RunDummy, RunManaged
 from .wandb_settings import Settings
 

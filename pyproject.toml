@@ -8,7 +8,8 @@ exclude = '''
 '''
 include = '''
   wandb/sdk/
-| wandb/backend
-| wandb/interface
-| wandb/internal
+| wandb/backend/
+| wandb/interface/
+| wandb/internal/
+| wandb/util/
 '''

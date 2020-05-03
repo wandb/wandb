@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger("wandb")
 
+
 class _Reporter(object):
     def __init__(self, settings):
         self._settings = settings

@@ -1,11 +1,31 @@
-import wandb
+
+from functools import wraps
+import logging
+import sys
+import traceback
 
 import click
-from functools import wraps
+from click.exceptions import ClickException
+import six
+import wandb
+from wandb import Error
 
+logger = logging.getLogger("wandb")
 
-#CONTEXT = dict(default_map=api.settings())
 CONTEXT = dict(default_map={})
+
+
+class ClickWandbException(ClickException):
+    def format_message(self):
+        # log_file = util.get_log_file_path()
+        log_file = ""
+        orig_type = '{}.{}'.format(self.orig_type.__module__,
+                                   self.orig_type.__name__)
+        if issubclass(self.orig_type, Error):
+            return click.style(str(self.message), fg="red")
+        else:
+            return ('An Exception was raised, see %s for full traceback.\n'
+                    '%s: %s' % (log_file, orig_type, self.message))
 
 
 def display_error(func):
@@ -39,7 +59,7 @@ class RunGroup(click.Group):
 @click.version_option(version=wandb.__version__)
 @click.pass_context
 def cli(ctx):
-    #wandb.try_to_set_up_global_logging()
+    # wandb.try_to_set_up_global_logging()
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
@@ -59,13 +79,15 @@ def superagent(project=None, entity=None, agent_spec=None):
     wandb.superagent.run_agent(agent_spec)
 
 
-@cli.command(context_settings=CONTEXT, help="Upload an offline training directory to W&B", hidden=True)
+@cli.command(context_settings=CONTEXT,
+             help="Upload an offline training directory to W&B", hidden=True)
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
-@click.option("--ignore", help="A comma seperated list of globs to ignore syncing with wandb.")
+@click.option("--ignore",
+              help="A comma seperated list of globs to ignore syncing with wandb.")
 @display_error
 def sync(ctx, path, id, project, entity, ignore):
     pass
