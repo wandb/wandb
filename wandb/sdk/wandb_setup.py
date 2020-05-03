@@ -10,12 +10,12 @@ run_id can be resolved.
 
 """
 
-import threading
-import multiprocessing
-import sys
-import os
-import logging
 import copy
+import logging
+import multiprocessing
+import os
+import sys
+import threading
 
 from . import wandb_settings
 
@@ -66,7 +66,7 @@ class _EarlyLogger(object):
             logger.exception(msg, *args, **kwargs)
 
 
-class _WandbSetup__WandbSetup(object):
+class _WandbSetup__WandbSetup(object):  # noqa: N801
     """Inner class of _WandbSetup."""
 
     def __init__(self, settings=None, environ=None):

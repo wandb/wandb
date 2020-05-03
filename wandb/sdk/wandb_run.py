@@ -7,17 +7,18 @@ Manage wandb run.
 
 from __future__ import print_function
 
-import wandb
-from . import wandb_config
-from . import wandb_summary
-from . import wandb_history
-
-import click
-import platform
-import shutil
+import json
 import logging
 import os
-import json
+import platform
+import shutil
+
+import click
+import wandb
+
+from . import wandb_config
+from . import wandb_history
+from . import wandb_summary
 
 logger = logging.getLogger("wandb")
 

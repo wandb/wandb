@@ -57,3 +57,15 @@ def login():
 @display_error
 def superagent(project=None, entity=None, agent_spec=None):
     wandb.superagent.run_agent(agent_spec)
+
+
+@cli.command(context_settings=CONTEXT, help="Upload an offline training directory to W&B", hidden=True)
+@click.pass_context
+@click.argument("path", nargs=-1, type=click.Path(exists=True))
+@click.option("--id", help="The run you want to upload to.")
+@click.option("--project", "-p", help="The project you want to upload to.")
+@click.option("--entity", "-e", help="The entity to scope to.")
+@click.option("--ignore", help="A comma seperated list of globs to ignore syncing with wandb.")
+@display_error
+def sync(ctx, path, id, project, entity, ignore):
+    pass

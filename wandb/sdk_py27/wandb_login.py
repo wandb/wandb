@@ -5,11 +5,11 @@ login.
 
 from __future__ import print_function
 
-import requests
-import logging
-from prompt_toolkit import prompt  # type: ignore
 import getpass
+import logging
 
+from prompt_toolkit import prompt  # type: ignore
+import requests
 import wandb
 from wandb.util import apikey
 

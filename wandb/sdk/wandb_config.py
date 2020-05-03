@@ -6,7 +6,6 @@ config.
 import logging
 
 import six
-
 from wandb.util.term import terminfo
 
 logger = logging.getLogger("wandb")

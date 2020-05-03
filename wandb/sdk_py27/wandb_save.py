@@ -2,8 +2,9 @@
 save.
 """
 
-import wandb
 import logging
+
+import wandb
 
 logger = logging.getLogger("wandb")
 

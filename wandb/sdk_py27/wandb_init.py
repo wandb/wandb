@@ -5,27 +5,27 @@ init.
 
 from __future__ import print_function
 
-import wandb
-from .wandb_run import Run, RunManaged, RunDummy
-from wandb.util.globals import set_global
-from wandb.backend.backend import Backend
-from wandb.util import reporting
-from wandb.errors import Error
-
-import time
-import json
 import atexit
-import logging
-import errno
 import datetime
-import platform
-from six import raise_from
-from wandb.stuff import io_wrap
-import sys
+import errno
+import json
+import logging
 import os
-from wandb.util import redirect
+import platform
+import sys
+import time
 import traceback
 
+from six import raise_from
+import wandb
+from wandb.backend.backend import Backend
+from wandb.errors import Error
+from wandb.stuff import io_wrap
+from wandb.util import redirect, reporting
+from wandb.util.globals import set_global
+
+
+from .wandb_run import Run, RunDummy, RunManaged
 from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:

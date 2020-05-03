@@ -18,21 +18,24 @@ Priority of settings:  See "source" variable.
 """
 
 import collections
-import logging
 import configparser
-import platform
-import datetime
-from typing import (  # noqa: F401 pylint: disable=unused-import
-    Optional,
-    Union,
-    List,
-    Dict,
-)
-import os
 import copy
-import shortuuid  # type: ignore
+import datetime
+import logging
+import os
+import platform
 
+import shortuuid  # type: ignore
 import six
+import wandb
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import (  # noqa: F401 pylint: disable=unused-import
+        Dict,
+        List,
+        Optional,
+        Union,
+    )
 
 logger = logging.getLogger("wandb")
 
