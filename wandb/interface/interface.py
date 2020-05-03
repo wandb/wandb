@@ -27,24 +27,30 @@ def is_numpy_array(obj):
 
 def is_tf_tensor(obj):
     import tensorflow  # type: ignore
+
     return isinstance(obj, tensorflow.Tensor)
 
 
 def is_tf_tensor_typename(typename):
-    return typename.startswith('tensorflow.') and ('Tensor' in typename or 'Variable' in typename)
+    return typename.startswith("tensorflow.") and (
+        "Tensor" in typename or "Variable" in typename
+    )
 
 
 def is_tf_eager_tensor_typename(typename):
-    return typename.startswith('tensorflow.') and ('EagerTensor' in typename)
+    return typename.startswith("tensorflow.") and ("EagerTensor" in typename)
 
 
 def is_pytorch_tensor(obj):
     import torch  # type: ignore[import]
+
     return isinstance(obj, torch.Tensor)
 
 
 def is_pytorch_tensor_typename(typename):
-    return typename.startswith('torch.') and ('Tensor' in typename or 'Variable' in typename)
+    return typename.startswith("torch.") and (
+        "Tensor" in typename or "Variable" in typename
+    )
 
 
 def get_full_typename(o):
@@ -65,7 +71,7 @@ def get_h5_typename(o):
     elif is_pytorch_tensor_typename(typename):
         return "torch.Tensor"
     else:
-        return o.__class__.__module__.split('.')[0] + "." + o.__class__.__name__
+        return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
 
 
 def json_friendly(obj):
@@ -101,12 +107,12 @@ def json_friendly(obj):
     elif np and isinstance(obj, np.generic):
         obj = obj.item()
     elif isinstance(obj, bytes):
-        obj = obj.decode('utf-8')
+        obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
         obj = obj.isoformat()
     else:
         converted = False
-    #if getsizeof(obj) > VALUE_BYTES_LIMIT:
+    # if getsizeof(obj) > VALUE_BYTES_LIMIT:
     #    wandb.termwarn("Serializing object of type {} that is {} bytes".format(type(obj).__name__, getsizeof(obj)))
 
     return obj, converted
@@ -114,18 +120,21 @@ def json_friendly(obj):
 
 def maybe_compress_summary(obj, h5_typename):
     if np and isinstance(obj, np.ndarray) and obj.size > 32:
-        return {
-            "_type": h5_typename,  # may not be ndarray
-            "var": np.var(obj).item(),
-            "mean": np.mean(obj).item(),
-            "min": np.amin(obj).item(),
-            "max": np.amax(obj).item(),
-            "10%": np.percentile(obj, 10),
-            "25%": np.percentile(obj, 25),
-            "75%": np.percentile(obj, 75),
-            "90%": np.percentile(obj, 90),
-            "size": obj.size
-        }, True
+        return (
+            {
+                "_type": h5_typename,  # may not be ndarray
+                "var": np.var(obj).item(),
+                "mean": np.mean(obj).item(),
+                "min": np.amin(obj).item(),
+                "max": np.amax(obj).item(),
+                "10%": np.percentile(obj, 10),
+                "25%": np.percentile(obj, 25),
+                "75%": np.percentile(obj, 75),
+                "90%": np.percentile(obj, 90),
+                "size": obj.size,
+            },
+            True,
+        )
     else:
         return obj, False
 
@@ -134,7 +143,7 @@ class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
     def default(self, obj):
-        if hasattr(obj, 'json_encode'):
+        if hasattr(obj, "json_encode"):
             return obj.json_encode()
         # if hasattr(obj, 'to_json'):
         #     return obj.to_json()
@@ -149,8 +158,7 @@ class WandBJSONEncoderOld(json.JSONEncoder):
 
     def default(self, obj):
         tmp_obj, converted = json_friendly(obj)
-        tmp_obj, compressed = maybe_compress_summary(
-            tmp_obj, get_h5_typename(obj))
+        tmp_obj, compressed = maybe_compress_summary(tmp_obj, get_h5_typename(obj))
         if converted:
             return tmp_obj
         return json.JSONEncoder.default(self, tmp_obj)
@@ -161,6 +169,7 @@ def maybe_compress_history(obj):
         return wandb.Histogram(obj, num_bins=32).to_json(), True
     else:
         return obj, False
+
 
 def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
@@ -180,11 +189,17 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
 
 
 class BackendSender(object):
-
     class ExceptionTimeout(Exception):
         pass
 
-    def __init__(self, process_queue=None, notify_queue=None, request_queue=None, response_queue=None, process=None):
+    def __init__(
+        self,
+        process_queue=None,
+        notify_queue=None,
+        request_queue=None,
+        response_queue=None,
+        process=None,
+    ):
         self.process_queue = process_queue
         self.notify_queue = notify_queue
         self.request_queue = request_queue
@@ -197,9 +212,9 @@ class BackendSender(object):
 
     def send_output(self, name, data):
         # from vendor.protobuf import google3.protobuf.timestamp
-        #ts = timestamp.Timestamp()
-        #ts.GetCurrentTime()
-        #now = datetime.now()
+        # ts = timestamp.Timestamp()
+        # ts.GetCurrentTime()
+        # now = datetime.now()
         if name == "stdout":
             otype = wandb_internal_pb2.OutputData.OutputType.STDOUT
         elif name == "stderr":
@@ -277,8 +292,12 @@ class BackendSender(object):
             return json_value
         else:
             path = ".".join(path_from_root)
-            friendly_value, converted = json_friendly(data_types.val_to_json(self._run, path, value))
-            json_value, compressed = maybe_compress_summary(friendly_value, get_h5_typename(value))
+            friendly_value, converted = json_friendly(
+                data_types.val_to_json(self._run, path, value)
+            )
+            json_value, compressed = maybe_compress_summary(
+                friendly_value, get_h5_typename(value)
+            )
             if compressed:
                 self.write_h5(path_from_root, friendly_value)
 
@@ -295,12 +314,14 @@ class BackendSender(object):
 
     def _make_files(self, files_dict):
         files = wandb_internal_pb2.FilesData()
-        for path in files_dict['files']:
+        for path in files_dict["files"]:
             f = files.files.add()
             f.path[:] = path
         return files
 
-    def _make_record(self, run=None, config=None, files=None, summary=None, stats=None, exit=None):
+    def _make_record(
+        self, run=None, config=None, files=None, summary=None, stats=None, exit=None
+    ):
         rec = wandb_internal_pb2.Record()
         if run:
             rec.run.CopyFrom(run)

@@ -24,21 +24,21 @@ def _get_dict(d):
 # we might be able to do this on other objects like Run?
 class Config(object):
     def __init__(self):
-        object.__setattr__(self, '_items', dict())
-        object.__setattr__(self, '_locked', dict())
-        object.__setattr__(self, '_users', dict())
-        object.__setattr__(self, '_users_inv', dict())
-        object.__setattr__(self, '_users_cnt', 0)
-        object.__setattr__(self, '_callback', None)
+        object.__setattr__(self, "_items", dict())
+        object.__setattr__(self, "_locked", dict())
+        object.__setattr__(self, "_users", dict())
+        object.__setattr__(self, "_users_inv", dict())
+        object.__setattr__(self, "_users_cnt", 0)
+        object.__setattr__(self, "_callback", None)
 
     def _set_callback(self, cb):
-        object.__setattr__(self, '_callback', cb)
+        object.__setattr__(self, "_callback", cb)
 
     def __repr__(self):
         return str(dict(self))
 
     def keys(self):
-        return [k for k in self._items.keys() if not k.startswith('_')]
+        return [k for k in self._items.keys() if not k.startswith("_")]
 
     def _as_dict(self):
         return self._items

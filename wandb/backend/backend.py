@@ -28,7 +28,6 @@ logger = logging.getLogger("wandb")
 
 
 class Backend(object):
-
     def __init__(self, mode=None):
         self.wandb_process = None
         self.fd_pipe_parent = None
@@ -47,16 +46,23 @@ class Backend(object):
     def _hack_set_run(self, run):
         self.interface._hack_set_run(run)
 
-    def ensure_launched(self, settings=None, log_level=None, stdout_fd=None, stderr_fd=None, use_redirect=None):
+    def ensure_launched(
+        self,
+        settings=None,
+        log_level=None,
+        stdout_fd=None,
+        stderr_fd=None,
+        use_redirect=None,
+    ):
         """Launch backend worker if not running."""
         log_level = log_level or logging.DEBUG
         settings = settings or {}
         settings = dict(settings)
 
-        #os.set_inheritable(stdout_fd, True)
-        #os.set_inheritable(stderr_fd, True)
-        #stdout_read_file = os.fdopen(stdout_fd, 'rb')
-        #stderr_read_file = os.fdopen(stderr_fd, 'rb')
+        # os.set_inheritable(stdout_fd, True)
+        # os.set_inheritable(stderr_fd, True)
+        # stdout_read_file = os.fdopen(stdout_fd, 'rb')
+        # stderr_read_file = os.fdopen(stderr_fd, 'rb')
 
         fd_pipe_child, fd_pipe_parent = self._wl._multiprocessing.Pipe()
 
@@ -70,26 +76,28 @@ class Backend(object):
         cancel_queue = self._wl._multiprocessing.Queue()
         notify_queue = self._wl._multiprocessing.Queue()
 
-        wandb_process = self._wl._multiprocessing.Process(target=wandb_internal,
-                args=(
-                    settings,
-                    notify_queue,
-                    process_queue,
-                    req_queue,
-                    resp_queue,
-                    cancel_queue,
-                    fd_pipe_child,
-                    log_level,
-                    use_redirect,
-                    ))
+        wandb_process = self._wl._multiprocessing.Process(
+            target=wandb_internal,
+            args=(
+                settings,
+                notify_queue,
+                process_queue,
+                req_queue,
+                resp_queue,
+                cancel_queue,
+                fd_pipe_child,
+                log_level,
+                use_redirect,
+            ),
+        )
         wandb_process.name = "wandb_internal"
 
         # Support running code without a: __name__ == "__main__"
         save_mod_name = None
         save_mod_path = None
-        main_module = sys.modules['__main__']
+        main_module = sys.modules["__main__"]
         main_mod_spec = getattr(main_module, "__spec__", None)
-        main_mod_path = getattr(main_module, '__file__', None)
+        main_mod_path = getattr(main_module, "__file__", None)
         main_mod_name = None
         if main_mod_spec:
             main_mod_name = getattr(main_mod_spec, "name", None)
@@ -98,7 +106,9 @@ class Backend(object):
             main_module.__spec__.name = "wandb.internal.mpmain"
         elif main_mod_path is not None:
             save_mod_path = main_module.__file__
-            fname = os.path.join(os.path.dirname(wandb.__file__), "internal", "mpmain", "__main__.py")
+            fname = os.path.join(
+                os.path.dirname(wandb.__file__), "internal", "mpmain", "__main__.py"
+            )
             main_module.__file__ = fname
 
         # Start the process with __name__ == "__main__" workarounds
@@ -109,21 +119,25 @@ class Backend(object):
         else:
             if platform.system() == "Windows":
                 # https://bugs.python.org/issue38188
-                #import msvcrt
-                #print("DEBUG1: {}".format(stdout_fd))
-                #stdout_fd = msvcrt.get_osfhandle(stdout_fd)
-                #print("DEBUG2: {}".format(stdout_fd))
+                # import msvcrt
+                # print("DEBUG1: {}".format(stdout_fd))
+                # stdout_fd = msvcrt.get_osfhandle(stdout_fd)
+                # print("DEBUG2: {}".format(stdout_fd))
                 # stderr_fd = msvcrt.get_osfhandle(stderr_fd)
-                #multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
+                # multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
                 # multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
 
                 # should we do this?
-                #os.close(stdout_fd)
-                #os.close(stderr_fd)
+                # os.close(stdout_fd)
+                # os.close(stderr_fd)
                 pass
             else:
-                multiprocessing.reduction.send_handle(fd_pipe_parent, stdout_fd,  wandb_process.pid)
-                multiprocessing.reduction.send_handle(fd_pipe_parent, stderr_fd,  wandb_process.pid)
+                multiprocessing.reduction.send_handle(
+                    fd_pipe_parent, stdout_fd, wandb_process.pid
+                )
+                multiprocessing.reduction.send_handle(
+                    fd_pipe_parent, stderr_fd, wandb_process.pid
+                )
 
                 # should we do this?
                 os.close(stdout_fd)
@@ -149,12 +163,12 @@ class Backend(object):
         self.notify_queue = notify_queue
 
         self.interface = interface.BackendSender(
-                process=wandb_process,
-                notify_queue=notify_queue,
-                process_queue=process_queue,
-                request_queue=req_queue,
-                response_queue=resp_queue,
-                )
+            process=wandb_process,
+            notify_queue=notify_queue,
+            process_queue=process_queue,
+            request_queue=req_queue,
+            response_queue=resp_queue,
+        )
 
     def server_connect(self):
         """Connect to server."""

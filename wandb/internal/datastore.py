@@ -40,15 +40,17 @@ LEVELDBLOG_MIDDLE = 3
 LEVELDBLOG_LAST = 4
 
 LEVELDBLOG_HEADER_IDENT = ":W&B"
-LEVELDBLOG_HEADER_MAGIC = 0xbee1  # zlib.crc32(bytes("Weights & Biases", 'iso8859-1')) & 0xffff
+LEVELDBLOG_HEADER_MAGIC = (
+    0xBEE1  # zlib.crc32(bytes("Weights & Biases", 'iso8859-1')) & 0xffff
+)
 LEVELDBLOG_HEADER_VERSION = 0
 
 try:
-    bytes('', 'ascii')
+    bytes("", "ascii")
 
     def strtobytes(x):
         """strtobytes."""
-        return bytes(x, 'iso8859-1')
+        return bytes(x, "iso8859-1")
 
     # def bytestostr(x):
     #     return str(x, 'iso8859-1')
@@ -59,7 +61,6 @@ except Exception:
 
 
 class DataStore(object):
-
     def __init__(self):
         self._opened_for_scan = False
         self._fp = None
@@ -103,7 +104,7 @@ class DataStore(object):
         header = self._fp.read(LEVELDBLOG_HEADER_LEN)
         if len(header) != LEVELDBLOG_HEADER_LEN:
             return None
-        fields = struct.unpack('<IHB', header)
+        fields = struct.unpack("<IHB", header)
         checksum, dlength, dtype = fields
         data = self._fp.read(dlength)
         # check len
@@ -117,7 +118,12 @@ class DataStore(object):
         pass
 
     def _write_header(self):
-        data = struct.pack('<4sHB', strtobytes(LEVELDBLOG_HEADER_IDENT), LEVELDBLOG_HEADER_MAGIC, LEVELDBLOG_HEADER_VERSION)
+        data = struct.pack(
+            "<4sHB",
+            strtobytes(LEVELDBLOG_HEADER_IDENT),
+            LEVELDBLOG_HEADER_MAGIC,
+            LEVELDBLOG_HEADER_VERSION,
+        )
         assert len(data) == 7
         self._fp.write(data)
         self._index += len(data)
@@ -125,14 +131,17 @@ class DataStore(object):
     def _write_record(self, s, dtype=None):
         """Write record that must fit into a block."""
         # double check that there is enough space (this is a precondition to calling this method)
-        assert len(s) + LEVELDBLOG_HEADER_LEN <= LEVELDBLOG_BLOCK_LEN - self._index % LEVELDBLOG_BLOCK_LEN
+        assert (
+            len(s) + LEVELDBLOG_HEADER_LEN
+            <= LEVELDBLOG_BLOCK_LEN - self._index % LEVELDBLOG_BLOCK_LEN
+        )
 
         checksum = 0
         dlength = len(s)
         dtype = dtype or LEVELDBLOG_FULL
         # print("record: length={} type={}".format(dlength, dtype))
         checksum = zlib.crc32(s, self._crc[dtype]) & 0xFFFFFFFF
-        self._fp.write(struct.pack('<IHB', checksum, dlength, dtype))
+        self._fp.write(struct.pack("<IHB", checksum, dlength, dtype))
         if dlength:
             self._fp.write(s)
         self._index += LEVELDBLOG_HEADER_LEN + len(s)
@@ -147,7 +156,7 @@ class DataStore(object):
         data_used = 0
         data_left = len(s)
         if space_left < LEVELDBLOG_HEADER_LEN:
-            pad = '\x00' * space_left
+            pad = "\x00" * space_left
             self._fp.write(strtobytes(pad))
             self._index += space_left
             offset = 0
@@ -166,7 +175,9 @@ class DataStore(object):
 
             # write middles (if any)
             while data_left > LEVELDBLOG_DATA_LEN:
-                self._write_record(s[data_used:data_used + LEVELDBLOG_DATA_LEN], LEVELDBLOG_MIDDLE)
+                self._write_record(
+                    s[data_used : data_used + LEVELDBLOG_DATA_LEN], LEVELDBLOG_MIDDLE
+                )
                 data_used += LEVELDBLOG_DATA_LEN
                 data_left -= LEVELDBLOG_DATA_LEN
 

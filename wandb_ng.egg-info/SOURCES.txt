@@ -1,5 +1,6 @@
 MANIFEST.in
 README.md
+pyproject.toml
 setup.cfg
 setup.py
 wandb/__init__.py

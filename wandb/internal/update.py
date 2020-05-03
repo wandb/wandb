@@ -5,10 +5,10 @@ from pkg_resources import parse_version
 
 def check_available(current_version):
     timeout = 2  # Two seconds.
-    pypi_url = 'https://pypi.org/pypi/wandb-ng/json'
+    pypi_url = "https://pypi.org/pypi/wandb-ng/json"
     try:
         data = requests.get(pypi_url, timeout=timeout).json()
-        latest_version = data['info']['version']
+        latest_version = data["info"]["version"]
     except:
         # Any issues whatsoever, just skip the latest version check.
         return
@@ -19,4 +19,6 @@ def check_available(current_version):
 
     # A new version is available!
     wandb.termlog(
-        "wandb-ng version %s is available!  To upgrade, please run:\n $ pip install wandb-ng --upgrade" % latest_version)
+        "wandb-ng version %s is available!  To upgrade, please run:\n $ pip install wandb-ng --upgrade"
+        % latest_version
+    )

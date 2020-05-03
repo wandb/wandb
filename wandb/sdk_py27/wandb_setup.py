@@ -19,7 +19,9 @@ import platform
 
 from . import wandb_settings
 
-logger = None  # will be configured to be either a standard logger instance or _EarlyLogger
+logger = (
+    None  # will be configured to be either a standard logger instance or _EarlyLogger
+)
 
 
 def _set_logger(log_object):
@@ -30,6 +32,7 @@ def _set_logger(log_object):
 
 class _EarlyLogger(object):
     """Early logger which captures logs in memory until logging can be configured."""
+
     def __init__(self):
         self._log = []
         self._exception = []
@@ -65,6 +68,7 @@ class _EarlyLogger(object):
 
 class _WandbSetup__WandbSetup(object):
     """Inner class of _WandbSetup."""
+
     def __init__(self, settings=None, environ=None):
         self._multiprocessing = None
         self._settings = None
@@ -88,10 +92,12 @@ class _WandbSetup__WandbSetup(object):
         pass
 
     def _settings_setup(self, settings=None, early_logger=None):
-        s = wandb_settings.Settings(_environ=self._environ,
-                                    _files=True,
-                                    _early_logger=early_logger,
-                                    _settings=settings)
+        s = wandb_settings.Settings(
+            _environ=self._environ,
+            _files=True,
+            _early_logger=early_logger,
+            _settings=settings,
+        )
         # if settings:
         #     s.update(dict(settings))
 
@@ -122,9 +128,9 @@ class _WandbSetup__WandbSetup(object):
         if hasattr(threading, "main_thread"):
             if threading.current_thread() is not threading.main_thread():
                 print("bad thread")
-        elif threading.current_thread().name != 'MainThread':
+        elif threading.current_thread().name != "MainThread":
             print("bad thread2", threading.current_thread().name)
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             print("frozen, could be trouble")
         # print("t2", multiprocessing.get_start_method(allow_none=True))
         # print("t3", multiprocessing.get_start_method())
@@ -134,9 +140,10 @@ class _WandbSetup__WandbSetup(object):
         # if py34+, else fall back
         if hasattr(multiprocessing, "get_context"):
             all_methods = multiprocessing.get_all_start_methods()
-            logger.info("multiprocessing start_methods={}".format(
-                ','.join(all_methods)))
-            ctx = multiprocessing.get_context('spawn')
+            logger.info(
+                "multiprocessing start_methods={}".format(",".join(all_methods))
+            )
+            ctx = multiprocessing.get_context("spawn")
         else:
             logger.info("multiprocessing fallback, likely fork on unix")
             ctx = multiprocessing
@@ -149,6 +156,7 @@ class _WandbSetup__WandbSetup(object):
 
 class _WandbSetup(object):
     """Wandb singleton class."""
+
     _instance = None
 
     def __init__(self, settings=None):

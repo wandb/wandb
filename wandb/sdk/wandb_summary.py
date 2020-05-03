@@ -13,14 +13,14 @@ def _get_dict(d):
 # we might be able to do this on other objects like Run?
 class Summary(object):
     def __init__(self):
-        object.__setattr__(self, '_items', dict())
-        object.__setattr__(self, '_callback', None)
+        object.__setattr__(self, "_items", dict())
+        object.__setattr__(self, "_callback", None)
 
     def _set_callback(self, cb):
-        object.__setattr__(self, '_callback', cb)
+        object.__setattr__(self, "_callback", cb)
 
     def keys(self):
-        return [k for k in self._items.keys() if k != '_wandb']
+        return [k for k in self._items.keys() if k != "_wandb"]
 
     def _as_dict(self):
         return self._items

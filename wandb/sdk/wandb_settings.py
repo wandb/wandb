@@ -22,7 +22,12 @@ import logging
 import configparser
 import platform
 import datetime
-from typing import Optional, Union, List, Dict  # noqa: F401 pylint: disable=unused-import
+from typing import (
+    Optional,
+    Union,
+    List,
+    Dict,
+)  # noqa: F401 pylint: disable=unused-import
 import os
 import copy
 import shortuuid  # type: ignore
@@ -31,16 +36,24 @@ import six
 
 logger = logging.getLogger("wandb")
 
-source = ("org", "entity", "project", "system", "workspace", "env", "setup",
-          "settings", "args")
+source = (
+    "org",
+    "entity",
+    "project",
+    "system",
+    "workspace",
+    "env",
+    "setup",
+    "settings",
+    "args",
+)
 
-Field = collections.namedtuple('TypedField', ['type', 'choices'])
+Field = collections.namedtuple("TypedField", ["type", "choices"])
 
 
 def _generate_id():
     # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(
-        alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
+    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
     return run_gen.random(8)
 
 
@@ -48,28 +61,10 @@ defaults = dict(
     base_url="https://api.wandb.ai",
     show_warnings=2,
     summary_warnings=5,
-    _mode=Field(str, (
-        'auto',
-        'noop',
-        'online',
-        'offline',
-        'dryrun',
-        'run',
-    )),
-    _problem=Field(str, (
-        'fatal',
-        'warn',
-        'silent',
-    )),
-    console='auto',
-    _console=Field(str, (
-        'auto',
-        'redirect',
-        'off',
-        'mock',
-        'file',
-        'iowrap',
-    )),
+    _mode=Field(str, ("auto", "noop", "online", "offline", "dryrun", "run",)),
+    _problem=Field(str, ("fatal", "warn", "silent",)),
+    console="auto",
+    _console=Field(str, ("auto", "redirect", "off", "mock", "file", "iowrap",)),
 )
 
 # env mapping?
@@ -88,7 +83,7 @@ env_settings = dict(
     run_tags="WANDB_TAGS",
 )
 
-env_convert = dict(run_tags=lambda s: s.split(','), )
+env_convert = dict(run_tags=lambda s: s.split(","),)
 
 
 def _build_inverse_map(prefix, d):
@@ -101,10 +96,10 @@ def _build_inverse_map(prefix, d):
 
 def _get_python_type():
     try:
-        if 'terminal' in get_ipython().__module__:
-            return 'ipython'
+        if "terminal" in get_ipython().__module__:
+            return "ipython"
         else:
-            return 'jupyter'
+            return "jupyter"
     except (NameError, AttributeError):
         return "python"
 
@@ -134,9 +129,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         anonymous=None,
-
         # how do we annotate that: dryrun==offline?
-        mode: Optional[str] = 'online',
+        mode: Optional[str] = "online",
         entity: str = None,
         project: str = None,
         run_group: str = None,
@@ -145,17 +139,14 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         run_name: str = None,
         run_notes: str = None,
         run_tags=None,
-
         # compatibility / error handling
         compat_version=None,  # set to "0.8" for safer defaults for older users
         strict=None,  # set to "on" to enforce current best practices (also "warn")
-        problem='fatal',
-
+        problem="fatal",
         # dynamic settings
         system_sample_seconds=2,
         system_samples=15,
         heartbeat_seconds=30,
-
         # directories and files
         wandb_dir="wandb",
         config_system_spec="~/.config/wandb/settings",
@@ -178,7 +169,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         files_dir_spec="{wandb_dir}/runs/wandb-{timespec}-{run_id}/files",
         files_dir=None,  # computed
         symlink=None,  # probed
-
         # where files are temporary stored when saving
         # files_dir=None,
         # data_base_dir="wandb",
@@ -195,7 +185,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _start_time=None,
         _start_datetime=None,
         console=None,
-
         # compute environment
         jupyter=None,
         windows=None,
@@ -207,7 +196,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         show_errors=None,
         summary_errors=None,
         summary_warnings=None,
-
         # special
         _settings=None,
         _environ=None,
@@ -217,9 +205,10 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _internal_check_process=8,
     ):
         kwargs = locals()
-        object.__setattr__(self, "_masked_keys", set(['self', '_frozen']))
-        object.__setattr__(self, "_unsaved_keys",
-                           set(['_settings', '_files', '_environ']))
+        object.__setattr__(self, "_masked_keys", set(["self", "_frozen"]))
+        object.__setattr__(
+            self, "_unsaved_keys", set(["_settings", "_files", "_environ"])
+        )
         object.__setattr__(self, "_frozen", False)
         object.__setattr__(self, "_locked_by", dict)
         object.__setattr__(self, "_configured_by", dict)
@@ -245,11 +234,11 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             self.update(env_dict, _setter="env")
         if _files:
             # TODO(jhr): permit setting of config in system and workspace
-            config_system = self._path_convert(
-                self.__dict__.get("config_system_spec"))
+            config_system = self._path_convert(self.__dict__.get("config_system_spec"))
             self.update(self._load(config_system), _setter="system")
             config_workspace = self._path_convert(
-                self.__dict__.get("config_workspace_spec"))
+                self.__dict__.get("config_workspace_spec")
+            )
             self.update(self._load(config_workspace), _setter="workspace")
         if _settings:
             self.update(_settings)
@@ -257,7 +246,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
     def _path_convert_part(self, path_part, format_dict):
         """convert slashes, expand ~ and other macros."""
 
-        path_parts = path_part.split(os.sep if os.sep in path_part else '/')
+        path_parts = path_part.split(os.sep if os.sep in path_part else "/")
         for i in range(len(path_parts)):
             path_parts[i] = path_parts[i].format(**format_dict)
         return path_parts
@@ -268,7 +257,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         format_dict = dict()
         if self._start_time:
             format_dict["timespec"] = datetime.datetime.strftime(
-                self._start_datetime, "%Y%m%d_%H%M%S")
+                self._start_datetime, "%Y%m%d_%H%M%S"
+            )
         if self.run_id:
             format_dict["run_id"] = self.run_id
         format_dict["proc"] = os.getpid()
@@ -301,15 +291,18 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
     def _check_invalid(self, k, v):
         # Check to see if matches choice
-        f = defaults.get('_' + k)
+        f = defaults.get("_" + k)
         if f and isinstance(f, Field):
             if v is not None and f.choices and v not in f.choices:
-                raise TypeError('Settings field {} set to {} not in {}'.format(
-                    k, v, ','.join(f.choices)))
+                raise TypeError(
+                    "Settings field {} set to {} not in {}".format(
+                        k, v, ",".join(f.choices)
+                    )
+                )
 
     def update(self, __d=None, _setter=None, **kwargs):
         if self._frozen and (__d or kwargs):
-            raise TypeError('Settings object is frozen')
+            raise TypeError("Settings object is frozen")
         d = __d or dict()
         for check in d, kwargs:
             for k in six.viewkeys(check):
@@ -317,34 +310,32 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                     raise KeyError(k)
                 self._check_invalid(k, check[k])
         self.__dict__.update({k: v for k, v in d.items() if v is not None})
-        self.__dict__.update(
-            {k: v
-             for k, v in kwargs.items() if v is not None})
+        self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
 
     def _probe(self):
         d = {}
-        d['jupyter'] = _get_python_type() != "python"
-        d['windows'] = platform.system() == "Windows"
+        d["jupyter"] = _get_python_type() != "python"
+        d["windows"] = platform.system() == "Windows"
         # disable symlinks if on windows (requires admin or developer setup)
-        d['symlink'] = True
-        if d['windows']:
-            d['symlink'] = False
+        d["symlink"] = True
+        if d["windows"]:
+            d["symlink"] = False
         self.setdefaults(d)
 
         # TODO(jhr): this needs to be moved last in setting up settings
         u = {}
-        if self.console == 'auto':
-            console = 'redirect'
+        if self.console == "auto":
+            console = "redirect"
             if self.jupyter:
-                console = 'off'
-            u['console'] = console
+                console = "off"
+            u["console"] = console
         self.update(u)
 
     def setdefaults(self, __d=None):
         __d = __d or defaults
         # set defaults
         for k, v in __d.items():
-            if not k.startswith('_'):
+            if not k.startswith("_"):
                 if self.__dict__.get(k) is None:
                     object.__setattr__(self, k, v)
 
@@ -358,7 +349,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         if name not in self.__dict__:
             raise AttributeError(name)
         if self._frozen:
-            raise TypeError('Settings object is frozen')
+            raise TypeError("Settings object is frozen")
         self._check_invalid(name, value)
         object.__setattr__(self, name, value)
 
@@ -377,7 +368,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         return self._frozen
 
     def _load(self, fname):
-        section = 'default'
+        section = "default"
         cp = configparser.ConfigParser()
         cp.add_section(section)
         cp.read(fname)
@@ -389,14 +380,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
     def apply_init(self, args):
         # strip out items where value is None
         param_map = dict(
-            name='run_name',
-            id='run_id',
-            tags='run_tags',
-            group='run_group',
+            name="run_name", id="run_id", tags="run_tags", group="run_group",
         )
-        args = {
-            param_map.get(k, k): v
-            for k, v in six.iteritems(args) if v is not None
-        }
+        args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self.update(args)
         self.run_id = self.run_id or _generate_id()

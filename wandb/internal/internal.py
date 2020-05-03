@@ -71,10 +71,12 @@ def setup_logging(log_fname, log_level, run_id=None):
 
     if run_id:
         formatter = logging.Formatter(
-            '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+        )
     else:
         formatter = logging.Formatter(
-            '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
+            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+        )
 
     handler.setFormatter(formatter)
     if run_id:
@@ -107,7 +109,7 @@ def wandb_write(settings, q, stopped):
         except queue.Empty:
             continue
         ds.write(i)
-        #print("write", i)
+        # print("write", i)
     ds.close()
 
 
@@ -120,7 +122,7 @@ def wandb_read(settings, q, data_q, stopped):
         except queue.Empty:
             continue
         # ds.write(i)
-        #print("write", i)
+        # print("write", i)
     # ds.close()
 
 
@@ -129,6 +131,7 @@ def _dict_from_proto_list(obj_list):
     for item in obj_list:
         d[item.key] = json.loads(item.value_json)
     return d
+
 
 def _config_dict_from_proto_list(obj_list):
     d = dict()
@@ -198,16 +201,16 @@ class _SendManager(object):
             config_dict = _config_dict_from_proto_list(run.config.update)
 
         ups = self._api.upsert_run(
-                entity=run.entity,
-                project=run.project,
-                group=run.run_group,
-                job_type=run.job_type,
-                name=run.run_id,
-                display_name=run.display_name,
-                notes=run.notes,
-                tags=run_tags,
-                config=config_dict,
-                )
+            entity=run.entity,
+            project=run.project,
+            group=run.run_group,
+            job_type=run.job_type,
+            name=run.run_id,
+            display_name=run.display_name,
+            notes=run.notes,
+            tags=run_tags,
+            config=config_dict,
+        )
 
         if data.control.req_resp:
             storage_id = ups.get("id")
@@ -234,7 +237,9 @@ class _SendManager(object):
             self._api_settings["entity"] = self._entity
         if self._project is not None:
             self._api_settings["project"] = self._project
-        self._fs = file_stream.FileStreamApi(self._api, run.run_id, settings=self._api_settings)
+        self._fs = file_stream.FileStreamApi(
+            self._api, run.run_id, settings=self._api_settings
+        )
         self._fs.start()
         self._pusher = FilePusher(self._api)
         self._run_id = run.run_id
@@ -244,9 +249,9 @@ class _SendManager(object):
         history = data.history
         history_dict = _dict_from_proto_list(history.item)
         if self._fs:
-            #print("about to send", d)
+            # print("about to send", d)
             x = self._fs.push("wandb-history.jsonl", json.dumps(history_dict))
-            #print("got", x)
+            # print("got", x)
 
     def handle_summary(self, data):
         summary = data.summary
@@ -268,7 +273,7 @@ class _SendManager(object):
         self._flatten(row)
         row["_wandb"] = True
         row["_timestamp"] = now
-        row['_runtime'] = int(now - self._settings._start_time)
+        row["_runtime"] = int(now - self._settings._start_time)
         x = self._fs.push("wandb-events.jsonl", json.dumps(row))
 
     def handle_output(self, data):
@@ -287,17 +292,18 @@ class _SendManager(object):
             # TODO(jhr): use time from timestamp proto
             # FIXME(jhr): do we need to make sure we write full lines?  seems to be some issues with line breaks
             cur_time = time.time()
-            timestamp = datetime.utcfromtimestamp(
-                cur_time).isoformat() + ' '
+            timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
-            line = u'{}{}{}{}'.format(prepend, timestamp, prev_str, line)
+            line = u"{}{}{}{}".format(prepend, timestamp, prev_str, line)
             self._fs.push("output.log", line)
             self._partial_output[stream] = ""
 
     def handle_config(self, data):
         cfg = data.config
         config_dict = _config_dict_from_proto_list(cfg.update)
-        ups = self._api.upsert_run(name=self._run_id, config=config_dict, **self._api_settings)
+        ups = self._api.upsert_run(
+            name=self._run_id, config=config_dict, **self._api_settings
+        )
 
     def _save_file(self, fname):
         directory = self._settings.files_dir
@@ -342,7 +348,7 @@ def wandb_send(settings, q, resp_q, read_q, data_q, stopped):
         t = i.WhichOneof("data")
         if t is None:
             continue
-        handler = getattr(sh, 'handle_' + t, None)
+        handler = getattr(sh, "handle_" + t, None)
         if handler is None:
             print("unknown handle", t)
             continue
@@ -371,50 +377,53 @@ class WriteSerializingFile(object):
 
 
 def _get_stdout_stderr_streams():
-        """Sets up STDOUT and STDERR streams. Only call this once."""
-        if six.PY2 or not hasattr(sys.stdout, "buffer"):
-            if hasattr(sys.stdout, "fileno") and sys.stdout.isatty():
-                try:
-                    stdout = os.fdopen(sys.stdout.fileno(), "w+", 0)
-                    stderr = os.fdopen(sys.stderr.fileno(), "w+", 0)
-                # OSError [Errno 22] Invalid argument wandb
-                except OSError:
-                    stdout = sys.stdout
-                    stderr = sys.stderr
-            else:
+    """Sets up STDOUT and STDERR streams. Only call this once."""
+    if six.PY2 or not hasattr(sys.stdout, "buffer"):
+        if hasattr(sys.stdout, "fileno") and sys.stdout.isatty():
+            try:
+                stdout = os.fdopen(sys.stdout.fileno(), "w+", 0)
+                stderr = os.fdopen(sys.stderr.fileno(), "w+", 0)
+            # OSError [Errno 22] Invalid argument wandb
+            except OSError:
                 stdout = sys.stdout
                 stderr = sys.stderr
-        else:  # we write binary so grab the raw I/O objects in python 3
-            try:
-                stdout = sys.stdout.buffer.raw
-                stderr = sys.stderr.buffer.raw
-            except AttributeError:
-                # The testing environment and potentially others may have screwed with their
-                # io so we fallback to raw stdout / err
-                stdout = sys.stdout.buffer
-                stderr = sys.stderr.buffer
+        else:
+            stdout = sys.stdout
+            stderr = sys.stderr
+    else:  # we write binary so grab the raw I/O objects in python 3
+        try:
+            stdout = sys.stdout.buffer.raw
+            stderr = sys.stderr.buffer.raw
+        except AttributeError:
+            # The testing environment and potentially others may have screwed with their
+            # io so we fallback to raw stdout / err
+            stdout = sys.stdout.buffer
+            stderr = sys.stderr.buffer
 
-        output_log_path = "output.txt"
-        output_log = WriteSerializingFile(open(output_log_path, 'wb'))
+    output_log_path = "output.txt"
+    output_log = WriteSerializingFile(open(output_log_path, "wb"))
 
-        stdout_streams = [stdout, output_log]
-        stderr_streams = [stderr, output_log]
+    stdout_streams = [stdout, output_log]
+    stderr_streams = [stderr, output_log]
 
-#        if self._cloud:
-#            # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
-#            fs_api = self._api.get_file_stream_api()
-#            self._stdout_stream = streaming_log.TextStreamPusher(
-#                fs_api, util.OUTPUT_FNAME, prepend_timestamp=True)
-#            self._stderr_stream = streaming_log.TextStreamPusher(
-#                fs_api, util.OUTPUT_FNAME, line_prepend='ERROR',
-#                prepend_timestamp=True)
-#
-#            stdout_streams.append(self._stdout_stream)
-#            stderr_streams.append(self._stderr_stream)
+    #        if self._cloud:
+    #            # Tee stdout/stderr into our TextOutputStream, which will push lines to the cloud.
+    #            fs_api = self._api.get_file_stream_api()
+    #            self._stdout_stream = streaming_log.TextStreamPusher(
+    #                fs_api, util.OUTPUT_FNAME, prepend_timestamp=True)
+    #            self._stderr_stream = streaming_log.TextStreamPusher(
+    #                fs_api, util.OUTPUT_FNAME, line_prepend='ERROR',
+    #                prepend_timestamp=True)
+    #
+    #            stdout_streams.append(self._stdout_stream)
+    #            stderr_streams.append(self._stderr_stream)
 
-        return stdout_streams, stderr_streams
+    return stdout_streams, stderr_streams
+
 
 _check_process_last = None
+
+
 def _check_process(settings, pid):
     global _check_process_last
     check_process_interval = settings._internal_check_process
@@ -431,17 +440,28 @@ def _check_process(settings, pid):
         print("badness: process gone", pid, my_pid)
         os._exit(-1)
 
-def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue, cancel_queue, child_pipe, log_level, use_redirect):
-    parent_pid = os.getppid() 
+
+def wandb_internal(
+    settings,
+    notify_queue,
+    process_queue,
+    req_queue,
+    resp_queue,
+    cancel_queue,
+    child_pipe,
+    log_level,
+    use_redirect,
+):
+    parent_pid = os.getppid()
 
     # mark this process as internal
     wandb._IS_INTERNAL_PROCESS = True
 
-    #fd = multiprocessing.reduction.recv_handle(child_pipe)
-    #if msvcrt:
+    # fd = multiprocessing.reduction.recv_handle(child_pipe)
+    # if msvcrt:
     #    fd = msvcrt.open_osfhandle(fd, os.O_WRONLY)
-    #os.write(fd, "this is a test".encode())
-    #os.close(fd)
+    # os.write(fd, "this is a test".encode())
+    # os.close(fd)
 
     # Lets make sure we dont modify settings so use a static object
     settings = SettingsStatic(settings)
@@ -453,10 +473,14 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
     api = None
 
     pid = os.getpid()
-    system_stats = stats.SystemStats(pid=pid, process_q=process_queue, notify_q=notify_queue)
+    system_stats = stats.SystemStats(
+        pid=pid, process_q=process_queue, notify_q=notify_queue
+    )
     system_stats.start()
 
-    run_meta = meta.Meta(settings=settings, process_q=process_queue, notify_q=notify_queue)
+    run_meta = meta.Meta(
+        settings=settings, process_q=process_queue, notify_q=notify_queue
+    )
     run_meta.probe()
     run_meta.write()
 
@@ -467,22 +491,22 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
         pass
     else:
         if platform.system() == "Windows":
-            #import msvcrt
-            #stdout_handle = multiprocessing.reduction.recv_handle(child_pipe)
-            #stderr_handle = multiprocessing.reduction.recv_handle(child_pipe)
-            #stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_RDONLY)
-            #stderr_fd = msvcrt.open_osfhandle(stderr_handle, os.O_RDONLY)
+            # import msvcrt
+            # stdout_handle = multiprocessing.reduction.recv_handle(child_pipe)
+            # stderr_handle = multiprocessing.reduction.recv_handle(child_pipe)
+            # stdout_fd = msvcrt.open_osfhandle(stdout_handle, os.O_RDONLY)
+            # stderr_fd = msvcrt.open_osfhandle(stderr_handle, os.O_RDONLY)
 
-            #logger.info("windows stdout: %d", stdout_fd)
-            #logger.info("windows stderr: %d", stderr_fd)
+            # logger.info("windows stdout: %d", stdout_fd)
+            # logger.info("windows stderr: %d", stderr_fd)
 
-            #read_thread = threading.Thread(name="wandb_stream_read", target=wandb_stream_read, args=(stdout_fd,))
-            #read_thread.start()
-            #stdout_read_file = os.fdopen(stdout_fd, 'rb')
-            #stderr_read_file = os.fdopen(stderr_fd, 'rb')
-            #stdout_streams, stderr_streams = _get_stdout_stderr_streams()
-            #stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
-            #stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
+            # read_thread = threading.Thread(name="wandb_stream_read", target=wandb_stream_read, args=(stdout_fd,))
+            # read_thread.start()
+            # stdout_read_file = os.fdopen(stdout_fd, 'rb')
+            # stderr_read_file = os.fdopen(stderr_fd, 'rb')
+            # stdout_streams, stderr_streams = _get_stdout_stderr_streams()
+            # stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
+            # stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
             pass
         else:
             stdout_fd = multiprocessing.reduction.recv_handle(child_pipe)
@@ -490,24 +514,34 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
             logger.info("nonwindows stdout: %d", stdout_fd)
             logger.info("nonwindows stderr: %d", stderr_fd)
 
-            #read_thread = threading.Thread(name="wandb_stream_read", target=wandb_stream_read, args=(stdout_fd,))
-            #read_thread.start()
-            stdout_read_file = os.fdopen(stdout_fd, 'rb')
-            stderr_read_file = os.fdopen(stderr_fd, 'rb')
+            # read_thread = threading.Thread(name="wandb_stream_read", target=wandb_stream_read, args=(stdout_fd,))
+            # read_thread.start()
+            stdout_read_file = os.fdopen(stdout_fd, "rb")
+            stderr_read_file = os.fdopen(stderr_fd, "rb")
             stdout_streams, stderr_streams = _get_stdout_stderr_streams()
             stdout_tee = io_wrap.Tee(stdout_read_file, *stdout_streams)
             stderr_tee = io_wrap.Tee(stderr_read_file, *stderr_streams)
 
     stopped = threading.Event()
-   
+
     send_queue = queue.Queue()
     write_queue = queue.Queue()
     read_queue = queue.Queue()
     data_queue = queue.Queue()
 
-    send_thread = threading.Thread(name="wandb_send", target=wandb_send, args=(settings, send_queue, resp_queue, read_queue, data_queue, stopped))
-    write_thread = threading.Thread(name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped))
-    read_thread = threading.Thread(name="wandb_read", target=wandb_read, args=(settings, read_queue, data_queue, stopped))
+    send_thread = threading.Thread(
+        name="wandb_send",
+        target=wandb_send,
+        args=(settings, send_queue, resp_queue, read_queue, data_queue, stopped),
+    )
+    write_thread = threading.Thread(
+        name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped)
+    )
+    read_thread = threading.Thread(
+        name="wandb_read",
+        target=wandb_read,
+        args=(settings, read_queue, data_queue, stopped),
+    )
     # sequencer_thread - future
 
     read_thread.start()
@@ -521,7 +555,9 @@ def wandb_internal(settings, notify_queue, process_queue, req_queue, resp_queue,
         try:
             while True:
                 try:
-                    i = notify_queue.get(block=True, timeout=settings._internal_queue_timeout)
+                    i = notify_queue.get(
+                        block=True, timeout=settings._internal_queue_timeout
+                    )
                 except queue.Empty:
                     i = queue.Empty
                 if i == queue.Empty:

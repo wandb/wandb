@@ -139,8 +139,9 @@ class RunManaged(Run):
         note = ""
         if include or exclude:
             note = "(DEBUG: include={}, exclude={})".format(include, exclude)
-        s = "<h1>Run({})</h1><p>{}</p><iframe src=\"{}\" style=\"{}\"></iframe>".format(
-            self._run_id, note, url, style)
+        s = '<h1>Run({})</h1><p>{}</p><iframe src="{}" style="{}"></iframe>'.format(
+            self._run_id, note, url, style
+        )
         return {"text/html": s}
 
     def _config_callback(self, key=None, val=None, data=None):
@@ -184,9 +185,11 @@ class RunManaged(Run):
         if platform.system() != "Windows":
             emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
         url = self._get_run_url()
-        wandb.termlog("{} View run at {}".format(
-            emojis.get("rocket", ""),
-            click.style(url, underline=True, fg='blue')))
+        wandb.termlog(
+            "{} View run at {}".format(
+                emojis.get("rocket", ""), click.style(url, underline=True, fg="blue")
+            )
+        )
 
     def on_start(self):
         if self._run_obj:
@@ -213,22 +216,21 @@ class RunManaged(Run):
                 if len(error_lines) < self._reporter.error_count:
                     wandb.termlog("More errors")
         if self._settings.log_user:
-            wandb.termlog("Find user logs for this run at: {}".format(
-                self._settings.log_user))
+            wandb.termlog(
+                "Find user logs for this run at: {}".format(self._settings.log_user)
+            )
         if self._settings.log_internal:
-            wandb.termlog("Find internal logs for this run at: {}".format(
-                self._settings.log_internal))
+            wandb.termlog(
+                "Find internal logs for this run at: {}".format(
+                    self._settings.log_internal
+                )
+            )
 
     def _save_job_spec(self):
-        envdict = dict(
-            python="python3.6",
-            requirements=[],
-        )
+        envdict = dict(python="python3.6", requirements=[],)
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git",
-            branch="master",
-            commit="bbd8d23",
+            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -236,12 +238,9 @@ class RunManaged(Run):
             envvars=varsdict,
             args=[],
         )
-        configdict = dict(self._config),
-        artifactsdict = dict(dataset="v1", )
-        inputdict = dict(
-            config=configdict,
-            artifacts=artifactsdict,
-        )
+        configdict = (dict(self._config),)
+        artifactsdict = dict(dataset="v1",)
+        inputdict = dict(config=configdict, artifacts=artifactsdict,)
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -268,15 +267,10 @@ class RunManaged(Run):
         else:
             logger.info("file not found: %s", path)
 
-        files = dict(files=[(fname, )])
+        files = dict(files=[(fname,)])
         self._backend.interface.send_files(files)
 
     # NB: there is a copy of this in wandb_watch.py with the same signature
-    def watch(self,
-              models,
-              criterion=None,
-              log="gradients",
-              log_freq=100,
-              idx=None):
+    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None):
         logger.info("Watching")
-        #wandb.run.watch(watch)
+        # wandb.run.watch(watch)

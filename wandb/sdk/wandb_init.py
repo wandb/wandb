@@ -32,7 +32,7 @@ from .wandb_settings import Settings
 if wandb.TYPE_CHECKING:
     from typing import Optional, Union, List, Dict, Any  # noqa: F401
 
-logger = None  #logger configured during wandb.init()
+logger = None  # logger configured during wandb.init()
 
 
 def _set_logger(log_object):
@@ -104,7 +104,7 @@ def win32_create_pipe():
     # sa=pywintypes.SECURITY_ATTRIBUTES()
     # sa.bInheritHandle=1
 
-    #read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_TEXT)
+    # read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_TEXT)
     # read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_BINARY)
     read_fd, write_fd = os.pipe()
     # http://timgolden.me.uk/pywin32-docs/win32pipe__FdCreatePipe_meth.html
@@ -152,11 +152,11 @@ class _WandbInit(object):
         # Make sure we have a logger setup (might be an early logger)
         _set_logger(wl._get_logger())
 
-        settings: Settings = wl.settings(
-            dict(kwargs.pop("settings", None) or tuple()))
+        settings: Settings = wl.settings(dict(kwargs.pop("settings", None) or tuple()))
 
         self._reporter = reporting.setup_reporter(
-            settings=settings.duplicate().freeze())
+            settings=settings.duplicate().freeze()
+        )
 
         # Remove parameters that are not part of settings
         self.config = kwargs.pop("config", None)
@@ -184,10 +184,7 @@ class _WandbInit(object):
         settings.apply_init(kwargs)
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(
-            _start_time=time.time(),
-            _start_datetime=datetime.datetime.now(),
-        )
+        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
         self._log_setup(settings)
@@ -212,11 +209,11 @@ class _WandbInit(object):
 
         if run_id:
             formatter = logging.Formatter(
-                '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s'
+                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
             )
         else:
             formatter = logging.Formatter(
-                '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s'
+                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
             )
 
         handler.setFormatter(formatter)
@@ -239,11 +236,11 @@ class _WandbInit(object):
 
     def _safe_symlink(self, base, target, name, delete=False):
         # TODO(jhr): do this with relpaths, but i cant figure it out on no sleep
-        if not hasattr(os, 'symlink'):
+        if not hasattr(os, "symlink"):
             return
 
         pid = os.getpid()
-        tmp_name = '%s.%d' % (name, pid)
+        tmp_name = "%s.%d" % (name, pid)
         owd = os.getcwd()
         os.chdir(base)
         if delete:
@@ -259,45 +256,52 @@ class _WandbInit(object):
     def _log_setup(self, settings):
         """Setup logging from settings."""
 
-        settings.log_user = settings._path_convert(settings.log_dir_spec,
-                                                   settings.log_user_spec)
+        settings.log_user = settings._path_convert(
+            settings.log_dir_spec, settings.log_user_spec
+        )
         settings.log_internal = settings._path_convert(
-            settings.log_dir_spec, settings.log_internal_spec)
-        settings.sync_file = settings._path_convert(settings.sync_dir_spec,
-                                                    settings.sync_file_spec)
+            settings.log_dir_spec, settings.log_internal_spec
+        )
+        settings.sync_file = settings._path_convert(
+            settings.sync_dir_spec, settings.sync_file_spec
+        )
         settings.files_dir = settings._path_convert(settings.files_dir_spec)
         self._safe_makedirs(os.path.dirname(settings.log_user))
         self._safe_makedirs(os.path.dirname(settings.log_internal))
         self._safe_makedirs(os.path.dirname(settings.sync_file))
         self._safe_makedirs(settings.files_dir)
 
-        log_symlink_user = settings._path_convert(
-            settings.log_symlink_user_spec)
+        log_symlink_user = settings._path_convert(settings.log_symlink_user_spec)
         log_symlink_internal = settings._path_convert(
-            settings.log_symlink_internal_spec)
-        sync_symlink_latest = settings._path_convert(
-            settings.sync_symlink_latest_spec)
+            settings.log_symlink_internal_spec
+        )
+        sync_symlink_latest = settings._path_convert(settings.sync_symlink_latest_spec)
 
         if settings.symlink:
-            self._safe_symlink(os.path.dirname(sync_symlink_latest),
-                               os.path.dirname(settings.sync_file),
-                               os.path.basename(sync_symlink_latest),
-                               delete=True)
-            self._safe_symlink(os.path.dirname(log_symlink_user),
-                               settings.log_user,
-                               os.path.basename(log_symlink_user),
-                               delete=True)
-            self._safe_symlink(os.path.dirname(log_symlink_internal),
-                               settings.log_internal,
-                               os.path.basename(log_symlink_internal),
-                               delete=True)
+            self._safe_symlink(
+                os.path.dirname(sync_symlink_latest),
+                os.path.dirname(settings.sync_file),
+                os.path.basename(sync_symlink_latest),
+                delete=True,
+            )
+            self._safe_symlink(
+                os.path.dirname(log_symlink_user),
+                settings.log_user,
+                os.path.basename(log_symlink_user),
+                delete=True,
+            )
+            self._safe_symlink(
+                os.path.dirname(log_symlink_internal),
+                settings.log_internal,
+                os.path.basename(log_symlink_internal),
+                delete=True,
+            )
 
         _set_logger(logging.getLogger("wandb"))
         self._enable_logging(settings.log_user)
 
         logger.info("Logging user logs to {}".format(settings.log_user))
-        logger.info("Logging internal logs to {}".format(
-            settings.log_internal))
+        logger.info("Logging internal logs to {}".format(settings.log_internal))
 
     def _atexit_cleanup(self):
         if self._atexit_cleanup_called:
@@ -327,18 +331,16 @@ class _WandbInit(object):
         console = self.settings.console
         logger.info("redirect: %s", console)
 
-        if console == 'redirect':
+        if console == "redirect":
             logger.info("redirect1")
             out_cap = redirect.Capture(name="stdout", cb=self._redirect_cb)
-            out_redir = redirect.Redirect(src="stdout",
-                                          dest=out_cap,
-                                          unbuffered=True,
-                                          tee=True)
+            out_redir = redirect.Redirect(
+                src="stdout", dest=out_cap, unbuffered=True, tee=True
+            )
             err_cap = redirect.Capture(name="stderr", cb=self._redirect_cb)
-            err_redir = redirect.Redirect(src="stderr",
-                                          dest=err_cap,
-                                          unbuffered=True,
-                                          tee=True)
+            err_redir = redirect.Redirect(
+                src="stderr", dest=err_cap, unbuffered=True, tee=True
+            )
             out_redir.install()
             err_redir.install()
             self._out_redir = out_redir
@@ -354,12 +356,10 @@ class _WandbInit(object):
         else:
             self._save_stdout = sys.stdout
             self._save_stderr = sys.stderr
-            stdout_slave = os.fdopen(stdout_slave_fd, 'wb')
-            stderr_slave = os.fdopen(stderr_slave_fd, 'wb')
-            stdout_redirector = io_wrap.FileRedirector(sys.stdout,
-                                                       stdout_slave)
-            stderr_redirector = io_wrap.FileRedirector(sys.stderr,
-                                                       stderr_slave)
+            stdout_slave = os.fdopen(stdout_slave_fd, "wb")
+            stderr_slave = os.fdopen(stderr_slave_fd, "wb")
+            stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+            stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
             stdout_redirector.redirect()
             stderr_redirector.redirect()
             self.stdout_redirector = stdout_redirector
@@ -413,18 +413,18 @@ class _WandbInit(object):
         stderr_slave_fd = None
         console = s.console
 
-        if console == 'redirect':
+        if console == "redirect":
             pass
-        elif console == 'off':
+        elif console == "off":
             pass
-        elif console == 'mock':
+        elif console == "mock":
             pass
-        elif console == 'file':
+        elif console == "file":
             pass
-        elif console == 'iowrap':
+        elif console == "iowrap":
             stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
             stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
-        elif console == '_win32':
+        elif console == "_win32":
             # Not used right now
             stdout_master_fd, stdout_slave_fd = win32_create_pipe()
             stderr_master_fd, stderr_slave_fd = win32_create_pipe()
@@ -450,13 +450,13 @@ class _WandbInit(object):
 
         backend._hack_set_run(run)
 
-        if s.mode == 'online':
+        if s.mode == "online":
             ret = backend.interface.send_run_sync(run, timeout=30)
             # TODO: fail on error, check return type
             run._set_run_obj(ret.run)
-        elif s.mode in ('offline', 'dryrun'):
+        elif s.mode in ("offline", "dryrun"):
             backend.interface.send_run(run)
-        elif s.mode in ('async', 'run'):
+        elif s.mode in ("async", "run"):
             ret = backend.interface.send_run_sync(run, timeout=10)
             # TODO: on network error, do async run save
             backend.interface.send_run(run)
@@ -501,8 +501,7 @@ def init(
     job_type: Optional[str] = None,
     tags: Optional[List] = None,
     name: Optional[str] = None,
-    config: Union[Dict,
-                  None] = None,  # TODO(jhr): type is a union for argparse/absl
+    config: Union[Dict, None] = None,  # TODO(jhr): type is a union for argparse/absl
     notes: Optional[str] = None,
     magic: bool = None,  # FIXME: type is union
     config_exclude_keys=None,

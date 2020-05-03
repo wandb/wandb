@@ -18,10 +18,10 @@ logger = logging.getLogger("wandb")
 
 def _get_python_type():
     try:
-        if 'terminal' in get_ipython().__module__:
-            return 'ipython'
+        if "terminal" in get_ipython().__module__:
+            return "ipython"
         else:
-            return 'jupyter'
+            return "jupyter"
     except (NameError, AttributeError):
         return "python"
 
@@ -41,7 +41,7 @@ def login(settings=None):
         key = getpass.getpass("Enter your authorization code:\n")
     else:
         print("Go to this URL in a browser: {}/authorize\n".format(app_url))
-        key = prompt(u'Enter api key: ', is_password=True)
+        key = prompt(u"Enter api key: ", is_password=True)
 
     apikey.write_key(settings, key)
     return
