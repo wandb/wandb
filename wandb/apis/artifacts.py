@@ -60,7 +60,7 @@ class ServerManifestV1(object):
             return md5_file_hex(fp.name)
 
 
-class LocalArtifact(object):
+class Artifact(object):
     """An artifact object you can write files into, and pass to log_artifact."""
 
     # A local manifest contains the path to the local file in addition to the path within
@@ -68,14 +68,12 @@ class LocalArtifact(object):
     LocalArtifactManifestEntry = collections.namedtuple('LocalArtifactManifestEntry', (
         'path', 'hash', 'local_path'))
 
-    def __init__(self, save_callback, type, name, description=None, metadata=None, labels=None,
+    def __init__(self, type, name=None, description=None, metadata=None, labels=None,
                  aliases=None, storage_policy=None):
         storage_policy = storage_policy or WandbStoragePolicy()
         self._file_specs = {}
         self._api = InternalApi()
         self._final = False
-        storage_policy = storage_policy or WandbStoragePolicy()
-        self._save_callback = save_callback
         self._digest = None
         self._file_entries = None
         self._manifest = ArtifactManifestV1(self, storage_policy)
@@ -179,10 +177,6 @@ class LocalArtifact(object):
 
         self._file_entries = file_entries
         return self._file_entries
-
-    def save(self):
-        file_entries = self.finalize()
-        self._save_callback(self, file_entries)
 
 
 class ArtifactManifest(ABC):

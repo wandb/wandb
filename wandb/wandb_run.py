@@ -24,6 +24,7 @@ from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi, PublicApi, CommError, artifacts
+from wandb.apis.public import Artifact as ApiArtifact
 from wandb.wandb_config import Config, ConfigStatic
 from wandb.viz import Visualize
 import six
@@ -390,111 +391,51 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    # Commented out, you can't currently create new artifacts by using them, they must be
-    # explicitly logged. We may want to reenable this.
-    # def use_artifact(self, type=None, name=None, artifact=None, path=None, metadata=None, api=None):
-    #     if name is not None:
-    #         if type is None:
-    #             raise ValueError('type required when specifying artifact name')
-    #         name = '%s/%s' % (type, name)
-    #     # One of artifact, name, paths must be passed in
-    #     api = api or self.api
-    #     entity_name = self.api.settings('entity')
-    #     project_name = self.api.settings('project')
-    #     if name is not None and path is None and metadata is None:
-    #         public_api = PublicApi(self.api.settings())
-    #         artifact = public_api.artifact(name)
-    #     if artifact is not None:
-    #         # TODO: assert artifact has correct entity_name, project_name
-    #         # TODO: This should throw if not available
-    #         api.use_artifact(artifact.id)
-    #         return artifact
-    #     elif name is not None and (path is not None or metadata is not None):
-    #         user_artifact = artifacts.LocalArtifactRead(name, path)
-    #         self.send_message({
-    #             'use_artifact': {
-    #                 'name': name,
-    #                 'path': path,
-    #             }
-    #         })
-    #         return user_artifact
-    #     # TODO
-    #     raise ValueError('Invalid use artifact call')
 
-    def new_artifact(self, type, name, description=None, metadata=None, labels=None, aliases=None,
-                     storage_policy=None):
-        if isinstance(aliases, str):
-            aliases = [aliases]
-
-        def log_artifact(artifact, entries):
-            self.send_message({
-                'log_artifact': {
-                    'type': type,
-                    'name': name,
-                    'manifest_entries': entries,
-                    'digest': artifact.digest,
-                    'description': artifact.description,
-                    'metadata': artifact.metadata,
-                    'labels': artifact.labels,
-                    'aliases': artifact.aliases,
-                }
-            })
-
-        return artifacts.LocalArtifact(
-            log_artifact,
-            type,
-            name,
-            description=description,
-            metadata=metadata,
-            labels=labels,
-            aliases=aliases,
-            storage_policy=storage_policy)
-
-    def use_artifact(self, type=None, name=None, path=None, metadata=None, api=None, storage_policy=None):
-        if type is None or name is None:
-            raise ValueError('type and name required')
-        api = api or self.api
-        public_api = PublicApi()
-        if path is None:
+    def use_artifact(self, artifact=None, type=None, name=None):
+        if artifact is None:
+            if type is None or name is None:
+                raise ValueError('type and name required')
+            public_api = PublicApi()
             artifact = public_api.artifact(type=type, name=name)
-            if artifact is None:
-                raise ValueError('Artifact %s doesn\'t exist' % artifact)
-            api.use_artifact(artifact.id)
+            self.api.use_artifact(artifact.id)
+
+            return artifact
         else:
-            artifact = self.new_artifact(type, name, metadata=metadata,
-                                        storage_policy=storage_policy)
-            entries = artifact.finalize()
-            self.send_message({
-                'use_artifact': {
-                    'type': type,
-                    'name': name,
-                    'manifest_entries': entries,
-                    'digest': artifact.digest,
-                    'metadata': artifact.metadata
-                }
-            })
-            # TODO: return something useful
-            artifact = None
-        return artifact
+            if isinstance(artifact, wandb.Artifact):
+                entries = artifact.finalize()
+                self.send_message({
+                    'use_artifact': {
+                        'type': artifact.type,
+                        'name': artifact.name,
+                        'manifest_entries': entries,
+                        'digest': artifact.digest,
+                        'metadata': artifact.metadata
+                    }
+                })
+            elif isinstance(artifact, ApiArtifact):
+                self.api.use_artifact(artifact.id)
+            else:
+                # TODO: Improve message with instructions, maybe share base class with wandb.Artifact, and the
+                # API artifact?
+                raise ValueError('You must pass an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
 
-    def log_artifact(self, type, name, paths=None, description=None, metadata=None,
-                     labels=None, aliases=None, storage_policy=None):
-        artifact = self.new_artifact(type, name, description=description, metadata=metadata,
-                                     labels=labels, aliases=aliases, storage_policy=storage_policy)
-
-        if isinstance(paths, str):
-            path = paths
-            artifact.add_file(path)
-        elif isinstance(paths, collections.Sequence):
-            for path in paths:
-                artifact.add_file(path)
-        elif isinstance(paths, collections.Mapping):
-            for name, path in paths.items():
-                artifact.add_file(path, name)
-        else:
-            raise ValueError('paths must be str, sequence, or mapping')
-
-        artifact.save()
+    def log_artifact(self, artifact):
+        if not isinstance(artifact, artifacts.Artifact):
+            raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
+        entries = artifact.finalize()
+        self.send_message({
+            'log_artifact': {
+                'type': artifact.type,
+                'name': artifact.name,
+                'manifest_entries': entries,
+                'digest': artifact.digest,
+                'description': artifact.description,
+                'metadata': artifact.metadata,
+                'labels': artifact.labels,
+                'aliases': artifact.aliases,
+            }
+        })
 
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside

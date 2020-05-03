@@ -32,7 +32,7 @@ import six
 from six.moves import queue
 import textwrap
 from sys import getsizeof
-from collections import namedtuple
+from collections import namedtuple, Mapping, Sequence
 from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
@@ -493,6 +493,24 @@ def make_json_if_not_number(v):
         return v
     return json_dumps_safer(v)
 
+def make_safe_for_json(obj):
+    """Replace invalid json floats with strings. Also converts to lists and dicts."""
+    if isinstance(obj, Mapping):
+        return {k: make_safe_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, str):
+        # str's are Sequence, so we need to short-circuit
+        return obj
+    elif isinstance(obj, Sequence):
+        return [make_safe_for_json(v) for v in obj]
+    elif isinstance(obj, float):
+        # W&B backend and UI handle these strings
+        if obj != obj:  # standard way to check for NaN
+            return 'NaN'
+        elif obj == float('+inf'):
+            return 'Infinity'
+        elif obj == float('-inf'):
+            return '-Infinity'
+    return obj
 
 def mkdir_exists_ok(path):
     try:
