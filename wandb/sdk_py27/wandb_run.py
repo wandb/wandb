@@ -73,8 +73,8 @@ class RunManaged(Run):
             self._entity = settings.entity
         if settings.project is not None:
             self._project = settings.project
-        if settings.group is not None:
-            self._group = settings.group
+        if settings.run_group is not None:
+            self._group = settings.run_group
         if settings.job_type is not None:
             self._job_type = settings.job_type
         if settings.run_name is not None:
@@ -91,7 +91,7 @@ class RunManaged(Run):
         if self._project is not None:
             run.project = self._project
         if self._group is not None:
-            run.group = self._group
+            run.run_group = self._group
         if self._job_type is not None:
             run.job_type = self._job_type
         if self._run_id is not None:

@@ -79,7 +79,7 @@ env_settings = dict(
     project=None,
     base_url=None,
     mode=None,
-    run_group="WANDB_RUN_GROUP",
+    run_group=None,
     job_type=None,
     problem=None,
     console=None,
@@ -139,7 +139,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         mode: Optional[str] = 'online',
         entity: str = None,
         project: str = None,
-        group: str = None,
+        run_group: str = None,
         job_type: str = None,
         run_id: str = None,
         run_name: str = None,
@@ -388,7 +388,12 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
     def apply_init(self, args):
         # strip out items where value is None
-        param_map = dict(name='run_name', id='run_id', tags='run_tags')
+        param_map = dict(
+            name='run_name',
+            id='run_id',
+            tags='run_tags',
+            group='run_group',
+        )
         args = {
             param_map.get(k, k): v
             for k, v in six.iteritems(args) if v is not None
