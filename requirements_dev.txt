@@ -3,5 +3,3 @@ coverage
 coveralls
 tox
 pip
-flake8
-black
