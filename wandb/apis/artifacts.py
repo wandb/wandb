@@ -69,7 +69,7 @@ class Artifact(object):
     LocalArtifactManifestEntry = collections.namedtuple('LocalArtifactManifestEntry', (
         'path', 'hash', 'local_path'))
 
-    def __init__(self, type, name, description=None, metadata=None, labels=None,
+    def __init__(self, type, name=None, description=None, metadata=None, labels=None,
                  aliases=None, storage_policy=None):
         self._file_specs = {}
         self._final = False
