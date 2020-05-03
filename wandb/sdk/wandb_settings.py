@@ -22,12 +22,12 @@ import logging
 import configparser
 import platform
 import datetime
-from typing import (
+from typing import (  # noqa: F401 pylint: disable=unused-import
     Optional,
     Union,
     List,
     Dict,
-)  # noqa: F401 pylint: disable=unused-import
+)
 import os
 import copy
 import shortuuid  # type: ignore
@@ -215,7 +215,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         self._setup(kwargs)
 
         if _environ:
-            l = _early_logger or logger
+            _logger = _early_logger or logger
             inv_map = _build_inverse_map(env_prefix, env_settings)
             env_dict = dict()
             for k, v in six.iteritems(_environ):
@@ -228,9 +228,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                         v = conv(v)
                     env_dict[setting_key] = v
                 else:
-                    l.info("Unhandled environment var: {}".format(k))
+                    _logger.info("Unhandled environment var: {}".format(k))
 
-            l.info("setting env: {}".format(env_dict))
+            _logger.info("setting env: {}".format(env_dict))
             self.update(env_dict, _setter="env")
         if _files:
             # TODO(jhr): permit setting of config in system and workspace

@@ -9,17 +9,16 @@ import wandb
 from .wandb_run import Run, RunManaged, RunDummy
 from wandb.util.globals import set_global
 from wandb.backend.backend import Backend
-from wandb.stuff import util2
 from wandb.util import reporting
 from wandb.errors import Error
 
 import time
 import json
 import atexit
-import six
 import logging
 import errno
 import datetime
+import platform
 from six import raise_from
 from wandb.stuff import io_wrap
 import sys
@@ -71,7 +70,7 @@ class ExitHooks(object):
         self.exit_code = 1
         self.exception = exc
         if issubclass(exc_type, Error):
-            termerror(str(exc))
+            wandb.termerror(str(exc))
 
         if self.was_ctrl_c():
             self.exit_code = 255
@@ -143,7 +142,8 @@ class _WandbInit(object):
     def setup(self, kwargs):
         """Complete setup for wandb.init().
 
-        This includes parsing all arguments, applying them with settings and enabling logging.
+        This includes parsing all arguments, applying them with settings and enabling
+        logging.
 
         """
         self.kwargs = kwargs
@@ -209,11 +209,13 @@ class _WandbInit(object):
 
         if run_id:
             formatter = logging.Formatter(
-                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+                "[%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
             )
         else:
             formatter = logging.Formatter(
-                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+                "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
             )
 
         handler.setFormatter(formatter)
@@ -388,7 +390,6 @@ class _WandbInit(object):
 
     def init(self):
         s = self.settings
-        wl = self.wl
         config = self.config
 
         data = ""
@@ -446,7 +447,7 @@ class _WandbInit(object):
         run._set_backend(backend)
         run._set_reporter(self._reporter)
         # TODO: pass mode to backend
-        run_synced = None
+        # run_synced = None
 
         backend._hack_set_run(run)
 
@@ -538,7 +539,7 @@ def init(
         wi.setup(kwargs)
         try:
             run = wi.init()
-        except (KeyboardInterrupt, Exception) as e:
+        except (KeyboardInterrupt, Exception):
             getcaller()
             assert logger
             logger.exception("we got issues")

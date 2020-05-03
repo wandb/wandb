@@ -5,7 +5,8 @@ This module configures a wandb session which can extend to mutiple wandb runs.
 Functions:
     setup(): Configure wandb session.
 
-Early logging keeps track of logger output until the call to wandb.init() when the run_id can be resolved.
+Early logging keeps track of logger output until the call to wandb.init() when the
+run_id can be resolved.
 
 """
 
@@ -15,7 +16,6 @@ import sys
 import os
 import logging
 import copy
-import platform
 
 from . import wandb_settings
 
@@ -74,7 +74,8 @@ class _WandbSetup__WandbSetup(object):
         self._settings = None
         self._environ = environ or dict(os.environ)
 
-        # TODO(jhr): defer strict checks until settings are fully initialized and logging is ready
+        # TODO(jhr): defer strict checks until settings are fully initialized
+        #            and logging is ready
         self._early_logger = _EarlyLogger()
         _set_logger(self._early_logger)
         self._settings_setup(settings, self._early_logger)
@@ -162,7 +163,8 @@ class _WandbSetup(object):
     def __init__(self, settings=None):
         if _WandbSetup._instance is not None:
             logger.warning(
-                "Ignoring settings passed to wandb.setup() which has already been configured."
+                "Ignoring settings passed to wandb.setup() "
+                "which has already been configured."
             )
             return
         _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
