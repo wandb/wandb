@@ -492,31 +492,31 @@ def getcaller():
 
 
 def init(
-        settings: Union[Settings, Dict[str, Any], str, None] = None,
-        entity: Optional[str] = None,
-        team: Optional[str] = None,
-        project: Optional[str] = None,
-        mode: Optional[str] = None,
-        group: Optional[str] = None,
-        job_type: Optional[str] = None,
-        tags: Optional[List] = None,
-        name: Optional[str] = None,
-        config: Union[
-            Dict, None] = None,  # TODO(jhr): type is a union for argparse/absl
-        notes: Optional[str] = None,
-        magic: bool = None,  # FIXME: type is union
-        config_exclude_keys=None,
-        config_include_keys=None,
-        reinit: bool = None,
-        anonymous: bool = None,
-        dir=None,
-        allow_val_change=None,
-        resume=None,
-        force=None,
-        tensorboard=None,
-        sync_tensorboard=None,
-        monitor_gym=None,
-        id=None,
+    settings: Union[Settings, Dict[str, Any], str, None] = None,
+    entity: Optional[str] = None,
+    team: Optional[str] = None,
+    project: Optional[str] = None,
+    mode: Optional[str] = None,
+    group: Optional[str] = None,
+    job_type: Optional[str] = None,
+    tags: Optional[List] = None,
+    name: Optional[str] = None,
+    config: Union[Dict,
+                  None] = None,  # TODO(jhr): type is a union for argparse/absl
+    notes: Optional[str] = None,
+    magic: bool = None,  # FIXME: type is union
+    config_exclude_keys=None,
+    config_include_keys=None,
+    reinit: bool = None,
+    anonymous: bool = None,
+    dir=None,
+    allow_val_change=None,
+    resume=None,
+    force=None,
+    tensorboard=None,
+    sync_tensorboard=None,
+    monitor_gym=None,
+    id=None,
 ) -> Run:
     """Initialize a wandb Run.
 

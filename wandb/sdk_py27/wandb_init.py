@@ -492,30 +492,30 @@ def getcaller():
 
 
 def init(
-        settings = None,
-        entity = None,
-        team = None,
-        project = None,
-        mode = None,
-        group = None,
-        job_type = None,
-        tags = None,
-        name = None,
-        config = None,  # TODO(jhr): type is a union for argparse/absl
-        notes = None,
-        magic = None,  # FIXME: type is union
-        config_exclude_keys=None,
-        config_include_keys=None,
-        reinit = None,
-        anonymous = None,
-        dir=None,
-        allow_val_change=None,
-        resume=None,
-        force=None,
-        tensorboard=None,
-        sync_tensorboard=None,
-        monitor_gym=None,
-        id=None,
+    settings = None,
+    entity = None,
+    team = None,
+    project = None,
+    mode = None,
+    group = None,
+    job_type = None,
+    tags = None,
+    name = None,
+    config = None,  # TODO(jhr): type is a union for argparse/absl
+    notes = None,
+    magic = None,  # FIXME: type is union
+    config_exclude_keys=None,
+    config_include_keys=None,
+    reinit = None,
+    anonymous = None,
+    dir=None,
+    allow_val_change=None,
+    resume=None,
+    force=None,
+    tensorboard=None,
+    sync_tensorboard=None,
+    monitor_gym=None,
+    id=None,
 ):
     """Initialize a wandb Run.
 
