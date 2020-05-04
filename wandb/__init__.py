@@ -32,6 +32,7 @@ Settings = wandb_sdk.Settings
 from wandb.util import preinit as _preinit
 from wandb.util import lazyloader as _lazyloader
 from wandb.errors.term import termlog, termerror, termwarn
+from wandb import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)
 from wandb.data.data_types import Graph

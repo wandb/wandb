@@ -5,6 +5,7 @@ setup.cfg
 setup.py
 wandb/__init__.py
 wandb/py.typed
+wandb/wandb_torch.py
 wandb/apis/__init__.py
 wandb/apis/internal_runqueue.py
 wandb/backend/__init__.py

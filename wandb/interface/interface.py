@@ -299,7 +299,9 @@ class BackendSender(object):
                 friendly_value, get_h5_typename(value)
             )
             if compressed:
-                self.write_h5(path_from_root, friendly_value)
+                # TODO(jhr): impleement me
+                pass
+                # self.write_h5(path_from_root, friendly_value)
 
             return json_value
 

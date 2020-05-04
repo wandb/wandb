@@ -39,8 +39,8 @@ class RunManaged(Run):
         self._config._set_callback(self._config_callback)
         self.summary = wandb_summary.Summary()
         self.summary._set_callback(self._summary_callback)
-        self._history = wandb_history.History()
-        self._history._set_callback(self._history_callback)
+        self.history = wandb_history.History()
+        self.history._set_callback(self._history_callback)
 
         self._settings = settings
         self._backend = None
@@ -126,6 +126,21 @@ class RunManaged(Run):
             return None
         return self._run_obj.display_name
 
+    @property
+    def id(self):
+        return self._run_id
+
+    def project_name(self, api=None):
+        # TODO(jhr): this is probably not right needed by dataframes?
+        # api = api or self.api
+        # return (api.settings('project') or self.auto_project_name(api) or
+        #         "uncategorized")
+        return self._project
+
+    @property
+    def entity(self):
+        return self._entity
+
     # def _repr_html_(self):
     #     url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(
     #       self.run_id)
@@ -167,9 +182,9 @@ class RunManaged(Run):
 
     def log(self, data, step=None, commit=True):
         if commit:
-            self._history._row_add(data)
+            self.history._row_add(data)
         else:
-            self._history._row_update(data)
+            self.history._row_update(data)
 
     def join(self):
         self._backend.cleanup()

@@ -28,3 +28,6 @@ class History(object):
         if self._callback:
             self._callback(row=self._data)
         self._data = dict()
+
+    def add(self, d):
+        self._row_add(d)
