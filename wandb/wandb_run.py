@@ -204,6 +204,10 @@ class Run(object):
             elif options.get("tensorboard"):
                 self._jupyter_agent.rm.start_tensorboard_watcher(
                     options["tensorboard"]["logdir"], options["tensorboard"]["save"])
+            elif options.get("use_artifact"):
+                self._jupyter_agent.rm.use_artifact(options["use_artifact"])
+            elif options.get("log_artifact"):
+                self._jupyter_agent.rm.log_artifact(options["log_artifact"])
         elif self._run_manager:
             # Running in the wandb process, used for tfevents saving
             if options.get("save_policy"):
