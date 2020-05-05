@@ -121,7 +121,8 @@ def test_mock_server_no_internet(runner):
             pass
         stdout = res.stdout.decode("utf8")
         stderr = res.stderr.decode("utf8")
-        print(res)
+        print(stdout)
+        print(stderr)
         if os.path.exists("wandb/debug.log"):
             print(open("wandb/debug.log").read())
         assert "Finished" in stdout

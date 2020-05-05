@@ -863,7 +863,7 @@ def sagemaker_auth(overrides={}, path="."):
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
-         anonymous=None, config_exclude_keys=None, config_include_keys=None):
+         anonymous=None, config_exclude_keys=None, config_include_keys=None, save_code=False):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -887,6 +887,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id
         sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or tensorboardX
+        save_code (bool, optional): Save the entrypoint or jupyter session history source code.
         force (bool, optional): Force authentication with wandb, defaults to False
         magic (bool, dict, or str, optional): magic configuration as bool, dict, json string,
             yaml filename
@@ -969,7 +970,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
             termwarn("Ignoring entity='{}' passed to wandb.init when running a sweep".format(entity))
         if project and project != os.environ.get(env.PROJECT):
             termwarn("Ignoring project='{}' passed to wandb.init when running a sweep".format(project))
-
+    if save_code:
+        os.environ[env.SAVE_CODE]= str(save_code)
     if group:
         os.environ[env.RUN_GROUP] = group
     if job_type:

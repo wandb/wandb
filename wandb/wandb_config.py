@@ -18,6 +18,7 @@ import platform
 
 import wandb
 from wandb import env
+from wandb import util
 
 FNAME = 'config.yaml'
 
@@ -40,6 +41,13 @@ def boolify(s):
 def is_kaggle():
     return os.getenv("KAGGLE_KERNEL_RUN_TYPE") != None or "kaggle_environments" in sys.modules
 
+def huggingface_version():
+    if "transformers" in sys.modules:
+        trans = util.get_module("transformers")
+        if hasattr(trans, "__version__"):
+            return trans.__version__
+    return None
+
 class Config(object):
     """Creates a W&B config object."""
 
@@ -59,6 +67,9 @@ class Config(object):
         self._set_wandb('python_version', platform.python_version())
         self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
         self._set_wandb('is_kaggle_kernel', is_kaggle())
+        hf_version = huggingface_version()
+        if hf_version:
+            self._set_wandb('huggingface_version', hf_version)
 
         # Do this after defaults because it triggers loading of pre-existing
         # config.yaml (if it exists)

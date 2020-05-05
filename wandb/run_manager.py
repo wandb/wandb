@@ -1047,7 +1047,7 @@ class RunManager(object):
 
         env = self._run.set_environment(environment=env)
 
-        if not env.get(wandb_env.DISABLE_CODE):
+        if wandb_env.should_save_code():
             logger.info("saving patches")
             self._api.save_patches(self._run.dir)
         if env.get("SPELL_RUN_URL"):

@@ -1,7 +1,7 @@
 import wandb
 from wandb.apis import InternalApi, CommError
 from wandb.run_manager import RunManager
-from wandb.env import DISABLE_CODE
+from wandb import env
 import time
 import os
 import threading
@@ -160,23 +160,24 @@ class JupyterAgent(object):
 
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))
-        if len(hist) <= 1 or os.getenv(DISABLE_CODE):
+        if len(hist) <= 1 or not env.should_save_code():
             return
-        for session, execution_count, exc in hist:
-            if exc[1]:
-                # TODO: capture stderr?
-                outputs = [v4.new_output(output_type="stream", name="stdout", text=exc[1])]
-            else:
-                outputs = []
-            if self.outputs.get(execution_count):
-                for out in self.outputs[execution_count]:
-                    outputs.append(v4.new_output(output_type="display_data", data=out["data"], metadata=out["metadata"] or {}))
-            cells.append(v4.new_code_cell(
-                execution_count=execution_count,
-                source=exc[0],
-                outputs=outputs
-            ))
+
         try:
+            for session, execution_count, exc in hist:
+                if exc[1]:
+                    # TODO: capture stderr?
+                    outputs = [v4.new_output(output_type="stream", name="stdout", text=exc[1])]
+                else:
+                    outputs = []
+                if self.outputs.get(execution_count):
+                    for out in self.outputs[execution_count]:
+                        outputs.append(v4.new_output(output_type="display_data", data=out["data"], metadata=out["metadata"] or {}))
+                cells.append(v4.new_code_cell(
+                    execution_count=execution_count,
+                    source=exc[0],
+                    outputs=outputs
+                ))
             if hasattr(self.shell, "kernel"):
                 language_info = self.shell.kernel.language_info
             else:
@@ -198,8 +199,8 @@ class JupyterAgent(object):
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
             with open(os.path.join(wandb.run.dir, state_path), 'w', encoding='utf-8') as f:
                 write(nb, f, version=4)
-        except OSError:
-            logger.error("Unable to save ipython session history")
+        except (OSError, nbformat.validator.NotebookValidationError) as e:
+            logger.error("Unable to save ipython session history:\n%s", e)
             pass
 
 
