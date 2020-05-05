@@ -149,7 +149,7 @@ class JupyterAgent(object):
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook"""
         try:
-            from nbformat import write, v4
+            from nbformat import write, v4, validator
         except ImportError:
             logger.error("Run pip install nbformat to save notebook history")
             return
@@ -199,7 +199,7 @@ class JupyterAgent(object):
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
             with open(os.path.join(wandb.run.dir, state_path), 'w', encoding='utf-8') as f:
                 write(nb, f, version=4)
-        except (OSError, nbformat.validator.NotebookValidationError) as e:
+        except (OSError, validator.NotebookValidationError) as e:
             logger.error("Unable to save ipython session history:\n%s", e)
             pass
 

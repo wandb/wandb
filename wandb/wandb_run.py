@@ -474,7 +474,7 @@ class Run(object):
             if api.settings('entity') is None:
                 if self._viewer:
                     if self._viewer.get('entity'):
-                        api.set_setting('entity', viewer['entity'])
+                        api.set_setting('entity', self._viewer['entity'])
                     else:
                         raise CommError("Can't connect to network to query viewer from API key")
             entity = api.settings('entity')
