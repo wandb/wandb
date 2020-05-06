@@ -29,22 +29,23 @@ watch = wandb_sdk.watch
 login = wandb_sdk.login
 Settings = wandb_sdk.Settings
 
-from wandb.util import preinit as _preinit
-from wandb.util import lazyloader as _lazyloader
+from wandb.lib import preinit as _preinit
+from wandb.lib import lazyloader as _lazyloader
 from wandb.errors.term import termlog, termerror, termwarn
 from wandb import wandb_torch
+from wandb import util
 
 # Move this (keras.__init__ expects it at top level)
-from wandb.data.data_types import Graph
-from wandb.data.data_types import Image
-from wandb.data.data_types import Video
-from wandb.data.data_types import Audio
-from wandb.data.data_types import Table
-from wandb.data.data_types import Html
-from wandb.data.data_types import Object3D
-from wandb.data.data_types import Molecule
-from wandb.data.data_types import Histogram
-from wandb.data.data_types import Graph
+from wandb.data_types import Graph
+from wandb.data_types import Image
+from wandb.data_types import Video
+from wandb.data_types import Audio
+from wandb.data_types import Table
+from wandb.data_types import Html
+from wandb.data_types import Object3D
+from wandb.data_types import Molecule
+from wandb.data_types import Histogram
+from wandb.data_types import Graph
 
 
 from wandb import superagent

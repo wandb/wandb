@@ -8,7 +8,7 @@ import warnings
 import tarfile
 
 import wandb
-from wandb.stuff import util2
+from wandb import util
 from wandb.compat import tempfile
 
 def resolve_path(path):
@@ -68,7 +68,7 @@ class UploadJob(threading.Thread):
     def prepare_file(self):
         if self.copy:
             self.save_path = os.path.join(TMP_DIR.name, self.save_name)
-            util2.mkdir_exists_ok(os.path.dirname(self.save_path))
+            util.mkdir_exists_ok(os.path.dirname(self.save_path))
             shutil.copy2(self.path, self.save_path)
 
     def cleanup_file(self):

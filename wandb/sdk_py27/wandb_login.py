@@ -11,7 +11,7 @@ import logging
 from prompt_toolkit import prompt  # type: ignore
 import requests
 import wandb
-from wandb.util import apikey
+from wandb.lib import apikey
 
 logger = logging.getLogger("wandb")
 

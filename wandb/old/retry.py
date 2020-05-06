@@ -8,8 +8,8 @@ import traceback
 import weakref
 
 import wandb
-import wandb.stuff.env
-from wandb.stuff import util2 as util
+from wandb import env
+from wandb import util
 
 logger = logging.getLogger(__name__)
 

@@ -16,7 +16,6 @@ import wandb
 import sys
 from importlib import import_module
 from itertools import chain
-from wandb.stuff import util2 as util
 
 # Use system keras if it's been imported
 if "keras" in sys.modules:
@@ -37,7 +36,7 @@ else:
 
 
 def is_dataset(data):
-    dataset_ops = util.get_module(
+    dataset_ops = wandb.util.get_module(
         "tensorflow.python.data.ops.dataset_ops")
     if dataset_ops and hasattr(dataset_ops, "DatasetV2"):
         dataset_types = (dataset_ops.DatasetV2,)
@@ -52,7 +51,7 @@ def is_generator_like(data):
     # Checks if data is a generator, Sequence, or Iterator.
 
     types = (keras.utils.Sequence,)
-    iterator_ops = util.get_module(
+    iterator_ops = wandb.util.get_module(
         "tensorflow.python.data.ops.iterator_ops")
     if iterator_ops:
         types = types + (iterator_ops.Iterator,)
@@ -71,7 +70,7 @@ def patch_tf_keras():
     from tensorflow.python.keras.engine import training_arrays
     from tensorflow.python.keras.engine import training_generator
 
-    training_v2 = util.get_module('tensorflow.python.keras.engine.training_v2')
+    training_v2 = wandb.util.get_module('tensorflow.python.keras.engine.training_v2')
     old_arrays = training_arrays.fit_loop
     old_generator = training_generator.fit_generator
     if training_v2:
@@ -137,7 +136,7 @@ def patch_tf_keras():
         ["tensorflow.python.keras.engine.training_generator", "fit_generator"])
 
 
-if "tensorflow" in util.get_full_typename(keras):
+if "tensorflow" in wandb.util.get_full_typename(keras):
     try:
         patch_tf_keras()
     except Exception:
@@ -288,9 +287,9 @@ class WandbCallback(keras.callbacks.Callback):
     def set_model(self, model):
         self.model = model
         if self.input_type == 'auto' and len(model.inputs) == 1:
-            self.input_type = util.guess_data_type(model.inputs[0].shape, risky=True)
+            self.input_type = wandb.util.guess_data_type(model.inputs[0].shape, risky=True)
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
-            self.output_type = util.guess_data_type(model.outputs[0].shape)
+            self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
@@ -429,7 +428,7 @@ class WandbCallback(keras.callbacks.Callback):
         if len(masks[0].shape) == 2 or masks[0].shape[-1] == 1:
             return masks
         class_colors = self.class_colors if self.class_colors is not None else np.array(
-            util.class_colors(masks[0].shape[2]))
+            wandb.util.class_colors(masks[0].shape[2]))
         imgs = class_colors[np.argmax(masks, axis=-1)]
         return imgs
 

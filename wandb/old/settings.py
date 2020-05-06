@@ -2,9 +2,10 @@ import os
 
 import configparser
 
-from wandb.stuff import util2 as util
-from wandb.stuff import core, env
-from wandb.stuff.util2 import wandb_dir
+from wandb import util
+from wandb.old import core
+from wandb import env
+from wandb.util import wandb_dir
 
 
 class Settings(object):

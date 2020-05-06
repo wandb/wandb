@@ -91,3 +91,8 @@ def superagent(project=None, entity=None, agent_spec=None):
 @display_error
 def sync(ctx, path, id, project, entity, ignore):
     pass
+    # init settings
+    # backend = backend_connect()
+    # resp = interface_sync_file(fname)
+    # while interface_sync_poll(resp):
+    #     pass

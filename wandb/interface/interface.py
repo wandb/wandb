@@ -13,7 +13,7 @@ import numpy as np  # type: ignore
 import six
 from six.moves import queue
 import wandb
-from wandb.data import data_types
+from wandb import data_types
 from wandb.interface import constants
 from wandb.proto import wandb_internal_pb2  # type: ignore
 

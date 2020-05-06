@@ -5,7 +5,7 @@ import os
 from numbers import Number
 import threading
 import wandb
-from wandb.stuff import util2 as util
+from wandb import util
 
 from wandb.interface import interface
 

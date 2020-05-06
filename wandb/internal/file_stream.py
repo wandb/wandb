@@ -8,8 +8,8 @@ import time
 import wandb
 import itertools
 from six.moves import queue
-from wandb.stuff import util2 as util
-from wandb.stuff import env
+from wandb import util
+from wandb import env
 
 MAX_LINE_SIZE = 4*1024*1024 - 100*1024  # imposed by back end
 
@@ -254,7 +254,8 @@ class FileStreamApi(object):
 
     def stream_file(self, path):
         name = path.split("/")[-1]
-        self._send([Chunk(name, line) for line in open(path).readlines()])
+        with open(path) as f:
+            self._send([Chunk(name, line) for line in f])
 
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.

@@ -13,7 +13,7 @@ import tempfile
 import click
 import wandb
 
-from . import env
+from wandb import env
 
 # We use the hidden version if it already exists, otherwise non-hidden.
 if os.path.exists(os.path.join(env.get_dir(os.getcwd()), '.wandb')):

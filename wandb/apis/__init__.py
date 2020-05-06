@@ -10,7 +10,7 @@ import sys
 from gql.client import RetryError
 from functools import wraps
 
-import wandb.stuff.env as env
+from wandb import env
 
 from wandb import Error
 

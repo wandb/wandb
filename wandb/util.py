@@ -36,14 +36,14 @@ from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
-from wandb.stuff.env import error_reporting_enabled
+from wandb.env import error_reporting_enabled
 
 import wandb
-import wandb.stuff.core
-from wandb.stuff.core import wandb_dir
+import wandb.old.core
+from wandb.old.core import wandb_dir
 from wandb.apis import CommError
 # from wandb import wandb_config
-from wandb.stuff import env
+from wandb import env
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -54,7 +54,7 @@ DIFF_FNAME = 'diff.patch'
 
 
 # these match the environments for gorilla
-if wandb.stuff.core.IS_GIT:
+if wandb.old.core.IS_GIT:
     SENTRY_ENV = 'development'
 else:
     SENTRY_ENV = 'production'

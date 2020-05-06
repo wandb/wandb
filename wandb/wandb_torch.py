@@ -10,9 +10,9 @@ from six.moves import reduce
 from distutils.version import LooseVersion
 from operator import mul
 
+from wandb import util
+from wandb.data_types import Node, Edge
 import wandb
-from wandb.stuff import util2 as util
-from wandb.data.data_types import Node, Edge
 
 torch = None
 
@@ -72,7 +72,7 @@ class TorchHistory(object):
 
     def __init__(self, history):
         global torch
-        torch = util.get_module("torch", "Could not import torch")
+        torch = wandb.util.get_module("torch", "Could not import torch")
         self._history = weakref.ref(history)
         self._hook_handles = {}
         self._num_bins = 64
@@ -280,7 +280,7 @@ class TorchHistory(object):
             return handle.id in d
 
 
-class TorchGraph(wandb.data.data_types.Graph):
+class TorchGraph(wandb.data_types.Graph):
 
     def __init__(self):
         super(TorchGraph, self).__init__("torch")

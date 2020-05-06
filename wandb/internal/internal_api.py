@@ -28,12 +28,12 @@ from six import b
 from six import BytesIO
 import wandb
 from wandb import __version__
-from wandb.stuff.core import wandb_dir, Error
-from wandb.stuff import env
+from wandb.old.core import wandb_dir, Error
+from wandb import env
 #from wandb.git_repo import GitRepo
-from wandb.stuff.settings import Settings
-from wandb.stuff import retry
-from wandb.stuff import util2 as util
+from wandb.old.settings import Settings
+from wandb.old import retry
+from wandb import util
 from wandb.apis import normalize_exceptions, CommError, UsageError
 
 from .file_stream import FileStreamApi
