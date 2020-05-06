@@ -599,26 +599,34 @@ class WandbFileHandler(StorageHandler):
         raise NotImplementedError()
 
     def upload_callback(self, artifact, manifest_entry):
-        # TODO: move this to file_pusher so that we don't block the user process
-        with open(manifest_entry.path, "rb") as file:
-            r = requests.put(self._file_url(artifact, manifest_entry),
-                             auth=("api", self._api.api_key),
-                             stream=True,
-                             headers={
-                                 'Content-Length': str(os.path.getsize(manifest_entry.path)),
-                                 'Content-MD5': manifest_entry.md5,
-                             },
-                             data=file)
-            r.raise_for_status()
+        r = requests.get(self._file_url(artifact, manifest_entry, upload=True),
+                         auth=("api", self._api.api_key))
+        r.raise_for_status()
+
+        # TODO: this may be best served as a gql API instead of this pseudo-REST jank.
+        resp = r.json()
+        exists, upload_url = resp["exists"], resp["uploadURL"]
+
+        if not exists:
+            upload_headers = {header.split(":", 1)[0]: header.split(":", 1)[1]
+                              for header in (resp["uploadHeaders"] or {})}
+
+            # TODO: move this to file_pusher so that we don't block the user process
+            with open(manifest_entry.path, "rb") as file:
+                r = requests.put(upload_url,
+                                 headers=upload_headers,
+                                 data=file)
+                r.raise_for_status()
 
         # Prepend the manifest path entry with the 'wandb:/' scheme.
         # We don't care about storing the physical path in the manifest
         # entry as files within a wandb artifact are mapped to their name.
         manifest_entry.path = '%s:/%s' % (self.scheme, manifest_entry.name)
 
-    def _file_url(self, artifact, manifest_entry):
+    def _file_url(self, artifact, manifest_entry, upload=False):
         base64_md5 = base64.b64encode(manifest_entry.md5.encode('ascii')).decode('ascii')
-        return f'{self._api.settings("base_url")}/artifacts/{artifact.entity}/{artifact.project}/{base64_md5}'
+        suffix = "/uploadURL" if upload else ""
+        return f'{self._api.settings("base_url")}/artifacts/{artifact.entity}/{base64_md5}{suffix}'
 
 
 class S3Handler(StorageHandler):
