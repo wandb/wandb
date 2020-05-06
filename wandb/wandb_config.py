@@ -18,7 +18,6 @@ import platform
 
 import wandb
 from wandb import env
-from wandb import util
 
 FNAME = 'config.yaml'
 
@@ -43,7 +42,7 @@ def is_kaggle():
 
 def huggingface_version():
     if "transformers" in sys.modules:
-        trans = util.get_module("transformers")
+        trans = wandb.util.get_module("transformers")
         if hasattr(trans, "__version__"):
             return trans.__version__
     return None
