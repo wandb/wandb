@@ -82,7 +82,8 @@ def create_app():
             return json.dumps({
                 "data": {
                     "viewer": {
-                        "entity": "vanpelt"
+                        "entity": "vanpelt",
+                        "flags": "{}"
                     }
                 }
             })
