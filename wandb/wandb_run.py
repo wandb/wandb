@@ -420,9 +420,10 @@ class Run(object):
         environment[env.RUN_DIR] = self.dir
 
         # Load global environment vars from viewer flags
-        if self._flags.get("env"):
-            for key, val in six.iteritems(self._flags["env"]):
-                os.environ[key] = val
+        # This should be scoped to entity / project, this work is happening in CLI-NG
+        if self._flags.get("codeSavingEnabled") is not None:
+            if environment.get(env.CODE_SAVE) is None:
+                environment[env.CODE_SAVE] = str(self._flags["codeSavingEnabled"])
 
         if self.group:
             environment[env.RUN_GROUP] = self.group

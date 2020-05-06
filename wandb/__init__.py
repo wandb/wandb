@@ -863,7 +863,7 @@ def sagemaker_auth(overrides={}, path="."):
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
-         anonymous=None, config_exclude_keys=None, config_include_keys=None, save_code=False):
+         anonymous=None, config_exclude_keys=None, config_include_keys=None, save_code=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -970,7 +970,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
             termwarn("Ignoring entity='{}' passed to wandb.init when running a sweep".format(entity))
         if project and project != os.environ.get(env.PROJECT):
             termwarn("Ignoring project='{}' passed to wandb.init when running a sweep".format(project))
-    if save_code:
+    if save_code is not None:
         os.environ[env.SAVE_CODE]= str(save_code)
     if group:
         os.environ[env.RUN_GROUP] = group
