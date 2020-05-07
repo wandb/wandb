@@ -1208,14 +1208,15 @@ class RunManager(object):
     def log_artifact(self, message):
         type = message['type']
         name = message['name']
-        manifest_entries = message['manifest_entries']
+        server_manifest_entries = message['server_manifest_entries']
+        manifest = message['manifest']
         description = message['description']
         digest = message['digest']
         labels = json.dumps(message['labels']) if 'labels' in message else None
         metadata = message['metadata'] if 'metadata' in message else None
         aliases = message['aliases'] if 'aliases' in message else None
 
-        la = ArtifactSaver(self._api, digest, manifest_entries, file_pusher=self._file_pusher)
+        la = ArtifactSaver(self._api, digest, server_manifest_entries, manifest, file_pusher=self._file_pusher)
         la.save(type, name, description=description, metadata=metadata, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):
@@ -1347,7 +1348,6 @@ class RunManager(object):
                     exitcode = self.proc.poll()
                     if exitcode is not None:
                         break
-                    time.sleep(1)
         except KeyboardInterrupt:
             logger.info("process received interrupt signal, shutting down")
             exitcode = 255
@@ -1475,14 +1475,15 @@ class RunManager(object):
 
 
 class ArtifactSaver(object):
-    def __init__(self, api, digest, manifest_entries, file_pusher=None, is_user_created=False):
+    def __init__(self, api, digest, server_manifest_entries, manifest_json, file_pusher=None, is_user_created=False):
         # NOTE: manifest_entries are LocalManifestEntry but they get converted to
         # arrays when we convert to json, so we need to access fields by index instead
         # of by name
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
-        self._manifest_entries = manifest_entries
+        self._server_manifest_entries = server_manifest_entries
+        self._manifest = artifacts.ArtifactManifest.from_manifest_json(None, manifest_json)
         self._is_user_created = is_user_created
         self._server_artifact = None
 
@@ -1527,7 +1528,23 @@ class ArtifactSaver(object):
         # if it is in PENDING but not created by us, we also have a problem (two parallel runs)
         # creating the same artifact. In theory this could be ok but the backend doesn't handle
         # it right now.
-        for path, hash, local_path in self._manifest_entries:
+        for entry in self._manifest.entries.values():
+            # Save all local_path entries, the others are references and have already been
+            # saved. It's weird to have this logic here. So it goes...
+            if entry.local_path:
+                self._file_pusher.file_changed(
+                    entry.name, entry.local_path,
+                    artifact_id=self._server_artifact['id'],
+                    save_fn=lambda local_path, digest, api: (
+                        # We shouldn't be using API settings here.
+                        self._manifest.storage_policy.store_file(
+                            self._api.settings('entity'),
+                            self._api.settings('project'),
+                            local_path,
+                            digest,
+                            api)),
+                    digest=entry.digest)
+        for path, hash, local_path in self._server_manifest_entries:
             self._file_pusher.file_changed(path, local_path, self._server_artifact['id'])
         self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact

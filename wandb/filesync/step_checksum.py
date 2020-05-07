@@ -15,7 +15,7 @@ from wandb.filesync import step_upload
 
 
 RequestUpload = collections.namedtuple(
-    'RequestUpload', ('path', 'save_name', 'artifact_id', 'copy'))
+    'RequestUpload', ('path', 'save_name', 'artifact_id', 'copy', 'save_fn', 'digest'))
 RequestCommitArtifact = collections.namedtuple(
     'RequestCommitArtifact', ('artifact_id', ))
 RequestFinish = collections.namedtuple('RequestFinish', ())
@@ -44,7 +44,9 @@ class StepChecksum(object):
                     shutil.copy2(req.path, path)
                 checksum = wandb.util.md5_file(path)
                 self._output_queue.put(
-                    step_upload.RequestUpload(path, req.save_name, req.artifact_id, checksum, req.copy))
+                    step_upload.RequestUpload(
+                        path, req.save_name, req.artifact_id, checksum, req.copy,
+                        req.save_fn, req.digest))
             elif isinstance(req, RequestCommitArtifact):
                 self._output_queue.put(step_upload.RequestCommitArtifact(req.artifact_id))
             elif isinstance(req, RequestFinish):

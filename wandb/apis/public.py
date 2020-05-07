@@ -1971,21 +1971,32 @@ class Artifact(object):
 
     def load_path(self, name, expand_dirs=False):
         manifest = self._load_manifest()
+        storage_policy = manifest.storage_policy
+
+        entry = manifest.entries.get(name)
+        if entry is None:
+            raise KeyError('Path not contained in artifact: %s' % name)
 
         class ArtifactPath:
 
             @staticmethod
             def local():
-                return manifest.load_path(name, local=True, expand_dirs=expand_dirs)
+                if entry.ref is not None:
+                    return storage_policy.load_reference(self, name, manifest.entries[name], local=True)
+
+                return storage_policy.load_file(self, name, manifest.entries[name])
 
             @staticmethod
             def remote():
-                return manifest.load_path(name, expand_dirs=expand_dirs)
+                if entry.ref is not None:
+                    return storage_policy.load_reference(self, name, manifest.entries[name], local=False)
+                raise ValueError('Only artifact references support remote().')
 
         return ArtifactPath()
 
     # We need this download_l1 because WandbFileHandler calls download. It
     # sets download_l1 to false to avoid infinite recursion
+    # TODO fix
     def download(self, download_l1=True):
         dirpath = self.artifact_dir
         if self._is_downloaded:

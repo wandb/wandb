@@ -45,15 +45,14 @@ class ServerManifestV1(object):
 
     def __init__(self, entries):
         # lexicographic sort. paths must be unique, so sort doesn't ever visit hash
-        self._entries = sorted(entries)
+        self.entries = sorted(entries)
 
     def dump(self, fp):
         fp.write('wandb-artifact-manifest-v1\n')
-        for entry in self._entries:
+        for entry in self.entries:
             fp.write('%s %s\n' % (requests.utils.quote(entry.path), entry.hash))
 
-    @property
-    def digest(self):
+    def get_digest(self):
         with tempfile.NamedTemporaryFile('w+') as fp:
             self.dump(fp)
             fp.seek(0)
@@ -70,13 +69,13 @@ class Artifact(object):
 
     def __init__(self, type, name=None, description=None, metadata=None, labels=None,
                  aliases=None, storage_policy=None):
-        storage_policy = storage_policy or WandbStoragePolicy()
+        self._storage_policy = storage_policy or WandbStoragePolicy()
         self._file_specs = {}
         self._api = InternalApi()
         self._final = False
         self._digest = None
         self._file_entries = None
-        self._manifest = ArtifactManifestV1(self, storage_policy)
+        self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = artifacts_cache.get_artifacts_cache()
         self._artifact_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
         self._new_files = []
@@ -105,6 +104,7 @@ class Artifact(object):
         self.finalize()
         return self._manifest
 
+    # TODO: Currently this returns the L0 digest. Is this what we want?
     @property
     def digest(self):
         self.finalize()
@@ -114,12 +114,41 @@ class Artifact(object):
     def add_file(self, path, name=None):
         if self._final:
             raise ValueError('Can\'t add to finalized artifact.')
-        self._manifest.store_path(path, name=name)
+
+        # TODO: might as well make this part of the policy, so it can change digest calculation
+        # if it wants to.
+        entries = []
+        if os.path.isdir(path):
+            for dirpath, _, filenames in os.walk(path, followlinks=True):
+                for fname in filenames:
+                    physical_path = os.path.join(dirpath, fname)
+                    logical_path = os.path.relpath(physical_path, start=path)
+                    if name is not None:
+                        logical_path = os.path.join(name, logical_path)
+                    entry = ArtifactManifestEntry(
+                        logical_path, None, digest=md5_file_b64(physical_path), local_path=physical_path)
+                    # if not reference:
+                    #     self._upload_callback(artifact, entry)
+                    entries.append(entry)
+        elif os.path.isfile(path):
+            name = name or os.path.basename(path)
+            entry = ArtifactManifestEntry(name, None, digest=md5_file_b64(path), local_path=path)
+            # if not reference:
+            #     self._upload_callback(artifact, entry)
+            entries.append(entry)
+        for entry in entries:
+            self._manifest.add_entry(entry)
 
     def add_reference(self, path, name=None):
+        url = urlparse(path)
+        if not url.scheme:
+            raise ValueError('References must be URIs. To reference a local file, use file://')
         if self._final:
             raise ValueError('Can\'t add to finalized artifact.')
-        self._manifest.store_path(path, name=name, reference=True)
+        manifest_entries = self._storage_policy.store_reference(
+            self, path, name=name)
+        for entry in manifest_entries:
+            self._manifest.add_entry(entry)
 
     def new_file(self, name):
         if self._final:
@@ -127,7 +156,7 @@ class Artifact(object):
         path = os.path.join(self._artifact_dir.name, name)
         if os.path.exists(path):
             raise ValueError('File with name "%s" already exists' % name)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        util.mkdir_exists_ok(os.path.dirname(path))
         self._new_files.append((name, path))
         return open(path, 'w')
 
@@ -137,52 +166,56 @@ class Artifact(object):
     def finalize(self):
         if self._final:
             return self._file_entries
-        self._final = True
 
         # Record any created files in the manifest.
         for (name, path) in self._new_files:
-            self._manifest.store_path(path, name=name)
+            self.add_file(path, name)
+
+        # mark final after all files are added
+        self._final = True
 
         # Add the manifest itself as a file.
         with tempfile.NamedTemporaryFile('w+', suffix=".json", delete=False) as fp:
             json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             self._file_specs['wandb_manifest.json'] = fp.name
 
+        # Calculate the server manifest
         file_entries = []
         for artifact_path, local_path in self._file_specs.items():
             file_entries.append(self.LocalArtifactManifestEntry(
                 artifact_path, md5_file_b64(local_path), os.path.abspath(local_path)))
+        self.server_manifest = ServerManifestV1(file_entries)
+        self._digest = self.server_manifest.get_digest()
 
-        # Calculate the server manifest
-        server_manifest = ServerManifestV1(file_entries)
-        self._digest = server_manifest.digest
+        # TODO: move new_files to final cache location
 
-        # If there are new files, move them into the artifact cache.
-        # TODO: careful with the download logic to make sure it still knows when to download files
-        if len(self._new_files) > 0:
-            final_artifact_dir = self._cache.get_artifact_dir(self.type, server_manifest.digest)
-            shutil.rmtree(final_artifact_dir)
-            os.rename(self._artifact_dir.name, final_artifact_dir)
+        # # If there are new files, move them into the artifact cache.
+        # # TODO: careful with the download logic to make sure it still knows when to download files
+        # if len(self._new_files) > 0:
+        #     final_artifact_dir = self._cache.get_artifact_dir(self.type, server_manifest.digest)
+        #     shutil.rmtree(final_artifact_dir)
+        #     os.rename(self._artifact_dir.name, final_artifact_dir)
 
-            # Update the file entries for new files to point at their new location.
-            def remap_file_entry(file_entry):
-                if not file_entry.local_path.startswith(self._artifact_dir.name):
-                    return file_entry
-                rel_path = os.path.relpath(file_entry.local_path, start=self._artifact_dir.name)
-                local_path = os.path.join(final_artifact_dir, rel_path)
-                return self.LocalArtifactManifestEntry(
-                    file_entry.path, file_entry.hash, local_path)
+        #     # Update the file entries for new files to point at their new location.
+        #     def remap_file_entry(file_entry):
+        #         if not file_entry.local_path.startswith(self._artifact_dir.name):
+        #             return file_entry
+        #         rel_path = os.path.relpath(file_entry.local_path, start=self._artifact_dir.name)
+        #         local_path = os.path.join(final_artifact_dir, rel_path)
+        #         return self.LocalArtifactManifestEntry(
+        #             file_entry.path, file_entry.hash, local_path)
 
-            file_entries = [remap_file_entry(file_entry) for file_entry in file_entries]
+        #     file_entries = [remap_file_entry(file_entry) for file_entry in file_entries]
 
-        self._file_entries = file_entries
-        return self._file_entries
+        # self._file_entries = file_entries
+        # return self._file_entries
 
 
 class ArtifactManifest(ABC):
 
     @classmethod
     @abstractmethod
+    # TODO: we don't need artifact here.
     def from_manifest_json(cls, artifact, manifest_json):
         if 'version' not in manifest_json:
             raise ValueError('Invalid manifest format. Must contain version field.')
@@ -224,9 +257,8 @@ class ArtifactManifest(ABC):
                              'Set expand_dirs=True get remote paths for directories.' % path)
         raise ValueError('Failed to find "%s" in artifact manifest' % path)
 
-    def store_path(self, path, name=None, reference=False):
-        for entry in self.storage_policy.store_path(self.artifact, path, name=name, reference=reference):
-            self.entries[entry.name] = entry
+    def add_entry(self, entry):
+        self.entries[entry.name] = entry
 
 
 class ArtifactManifestV1(ArtifactManifest):
@@ -247,7 +279,8 @@ class ArtifactManifestV1(ArtifactManifest):
             raise ValueError('Failed to find storage policy "%s"' % storage_policy_name)
 
         entries = {
-            name: ArtifactManifestEntry(name, val['path'], val['md5'], val['extra'])
+            name: ArtifactManifestEntry(
+                name, val.get('ref'), val['digest'], val.get('extra'), val.get('local_path'))
             for name, val in manifest_json['contents'].items()
         }
 
@@ -256,28 +289,44 @@ class ArtifactManifestV1(ArtifactManifest):
     def __init__(self, artifact, storage_policy, entries=None):
         super(ArtifactManifestV1, self).__init__(artifact, storage_policy, entries=entries)
 
-    def to_manifest_json(self):
+    def to_manifest_json(self, include_local=False):
+        """This is the JSON that's stored in wandb_manifest.json
+        
+        If include_local is True we also include the local paths to files. This is
+        used to represent an artifact that's waiting to be saved on the current
+        system. We don't need to include the local paths in the artifact manifest
+        contents.
+        """
+        contents = {}
+        for entry in sorted(self.entries.values(), key=lambda k: k.name):
+            json_entry = {
+                'digest': entry.digest,
+            }
+            if entry.ref is not None:
+                json_entry['ref'] = entry.ref
+            if entry.extra:
+                json_entry['extra'] = entry.extra
+            if include_local and entry.local_path is not None:
+                json_entry['local_path'] = entry.local_path
+            contents[entry.name] = json_entry
         return {
             'version': self.__class__.version(),
             'storagePolicy': self.storage_policy.name(),
             'storagePolicyConfig': self.storage_policy.config() or {},
-            'contents': {
-                entry.name: {
-                    'md5': entry.md5,
-                    'path': entry.path,
-                    'extra': entry.extra,
-                } for entry in sorted(self.entries.values(), key=lambda k: k.name)
-            }
+            'contents': contents
         }
 
 
 class ArtifactManifestEntry(object):
 
-    def __init__(self, name, path, md5, extra=None):
+    def __init__(self, name, ref, digest, extra=None, local_path=None):
         self.name = name
-        self.path = path
-        self.md5 = md5
-        self.extra = extra
+        self.ref = ref  # This is None for files stored in the artifact.
+        self.digest = digest
+        self.extra = extra or {}
+        # This is not stored in the manifest json, it's only used in the process
+        # of saving
+        self.local_path = local_path
 
 
 class StoragePolicy(ABC):
@@ -308,7 +357,7 @@ class StoragePolicy(ABC):
         pass
 
     @abstractmethod
-    def store_path(self, artifact, path, name=None, reference=False):
+    def store_reference(self, artifact, path, name=None, reference=False):
         pass
 
 
@@ -324,21 +373,70 @@ class WandbStoragePolicy(StoragePolicy):
 
     def __init__(self):
         wandb = WandbFileHandler()
-        local = LocalFileHandler(upload_callback=wandb.upload_callback)
+        s3 = S3Handler()
+        file_handler = LocalFileHandler(upload_callback=wandb.upload_callback)
 
+        self._api = InternalApi()
         self._handler = MultiHandler(handlers=[
             wandb,
-            local,
+            s3,
+            file_handler,
         ], default_handler=TrackingHandler())
 
     def config(self):
         return None
 
+    def load_file(self, artifact, name, manifest_entry):
+        path = f'{artifact.artifact_dir}/{name}'
+        if os.path.isfile(path):
+            cur_md5 = md5_file_b64(path)
+            if cur_md5 == manifest_entry.digest:
+                return path
+
+        util.mkdir_exists_ok(os.path.dirname(path))
+        response = requests.get(
+            self._file_url(
+                self._api,
+                self._api.settings('entity'),
+                self._api.settings('project'),
+                manifest_entry.digest),
+            auth=("api", self._api.api_key),
+            stream=True)
+        response.raise_for_status()
+
+        with open(path, "wb") as file:
+            for data in response.iter_content(chunk_size=1024):
+                file.write(data)
+        return path
+
     def load_path(self, artifact, manifest_entry, local=False):
         return self._handler.load_path(artifact, manifest_entry, local=local)
 
-    def store_path(self, artifact, path, name=None, reference=False):
-        return self._handler.store_path(artifact, path, name=name, reference=reference)
+    def store_reference(self, artifact, path, name=None):
+        return self._handler.store_path(artifact, path, name=name, reference=True)
+
+    def load_reference(self, artifact, name, manifest_entry, local=False):
+        return self._handler.load_path(artifact, manifest_entry, local)
+
+    def _file_url(self, api, entity_name, project_name, md5):
+        base64_md5 = base64.b64encode(md5.encode('ascii')).decode('ascii')
+        return f'{api.settings("base_url")}/artifacts/{entity_name}/{project_name}/{base64_md5}'
+
+    def store_file(self, entity_name, project_name, local_path, digest, api):
+        # This is the "back half". It's called in run manager, for each local path
+        # in the artifact.
+        # TODO: I think we can call this in file pusher...
+        with open(local_path, "rb") as file:
+            r = requests.put(self._file_url(api, entity_name, project_name, digest),
+                             auth=("api", api.api_key),
+                             stream=True,
+                             headers={
+                                 'Content-Length': str(os.path.getsize(local_path)),
+                                 'Content-MD5': digest,
+                             },
+                             data=file)
+            r.raise_for_status()
+        pass
 
 
 class S3BucketPolicy(StoragePolicy):
@@ -409,7 +507,7 @@ class StorageHandler(ABC):
         pass
 
     @abstractmethod
-    def load_path(self, artifact, manifest_entry, remote=False):
+    def load_path(self, artifact, manifest_entry, local=False):
         """
         Loads the file or directory within the specified artifact given its
         corresponding index entry.
@@ -451,7 +549,7 @@ class MultiHandler(StorageHandler):
         raise NotImplementedError()
 
     def load_path(self, artifact, manifest_entry, local=False):
-        url = urlparse(manifest_entry.path)
+        url = urlparse(manifest_entry.ref)
         if url.scheme not in self._handlers:
             if self._default_handler is not None:
                 return self._default_handler.load_path(artifact, manifest_entry, local=local)
@@ -501,17 +599,19 @@ class TrackingHandler(StorageHandler):
                              (path, url.scheme))
 
         name = name or url.path[1:]  # strip leading slash
-        return [ArtifactManifestEntry(name, path, md5=md5_string(path))]
+        return [ArtifactManifestEntry(name, path, digest=md5_string(path))]
 
 
 class LocalFileHandler(StorageHandler):
+
+    """Handles file:// references"""
 
     def __init__(self, scheme=None, upload_callback=None):
         """
         Tracks files or directories on a local filesystem. Directories
         are expanded to create an entry for each file contained within.
         """
-        self._scheme = scheme or ""
+        self._scheme = scheme or "file"
         self._upload_callback = upload_callback or (lambda artifact, entry: None)
 
     @property
@@ -519,21 +619,34 @@ class LocalFileHandler(StorageHandler):
         return self._scheme
 
     def load_path(self, artifact, manifest_entry, local=False):
-        path = manifest_entry.path
-        if not os.path.exists(path):
+        url = urlparse(manifest_entry.ref)
+        local_path = '%s%s' % (url.netloc, url.path)
+        if not os.path.exists(local_path):
             raise ValueError('Failed to find file at path %s' % path)
 
-        md5 = md5_file_b64(path)
-        if md5 != manifest_entry.md5:
+        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.name)
+        if os.path.isfile(path):
+            md5 = md5_file_b64(path)
+            if md5 == manifest_entry.digest:
+                # Skip download.
+                return path
+        md5 = md5_file_b64(local_path)
+        if md5 != manifest_entry.digest:
             raise ValueError('Digest mismatch for path %s: expected %s but found %s' %
-                             (path, manifest_entry.md5, md5))
+                             (local_path, manifest_entry.digest, md5))
+
+        util.mkdir_exists_ok(os.path.dirname(path))
+        shutil.copy(local_path, path)
         return path
 
     def store_path(self, artifact, path, name=None, reference=False):
+        url = urlparse(path)
+        local_path = '%s%s' % (url.netloc, url.path)
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
-        if os.path.isdir(path):
+        if os.path.isdir(local_path):
+            raise ValueError('Can\'t add directory reference')
             # We want to map each file to where it will be
             # relative to the root of the artifact. If no
             # name was specified, we assume the for directory
@@ -541,22 +654,22 @@ class LocalFileHandler(StorageHandler):
             # under '/foo/'. If a name is specified, use that
             # as the root instead. If the name is "/", then
             # simply use that as the root.
-            artifact_root = "" if name is "/" else name or os.path.basename(path)
-            for dirpath, _, filenames in os.walk(path, followlinks=True):
-                for fname in filenames:
-                    physical_path = os.path.join(dirpath, fname)
-                    logical_path = os.path.join(artifact_root, os.path.relpath(physical_path, start=path))
-                    entry = ArtifactManifestEntry(logical_path, physical_path, md5= md5_file_b64(physical_path))
-                    if not reference:
-                        self._upload_callback(artifact, entry)
-                    entries.append(entry)
-        elif os.path.isfile(path):
-            name = name or os.path.basename(path)
-            entry = ArtifactManifestEntry(name, path, md5=md5_file_b64(path))
+            # artifact_root = "" if name is "/" else name or os.path.basename(path) for dirpath, _, filenames in os.walk(path, followlinks=True):
+            #     for fname in filenames:
+            #         physical_path = os.path.join(dirpath, fname)
+            #         logical_path = os.path.join(artifact_root, os.path.relpath(physical_path, start=path))
+            #         entry = ArtifactManifestEntry(logical_path, physical_path, md5= md5_file_b64(physical_path))
+            #         if not reference:
+            #             self._upload_callback(artifact, entry)
+            #         entries.append(entry)
+        elif os.path.isfile(local_path):
+            name = name or os.path.basename(local_path)
+            entry = ArtifactManifestEntry(name, path, digest=md5_file_b64(local_path))
             if not reference:
                 self._upload_callback(artifact, entry)
             entries.append(entry)
         else:
+            # TODO: update error message if we don't allow directories.
             raise ValueError('Path "%s" must be a valid file or directory path' % path)
         return entries
 
@@ -577,7 +690,7 @@ class WandbFileHandler(StorageHandler):
 
         url = urlparse(manifest_entry.path)
         path = f'{artifact.artifact_dir}/{url.path}'
-        os.makedirs(os.path.dirname(path))
+        util.mkdir_exists_ok(os.path.dirname(path))
         response = requests.get(self._file_url(artifact, manifest_entry),
                                 auth=("api", self._api.api_key),
                                 stream=True)
@@ -617,10 +730,9 @@ class WandbFileHandler(StorageHandler):
 
 class S3Handler(StorageHandler):
 
-    def __init__(self, bucket, scheme=None):
+    def __init__(self, scheme=None):
         boto3 = util.get_module('boto3', required=True)
         self._s3 = boto3.resource('s3')
-        self._bucket = bucket
         self._scheme = scheme or "s3"
 
     @property
@@ -628,10 +740,10 @@ class S3Handler(StorageHandler):
         return self._scheme
 
     def load_path(self, artifact, manifest_entry, local=False):
-        url = urlparse(manifest_entry.path)
+        url = urlparse(manifest_entry.ref)
         bucket = url.netloc
         key = url.path[1:]
-        version = manifest_entry.extra['versionID']
+        version = manifest_entry.extra.get('versionID')
 
         extra_args = {}
         if version is None:
@@ -639,15 +751,15 @@ class S3Handler(StorageHandler):
             # the latest version and make sure the MD5 matches.
             obj = self._s3.Object(bucket, key)
             md5 = self._md5_from_obj(obj)
-            if md5 != manifest_entry.md5:
+            if md5 != manifest_entry.digest:
                 raise ValueError('Digest mismatch for object %s/%s: expected %s but found %s',
-                                 (self._bucket, key, manifest_entry.md5, md5))
+                                 (self._bucket, key, manifest_entry.digest, md5))
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args['VersionId'] = version
 
         if not local:
-            return manifest_entry.path
+            return manifest_entry.ref
 
         path = '%s/%s' % (artifact.artifact_dir, manifest_entry.name)
 
@@ -657,11 +769,11 @@ class S3Handler(StorageHandler):
         #   - this only works for s3 files currently
         if os.path.isfile(path):
             md5 = md5_file_b64(path)
-            if md5 == manifest_entry.md5:
+            if md5 == manifest_entry.ref:
                 # Skip download.
                 return path
 
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        util.mkdir_exists_ok(os.path.dirname(path))
         obj.download_file(path, ExtraArgs=extra_args)
         return path
 
@@ -676,8 +788,15 @@ class S3Handler(StorageHandler):
         key = url.path[1:]  # strip leading slash
         obj = self._s3.Object(bucket, key)
 
-        md5 = self._md5_from_obj(obj)
-        extra = self._extra_from_obj(obj)
+        from botocore.errorfactory import ClientError
+        md5 = None
+        extra = None
+        # TODO: We shouldn't just swallow this error
+        try:
+            md5 = self._md5_from_obj(obj)
+            extra = self._extra_from_obj(obj)
+        except ClientError:
+            pass
 
         return [ArtifactManifestEntry(name or key, path, md5, extra)]
 

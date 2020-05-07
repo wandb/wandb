@@ -403,6 +403,9 @@ class Run(object):
             return artifact
         else:
             if isinstance(artifact, wandb.Artifact):
+                if artifact.type is None or artifact.name is None:
+                    # TODO, we can make nameless artifacts
+                    raise ValueError('Artifacts must have a type and name')
                 entries = artifact.finalize()
                 self.send_message({
                     'use_artifact': {
@@ -423,12 +426,15 @@ class Run(object):
     def log_artifact(self, artifact):
         if not isinstance(artifact, artifacts.Artifact):
             raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
-        entries = artifact.finalize()
+        if artifact.type is None or artifact.name is None:
+            raise ValueError('Artifacts must have a type and name')
+        artifact.finalize()
         self.send_message({
             'log_artifact': {
                 'type': artifact.type,
                 'name': artifact.name,
-                'manifest_entries': entries,
+                'server_manifest_entries': artifact.server_manifest.entries,
+                'manifest': artifact.manifest.to_manifest_json(include_local=True),
                 'digest': artifact.digest,
                 'description': artifact.description,
                 'metadata': artifact.metadata,
