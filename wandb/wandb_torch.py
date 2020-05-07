@@ -162,7 +162,7 @@ class TorchHistory(object):
             sparse_zeros = all_values - non_zero_values
             tensor = backing_values
 
-        flat = tensor.view(-1)
+        flat = tensor.contiguous().view(-1)
 
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
         if not hasattr(flat, "detach"):
