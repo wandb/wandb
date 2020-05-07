@@ -253,7 +253,9 @@ class ArtifactManifestV1(ArtifactManifest):
             raise ValueError('Failed to find storage policy "%s"' % storage_policy_name)
 
         entries = {
-            name: ArtifactManifestEntry(name, val['path'], val['md5'], val['extra'])
+            name: ArtifactManifestEntry(name, val['path'], val['md5'],
+                                        is_reference=val['isReference'], size=val['size'],
+                                        extra=val['extra'])
             for name, val in manifest_json['contents'].items()
         }
 
@@ -271,6 +273,8 @@ class ArtifactManifestV1(ArtifactManifest):
                 entry.name: {
                     'md5': entry.md5,
                     'path': entry.path,
+                    'isReference': entry.is_reference,
+                    'size': entry.size,
                     'extra': entry.extra,
                 } for entry in sorted(self.entries.values(), key=lambda k: k.name)
             }
@@ -279,10 +283,12 @@ class ArtifactManifestV1(ArtifactManifest):
 
 class ArtifactManifestEntry(object):
 
-    def __init__(self, name, path, md5, extra=None):
+    def __init__(self, name, path, md5, is_reference, size=None, extra=None):
         self.name = name
         self.path = path
         self.md5 = md5
+        self.is_reference = is_reference
+        self.size = size
         self.extra = extra
 
 
@@ -507,7 +513,7 @@ class TrackingHandler(StorageHandler):
                              (path, url.scheme))
 
         name = name or url.path[1:]  # strip leading slash
-        return [ArtifactManifestEntry(name, path, md5=md5_string(path))]
+        return [ArtifactManifestEntry(name, path, is_reference=reference, md5=md5_string(path))]
 
 
 class LocalFileHandler(StorageHandler):
@@ -552,13 +558,14 @@ class LocalFileHandler(StorageHandler):
                 for fname in filenames:
                     physical_path = os.path.join(dirpath, fname)
                     logical_path = os.path.join(artifact_root, os.path.relpath(physical_path, start=path))
-                    entry = ArtifactManifestEntry(logical_path, physical_path, md5= md5_file_b64(physical_path))
+                    entry = ArtifactManifestEntry(logical_path, physical_path, is_reference=reference, md5=md5_file_b64(physical_path))
                     if not reference:
                         self._upload_callback(artifact, entry)
                     entries.append(entry)
         elif os.path.isfile(path):
             name = name or os.path.basename(path)
-            entry = ArtifactManifestEntry(name, path, md5=md5_file_b64(path))
+            size = os.path.getsize(path)
+            entry = ArtifactManifestEntry(name, path, is_reference=reference, size=size, md5=md5_file_b64(path))
             if not reference:
                 self._upload_callback(artifact, entry)
             entries.append(entry)
@@ -691,9 +698,10 @@ class S3Handler(StorageHandler):
         obj = self._s3.Object(bucket, key)
 
         md5 = self._md5_from_obj(obj)
+        size = obj.content_length
         extra = self._extra_from_obj(obj)
 
-        return [ArtifactManifestEntry(name or key, path, md5, extra)]
+        return [ArtifactManifestEntry(name or key, path, md5, is_reference=reference, size=size, extra=extra)]
 
     def upload_callback(self, artifact, manifest_entry):
         key = self._content_addressed_path(manifest_entry.md5)
@@ -708,6 +716,7 @@ class S3Handler(StorageHandler):
             })
 
         manifest_entry.path = 's3://%s/%s' % (self._bucket, key)
+        manifest_entry.size = obj.content_length
         manifest_entry.extra = self._extra_from_obj(obj)
 
     @staticmethod
