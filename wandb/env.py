@@ -92,7 +92,7 @@ def should_save_code():
     save_code = _env_as_bool(SAVE_CODE, default=False)
     code_disabled = _env_as_bool(DISABLE_CODE, default=False)
     # SAVE_CODE takes precedence over DISABLE_CODE
-    return save_code or not code_disabled
+    return save_code and not code_disabled
 
 def get_error_reporting(default=True, env=None):
     if env is None:

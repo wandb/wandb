@@ -421,9 +421,9 @@ class Run(object):
 
         # Load global environment vars from viewer flags
         # This should be scoped to entity / project, this work is happening in CLI-NG
-        if self._flags.get("codeSavingEnabled") is not None:
-            if environment.get(env.CODE_SAVE) is None:
-                environment[env.CODE_SAVE] = str(self._flags["codeSavingEnabled"])
+        if self._flags.get("code_saving_enabled") is not None:
+            if environment.get(env.SAVE_CODE) is None:
+                environment[env.SAVE_CODE] = str(self._flags["code_saving_enabled"])
 
         if self.group:
             environment[env.RUN_GROUP] = self.group
