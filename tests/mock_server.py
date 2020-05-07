@@ -83,7 +83,7 @@ def create_app():
                 "data": {
                     "viewer": {
                         "entity": "vanpelt",
-                        "flags": "{}"
+                        "flags": '{"code_saving_enabled": true}'
                     }
                 }
             })
