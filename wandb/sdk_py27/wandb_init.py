@@ -27,7 +27,7 @@ from wandb.old import io_wrap
 from .wandb_run import Run, RunDummy, RunManaged
 from .wandb_settings import Settings
 
-if wandb.TYPE_CHECKING:
+if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional, Union, List, Dict, Any  # noqa: F401
 
 logger = None  # logger configured during wandb.init()

@@ -29,6 +29,9 @@ watch = wandb_sdk.watch
 login = wandb_sdk.login
 Settings = wandb_sdk.Settings
 
+from wandb.apis import InternalApi, PublicApi
+from wandb.errors.error import CommError
+
 from wandb.lib import preinit as _preinit
 from wandb.lib import lazyloader as _lazyloader
 from wandb.errors.term import termlog, termerror, termwarn
@@ -47,6 +50,8 @@ from wandb.data_types import Molecule
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 
+from wandb.wandb_agent import agent
+from wandb.wandb_controller import sweep, controller
 
 from wandb import superagent
 #from wandb.core import *
@@ -61,6 +66,7 @@ def _set_internal_process():
 def _is_internal_process():
     return _IS_INTERNAL_PROCESS
 
+from wandb.lib.ipython import _get_python_type
 
 # toplevel:
 # save()
@@ -70,6 +76,7 @@ def _is_internal_process():
 # agent()
 
 # globals
+Api = PublicApi
 run = None
 config = _preinit.PreInitObject("wandb.config")
 summary = _preinit.PreInitObject("wandb.summary")

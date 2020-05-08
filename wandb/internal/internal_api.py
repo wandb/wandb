@@ -34,7 +34,8 @@ from wandb import env
 from wandb.old.settings import Settings
 from wandb.old import retry
 from wandb import util
-from wandb.apis import normalize_exceptions, CommError, UsageError
+from wandb.apis.normalize import normalize_exceptions
+from wandb.errors.error import CommError, UsageError
 
 from .file_stream import FileStreamApi
 from .progress import Progress

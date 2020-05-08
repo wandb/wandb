@@ -9,3 +9,16 @@ class Error(Exception):
     def encode(self, encoding):
         return self.message
 
+
+class CommError(Error):
+    """Error communicating with W&B"""
+
+    def __init__(self, msg, exc=None):
+        super(CommError, self).__init__(msg)
+        self.message = msg
+        self.exc = exc
+
+
+class UsageError(Error):
+    """API Usage Error"""
+    pass

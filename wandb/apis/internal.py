@@ -1,6 +1,6 @@
-from gql import Client, gql  # type: ignore
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
+from gql import Client, gql
+from gql.client import RetryError
+from gql.transport.requests import RequestsHTTPTransport
 import datetime
 import os
 import requests
@@ -19,9 +19,9 @@ import random
 import traceback
 
 if os.name == 'posix' and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore
+    import subprocess32 as subprocess
 else:
-    import subprocess  # type: ignore[no-redef]
+    import subprocess
 
 import six
 from six import b
@@ -30,7 +30,7 @@ import wandb
 from wandb import __version__
 from wandb.old.core import wandb_dir, Error
 from wandb import env
-#from wandb.git_repo import GitRepo
+from wandb.old.git_repo import GitRepo
 from wandb.old.settings import Settings
 from wandb.old import retry
 from wandb import util
@@ -70,8 +70,7 @@ class Api(object):
         self.default_settings.update(default_settings or {})
         self.retry_uploads = 10
         self._settings = Settings(load_settings=load_settings)
-        #self.git = GitRepo(remote=self.settings("git_remote"))
-        self.git = None
+        self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
             'system_sample_seconds': 2,
@@ -288,6 +287,10 @@ class Api(object):
                 self._settings.get(Settings.DEFAULT_SECTION, "ignore_globs", fallback=result.get('ignore_globs')),
                 env=self._environ),
         })
+        # Remove trailing slash and ensure protocol
+        result['base_url'] = result['base_url'].strip("/")
+        if not result['base_url'].startswith("http"):
+            result['base_url'] = "https://"+result['base_url']
 
         return result if key is None else result[key]
 
@@ -295,6 +298,7 @@ class Api(object):
         self._settings.clear(Settings.DEFAULT_SECTION, key, globally=globally, persist=persist)
 
     def set_setting(self, key, value, globally=False, persist=False):
+        """Sets setting, optionally globally.  By default we do not persist the setting to disk"""
         self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist)
         if key == 'entity':
             env.set_entity(value, env=self._environ)
@@ -678,20 +682,6 @@ class Api(object):
         return response['upsertModel']['model']
 
     @normalize_exceptions
-    def pop_from_run_queue(self, entity=None, project=None):
-        mutation = gql('''
-        mutation popFromRunQueue($entity: String!, $project: String!)  {
-            popFromRunQueue(input: { entityName: $entity, projectName: $project }) {
-                runQueueItemId
-                runSpec
-            }
-        }
-        ''')
-        response = self.gql(mutation, variable_values={
-            'entity': entity, 'project': project})
-        return response['popFromRunQueue']
-
-    @normalize_exceptions
     def upsert_run(self, id=None, name=None, project=None, host=None,
                    group=None, tags=None,
                    config=None, description=None, entity=None, state=None,
@@ -982,6 +972,39 @@ class Api(object):
 
         return path, response
 
+    def upload_file(self, url, file, callback=None, extra_headers={}):
+        """Uploads a file to W&B with failure resumption
+
+        Args:
+            url (str): The url to download
+            file (str): The path to the file you want to upload
+            callback (:obj:`func`, optional): A callback which is passed the number of
+            bytes uploaded since the last time it was called, used to report progress
+
+        Returns:
+            The requests library response object
+        """
+        extra_headers = extra_headers.copy()
+        response = None
+        progress = Progress(file, callback=callback)
+        if progress.len == 0:
+            raise CommError("%s is an empty file" % file.name)
+        try:
+            response = requests.put(
+                url, data=progress, headers=extra_headers)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            status_code = e.response.status_code if e.response != None else 0
+            # Retry errors from cloud storage or local network issues
+            if status_code in (308, 409, 429, 500, 502, 503, 504) or isinstance(e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
+                util.sentry_reraise(retry.TransientException(exc=e))
+            else:
+                util.sentry_reraise(e)
+
+        return response
+
+    upload_file_retry = normalize_exceptions(retry.retriable(num_retries=5)(upload_file))
+
     @normalize_exceptions
     def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
         """Register a new agent
@@ -1208,6 +1231,72 @@ class Api(object):
 
     def get_project(self):
         return self.settings('project')
+
+    @normalize_exceptions
+    def push(self, files, run=None, entity=None, project=None, description=None, force=True, progress=False):
+        """Uploads multiple files to W&B
+
+        Args:
+            files (list or dict): The filenames to upload
+            run (str, optional): The run to upload to
+            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
+            project (str, optional): The name of the project to upload to. Defaults to the one in settings.
+            description (str, optional): The description of the changes
+            force (bool, optional): Whether to prevent push if git has uncommitted changes
+            progress (callable, or stream): If callable, will be called with (chunk_bytes,
+                total_bytes) as argument else if True, renders a progress bar to stream.
+
+        Returns:
+            The requests library response object
+        """
+        if project is None:
+            project = self.get_project()
+        if project is None:
+            raise CommError("No project configured.")
+        if run is None:
+            run = self.current_run_id
+
+        # TODO(adrian): we use a retriable version of self.upload_file() so
+        # will never retry self.upload_urls() here. Instead, maybe we should
+        # make push itself retriable.
+        run_id, upload_headers, result = self.upload_urls(
+            project, files, run, entity, description)
+        extra_headers = {}
+        for upload_header in upload_headers:
+            key, val = upload_header.split(':', 1)
+            extra_headers[key] = val
+        responses = []
+        for file_name, file_info in result.items():
+            file_url = file_info['url']
+
+            # If the upload URL is relative, fill it in with the base URL,
+            # since its a proxied file store like the on-prem VM.
+            if file_url.startswith('/'):
+                file_url = '{}{}'.format(self.api_url, file_url)
+
+            try:
+                # To handle Windows paths
+                # TODO: this doesn't handle absolute paths...
+                normal_name = os.path.join(*file_name.split("/"))
+                open_file = files[file_name] if isinstance(
+                    files, dict) else open(normal_name, "rb")
+            except IOError:
+                print("%s does not exist" % file_name)
+                continue
+            if progress:
+                if hasattr(progress, '__call__'):
+                    responses.append(self.upload_file_retry(
+                        file_url, open_file, progress, extra_headers=extra_headers))
+                else:
+                    length = os.fstat(open_file.fileno()).st_size
+                    with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
+                                           fill_char=click.style('&', fg='green')) as bar:
+                        responses.append(self.upload_file_retry(
+                            file_url, open_file, lambda bites, _: bar.update(bites), extra_headers=extra_headers))
+            else:
+                responses.append(self.upload_file_retry(file_info['url'], open_file, extra_headers=extra_headers))
+            open_file.close()
+        return responses
 
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""

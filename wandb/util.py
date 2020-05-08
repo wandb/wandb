@@ -41,7 +41,7 @@ from wandb.env import error_reporting_enabled
 import wandb
 import wandb.old.core
 from wandb.old.core import wandb_dir
-from wandb.apis import CommError
+from wandb.errors.error import CommError
 # from wandb import wandb_config
 from wandb import env
 
