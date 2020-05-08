@@ -129,14 +129,10 @@ class Artifact(object):
                     entry = ArtifactManifestEntry(
                         logical_path, None, digest=md5_file_b64(physical_path),
                         size=size, local_path=physical_path)
-                    # if not reference:
-                    #     self._upload_callback(artifact, entry)
                     entries.append(entry)
         elif os.path.isfile(path):
             name = name or os.path.basename(path)
             entry = ArtifactManifestEntry(name, None, digest=md5_file_b64(path), local_path=path)
-            # if not reference:
-            #     self._upload_callback(artifact, entry)
             entries.append(entry)
         for entry in entries:
             self._manifest.add_entry(entry)
@@ -363,7 +359,7 @@ class StoragePolicy(ABC):
         pass
 
     @abstractmethod
-    def store_reference(self, artifact, path, name=None, reference=False):
+    def store_reference(self, artifact, path, name=None):
         pass
 
 
@@ -378,13 +374,11 @@ class WandbStoragePolicy(StoragePolicy):
         return cls()
 
     def __init__(self):
-        wandb = WandbFileHandler()
         s3 = S3Handler()
-        file_handler = LocalFileHandler(upload_callback=wandb.upload_callback)
+        file_handler = LocalFileHandler()
 
         self._api = InternalApi()
         self._handler = MultiHandler(handlers=[
-            wandb,
             s3,
             file_handler,
         ], default_handler=TrackingHandler())
@@ -418,7 +412,7 @@ class WandbStoragePolicy(StoragePolicy):
         return self._handler.load_path(artifact, manifest_entry, local=local)
 
     def store_reference(self, artifact, path, name=None):
-        return self._handler.store_path(artifact, path, name=name, reference=True)
+        return self._handler.store_path(artifact, path, name=name)
 
     def load_reference(self, artifact, name, manifest_entry, local=False):
         return self._handler.load_path(artifact, manifest_entry, local)
@@ -466,7 +460,7 @@ class S3BucketPolicy(StoragePolicy):
     def __init__(self, bucket):
         self._bucket = bucket
         s3 = S3Handler(bucket)
-        local = LocalFileHandler(upload_callback=s3.upload_callback)
+        local = LocalFileHandler()
 
         self._handler = MultiHandler(handlers=[
             s3,
@@ -481,8 +475,8 @@ class S3BucketPolicy(StoragePolicy):
     def load_path(self, artifact, manifest_entry, local=False):
         return self._handler.load_path(artifact, manifest_entry, local=local)
 
-    def store_path(self, artifact, path, name=None, reference=False):
-        return self._handler.store_path(artifact, path, name=name, reference=reference)
+    def store_path(self, artifact, path, name=None):
+        return self._handler.store_path(artifact, path, name=name)
 
 
 class TrackingPolicy(StoragePolicy):
@@ -504,8 +498,8 @@ class TrackingPolicy(StoragePolicy):
     def load_path(self, artifact, manifest_entry, local=False):
         return self._handler.load_path(artifact, manifest_entry, local=local)
 
-    def store_path(self, artifact, path, name=None, reference=False):
-        return self._handler.store_path(artifact, path, name=name, reference=reference)
+    def store_path(self, artifact, path, name=None):
+        return self._handler.store_path(artifact, path, name=name)
 
 
 class StorageHandler(ABC):
@@ -532,7 +526,7 @@ class StorageHandler(ABC):
         pass
 
     @abstractmethod
-    def store_path(self, artifact, path, name=None, reference=False):
+    def store_path(self, artifact, path, name=None):
         """
         Stores the file or directory at the given path within the specified artifact.
 
@@ -568,13 +562,13 @@ class MultiHandler(StorageHandler):
             raise ValueError('No storage handler registered for scheme "%s"' % url.scheme)
         return self._handlers[url.scheme].load_path(artifact, manifest_entry, local=local)
 
-    def store_path(self, artifact, path, name=None, reference=False):
+    def store_path(self, artifact, path, name=None):
         url = urlparse(path)
         if url.scheme not in self._handlers:
             if self._handlers is not None:
-                return self._default_handler.store_path(artifact, path, name=name, reference=reference)
+                return self._default_handler.store_path(artifact, path, name=name)
             raise ValueError('No storage handler registered for scheme "%s"' % url.scheme)
-        return self._handlers[url.scheme].store_path(artifact, path, name=name, reference=reference)
+        return self._handlers[url.scheme].store_path(artifact, path, name=name)
 
 
 class TrackingHandler(StorageHandler):
@@ -604,12 +598,8 @@ class TrackingHandler(StorageHandler):
                              (manifest_entry.path, url.scheme))
         return manifest_entry.path
 
-    def store_path(self, artifact, path, name=None, reference=False):
+    def store_path(self, artifact, path, name=None):
         url = urlparse(path)
-        if not reference:
-            raise ValueError('Cannot add file at path %s, scheme %s not recognized' %
-                             (path, url.scheme))
-
         name = name or url.path[1:]  # strip leading slash
         return [ArtifactManifestEntry(name, path, digest=md5_string(path))]
 
@@ -618,13 +608,12 @@ class LocalFileHandler(StorageHandler):
 
     """Handles file:// references"""
 
-    def __init__(self, scheme=None, upload_callback=None):
+    def __init__(self, scheme=None):
         """
         Tracks files or directories on a local filesystem. Directories
         are expanded to create an entry for each file contained within.
         """
         self._scheme = scheme or "file"
-        self._upload_callback = upload_callback or (lambda artifact, entry: None)
 
     @property
     def scheme(self):
@@ -651,7 +640,7 @@ class LocalFileHandler(StorageHandler):
         shutil.copy(local_path, path)
         return path
 
-    def store_path(self, artifact, path, name=None, reference=False):
+    def store_path(self, artifact, path, name=None):
         url = urlparse(path)
         local_path = '%s%s' % (url.netloc, url.path)
         # We have a single file or directory
@@ -677,67 +666,11 @@ class LocalFileHandler(StorageHandler):
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(name, path, digest=md5_file_b64(local_path))
-            if not reference:
-                self._upload_callback(artifact, entry)
             entries.append(entry)
         else:
             # TODO: update error message if we don't allow directories.
             raise ValueError('Path "%s" must be a valid file or directory path' % path)
         return entries
-
-
-class WandbFileHandler(StorageHandler):
-
-    def __init__(self, scheme=None):
-        self._scheme = scheme or "wandb"
-        self._api = InternalApi()
-
-    @property
-    def scheme(self):
-        return self._scheme
-
-    def load_path(self, artifact, manifest_entry, local=False):
-        if not local:
-            return self._file_url(artifact, manifest_entry)
-
-        url = urlparse(manifest_entry.path)
-        path = f'{artifact.artifact_dir}/{url.path}'
-        util.mkdir_exists_ok(os.path.dirname(path))
-        response = requests.get(self._file_url(artifact, manifest_entry),
-                                auth=("api", self._api.api_key),
-                                stream=True)
-        response.raise_for_status()
-
-        with open(path, "wb") as file:
-            for data in response.iter_content(chunk_size=1024):
-                file.write(data)
-        return path
-
-    def store_path(self, artifact, path, name=None, reference=False):
-        # Shouldn't be called. Only local files should be saved.
-        raise NotImplementedError()
-
-    def upload_callback(self, artifact, manifest_entry):
-        # TODO: move this to file_pusher so that we don't block the user process
-        with open(manifest_entry.path, "rb") as file:
-            r = requests.put(self._file_url(artifact, manifest_entry),
-                             auth=("api", self._api.api_key),
-                             stream=True,
-                             headers={
-                                 'Content-Length': str(os.path.getsize(manifest_entry.path)),
-                                 'Content-MD5': manifest_entry.md5,
-                             },
-                             data=file)
-            r.raise_for_status()
-
-        # Prepend the manifest path entry with the 'wandb:/' scheme.
-        # We don't care about storing the physical path in the manifest
-        # entry as files within a wandb artifact are mapped to their name.
-        manifest_entry.path = '%s:/%s' % (self.scheme, manifest_entry.name)
-
-    def _file_url(self, artifact, manifest_entry):
-        base64_md5 = base64.b64encode(manifest_entry.md5.encode('ascii')).decode('ascii')
-        return f'{self._api.settings("base_url")}/artifacts/{artifact.entity}/{artifact.project}/{base64_md5}'
 
 
 class S3Handler(StorageHandler):
@@ -789,12 +722,7 @@ class S3Handler(StorageHandler):
         obj.download_file(path, ExtraArgs=extra_args)
         return path
 
-    def store_path(self, artifact, path, name=None, reference=False):
-        if not reference:
-            # If we wanted to be fancy, we could copy the file. But that could use a
-            # ton of bandwidth and is almost certainly not what the user wants.
-            raise ValueError('Cannot add an s3 path as a file. Use a reference instead.')
-
+    def store_path(self, artifact, path, name=None):
         url = urlparse(path)
         bucket = url.netloc
         key = url.path[1:]  # strip leading slash
