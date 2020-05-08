@@ -398,7 +398,6 @@ class WandbStoragePolicy(StoragePolicy):
             self._file_url(
                 self._api,
                 self._api.settings('entity'),
-                self._api.settings('project'),
                 manifest_entry.digest),
             auth=("api", self._api.api_key),
             stream=True)
@@ -418,25 +417,32 @@ class WandbStoragePolicy(StoragePolicy):
     def load_reference(self, artifact, name, manifest_entry, local=False):
         return self._handler.load_path(artifact, manifest_entry, local)
 
-    def _file_url(self, api, entity_name, project_name, md5):
+    def _file_url(self, api, entity_name, md5, upload=False):
         base64_md5 = base64.b64encode(md5.encode('ascii')).decode('ascii')
-        return f'{api.settings("base_url")}/artifacts/{entity_name}/{project_name}/{base64_md5}'
+        suffix = "/uploadURL" if upload else ""
+        return f'{api.settings("base_url")}/artifacts/{entity_name}/{base64_md5}{suffix}'
 
     def store_file(self, entity_name, project_name, local_path, digest, api):
         # This is the "back half". It's called in run manager, for each local path
         # in the artifact.
-        # TODO: I think we can call this in file pusher...
-        with open(local_path, "rb") as file:
-            r = requests.put(self._file_url(api, entity_name, project_name, digest),
-                             auth=("api", api.api_key),
-                             stream=True,
-                             headers={
-                                 'Content-Length': str(os.path.getsize(local_path)),
-                                 'Content-MD5': digest,
-                             },
-                             data=file)
-            r.raise_for_status()
-        pass
+        r = requests.get(
+            self._file_url(self._api, entity_name, digest, upload=True),
+            auth=("api", self._api.api_key))
+        r.raise_for_status()
+
+        # TODO: this may be best served as a gql API instead of this pseudo-REST jank.
+        resp = r.json()
+        exists, upload_url = resp["exists"], resp["uploadURL"]
+
+        if not exists:
+            upload_headers = {header.split(":", 1)[0]: header.split(":", 1)[1]
+                              for header in (resp["uploadHeaders"] or {})}
+
+            with open(local_path, "rb") as file:
+                r = requests.put(upload_url,
+                                 headers=upload_headers,
+                                 data=file)
+                r.raise_for_status()
 
 
 class S3BucketPolicy(StoragePolicy):
