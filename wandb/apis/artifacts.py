@@ -125,8 +125,10 @@ class Artifact(object):
                     logical_path = os.path.relpath(physical_path, start=path)
                     if name is not None:
                         logical_path = os.path.join(name, logical_path)
+                    size = os.path.getsize(physical_path)
                     entry = ArtifactManifestEntry(
-                        logical_path, None, digest=md5_file_b64(physical_path), local_path=physical_path)
+                        logical_path, None, digest=md5_file_b64(physical_path),
+                        size=size, local_path=physical_path)
                     # if not reference:
                     #     self._upload_callback(artifact, entry)
                     entries.append(entry)
@@ -280,7 +282,10 @@ class ArtifactManifestV1(ArtifactManifest):
 
         entries = {
             name: ArtifactManifestEntry(
-                name, val.get('ref'), val['digest'], val.get('extra'), val.get('local_path'))
+                name, val.get('ref'), val['digest'],
+                size=val.get('size'),
+                extra=val.get('extra'),
+                local_path=val.get('local_path'))
             for name, val in manifest_json['contents'].items()
         }
 
@@ -319,10 +324,11 @@ class ArtifactManifestV1(ArtifactManifest):
 
 class ArtifactManifestEntry(object):
 
-    def __init__(self, name, ref, digest, extra=None, local_path=None):
+    def __init__(self, name, ref, digest, size=None, extra=None, local_path=None):
         self.name = name
         self.ref = ref  # This is None for files stored in the artifact.
         self.digest = digest
+        self.size = size
         self.extra = extra or {}
         # This is not stored in the manifest json, it's only used in the process
         # of saving
@@ -800,11 +806,12 @@ class S3Handler(StorageHandler):
         # TODO: We shouldn't just swallow this error
         try:
             md5 = self._md5_from_obj(obj)
+            size = obj.content_length
             extra = self._extra_from_obj(obj)
         except ClientError:
             pass
 
-        return [ArtifactManifestEntry(name or key, path, md5, extra)]
+        return [ArtifactManifestEntry(name or key, path, md5, size=size, extra=extra)]
 
     def upload_callback(self, artifact, manifest_entry):
         key = self._content_addressed_path(manifest_entry.md5)
@@ -819,6 +826,7 @@ class S3Handler(StorageHandler):
             })
 
         manifest_entry.path = 's3://%s/%s' % (self._bucket, key)
+        manifest_entry.size = obj.content_length
         manifest_entry.extra = self._extra_from_obj(obj)
 
     @staticmethod
