@@ -22,3 +22,5 @@ tb-nightly
 future
 vcrpy>=2.0.0
 pytest-vcr>=1.0.0
+torch
+torchvision
