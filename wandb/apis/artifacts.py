@@ -688,15 +688,23 @@ class LocalFileHandler(StorageHandler):
 class S3Handler(StorageHandler):
 
     def __init__(self, scheme=None):
-        boto3 = util.get_module('boto3', required=True)
-        self._s3 = boto3.resource('s3')
         self._scheme = scheme or "s3"
+        self._s3 = None
 
     @property
     def scheme(self):
         return self._scheme
 
+    def init_boto(self):
+        if self._s3 is not None:
+            return self._s3
+        boto3 = util.get_module('boto3', required=True)
+        self._s3 = boto3.resource('s3')
+        return self._s3
+
     def load_path(self, artifact, manifest_entry, local=False):
+        self.init_boto()
+
         url = urlparse(manifest_entry.ref)
         bucket = url.netloc
         key = url.path[1:]
@@ -735,6 +743,8 @@ class S3Handler(StorageHandler):
         return path
 
     def store_path(self, artifact, path, name=None):
+        self.init_boto()
+
         url = urlparse(path)
         bucket = url.netloc
         key = url.path[1:]  # strip leading slash
