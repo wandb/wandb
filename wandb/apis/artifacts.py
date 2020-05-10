@@ -67,8 +67,8 @@ class Artifact(object):
     LocalArtifactManifestEntry = collections.namedtuple('LocalArtifactManifestEntry', (
         'path', 'hash', 'local_path'))
 
-    def __init__(self, type, name=None, description=None, metadata=None, labels=None,
-                 aliases=None, storage_policy=None):
+    def __init__(self, type, description=None, metadata=None, labels=None,
+                 storage_policy=None):
         self._storage_policy = storage_policy or WandbStoragePolicy()
         self._file_specs = {}
         self._api = InternalApi()
@@ -80,11 +80,9 @@ class Artifact(object):
         self._artifact_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
         self._new_files = []
         self.type = type
-        self.name = name
         self.description = description
         self.metadata = metadata
         self.labels = labels
-        self.aliases = aliases
 
     @property
     def id(self):
@@ -111,31 +109,45 @@ class Artifact(object):
         # Digest will be none if the artifact hasn't been saved yet.
         return self._digest
 
-    def add_file(self, path, name=None):
+    def _ensure_can_add(self):
         if self._final:
             raise ValueError('Can\'t add to finalized artifact.')
 
-        # TODO: might as well make this part of the policy, so it can change digest calculation
-        # if it wants to.
-        entries = []
-        if os.path.isdir(path):
-            for dirpath, _, filenames in os.walk(path, followlinks=True):
-                for fname in filenames:
-                    physical_path = os.path.join(dirpath, fname)
-                    logical_path = os.path.relpath(physical_path, start=path)
-                    if name is not None:
-                        logical_path = os.path.join(name, logical_path)
-                    size = os.path.getsize(physical_path)
-                    entry = ArtifactManifestEntry(
-                        logical_path, None, digest=md5_file_b64(physical_path),
-                        size=size, local_path=physical_path)
-                    entries.append(entry)
-        elif os.path.isfile(path):
-            name = name or os.path.basename(path)
-            entry = ArtifactManifestEntry(name, None, digest=md5_file_b64(path), local_path=path)
-            entries.append(entry)
-        for entry in entries:
-            self._manifest.add_entry(entry)
+    def new_file(self, name):
+        self._ensure_can_add()
+        path = os.path.join(self._artifact_dir.name, name)
+        if os.path.exists(path):
+            raise ValueError('File with name "%s" already exists' % name)
+        util.mkdir_exists_ok(os.path.dirname(path))
+        self._new_files.append((name, path))
+        return open(path, 'w')
+
+    def add_file(self, local_path, name=None):
+        self._ensure_can_add()
+        if not os.path.isfile(local_path):
+            raise ValueError('Path is not file: %s' % local_path)
+
+        name = name or os.path.basename(local_path)
+        entry = ArtifactManifestEntry(
+            name, None, digest=md5_file_b64(local_path), local_path=local_path)
+        self._manifest.add_entry(entry)
+
+    def add_dir(self, local_path, name=None):
+        self._ensure_can_add()
+        if not os.path.isdir(local_path):
+            raise ValueError('Path is not dir: %s' % local_path)
+
+        for dirpath, _, filenames in os.walk(local_path, followlinks=True):
+            for fname in filenames:
+                physical_path = os.path.join(dirpath, fname)
+                logical_path = os.path.relpath(physical_path, start=local_path)
+                if name is not None:
+                    logical_path = os.path.join(name, logical_path)
+                size = os.path.getsize(physical_path)
+                entry = ArtifactManifestEntry(
+                    logical_path, None, digest=md5_file_b64(physical_path),
+                    size=size, local_path=physical_path)
+                self._manifest.add_entry(entry)
 
     def add_reference(self, path, name=None):
         url = urlparse(path)
@@ -147,16 +159,6 @@ class Artifact(object):
             self, path, name=name)
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
-
-    def new_file(self, name):
-        if self._final:
-            raise ValueError('Can\'t add to finalized artifact.')
-        path = os.path.join(self._artifact_dir.name, name)
-        if os.path.exists(path):
-            raise ValueError('File with name "%s" already exists' % name)
-        util.mkdir_exists_ok(os.path.dirname(path))
-        self._new_files.append((name, path))
-        return open(path, 'w')
 
     def load_path(self, name, expand_dirs=False):
         raise ValueError('Cannot load paths from an artifact before it has been saved')
@@ -179,9 +181,9 @@ class Artifact(object):
 
         # Calculate the server manifest
         file_entries = []
-        for artifact_path, local_path in self._file_specs.items():
+        for name, local_path in self._file_specs.items():
             file_entries.append(self.LocalArtifactManifestEntry(
-                artifact_path, md5_file_b64(local_path), os.path.abspath(local_path)))
+                name, md5_file_b64(local_path), os.path.abspath(local_path)))
         self.server_manifest = ServerManifestV1(file_entries)
         self._digest = self.server_manifest.get_digest()
 
@@ -256,7 +258,9 @@ class ArtifactManifest(ABC):
         raise ValueError('Failed to find "%s" in artifact manifest' % path)
 
     def add_entry(self, entry):
-        self.entries[entry.name] = entry
+        if entry.path in self.entries:
+            raise ValueError('Cannot add the same path twice: %s' % entry.path)
+        self.entries[entry.path] = entry
 
 
 class ArtifactManifestV1(ArtifactManifest):
@@ -299,7 +303,7 @@ class ArtifactManifestV1(ArtifactManifest):
         contents.
         """
         contents = {}
-        for entry in sorted(self.entries.values(), key=lambda k: k.name):
+        for entry in sorted(self.entries.values(), key=lambda k: k.path):
             json_entry = {
                 'digest': entry.digest,
             }
@@ -309,7 +313,7 @@ class ArtifactManifestV1(ArtifactManifest):
                 json_entry['extra'] = entry.extra
             if include_local and entry.local_path is not None:
                 json_entry['local_path'] = entry.local_path
-            contents[entry.name] = json_entry
+            contents[entry.path] = json_entry
         return {
             'version': self.__class__.version(),
             'storagePolicy': self.storage_policy.name(),
@@ -320,8 +324,8 @@ class ArtifactManifestV1(ArtifactManifest):
 
 class ArtifactManifestEntry(object):
 
-    def __init__(self, name, ref, digest, size=None, extra=None, local_path=None):
-        self.name = name
+    def __init__(self, path, ref, digest, size=None, extra=None, local_path=None):
+        self.path = path
         self.ref = ref  # This is None for files stored in the artifact.
         self.digest = digest
         self.size = size
@@ -329,6 +333,14 @@ class ArtifactManifestEntry(object):
         # This is not stored in the manifest json, it's only used in the process
         # of saving
         self.local_path = local_path
+
+    def __repr__(self):
+        if self.ref is not None:
+            summary = 'ref: %s' % self.ref
+        else:
+            summary = 'digest: %s' % self.digest
+
+        return "<ManifestEntry %s>" % summary
 
 
 class StoragePolicy(ABC):
@@ -625,7 +637,7 @@ class LocalFileHandler(StorageHandler):
         if not os.path.exists(local_path):
             raise ValueError('Failed to find file at path %s' % path)
 
-        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.name)
+        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.path)
         if os.path.isfile(path):
             md5 = md5_file_b64(path)
             if md5 == manifest_entry.digest:
@@ -706,7 +718,7 @@ class S3Handler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.name)
+        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.path)
 
         # md5 the path, and skip the download if we already have this file.
         # TODO:
@@ -728,16 +740,12 @@ class S3Handler(StorageHandler):
         key = url.path[1:]  # strip leading slash
         obj = self._s3.Object(bucket, key)
 
-        from botocore.errorfactory import ClientError
-        md5 = None
-        extra = None
-        # TODO: We shouldn't just swallow this error
-        try:
-            md5 = self._md5_from_obj(obj)
-            size = obj.content_length
-            extra = self._extra_from_obj(obj)
-        except ClientError:
-            pass
+        # This will cause an exception for auth issues, but it's just a general 400
+        # TODO: Figure out how to confirm the user has bucket permissions ealier,
+        #   and give a nice error if they don't.
+        md5 = self._md5_from_obj(obj)
+        size = obj.content_length
+        extra = self._extra_from_obj(obj)
 
         return [ArtifactManifestEntry(name or key, path, md5, size=size, extra=extra)]
 

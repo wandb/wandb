@@ -204,6 +204,10 @@ class Run(object):
             elif options.get("tensorboard"):
                 self._jupyter_agent.rm.start_tensorboard_watcher(
                     options["tensorboard"]["logdir"], options["tensorboard"]["save"])
+            elif options.get("use_artifact"):
+                self._jupyter_agent.rm.use_artifact(options["use_artifact"])
+            elif options.get("log_artifact"):
+                self._jupyter_agent.rm.log_artifact(options["log_artifact"])
         elif self._run_manager:
             # Running in the wandb process, used for tfevents saving
             if options.get("save_policy"):
@@ -403,9 +407,11 @@ class Run(object):
             return artifact
         else:
             if isinstance(artifact, wandb.Artifact):
-                if artifact.type is None or artifact.name is None:
+                if artifact.type is None:
                     # TODO, we can make nameless artifacts
                     raise ValueError('Artifacts must have a type and name')
+                if name is None:
+                    raise ValueError('You must specify an artifact sequence to add this artifact to by passing name=\'<sequence_name>\'.')
                 entries = artifact.finalize()
                 self.send_message({
                     'use_artifact': {
@@ -423,23 +429,28 @@ class Run(object):
                 # API artifact?
                 raise ValueError('You must pass an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
 
-    def log_artifact(self, artifact):
+    def log_artifact(self, artifact, name=None, aliases=['latest']):
         if not isinstance(artifact, artifacts.Artifact):
             raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
-        if artifact.type is None or artifact.name is None:
+        if artifact.type is None:
             raise ValueError('Artifacts must have a type and name')
+        if name is None:
+            raise ValueError('You must specify an artifact sequence to add this artifact to by passing name=\'<sequence_name>\'.')
+        if isinstance(aliases, str):
+            aliases = [aliases]
+
         artifact.finalize()
         self.send_message({
             'log_artifact': {
                 'type': artifact.type,
-                'name': artifact.name,
+                'name': name,
                 'server_manifest_entries': artifact.server_manifest.entries,
                 'manifest': artifact.manifest.to_manifest_json(include_local=True),
                 'digest': artifact.digest,
                 'description': artifact.description,
                 'metadata': artifact.metadata,
                 'labels': artifact.labels,
-                'aliases': artifact.aliases,
+                'aliases': aliases,
             }
         })
 

@@ -1969,7 +1969,7 @@ class Artifact(object):
     def add_reference(self, path, name=None):
         raise ValueError('Cannot add files to an artifact once it has been saved')
 
-    def load_path(self, name, expand_dirs=False):
+    def get_path(self, name):
         manifest = self._load_manifest()
         storage_policy = manifest.storage_policy
 
@@ -1977,52 +1977,43 @@ class Artifact(object):
         if entry is None:
             raise KeyError('Path not contained in artifact: %s' % name)
 
-        class ArtifactPath:
-
+        class ArtifactEntry(object):
             @staticmethod
-            def local():
+            def download():
                 if entry.ref is not None:
                     return storage_policy.load_reference(self, name, manifest.entries[name], local=True)
 
                 return storage_policy.load_file(self, name, manifest.entries[name])
 
             @staticmethod
-            def remote():
+            def ref():
                 if entry.ref is not None:
                     return storage_policy.load_reference(self, name, manifest.entries[name], local=False)
-                raise ValueError('Only artifact references support remote().')
+                raise ValueError('Only reference entries support ref().')
 
-        return ArtifactPath()
+        return ArtifactEntry()
 
-    # We need this download_l1 because WandbFileHandler calls download. It
-    # sets download_l1 to false to avoid infinite recursion
-    # TODO fix
-    def download(self, download_l1=True):
+    def download(self):
         dirpath = self.artifact_dir
-        if self._is_downloaded:
-            return dirpath
-
-        # ... This API mixes L0 and L1... we need to fix.
-        for f in self.files():
-            local_file_path = os.path.join(dirpath, f.name)
-            if (not os.path.isfile(local_file_path)
-                    or util.md5_file(local_file_path) != f.digest):
-                f.download(root=dirpath, replace=True)
 
         # Force all the files to download into the same directory.
         # Download in parallel
         # TODO: this may not be the right place to do this.
-        if download_l1:
-            import multiprocessing.dummy  # this uses threads
-            pool = multiprocessing.dummy.Pool(16)
-            manifest = self._load_manifest()
-            pool.map(lambda name: self.load_path(name).local(), manifest.entries)
-            pool.close()
-            pool.join()
+        import multiprocessing.dummy  # this uses threads
+        pool = multiprocessing.dummy.Pool(16)
+        manifest = self._load_manifest()
+        pool.map(lambda name: self.get_path(name).download(), manifest.entries)
+        pool.close()
+        pool.join()
 
         # TODO: make sure we clear any extra files
         self._is_downloaded = True
         return dirpath
+
+    # TODO: not yet public, but we probably want something like this.
+    def _list(self):
+        manifest = self._load_manifest()
+        return manifest.entries.keys()
 
     def __repr__(self):
         return "<Artifact {}>".format(self.id)

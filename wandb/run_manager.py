@@ -1533,7 +1533,7 @@ class ArtifactSaver(object):
             # saved. It's weird to have this logic here. So it goes...
             if entry.local_path:
                 self._file_pusher.file_changed(
-                    entry.name, entry.local_path,
+                    entry.path, entry.local_path,
                     artifact_id=self._server_artifact['id'],
                     save_fn=lambda local_path, digest, api: (
                         # We shouldn't be using API settings here.
