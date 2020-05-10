@@ -1,3 +1,17 @@
+## 0.8.36 (May 11, 2020)
+
+#### :bug: Bug Fix
+
+-   Catch all exceptions when saving Jupyter sessions
+-   validation_data automatically set in TF >= 2.2
+-   _implements_\* hooks now implemented in keras callback for TF >= 2.2
+
+#### :nail_care: Enhancement
+
+-   Raw source code saving now disabled by default
+-   We now support global settings on boot to enable code saving on the server
+-   New `code_save=True` argument to wandb.init to enable code saving manually
+
 ## 0.8.35 (May 1, 2020)
 
 #### :bug: Bug Fix
