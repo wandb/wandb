@@ -635,7 +635,7 @@ class LocalFileHandler(StorageHandler):
         url = urlparse(manifest_entry.ref)
         local_path = '%s%s' % (url.netloc, url.path)
         if not os.path.exists(local_path):
-            raise ValueError('Failed to find file at path %s' % path)
+            raise ValueError('Failed to find file at path %s' % local_path)
 
         path = '%s/%s' % (artifact.artifact_dir, manifest_entry.path)
         if os.path.isfile(path):
