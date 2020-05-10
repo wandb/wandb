@@ -280,6 +280,15 @@ class WandbCallback(keras.callbacks.Callback):
                 self.monitor_op = operator.lt
                 self.best = float('inf')
 
+    def _implements_train_batch_hooks(self):
+        return self.log_batch_frequency is not None
+
+    def _implements_test_batch_hooks(self):
+        return self.log_batch_frequency is not None
+
+    def _implements_predict_batch_hooks(self):
+        return self.log_batch_frequency is not None
+
     def set_params(self, params):
         self.params = params
 

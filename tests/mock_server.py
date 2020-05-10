@@ -138,7 +138,7 @@ def create_app():
 
     @app.errorhandler(404)
     def page_not_found(e):
-        print("Got request to: %s" % e)
+        print("Got request to: %s" % request.url)
         return "Not Found", 404
 
     return app
